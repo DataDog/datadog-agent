@@ -86,6 +86,27 @@ pub enum ProcessOrigin {
     Runtime,
 }
 
+/// Why a respawn was skipped by a closed start condition, and what recovering
+/// it still owes the restart accounting.
+///
+/// Reload needs the skip *reason*, not the state: `Exited`, `Failed`, and
+/// `Stopped` are also reached by a completed one-shot, a policy mismatch, the
+/// burst limit, a failed spawn, and an operator stop, none of which an
+/// unrelated reload may restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RestartBlock {
+    /// No respawn was skipped for a closed condition.
+    None,
+    /// Skipped at exit time, before `handle_restart` recorded the restart,
+    /// because the gate is checked first so that a closed gate consumes no
+    /// burst budget. Recovery owes that recording.
+    AccountingOwed,
+    /// Skipped once the restart had already been recorded (the backoff
+    /// re-check), or for a respawn that is not a restart at all (the reload of
+    /// a running process). Recovery must not record anything.
+    AlreadyAccounted,
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -98,11 +119,8 @@ pub struct ManagedProcess {
     restarts: RestartTracker,
     stop_requested: bool,
     /// Set only where a respawn was skipped because a start condition was
-    /// closed, and cleared in `spawn()`. Reload needs the skip *reason*, not
-    /// the state: `Exited`, `Failed`, and `Stopped` are also reached by a
-    /// completed one-shot, a policy mismatch, the burst limit, a failed spawn,
-    /// and an operator stop, none of which an unrelated reload may restart.
-    restart_blocked_by_conditions: bool,
+    /// closed, and cleared in `spawn()`.
+    restart_block: RestartBlock,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
@@ -142,7 +160,7 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             stop_requested: false,
-            restart_blocked_by_conditions: false,
+            restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
             #[cfg(windows)]
@@ -298,11 +316,42 @@ impl ManagedProcess {
     /// only ever be set right after a `may_respawn()` check fails.
     #[must_use]
     pub(crate) fn restart_blocked_by_conditions(&self) -> bool {
-        self.restart_blocked_by_conditions
+        self.restart_block != RestartBlock::None
     }
 
-    pub(crate) fn mark_restart_blocked_by_conditions(&mut self) {
-        self.restart_blocked_by_conditions = true;
+    /// Records a respawn skipped by a closed condition that needs no further
+    /// accounting: the backoff re-check, where `handle_restart` already
+    /// recorded the restart, and the reload of a running process, which is not
+    /// a restart-policy respawn at all. The exit-time skip is marked inside
+    /// `handle_restart`, which is the only case that owes a recording.
+    pub(crate) fn mark_restart_blocked_already_accounted(&mut self) {
+        self.restart_block = RestartBlock::AlreadyAccounted;
+    }
+
+    /// Whether the restart burst budget is currently spent. `handle_restart`
+    /// checks the gate before the limit, so a crash behind a closed gate
+    /// consumes no budget and records nothing. Recovery therefore has to
+    /// consult the limit itself, or a gate flap hands back a restart the limit
+    /// had already refused.
+    #[must_use]
+    pub(crate) fn restart_burst_exhausted(&self) -> bool {
+        self.restarts
+            .is_burst_limited(self.config.burst_limit(), self.config.burst_interval())
+    }
+
+    /// Accounts for a restart that a closed gate skipped before it could be
+    /// recorded. Call immediately before respawning a recovered process, and
+    /// after the burst budget has been checked, since this spends from it.
+    ///
+    /// The backoff is deliberately not advanced: a recovered process spawns
+    /// immediately rather than waiting out a delay, so there is no delay to
+    /// grow.
+    pub(crate) fn record_recovered_restart(&mut self) {
+        if self.restart_block != RestartBlock::AccountingOwed {
+            return;
+        }
+        self.restarts
+            .record(self.config.restart_delay(), self.config.runtime_success());
     }
 
     #[must_use]
@@ -319,9 +368,9 @@ impl ManagedProcess {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.stop_requested = false;
-        // The single clear site, which is what keeps the flag from going
+        // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
-        self.restart_blocked_by_conditions = false;
+        self.restart_block = RestartBlock::None;
         self.transition_to(ProcessState::Starting);
         match self.try_spawn() {
             Ok(handle) => {
@@ -524,7 +573,7 @@ impl ManagedProcess {
         // burst budget nor advances the backoff.
         if !self.may_respawn() {
             info!("[{}] start conditions not met, not restarting", self.name);
-            self.restart_blocked_by_conditions = true;
+            self.restart_block = RestartBlock::AccountingOwed;
             return None;
         }
 

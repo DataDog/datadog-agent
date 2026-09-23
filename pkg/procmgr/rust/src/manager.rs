@@ -176,7 +176,7 @@ impl ProcessManager {
         // backoff delay, so re-check it here.
         if !proc.may_respawn() {
             info!("[{name}] restart skipped: start conditions not met");
-            proc.mark_restart_blocked_by_conditions();
+            proc.mark_restart_blocked_already_accounted();
             return;
         }
         if let Err(e) = proc.spawn(exit_tx.clone()) {
@@ -350,7 +350,7 @@ impl ProcessManager {
                 proc.wait_for_stop().await;
                 if !proc.may_respawn() {
                     info!("[{name}] not restarting after reload: start conditions not met");
-                    proc.mark_restart_blocked_by_conditions();
+                    proc.mark_restart_blocked_already_accounted();
                     continue;
                 }
                 info!("[{name}] restarting with updated config");
@@ -380,6 +380,9 @@ impl ProcessManager {
         // keys off the recorded skip reason rather than the state.
         // `may_respawn`, not `should_start`: `auto_start` governs boot only, so
         // consulting it here would strand a manually started process forever.
+        // The burst limit is re-checked because a crash behind a closed gate
+        // spends no budget, so the flag can outlive a budget earlier crashes
+        // already exhausted.
         {
             let candidates: std::collections::HashSet<&str> = unchanged
                 .iter()
@@ -396,7 +399,9 @@ impl ProcessManager {
                 let eligible = match proc.state() {
                     ProcessState::Created => proc.has_start_conditions() && proc.should_start(),
                     ProcessState::Exited | ProcessState::Failed | ProcessState::Stopped => {
-                        proc.restart_blocked_by_conditions() && proc.may_respawn()
+                        proc.restart_blocked_by_conditions()
+                            && proc.may_respawn()
+                            && !proc.restart_burst_exhausted()
                     }
                     _ => false,
                 };
@@ -405,6 +410,9 @@ impl ProcessManager {
                 }
                 let name = proc.name().to_owned();
                 info!("[{name}] start conditions now met after reload, starting");
+                // After the burst check above, since this spends from the
+                // budget, and before `spawn`, which clears the skip reason.
+                proc.record_recovered_restart();
                 if let Err(e) = proc.spawn(exit_tx.clone()) {
                     warn!("[{name}] failed to start after gate re-eval: {e:#}");
                 }
@@ -1366,7 +1374,7 @@ mod tests {
             assert!(mgr.processes().await[0].is_running());
 
             // The gate closes before the crash is handled, so `handle_restart`
-            // skips without queueing a backoff.
+            // skips without queueing a backoff or recording the restart.
             write_agent_yaml(dir.path(), false);
             crash(&mgr, "gated-svc", &restart_tx).await;
             assert!(
@@ -1374,6 +1382,11 @@ mod tests {
                 "a closed gate must not queue a restart"
             );
             assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                0,
+                "a skipped restart must not consume burst budget"
+            );
 
             write_agent_yaml(dir.path(), true);
             let result = mgr.handle_reload_config(&exit_tx).await?;
@@ -1382,6 +1395,11 @@ mod tests {
             assert!(
                 mgr.processes().await[0].is_running(),
                 "reload must restart a process the closed gate stranded at exit"
+            );
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "recovering an exit-time skip owes the restart accounting the gate deferred"
             );
 
             cleanup_first_process(&mgr).await;
@@ -1397,17 +1415,19 @@ mod tests {
                 uuid_gen(),
             );
             let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
 
             mgr.start(&exit_tx).await;
-            let pid = mgr.processes().await[0].pid().unwrap();
 
-            // The exit is recorded with the gate still open, so the restart is
-            // queued; the gate then closes during the backoff delay.
-            {
-                let mut procs = mgr.processes.write().await;
-                procs[0].set_last_status(exit_status(false));
-            }
-            test_helpers::cleanup_process(pid);
+            // The crash is handled with the gate still open, so `handle_restart`
+            // records the restart and queues it. The gate then closes before the
+            // backoff fires.
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "the exit-time decision recorded this restart"
+            );
             write_agent_yaml(dir.path(), false);
             mgr.complete_restart("gated-svc", &exit_tx).await;
             assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
@@ -1419,7 +1439,15 @@ mod tests {
                 mgr.processes().await[0].is_running(),
                 "reload must restart a process whose gate closed during the backoff"
             );
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "this restart was already accounted for at exit, so recovery must not count it twice"
+            );
 
+            // The queued restart is dropped rather than delivered, which is the
+            // condition this recovery exists to undo.
+            let _ = restart_rx.try_recv();
             cleanup_first_process(&mgr).await;
             Ok(())
         }
@@ -1581,6 +1609,43 @@ mod tests {
             let (cmd, args) = test_helpers::sleep_cmd(test_helpers::TEST_SLEEP_SECS);
             std::fs::write(path, format!("#!/bin/sh\nexec {cmd} {}\n", args.join(" "))).unwrap();
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        /// The gate check runs before the burst limit, so a crash behind a closed
+        /// gate consumes no budget and records no restart. Recovery must therefore
+        /// re-check the budget itself, or a gate flap hands back a restart the
+        /// burst limit had already spent.
+        #[tokio::test]
+        async fn test_reload_does_not_bypass_burst_limit_after_gate_flap() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mut def = gated_on_failure_sleep_def("crasher", &yaml);
+            def.config.start_limit_burst = Some(1);
+            def.config.start_limit_interval_sec = Some(3600);
+            let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, _restart_rx) = mpsc::channel::<String>(8);
+
+            // One crash with the gate open spends the whole budget.
+            mgr.start(&exit_tx).await;
+            crash(&mgr, "crasher", &restart_tx).await;
+            assert_eq!(mgr.processes().await[0].restart_count(), 1);
+
+            // The next crash finds the gate closed, so it is attributed to the
+            // gate and leaves the spent budget untouched.
+            mgr.handle_start("crasher", &exit_tx).await?;
+            write_agent_yaml(dir.path(), false);
+            crash(&mgr, "crasher", &restart_tx).await;
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                !mgr.processes().await[0].is_running(),
+                "recovery must not hand back a restart the burst limit already refused"
+            );
+            Ok(())
         }
 
         #[tokio::test]
