@@ -4,10 +4,13 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "foldspace",
     srcs = [
+        "codec.go",
         "core.go",
         "core_stub.go",
+        "destinations.go",
         "driver.go",
         "fake_core.go",
+        "grpc.go",
         "transport.go",
         "types.go",
     ],
@@ -17,23 +20,39 @@ go_library(
         "//comp/logs-library/metrics",
         "//comp/logs-library/processor",
         "//comp/logs-library/sender",
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
         "//pkg/logs/message",
         "//pkg/util/log",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//encoding",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//encoding/protowire",
     ],
 )
 
 dd_agent_go_test(
     name = "foldspace_test",
     srcs = [
+        "destinations_test.go",
         "driver_test.go",
+        "grpc_test.go",
     ],
     embed = [":foldspace"],
     deps = [
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
+        "//pkg/config/mock",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//test/bufconn",
     ],
 )
