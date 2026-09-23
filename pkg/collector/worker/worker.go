@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -59,6 +61,7 @@ type Worker struct {
 	haAgent                 haagent.Component
 	watchdogWarningTimeout  time.Duration
 	isShadowWorker          bool
+	clock                   clock.Clock
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -158,6 +161,7 @@ func newWorkerWithOptions(
 		utilizationTickInterval: utilizationTickInterval,
 		watchdogWarningTimeout:  watchdogWarningTimeout,
 		isShadowWorker:          isShadowWorker,
+		clock:                   clock.New(),
 	}, nil
 }
 
@@ -168,11 +172,11 @@ func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d, shadow: %t: Ready to process checks...", w.runnerID, w.ID, w.isShadowWorker)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
-	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
+	utilizationTracker := utilizationtracker.NewUtilizationTrackerWithClock(w.utilizationTickInterval, w.clock, alpha)
 	defer utilizationTracker.Stop()
 
 	startUtilizationUpdater(w, utilizationTracker)
-	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
+	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval, w.clock)
 	defer cancel()
 
 	for check := range w.pendingChecksChan {
@@ -316,8 +320,8 @@ func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracke
 	}()
 }
 
-func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration) func() {
-	ticker := time.NewTicker(interval)
+func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration, clk clock.Clock) func() {
+	ticker := clk.Ticker(interval)
 	cancel := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {

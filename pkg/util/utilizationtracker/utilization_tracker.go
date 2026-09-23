@@ -68,17 +68,17 @@ func NewUtilizationTracker(
 	interval time.Duration,
 	alpha float64,
 ) *UtilizationTracker {
-	return newUtilizationTrackerWithClock(
+	return NewUtilizationTrackerWithClock(
 		interval,
 		clock.New(),
 		alpha,
 	)
 }
 
-// newUtilizationTrackerWithClock is primarely used for testing.
-// Does not start the background goroutines, so that the tests can call update() to get
-// deterministic results.
-func newUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alpha float64) *UtilizationTracker {
+// NewUtilizationTrackerWithClock instantiates a tracker driven by the given clock,
+// so that callers (tests, or callers that need to coordinate their own tick timing
+// deterministically) can control the passage of time.
+func NewUtilizationTrackerWithClock(interval time.Duration, clk clock.Clock, alpha float64) *UtilizationTracker {
 	ut := &UtilizationTracker{
 		clock: clk,
 

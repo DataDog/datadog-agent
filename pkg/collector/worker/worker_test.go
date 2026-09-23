@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -317,6 +318,9 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 	blockingCheck.Lock()
 	longRunningCheck.Lock()
 
+	const tickInterval = 100 * time.Millisecond
+	clk := clock.NewMock()
+
 	worker, err := newWorkerWithOptions(
 		1,
 		2,
@@ -325,11 +329,12 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		mockShouldAddStatsFunc,
 		func() (sender.Sender, error) { return nil, nil },
 		haagentmock.NewMockHaAgent(),
-		100*time.Millisecond,
+		tickInterval,
 		10*time.Second,
 		false,
 	)
 	require.Nil(t, err)
+	worker.clock = clk
 
 	wg.Add(1)
 	go func() {
@@ -355,10 +360,16 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	pendingChecksChan <- blockingCheck
 
+	// Wait for the worker to have picked up the check (and so, called
+	// utilizationTracker.Started) before advancing the clock, so that every
+	// tick we feed the tracker counts towards busy time.
+	require.Eventually(t, func() bool { return blockingCheck.RunCount() == 1 }, time.Second, time.Millisecond)
+	advanceUtilizationTicks(clk, tickInterval, 40) // alpha=0.25 converges to 99.98% in 30 iterations
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
 		assert.False(c, getWorkerExcludedExpvar(c, "worker_2"))
-	}, 2*time.Second, 200*time.Millisecond)
+	}, time.Second, 10*time.Millisecond)
 
 	monitor := NewUtilizationMonitor(0.8)
 	utilizations, err := monitor.GetAllWorkerUtilizations()
@@ -373,10 +384,13 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 	pendingChecksChan <- longRunningCheck
 
+	require.Eventually(t, func() bool { return longRunningCheck.RunCount() == 1 }, time.Second, time.Millisecond)
+	advanceUtilizationTicks(clk, tickInterval, 40)
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
 		assert.True(c, getWorkerExcludedExpvar(c, "worker_2"))
-	}, 2*time.Second, 200*time.Millisecond)
+	}, time.Second, 10*time.Millisecond)
 
 	utilizations, err = monitor.GetAllWorkerUtilizations()
 	require.NoError(t, err)
@@ -674,6 +688,9 @@ func TestShadowWorkerExcludedFromUtilizationAggregate(t *testing.T) {
 	blockingCheck := newCheck(t, "testing:123", false, nil)
 	blockingCheck.Lock()
 
+	const tickInterval = 100 * time.Millisecond
+	clk := clock.NewMock()
+
 	worker, err := newWorkerWithOptions(
 		1,
 		2,
@@ -682,11 +699,12 @@ func TestShadowWorkerExcludedFromUtilizationAggregate(t *testing.T) {
 		mockShouldAddStatsFunc,
 		func() (sender.Sender, error) { return nil, nil },
 		haagentmock.NewMockHaAgent(),
-		100*time.Millisecond,
+		tickInterval,
 		10*time.Second,
 		true, // isShadowWorker
 	)
 	require.NoError(t, err)
+	worker.clock = clk
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -702,10 +720,16 @@ func TestShadowWorkerExcludedFromUtilizationAggregate(t *testing.T) {
 
 	pendingChecksChan <- blockingCheck
 
+	// Wait for the worker to have picked up the check (and so, called
+	// utilizationTracker.Started) before advancing the clock, so that every
+	// tick we feed the tracker counts towards busy time.
+	require.Eventually(t, func() bool { return blockingCheck.RunCount() == 1 }, time.Second, time.Millisecond)
+	advanceUtilizationTicks(clk, tickInterval, 40) // alpha=0.25 converges to 99.98% in 30 iterations
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, worker.Name), 1, 0.05)
 		assert.True(c, getWorkerExcludedExpvar(c, worker.Name))
-	}, 2*time.Second, 200*time.Millisecond)
+	}, time.Second, 10*time.Millisecond)
 
 	monitor := NewUtilizationMonitor(0.8)
 	utilizations, err := monitor.GetAllWorkerUtilizations()
@@ -920,6 +944,15 @@ func getWorkerExcludedExpvar(c *assert.CollectT, name string) bool {
 	require.NotNil(c, workerStats)
 
 	return workerStats.Excluded
+}
+
+// advanceUtilizationTicks feeds n ticks of the given interval to a mock clock,
+// one at a time, so that the utilization tracker's ticker goroutine has a
+// chance to drain each one before the next is generated.
+func advanceUtilizationTicks(clk *clock.Mock, interval time.Duration, n int) {
+	for i := 0; i < n; i++ {
+		clk.Add(interval)
+	}
 }
 
 func TestWorkerWatchdogWarningLog(t *testing.T) {
