@@ -17,7 +17,6 @@ import (
 
 	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
@@ -435,7 +434,7 @@ func postInstallDDOTExtension(ctx HookContext) error {
 		return fmt.Errorf("DDOT binary not found at %s: %w", binaryPath, err)
 	}
 
-	if env.FromEnv().ProcessManagerEnabled {
+	if isProcessManagerEnabledInConfig() {
 		if err := processmanager.WriteDDOTProcmgrConfig(packagePath); err != nil {
 			return fmt.Errorf("failed to write DDOT process manager config: %w", err)
 		}
@@ -466,7 +465,7 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	if err := processmanager.RemoveDDOTProcmgrConfig(packagePath); err != nil {
 		log.Warnf("failed to remove DDOT process manager config: %v", err)
 	}
-	if env.FromEnv().ProcessManagerEnabled {
+	if isProcessManagerEnabledInConfig() {
 		processmanager.ReloadOrRestartProcmgr()
 	}
 	if err := stopServiceIfExists(otelServiceName); err != nil {

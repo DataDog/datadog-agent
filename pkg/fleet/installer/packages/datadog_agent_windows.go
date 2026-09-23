@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -66,11 +68,10 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	watchdogStopEventName       = "Global\\DatadogInstallerStop"
-	oldInstallerDir             = "C:\\ProgramData\\Datadog Installer"
-	parServiceName              = "datadog-agent-action"
-	ddProcmgrServiceName        = "dd-procmgr-service"
-	datadogInstallerServiceName = "Datadog Installer"
+	watchdogStopEventName = "Global\\DatadogInstallerStop"
+	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
+	parServiceName        = "datadog-agent-action"
+	ddProcmgrServiceName  = "dd-procmgr-service"
 )
 
 // getExtensionStoragePath returns the path where extension lists should be stored.
@@ -148,7 +149,7 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	}
 
 	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
-	if err := persistProcessManagerEnv(processManagerEnabled); err != nil {
+	if err := writeProcessManagerEnabledToConfig(processManagerEnabled); err != nil {
 		return fmt.Errorf("failed to persist process manager selection: %w", err)
 	}
 	for _, cfg := range procmgrConfigs {
@@ -1132,7 +1133,10 @@ func SetProcessManager(ctx context.Context, enabled bool) (err error) {
 	span.SetTag("enabled", enabled)
 	defer func() { span.Finish(err) }()
 
-	previouslyEnabled := env.FromEnv().ProcessManagerEnabled
+	previouslyEnabled, err := readProcessManagerEnabledFromConfig()
+	if err != nil {
+		return fmt.Errorf("failed to read current process manager selection: %w", err)
+	}
 	if previouslyEnabled == enabled {
 		return nil
 	}
@@ -1160,51 +1164,74 @@ func SetProcessManager(ctx context.Context, enabled bool) (err error) {
 		return errors.Join(err, unwind())
 	}
 
-	pendingActions = append(pendingActions, func() error { return persistProcessManagerEnv(previouslyEnabled) })
-	if err = persistProcessManagerEnv(enabled); err != nil {
+	pendingActions = append(pendingActions, func() error { return writeProcessManagerEnabledToConfig(previouslyEnabled) })
+	if err = writeProcessManagerEnabledToConfig(enabled); err != nil {
 		return errors.Join(err, unwind())
 	}
 
 	return nil
 }
 
-func persistProcessManagerEnv(enabled bool) error {
-	key, err := registry.OpenKey(
-		registry.LOCAL_MACHINE,
-		`SYSTEM\CurrentControlSet\Services\`+datadogInstallerServiceName,
-		registry.QUERY_VALUE|registry.SET_VALUE,
-	)
+func processManagerDatadogYAMLPath() string {
+	return filepath.Join(paths.DatadogDataDir, "datadog.yaml")
+}
+
+func isProcessManagerEnabledInConfig() bool {
+	enabled, err := readProcessManagerEnabledFromConfig()
 	if err != nil {
-		return fmt.Errorf("failed to open %s service registry key: %w", datadogInstallerServiceName, err)
+		log.Warnf("could not read process_manager.enabled from datadog.yaml, defaulting to enabled: %v", err)
+		return true
 	}
-	defer key.Close()
+	return enabled
+}
 
-	existing, _, err := key.GetStringsValue("Environment")
-	if err != nil && !errors.Is(err, registry.ErrNotExist) {
-		return fmt.Errorf("failed to read %s service Environment value: %w", datadogInstallerServiceName, err)
-	}
-
-	updated := make([]string, 0, len(existing)+1)
-	for _, e := range existing {
-		if strings.HasPrefix(e, env.EnvProcessManagerEnabled+"=") {
-			continue
+func readProcessManagerEnabledFromConfig() (bool, error) {
+	data, err := os.ReadFile(processManagerDatadogYAMLPath())
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return true, nil
 		}
-		updated = append(updated, e)
+		return false, fmt.Errorf("failed to read datadog.yaml: %w", err)
 	}
-	if !enabled {
-		updated = append(updated, fmt.Sprintf("%s=%t", env.EnvProcessManagerEnabled, enabled))
+	var existing map[string]any
+	if err := yaml.Unmarshal(data, &existing); err != nil {
+		return false, fmt.Errorf("failed to parse datadog.yaml: %w", err)
 	}
+	section, ok := existing["process_manager"].(map[string]any)
+	if !ok {
+		return true, nil
+	}
+	enabled, ok := section["enabled"].(bool)
+	if !ok {
+		return true, nil
+	}
+	return enabled, nil
+}
 
-	if len(updated) == 0 {
-		if err := key.DeleteValue("Environment"); err != nil && !errors.Is(err, registry.ErrNotExist) {
-			return err
+func writeProcessManagerEnabledToConfig(enabled bool) error {
+	datadogYamlPath := processManagerDatadogYAMLPath()
+	data, err := os.ReadFile(datadogYamlPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to read datadog.yaml: %w", err)
+	}
+	var existing map[string]any
+	if len(data) > 0 {
+		if err := yaml.Unmarshal(data, &existing); err != nil {
+			return fmt.Errorf("failed to parse datadog.yaml: %w", err)
 		}
-	} else if err := key.SetStringsValue("Environment", updated); err != nil {
-		return err
 	}
-
-	if enabled {
-		return os.Unsetenv(env.EnvProcessManagerEnabled)
+	if existing == nil {
+		existing = map[string]any{}
 	}
-	return os.Setenv(env.EnvProcessManagerEnabled, "false")
+	section, ok := existing["process_manager"].(map[string]any)
+	if !ok {
+		section = map[string]any{}
+	}
+	section["enabled"] = enabled
+	existing["process_manager"] = section
+	updated, err := yaml.Marshal(existing)
+	if err != nil {
+		return fmt.Errorf("failed to serialize datadog.yaml: %w", err)
+	}
+	return os.WriteFile(datadogYamlPath, updated, 0o640)
 }
