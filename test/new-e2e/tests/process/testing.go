@@ -317,17 +317,84 @@ func matchContainerName(container *agentmodel.Container, name string) bool {
 	return false
 }
 
+// The manual check output is produced by running encoding/json over the protobuf payload structs
+// (see pkg/cli/subcommands/processchecks). encoding/json marshals a protobuf oneof as the generated
+// wrapper struct, nested under the Go name of the oneof field, but it cannot unmarshal it back: the
+// field is typed as an unexported interface (e.g. process.isResource_Resource). Decoding a payload
+// straight into agentmodel.Process therefore fails as soon as a oneof in it is populated, so the
+// types below mirror the payload with the oneofs spelled out, and rebuild the wrappers afterwards.
+
+// processJSON decodes an agentmodel.Process. The embedded value covers every field except
+// serviceDiscovery, which the shallower field shadows so that it decodes into the mirror type.
+type processJSON struct {
+	agentmodel.Process
+	ServiceDiscovery *serviceDiscoveryJSON `json:"serviceDiscovery"`
+}
+
+// serviceDiscoveryJSON decodes an agentmodel.ServiceDiscovery, shadowing the resources which hold
+// the oneof.
+type serviceDiscoveryJSON struct {
+	agentmodel.ServiceDiscovery
+	Resources []*resourceJSON `json:"resources"`
+}
+
+// resourceJSON decodes an agentmodel.Resource. The oneof field carries no json tag, so it is
+// written under its Go name, with the wrapper struct of whichever variant is set as its value.
+// Logs is the only variant today; a variant added later decodes to an empty resource, which is
+// harmless as the assertions do not read service discovery resources.
+type resourceJSON struct {
+	Resource struct {
+		Logs *agentmodel.LogResource `json:"logs"`
+	} `json:"Resource"`
+}
+
+func (p *processJSON) toProcess() *agentmodel.Process {
+	proc := p.Process
+	if p.ServiceDiscovery != nil {
+		proc.ServiceDiscovery = p.ServiceDiscovery.toServiceDiscovery()
+	}
+	return &proc
+}
+
+func (s *serviceDiscoveryJSON) toServiceDiscovery() *agentmodel.ServiceDiscovery {
+	serviceDiscovery := s.ServiceDiscovery
+	for _, resource := range s.Resources {
+		serviceDiscovery.Resources = append(serviceDiscovery.Resources, resource.toResource())
+	}
+	return &serviceDiscovery
+}
+
+func (r *resourceJSON) toResource() *agentmodel.Resource {
+	if r.Resource.Logs == nil {
+		return &agentmodel.Resource{}
+	}
+	return &agentmodel.Resource{Resource: &agentmodel.Resource_Logs{Logs: r.Resource.Logs}}
+}
+
+// unmarshalManualProcessCheck decodes the processes reported by the manual process check
+func unmarshalManualProcessCheck(check string) ([]*agentmodel.Process, error) {
+	var checkOutput struct {
+		Processes []*processJSON `json:"processes"`
+	}
+
+	if err := json.Unmarshal([]byte(check), &checkOutput); err != nil {
+		return nil, err
+	}
+
+	procs := make([]*agentmodel.Process, 0, len(checkOutput.Processes))
+	for _, proc := range checkOutput.Processes {
+		procs = append(procs, proc.toProcess())
+	}
+	return procs, nil
+}
+
 // assertManualProcessCheck asserts that the given process is collected and reported in the output
 // of the manual process check
 func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool, process string, expectedContainers ...string) {
-	var checkOutput struct {
-		Processes []*agentmodel.Process `json:"processes"`
-	}
-
-	err := json.Unmarshal([]byte(check), &checkOutput)
+	checkProcs, err := unmarshalManualProcessCheck(check)
 	require.NoError(t, err, "failed to unmarshal process check output")
 
-	procs := filterProcesses(process, checkOutput.Processes)
+	procs := filterProcesses(process, checkProcs)
 	require.NotEmpty(t, procs, "'%s' process not found in check:\n%s\n", process, check)
 
 	assertProcesses(t, procs, withIOStats, process)
