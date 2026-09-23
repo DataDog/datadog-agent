@@ -5,6 +5,4 @@ enhancements:
     ``processes.d/datadog-agent-action.yaml``, the Private Action Runner is supervised by
     dd-procmgr instead of the legacy ``datadog-agent-action`` Windows service. When the
     processes.d definition is absent or process manager is disabled, the Agent continues
-    to start PAR via SCM when ``private_action_runner.enabled`` is true. If
-    ``dd-procmgr-service`` does not start, the Agent falls back to the legacy Windows
-    service rather than leaving PAR unsupervised.
+    to start PAR via SCM when ``private_action_runner.enabled`` is true.
