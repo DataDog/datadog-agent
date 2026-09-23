@@ -8,12 +8,9 @@ package authoredscripts
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"runtime"
 	"strings"
 	"sync"
-
-	"github.com/google/go-containerregistry/pkg/name"
 
 	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
 	fleetcatalogrc "github.com/DataDog/datadog-agent/pkg/fleet/catalog/remoteconfig"
@@ -44,9 +41,6 @@ type remoteCatalog struct {
 }
 
 func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
-	if c == nil {
-		return errors.New("authored-script remote catalog is not configured")
-	}
 	if err := next.Validate(); err != nil {
 		return fmt.Errorf("invalid package catalog: %w", err)
 	}
@@ -75,9 +69,6 @@ func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
 }
 
 func (c *remoteCatalog) Lookup(fqn string) (Descriptor, error) {
-	if c == nil {
-		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, fqn)
-	}
 	if !strings.HasPrefix(fqn, authoredScriptPackagePrefix) || len(fqn) == len(authoredScriptPackagePrefix) {
 		return Descriptor{}, fmt.Errorf("%w: %q", ErrPackageNotConfigured, fqn)
 	}
@@ -103,27 +94,10 @@ func validateRemotePackage(pkg fleetcatalog.Package) error {
 	if pkg.Name != strings.ToLower(pkg.Name) {
 		return errors.New("package name must be lowercase")
 	}
-	parsedURL, err := url.Parse(pkg.URL)
-	if err != nil {
-		return fmt.Errorf("could not parse OCI URL: %w", err)
-	}
-	if parsedURL.Scheme != "oci" {
-		return fmt.Errorf("package URL uses unsupported scheme %q", parsedURL.Scheme)
-	}
-	if parsedURL.User != nil {
-		return errors.New("OCI URL must not contain user information")
-	}
-	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
-		return errors.New("OCI URL must not contain a query or fragment")
-	}
-
-	reference, err := name.NewDigest(strings.TrimPrefix(pkg.URL, "oci://"), name.StrictValidation)
-	if err != nil {
-		return fmt.Errorf("package URL must contain a valid immutable OCI digest: %w", err)
-	}
-	expectedDigest := "sha256:" + pkg.SHA256
-	if reference.DigestStr() != expectedDigest {
-		return fmt.Errorf("OCI reference digest %q does not match expected digest %q", reference.DigestStr(), expectedDigest)
-	}
-	return nil
+	return (Descriptor{
+		Package: pkg.Name,
+		Version: pkg.Version,
+		URL:     pkg.URL,
+		SHA256:  pkg.SHA256,
+	}).Validate()
 }

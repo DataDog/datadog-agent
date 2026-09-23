@@ -10,6 +10,8 @@ dd_agent_go_test(
         "infra_ccm_nix_test.go",
         "infra_eudm_common_test.go",
         "infra_eudm_win_test.go",
+        "infra_none_common_test.go",
+        "infra_none_nix_test.go",
         "infra_utils_test.go",
     ],
     data = [

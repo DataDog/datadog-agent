@@ -43,6 +43,7 @@ dd_agent_go_test(
     ],
     embed = [":dockerpermissions"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/mock",
         "//comp/healthplatform/issues",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

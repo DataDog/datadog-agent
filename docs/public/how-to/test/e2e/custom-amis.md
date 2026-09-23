@@ -36,24 +36,29 @@ For manual QA the same switch is `dda inv aws.create-vm --latest-ami` (which set
 
 ## The `-e2e` AMIs
 
-Most OS types have an `-e2e` variant defined in `platforms.json`: 
+Some OS types have an `-e2e` variant defined in `platforms.json`, distinct from the plain image:
 
 ```json
-"ubuntu": {
+"windows-server": {
   "x86_64": {
-    "22-04":     "ami-0347d82d55205687d",
-    "22-04-e2e": "ami-09bcb097bdb06fabf"
+    "2022":     "ami-0fcc930391c87ec7b",
+    "2022-e2e": "ami-0979cd4acf7874ba9"
   }
 }
 ```
 
 Both derive from the same upstream base image, but the `-e2e` one contains extra stuff: common test dependencies, maybe some config files etc. See [Prebake into the machine image](dependencies.md#prebake-into-the-machine-image) for more details.
 
-/// danger | Prefer using the `-e2e` variant in new tests.
+/// tip | Some flavors have been fully consolidated
 
-Unless overriden, this should be the default on both Linux and Windows — `UbuntuDefault` is `Ubuntu2204E2E` — so a test that passes no OS at all gets the prebaked image. A test that explicitly asks for `e2eos.Ubuntu2204` opts *out* of it, usually by accident.
+Debian 11/12 and Ubuntu 22.04/24.04 (x86_64) no longer have a real distinction: their plain and `-e2e` keys in `platforms.json` point at the *same* AMI ID, because the plain image is prebaked too. The `-e2e` descriptors are kept around only for code that still references them explicitly. Don't assume a version lacks prebaked dependencies just because it also has an `-e2e` sibling (or lacks one) — check the actual AMI IDs in `platforms.json` for the flavor/arch/version you care about.
+///
 
-If you need an extra dependency in your test, **prefer adding it to the existing `-e2e` variant over creating your own fully-custom AMI** if at all possible. Feel free to ask #agent-devx-help for help.
+/// danger | Prefer using the `-e2e` variant in new tests, where the two still differ.
+
+Unless overriden, this should be the default on both Linux and Windows — `UbuntuDefault` is `Ubuntu2204E2E` — so a test that passes no OS at all gets the prebaked image. On flavors where the plain and `-e2e` images still differ (e.g. Windows Server), a test that explicitly asks for the plain descriptor opts *out* of the prebaked image, usually by accident.
+
+If you need an extra dependency in your test, **prefer adding it to the existing `-e2e` variant (or, where consolidated, the plain image) over creating your own fully-custom AMI** if at all possible. Feel free to ask #agent-devx-help for help.
 ///
 
 

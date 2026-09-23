@@ -113,6 +113,7 @@ event_monitoring_config:
     enabled: true
   capabilities_monitoring:
     enabled: {{ .CapabilitiesMonitoringEnabled }}
+    period: {{ .CapabilitiesMonitoringPeriod }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}

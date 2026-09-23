@@ -1,212 +1,201 @@
 # Test a component
 
-This tutorial tests the compression component from the [creation tutorial](creating-components.md), including its dependencies, public interface, and lifecycle hooks.
+Test the ZSTD implementation from the [creation tutorial](creating-components.md) through its public interface, using mocks for configuration and logging. Then build a separate example to test lifecycle hooks.
 
-One of the core benefits of using components is that each component isolates its internal logic behind its interface. Focus on asserting that each implementation behaves correctly.
+## Before you start
 
-The component compresses payloads before sending them to the Datadog backend and has two implementations to test separately.
+Complete the creation tutorial and keep its files under `comp/compression`. Run the commands below from the repository root with the [development tooling](../../setup/required.md#tooling) configured.
 
-This is the component's interface:
+The creation tutorial tests Fx assembly. Here, you will call the implementation's constructor directly to test its behavior independently of Fx. Test any additional compression implementations separately.
 
-/// tab | :octicons-file-code-16: comp/compression/def/component.go
+## Test the compression interface
+
+Create `comp/compression/impl-zstd/component_test.go`. Use the same `zstdimpl` package as the implementation so the test can call `NewComponent` with its `Requires` struct.
+
+Supply configuration with `config.NewMock(t)` from `comp/core/config` and logging with `logmock.New(t)` from `comp/core/log/mock`. These mocks require the `test` build tag. As with the [compression mock](creating-components.md#add-a-mock-for-consumers), they let a test provide a component's dependencies without assembling an application.
+
+Check that compression followed by decompression restores both ordinary text and empty input. Compare the restored bytes with the input; the exact compressed representation can vary with library versions and compression settings. Also check that decompression rejects invalid data.
+
+/// tab | :octicons-file-code-16: comp/compression/impl-zstd/component_test.go
 ```go
+//go:build test
+
+package zstdimpl
+
+import (
+    "bytes"
+    "testing"
+
+    "github.com/stretchr/testify/require"
+
+    config "github.com/DataDog/datadog-agent/comp/core/config"
+    logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+)
+
+func TestCompressionRoundTrip(t *testing.T) {
+    tests := []struct {
+        name  string
+        input []byte
+    }{
+        {name: "text", input: []byte("Hello from a component")},
+        {name: "empty", input: []byte{}},
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            component := NewComponent(Requires{
+                Conf: config.NewMock(t),
+                Log:  logmock.New(t),
+            }).Comp
+
+            compressed, err := component.Compress(tt.input)
+            require.NoError(t, err)
+            restored, err := component.Decompress(compressed)
+            require.NoError(t, err)
+            require.True(t, bytes.Equal(tt.input, restored), "round trip changed the input bytes")
+        })
+    }
+}
+
+func TestDecompressInvalidData(t *testing.T) {
+    component := NewComponent(Requires{
+        Conf: config.NewMock(t),
+        Log:  logmock.New(t),
+    }).Comp
+
+    _, err := component.Decompress([]byte("not a ZSTD frame"))
+    require.Error(t, err)
+}
+```
+///
+
+Run the implementation tests:
+
+```shell
+dda inv test --targets=./comp/compression/impl-zstd --verbose
+```
+
+Expect both `TestCompressionRoundTrip` subtests and `TestDecompressInvalidData` to pass. You have now checked successful round trips, the empty-input boundary, and an error case through the public compression interface.
+
+## Test lifecycle hooks
+
+The compression implementation does not register lifecycle hooks. For this separate exercise, create the three files below under the illustrative path `comp/lifecycleexample` and replace `<your team>` with the owning team's name. The component exposes whether its startup hook has run and its shutdown hook has not yet run. An atomic flag keeps state queries safe during startup and shutdown.
+
+First, define the public interface:
+
+/// tab | :octicons-file-code-16: comp/lifecycleexample/def/component.go
+```go
+// Package lifecycleexample defines the interface for the lifecycle exercise.
+package lifecycleexample
+
+// team: <your team>
+
+// Component reports the component's lifecycle state.
 type Component interface {
-    // Compress compresses the input data.
-    Compress([]byte) ([]byte, error)
-
-    // Decompress decompresses the input data.
-    Decompress([]byte) ([]byte, error)
+    // IsRunning reports whether startup has completed and shutdown has not begun.
+    IsRunning() bool
 }
 ```
 ///
 
-Ensure the `Compress` and `Decompress` functions behave correctly.
+Next, implement the interface and register the hooks in the constructor. The constructor only registers the hooks; startup and shutdown change the running state.
 
-Writing tests for a component implementation follows the same rules as any other test in a Go project. See the [testing package](https://pkg.go.dev/testing) documentation for more information.
-
-For this example, write a test file for the `zstd` implementation. Create a new file named `component_test.go` in the `impl-zstd folder`. Inside the test file, initialize the component's dependencies, create a new component instance, and test the behavior.
-
-### Initialize the component's dependencies
-
-All components expect a `Requires` struct with all the necessary dependencies. To ensure a component instance can be created, create a `requires` instance.
-
-The `Requires` struct declares a dependency on the config component and the log component. The following code snippet shows how to create the `Require` struct:
-
-/// tab | :octicons-file-code-16: comp/compression/impl-zstd/component_test.go
+/// tab | :octicons-file-code-16: comp/lifecycleexample/impl/component.go
 ```go
-package implzstd
-
-import (
-    "testing"
-
-    configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
-    logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-)
-
-func TestCompress(t *testing.T) {
-    logComponent := configmock.New(t)
-    configComponent := logmock.New(t)
-
-    requires := Requires{
-        Conf: configComponent,
-        Log: logComponent,
-    }
-    // [...]
-}
-```
-///
-
-To create the log and config component, use their respective mocks. The [mock package](creating-components.md#the-mock-folder) was mentioned previously in the [Creating a Component page](creating-components.md).
-
-### Testing the component's interface
-
-Now that the `Require` struct is created, an instance of the component can be created and its functionality tested:
-
-/// tab | :octicons-file-code-16: comp/compression/impl-zstd/component_test.go
-```go
-package implzstd
-
-import (
-    "testing"
-
-    configmock "github.com/DataDog/datadog-agent/comp/core/config/mock"
-    logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-)
-
-func TestCompress(t *testing.T) {
-    logComponent := configmock.New(t)
-    configComponent := logmock.New(t)
-
-    requires := Requires{
-        Conf: configComponent,
-        Log: logComponent,
-    }
-
-    provides := NewComponent(requires)
-    component := provides.Comp
-
-    result, err := component.Compress([]byte("Hello World"))
-    assert.Nil(t, err)
-
-    assert.Equal(t, ..., result)
-}
-```
-///
-
-### Testing lifecycle hooks
-
-Sometimes a component uses [Fx lifecycle](../../architecture/components/fx.md#lifecycle) to add hooks. It is a good practice to test the hooks as well.
-
-For this example, imagine a component wants to add some hooks into the app lifecycle. Some code is omitted for simplicity:
-
-/// tab | :octicons-file-code-16: comp/somecomponent/impl/component.go
-```go
-package impl
+// Package lifecycleexampleimpl implements the lifecycle exercise.
+package lifecycleexampleimpl
 
 import (
     "context"
+    "sync/atomic"
 
-    somecomponent "github.com/DataDog/datadog-agent/comp/somecomponent/def"
     compdef "github.com/DataDog/datadog-agent/comp/def"
+    lifecycleexample "github.com/DataDog/datadog-agent/comp/lifecycleexample/def"
 )
 
+// Requires supplies the lifecycle used to register startup and shutdown hooks.
 type Requires struct {
-    Lc      compdef.Lifecycle
+    Lifecycle compdef.Lifecycle
 }
 
+// Provides exposes the component's lifecycle state.
 type Provides struct {
-    Comp somecomponent.Component
+    Comp lifecycleexample.Component
 }
 
 type component struct {
-    started  bool
-    stopped bool
+    running atomic.Bool
 }
 
-func (c *component) start() error {
-    // [...]
-
-    c.started = true
-
-    return nil
-}
-
-func (h *healthprobe) stop() error {
-    // [...]
-
-    c.stopped = true
-    c.started = false
-
-    return nil
-}
-
-// NewComponent creates a new healthprobe component
-func NewComponent(reqs Requires) (Provides, error) {
-    provides := Provides{}
+// NewComponent registers the hooks without starting the component.
+func NewComponent(reqs Requires) Provides {
     comp := &component{}
-
-    reqs.Lc.Append(compdef.Hook{
-        OnStart: func(ctx context.Context) error {
-            return comp.start()
-        },
-        OnStop: func(ctx context.Context) error {
-            return comp.stop()
-        },
+    reqs.Lifecycle.Append(compdef.Hook{
+        OnStart: comp.start,
+        OnStop:  comp.stop,
     })
+    return Provides{Comp: comp}
+}
 
-    provides.Comp = comp
-    return provides, nil
+func (c *component) start(_ context.Context) error {
+    c.running.Store(true)
+    return nil
+}
+
+func (c *component) stop(_ context.Context) error {
+    c.running.Store(false)
+    return nil
+}
+
+// IsRunning reports whether startup has completed and shutdown has not begun.
+func (c *component) IsRunning() bool {
+    return c.running.Load()
 }
 ```
 ///
 
-The goal is to test that the component updates the `started` and `stopped` fields.
+Finally, supply <<<repo("comp/def/lifecycle_mock.go", "`compdef.NewTestLifecycle(t)`", match="^func NewTestLifecycle")>>> directly to the constructor. This helper records the hooks and lets the test run startup and shutdown explicitly. It requires the `test` build tag and does not need an Fx application or lifecycle adapter.
 
-To accomplish this, create a new lifecycle instance, create a `Require` struct instance, initialize the component, and validate that calling `Start` on the lifecycle instance calls the component hook and executes the logic.
-
-To create a lifecycle instance, use the helper function `compdef.NewTestLifecycle(t *testing.T)`. The function returns a lifecycle wrapper that can be used to populate the `Requires` struct. The `Start` and `Stop` functions can also be called.
-
-/// info
-You can see the `NewTestLifecycle` function <<<repo("comp/def/lifecycle_mock.go", "here", match="^func NewTestLifecycle")>>>.
-///
-
-/// tab | :octicons-file-code-16: comp/somecomponent/impl/component_test.go
+/// tab | :octicons-file-code-16: comp/lifecycleexample/impl/component_test.go
 ```go
-package impl
+//go:build test
+
+package lifecycleexampleimpl
 
 import (
     "context"
     "testing"
 
+    "github.com/stretchr/testify/require"
+
     compdef "github.com/DataDog/datadog-agent/comp/def"
-    "github.com/stretchr/testify/assert"
 )
 
-func TestStartHook(t *testing.T) {
+func TestLifecycleHooks(t *testing.T) {
     lc := compdef.NewTestLifecycle(t)
+    component := NewComponent(Requires{Lifecycle: lc}).Comp
 
-    requires := Requires{
-        Lc:  lc,
-    }
-
-    provides, err := NewComponent(requires)
-
-    assert.NoError(t, err)
-
-    assert.NotNil(t, provides.Comp)
-    internalComponent := provides.Comp.(*component)
+    lc.AssertHooksNumber(1)
+    require.False(t, component.IsRunning())
 
     ctx := context.Background()
-    lc.AssertHooksNumber(1)
-    assert.NoError(t, lc.Start(ctx))
+    require.NoError(t, lc.Start(ctx))
+    require.True(t, component.IsRunning())
 
-    assert.True(t, internalComponent.started)
+    require.NoError(t, lc.Stop(ctx))
+    require.False(t, component.IsRunning())
 }
 ```
 ///
 
-For this example, a type cast operation had to be performed because the `started` field is private. Depending on the component, this may not be necessary.
+Run the lifecycle test:
+
+```shell
+dda inv test --targets=./comp/lifecycleexample/impl --verbose
+```
+
+Expect `TestLifecycleHooks` to pass. Its assertions verify that construction leaves the component stopped, startup makes it running, and shutdown stops it again. The test observes these changes through the public interface.
 
 ## Next steps
 
-See how to [use components in a binary](../../how-to/components/using-components.md), or return to the [component framework overview](../../architecture/components/index.md).
+See how to [use components in a binary](../../how-to/components/using-components.md), or read about [Fx lifecycle behavior](../../architecture/components/fx.md#lifecycle) and the [component lifecycle requirements](../../guidelines/components.md#concurrency-and-lifecycle).

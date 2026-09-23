@@ -1,0 +1,28 @@
+description: Datadog Process Agent
+command: '{{.InstallDir}}/bin/agent/process-agent.exe'
+args:
+  - --cfgpath
+  - '{{.EtcDir}}/datadog.yaml'
+# The core Agent still starts datadog-process-agent through the SCM. Until that service is
+# suppressed, auto_start here would run two process-agents.
+auto_start: false
+condition_path_exists: '{{.InstallDir}}/bin/agent/process-agent.exe'
+# Transcribes the legacy SCM decision in cmd/agent/subcommands/run/dependent_services_windows.go:
+# any-of over these keys, the first four from datadog.yaml and the last two from system-probe.yaml.
+condition_config_any:
+  - path: '{{.EtcDir}}/datadog.yaml'
+    keys:
+      - process_config.enabled
+      - process_config.process_collection.enabled
+      - process_config.container_collection.enabled
+      - process_config.process_discovery.enabled
+  - path: '{{.EtcDir}}/system-probe.yaml'
+    keys:
+      - network_config.enabled
+      - system_probe_config.enabled
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+stdout: inherit
+stderr: inherit
