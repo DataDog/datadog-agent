@@ -231,6 +231,7 @@
 /.gitlab/windows/build/package_build/windows.yml                          @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/package_build/installer.yml                                @DataDog/agent-build @DataDog/fleet
 /.gitlab/build/packaging/                                                 @DataDog/agent-build
+/.gitlab/windows/build/packaging/                                         @DataDog/fleet-automation @DataDog/windows-products
 /.gitlab/deploy/network_device_build/                                     @DataDog/agent-delivery
 /.gitlab/test/benchmarks/benchmarks.yml                                   @DataDog/agent-apm
 /.gitlab/test/functional_test/regression_detector.yml                     @DataDog/single-machine-performance
@@ -607,7 +608,6 @@
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/providers/process_log*.go                    @DataDog/agent-discovery @DataDog/agent-log-pipelines
-/comp/core/autodiscovery/providers/remote_config*.go                  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform

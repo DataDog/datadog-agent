@@ -906,7 +906,10 @@ go_library(
 go_binary(
     name = "serverless-init",
     embed = [":serverless-init_lib"],
-    gotags = SERVERLESS_TAGS,
+    gotags = SERVERLESS_TAGS.union(set([
+        "zlib",
+        "zstd",
+    ])),
     visibility = ["//visibility:public"],
 )
 
