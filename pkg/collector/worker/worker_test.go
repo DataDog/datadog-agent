@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -348,6 +349,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		wg.Wait()
 
 		AssertAsyncWorkerCount(t, 0)
+		assertWorkerUtilizationGaugeAbsent(t, "worker_2")
 	}()
 
 	// No tasks should equal no utilization
@@ -716,6 +718,8 @@ func TestShadowWorkerExcludedFromUtilizationAggregate(t *testing.T) {
 	defer func() {
 		close(pendingChecksChan)
 		wg.Wait()
+
+		assertWorkerUtilizationGaugeAbsent(t, worker.Name)
 	}()
 
 	pendingChecksChan <- blockingCheck
@@ -944,6 +948,36 @@ func getWorkerExcludedExpvar(c *assert.CollectT, name string) bool {
 	require.NotNil(c, workerStats)
 
 	return workerStats.Excluded
+}
+
+// workerUtilizationGaugeMetricName is the fully-qualified prometheus name for
+// the workerUtilization gauge defined in worker.go (subsystem "collector",
+// name "worker_utilization").
+const workerUtilizationGaugeMetricName = "collector__worker_utilization"
+
+// assertWorkerUtilizationGaugeAbsent fails the test if the workerUtilization
+// telemetry gauge still has a series for the given worker name, which would
+// mean startUtilizationUpdater's cleanup goroutine leaked it past the
+// worker's shutdown.
+func assertWorkerUtilizationGaugeAbsent(t *testing.T, workerName string) {
+	t.Helper()
+
+	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != workerUtilizationGaugeMetricName {
+			continue
+		}
+
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "worker_name" && label.GetValue() == workerName {
+					require.Fail(t, "worker utilization gauge was not deleted on worker shutdown", "worker: %s", workerName)
+				}
+			}
+		}
+	}
 }
 
 // advanceUtilizationTicks feeds n ticks of the given interval to a mock clock,
