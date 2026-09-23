@@ -20,8 +20,8 @@ type checkInstance struct {
 	ScanData              []checkSubTask    `json:"scan_data"`
 }
 
-// toYAML marshals through JSON to emit the scanning rules (json.RawMessage) as-is, then
-// returns YAML like other providers so the Agent's YAML-based scrubbing applies to it.
+// toYAML marshals through JSON since scanning rules are raw JSON, then round-trips to YAML
+// so the instance is scheduled as YAML and the Agent's scrubbing applies to it.
 func (i checkInstance) toYAML() ([]byte, error) {
 	instJSON, err := json.Marshal(i)
 	if err != nil {
