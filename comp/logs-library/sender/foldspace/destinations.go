@@ -6,6 +6,7 @@
 package foldspace
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -66,7 +67,7 @@ func (e ErrWindowing) Error() string {
 // are omitted. foldspace.dd_url overrides only the main host.
 func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoints) (*DestinationConfig, error) {
 	if endpoints == nil || len(endpoints.Endpoints) == 0 {
-		return nil, fmt.Errorf("foldspace requires at least one HTTP endpoint")
+		return nil, errors.New("foldspace requires at least one HTTP endpoint")
 	}
 
 	pipelineDepth := cfg.GetInt("logs_config.foldspace.pipeline_depth")
@@ -124,7 +125,7 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 		})
 	}
 	if len(senders) == 0 {
-		return nil, fmt.Errorf("foldspace requires at least one non-MRF endpoint")
+		return nil, errors.New("foldspace requires at least one non-MRF endpoint")
 	}
 	if len(senders)*pipelineDepth > maxInflight {
 		return nil, ErrWindowing{Senders: len(senders), PipelineDepth: pipelineDepth, MaxInflight: maxInflight}
