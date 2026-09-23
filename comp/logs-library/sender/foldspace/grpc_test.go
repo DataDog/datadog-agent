@@ -75,7 +75,7 @@ func TestGRPCStreamRoundTrip(t *testing.T) {
 	conn, err := grpc.DialContext(ctx, "buf", //nolint:staticcheck
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
+		grpc.WithBlock(), //nolint:staticcheck
 		grpc.WithDefaultCallOptions(grpc.ForceCodec(statefulCodec{})),
 	)
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestTwoGRPCIntakesReceiveSameBytes(t *testing.T) {
 		conn, err := grpc.DialContext(ctx, "buf", //nolint:staticcheck
 			grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
+			grpc.WithBlock(), //nolint:staticcheck
 			grpc.WithDefaultCallOptions(grpc.ForceCodec(statefulCodec{})),
 		)
 		require.NoError(t, err)
