@@ -50,6 +50,7 @@ dd_agent_go_test(
     srcs = [
         "containerd_util_test.go",
         "hidden_bytes_linux_test.go",
+        "image_layers_linux_test.go",
         "image_layers_test.go",
         "namespaces_test.go",
     ],
