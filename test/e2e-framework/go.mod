@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.78.0
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v7 v7.0.0
-	github.com/docker/cli v29.8.0+incompatible
+	github.com/docker/cli v29.8.1+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/moby/moby/api v1.56.0
@@ -512,6 +512,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel

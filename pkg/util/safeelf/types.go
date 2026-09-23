@@ -68,6 +68,8 @@ const SHN_ABS = elf.SHN_ABS
 const SHN_COMMON = elf.SHN_COMMON
 
 const SHF_COMPRESSED = elf.SHF_COMPRESSED
+const SHF_MERGE = elf.SHF_MERGE
+const SHF_STRINGS = elf.SHF_STRINGS
 
 func ST_TYPE(info uint8) SymType { return elf.ST_TYPE(info) }
 func ST_BIND(info uint8) SymBind { return elf.ST_BIND(info) }

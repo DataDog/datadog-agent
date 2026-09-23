@@ -8,10 +8,10 @@ package sysprobefunctional
 import (
 	_ "embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -127,15 +127,10 @@ func (v *apmvmSuite) SetupSuite() {
 	t.Log("IIS Installed, continuing")
 
 	t.Log("Creating sites")
-	// figure out where we're being executed from.  These paths should be in
-	// native path separators (i.e. not windows paths if executing in ci/on linux)
-
-	_, srcfile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	exPath := filepath.Dir(srcfile)
-
+	assetsDir, err := fs.Sub(embeddedAssets, "assets")
+	require.NoError(t, err)
 	for idx := range sites {
-		sites[idx].AssetsDir = path.Join(exPath, "assets")
+		sites[idx].AssetsDir = assetsDir
 	}
 
 	err = windows.CreateIISSite(vm, sites)

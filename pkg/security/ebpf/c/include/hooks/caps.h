@@ -224,6 +224,10 @@ static long for_each_capabilities_usage_cb(struct bpf_map *map, const void *k, v
     struct capabilities_usage_entry_t *entry = (struct capabilities_usage_entry_t *)value;
     struct bpf_perf_event_data *ctx = ((struct callback_context_t *)callback_ctx)->ctx;
 
+    if (!period_reached_or_new_entry(entry, bpf_ktime_get_ns())) {
+        return 0;
+    }
+
     send_capabilities_usage_event(ctx, key, entry);
 
     return 0;
