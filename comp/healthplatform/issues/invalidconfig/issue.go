@@ -25,6 +25,8 @@ const (
 	contextKeyImpact     = "impact"
 	contextKeyViolations = "violations"
 	defaultCorrection    = "Fix each violation listed in the description."
+
+	reasonSecretBackendNotConfigured = "secret_backend_not_configured"
 )
 
 // contextErrorKey returns the Context key for the i-th error line.
@@ -75,7 +77,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		contextKeyConfigPath: path,
 		contextKeyErrorCount: count,
 		contextKeyErrors:     errMap,
-		contextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
+		contextKeyImpact:     "The Datadog Agent may not behave as configured.",
 	}
 	description := strings.Join(errLines, "; ")
 	correction := defaultCorrection
@@ -105,7 +107,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 		Extra:       extra,
 		Tags:        []string{"config", "schema"},
 		Remediation: &healthplatform.Remediation{
-			Summary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
+			Summary: "Fix the configuration errors, then restart the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: "Check the settings listed below in your Agent configuration file or environment variables."},
 				{Order: 2, Text: correction},
@@ -151,6 +153,14 @@ func formatViolations(raw string) (string, string) {
 // formatViolation separates what is wrong from how to fix it.
 // Empty results tell the caller to keep the existing safe messages.
 func formatViolation(violation violationPayload) (string, string) {
+	if violation.Path == "" {
+		violation.Path = "/"
+	}
+	path := inlineCode(violation.Path)
+	if violation.Reason == reasonSecretBackendNotConfigured {
+		return path + " contains an unresolved secret reference because no secret backend is configured.",
+			"Configure a secret backend to resolve " + path + ". Run `datadog-agent secret` to check its configuration."
+	}
 	actual := typeLabels[violation.ActualType]
 	if actual == "" || len(violation.ExpectedTypes) == 0 {
 		return "", ""
@@ -163,10 +173,6 @@ func formatViolation(violation violationPayload) (string, string) {
 		}
 	}
 	want := english.OxfordWordSeries(expected, "or")
-	if violation.Path == "" {
-		violation.Path = "/"
-	}
-	path := inlineCode(violation.Path)
 	description := fmt.Sprintf("%s expects %s, but received %s.", path, want, actual)
 	correction := fmt.Sprintf("Set %s to %s.", path, want)
 	switch violation.DefaultStatus {
