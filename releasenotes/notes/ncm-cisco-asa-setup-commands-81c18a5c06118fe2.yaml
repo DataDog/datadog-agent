@@ -2,14 +2,7 @@
 fixes:
   - |
     Network Config Management: Fixes running configuration collection for Cisco
-    ASA devices. Device profile setup commands, such as the ``terminal pager 0``
-    used to stop Cisco ASA from truncating long configurations, now run in the
-    same shell session as the command they prepare, and each one is sent only
-    once the device is ready to receive it. Previously they were sent either
-    bundled into a single SSH exec request, which Cisco ASA does not support;
-    in a separate session, whose terminal settings Cisco ASA does not carry
-    over; or all at once, which allowed the device's echo of one command to be
-    mistaken for the end of another command's output. Collection for Cisco ASA
-    devices could therefore fail, report a missing ``ASA Version`` line for a
-    device whose configuration had in fact been read, or store a configuration
-    silently truncated at a ``<--- More --->`` marker.
+    ASA devices, which could store a configuration truncated at a
+    ``<--- More --->`` marker or fail to collect one at all. The Agent now runs
+    a ``terminal pager 0`` setup command to remove the pager, allowing the full
+    configuration to be read.
