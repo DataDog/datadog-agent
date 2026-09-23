@@ -1,7 +1,6 @@
 ---
 name: create-pr
 description: Create a pull request for the current branch with proper labels and description. Any agent opening a PR in this repo (via `gh pr create` or otherwise), whether invoked directly as /create-pr or as part of a larger task, MUST follow this skill's process rather than improvising.
-disable-model-invocation: true
 allowed-tools: Bash, Read, Glob
 argument-hint: "[--real] [additional labels...]"
 model: sonnet

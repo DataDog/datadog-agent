@@ -36,6 +36,7 @@ Sub-package roles:
 | `store/` | Persists the current issue set across agent restarts |
 | `egress/` | Periodically fetches issues from the store and sends them |
 | `forwarder/` | Stateless HTTP client; POSTs a `HealthReport` to the Datadog intake |
+| `status/` | Renders health platform state (active issues, egress send pipeline health) into `agent status` |
 
 > **`HealthCheckFunc` returns `IssueReport`, not `*Issue`.** The function signature is `func() ([]IssueReport, error)` — a check cannot return a fully-formed proto issue. If you need full control over all proto fields, use Path B and call `store.ReportIssue` directly.
 > `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly. When a template *is* registered but `BuildIssue` errors, the minimal proto still gets `IssueType` from `Template.IssueType()` — only the fully-unregistered case ships an empty `IssueType`.
@@ -162,7 +163,7 @@ Declare every context key your module reads as a package-private `const` at the 
 | `IssueName` | Must equal the `IssueName` const — never vary |
 | `IssueType` | Must equal the `IssueType` const — never vary. Must be `IssueName` lowercased with spaces replaced by underscores |
 | `Title` | Embed the most actionable instance-specific value; avoid static titles |
-| `Description` | One-sentence diagnosis; include the raw error message |
+| `Description` | One-sentence diagnosis with relevant, secret-safe error details |
 | `Category` | Subsystem slug. Controls UI tab routing: `"configuration"` → Configuration tab; `"integration"` or `"check"` → Integrations tab; other values → default tab. Examples from existing modules: `"check-execution"`, `"autodiscovery"`, `"filesystem"`. New values can be created. |
 | `Location` | Where the issue was detected (examples: `"collector"`, `"agent"`, `"autodiscovery"`). New values can be created. |
 | `Severity` | One of `ISSUE_SEVERITY_LOW`, `ISSUE_SEVERITY_MEDIUM`, `ISSUE_SEVERITY_HIGH` |
@@ -367,7 +368,7 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 ### Other required proto fields
 
-- [ ] `Description` includes the raw error message
+- [ ] `Description` includes relevant error details without exposing secrets
 - [ ] `Category`, `Location`, `Severity`, `Source` are all populated
 - [ ] `Remediation.Summary` and at least one `Remediation.Steps` entry are present
 - [ ] `Extra` is a `structpb.Struct` containing all context keys
@@ -397,4 +398,4 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 | Adding a module (`init()` + `bundle.go` blank import) for a pure Path B issue | Unnecessary boilerplate; the runner registry is never consulted for direct reporters |
 | Mirroring `IssueName` in `store/def/constants.go` when external reporters already import the issue package | Unnecessary indirection; reference the constant from the issue package directly (e.g. `admisconfig.AnnotationIssueName`) |
 | Omitting `check_noop.go` for a build-tag-constrained `check.go` | Package fails to compile on other platforms |
-| Hardcoding config values or secrets in context maps | Use `scrubber.ScrubYaml` if context might contain user-supplied config values |
+| Hardcoding config values or secrets in context maps | Keep configured values out of issue reports; use the existing scrubber for user-supplied text that must be included |

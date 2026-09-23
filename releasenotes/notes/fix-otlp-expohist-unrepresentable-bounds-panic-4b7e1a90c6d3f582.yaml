@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fixed a crash in the OTLP metrics pipeline when an exponential histogram data
+    point has bucket boundaries that cannot be represented as ``float64``, either
+    because ``scale`` is small enough that ``2^(2^-scale)`` overflows or because
+    the bucket ``offset`` places a populated bucket beyond the ``float64`` range.
+    Converting such a data point into an Agent sketch used to panic in an
+    exporter goroutine and bring the whole process down; the data point is now
+    dropped with a debug log, like any other unconvertible point. Data points
+    carrying only a zero count are unaffected and still reported, whatever their
+    ``scale``.
