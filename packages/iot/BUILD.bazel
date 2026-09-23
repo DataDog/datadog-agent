@@ -47,27 +47,17 @@ pkg_filegroup(
     ],
 )
 
-# Everything here lands under the install dir (//:install_dir, /opt/datadog-agent by default).
-pkg_filegroup(
-    name = "everything",
-    srcs = [
-        ":all_files",
-    ],
-    package_variables = ":variables",
-    prefix = "$(install_dir)",
-)
-
 # Gather licenses for all pieces of the distribution.
 package_licenses(
     name = "license_files",
     src = ":all_files",
 )
 
-# license_files has no prefix of its own; it belongs under the install dir
-# alongside everything.
+# Everything here lands under //:install_dir (/opt/datadog-agent by default)
 pkg_filegroup(
-    name = "prefixed_license_files",
+    name = "everything",
     srcs = [
+        ":all_files",
         ":license_files",
     ],
     package_variables = ":variables",
@@ -82,7 +72,6 @@ pkg_filegroup(
     srcs = [
         ":everything",
         ":example_config",
-        ":prefixed_license_files",
         ":system_dirs",
         "//cmd/agent/dist/conf.d:iot_files",
     ],
