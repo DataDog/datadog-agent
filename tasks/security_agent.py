@@ -563,21 +563,17 @@ def generate_cws_documentation(ctx):
 
 
 @task
-def cws_go_generate(ctx, verbose=False):
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx)
-
-    # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
-    # CWS codegens migrated to Bazel keep their //go:generate directives so a future
-    # Gazelle extension can pick them up; we just skip them in `go generate` here.
-    # See ABLD-420.
+def cws_go_generate(ctx):
+    # CWS codegens keep their //go:generate directives so a future Gazelle
+    # extension can emit the matching Bazel targets from them (ABLD-475).
     bazel("run", "//pkg/security/secl/compiler/eval:eval_operators")
     bazel("run", "//pkg/security/secl/model:consts_map_names_linux")
     bazel("run", "//pkg/security/secl/model:accessors_unix")
     bazel("run", "//pkg/security/secl/model:accessors_windows")
     bazel("run", "//pkg/security/secl/model:event_deep_copy_unix")
     bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
+    bazel("run", "//pkg/security/secl/model:model_string")
+    bazel("run", "//pkg/security/config:enum_string")
     bazel("run", "//docs/cloud-workload-security:secl_linux")
     bazel("run", "//docs/cloud-workload-security:secl_windows")
     bazel("run", "//pkg/security/secl/schemas:policy_schema")
@@ -602,18 +598,6 @@ def cws_go_generate(ctx, verbose=False):
         bazel("run", "//pkg/security/serializers:serializers_base_linux_easyjson")
     elif is_windows:
         bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy|schemas/policy|generators/config_doc|generators/backend_doc|easyjson"
-    with ctx.cd("./pkg/security/secl"):
-        if sys.platform == "linux":
-            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
-        elif is_windows:
-            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
-        cmd = f"go generate -skip='{skip}'"
-        if verbose:
-            cmd += " -v"
-        ctx.run(cmd + " ./...")
-
-    ctx.run(f"go generate -skip='{skip}' -tags=bpf,cws_go_generate ./pkg/security/...")
 
     # synchronize the seclwin package from the secl package
     bazel("run", "//pkg/security/seclwin:sync")
