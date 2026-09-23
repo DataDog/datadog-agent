@@ -781,17 +781,10 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
 
-	resolveCompactID := func(a observerdef.Anomaly) string {
-		if a.SourceRef != nil {
-			return a.SourceRef.CompactID()
-		}
-		return a.Source.Key()
-	}
-
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
-			SourceSeriesID:    resolveCompactID(a),
+			SourceSeriesID:    a.SourceRef.CompactID(),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
@@ -1057,7 +1050,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		for k, m := range c.Members {
 			// Find SourceRef for this member.
 			for _, a := range c.Anomalies {
-				if a.Source.Key() == m.Key() && a.SourceRef != nil {
+				if a.Source.Key() == m.Key() {
 					memberIDs[k] = a.SourceRef.CompactID()
 					break
 				}

@@ -23,8 +23,6 @@ import (
 type anomalyDedupKey struct {
 	sourceRef       observerdef.SeriesRef
 	sourceAggregate observerdef.Aggregate
-	sourceKey       string // SeriesDescriptor.Key(), only for anomalies without a storage ref
-	hasSourceRef    bool
 	detectorName    string
 	timestamp       int64
 	title           string
@@ -69,20 +67,15 @@ func anomalyDedupCapacity(trackHistory bool) int {
 	return maxLiveAnomalyDedupEntries
 }
 
+// Detector outputs always carry a storage series reference.
 func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
-	key := anomalyDedupKey{
-		detectorName: anomaly.DetectorName,
-		timestamp:    anomaly.Timestamp,
-		title:        anomaly.Title,
+	return anomalyDedupKey{
+		sourceRef:       anomaly.SourceRef.Ref,
+		sourceAggregate: anomaly.SourceRef.Aggregate,
+		detectorName:    anomaly.DetectorName,
+		timestamp:       anomaly.Timestamp,
+		title:           anomaly.Title,
 	}
-	if anomaly.SourceRef != nil {
-		key.sourceRef = anomaly.SourceRef.Ref
-		key.sourceAggregate = anomaly.SourceRef.Aggregate
-		key.hasSourceRef = true
-	} else {
-		key.sourceKey = anomaly.Source.Key()
-	}
-	return key
 }
 
 func (d *anomalyDeduper) accept(key anomalyDedupKey, expiresAt int64) (accepted bool, capacityEvicted int) {
@@ -144,7 +137,7 @@ func (d *anomalyDeduper) removeSourceRefs(refs []observerdef.SeriesRef) int {
 	}
 	removed := 0
 	for _, key := range d.live.Keys() {
-		if _, exists := removedRefs[key.sourceRef]; key.hasSourceRef && exists {
+		if _, exists := removedRefs[key.sourceRef]; exists {
 			if d.live.Remove(key) {
 				removed++
 			}
@@ -771,15 +764,16 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		for _, anomaly := range result.Anomalies {
+			if anomaly.SourceRef == nil {
+				continue // invalid detector output: no storage series to identify it
+			}
 			e.enrichAnomaly(&anomaly)
 			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
 			// the same anomaly (same {source,detector,ts,title}) on consecutive advances,
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
-				if anomaly.SourceRef != nil {
-					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags))
-				}
+				e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags))
 				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
@@ -853,9 +847,6 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 // Context is written at ingest time via storage.SetContext when an extractor
 // emits a MetricOutput.Context; here we read it back in O(1).
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.SourceRef == nil {
-		return
-	}
 	ctx := e.storage.GetContext(a.SourceRef.Ref)
 	if ctx == nil {
 		return
@@ -872,7 +863,7 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 
 // acceptAnomaly deduplicates by Source+DetectorName+Timestamp+Title and,
 // when testbench history is enabled, stores the accepted anomaly for display.
-// Returns true if the anomaly was new, false if it was a duplicate.
+// The anomaly must have a SourceRef. Returns true if new, false if a duplicate.
 func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 	expiresAt := e.anomalyDedupExpiry(anomaly)
 	e.rawAnomalyMu.Lock()
@@ -896,11 +887,7 @@ func (e *engine) acceptAnomaly(anomaly observerdef.Anomaly) bool {
 }
 
 func (e *engine) anomalyDedupExpiry(anomaly observerdef.Anomaly) int64 {
-	ref := observerdef.SeriesRef(-1)
-	if anomaly.SourceRef != nil {
-		ref = anomaly.SourceRef.Ref
-	}
-	retentionSecs := e.storage.pointRetentionForSeries(ref)
+	retentionSecs := e.storage.pointRetentionForSeries(anomaly.SourceRef.Ref)
 	if retentionSecs <= 0 {
 		return 0
 	}

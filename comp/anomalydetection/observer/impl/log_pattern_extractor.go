@@ -174,8 +174,7 @@ func (e *LogPatternExtractor) Reset() {
 	}
 }
 
-// SetObserverTelemetry allows wiring direct telemetry emission without
-// transporting telemetry through extractor outputs.
+// SetObserverTelemetry wires direct telemetry emission.
 func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	e.telemetry = t
 	if t != nil {

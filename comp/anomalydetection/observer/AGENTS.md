@@ -162,6 +162,11 @@ not embed a `correlationEmitter`.
 
 ### Detector-output deduplication vs replay history
 
+Every detector output must set `Anomaly.SourceRef` to its storage series and
+aggregate, including anomalies from log-derived metrics. The engine discards
+outputs without a reference. Display names are not deduplication identities.
+The standalone scorer can also accept inputs without storage references.
+
 The engine deduplicates detector outputs across advances before feeding them to
 correlators. Live mode keeps only a fixed-size dedup cache;
 it does not retain full raw anomalies because reporters receive advance-local
