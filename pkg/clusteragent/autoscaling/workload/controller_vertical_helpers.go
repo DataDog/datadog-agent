@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -590,23 +591,24 @@ func shouldFallbackToRollout(toEvict []classifiedPod, hasInfeasible bool, podAut
 // A rollout is required when:
 //
 //	a) The global config flag (autoscaling.workload.in_place_vertical_scaling.enabled) is disabled, or
-//	b) The DPA explicitly sets Strategy: TriggerRollout
-func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
+//	b) The DPA explicitly sets Strategy: TriggerRollout, or
+//	c) A GOMEMLIMIT is recommended for a container but not yet applied to all running pods
+//
+// pods is the current live pod list for the workload, used to check whether GOMEMLIMIT is already
+// applied so we avoid triggering unnecessary rollouts (e.g. when only CPU changed).
+func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*workloadmeta.KubernetesPod) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
 	}
-	// Runtime values (e.g. GOMEMLIMIT) are env vars that can only be applied to new pods via the
+	// Runtime values are env vars that can only be applied to new pods via the
 	// admission webhook — they cannot be updated on a running container via pods/resize.
-	// Force the rollout path so pods are recreated and pick up the new values.
-	//
-	// Known limitation: this forces a rollout whenever a GOMEMLIMIT is present in the recommendation,
-	// even if the value has not changed (e.g. only CPU requests/limits changed). Fixing this requires
-	// comparing the recommended value against the running pod's env vars, which isRolloutRequired does
-	// not currently have access to. Left for a follow-up.
+	// Force the rollout path only when the recommended value differs from what is already on the pods.
 	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
 		for _, cr := range sv.Vertical.ContainerResources {
 			if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
-				return true
+				if !goMemLimitAlreadyApplied(cr.Name, cr.Runtime.Gomemlimit, pods) {
+					return true
+				}
 			}
 		}
 	}
@@ -615,6 +617,33 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 		return false
 	}
 	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
+}
+
+// goMemLimitAlreadyApplied returns true if all non-terminating pods already have the expected
+// GOMEMLIMIT value for the given container, as recorded in the GoMemLimitAnnotation.
+// Returns false if any pod is missing the annotation or has a different value.
+func goMemLimitAlreadyApplied(containerName, expectedValue string, pods []*workloadmeta.KubernetesPod) bool {
+	if len(pods) == 0 {
+		return false
+	}
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		annotationValue, exists := pod.Annotations[model.GoMemLimitAnnotation]
+		if !exists {
+			return false
+		}
+		var goMemLimits map[string]string
+		if err := json.Unmarshal([]byte(annotationValue), &goMemLimits); err != nil {
+			log.Debugf("Failed to parse %s annotation on pod %s/%s: %v", model.GoMemLimitAnnotation, pod.Namespace, pod.Name, err)
+			return false
+		}
+		if goMemLimits[containerName] != expectedValue {
+			return false
+		}
+	}
+	return true
 }
 
 // getPodResizeStatus returns the resize status of pod and the LastTransitionTime

@@ -9,6 +9,7 @@ package workload
 
 import (
 	"context"
+	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,6 +112,15 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range constrainedVertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
+	}
+
+	// Record the applied GOMEMLIMIT values per container so the vertical controller can skip
+	// unnecessary rollouts when GOMEMLIMIT has not changed.
+	annotationPatched, err := setGoMemLimitAnnotation(pod, constrainedVertical.ContainerResources)
+	if err != nil {
+		log.Warnf("Autoscaler %s: failed to set GOMEMLIMIT annotation for POD %s/%s: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+	} else {
+		patched = patched || annotationPatched
 	}
 
 	return patched, nil
@@ -233,6 +243,36 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 	}
 
 	return false
+}
+
+// setGoMemLimitAnnotation writes a JSON-encoded map[containerName]goMemLimitValue annotation on the pod.
+// This lets the vertical controller compare the recommended GOMEMLIMIT against what is already
+// running on each pod without having to read container env vars (which are not available in workloadmeta).
+// Returns true if the annotation was created or updated, false if it was already up to date.
+func setGoMemLimitAnnotation(pod *corev1.Pod, containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (bool, error) {
+	goMemLimits := make(map[string]string)
+	for _, cr := range containerResources {
+		if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+			goMemLimits[cr.Name] = cr.Runtime.Gomemlimit
+		}
+	}
+	if len(goMemLimits) == 0 {
+		if _, exists := pod.Annotations[model.GoMemLimitAnnotation]; exists {
+			delete(pod.Annotations, model.GoMemLimitAnnotation)
+			return true, nil
+		}
+		return false, nil
+	}
+	encoded, err := json.Marshal(goMemLimits)
+	if err != nil {
+		return false, err
+	}
+	value := string(encoded)
+	if pod.Annotations[model.GoMemLimitAnnotation] == value {
+		return false, nil
+	}
+	pod.Annotations[model.GoMemLimitAnnotation] = value
+	return true, nil
 }
 
 func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
