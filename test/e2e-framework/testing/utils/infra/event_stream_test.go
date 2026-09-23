@@ -127,10 +127,9 @@ func TestFormatEngineEvent(t *testing.T) {
 			show: true,
 		},
 		{
-			name: "cancel-event",
+			name: "cancel-event-is-completion-signal",
 			in:   events.EngineEvent{EngineEvent: apitype.EngineEvent{CancelEvent: &apitype.CancelEvent{}}},
-			out:  "🛑 stack operation canceled",
-			show: true,
+			show: false, // SDK emits on success too; not a cancellation
 		},
 		{
 			name: "progress-event-is-noise",

@@ -120,7 +120,10 @@ func formatEngineEvent(event events.EngineEvent) (string, bool) {
 	case event.SummaryEvent != nil:
 		return formatSummaryEvent(*event.SummaryEvent)
 	case event.CancelEvent != nil:
-		return fmt.Sprintf("%s stack operation canceled", eventSymbolCancel), true
+		// The SDK emits CancelEvent on every successful completion too
+		// (it signals "operation finished", not "was canceled") — suppress
+		// it; the SummaryEvent already reports the outcome.
+		return "", false
 	case event.ProgressEvent != nil:
 		// Plugin download/install progress is noise.
 		return "", false
