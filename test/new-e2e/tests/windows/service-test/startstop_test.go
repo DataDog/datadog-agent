@@ -32,6 +32,7 @@ import (
 
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -340,6 +341,53 @@ func TestServiceBehaviorWhenDisabledProcessAgent(t *testing.T) {
 
 type agentServiceDisabledProcessAgentSuite struct {
 	agentServiceDisabledSuite
+}
+
+// TestProcessAgentNotRunningUnderProcmgrWhenDisabled is the procmgr half of what this suite
+// asserts. The legacy datadog-process-agent service staying Stopped is no longer evidence of
+// anything, because dd-procmgr supervises process-agent now and the core Agent suppresses that
+// service unconditionally. What still has to hold is that the config gate keeps process-agent
+// from running at all when every trigger is off.
+func (s *agentServiceDisabledProcessAgentSuite) TestProcessAgentNotRunningUnderProcmgrWhenDisabled() {
+	host := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(host)
+	s.Require().NoError(err)
+	procmgrCLI := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
+
+	s.startAgent()
+	s.assertServiceState("Running", "dd-procmgr-service", nil)
+
+	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+		out, err := host.Execute(
+			`$p = Get-Process -Name 'process-agent' -ErrorAction SilentlyContinue; if ($null -eq $p) { 'Absent' } else { 'Present' }`)
+		if !assert.NoError(ct, err) {
+			return
+		}
+		assert.Equal(ct, "Absent", strings.TrimSpace(out),
+			"dd-procmgr must not run process-agent when every process-agent config trigger is off")
+	}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+
+	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
+		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, procmgrCLI, "datadog-agent-process"))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		state := procmgrDescribeField(out, "State")
+		assert.NotEmpty(ct, state, "describe output should report a State: %s", out)
+		assert.NotEqual(ct, "Running", state,
+			"dd-procmgr should not report a running process-agent when it is disabled in config")
+	}, time.Duration(2*s.timeoutScale)*time.Minute, 3*time.Second)
+}
+
+// procmgrDescribeField pulls a single "Label: value" field out of dd-procmgr describe output.
+func procmgrDescribeField(output, label string) string {
+	prefix := label + ":"
+	for _, line := range strings.Split(output, "\n") {
+		if idx := strings.Index(line, prefix); idx >= 0 {
+			return strings.TrimSpace(line[idx+len(prefix):])
+		}
+	}
+	return ""
 }
 
 func TestServiceBehaviorWhenDisabledTraceAgent(t *testing.T) {
