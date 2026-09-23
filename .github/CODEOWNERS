@@ -720,6 +720,7 @@
 /pkg/flare/*_win.go                                                   @DataDog/windows-products @DataDog/fleet-remediation
 /pkg/flare/*_windows.go                                               @DataDog/windows-products @DataDog/fleet-remediation
 /pkg/flare/*_windows_test.go                                          @DataDog/windows-products @DataDog/fleet-remediation
+/pkg/flare/certificates*.go                                           @DataDog/agent-runtimes
 /pkg/fleet/                                                           @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                                                       @DataDog/windows-products
