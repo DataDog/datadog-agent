@@ -89,6 +89,7 @@ func runInteractive(ctx context.Context, client sshClient, cmd *profile.PlainCom
 		return nil, fmt.Errorf("could not open stderr: %w", err)
 	}
 	reader := newDeviceReader(stdout, stderr)
+	defer reader.Close()
 
 	if err := session.Shell(); err != nil {
 		return nil, fmt.Errorf("could not start shell: %w", err)
@@ -163,10 +164,15 @@ func trimEchoAndPrompt(captured, command string) string {
 // timeout, so a device that stops talking cannot hang a collection.
 type deviceReader struct {
 	chunks chan []byte
+	done   chan struct{}
+	once   sync.Once
 }
 
 func newDeviceReader(streams ...io.Reader) *deviceReader {
-	d := &deviceReader{chunks: make(chan []byte, 16)}
+	d := &deviceReader{
+		chunks: make(chan []byte, 16),
+		done:   make(chan struct{}),
+	}
 	var wg sync.WaitGroup
 	for _, s := range streams {
 		wg.Add(1)
@@ -176,7 +182,11 @@ func newDeviceReader(streams ...io.Reader) *deviceReader {
 			for {
 				n, err := r.Read(buf)
 				if n > 0 {
-					d.chunks <- append([]byte(nil), buf[:n]...)
+					select {
+					case d.chunks <- append([]byte(nil), buf[:n]...):
+					case <-d.done:
+						return
+					}
 				}
 				if err != nil {
 					return
@@ -186,6 +196,11 @@ func newDeviceReader(streams ...io.Reader) *deviceReader {
 	}
 	go func() { wg.Wait(); close(d.chunks) }()
 	return d
+}
+
+// Close releases the reader goroutines. Safe to call more than once.
+func (d *deviceReader) Close() {
+	d.once.Do(func() { close(d.done) })
 }
 
 // readToPrompt accumulates output until a prompt appears at the tail, the
