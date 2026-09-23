@@ -1,0 +1,16 @@
+observer:
+  enable_smaps: false
+  enable_smaps_rollup: false
+
+generator:
+  - tcp_rr:
+      addr: "127.0.0.1"
+      threads: 16
+      flows: 64
+      no_delay: true
+
+# No blackholes, intentionally: host side config may only have generators
+blackhole: []
+
+# No target metrics, intentionally: target runs inside VM guest
+target_metrics: []
