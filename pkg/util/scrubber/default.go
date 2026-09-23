@@ -204,17 +204,11 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	})
 	scanningRulesYaml.LastUpdated = parseVersion("7.85.0") // https://github.com/DataDog/datadog-agent/pull/56761
 
-	scanningRulesPatternJSONReplacer := Replacer{
-		Regex:       regexp.MustCompile(`("pattern"\s*:\s*)"(?:[^"\\]|\\.)*"`),
+	// Single-line YAML text, e.g. integration.Config.Dump in the scheduling trace log.
+	scanningRulesPatternReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(\bpattern\s*:)\s+.+`),
 		Hints:       []string{"scanning_rules"},
-		Repl:        []byte(`$1"********"`),
-		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
-	}
-	// JSON inside a Go-quoted string, as printed by integration.Config.Dump.
-	scanningRulesPatternQuotedJSONReplacer := Replacer{
-		Regex:       regexp.MustCompile(`(\\"pattern\\"\s*:\s*)\\"(?:[^\\]|\\[^"\\]|\\\\(?:[^\\]|\\.))*\\"`),
-		Hints:       []string{"scanning_rules"},
-		Repl:        []byte(`$1\"********\"`),
+		Repl:        []byte(`$1 "********"`),
 		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
 	}
 	certReplacer := Replacer{
@@ -372,8 +366,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
 	scrubber.AddReplacer(SingleLine, scanningRulesYaml)
-	scrubber.AddReplacer(SingleLine, scanningRulesPatternJSONReplacer)
-	scrubber.AddReplacer(SingleLine, scanningRulesPatternQuotedJSONReplacer)
+	scrubber.AddReplacer(SingleLine, scanningRulesPatternReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)

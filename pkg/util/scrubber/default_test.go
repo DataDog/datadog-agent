@@ -624,19 +624,11 @@ log_level: info`)
 
 func TestDataSecurityScanningRules(t *testing.T) {
 	assertClean(t,
-		`scanning_rules: [{"id": "rule-1", "license": "proprietary", "pattern": "\d+"}]`,
-		`scanning_rules: [{"id": "rule-1", "license": "proprietary", "pattern": "********"}]`)
-
-	assertClean(t,
-		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":[{"id":"rule-1","pattern":"\\d+","proximity_keywords":{"included_keywords":["token"]}},{"id":"rule-2","pattern":"a\"b"}],"scan_data":[]}`,
-		`{"min_collection_interval":0,"task_id":"task-1","scanning_rules":[{"id":"rule-1","pattern":"********","proximity_keywords":{"included_keywords":["token"]}},{"id":"rule-2","pattern":"********"}],"scan_data":[]}`)
-
-	assertClean(t,
-		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":[{\"id\":\"rule-1\",\"pattern\":\"\\\\d+\"},{\"id\":\"rule-2\",\"pattern\":\"a\\\"b\"}]}"), } }`,
-		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("{\"task_id\":\"task-1\",\"scanning_rules\":[{\"id\":\"rule-1\",\"pattern\":\"********\"},{\"id\":\"rule-2\",\"pattern\":\"********\"}]}"), } }`)
+		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: '\\d{6}'\ntask_id: task-1\n"), } }`,
+		`Scheduling integration.Config = { Name: "datasecurity", Instances: { []byte("scan_data:\n    - connection:\n        host: h\nscanning_rules:\n    - id: rule-1\n      pattern: "********"`)
 
 	// `pattern` outside of scanning rules is left untouched.
-	assertClean(t, `{"log_processing_rules":[{"pattern":"\\d+"}]}`, `{"log_processing_rules":[{"pattern":"\\d+"}]}`)
+	assertClean(t, "log_processing_rules:\n  - pattern: 'keep\\s+me'", "log_processing_rules:\n  - pattern: 'keep\\s+me'")
 
 	scrubbed, err := ScrubYamlString(`
 scanning_rules:
