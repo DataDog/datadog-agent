@@ -259,8 +259,8 @@ func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
 			continue
 		}
 		members := uniqueMembers(cluster.anomalies)
-		sources := make([]string, len(members))
-		for i, member := range members {
+		sources := make([]string, len(members.descriptors))
+		for i, member := range members.descriptors {
 			sources[i] = formatSeriesDescriptor(member)
 		}
 		result = append(result, TimeClusterInfo{
@@ -323,13 +323,15 @@ func (c *TimeClusterCorrelator) activeCorrelationsLocked() []observer.ActiveCorr
 		if c.config.MinClusterSize > 0 && len(cluster.anomalies) < c.config.MinClusterSize {
 			continue
 		}
+		members := uniqueMembers(cluster.anomalies)
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
-			Title:       fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
-			Members:     uniqueMembers(cluster.anomalies),
-			Anomalies:   cluster.anomalies,
-			FirstSeen:   cluster.minTimestamp,
-			LastUpdated: cluster.maxTimestamp,
+			Pattern:       fmt.Sprintf("time_cluster_%d", cluster.id),
+			Title:         fmt.Sprintf("TimeCluster: %d anomalies", len(cluster.anomalies)),
+			Members:       members.descriptors,
+			MemberHandles: members.handles,
+			Anomalies:     cluster.anomalies,
+			FirstSeen:     cluster.minTimestamp,
+			LastUpdated:   cluster.maxTimestamp,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {

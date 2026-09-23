@@ -51,9 +51,11 @@ func TestUniqueMembersUseStorageHandleAndRetainFirstDescriptor(t *testing.T) {
 		{Source: first, SourceRef: &secondHandle},
 	})
 
-	require.Len(t, members, 2)
-	assert.Equal(t, first, members[0], "the first descriptor is retained for a handle")
-	assert.Equal(t, first, members[1], "the same descriptor with a new handle is a new member")
+	require.Len(t, members.descriptors, 2)
+	assert.Equal(t, first, members.descriptors[0], "the first descriptor is retained for a handle")
+	assert.Equal(t, first, members.descriptors[1], "the same descriptor with a new handle is a new member")
+	assert.Equal(t, &firstHandle, members.handles[0])
+	assert.Equal(t, &secondHandle, members.handles[1])
 }
 
 func TestUniqueMembersKeepsRefLessFallbackBehavior(t *testing.T) {
@@ -63,8 +65,9 @@ func TestUniqueMembersKeepsRefLessFallbackBehavior(t *testing.T) {
 	}
 
 	members := uniqueMembers(anomalies)
-	require.Len(t, members, 1)
-	assert.Equal(t, anomalies[0].Source, members[0])
+	require.Len(t, members.descriptors, 1)
+	assert.Equal(t, anomalies[0].Source, members.descriptors[0])
+	assert.Nil(t, members.handles[0])
 }
 
 func TestTimeClusterInfoSourcesUseLegacyFormat(t *testing.T) {

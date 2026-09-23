@@ -439,10 +439,13 @@ type ActiveCorrelation struct {
 	Pattern string // pattern name, e.g. "kernel_bottleneck"
 	Title   string // display title, e.g. "Correlated: Kernel network bottleneck"
 	// Members are the fully resolved series descriptors participating in this correlation.
-	Members     []SeriesDescriptor
-	Anomalies   []Anomaly // the actual anomalies that triggered this correlation
-	FirstSeen   int64     // when pattern first matched (unix seconds, from data)
-	LastUpdated int64     // most recent contributing signal (unix seconds, from data)
+	Members []SeriesDescriptor
+	// MemberHandles aligns with Members. A nil entry represents a member without
+	// storage-backed identity.
+	MemberHandles []*QueryHandle
+	Anomalies     []Anomaly // the actual anomalies that triggered this correlation
+	FirstSeen     int64     // when pattern first matched (unix seconds, from data)
+	LastUpdated   int64     // most recent contributing signal (unix seconds, from data)
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.

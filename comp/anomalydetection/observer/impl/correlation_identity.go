@@ -7,17 +7,31 @@ package observerimpl
 
 import observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 
+type correlationMembers struct {
+	descriptors []observer.SeriesDescriptor
+	handles     []*observer.QueryHandle
+}
+
 // uniqueMembers extracts one display descriptor for each anomaly source identity.
 // Storage-backed anomalies use QueryHandle; ref-less anomalies use the fallback
 // identity in anomalySourceIdentityFor.
-func uniqueMembers(anomalies []observer.Anomaly) []observer.SeriesDescriptor {
+func uniqueMembers(anomalies []observer.Anomaly) correlationMembers {
 	seen := make(map[anomalySourceIdentity]observer.SeriesDescriptor, len(anomalies))
-	members := make([]observer.SeriesDescriptor, 0, len(anomalies))
+	members := correlationMembers{
+		descriptors: make([]observer.SeriesDescriptor, 0, len(anomalies)),
+		handles:     make([]*observer.QueryHandle, 0, len(anomalies)),
+	}
 	for _, a := range anomalies {
 		identity := anomalySourceIdentityFor(a)
 		if _, exists := seen[identity]; !exists {
 			seen[identity] = a.Source
-			members = append(members, a.Source)
+			members.descriptors = append(members.descriptors, a.Source)
+			if a.SourceRef == nil {
+				members.handles = append(members.handles, nil)
+			} else {
+				handle := *a.SourceRef
+				members.handles = append(members.handles, &handle)
+			}
 		}
 	}
 	return members

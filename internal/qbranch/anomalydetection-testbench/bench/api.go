@@ -1063,19 +1063,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 			}
 		}
 
-		memberIDs := make([]string, len(c.Members))
-		for k, m := range c.Members {
-			// Find SourceRef for this member.
-			for _, a := range c.Anomalies {
-				if seriesDescriptorsEqual(a.Source, m) && a.SourceRef != nil {
-					memberIDs[k] = a.SourceRef.CompactID()
-					break
-				}
-			}
-			if memberIDs[k] == "" {
-				memberIDs[k] = formatSeriesDescriptor(m)
-			}
-		}
+		memberIDs := correlationMemberSeriesIDs(c)
 
 		metricNames := make([]string, len(c.Members))
 		for k, m := range c.Members {
@@ -1094,6 +1082,18 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 	}
 
 	api.writeJSON(w, response)
+}
+
+func correlationMemberSeriesIDs(c observerdef.ActiveCorrelation) []string {
+	memberIDs := make([]string, len(c.Members))
+	for i, member := range c.Members {
+		if i < len(c.MemberHandles) && c.MemberHandles[i] != nil {
+			memberIDs[i] = c.MemberHandles[i].CompactID()
+			continue
+		}
+		memberIDs[i] = formatSeriesDescriptor(member)
+	}
+	return memberIDs
 }
 
 // handleStats returns correlator statistics.
