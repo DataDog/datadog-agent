@@ -278,25 +278,30 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *resolvedTarget {
 
 	for _, entry := range m.sources {
 		result := entry.source.resolve(pod)
+		// An abstaining source has not target matching this pod, move on to the next.
 		if result.action == sourceAbstain {
 			continue
 		}
 
+		// The first decisive source selects the target; a deny blocks fallback.
 		if !selectionDecided {
 			selected = result
 			selectionSource = entry.name
 			selectionDecided = true
 			if result.action == sourceDeny {
-				return nil
+				break
 			}
 		}
 
+		// An annotation can select libraries without deciding SSI mode, so the
+		// first decisive SSI source may supply only the mode.
 		if entry.determineSSIMode {
 			isSSI = result.action == sourceInject
 			ssiSource = entry.name
 			break
 		}
 
+		// Only annotation selection needs evaluation to continue for SSI mode.
 		if selectionSource != targetSourceAnnotation {
 			break
 		}
