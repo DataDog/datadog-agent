@@ -91,10 +91,14 @@ var _ Profile = localProfile{}
 func (p localProfile) NamePrefix() string {
 	// Stack names may only contain alphanumeric characters, hyphens, underscores, or periods.
 	// As NamePrefix is used as stack name, we sanitize the user name.
-	var username string
-	user, err := user.Current()
-	if err == nil {
-		username = user.Username
+	// On a shared dev VM (a Datadog workspace) the OS user is the same for everyone, so
+	// REAL_USER carries the developer's identity.
+	username := os.Getenv("REAL_USER")
+	if username == "" {
+		user, err := user.Current()
+		if err == nil {
+			username = user.Username
+		}
 	}
 
 	if username == "" || username == "root" {
@@ -117,6 +121,13 @@ func (p localProfile) NamePrefix() string {
 
 	username = strings.ToLower(username)
 	username = strings.ReplaceAll(username, " ", "-")
+
+	// Several workspaces owned by the same developer would otherwise name their stacks
+	// and cloud resources identically in the shared account.
+	if workspace := os.Getenv("WORKSPACE_NAME"); workspace != "" {
+		workspace = strings.ReplaceAll(strings.ToLower(workspace), " ", "-")
+		username = fmt.Sprintf("%s-%s", username, workspace)
+	}
 
 	return username
 }

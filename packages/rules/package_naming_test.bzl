@@ -228,9 +228,9 @@ def _test_arch_values_impl(env, target):
     env.expect.that_str(pvi.values.get("arch_deb")).equals(env.ctx.attr.expect_arch_deb)
     env.expect.that_str(pvi.values.get("arch_rpm")).equals(env.ctx.attr.expect_arch_rpm)
 
-# -- Test 8: version begins with "7" and contains "-localbuild" --------------
+# -- Test 8: version begins with "7" and contains "~localbuild" --------------
 # The exact value depends on CI env vars / release.json, but without
-# PACKAGE_VERSION set the fallback path produces "<milestone>-localbuild"
+# PACKAGE_VERSION set the fallback path produces "<milestone>~localbuild"
 # where milestone is a "7.x.y" string from release.json.
 
 def _test_version_nonempty(name):
@@ -248,7 +248,7 @@ def _test_version_nonempty_impl(env, target):
     pvi = target[PackageVariablesInfo]
     version = pvi.values.get("version")
     env.expect.that_str(version[:2]).equals("7.")
-    env.expect.that_str(version).contains("-localbuild")
+    env.expect.that_str(version).contains("~localbuild")
 
 # -- Suite -------------------------------------------------------------------
 

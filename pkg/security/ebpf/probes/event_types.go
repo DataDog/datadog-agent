@@ -90,6 +90,10 @@ func NetworkSelectors(hasFentry, hasCgroupSocket, haveIOURing bool) []manager.Pr
 		ps = append(ps, &manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_sock_create"),
 			hookFunc("hook_sock_release"),
+			hookFunc("hook_post_bind4"),
+			hookFunc("hook_post_bind6"),
+			hookFunc("hook_connect4"),
+			hookFunc("hook_connect6"),
 		}})
 	}
 
@@ -755,6 +759,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			}},
 		},
 		"prctl": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
+		},
+		// Process context also uses the prctl syscall to notify userspace that we should try to resolve the given PID
+		"otel_process_ctx": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
 		},
 		"tracer_memfd_seal": {

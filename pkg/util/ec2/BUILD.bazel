@@ -43,6 +43,7 @@ dd_agent_go_test(
     data = ["payloads/instance_indentity.json"],
     embed = [":ec2"],
     deps = [
+        "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/util/dmi",
         "//pkg/util/ec2/internal",

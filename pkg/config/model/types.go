@@ -136,10 +136,14 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
-// NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
-// configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
-// 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
+// NotificationReceiver represents the callback type to receive notifications each time the `Set` or
+// `UnsetForSource` method is called. The configuration will call each NotificationReceiver
+// registered through the 'OnUpdate' method, therefore 'NotificationReceiver' should not be blocking.
+//
+// source and newValue describe what the setting resolves to after the change. unsetSource is empty
+// except for a removal, where it names the layer that was cleared and source is the layer now
+// winning, or SourceUnknown when none is left.
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64, unsetSource Source)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
@@ -220,6 +224,15 @@ type Reader interface {
 	Stringify(source Source, opts ...StringifyOption) string
 }
 
+// EnvVarControl is implemented by configs whose env layer can be inspected and dropped, so a
+// process taking its configuration from elsewhere can stop env vars from overriding it.
+type EnvVarControl interface {
+	// EnvVarSettings maps each setting the env layer is providing to the env vars bound to it.
+	EnvVarSettings() map[string][]string
+	// ClearEnvVars empties the env layer.
+	ClearEnvVars()
+}
+
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
@@ -227,9 +240,10 @@ type Writer interface {
 	UnsetForSource(key string, source Source)
 	// DirectBulkSet writes settings already resolved by another config, keeping each one in the
 	// source layer it came from so the result mirrors the sender. It exists for config streaming
-	// and nothing else should call it: unlike Set it accepts SourceEnvVar and skips notifications,
-	// which makes it unfit for applying a live change.
-	DirectBulkSet(settings []DirectSetting)
+	// and nothing else should call it: unlike Set it accepts SourceEnvVar, which makes it unfit
+	// for applying a live change. shouldNotify notifies receivers for every setting whose resolved
+	// value changed, which a snapshot replacing a config the process already runs on requires.
+	DirectBulkSet(settings []DirectSetting, shouldNotify bool)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration

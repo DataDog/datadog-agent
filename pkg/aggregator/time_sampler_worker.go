@@ -13,7 +13,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // The timeSamplerWorker runs the process loop for a TimeSampler:
@@ -39,7 +39,7 @@ type timeSamplerWorker struct {
 	// flushFilterList is the filter applied when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
 	// process, such as histograms which create several metrics.
-	flushFilterList utilstrings.Matcher
+	flushFilterList metricname.Matcher
 
 	// parallel serialization configuration
 	parallelSerialization FlushAndSerializeInParallel
@@ -56,7 +56,7 @@ type timeSamplerWorker struct {
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a filterList reconfiguration
-	metricFilterListChan chan utilstrings.Matcher
+	metricFilterListChan chan metricname.Matcher
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
 	// channel to trigger interactive dump of the context resolver
@@ -74,7 +74,7 @@ type dumpTrigger struct {
 func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store,
-	flushFilterList utilstrings.Matcher, tagFilterList filterlist.TagMatcher) *timeSamplerWorker {
+	flushFilterList metricname.Matcher, tagFilterList filterlist.TagMatcher) *timeSamplerWorker {
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -91,7 +91,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		stopChan:             make(chan struct{}),
 		flushChan:            make(chan flushTrigger),
 		dumpChan:             make(chan dumpTrigger),
-		metricFilterListChan: make(chan utilstrings.Matcher),
+		metricFilterListChan: make(chan metricname.Matcher),
 		tagFilterListChan:    make(chan filterlist.TagMatcher),
 
 		tagsStore: tagsStore,

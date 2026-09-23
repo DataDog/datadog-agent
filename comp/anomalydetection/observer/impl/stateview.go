@@ -40,7 +40,8 @@ func (sv *stateView) ScenarioBounds() (start int64, end int64, ok bool) {
 
 // --- Anomaly access ---
 
-// Anomalies returns a copy of all currently tracked raw anomalies.
+// Anomalies returns a copy of raw anomalies when replay/debug history is enabled.
+// Live production mode deliberately returns an empty slice.
 func (sv *stateView) Anomalies() []observerdef.Anomaly {
 	return sv.engine.RawAnomalies()
 }

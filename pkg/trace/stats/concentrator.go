@@ -50,9 +50,9 @@ type Concentrator struct {
 	statsd        statsd.ClientInterface
 	conf          *config.AgentConfig
 	// peerTagsCache caches the peer-tag attribute key set keyed by the
-	// semantic registry version it was derived from. Readers call
+	// semantic registry fingerprint it was derived from. Readers call
 	// getPeerTagKeys, which rebuilds the cache (via conf.PeerTagsCache) when
-	// the live registry content_hash no longer matches — this is how the
+	// the live registry fingerprint no longer matches — this is how the
 	// Concentrator picks up semantic-core RC updates without explicit
 	// notification from the RC handler. The stored snapshot's Keys slice is
 	// never mutated in place; getPeerTagKeys always Stores a fresh snapshot.
@@ -95,12 +95,14 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 
 // getPeerTagKeys returns the cached peer-tag key set, rebuilding it via
 // AgentConfig.PeerTagsCache when the live semantic registry has been replaced
-// (its ContentHash() differs from the cached snapshot's ContentHash). Two
-// concurrent callers that observe staleness may both rebuild and Store; the
-// result is identical so last-Store-wins is benign.
+// by one built from different payload bytes (its Fingerprint() differs from the
+// cached snapshot's Fingerprint). Concurrent callers that observe staleness may
+// rebuild from different live registries if a swap happens between their loads.
+// An older snapshot winning the last Store is benign: the next call detects the
+// fingerprint mismatch and repairs the cache, making it eventually consistent.
 func (c *Concentrator) getPeerTagKeys() []string {
 	snap := c.peerTagsCache.Load()
-	if snap == nil || snap.ContentHash != semantics.DefaultRegistry().ContentHash() {
+	if snap == nil || snap.Fingerprint != semantics.DefaultRegistry().Fingerprint() {
 		snap = c.conf.PeerTagsCache()
 		c.peerTagsCache.Store(snap)
 	}
@@ -238,11 +240,12 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		ProcessTagsHash: tags.processTagsHash,
 		BaseService:     semantics.LookupString(semantics.DefaultRegistry(), semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
 	}
+	now := time.Now().UnixNano()
 	peerTagKeys := c.getPeerTagKeys()
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
-			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin, weight)
+			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin, weight, now)
 		}
 	}
 }
@@ -276,11 +279,12 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		ProcessTagsHash: tags.processTagsHash,
 		BaseService:     baseService,
 	}
+	now := time.Now().UnixNano()
 	peerTagKeys := c.getPeerTagKeys()
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromV1(s, peerTagKeys, c.additionalMetricTagKeys)
 		if ok {
-			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin(), weight)
+			c.spanConcentrator.addSpan(statSpan, aggKey, tags, pt.TraceChunk.Origin(), weight, now)
 		}
 	}
 }
@@ -293,6 +297,11 @@ func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
 
 func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	sb := c.spanConcentrator.Flush(now, force)
+	if c.statsd != nil {
+		if clamps := c.spanConcentrator.DrainFutureClamps(); clamps > 0 {
+			_ = c.statsd.Count("datadog.trace_agent.stats.future_bucket_clamps", clamps, nil, 1)
+		}
+	}
 	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 

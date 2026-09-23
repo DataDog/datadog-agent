@@ -4,27 +4,7 @@
 #include "maps.h"
 #include "process.h"
 
-// Reads the current thread's TLS thread pointer (x86 fsbase / ARM64 tpidr) from
-// the kernel task_struct via BTF-resolved offsets. Used as the base for the
-// Go runtime.g lookup below.
-static u64 __attribute__((always_inline)) read_thread_pointer() {
-    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
-    u64 thread_offset = get_task_struct_thread_offset();
-    u64 tp_field_offset = get_thread_struct_tp_offset();
-
-    // 0 means the offset did not resolved (those fields are never at the start of the struct)
-    if (thread_offset == 0 || tp_field_offset == 0) {
-        return 0;
-    }
-
-    u64 tp = 0;
-    int ret = bpf_probe_read_kernel(&tp, sizeof(tp),
-                                     (void *)task + thread_offset + tp_field_offset);
-    if (ret < 0) {
-        return 0;
-    }
-    return tp;
-}
+#include "thread_pointer.h"
 
 #if defined(__aarch64__)
 // Processor state bits used to tell a user-mode register context from a
@@ -221,25 +201,30 @@ static void __attribute__((always_inline)) collect_go_bucket_slot(
 }
 
 // Snapshot the current goroutine's pprof labels into the go_labels_ctx ring.
-// Returns the id, 0 when the process is not a tracked Go tracer / no labels are
-// available.
-static u32 __attribute__((always_inline)) collect_go_labels(void) {
+// *id_out is set to the ring slot id on success, 0 otherwise. Returns
+// SPAN_CTX_EVENT_OK on success.
+static u32 __attribute__((always_inline)) collect_go_labels(u32 *id_out) {
+    *id_out = 0;
+
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 
     struct go_labels_offsets_t *offs = bpf_map_lookup_elem(&go_labels_procs, &tgid);
     if (!offs) {
-        return 0;
+        return SPAN_CTX_EVENT_NONE;
     }
 
     // TLS -> G, with a fallback to the g register where the ABI has one. A
     // tls_offset of 0 means user space determined that this binary does not keep
     // g in TLS at all, so the register is the only source.
     u64 g_addr = 0;
+    u8 tp_missing = 0;
     if (offs->tls_offset != 0) {
         u64 tp = read_thread_pointer();
-        if (tp != 0 && bpf_probe_read_user(&g_addr, sizeof(g_addr),
-                                           (void *)((s64)tp + offs->tls_offset)) < 0) {
+        if (tp == 0) {
+            tp_missing = 1;
+        } else if (bpf_probe_read_user(&g_addr, sizeof(g_addr),
+                                       (void *)((s64)tp + offs->tls_offset)) < 0) {
             g_addr = 0;
         }
     }
@@ -247,42 +232,48 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
         g_addr = read_go_g_register();
     }
     if (g_addr == 0) {
-        return 0;
+        return tp_missing ? SPAN_CTX_EVENT_NO_THREAD_POINTER : SPAN_CTX_EVENT_G_NOT_FOUND;
     }
 
     // G -> M
     void *m_ptr = NULL;
     if (bpf_probe_read_user(&m_ptr, sizeof(m_ptr),
                             (void *)(g_addr + offs->m_offset)) < 0 || m_ptr == NULL) {
-        return 0;
+        return SPAN_CTX_EVENT_READ_FAULT;
     }
 
     // M -> curg
     u64 curg_addr = 0;
     if (bpf_probe_read_user(&curg_addr, sizeof(curg_addr),
-                            (void *)((u64)m_ptr + offs->curg)) < 0 || curg_addr == 0) {
-        return 0;
+                            (void *)((u64)m_ptr + offs->curg)) < 0) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (curg_addr == 0) {
+        return SPAN_CTX_EVENT_NONE;
     }
 
     // curg -> labels
     void *labels_ptr = NULL;
     if (bpf_probe_read_user(&labels_ptr, sizeof(labels_ptr),
-                            (void *)(curg_addr + offs->labels)) < 0 || labels_ptr == NULL) {
-        return 0;
+                            (void *)(curg_addr + offs->labels)) < 0) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (labels_ptr == NULL) {
+        return SPAN_CTX_EVENT_NONE; // goroutine sets no labels
     }
 
     u32 zero = 0;
     struct go_labels_scratch_t *scratch = bpf_map_lookup_elem(&go_labels_scratch_gen, &zero);
     if (!scratch) {
-        return 0;
+        return SPAN_CTX_EVENT_MAP_ERROR;
     }
 
     // Claim the ring slot before collecting: the collect_* helpers below write
     // the pairs straight into it.
     u32 id = mint_go_labels_id();
-    struct go_labels_ctx_entry_t *entry = lookup_go_labels_entry(id);
+    struct go_labels_ctx_entry_t *entry = id ? lookup_go_labels_entry(id) : NULL;
     if (!entry) {
-        return 0;
+        return SPAN_CTX_EVENT_MAP_ERROR;
     }
     reset_go_labels_entry(entry);
     entry->id = id;
@@ -290,10 +281,10 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
     if (offs->hmap_buckets == 0) {
         // Go >=1.24: slice format.
         if (bpf_probe_read_user(&scratch->slice, sizeof(scratch->slice), labels_ptr) < 0) {
-            return 0;
+            return SPAN_CTX_EVENT_READ_FAULT;
         }
         if (scratch->slice.len == 0 || scratch->slice.array == NULL) {
-            return 0;
+            return SPAN_CTX_EVENT_NONE;
         }
         u64 num_pairs = scratch->slice.len;
         if (num_pairs > GO_LABELS_CTX_MAX_PAIRS) {
@@ -316,23 +307,23 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
         // Go <1.24: map[string]string format.
         void *labels_map_ptr = NULL;
         if (bpf_probe_read_user(&labels_map_ptr, sizeof(labels_map_ptr), labels_ptr) < 0 || labels_map_ptr == NULL) {
-            return 0;
+            return SPAN_CTX_EVENT_READ_FAULT;
         }
 
         u64 labels_count = 0;
         if (bpf_probe_read_user(&labels_count, sizeof(labels_count),
                                 labels_map_ptr + offs->hmap_count) < 0 || labels_count == 0) {
-            return 0;
+            return SPAN_CTX_EVENT_NONE;
         }
 
         void *label_buckets = NULL;
         if (bpf_probe_read_user(&label_buckets, sizeof(label_buckets),
                                 labels_map_ptr + offs->hmap_buckets) < 0 || label_buckets == NULL) {
-            return 0;
+            return SPAN_CTX_EVENT_READ_FAULT;
         }
 
         if (bpf_probe_read_user(&scratch->bucket, sizeof(struct go_map_bucket_t), label_buckets) < 0) {
-            return 0;
+            return SPAN_CTX_EVENT_READ_FAULT;
         }
 
         // Manually unrolled over GO_MAP_BUCKET_SIZE with constant indices.
@@ -347,7 +338,22 @@ static u32 __attribute__((always_inline)) collect_go_labels(void) {
         collect_go_bucket_slot(entry, scratch, 7);
     }
 
-    return id;
+    *id_out = id;
+    return SPAN_CTX_EVENT_OK;
+}
+
+// The offsets describe the executable, which a fork does not replace.
+static int __attribute__((always_inline)) inherit_go_labels(u32 ppid, u32 pid) {
+    struct go_labels_offsets_t *parent = bpf_map_lookup_elem(&go_labels_procs, &ppid);
+    if (!parent) {
+        return 0;
+    }
+
+    // copy to stack for older kernel verifiers
+    struct go_labels_offsets_t on_stack_offs = *parent;
+    bpf_map_update_elem(&go_labels_procs, &pid, &on_stack_offs, BPF_ANY);
+
+    return 0;
 }
 
 static int __attribute__((always_inline)) unregister_go_labels() {

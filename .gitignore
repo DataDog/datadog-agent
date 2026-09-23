@@ -7,6 +7,8 @@ vendor/
 bin/
 /dev/
 /site/
+# local git worktrees
+.worktrees/
 # Remote content fetched while building the documentation.
 /.docs-cache/
 # Link check results remembered between runs.
@@ -246,6 +248,9 @@ CLAUDE_PERSONAL.md
 AUTO_JIRA.md
 .agents/skills/auto-jira/SKILL.notes.md
 
+# follow-pr worktree-local autonomy preferences (local only, never commit)
+.agents/skills/follow-pr/config.toml
+
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
@@ -256,9 +261,10 @@ AUTO_JIRA.md
 .codex/*
 !.codex/config.toml
 
-# Zed config (commit the shared MCP config; ignore everything else)
+# Zed config (commit shared project config; ignore everything else)
 .zed/*
 !.zed/settings.json
+!.zed/tasks.json
 
 # Devcontainer
 .devcontainer/

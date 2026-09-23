@@ -7,7 +7,7 @@ package filterlistimpl
 
 import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // noopFilterList is a Noop FilterList to be used for tests.
@@ -18,7 +18,7 @@ func NewNoopFilterList() filterlist.Component {
 }
 
 // OnUpdateMetricFilterList does nothing.
-func (*noopFilterList) OnUpdateMetricFilterList(_ func(utilstrings.Matcher, utilstrings.Matcher)) {}
+func (*noopFilterList) OnUpdateMetricFilterList(_ func(metricname.Matcher, metricname.Matcher)) {}
 
 // OnUpdateTagFilterList does nothing.
 func (*noopFilterList) OnUpdateTagFilterList(_ func(filterlist.TagMatcher)) {}
@@ -29,13 +29,13 @@ func (*noopFilterList) GetTagFilterList() filterlist.TagMatcher {
 }
 
 // GetMetricFilterList does nothing.
-func (*noopFilterList) GetMetricFilterList() utilstrings.Matcher {
-	return utilstrings.NewMatcher([]string{}, false)
+func (*noopFilterList) GetMetricFilterList() metricname.Matcher {
+	return metricname.NewMatcher([]string{}, false)
 }
 
 // GetHistoFilterList does nothing.
-func (*noopFilterList) GetHistoFilterList() utilstrings.Matcher {
-	return utilstrings.NewMatcher([]string{}, false)
+func (*noopFilterList) GetHistoFilterList() metricname.Matcher {
+	return metricname.NewMatcher([]string{}, false)
 }
 
 type noopTagMatcher struct{}

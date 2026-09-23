@@ -99,7 +99,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 	}
 
 	// Create process resolver with shared dependencies
-	processResolver, err := process.NewTestEBPFResolver(timeResolver, pathResolver, mountResolver, userGroupResolver)
+	processResolver, err := process.NewTestEBPFResolver(probeConfig, timeResolver, pathResolver, mountResolver, userGroupResolver)
 	if err != nil {
 		tb.Fatalf("failed to create test process resolver: %v", err)
 	}
@@ -176,6 +176,8 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 // to find panics, nil-pointer dereferences, and other memory-safety issues
 // caused by malformed binary event data from the kernel.
 func FuzzHandleEvent(f *testing.F) {
+	f.Add(-34, []byte("00000000\x17\x00\x00\x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))
+
 	// Seed corpus with properly structured events for various event types
 	// This helps the fuzzer start with valid structures and mutate from there
 

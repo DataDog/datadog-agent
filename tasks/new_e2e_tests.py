@@ -11,11 +11,14 @@ import os
 import os.path
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -23,6 +26,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
@@ -32,7 +36,6 @@ from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modifi
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import (
-    REPO_PATH,
     color_message,
     environ,
     gitlab_section,
@@ -89,7 +92,8 @@ def _check_e2e_local_config_or_exit(
     if cfg is None or aws is None or not aws.keyPairName:
         raise Exit(
             "Local E2E config is missing or incomplete. "
-            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
+            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow). "
+            "Pass `--team=<github-team>` to skip the interactive team prompt (AI agents should always do this).",
             1,
         )
 
@@ -134,6 +138,59 @@ class TestState:
         return f'{"Failing" if failing else "Successful"} / {"Flaky" if flaky else "Non-flaky"}'
 
 
+@contextmanager
+def _shared_orchestrion_jobserver():
+    """
+    Start a single `orchestrion server` and point `ORCHESTRION_JOBSERVER_URL` at it, so every `orchestrion go test -c`
+    invocation started underneath this context shares its package-resolution cache instead of each starting its own:
+    orchestrion only auto-shares a job server across invocations that reuse the same `go build` $WORK directory, which
+    independent top-level `orchestrion go test -c` processes never do.
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        log_file = os.path.join(tmp_dir, "server.log")
+        url_file = os.path.join(tmp_dir, "server.url")
+        with open(log_file, "wb") as log:
+            server = subprocess.Popen(
+                ["orchestrion", "server", f"-url-file={url_file}", "-inactivity-timeout=15m"],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        try:
+            timeout = datetime.timedelta(seconds=10)
+            deadline = time.monotonic() + timeout.total_seconds()
+            url = ""
+            while time.monotonic() < deadline:
+                if os.path.exists(url_file):
+                    url = Path(url_file).read_text().strip()
+                    if url:
+                        break
+                try:
+                    server.wait(timeout=0.1)
+                except subprocess.TimeoutExpired:
+                    continue
+                raise Exit(
+                    f"orchestrion server exited early with code {server.returncode}:\n{Path(log_file).read_text()}"
+                )
+            if not url:
+                raise Exit(
+                    f"orchestrion server did not report readiness within {timeout}:\n{Path(log_file).read_text()}"
+                )
+
+            with environ({"ORCHESTRION_JOBSERVER_URL": url}):
+                yield
+        finally:
+            # Orchestrion watches the url file and shuts itself down once it disappears.
+            if os.path.exists(url_file):
+                os.remove(url_file)
+            for escalate in lambda: None, server.terminate, server.kill:
+                escalate()
+                try:
+                    server.communicate(timeout=timeout.total_seconds())
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+
+
 def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
     """
     Build a single test binary for the given package.
@@ -145,7 +202,7 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_path = output_path / binary_name
 
         # Build test binary
-        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
@@ -222,7 +279,7 @@ def build_binaries(
     success_count = 0
     failure_count = 0
     built_packages = []  # Track successfully built packages with their info
-    with ctx.cd("test/new-e2e"):
+    with ctx.cd("test/new-e2e"), _shared_orchestrion_jobserver():
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             # Submit all build jobs
             futures = {
@@ -605,7 +662,6 @@ def run(
         )
 
     _check_e2e_local_config_or_exit(profile)
-    local_e2e_cfg = _load_e2e_local_config()
 
     e2e_module = get_default_modules()[module_name]
 
@@ -638,14 +694,9 @@ def run(
     if profile:
         env_vars["E2E_PROFILE"] = profile
 
-    # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set in the
-    # environment. Lets developers run E2E without putting the passphrase in their rc.
-    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and local_e2e_cfg is not None:
-        from tasks.e2e_framework.config import get_pulumi_passphrase
-
-        passphrase = get_pulumi_passphrase(local_e2e_cfg)
-        if passphrase:
-            env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+    # Pulls PULUMI_CONFIG_PASSPHRASE out of the local config when the environment doesn't
+    # already carry one, so developers don't have to put the passphrase in their rc file.
+    env_vars.update(tool.pulumi_env(skip_update_check=False))
 
     parsed_params = {}
 
@@ -804,7 +855,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
 
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
@@ -821,8 +872,6 @@ def run(
         "timeout": "",
         "verbose": "-test.v" if verbose else "",
         "nocache": "-test.count=1" if not cache else "",
-        "REPO_PATH": REPO_PATH,
-        "commit": resolved_commit_sha,
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
@@ -1031,19 +1080,13 @@ def _get_pulumi_backend_url(ctx: Context) -> str | None:
     Get the Pulumi backend URL using 'pulumi whoami --json'.
     Returns the backend URL or None if it cannot be determined.
     """
-    res = ctx.run(
-        "pulumi whoami --json",
-        hide=True,
-        warn=True,
-        env=_get_default_env(),
-    )
-    if res is None or res.exited != 0:
-        return None
     try:
-        whoami = json.loads(res.stdout)
-        return whoami.get("url")
+        whoami = tool.pulumi_json(ctx, "whoami --json", project_dir=False, warn=True)
     except json.JSONDecodeError:
         return None
+    if whoami is None:
+        return None
+    return whoami.get("url")
 
 
 def _list_stacks_from_s3(backend_url: str, project: str = "e2eci") -> list[dict]:
@@ -1118,14 +1161,7 @@ def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
         return _list_stacks_from_s3(backend_url, project)
 
     # Fallback to pulumi CLI for non-S3 backends (local, etc.)
-    res = ctx.run(
-        "pulumi stack ls --all --json",
-        hide=True,
-        warn=True,
-    )
-    if res is None or res.exited != 0:
-        return []
-    return json.loads(res.stdout)
+    return tool.pulumi_json(ctx, "stack ls --all --json", project_dir=False, warn=True) or []
 
 
 @task
@@ -1160,26 +1196,19 @@ def cleanup_remote_stacks(ctx, stack_regex):
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
         res = pool.map(destroy_func, to_delete_stacks)
-        successful_stack = set()
+        destroyed_stack = set()
         failed_stack = set()
         for exit_code, stdout, stderr, stack in res:
             if exit_code != 0:
                 failed_stack.add(stack)
             else:
-                successful_stack.add(stack)
-            if stdout or stderr:
-                print(f"Stack {stack}: {stdout} {stderr}".rstrip())
+                destroyed_stack.add(stack)
+            print(f"Stack {stack}: {stdout} {stderr}")
 
-    for stack in successful_stack:
-        if remote_stack_cleaning:
-            print(f"Stack {stack} cleanup request submitted successfully")
-        else:
-            print(f"Stack {stack} destroyed successfully")
+    for stack in destroyed_stack:
+        print(f"Stack {stack} destroyed successfully")
     for stack in failed_stack:
-        if remote_stack_cleaning:
-            print(f"Failed to submit cleanup request for stack {stack}")
-        else:
-            print(f"Failed to destroy stack {stack}")
+        print(f"Failed to destroy stack {stack}")
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
@@ -1348,12 +1377,6 @@ def deps(ctx, verbose=False):
     download_go_dependencies(ctx, paths=["test/new-e2e"], verbose=verbose, max_retry=3)
 
 
-def _get_default_env():
-    return {
-        "PULUMI_SKIP_UPDATE_CHECK": "true",
-    }
-
-
 def _get_home_dir():
     # TODO: Go os.UserHomeDir() uses a different algorithm than Python Path.home()
     #       so a different directory may be returned in some cases.
@@ -1472,22 +1495,9 @@ def _prompt_select_stacks(stacks: list[str]) -> list[str]:
 
 
 def _get_existing_stacks(ctx: Context) -> list[str]:
-    e2e_stacks: list[str] = []
-    output = ctx.run(
-        "pulumi stack ls --all --project e2elocal --json",
-        hide=True,
-        env=_get_default_env(),
-    )
-    if output is None or not output:
-        return []
-    stacks_data = json.loads(output.stdout)
-    for stack in stacks_data:
-        if "name" not in stack:
-            print(f"Skipping stack {stack} as it does not have a name")
-            continue
-        stack_name = stack["name"]
+    e2e_stacks = tool.pulumi_stack_names(ctx, project="e2elocal", project_dir=False)
+    for stack_name in e2e_stacks:
         print(f"Adding stack {stack_name}")
-        e2e_stacks.append(stack_name)
     return e2e_stacks
 
 
@@ -1496,42 +1506,46 @@ def _destroy_stack(ctx: Context, stack: str):
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
 
-    destroy_env = _get_default_env()
-    destroy_env["PULUMI_K8S_DELETE_UNREACHABLE"] = "true"
+    destroy_env = {"PULUMI_K8S_DELETE_UNREACHABLE": "true"}
+    tmp_dir = tempfile.gettempdir()
 
-    with ctx.cd(tempfile.gettempdir()):
-        ret = ctx.run(
-            f"pulumi destroy --stack {stack} --yes --remove --skip-preview",
+    ret = tool.run_pulumi(
+        ctx,
+        f"destroy --stack {stack} --yes --remove --skip-preview",
+        project_dir=tmp_dir,
+        env=destroy_env,
+        warn=True,
+        hide=True,
+    )
+    if ret is not None and ret.exited != 0:
+        if "No valid credential sources found" in ret.stdout:
+            raise Exception(
+                f"no valid credentials sources found for stack {stack}, if you set the AWS_PROFILE environment variable ensure it is valid"
+            )
+        if "no previous deployment" in ret.stderr:
+            # Stack was created but never had a successful up; no resources to destroy.
+            print(f"Stack {stack} has no previous deployment, skipping destroy")
+            return
+        # run with refresh on first destroy attempt failure
+        ret = tool.run_pulumi(
+            ctx,
+            f"destroy --stack {stack} -r --yes --remove --skip-preview",
+            project_dir=tmp_dir,
+            env=destroy_env,
             warn=True,
             hide=True,
-            env=destroy_env,
         )
-        if ret is not None and ret.exited != 0:
-            if "No valid credential sources found" in ret.stdout:
-                raise Exception(
-                    f"no valid credentials sources found for stack {stack}, if you set the AWS_PROFILE environment variable ensure it is valid"
-                )
-            if "no previous deployment" in ret.stderr:
-                # Stack was created but never had a successful up; no resources to destroy.
-                print(f"Stack {stack} has no previous deployment, skipping destroy")
-                return
-            # run with refresh on first destroy attempt failure
-            ret = ctx.run(
-                f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
-                warn=True,
-                hide=True,
-                env=destroy_env,
-            )
-        if ret is not None and ret.exited != 0:
-            raise Exception(f"{ret.stdout, ret.stderr}")
+    if ret is not None and ret.exited != 0:
+        raise Exception(f"{ret.stdout, ret.stderr}")
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ret = ctx.run(
-        f"pulumi stack rm --force --yes --stack {stack}",
+    ret = tool.run_pulumi(
+        ctx,
+        f"stack rm --force --yes --stack {stack}",
+        project_dir=False,
         warn=True,
         hide=True,
-        env=_get_default_env(),
     )
     if ret is not None and ret.exited != 0:
         if "no stack named" in ret.stderr:
@@ -1541,10 +1555,7 @@ def _remove_stack(ctx: Context, stack: str):
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("pulumi about --json", hide=True, env=_get_default_env())
-    if output is None or not output:
-        return {}
-    return json.loads(output.stdout)
+    return tool.pulumi_json(ctx, "about --json", project_dir=False) or {}
 
 
 def _is_local_state(pulumi_about: dict) -> bool:
@@ -1564,16 +1575,17 @@ def _is_local_state(pulumi_about: dict) -> bool:
 
 
 def _get_agent_qa_ecr_password(ctx: Context) -> str:
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE
+
     ecr_password_res = ctx.run(
-        "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True, warn=True
+        f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
+        hide=True,
+        warn=True,
     )
     if ecr_password_res.exited != 0:
-        ecr_password_res = ctx.run(
-            "aws-vault exec sso-agent-qa-account-admin-8h -- aws ecr get-login-password", hide=True, warn=True
-        )
-    if ecr_password_res.exited != 0:
         print(
-            "WARNING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+            f"WARNING: Could not get ECR password for agent-qa account from the '{ECR_CACHE_PROFILE}' profile. "
+            "Run `dda inv -- e2e.setup` to configure it. Tests pulling images from agent-qa ECR are likely to fail."
         )
         return ""
     return ecr_password_res.stdout.strip()

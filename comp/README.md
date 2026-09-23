@@ -105,6 +105,8 @@ agent flavors and binaries.
 
 ### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
 
+*Datadog Team*: fleet-remediation
+
 Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
@@ -258,6 +260,8 @@ Package tagger provides the tagger interface for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
 
+*Datadog Team*: fleet-remediation
+
 Package telemetry defines the interfaces for the telemetry component.
 
 ### [comp/core/workloadfilter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/workloadfilter)
@@ -378,6 +382,10 @@ store, and returns the set of IssueIds that were reported.
 Package scheduler defines the interface for the health platform scheduler
 (the periodic runner of built-in health checks).
 
+### [comp/healthplatform/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/status)
+
+Package status defines the interface for the health platform status component.
+
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
@@ -493,7 +501,7 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 ### [comp/metadata/hostgpu](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostgpu)
 
-*Datadog Team*: ebpf-platform
+*Datadog Team*: gpu-monitoring-agent
 
 Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 

@@ -200,12 +200,11 @@ func (p *jsonObfuscator) obfuscate(data []byte) (string, error) {
 			}
 		case scanObjectKey:
 			// done scanning key
-			k := string(bytes.Trim(buf.Bytes(), `"`))
-			if !st.keeping && p.keepKeys[k] {
+			if !st.keeping && p.keepKeys[string(bytes.Trim(buf.Bytes(), `"`))] {
 				// we should not obfuscate values of this key
 				st.keeping = true
 				st.keepDepth = depth + 1
-			} else if !st.transformingValue && p.transformer != nil && p.transformKeys[k] {
+			} else if !st.transformingValue && p.transformer != nil && p.transformKeys[string(bytes.Trim(buf.Bytes(), `"`))] {
 				// the string value immediately following this key will be passed through the value transformer
 				// if anything other than a literal is found then sql obfuscation is stopped and json obfuscation
 				// proceeds as usual

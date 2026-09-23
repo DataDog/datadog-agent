@@ -13,18 +13,21 @@ go_e2e_test_binaries:
     - go_e2e_deps
   variables:
     KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_CPU_LIMIT: 4
     KUBERNETES_MEMORY_REQUEST: 72Gi
     KUBERNETES_MEMORY_LIMIT: 72Gi
+    # Special value to prevent OOMkill on go_e2e_binaries, pending bazel optimisation
+    BUILD_BINARIES_PARALLELISM: 3
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - pushd test/new-e2e
     - go install github.com/DataDog/orchestrion
     - popd
-    - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $KUBERNETES_CPU_REQUEST --manifest-file-path manifest.json
+    - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries -p $BUILD_BINARIES_PARALLELISM --manifest-file-path manifest.json
     - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
 
 new-e2e-base-coverage:
@@ -35,7 +38,7 @@ new-e2e-base-coverage:
       artifacts: false
     - agent_deb-x64-a7
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_coverage_pipeline]
   variables:
     TARGETS: ./tests/agent-devx
@@ -50,7 +53,7 @@ new-e2e-base:
       artifacts: false
     - agent_deb-x64-a7
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     - when: on_success
   variables:

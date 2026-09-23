@@ -3,314 +3,472 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Launch-time configuration for par-control.
+use crate::opms::{ProxyDecision, TlsConfig};
+use anyhow::{Context, Result, ensure};
+use regex::Regex;
+use saluki_config::GenericConfiguration;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::LazyLock;
+use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
-use std::path::Path;
+const EXECUTOR_READY_TIMEOUT: Duration = Duration::from_secs(30);
+const LOOP_INTERVAL: Duration = Duration::from_secs(1);
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(20);
+const HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(30);
+const OPMS_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const MIN_BACKOFF: Duration = Duration::from_secs(1);
+const MAX_BACKOFF: Duration = Duration::from_secs(180);
+const WAIT_BEFORE_RETRY: Duration = Duration::from_secs(300);
+const MAX_ATTEMPTS: u32 = 20;
+pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
+const INTERNAL_USE_DD_URL_FOR_OPMS: &str = "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS";
 
-#[derive(serde::Deserialize, Default, Clone)]
-struct RawConfig {
-    log_level: Option<String>,
-    fleet_policies_dir: Option<String>,
-    private_action_runner: Option<RawPar>,
+#[derive(Clone)]
+pub struct Identity {
+    pub urn: String,
+    pub org_id: i64,
+    pub runner_id: String,
+    pub private_key: String,
 }
 
-#[derive(serde::Deserialize, Default, Clone)]
-struct RawPar {
-    enabled: Option<bool>,
-    split_enabled: Option<bool>,
-    self_enroll: Option<bool>,
+#[derive(Clone)]
+pub struct Config {
+    pub opms_base_url: String,
+    pub task_concurrency: usize,
+    pub executor_socket: PathBuf,
+    pub procmgr_socket: PathBuf,
+    pub executor_process_name: String,
+    pub loop_interval: Duration,
+    pub heartbeat_interval: Duration,
+    pub health_check_interval: Duration,
+    pub ready_timeout: Duration,
+    pub opms_request_timeout: Duration,
+    pub opms_extra_headers: HashMap<String, String>,
+    pub opms_proxy: ProxyDecision,
+    pub tls: TlsConfig,
+    pub min_backoff: Duration,
+    pub max_backoff: Duration,
+    pub wait_before_retry: Duration,
+    pub max_attempts: u32,
+    pub runner_version: String,
+    pub modes: Vec<String>,
+    pub ipc_cert_file: PathBuf,
+    pub identity: Identity,
 }
 
-/// Settings needed before identity bootstrap.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LaunchGate {
+#[derive(serde::Deserialize)]
+struct AgentParConfig {
+    enabled: bool,
+    split_enabled: bool,
+    task_concurrency: usize,
+    executor: AgentExecutorConfig,
+    opms_extra_headers: HashMap<String, String>,
+}
+
+#[derive(serde::Deserialize)]
+struct AgentExecutorConfig {
+    socket_path: PathBuf,
+}
+
+#[derive(serde::Deserialize, Default)]
+#[serde(default)]
+struct AgentProxyConfig {
+    http: String,
+    https: String,
+    no_proxy: Vec<String>,
+}
+
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(default, deny_unknown_fields)]
+pub struct BootstrapConfig {
     pub split_mode: bool,
-    pub self_enroll: bool,
+    pub log_level: String,
+    identity: BootstrapIdentity,
+    agent_version: String,
+    pub cmd_port: u16,
+    pub auth_token_file_path: String,
+    pub ipc_cert_file_path: String,
 }
 
-/// Log level and launch gate, resolved in one pass over `datadog.yaml` and the
-/// fleet policy overlay.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Launch {
-    pub log_level: log::LevelFilter,
-    pub gate: LaunchGate,
+#[derive(serde::Deserialize, Debug, Default, Clone)]
+#[serde(default, deny_unknown_fields)]
+struct BootstrapIdentity {
+    urn: String,
+    private_key: String,
+    org_id: i64,
+    runner_id: String,
 }
 
-fn parse_log_level(raw: &str) -> log::LevelFilter {
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "trace" => log::LevelFilter::Trace,
-        "debug" => log::LevelFilter::Debug,
-        "warn" | "warning" => log::LevelFilter::Warn,
-        "error" | "critical" => log::LevelFilter::Error,
-        "off" => log::LevelFilter::Off,
-        _ => log::LevelFilter::Info,
-    }
-}
-
-impl Launch {
-    pub fn from_yaml_file(path: &Path) -> Result<Self> {
-        let contents = std::fs::read_to_string(path)
-            .with_context(|| format!("failed to read config file: {}", path.display()))?;
-        Self::from_yaml_str_with_env(&contents, |name| std::env::var(name).ok())
+impl BootstrapConfig {
+    pub fn log_level(&self) -> log::LevelFilter {
+        match self.log_level.trim().to_ascii_lowercase().as_str() {
+            "trace" => log::LevelFilter::Trace,
+            "debug" => log::LevelFilter::Debug,
+            "warn" | "warning" => log::LevelFilter::Warn,
+            "error" | "critical" => log::LevelFilter::Error,
+            "off" => log::LevelFilter::Off,
+            _ => log::LevelFilter::Info,
+        }
     }
 
-    #[cfg(test)]
-    fn from_yaml_str(yaml: &str) -> Result<Self> {
-        Self::from_yaml_str_with_env(yaml, |_| None)
-    }
+    pub fn into_config(
+        self,
+        agent: &GenericConfiguration,
+        dd_url_explicit: bool,
+    ) -> Result<Config> {
+        ensure!(
+            self.split_mode,
+            "bootstrap configuration has split mode disabled"
+        );
+        for (name, value) in [
+            ("log_level", self.log_level.as_str()),
+            ("identity.urn", self.identity.urn.as_str()),
+            ("identity.private_key", self.identity.private_key.as_str()),
+            ("identity.runner_id", self.identity.runner_id.as_str()),
+            ("agent_version", self.agent_version.as_str()),
+            ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
+        ] {
+            ensure!(
+                !value.is_empty(),
+                "bootstrap configuration is missing {name}"
+            );
+        }
+        ensure!(
+            self.identity.org_id > 0,
+            "bootstrap configuration is missing identity.org_id"
+        );
+        ensure!(
+            self.cmd_port > 0,
+            "bootstrap configuration is missing cmd_port"
+        );
 
-    fn from_yaml_str_with_env(yaml: &str, env: impl Fn(&str) -> Option<String>) -> Result<Self> {
-        let raw: RawConfig = serde_yaml::from_str(yaml).context("failed to parse datadog.yaml")?;
-        let fleet_dir = env("DD_FLEET_POLICIES_DIR")
-            .filter(|value| !value.is_empty())
-            .or(raw.fleet_policies_dir)
-            .or_else(crate::platform::fleet_policies_dir);
-        let fleet = fleet_dir
-            .as_deref()
-            .map(read_fleet_policy)
-            .transpose()?
-            .flatten()
-            .unwrap_or_default();
-
-        let log_level = fleet
-            .log_level
-            .or_else(|| env("DD_LOG_LEVEL").filter(|value| !value.is_empty()))
-            .or(raw.log_level)
-            .as_deref()
-            .map(parse_log_level)
-            .unwrap_or(log::LevelFilter::Info);
-
-        let par = raw.private_action_runner.unwrap_or_default();
-        let fleet_par = fleet.private_action_runner.unwrap_or_default();
-        let enabled = resolve_bool(
-            fleet_par.enabled,
-            par.enabled,
-            "DD_PRIVATE_ACTION_RUNNER_ENABLED",
-            &env,
-        )?;
-        let split_enabled = resolve_bool(
-            fleet_par.split_enabled,
+        let par: AgentParConfig = agent
+            .get_typed("private_action_runner")
+            .context("invalid private_action_runner configuration from the Core Agent")?;
+        ensure!(par.enabled, "private_action_runner.enabled is disabled");
+        ensure!(
             par.split_enabled,
-            "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED",
-            &env,
-        )?;
-        let self_enroll = resolve_bool(
-            fleet_par.self_enroll,
-            par.self_enroll,
-            "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL",
-            &env,
-        )?;
+            "private_action_runner.split_enabled is disabled"
+        );
+        ensure!(
+            par.task_concurrency > 0,
+            "private_action_runner.task_concurrency must be greater than zero"
+        );
+        ensure!(
+            !par.executor.socket_path.as_os_str().is_empty(),
+            "private_action_runner.executor.socket_path is empty"
+        );
 
-        Ok(Self {
-            log_level,
-            gate: LaunchGate {
-                split_mode: enabled.unwrap_or(false) && split_enabled.unwrap_or(false),
-                self_enroll: self_enroll.unwrap_or(true),
+        let opms_base_url = opms_base_url(
+            agent,
+            std::env::var(INTERNAL_USE_DD_URL_FOR_OPMS).as_deref() == Ok("true"),
+            dd_url_explicit,
+        )?;
+        let opms_proxy = proxy_for(agent, &opms_base_url)?;
+        let min_tls_version: String = agent
+            .get_typed("min_tls_version")
+            .context("invalid min_tls_version configuration from the Core Agent")?;
+        ensure!(!min_tls_version.is_empty(), "min_tls_version is empty");
+
+        Ok(Config {
+            opms_base_url,
+            task_concurrency: par.task_concurrency,
+            executor_socket: par.executor.socket_path,
+            procmgr_socket: dd_procmgr_client::ipc_path(),
+            executor_process_name: EXECUTOR_PROCESS_NAME.to_string(),
+            loop_interval: LOOP_INTERVAL,
+            heartbeat_interval: HEARTBEAT_INTERVAL,
+            health_check_interval: HEALTH_CHECK_INTERVAL,
+            ready_timeout: EXECUTOR_READY_TIMEOUT,
+            opms_request_timeout: OPMS_REQUEST_TIMEOUT,
+            opms_extra_headers: par.opms_extra_headers,
+            opms_proxy,
+            tls: TlsConfig {
+                skip_ssl_validation: agent
+                    .get_typed("skip_ssl_validation")
+                    .context("invalid skip_ssl_validation configuration from the Core Agent")?,
+                min_tls_version,
+            },
+            min_backoff: MIN_BACKOFF,
+            max_backoff: MAX_BACKOFF,
+            wait_before_retry: WAIT_BEFORE_RETRY,
+            max_attempts: MAX_ATTEMPTS,
+            runner_version: self.agent_version,
+            modes: vec!["pull".to_string()],
+            ipc_cert_file: self.ipc_cert_file_path.into(),
+            identity: Identity {
+                urn: self.identity.urn,
+                private_key: self.identity.private_key,
+                org_id: self.identity.org_id,
+                runner_id: self.identity.runner_id,
             },
         })
     }
 }
 
-fn read_fleet_policy(dir: &str) -> Result<Option<RawConfig>> {
-    if dir.is_empty() {
-        return Ok(None);
+fn opms_base_url(
+    agent: &GenericConfiguration,
+    use_dd_url: bool,
+    dd_url_explicit: bool,
+) -> Result<String> {
+    let dd_url: String = agent
+        .get_typed("dd_url")
+        .context("invalid dd_url configuration from the Core Agent")?;
+    if use_dd_url {
+        return endpoint_origin(&dd_url);
     }
-    let path = Path::new(dir).join("datadog.yaml");
-    let contents = match std::fs::read_to_string(&path) {
-        Ok(contents) => contents,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => {
-            return Err(error)
-                .with_context(|| format!("failed to read fleet policy: {}", path.display()));
-        }
-    };
-    serde_yaml::from_str(&contents)
-        .with_context(|| format!("failed to parse fleet policy: {}", path.display()))
-        .map(Some)
+    if dd_url_explicit {
+        let site = site_from_datadog_url(&dd_url)
+            .context("explicit dd_url does not contain a recognized Datadog site")?;
+        return Ok(format!("https://api.{site}"));
+    }
+
+    let site: String = agent
+        .get_typed("site")
+        .context("invalid site configuration from the Core Agent")?;
+    let site = site.trim();
+    ensure!(!site.is_empty(), "site is empty");
+    Ok(format!("https://api.{site}"))
 }
 
-/// Precedence: fleet policy > environment > local YAML.
-fn resolve_bool(
-    fleet_value: Option<bool>,
-    yaml_value: Option<bool>,
-    name: &str,
-    env: &impl Fn(&str) -> Option<String>,
-) -> Result<Option<bool>> {
-    if fleet_value.is_some() {
-        return Ok(fleet_value);
+fn endpoint_origin(raw: &str) -> Result<String> {
+    let parsed = reqwest::Url::parse(raw).context("invalid dd_url")?;
+    ensure!(
+        matches!(parsed.scheme(), "http" | "https"),
+        "dd_url must use HTTP or HTTPS"
+    );
+    ensure!(parsed.host_str().is_some(), "dd_url has no host");
+    Ok(parsed.origin().ascii_serialization())
+}
+
+// Mirrors Go's `ddSitePattern` in `pkg/config/utils/endpoints.go`: an optional datacenter
+// label (e.g. `us3.`, `ap1.`) followed by a known Datadog domain, anchored at the end of the
+// hostname.
+static SITE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:^|\.)([a-z]{2,}\d{1,2}\.)?(datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com)$")
+        .unwrap()
+});
+
+fn site_from_datadog_url(raw: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(raw).ok()?;
+    let host = parsed
+        .host_str()?
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    let captures = SITE_RE.captures(&host)?;
+    let datacenter = captures.get(1).map_or("", |group| group.as_str());
+    Some(format!("{datacenter}{}", &captures[2]))
+}
+
+fn proxy_for(agent: &GenericConfiguration, target: &str) -> Result<ProxyDecision> {
+    let proxy: AgentProxyConfig = agent
+        .get_typed("proxy")
+        .context("invalid proxy configuration from the Core Agent")?;
+    let target = reqwest::Url::parse(target).context("invalid OPMS URL")?;
+    let proxy_url = match target.scheme() {
+        "http" => proxy.http,
+        "https" => proxy.https,
+        scheme => anyhow::bail!("unsupported OPMS URL scheme {scheme}"),
+    };
+    if proxy_url.is_empty() {
+        return Ok(ProxyDecision::None);
     }
-    let Some(raw) = env(name).filter(|value| !value.is_empty()) else {
-        return Ok(yaml_value);
+
+    let nonexact: bool = agent
+        .get_typed("no_proxy_nonexact_match")
+        .context("invalid no_proxy_nonexact_match configuration from the Core Agent")?;
+    if nonexact {
+        return Ok(ProxyDecision::NonExact {
+            proxy_url,
+            no_proxy: proxy.no_proxy.join(","),
+        });
+    }
+
+    let host = match target.port() {
+        Some(port) => format!("{}:{port}", target.host_str().unwrap_or_default()),
+        None => target.host_str().unwrap_or_default().to_string(),
     };
-    let value = match raw.trim() {
-        "1" | "t" | "T" | "TRUE" | "true" | "True" => true,
-        "0" | "f" | "F" | "FALSE" | "false" | "False" => false,
-        _ => bail!("invalid boolean value for {name}: {raw:?}"),
-    };
-    Ok(Some(value))
+    if proxy.no_proxy.iter().any(|entry| entry == &host) {
+        Ok(ProxyDecision::None)
+    } else {
+        Ok(ProxyDecision::Direct(proxy_url))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use saluki_config::{
+        ConfigurationLoader,
+        dynamic::{ConfigSetting, ConfigUpdate},
+    };
+    use serde_json::json;
+    use tokio::sync::mpsc;
 
-    #[test]
-    fn split_mode_requires_enabled_and_split_enabled() {
-        let cases = [
-            ("", false),
-            ("private_action_runner:\n  enabled: true\n", false),
-            ("private_action_runner:\n  split_enabled: true\n", false),
-            (
-                "private_action_runner:\n  enabled: true\n  split_enabled: true\n",
-                true,
+    const JSON: &str = r#"{
+        "split_mode": true,
+        "log_level": "debug",
+        "identity": {"urn":"urn","private_key":"key","org_id":42,"runner_id":"runner"},
+        "agent_version":"7.76.0",
+        "cmd_port":5001,
+        "auth_token_file_path":"/etc/datadog-agent/auth_token",
+        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem"
+    }"#;
+
+    async fn agent_config(task_concurrency: usize) -> GenericConfiguration {
+        agent_config_values(
+            task_concurrency,
+            "https://app.datadoghq.com",
+            json!([]),
+            false,
+        )
+        .await
+    }
+
+    async fn agent_config_with_proxy(
+        task_concurrency: usize,
+        no_proxy: serde_json::Value,
+        nonexact: bool,
+    ) -> GenericConfiguration {
+        agent_config_values(
+            task_concurrency,
+            "https://app.datadoghq.com",
+            no_proxy,
+            nonexact,
+        )
+        .await
+    }
+
+    async fn agent_config_values(
+        task_concurrency: usize,
+        dd_url: &str,
+        no_proxy: serde_json::Value,
+        nonexact: bool,
+    ) -> GenericConfiguration {
+        let settings = [
+            ConfigSetting::explicit("private_action_runner.enabled", json!(true)),
+            ConfigSetting::explicit("private_action_runner.split_enabled", json!(true)),
+            ConfigSetting::explicit(
+                "private_action_runner.task_concurrency",
+                json!(task_concurrency),
             ),
-            (
-                "private_action_runner:\n  enabled: false\n  split_enabled: true\n",
-                false,
+            ConfigSetting::explicit(
+                "private_action_runner.executor.socket_path",
+                json!("/from-agent.sock"),
             ),
+            ConfigSetting::explicit(
+                "private_action_runner.opms_extra_headers",
+                json!({"X-Test": "agent"}),
+            ),
+            ConfigSetting::explicit("site", json!("datadoghq.com")),
+            ConfigSetting::explicit("dd_url", json!(dd_url)),
+            ConfigSetting::explicit(
+                "proxy",
+                json!({"http": "", "https": "http://proxy:3128", "no_proxy": no_proxy}),
+            ),
+            ConfigSetting::explicit("no_proxy_nonexact_match", json!(nonexact)),
+            ConfigSetting::explicit("skip_ssl_validation", json!(true)),
+            ConfigSetting::explicit("min_tls_version", json!("tlsv1.3")),
         ];
-        for (yaml, want) in cases {
-            let launch = Launch::from_yaml_str(yaml).unwrap();
-            assert_eq!(launch.gate.split_mode, want, "yaml: {yaml:?}");
-        }
-    }
+        let (sender, receiver) = mpsc::channel(1);
+        sender.send(ConfigUpdate::snapshot(settings)).await.unwrap();
 
-    #[test]
-    fn launch_gate_environment_overrides_yaml() {
-        let env = |name: &str| match name {
-            "DD_PRIVATE_ACTION_RUNNER_ENABLED" => Some("true".to_string()),
-            "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED" => Some("1".to_string()),
-            "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL" => Some("false".to_string()),
-            "DD_LOG_LEVEL" => Some("trace".to_string()),
-            _ => None,
-        };
-        let launch = Launch::from_yaml_str_with_env(
-            "log_level: warn\nprivate_action_runner:\n  enabled: false\n  split_enabled: false\n",
-            env,
-        )
-        .unwrap();
-        assert!(launch.gate.split_mode);
-        assert!(!launch.gate.self_enroll);
-        assert_eq!(launch.log_level, log::LevelFilter::Trace);
-    }
-
-    #[test]
-    fn empty_environment_overrides_fall_back_to_yaml() {
-        let env = |name: &str| match name {
-            "DD_PRIVATE_ACTION_RUNNER_ENABLED"
-            | "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"
-            | "DD_PRIVATE_ACTION_RUNNER_SELF_ENROLL" => Some(String::new()),
-            _ => None,
-        };
-        let launch = Launch::from_yaml_str_with_env(
-            "private_action_runner:\n  enabled: true\n  split_enabled: true\n  self_enroll: false\n",
-            env,
-        )
-        .unwrap();
-        assert!(launch.gate.split_mode);
-        assert!(!launch.gate.self_enroll);
-    }
-
-    #[test]
-    fn fleet_policy_overrides_local_config_and_environment() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(
-            dir.path().join("datadog.yaml"),
-            "log_level: error\nprivate_action_runner:\n  enabled: true\n  split_enabled: true\n  self_enroll: false\n",
-        )
-        .unwrap();
-        let fleet_dir = dir.path().to_string_lossy().into_owned();
-        let launch = Launch::from_yaml_str_with_env(
-            "log_level: debug\nprivate_action_runner:\n  enabled: false\n  split_enabled: false\n",
-            |name| match name {
-                "DD_FLEET_POLICIES_DIR" => Some(fleet_dir.clone()),
-                "DD_PRIVATE_ACTION_RUNNER_ENABLED" | "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED" => {
-                    Some("false".to_string())
-                }
-                "DD_LOG_LEVEL" => Some("trace".to_string()),
-                _ => None,
-            },
-        )
-        .unwrap();
-        assert!(launch.gate.split_mode);
-        assert!(!launch.gate.self_enroll);
-        assert_eq!(launch.log_level, log::LevelFilter::Error);
-    }
-
-    #[test]
-    fn launch_gate_accepts_agent_boolean_environment_values() {
-        for (raw, expected) in [
-            ("1", true),
-            ("t", true),
-            ("T", true),
-            ("TRUE", true),
-            ("true", true),
-            ("True", true),
-            ("0", false),
-            ("f", false),
-            ("F", false),
-            ("FALSE", false),
-            ("false", false),
-            ("False", false),
-        ] {
-            let launch = Launch::from_yaml_str_with_env("", |name| match name {
-                "DD_PRIVATE_ACTION_RUNNER_ENABLED" => Some(raw.to_string()),
-                "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED" => Some("true".to_string()),
-                _ => None,
-            })
+        let config = ConfigurationLoader::default()
+            .with_dynamic_configuration(receiver)
+            .into_generic()
+            .await
             .unwrap();
-            assert_eq!(launch.gate.split_mode, expected, "boolean value {raw:?}");
-        }
+        config.ready().await;
+        config
     }
 
-    #[test]
-    fn launch_gate_rejects_invalid_environment_boolean() {
-        let result = Launch::from_yaml_str_with_env("", |name| {
-            (name == "DD_PRIVATE_ACTION_RUNNER_ENABLED").then(|| "sometimes".to_string())
-        });
-        assert!(result.is_err());
-    }
+    #[tokio::test]
+    async fn combines_bootstrap_and_core_agent_configuration() {
+        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
+        assert!(bootstrap.split_mode);
+        assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
 
-    #[test]
-    fn gate_resolves_without_identity() {
-        let launch = Launch::from_yaml_str("site: datadoghq.com\n").unwrap();
-        assert!(!launch.gate.split_mode);
-        assert!(launch.gate.self_enroll);
-        assert_eq!(launch.log_level, log::LevelFilter::Info);
-    }
+        let config = bootstrap
+            .into_config(&agent_config(9).await, false)
+            .unwrap();
 
-    #[test]
-    fn gate_honors_explicit_self_enroll_false() {
-        let launch =
-            Launch::from_yaml_str("private_action_runner:\n  self_enroll: false\n").unwrap();
-        assert!(!launch.gate.self_enroll);
-    }
-
-    #[test]
-    fn parses_agent_log_levels() {
-        for (raw, want) in [
-            ("debug", log::LevelFilter::Debug),
-            ("TRACE", log::LevelFilter::Trace),
-            ("warn", log::LevelFilter::Warn),
-            ("warning", log::LevelFilter::Warn),
-            ("error", log::LevelFilter::Error),
-            ("critical", log::LevelFilter::Error),
-            ("off", log::LevelFilter::Off),
-            ("not-a-level", log::LevelFilter::Info),
-        ] {
-            let launch = Launch::from_yaml_str(&format!("log_level: {raw}\n")).unwrap();
-            assert_eq!(launch.log_level, want, "log_level: {raw}");
-        }
-    }
-
-    #[test]
-    fn reports_a_missing_config_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let error = Launch::from_yaml_file(&dir.path().join("missing.yaml")).unwrap_err();
-        assert!(
-            format!("{error:#}").contains("failed to read config file"),
-            "{error:#}"
+        assert_eq!(config.opms_base_url, "https://api.datadoghq.com");
+        assert_eq!(
+            config.opms_proxy,
+            ProxyDecision::Direct("http://proxy:3128".to_string())
         );
+        assert_eq!(config.task_concurrency, 9);
+        assert_eq!(config.executor_socket, PathBuf::from("/from-agent.sock"));
+        assert_eq!(config.opms_extra_headers["X-Test"], "agent");
+        assert!(config.tls.skip_ssl_validation);
+        assert_eq!(config.tls.min_tls_version, "tlsv1.3");
+        assert_eq!(config.loop_interval, Duration::from_secs(1));
+        assert_eq!(config.identity.org_id, 42);
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_core_agent_configuration() {
+        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
+        let error = bootstrap
+            .into_config(&agent_config(0).await, false)
+            .err()
+            .unwrap()
+            .to_string();
+
+        assert!(error.contains("task_concurrency"));
+    }
+
+    #[tokio::test]
+    async fn applies_proxy_bypass_modes() {
+        let exact = agent_config_with_proxy(5, json!(["api.datadoghq.com"]), false).await;
+        assert_eq!(
+            proxy_for(&exact, "https://api.datadoghq.com").unwrap(),
+            ProxyDecision::None
+        );
+
+        let nonexact = agent_config_with_proxy(5, json!(["datadoghq.com"]), true).await;
+        assert_eq!(
+            proxy_for(&nonexact, "https://api.datadoghq.com").unwrap(),
+            ProxyDecision::NonExact {
+                proxy_url: "http://proxy:3128".to_string(),
+                no_proxy: "datadoghq.com".to_string(),
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn preserves_explicit_dd_url_precedence() {
+        let regional = agent_config_values(
+            5,
+            "https://intake.profile.us3.datadoghq.com/path",
+            json!([]),
+            false,
+        )
+        .await;
+        assert_eq!(
+            opms_base_url(&regional, false, true).unwrap(),
+            "https://api.us3.datadoghq.com"
+        );
+        assert_eq!(
+            opms_base_url(&regional, false, false).unwrap(),
+            "https://api.datadoghq.com"
+        );
+    }
+
+    #[tokio::test]
+    async fn uses_dd_url_for_internal_tests() {
+        let fakeintake =
+            agent_config_values(5, "http://fakeintake:8080/path", json!([]), false).await;
+        assert_eq!(
+            opms_base_url(&fakeintake, true, true).unwrap(),
+            "http://fakeintake:8080"
+        );
+    }
+
+    #[test]
+    fn rejects_unknown_bootstrap_fields() {
+        let json = JSON.replace("\"split_mode\": true", "\"unknown\": true");
+        assert!(serde_json::from_str::<BootstrapConfig>(&json).is_err());
     }
 }

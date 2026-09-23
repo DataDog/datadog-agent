@@ -1,4 +1,3 @@
-import contextlib
 import json
 
 from invoke.context import Context
@@ -282,20 +281,18 @@ def rdp_vm(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    with tool.use_ci_pulumi_backend(ctx) if ci else contextlib.nullcontext():
-        out = tool.get_stack_json_outputs(ctx, stack_name)
+    out = tool.get_stack_json_outputs(ctx, stack_name, config_path=config_path, ci=ci)
     if not out:
         raise Exit("No VM found in the stack.")
 
     for vm_id, vm in out.items():
-        import pyperclip
-
         if "address" not in vm:
             continue
         vm_ip = vm["address"]
         password = vm["password"]
         tool.rdp(ctx, vm_ip)
         print(f"Password for VM {vm_id} ({vm_ip}): {password}")
-        print("Username is Administrator, password has been copied to clipboard")
-
-        pyperclip.copy(password)
+        if tool.copy_to_clipboard_if_supported(password):
+            print("Username is Administrator, password has been copied to clipboard")
+        else:
+            print("Username is Administrator")
