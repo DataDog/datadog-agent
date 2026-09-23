@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -55,7 +56,7 @@ func computeValidation(apiKey, appKey, site string, lookbackSeconds int64, agent
 	for _, config := range configs {
 		nvLinkCapability := "n/a"
 		if config.NVLinkCapable != nil {
-			nvLinkCapability = fmt.Sprintf("%t", *config.NVLinkCapable)
+			nvLinkCapability = strconv.FormatBool(*config.NVLinkCapable)
 		}
 		log.Printf("validating gpu config %s/%s (NVLink capable: %s)", config.Architecture, config.DeviceMode, nvLinkCapability)
 		result, err := validateGPUConfig(client, specs, config, metricFilter, tagInventoryExtraFilters, fromTS, now)

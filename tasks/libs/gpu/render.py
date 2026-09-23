@@ -70,7 +70,10 @@ def print_summary_table(title: str, results: list[GPUConfigValidationResult]) ->
 def print_result_details(results: list[GPUConfigValidationResult]) -> None:
     print("\nValidation details (showing failures or retrieval errors on configs with devices present):")
     for result in results:
-        if result.state not in {GPUConfigValidationState.ERROR, GPUConfigValidationState.FAIL} or result.device_count == 0:
+        if (
+            result.state not in {GPUConfigValidationState.ERROR, GPUConfigValidationState.FAIL}
+            or result.device_count == 0
+        ):
             continue
 
         nvlink_capable = result.config.nvlink_capable
