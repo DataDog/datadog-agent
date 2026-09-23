@@ -16,7 +16,6 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -80,7 +79,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscoveryfx "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/fx"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
@@ -188,7 +186,6 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
@@ -687,15 +684,6 @@ func startAgent(
 			dataSecurityController := datasecurity.NewController(ac, rcclient)
 			ac.AddConfigProvider(dataSecurityController, false, 0)
 		}
-
-		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
-			// Spin up the config provider to schedule integrations through remote-config
-			rcProvider := providers.NewRemoteConfigProvider()
-			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
-			// LoadAndRun is called later on
-			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
-		}
-
 	}
 
 	// start clc runner server
