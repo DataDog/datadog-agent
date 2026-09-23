@@ -223,29 +223,30 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = binary.NativeEndian.Uint32(data[8:12])
-	// [12:16] padding
 
-	e.ForkTime = unmarshalTime(data[16:24])
-	e.ExitTime = unmarshalTime(data[24:32])
-	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
-	e.ForkFlags = binary.NativeEndian.Uint64(data[40:48])
-	e.PIDContext.SID = binary.NativeEndian.Uint32(data[48:52])
-	// [52:56] padding_sid
+	e.ForkTime = unmarshalTime(data[8:16])
+	e.ExitTime = unmarshalTime(data[16:24])
+	if !e.ExitTime.IsZero() {
+		e.StopExecutionTime = e.ExitTime
+	}
+	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[24:32])
+	e.ForkFlags = binary.NativeEndian.Uint64(data[32:40])
+	e.PIDContext.SID = binary.NativeEndian.Uint32(data[40:44])
+	// [44:48] padding_sid
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := e.Credentials.UnmarshalBinary(data[56:])
+	read, err := e.Credentials.UnmarshalBinary(data[48:])
 	if err != nil {
 		return 0, err
 	}
-	read += 56
+	read += 48
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 308 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 300 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -610,7 +611,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 40 {
+	if len(data) < 48 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -619,11 +620,13 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.MntNS = binary.NativeEndian.Uint32(data[12:16])
 	p.IsKworker = binary.NativeEndian.Uint32(data[16:20]) > 0
-	p.SID = binary.NativeEndian.Uint32(data[20:24])
-	p.ExecInode = binary.NativeEndian.Uint64(data[24:32])
-	p.UserSessionID = binary.NativeEndian.Uint64(data[32:40])
+	p.PPid = binary.NativeEndian.Uint32(data[20:24])
+	p.SID = binary.NativeEndian.Uint32(data[24:28])
+	// [28:32] padding_sid
+	p.ExecInode = binary.NativeEndian.Uint64(data[32:40])
+	p.UserSessionID = binary.NativeEndian.Uint64(data[40:48])
 
-	return 40, nil
+	return 48, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1160,14 +1163,21 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 10 {
+	if len(data) < 4 {
+		return 0, ErrNotEnoughData
+	}
+	e.CredentialSource = binary.NativeEndian.Uint32(data[0:4])
+
+	// the HTTP payload captured by the kernel follows the credential source
+	body := data[4:]
+	if len(body) < 10 {
 		return 0, ErrNotEnoughData
 	}
 
-	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
+	firstWord := strings.SplitN(string(body[0:10]), " ", 2)
 	switch {
 	case strings.HasPrefix(firstWord[0], "HTTP"):
-		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
+		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(body)), nil)
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
 		}
@@ -1203,7 +1213,7 @@ func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
 		http.MethodOptions,
 		http.MethodTrace,
 	}, firstWord[0]):
-		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(body)))
 		if err != nil {
 			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
 		}
@@ -1238,9 +1248,11 @@ func (e *IMDSEvent) fillFromIMDSHeader(header http.Header, url string) {
 		} else {
 			e.CloudProvider = IMDSAWSCloudProvider
 
-			// check if this is an IMDSv2 request
-			e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
-				len(header.Get("x-aws-ec2-metadata-token")) > 0
+			// v1/v2 only applies to the instance metadata service
+			if e.CredentialSource == uint32(CredentialSourceIMDS) {
+				e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
+					len(header.Get("x-aws-ec2-metadata-token")) > 0
+			}
 		}
 	}
 }
@@ -1658,15 +1670,16 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
-	const size = 16
+	const size = 24
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Attempted = binary.NativeEndian.Uint64(data[0:8])
 	e.Used = binary.NativeEndian.Uint64(data[8:16])
+	e.Cookie = binary.NativeEndian.Uint64(data[16:24])
 
-	return 16, nil
+	return size, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

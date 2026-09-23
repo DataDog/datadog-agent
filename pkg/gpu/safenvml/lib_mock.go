@@ -34,13 +34,20 @@ func init() {
 // WithMockNVML calls the WithPartialMockNVML with all symbols available
 func WithMockNVML(tb testing.TB, lib nvml.Interface) {
 	capabilities := maps.Clone(allSymbols)
-	// The generated NVML mock cannot construct GpuFabricInfoHandler, which is
-	// required to invoke the versioned fabric API.
+	// The generated NVML mock cannot construct GpuFabricInfoHandler or
+	// GpuInstanceProfileInfoByIdHandler, which are required to invoke the
+	// versioned APIs, and the default mock leaves the GPU-instance handle
+	// methods unset. Remove those symbols from the default capability set so
+	// the wrappers degrade gracefully instead of calling unset mock funcs.
 	delete(capabilities, toNativeName("GetGpuFabricInfoV"))
+	delete(capabilities, toNativeName("GetGpuInstanceById"))
+	delete(capabilities, toNativeName("GetGpuInstanceProfileInfoByIdV"))
+	delete(capabilities, "nvmlGpuInstanceGetInfo")
 	WithPartialMockNVML(tb, lib, capabilities)
 }
 
 func resetSingleton() {
+	nvmlReleased.Store(false)
 	singleton.mu.Lock()
 	defer singleton.mu.Unlock()
 

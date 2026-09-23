@@ -194,6 +194,7 @@ func deepCopyPIDContext(fieldToCopy PIDContext) PIDContext {
 	copied.MntNS = fieldToCopy.MntNS
 	copied.NSID = fieldToCopy.NSID
 	copied.NetNS = fieldToCopy.NetNS
+	copied.PPid = fieldToCopy.PPid
 	copied.Pid = fieldToCopy.Pid
 	copied.SID = fieldToCopy.SID
 	copied.Tid = fieldToCopy.Tid
@@ -254,8 +255,8 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -523,8 +524,8 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.IsThroughSymLink = fieldToCopy.IsThroughSymLink
 	copied.LinuxBinprm = deepCopyLinuxBinprm(fieldToCopy.LinuxBinprm)
 	copied.PIDContext = deepCopyPIDContext(fieldToCopy.PIDContext)
-	copied.PPid = fieldToCopy.PPid
 	copied.Source = fieldToCopy.Source
+	copied.StopExecutionTime = fieldToCopy.StopExecutionTime
 	copied.SymlinkBasenameStr = fieldToCopy.SymlinkBasenameStr
 	copied.SymlinkPathnameStr = fieldToCopy.SymlinkPathnameStr
 	copied.TTYName = fieldToCopy.TTYName
@@ -624,6 +625,7 @@ func deepCopyBindEvent(fieldToCopy BindEvent) BindEvent {
 func deepCopyCapabilitiesEvent(fieldToCopy CapabilitiesEvent) CapabilitiesEvent {
 	copied := CapabilitiesEvent{}
 	copied.Attempted = fieldToCopy.Attempted
+	copied.Cookie = fieldToCopy.Cookie
 	copied.Used = fieldToCopy.Used
 	return copied
 }
@@ -805,6 +807,7 @@ func deepCopyIMDSEvent(fieldToCopy IMDSEvent) IMDSEvent {
 	copied := IMDSEvent{}
 	copied.AWS = deepCopyAWSIMDSEvent(fieldToCopy.AWS)
 	copied.CloudProvider = fieldToCopy.CloudProvider
+	copied.CredentialSource = fieldToCopy.CredentialSource
 	copied.Host = fieldToCopy.Host
 	copied.Server = fieldToCopy.Server
 	copied.Type = fieldToCopy.Type

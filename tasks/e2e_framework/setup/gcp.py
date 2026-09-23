@@ -1,4 +1,3 @@
-import getpass
 import json
 from pathlib import Path
 
@@ -12,7 +11,7 @@ from tasks.e2e_framework.setup.ssh_keys import (
     discard_key_without_passphrase,
     generate_keypair_with_passphrase,
 )
-from tasks.e2e_framework.tool import info
+from tasks.e2e_framework.tool import get_resource_owner_id, info
 
 
 def setup_gcp_config(ctx: Context, config: Config):
@@ -20,7 +19,7 @@ def setup_gcp_config(ctx: Context, config: Config):
         config.configParams.gcp = Config.Params.GCP(publicKeyPath=None)
 
     gcp = config.configParams.gcp
-    user = getpass.getuser()
+    user = get_resource_owner_id()
 
     if not gcp.account:
         gcp.account = "agent-sandbox"

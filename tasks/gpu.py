@@ -28,7 +28,7 @@ VALIDATOR_PACKAGE = f"{SPEC_PACKAGE}/metrics-validator"
 VALIDATOR_BINARY = f"{VALIDATOR_PACKAGE}/gpu-metrics-validator"
 VALIDATOR_SITE = "datadoghq.com"
 GPU_BURNER_BRANCH = "main"
-GPU_BURNER_VERSION = "9ded3e87"
+GPU_BURNER_VERSION = "87719309"
 MASS_READ_URL = "https://mass-read.us1.ddbuild.io/internal/artifact"
 MASS_AUDIENCE = "rapid-dependency-management-mass"
 
@@ -182,12 +182,14 @@ def update_metrics_allowlist(ctx, allowlist_path: str = DEFAULT_ALLOWLIST_PATH):
     help={
         "metadata_path": f"Path to gpu/metadata.csv (default: {DEFAULT_METADATA_PATH})",
         "default_interval": "Default interval value for metrics missing metadata.interval",
+        "include_histograms": "Include histogram metrics in metadata.csv",
     },
 )
 def update_metadata(
     ctx,
     metadata_path: str = DEFAULT_METADATA_PATH,
     default_interval: int = 16,
+    include_histograms: bool = False,
 ):
     """
     Update integrations-core GPU metadata.csv entries from the shared GPU spec.
@@ -198,6 +200,8 @@ def update_metadata(
         f"--metadata-path {shlex.quote(metadata_path)} "
         f"--default-interval {int(default_interval)}"
     )
+    if include_histograms:
+        command += " --include-histograms"
     print(f"== Updating GPU metadata at {metadata_path} ==")
     ctx.run(command)
 

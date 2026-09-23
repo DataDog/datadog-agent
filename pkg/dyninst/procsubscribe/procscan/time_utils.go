@@ -27,3 +27,8 @@ type ticks uint64
 func durationToTicks(d time.Duration) ticks {
 	return ticks((d.Nanoseconds() * clkTck) / time.Second.Nanoseconds())
 }
+
+// ticksToDuration converts USER_HZ ticks to a duration.
+func ticksToDuration(t ticks) time.Duration {
+	return time.Duration(t) * time.Second / clkTck
+}
