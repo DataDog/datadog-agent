@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -28,7 +29,25 @@ type CWSEvent struct {
 	serializers.EventSerializer `json:",inline"`
 }
 
+const serializersImportPath = "github.com/DataDog/datadog-agent/pkg/security/serializers"
+
 func generateBackendJSON(output, serializersDir string) error {
+	// AddGoComments keys its comment map on path.Join(importPath, dir-of-file),
+	// so serializersDir has to be the working directory for the key to come out as
+	// serializersImportPath. Resolve the output path before moving.
+	absOutput, err := filepath.Abs(output)
+	if err != nil {
+		return err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	if err := os.Chdir(serializersDir); err != nil {
+		return err
+	}
+	defer func() { _ = os.Chdir(cwd) }()
+
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
 		DoNotReference: false,
@@ -36,7 +55,7 @@ func generateBackendJSON(output, serializersDir string) error {
 		Namer:          jsonTypeNamer,
 	}
 
-	if err := reflector.AddGoComments("github.com/DataDog/datadog-agent/pkg/security/serializers", serializersDir); err != nil {
+	if err := reflector.AddGoComments(serializersImportPath, "."); err != nil {
 		return err
 	}
 	reflector.CommentMap = cleanupEasyjson(reflector.CommentMap)
@@ -49,7 +68,7 @@ func generateBackendJSON(output, serializersDir string) error {
 		return err
 	}
 
-	return os.WriteFile(output, schemaJSON, 0664)
+	return os.WriteFile(absOutput, schemaJSON, 0664)
 }
 
 func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {

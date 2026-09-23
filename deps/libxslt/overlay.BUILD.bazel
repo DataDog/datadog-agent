@@ -123,12 +123,13 @@ cc_shared_library(
 pkg_files(
     name = "xslt_headers",
     srcs = _PUBLIC_XSLT_HDRS,
-    prefix = "include/libxslt",
+    prefix = "embedded/include/libxslt",
 )
 
 dd_cc_packaged(
     name = "xslt_pkg",
     input = ":xslt",
+    dest_dir = "embedded/lib",
     version = XSLT_VERSION,
     installed_files = [":xslt_headers"],
     visibility = ["//visibility:public"],
@@ -195,12 +196,13 @@ cc_shared_library(
 pkg_files(
     name = "exslt_headers",
     srcs = _PUBLIC_EXSLT_HDRS,
-    prefix = "include/libexslt",
+    prefix = "embedded/include/libexslt",
 )
 
 dd_cc_packaged(
     name = "exslt_pkg",
     input = ":exslt",
+    dest_dir = "embedded/lib",
     version = "0.8.25",
     installed_files = [":exslt_headers"],
     visibility = ["//visibility:public"],
@@ -212,6 +214,5 @@ pkg_filegroup(
         ":xslt_headers",
         ":exslt_headers",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

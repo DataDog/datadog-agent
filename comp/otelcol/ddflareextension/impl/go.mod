@@ -171,6 +171,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.9.1 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
@@ -369,7 +370,7 @@ require (
 	github.com/pb33f/libopenapi v0.37.2 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.29 // indirect
+	github.com/pierrec/lz4/v4 v4.1.30 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
@@ -714,6 +715,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e

@@ -376,7 +376,9 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
 		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
 		pathPrefix = "/home/centos/.local/bin/"
-	case e2eos.AmazonLinux, e2eos.RedHat:
+	// AmazonLinux is deliberately absent here: RunInstallScript skips InstallMethodAnsible
+	// for AmazonLinux2 before this is ever called, and no flavor list uses AmazonLinux2023.
+	case e2eos.RedHat:
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3.14 python3.14-pip && yes | pip3.14 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:

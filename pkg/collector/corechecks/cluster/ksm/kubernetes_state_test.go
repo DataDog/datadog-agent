@@ -886,6 +886,29 @@ func TestProcessTelemetry(t *testing.T) {
 			},
 		},
 		{
+			name:   "customresource metric is not treated as a metadata metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_customresource_foo_info": {
+					{
+						Type: "*v1.DatadogAgent",
+						Name: "kube_customresource_foo_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"foo": "bar"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             0,
+				unknownMetricsCount:    1,
+				metricsCountByResource: map[string]int{},
+			},
+		},
+		{
 			name:   "pod, deployment and unknown metrics",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
