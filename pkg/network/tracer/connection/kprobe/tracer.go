@@ -166,7 +166,12 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 }
 
 func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer bool, config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler, &modifiers.HashMapNoPreallocModifier{})
+	mgrModifiers := []ddebpf.Modifier{&ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler}
+	if config.ForceNoPreallocHash.CNM {
+		mgrModifiers = append(mgrModifiers, &modifiers.HashMapNoPreallocModifier{})
+	}
+
+	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", mgrModifiers...)
 	if err := initManager(m, runtimeTracer); err != nil {
 		return nil, nil, fmt.Errorf("could not initialize manager: %w", err)
 	}

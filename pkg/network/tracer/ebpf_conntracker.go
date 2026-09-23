@@ -507,11 +507,16 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, build
 		)
 	}
 
+	mgrModifiers := []ddebpf.Modifier{&ebpftelemetry.ErrorsTelemetryModifier{}}
+	if cfg.ForceNoPreallocHash.CNM {
+		mgrModifiers = append(mgrModifiers, &modifiers.HashMapNoPreallocModifier{})
+	}
+
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps:     conntrackMaps,
 		PerfMaps: []*manager.PerfMap{},
 		Probes:   conntrackProbes,
-	}, "conntrack", &ebpftelemetry.ErrorsTelemetryModifier{}, &modifiers.HashMapNoPreallocModifier{})
+	}, "conntrack", mgrModifiers...)
 
 	opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
