@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // migProfileRegexp matches the MIG profile embedded in a MIG device name and
