@@ -6,67 +6,36 @@
 package observerimpl
 
 import (
-	"strings"
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-func TestFormatSeriesDescriptorMatchesKey(t *testing.T) {
-	descriptors := []observerdef.SeriesDescriptor{
-		{},
-		{Namespace: "metrics", Name: "cpu", Aggregate: observerdef.AggregateAverage},
+func TestFormatSeriesDescriptor(t *testing.T) {
+	tests := []struct {
+		descriptor observerdef.SeriesDescriptor
+		want       string
+	}{
+		{want: "|:none||"},
 		{
-			Namespace: "metrics",
-			Name:      "cpu",
-			Host:      "agent-a",
-			Tags:      []string{"team:agent", "env:prod", "env:prod"},
-			Aggregate: observerdef.AggregateSum,
+			descriptor: observerdef.SeriesDescriptor{Namespace: "metrics", Name: "cpu", Aggregate: observerdef.AggregateAverage},
+			want:       "metrics|cpu:avg||",
+		},
+		{
+			descriptor: observerdef.SeriesDescriptor{
+				Namespace: "metrics",
+				Name:      "cpu",
+				Host:      "agent-a",
+				Tags:      []string{"team:agent", "env:prod", "env:prod"},
+				Aggregate: observerdef.AggregateSum,
+			},
+			want: "metrics|cpu:sum|agent-a|env:prod,env:prod,team:agent",
 		},
 	}
 
-	for _, descriptor := range descriptors {
-		if got, want := formatSeriesDescriptor(descriptor), descriptor.Key(); got != want {
-			t.Errorf("formatSeriesDescriptor(%#v) = %q, want %q", descriptor, got, want)
-		}
-	}
-}
-
-func TestSeriesDescriptorsEqualIgnoresTagOrder(t *testing.T) {
-	left := observerdef.SeriesDescriptor{
-		Namespace: "metrics",
-		Name:      "cpu",
-		Host:      "agent-a",
-		Tags:      []string{"team:agent", "env:prod", "env:prod"},
-		Aggregate: observerdef.AggregateAverage,
-	}
-	right := left
-	right.Tags = []string{"env:prod", "team:agent", "env:prod"}
-
-	if !seriesDescriptorsEqual(left, right) {
-		t.Fatal("descriptors with the same tags in a different order must be equal")
-	}
-	right.Tags = []string{"env:prod", "team:agent"}
-	if seriesDescriptorsEqual(left, right) {
-		t.Fatal("descriptors with different tag multiplicities must differ")
-	}
-}
-
-func TestCompareSeriesDescriptorsMatchesLegacyKeyOrder(t *testing.T) {
-	descriptors := []observerdef.SeriesDescriptor{
-		{Namespace: "metrics", Name: "cpu", Tags: []string{"team:agent", "env:prod"}},
-		{Namespace: "metrics", Name: "cpu", Tags: []string{"env:prod", "team:agent"}},
-		{Namespace: "metrics", Name: "memory"},
-		{Namespace: "logs", Name: "cpu", Aggregate: observerdef.AggregateSum},
-	}
-
-	for _, left := range descriptors {
-		for _, right := range descriptors {
-			got := compareSeriesDescriptors(left, right)
-			want := strings.Compare(left.Key(), right.Key())
-			if got != want {
-				t.Errorf("compareSeriesDescriptors(%#v, %#v) = %d, want %d", left, right, got, want)
-			}
+	for _, tt := range tests {
+		if got := formatSeriesDescriptor(tt.descriptor); got != tt.want {
+			t.Errorf("formatSeriesDescriptor(%#v) = %q, want %q", tt.descriptor, got, tt.want)
 		}
 	}
 }

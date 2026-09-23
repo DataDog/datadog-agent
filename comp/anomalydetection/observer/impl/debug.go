@@ -79,7 +79,6 @@ type StateView interface {
 	DetectorAnomalies(name string) []observerdef.Anomaly
 	AnomaliesByDetector() map[string][]observerdef.Anomaly
 	AnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly
-
 	// Correlations
 	ActiveCorrelations() []observerdef.ActiveCorrelation
 	CorrelationHistory() []observerdef.ActiveCorrelation

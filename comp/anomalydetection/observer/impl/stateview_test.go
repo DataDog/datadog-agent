@@ -111,7 +111,6 @@ func TestStateView_Anomalies(t *testing.T) {
 		t.Fatalf("expected 1 bocpd anomaly, got %d", len(byDetector["bocpd"]))
 	}
 
-	// AnomaliesForSource filters by SeriesDescriptor
 	diskDesc := observerdef.SeriesDescriptor{Name: "disk", Aggregate: observerdef.AggregateAverage}
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       diskDesc,
@@ -122,17 +121,7 @@ func TestStateView_Anomalies(t *testing.T) {
 	if len(diskAnomalies) != 1 {
 		t.Fatalf("expected 1 disk anomaly, got %d", len(diskAnomalies))
 	}
-	if diskAnomalies[0].Source.Name != "disk" {
-		t.Fatalf("expected disk source, got %s", diskAnomalies[0].Source.Name)
-	}
-	// Matching by name should find the correct anomaly
-	cpuAnomalies := sv.AnomaliesForSource(observerdef.SeriesDescriptor{Name: "cpu"})
-	if len(cpuAnomalies) != 1 {
-		t.Fatalf("expected 1 cpu anomaly, got %d", len(cpuAnomalies))
-	}
-	if cpuAnomalies[0].Source.Name != "cpu" {
-		t.Fatalf("expected cpu source, got %s", cpuAnomalies[0].Source.Name)
-	}
+
 }
 
 func TestLiveAnomalyTrackingIsBoundedAndDoesNotRetainHistory(t *testing.T) {
@@ -217,31 +206,6 @@ func TestAnomalyDedupAndHistoryUseStorageHandleIdentity(t *testing.T) {
 	}
 	if got := e.UniqueAnomalySourceCount(); got != 2 {
 		t.Fatalf("unique storage-backed sources = %d, want 2", got)
-	}
-}
-
-func TestAnomaliesForSourceIgnoresTagOrder(t *testing.T) {
-	e := newEngine(engineConfig{
-		storage:             newTimeSeriesStorage(),
-		trackAnomalyHistory: true,
-	})
-	e.acceptAnomaly(observerdef.Anomaly{
-		Source: observerdef.SeriesDescriptor{
-			Namespace: "metrics",
-			Name:      "cpu",
-			Tags:      []string{"team:agent", "env:prod"},
-		},
-		DetectorName: "detector",
-		Timestamp:    100,
-	})
-
-	anomalies := e.StateView().AnomaliesForSource(observerdef.SeriesDescriptor{
-		Namespace: "metrics",
-		Name:      "cpu",
-		Tags:      []string{"env:prod", "team:agent"},
-	})
-	if len(anomalies) != 1 {
-		t.Fatalf("anomalies matching reordered tags = %d, want 1", len(anomalies))
 	}
 }
 

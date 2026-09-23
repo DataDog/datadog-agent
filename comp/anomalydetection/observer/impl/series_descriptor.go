@@ -12,34 +12,6 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// seriesDescriptorsEqual compares descriptors structurally, treating tags as
-// order-insensitive while preserving duplicate tags.
-func seriesDescriptorsEqual(left, right observerdef.SeriesDescriptor) bool {
-	if left.Namespace != right.Namespace ||
-		left.Name != right.Name ||
-		left.Host != right.Host ||
-		left.Aggregate != right.Aggregate ||
-		len(left.Tags) != len(right.Tags) {
-		return false
-	}
-
-	leftTags := sortedSeriesDescriptorTags(left.Tags)
-	rightTags := sortedSeriesDescriptorTags(right.Tags)
-	for i := range leftTags {
-		if leftTags[i] != rightTags[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// compareSeriesDescriptors orders descriptors by their legacy serialized
-// representation. This preserves the deterministic ordering exposed by existing
-// correlation and debug output.
-func compareSeriesDescriptors(left, right observerdef.SeriesDescriptor) int {
-	return strings.Compare(formatSeriesDescriptor(left), formatSeriesDescriptor(right))
-}
-
 // formatSeriesDescriptor returns the legacy stable representation used at
 // debug, UI, and digest boundaries: "namespace|name:agg|host|tag1,tag2,...".
 // It must not be used as runtime identity for storage-backed series.

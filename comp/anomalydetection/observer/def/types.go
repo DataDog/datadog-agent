@@ -110,7 +110,7 @@ type LogMetricsExtractorOutput struct {
 
 // SeriesDescriptor is the fully resolved identity of a time series.
 // It carries namespace, metric name, tags, and aggregation — everything
-// needed to display, key, and compare series across correlators and API.
+// needed to display and compare series across correlators and API.
 type SeriesDescriptor struct {
 	// Namespace identifies the component that produced this metric
 	// (e.g. an extractor name like "log_metrics_extractor", or "dogstatsd").
@@ -158,22 +158,15 @@ func (sd SeriesDescriptor) DisplayName() string {
 	return b.String()
 }
 
-// Key returns a stable string suitable for use as a map key.
-// Format: "namespace|name:agg|host|tag1,tag2,...".
-func (sd SeriesDescriptor) Key() string {
-	aggStr := AggregateString(sd.Aggregate)
-	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + sd.Tags.Join(",")
-}
-
 // SeriesRef is a compact numeric handle for a stored time series.
 // Storage assigns a unique SeriesRef when a series key is first created. The
 // ref remains stable while the series is live and is never reused; after
 // eviction it is invalid for the remainder of the storage instance lifetime.
 type SeriesRef int
 
-// QueryHandle pairs a storage series ref with its aggregate, providing
-// enough information to produce the compact ID ("42:avg") that the API
-// uses as a join key across endpoints.
+// QueryHandle pairs a storage series ref with its aggregate. It is the
+// comparable identity for storage-backed anomaly processing and provides the
+// compact ID ("42:avg") that the API uses as a join key across endpoints.
 type QueryHandle struct {
 	Ref       SeriesRef
 	Aggregate Aggregate

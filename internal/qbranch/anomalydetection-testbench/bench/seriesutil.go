@@ -29,6 +29,26 @@ func seriesKey(namespace, nameWithAgg, host string, tags []string) string {
 	return namespace + "|" + nameWithAgg + "|" + host + "|" + strings.Join(sorted, ",")
 }
 
+func formatSeriesDescriptor(sd observerdef.SeriesDescriptor) string {
+	return seriesKey(sd.Namespace, sd.Name+":"+aggSuffix(sd.Aggregate), sd.Host, sd.Tags)
+}
+
+func seriesDescriptorsEqual(left, right observerdef.SeriesDescriptor) bool {
+	if left.Namespace != right.Namespace ||
+		left.Name != right.Name ||
+		left.Host != right.Host ||
+		left.Aggregate != right.Aggregate ||
+		len(left.Tags) != len(right.Tags) {
+		return false
+	}
+
+	leftTags := append([]string(nil), left.Tags...)
+	rightTags := append([]string(nil), right.Tags...)
+	sort.Strings(leftTags)
+	sort.Strings(rightTags)
+	return tagsMatch(leftTags, rightTags)
+}
+
 // parseSeriesKey parses a seriesKey back into its components.
 // Returns ok=false if the key doesn't have the expected format.
 func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {

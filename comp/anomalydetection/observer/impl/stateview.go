@@ -109,13 +109,15 @@ func (sv *stateView) AnomaliesByDetector() map[string][]observerdef.Anomaly {
 }
 
 // AnomaliesForSource returns anomalies matching a specific SeriesDescriptor.
-// Computes on read from the raw anomaly set.
+// This debug/testbench read path compares the legacy serialized representation;
+// storage-backed runtime identity remains QueryHandle.
 func (sv *stateView) AnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly {
+	target := formatSeriesDescriptor(sd)
 	all := sv.engine.RawAnomalies()
 	var result []observerdef.Anomaly
-	for _, a := range all {
-		if seriesDescriptorsEqual(a.Source, sd) {
-			result = append(result, a)
+	for _, anomaly := range all {
+		if formatSeriesDescriptor(anomaly.Source) == target {
+			result = append(result, anomaly)
 		}
 	}
 	return result

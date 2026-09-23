@@ -128,8 +128,6 @@ func TestTimeSeriesStorage_AddWithKeyAndHostSeparatesIdenticalMetricAndTags(t *t
 	ranged := s.GetSeriesRange(first.Ref, 0, 1000, AggregateAverage)
 	require.NotNil(t, ranged)
 	assert.Equal(t, "host-a", ranged.Host)
-	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
-	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
 }
 
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
@@ -1121,4 +1119,44 @@ func TestSeriesKeyHashIsUnordered(t *testing.T) {
 
 	assert.NotZero(t, sorted)
 	assert.Equal(t, sorted, unsorted)
+}
+
+func TestParseSeriesKeyRequiresHostField(t *testing.T) {
+	namespace, name, host, tags, ok := parseSeriesKey("ns|metric:avg||env:prod")
+	assert.True(t, ok)
+	assert.Equal(t, "ns", namespace)
+	assert.Equal(t, "metric:avg", name)
+	assert.Empty(t, host)
+	assert.Equal(t, []string{"env:prod"}, tags)
+
+	_, _, _, _, ok = parseSeriesKey("ns|metric:avg|env:prod")
+	assert.False(t, ok)
+}
+
+func TestCompactSeriesIDResolvesHostDimension(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	hostless := s.AddWithHost("ns", "metric", "", 1, 1000, tags)
+	hostA := s.AddWithHost("ns", "metric", "web-a", 1, 1000, tags)
+	hostB := s.AddWithHost("ns", "metric", "web-b", 1, 1000, tags)
+
+	for _, tc := range []struct {
+		host string
+		ref  observer.SeriesRef
+	}{
+		{host: "", ref: hostless.Ref},
+		{host: "web-a", ref: hostA.Ref},
+		{host: "web-b", ref: hostB.Ref},
+	} {
+		key := fmt.Sprintf("ns|metric:avg|%s|env:prod", tc.host)
+		assert.Equal(t, fmt.Sprintf("%d:avg", tc.ref), s.CompactSeriesID(key))
+	}
+}
+
+func TestCompactSeriesIDRejectsLegacyHostlessKey(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("ns", "metric", 1, 1000, []string{"env:prod"})
+	legacyKey := "ns|metric:avg|env:prod"
+
+	assert.Equal(t, legacyKey, s.CompactSeriesID(legacyKey))
 }

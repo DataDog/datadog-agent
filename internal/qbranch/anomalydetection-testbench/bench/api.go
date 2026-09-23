@@ -795,7 +795,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 				return compactID
 			}
 		}
-		return a.Source.Key()
+		return formatSeriesDescriptor(a.Source)
 	}
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
@@ -1067,13 +1067,13 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		for k, m := range c.Members {
 			// Find SourceRef for this member.
 			for _, a := range c.Anomalies {
-				if a.Source.Key() == m.Key() && a.SourceRef != nil {
+				if seriesDescriptorsEqual(a.Source, m) && a.SourceRef != nil {
 					memberIDs[k] = a.SourceRef.CompactID()
 					break
 				}
 			}
 			if memberIDs[k] == "" {
-				memberIDs[k] = m.Key()
+				memberIDs[k] = formatSeriesDescriptor(m)
 			}
 		}
 

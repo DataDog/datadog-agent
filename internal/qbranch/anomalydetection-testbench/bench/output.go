@@ -132,7 +132,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 			}
 			oc.Anomalies = make([]ObserverAnomaly, len(corr.Anomalies))
 			for j, a := range corr.Anomalies {
-				sourceID := a.Source.Key()
+				sourceID := formatSeriesDescriptor(a.Source)
 				if a.SourceRef != nil {
 					sourceID = a.SourceRef.CompactID()
 				}

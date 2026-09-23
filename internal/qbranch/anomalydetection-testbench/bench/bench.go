@@ -1032,11 +1032,10 @@ func (tb *Bench) GetMetricsAnomaliesForSource(sd observerdef.SeriesDescriptor) [
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	targetKey := sd.Key()
 	all := filterMetricAnomalies(tb.debug.StateView().Anomalies())
 	var result []observerdef.Anomaly
 	for _, a := range all {
-		if a.Source.Key() == targetKey {
+		if seriesDescriptorsEqual(a.Source, sd) {
 			result = append(result, a)
 			continue
 		}
@@ -1047,7 +1046,7 @@ func (tb *Bench) GetMetricsAnomaliesForSource(sd observerdef.SeriesDescriptor) [
 				Name:      telemetryName,
 				Aggregate: observerdef.AggregateAverage,
 			}
-			if telemetrySD.Key() == targetKey {
+			if seriesDescriptorsEqual(telemetrySD, sd) {
 				result = append(result, a)
 			}
 		}
@@ -1146,7 +1145,7 @@ func (tb *Bench) GetCompressedCorrelations(threshold float64) []observerimpl.Com
 			if a.SourceRef != nil {
 				src = a.SourceRef.CompactID()
 			} else {
-				src = a.Source.Key()
+				src = formatSeriesDescriptor(a.Source)
 			}
 			if !seen[src] {
 				seen[src] = true

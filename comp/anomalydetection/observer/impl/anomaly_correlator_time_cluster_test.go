@@ -39,17 +39,51 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	assert.Len(t, correlations[0].Members, 2)
 }
 
-func TestSortedUniqueMembersDeduplicatesReorderedTags(t *testing.T) {
+func TestUniqueMembersUseStorageHandleAndRetainFirstDescriptor(t *testing.T) {
+	firstHandle := observer.QueryHandle{Ref: 1, Aggregate: observer.AggregateAverage}
+	secondHandle := observer.QueryHandle{Ref: 2, Aggregate: observer.AggregateAverage}
+	first := observer.SeriesDescriptor{Name: "cpu", Tags: []string{"env:prod"}}
+	updated := observer.SeriesDescriptor{Name: "cpu-updated", Tags: []string{"env:prod"}}
+
+	members := uniqueMembers([]observer.Anomaly{
+		{Source: first, SourceRef: &firstHandle},
+		{Source: updated, SourceRef: &firstHandle},
+		{Source: first, SourceRef: &secondHandle},
+	})
+
+	require.Len(t, members, 2)
+	assert.Equal(t, first, members[0], "the first descriptor is retained for a handle")
+	assert.Equal(t, first, members[1], "the same descriptor with a new handle is a new member")
+}
+
+func TestUniqueMembersKeepsRefLessFallbackBehavior(t *testing.T) {
 	anomalies := []observer.Anomaly{
-		{Source: observer.SeriesDescriptor{Name: "cpu", Tags: []string{"team:agent", "env:prod"}}},
-		{Source: observer.SeriesDescriptor{Name: "cpu", Tags: []string{"env:prod", "team:agent"}}},
-		{Source: observer.SeriesDescriptor{Name: "memory"}},
+		{Source: observer.SeriesDescriptor{Name: "rrcf", Tags: []string{"team:agent", "env:prod"}}},
+		{Source: observer.SeriesDescriptor{Name: "rrcf", Tags: []string{"env:prod", "team:agent"}}},
 	}
 
-	members := sortedUniqueMembers(anomalies)
-	require.Len(t, members, 2)
-	assert.Equal(t, "cpu", members[0].Name)
-	assert.Equal(t, "memory", members[1].Name)
+	members := uniqueMembers(anomalies)
+	require.Len(t, members, 1)
+	assert.Equal(t, anomalies[0].Source, members[0])
+}
+
+func TestTimeClusterInfoSourcesUseLegacyFormat(t *testing.T) {
+	c := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
+	handle := observer.QueryHandle{Ref: 1, Aggregate: observer.AggregateAverage}
+	c.ProcessAnomaly(observer.Anomaly{
+		Source: observer.SeriesDescriptor{
+			Namespace: "metrics",
+			Name:      "cpu",
+			Tags:      []string{"team:agent", "env:prod"},
+			Aggregate: observer.AggregateAverage,
+		},
+		SourceRef: &handle,
+		Timestamp: 100,
+	})
+
+	clusters := c.GetClusters()
+	require.Len(t, clusters, 1)
+	assert.Equal(t, []string{"metrics|cpu:avg||env:prod,team:agent"}, clusters[0].Sources)
 }
 
 func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
