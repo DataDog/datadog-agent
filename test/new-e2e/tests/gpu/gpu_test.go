@@ -365,13 +365,14 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 	}, 5*time.Minute, 10*time.Second)
 }
 
-// TestMIGProfileTagScope checks the gpu_mig_profile tag contract: MIG device
-// metrics carry a canonical profile value, and everything else carries no such
-// tag. CI GPUs are not MIG-capable, so in practice this guards the degradation
-// path -- a driver without the versioned profile API, or a whole card, must not
-// grow a spurious or empty gpu_mig_profile tag. The positive path on real MIG
-// hardware is covered by pkg/gpu/integrationtests (RUN_MIG_TESTS=1) and the
-// tag value mapping by the tagger unit tests.
+// TestMIGProfileTagScope checks the gpu_mig_profile tag contract: every GPU
+// metric carries exactly one value -- a profile name (or "unknown") on MIG
+// instances, and "none" on everything else, matching how the other device tags
+// are set on every device. CI GPUs are not MIG-capable, so in practice this
+// guards the whole-card side: a physical card must carry "none", not a
+// profile and not nothing. The positive path on real MIG hardware is covered
+// by pkg/gpu/integrationtests (RUN_MIG_TESTS=1) and the value mapping by the
+// tagger unit tests.
 func (v *gpuBaseSuite[Env]) TestMIGProfileTagScope() {
 	if !v.systemData.hasAllNVMLCriticalAPIs {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
@@ -399,14 +400,17 @@ func (v *gpuBaseSuite[Env]) TestMIGProfileTagScope() {
 				}
 			}
 
+			if !assert.Len(c, profileValues, 1, "GPU metric should carry exactly one %s tag, tags: %v", migProfileTagKey, metric.GetTags()) {
+				continue
+			}
 			if isMIGDevice {
-				if assert.Len(c, profileValues, 1, "MIG device metric should carry exactly one %s tag, tags: %v", migProfileTagKey, metric.GetTags()) {
+				if profileValues[0] != "unknown" {
 					assert.Regexp(c, migProfileTagValue, profileValues[0],
 						"%s value should be a canonical profile name, tags: %v", migProfileTagKey, metric.GetTags())
 				}
 			} else {
-				assert.Empty(c, profileValues,
-					"non-MIG device metric must not carry %s, tags: %v", migProfileTagKey, metric.GetTags())
+				assert.Equal(c, "none", profileValues[0],
+					"non-MIG device metric should carry %s:none, tags: %v", migProfileTagKey, metric.GetTags())
 			}
 		}
 	}, 5*time.Minute, 10*time.Second)

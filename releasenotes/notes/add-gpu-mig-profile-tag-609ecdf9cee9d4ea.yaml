@@ -1,13 +1,14 @@
 ---
 features:
   - |
-    Add a ``gpu_mig_profile`` tag to GPU metrics for MIG devices. The tag carries
+    Add a ``gpu_mig_profile`` tag to GPU metrics. On a MIG instance it carries
     the NVIDIA MIG profile name of the device's GPU instance, lowercased, with
     ``+`` written as ``_`` (``1g.35gb``, ``1g.24gb_me``, ``1g.24gb-me``,
-    ``4g.96gb_gfx``). It is read from the device's own NVML name, needs no
-    additional privileges, and applies to all ``gpu.*`` metrics regardless of
-    how the MIG instance was allocated (DRA, device plugin, or idle). On drivers
-    whose device names do not carry the profile, the agent falls back to the
-    GPU instance handle, which requires a privileged agent; when that is
-    unavailable the tag is omitted and the reason is logged once per MIG
-    instance.
+    ``4g.96gb_gfx``), for every MIG instance regardless of how it was allocated
+    (DRA, device plugin, or idle). Like the other device tags it is set on
+    every GPU: devices that are not MIG instances, including MIG-enabled
+    physical cards, carry ``none``. The profile is read from the device's own
+    NVML name and needs no additional privileges. On drivers whose device names
+    do not carry it, the agent falls back to the GPU instance handle, which
+    requires a privileged agent; if that is unavailable the value is
+    ``unknown`` and the reason is logged.

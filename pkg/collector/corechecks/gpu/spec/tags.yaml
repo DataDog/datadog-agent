@@ -20,7 +20,7 @@ tags:
   gpu_slicing_mode:
     regex: "^(none|mig|mig-parent)$"
   gpu_mig_profile:
-    regex: "^[0-9]+g\\.[0-9]+gb([_-][a-z]+(\\.[a-z]+)*)?$"
+    regex: "^(none|unknown|[0-9]+g\\.[0-9]+gb([_-][a-z]+(\\.[a-z]+)*)?)$"
   gpu_type:
     regex: "^[a-z0-9_-]+$"
   gpu_parent_uuid:
