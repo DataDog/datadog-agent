@@ -176,13 +176,19 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 		assert.Contains(ct, out, "Running")
 	}, 120*time.Second, 3*time.Second)
 
-	out, err := host.Execute(fmt.Sprintf(
-		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
-		processLegacySCMServiceName,
-	))
-	require.NoError(s.T(), err)
-	require.NotEqual(s.T(), "Running", strings.TrimSpace(out),
-		"%s Windows service must not be Running when process-agent is managed by dd-procmgr", processLegacySCMServiceName)
+	// Anything short of Stopped, StartPending in particular, can be the SCM on its way to a
+	// second process-agent, so only Stopped or Absent passes.
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := host.Execute(fmt.Sprintf(
+			`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+			processLegacySCMServiceName,
+		))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		assert.Contains(ct, []string{"Stopped", "Absent"}, strings.TrimSpace(out),
+			"%s Windows service must stay down when process-agent is managed by dd-procmgr", processLegacySCMServiceName)
+	}, 30*time.Second, 3*time.Second)
 }
 
 // TestProcessAgentInheritsFilteredLegacyScmEnvironment covers the environment hand-off that
