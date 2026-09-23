@@ -532,6 +532,8 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 		} else {
 			return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
 		}
+	} else {
+		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
 	return ddcfgMap, nil
 }
