@@ -157,12 +157,25 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	require.NoError(s.T(), err)
 	backup = strings.TrimSpace(backup)
 
+	// A rejected privileged spawn leaves the process not running, so restoring the file is
+	// not enough on its own: reload restarts only processes that were running when their
+	// config changed, and auto-starts only ones still in Created. Neither covers a process
+	// that failed to spawn, so the restore has to start it explicitly.
+	//
+	// start reports an error when the process is already running, which is the usual case
+	// for the deferred pass, so that error is logged rather than returned. The Running
+	// assertion below is what actually proves the restore worked.
 	restore := func() error {
 		if _, err := host.Execute(psWriteFileBase64(cfgPath, backup)); err != nil {
 			return err
 		}
-		_, err := host.Execute(procmgrCmd(cli, "reload"))
-		return err
+		if _, err := host.Execute(procmgrCmd(cli, "reload")); err != nil {
+			return err
+		}
+		if _, err := host.Execute(procmgrCmd(cli, "start "+processProcessName)); err != nil {
+			s.T().Logf("start after restoring %s reported: %v", cfgPath, err)
+		}
+		return nil
 	}
 	s.T().Cleanup(func() {
 		if err := restore(); err != nil {
