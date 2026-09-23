@@ -328,15 +328,25 @@ impl ManagedProcess {
         self.restart_block = RestartBlock::AlreadyAccounted;
     }
 
-    /// Whether the restart burst budget is currently spent. `handle_restart`
-    /// checks the gate before the limit, so a crash behind a closed gate
-    /// consumes no budget and records nothing. Recovery therefore has to
-    /// consult the limit itself, or a gate flap hands back a restart the limit
-    /// had already refused.
+    /// Whether the restart burst window currently holds as many restarts as
+    /// `start_limit_burst` allows.
     #[must_use]
     pub(crate) fn restart_burst_exhausted(&self) -> bool {
         self.restarts
             .is_burst_limited(self.config.burst_limit(), self.config.burst_interval())
+    }
+
+    /// Whether recovering a condition skip would take a burst slot the limit
+    /// has already refused.
+    ///
+    /// Only an exit-time skip owes the check. The gate is tested before the
+    /// limit, so that skip records nothing and can outlive a budget earlier
+    /// crashes already spent. The backoff re-check recorded its restart when
+    /// the limit admitted it, and the reload of a running process is not a
+    /// restart, so neither may be refused for a window that is already full.
+    #[must_use]
+    pub(crate) fn recovered_restart_exceeds_burst(&self) -> bool {
+        self.restart_block == RestartBlock::AccountingOwed && self.restart_burst_exhausted()
     }
 
     /// Accounts for a restart that a closed gate skipped before it could be

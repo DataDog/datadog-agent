@@ -380,9 +380,12 @@ impl ProcessManager {
         // keys off the recorded skip reason rather than the state.
         // `may_respawn`, not `should_start`: `auto_start` governs boot only, so
         // consulting it here would strand a manually started process forever.
-        // The burst limit is re-checked because a crash behind a closed gate
-        // spends no budget, so the flag can outlive a budget earlier crashes
-        // already exhausted.
+        // The burst limit is re-checked only for an exit-time skip. That skip
+        // records nothing, because the gate is checked before the limit, so it
+        // can outlive a budget earlier crashes already exhausted. A backoff
+        // re-check already recorded the restart the limit admitted, and the
+        // reload of a running process is not a restart, so recovering either
+        // must not consult the limit again.
         {
             let candidates: std::collections::HashSet<&str> = unchanged
                 .iter()
@@ -401,7 +404,7 @@ impl ProcessManager {
                     ProcessState::Exited | ProcessState::Failed | ProcessState::Stopped => {
                         proc.restart_blocked_by_conditions()
                             && proc.may_respawn()
-                            && !proc.restart_burst_exhausted()
+                            && !proc.recovered_restart_exceeds_burst()
                     }
                     _ => false,
                 };
@@ -410,8 +413,9 @@ impl ProcessManager {
                 }
                 let name = proc.name().to_owned();
                 info!("[{name}] start conditions now met after reload, starting");
-                // After the burst check above, since this spends from the
-                // budget, and before `spawn`, which clears the skip reason.
+                // After the burst check above, since an exit-time skip spends
+                // from the budget here, and before `spawn`, which clears the
+                // skip reason.
                 proc.record_recovered_restart();
                 if let Err(e) = proc.spawn(exit_tx.clone()) {
                     warn!("[{name}] failed to start after gate re-eval: {e:#}");
@@ -1447,6 +1451,51 @@ mod tests {
 
             // The queued restart is dropped rather than delivered, which is the
             // condition this recovery exists to undo.
+            let _ = restart_rx.try_recv();
+            cleanup_first_process(&mgr).await;
+            Ok(())
+        }
+
+        /// The restart that fills the burst window is recorded before the backoff
+        /// runs. Closing the gate during that delay must not turn the admission
+        /// into a refusal: the slot was spent on this restart, and `is_burst_limited`
+        /// is true the moment it is recorded.
+        #[tokio::test]
+        async fn test_reload_restarts_backoff_skip_that_filled_the_burst() -> anyhow::Result<()> {
+            let (_env, dir) = gate_env();
+            let yaml = write_agent_yaml(dir.path(), true);
+            let mut def = gated_on_failure_sleep_def("gated-svc", &yaml);
+            def.config.start_limit_burst = Some(1);
+            def.config.start_limit_interval_sec = Some(3600);
+            let mgr = ProcessManager::new(loader(vec![def]), uuid_gen());
+            let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+            let (restart_tx, mut restart_rx) = mpsc::channel::<String>(8);
+
+            mgr.start(&exit_tx).await;
+
+            crash(&mgr, "gated-svc", &restart_tx).await;
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "this crash is the one restart the burst allows, so it is recorded"
+            );
+            write_agent_yaml(dir.path(), false);
+            mgr.complete_restart("gated-svc", &exit_tx).await;
+            assert_stranded_by_gate(&mgr, ProcessState::Failed).await;
+
+            write_agent_yaml(dir.path(), true);
+            mgr.handle_reload_config(&exit_tx).await?;
+
+            assert!(
+                mgr.processes().await[0].is_running(),
+                "recovery must spawn a restart the burst limit already admitted"
+            );
+            assert_eq!(
+                mgr.processes().await[0].restart_count(),
+                1,
+                "the restart was recorded at exit, so recovery must not count it again"
+            );
+
             let _ = restart_rx.try_recv();
             cleanup_first_process(&mgr).await;
             Ok(())
