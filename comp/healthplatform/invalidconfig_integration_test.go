@@ -162,7 +162,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	assert.NotContains(t, string(receivedJSON), "PRIVATE_UNRESOLVED_HANDLE")
 	const explanation = "`/logs_enabled` expects true or false, but received a string."
 	const correction = "Set `/logs_enabled` to true or false. The default value for this setting is `false`."
-	const secretExplanation = "`/app_key` contains an unresolved secret reference because no secret backend is configured."
+	const secretExplanation = "`/app_key` contains an unresolved secret reference. The secret backend may not be configured."
 	const secretCorrection = "Configure a secret backend to resolve `/app_key`. Run `datadog-agent secret` to check its configuration."
 	assert.Contains(t, receivedIssue.GetDescription(), explanation)
 	assert.Contains(t, receivedIssue.GetDescription(), secretExplanation)

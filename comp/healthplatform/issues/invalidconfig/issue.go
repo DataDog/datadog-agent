@@ -158,7 +158,7 @@ func formatViolation(violation violationPayload) (string, string) {
 	}
 	path := inlineCode(violation.Path)
 	if violation.Reason == reasonSecretBackendNotConfigured {
-		return path + " contains an unresolved secret reference because no secret backend is configured.",
+		return path + " contains an unresolved secret reference. The secret backend may not be configured.",
 			"Configure a secret backend to resolve " + path + ". Run `datadog-agent secret` to check its configuration."
 	}
 	actual := typeLabels[violation.ActualType]

@@ -255,7 +255,7 @@ func TestCheck_MissingSecretBackend(t *testing.T) {
 			assert.Equal(t, "1", reports[0].Context[contextKeyErrorCount])
 			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
 			require.NoError(t, err)
-			assert.Contains(t, issue.Description, "contains an unresolved secret reference because no secret backend is configured.")
+			assert.Contains(t, issue.Description, "contains an unresolved secret reference. The secret backend may not be configured.")
 			assert.Equal(t, "Configure a secret backend to resolve `"+tc.path+"`. Run `datadog-agent secret` to check its configuration.", issue.Remediation.Steps[1].Text)
 			assert.Equal(t, []any{map[string]any{"path": tc.path, "reason": "secret_backend_not_configured"}}, issue.Extra.Fields[contextKeyViolations].GetListValue().AsSlice())
 			encoded, err := json.Marshal(issue)
