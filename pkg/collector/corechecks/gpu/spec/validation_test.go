@@ -121,6 +121,37 @@ func TestValidateEmittedMetricsAllowsMissingOptionalTag(t *testing.T) {
 	require.Equal(t, 0, result.Metrics["fan_speed"].TagResults["fan_index"].Missing)
 }
 
+func TestValidateEmittedMetricsDoesNotCountMissingTagsOnPartialSamples(t *testing.T) {
+	value := 1.0
+	specs := &Specs{
+		Metrics: &MetricsSpec{
+			Metrics: map[string]MetricSpec{
+				"test": {
+					CustomTags: []string{"gpu_uuid", "gpu_device"},
+					Support:    MetricSupportSpec{DeviceModes: map[DeviceMode]bool{DeviceModePhysical: true}},
+				},
+			},
+		},
+		Tags: &TagsSpec{Tags: map[string]TagSpec{
+			"gpu_uuid":   {Regex: regexp.MustCompile(`^gpu-[a-z]+$`)},
+			"gpu_device": {},
+		}},
+	}
+	config := GPUConfig{Architecture: "hopper", DeviceMode: DeviceModePhysical}
+
+	result, err := ValidateEmittedMetricsAgainstSpec(specs, config, map[string][]MetricObservation{
+		"test": {
+			{Value: &value, Tags: []string{"gpu_uuid:gpu-valid", "gpu_device:h100"}},
+			{TagsArePartial: true, TagKeys: []string{"gpu_uuid", "gpu_unexpected"}},
+		},
+	}, nil, ValidationOptions{})
+
+	require.NoError(t, err)
+	require.Equal(t, 0, result.Metrics["test"].TagResults["gpu_device"].Missing)
+	require.Equal(t, 0, result.Metrics["test"].TagResults["gpu_uuid"].InvalidValue)
+	require.Equal(t, 1, result.Metrics["test"].TagResults["gpu_unexpected"].Unknown)
+}
+
 func TestValidateEmittedMetricsAgainstSpecExternalValues(t *testing.T) {
 	value := 10.0
 	specs := &Specs{

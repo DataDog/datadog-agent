@@ -498,42 +498,38 @@ func (c *metricsClient) listObservedGPUMetricsForGPUConfig(config gpuspec.GPUCon
 	return metrics, nil
 }
 
-func (c *metricsClient) fetchMetricAllTags(metricName string, wantedTagPrefixes map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
-	var allTags []string
+func (c *metricsClient) fetchMetricUnknownTagKeys(metricName string, expectedTags map[string]gpuspec.TagSpec, windowSeconds int64, metricScopeFilter string) ([]string, error) {
+	options := datadogV2.NewListTagsByMetricNameOptionalParameters().
+		WithFilterIncludeTagValues(false).
+		WithPageLimit(1000).
+		WithWindowSeconds(windowSeconds).
+		WithFilterAllowPartial(true)
+	if metricScopeFilter != "" {
+		options.WithFilterTags(metricScopeFilter)
+	}
 
-	for tagPrefix := range wantedTagPrefixes {
-		options := datadogV2.NewListTagsByMetricNameOptionalParameters().
-			WithFilterMatch(tagPrefix).
-			WithFilterIncludeTagValues(true).
-			WithPageLimit(1000).
-			WithWindowSeconds(windowSeconds).
-			WithFilterAllowPartial(true)
-		if metricScopeFilter != "" {
-			options.WithFilterTags(metricScopeFilter)
-		}
+	response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
+	if httpResp != nil && httpResp.Body != nil {
+		_ = httpResp.Body.Close()
+	}
+	if err != nil {
+		return nil, fmt.Errorf("fetch tag keys for %s: %w", metricName, includeAPIErrorBody(err))
+	}
+	if response.Data == nil || response.Data.Attributes == nil {
+		return nil, nil
+	}
 
-		response, httpResp, err := c.api.ListTagsByMetricName(c.ctx, metricName, *options)
-		if httpResp != nil && httpResp.Body != nil {
-			_ = httpResp.Body.Close()
-		}
-		if err != nil {
-			return nil, fmt.Errorf("fetch tag %s for %s: %w", tagPrefix, metricName, includeAPIErrorBody(err))
-		}
-		if response.Data == nil || response.Data.Attributes == nil {
+	var unknownTagKeys []string
+	for _, tagKey := range append(response.Data.Attributes.GetTags(), response.Data.Attributes.GetIngestedTags()...) {
+		if !strings.HasPrefix(tagKey, "gpu_") {
 			continue
 		}
-
-		for _, tag := range response.Data.Attributes.GetTags() {
-			// The tag endpoint returns all tags that contain the FilterMatch
-			// value, but we're only interested in tags that start with the
-			// prefix.
-			if strings.HasPrefix(tag, tagPrefix) {
-				allTags = append(allTags, tag)
-			}
+		if _, expected := expectedTags[tagKey]; !expected {
+			unknownTagKeys = append(unknownTagKeys, tagKey)
 		}
 	}
 
-	return allTags, nil
+	return unknownTagKeys, nil
 }
 
 func isNullishGroupValue(value string) bool {
