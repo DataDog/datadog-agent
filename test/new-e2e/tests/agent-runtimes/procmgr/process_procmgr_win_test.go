@@ -300,6 +300,17 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 		}
 	})
 
+	// The log outlives the test, so a run reusing this host already has the rejection line.
+	// Only a line written after this point proves this mutation reached the validator.
+	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
+	rejection := "[" + processProcessName + "] refusing privileged spawn: stdout/stderr must be inherit or null"
+	countRejections := func() int {
+		out, err := host.Execute(psSelectStringLines(logPath, "refusing privileged spawn"))
+		require.NoError(s.T(), err)
+		return strings.Count(out, rejection)
+	}
+	rejectionsBefore := countRejections()
+
 	// The catalog allows only inherit or null for stdio, so redirecting stdout to a file is
 	// the smallest edit that violates it.
 	_, err = host.Execute(psReplaceInFile(cfgPath, "stdout: inherit", "stdout: C:/Windows/Temp/dd-procmgr-priv-stdout.log"))
@@ -319,10 +330,8 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	}, 2*time.Minute, 5*time.Second)
 
 	// Failed alone could be any spawn error. The catalog's own reason ties it to validation.
-	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
-	out, err := host.Execute(psSelectStringLines(logPath, "refusing privileged spawn"))
-	require.NoError(s.T(), err)
-	require.Contains(s.T(), out, "["+processProcessName+"] refusing privileged spawn: stdout/stderr must be inherit or null")
+	require.Greater(s.T(), countRejections(), rejectionsBefore,
+		"dd-procmgr.log should gain a %q line for this mutation", rejection)
 
 	require.NoError(s.T(), restore())
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
