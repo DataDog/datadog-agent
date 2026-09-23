@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    Add default-on collection of hidden file bytes per container image layer on
+    Linux with containerd's overlayfs snapshotter and a fallback to locally
+    available layer archives when container-image collection is enabled.
+    Set ``container_image.hidden_bytes.enabled`` to ``false`` to disable it.
+    Snapshot scanning requires read-only access to unpacked image layers and
+    permission to read overlayfs metadata. Bytes hidden by later deletions or
+    replacements are attributed to their original layer, with supported
+    hardlinks counted once. Unavailable results are omitted rather than
+    reported as zero; missing layer archives are never downloaded.

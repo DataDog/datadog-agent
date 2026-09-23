@@ -101,8 +101,9 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 			// diff_id semantics since this collector existed. Keep emitting
 			// the diff_id so the backend join against trivy vulnerability
 			// records (also keyed on diff_id) continues to match.
-			Digest: layer.DiffID,
-			Size:   layer.SizeBytes,
+			Digest:      layer.DiffID,
+			Size:        layer.SizeBytes,
+			HiddenBytes: layer.HiddenBytes,
 		}
 
 		if layer.History != nil {

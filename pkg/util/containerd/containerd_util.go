@@ -10,11 +10,13 @@ package containerd
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/opencontainers/image-spec/identity"
@@ -421,83 +423,71 @@ func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }
 
-// MountsWithSnapshotter is like Mounts but also returns the snapshotter name
-// backing the mounts, so callers that need to talk to the same SnapshotService
-// (e.g. to verify the snapshot's parent chain) don't have to re-probe.
+// MountsWithSnapshotter selects an unpacked snapshotter for the existing SBOM paths.
 func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration time.Duration, namespace string, img containerd.Image) ([]mount.Mount, string, func(context.Context) error, error) {
-	snapshotter := "nydus"
 	ctx = namespaces.WithNamespace(ctx, namespace)
-
-	// Checking if image is already unpacked
-	imgUnpacked, err := img.IsUnpacked(ctx, snapshotter)
-	if err != nil {
-		snapshotter = defaults.DefaultSnapshotter
-		if imgUnpacked, err = img.IsUnpacked(ctx, snapshotter); err != nil {
-			return nil, "", nil, fmt.Errorf("unable to check if image named: %s is unpacked, err: %w", img.Name(), err)
+	var failures []error
+	for _, snapshotter := range []string{"nydus", defaults.DefaultSnapshotter} {
+		unpacked, err := img.IsUnpacked(ctx, snapshotter)
+		if err != nil {
+			failures = append(failures, err)
+			continue
 		}
+		if !unpacked {
+			continue
+		}
+		mounts, cleanup, err := acquireImageMounts(ctx, c.cl, expiration, namespace, img, snapshotter)
+		return mounts, snapshotter, cleanup, err
 	}
-	if !imgUnpacked {
-		return nil, "", nil, fmt.Errorf("unable to scan image named: %s, image is not unpacked for snapshotter %s", img.Name(), snapshotter)
-	}
+	return nil, "", nil, errors.Join(fmt.Errorf("image %s is not unpacked in a supported snapshotter", img.Name()), errors.Join(failures...))
+}
 
-	// Getting image id
-	imgConfig, err := img.Config(ctx)
+func acquireImageMounts(ctx context.Context, client *containerd.Client, expiration time.Duration, namespace string, img containerd.Image, snapshotter string) ([]mount.Mount, func(context.Context) error, error) {
+	ctx = namespaces.WithNamespace(ctx, namespace)
+	unpacked, err := img.IsUnpacked(ctx, snapshotter)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("unable to get image config for image named: %s, err: %w", img.Name(), err)
+		return nil, nil, fmt.Errorf("check image %s in %s: %w", img.Name(), snapshotter, err)
 	}
-	imageID := imgConfig.Digest.String()
-
-	// Adding a lease to cleanup dangling snapshots at expiration
-	ctx, done, err := c.cl.WithLease(ctx,
-		leases.WithID(imageID),
-		leases.WithExpiration(expiration),
-		leases.WithLabels(map[string]string{
-			"containerd.io/gc.ref.snapshot." + snapshotter: imageID,
-		}),
-	)
-	if err != nil && !errdefs.IsAlreadyExists(err) {
-		return nil, "", nil, fmt.Errorf("unable to get a lease, err: %w", err)
+	if !unpacked {
+		return nil, nil, fmt.Errorf("image %s is not unpacked in %s", img.Name(), snapshotter)
 	}
-
-	// Getting top layer image id
 	diffIDs, err := img.RootFS(ctx)
 	if err != nil {
-		releaseCtx, cancel := cleanupContext(ctx)
-		if err := done(releaseCtx); err != nil {
-			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-		}
-		cancel()
-		return nil, "", nil, fmt.Errorf("unable to get layers digests for image: %s, err: %w", imageID, err)
+		return nil, nil, fmt.Errorf("read image rootfs: %w", err)
+	}
+	if len(diffIDs) == 0 {
+		return nil, nil, errors.New("image has no filesystem layers")
 	}
 	chainID := identity.ChainID(diffIDs).String()
-	// Creating snapshot for the top layer
-	s := c.cl.SnapshotService(snapshotter)
-	mounts, err := s.View(ctx, imageID, chainID)
-	if err != nil && !errdefs.IsAlreadyExists(err) {
-		releaseCtx, cancel := cleanupContext(ctx)
-		if err := done(releaseCtx); err != nil {
-			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-		}
-		cancel()
-		return nil, "", nil, fmt.Errorf("unable to build snapshot for image: %s, err: %w", imageID, err)
-	}
-	cleanSnapshot := func(ctx context.Context) error {
-		return s.Remove(ctx, imageID)
-	}
+	return acquireImageMountsForChain(ctx, client, expiration, namespace, chainID, snapshotter)
+}
 
-	// Nothing returned
+func acquireImageMountsForChain(ctx context.Context, client *containerd.Client, expiration time.Duration, namespace, chainID, snapshotter string) ([]mount.Mount, func(context.Context) error, error) {
+	ctx = namespaces.WithNamespace(ctx, namespace)
+	imageID := "datadog-image-view-" + rand.Text()
+	// Create directly: Client.WithLease may reuse a lease inherited from ctx.
+	leaseService := client.LeasesService()
+	lease, err := leaseService.Create(ctx, leases.WithID(imageID), leases.WithExpiration(expiration),
+		leases.WithLabels(map[string]string{"containerd.io/gc.ref.snapshot." + snapshotter: chainID}))
+	if err != nil {
+		return nil, nil, fmt.Errorf("create image lease: %w", err)
+	}
+	ctx = leases.WithLease(ctx, lease.ID)
+	s := client.SnapshotService(snapshotter)
+	mounts, viewErr := s.View(ctx, imageID, chainID)
+	ownedView := viewErr == nil
+	cleanup := imageViewCleanup(namespace, func(releaseCtx context.Context) error {
+		if ownedView {
+			return s.Remove(releaseCtx, imageID)
+		}
+		return nil
+	}, func(releaseCtx context.Context) error { return leaseService.Delete(releaseCtx, lease) })
+	if viewErr != nil {
+		return nil, nil, errors.Join(fmt.Errorf("create image view: %w", viewErr), cleanup(ctx))
+	}
 	if len(mounts) == 0 {
-		releaseCtx, cancel := cleanupContext(ctx)
-		if err := cleanSnapshot(releaseCtx); err != nil {
-			log.Warnf("Unable to clean snapshot with id: %s, err: %v", imageID, err)
-		}
-		if err := done(releaseCtx); err != nil {
-			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-		}
-		cancel()
-		return nil, "", nil, fmt.Errorf("No snapshots returned for image: %s", imageID)
+		return nil, nil, errors.Join(errors.New("snapshotter returned no image mounts"), cleanup(ctx))
 	}
-
 	if env.IsContainerized() {
 		for i := range mounts {
 			mounts[i].Source = image.SanitizeHostPath(mounts[i].Source)
@@ -526,17 +516,32 @@ func (c *ContainerdUtil) MountsWithSnapshotter(ctx context.Context, expiration t
 		}
 	}
 
-	return mounts, snapshotter, func(ctx context.Context) error {
-		ctx, cancel := cleanupContext(namespaces.WithNamespace(ctx, namespace))
-		defer cancel()
-		if err := cleanSnapshot(ctx); err != nil {
-			log.Warnf("Unable to clean snapshot with id: %s, err: %v", imageID, err)
-		}
-		if err := done(ctx); err != nil {
-			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-		}
-		return nil
-	}, nil
+	return mounts, cleanup, nil
+}
+
+func imageViewCleanup(namespace string, removeView, releaseLease func(context.Context) error) func(context.Context) error {
+	var once sync.Once
+	var cleanupErr error
+	return func(callerCtx context.Context) error {
+		once.Do(func() {
+			releaseCtx, cancel := cleanupContext(namespaces.WithNamespace(callerCtx, namespace))
+			viewErr := removeView(releaseCtx)
+			cancel()
+			if errdefs.IsNotFound(viewErr) {
+				viewErr = nil
+			}
+			// Even if view removal exhausts its deadline, release the lease
+			// with a fresh budget so snapshot expiry is only a final backstop.
+			releaseCtx, cancel = cleanupContext(namespaces.WithNamespace(callerCtx, namespace))
+			leaseErr := releaseLease(releaseCtx)
+			cancel()
+			if errdefs.IsNotFound(leaseErr) {
+				leaseErr = nil
+			}
+			cleanupErr = errors.Join(viewErr, leaseErr)
+		})
+		return cleanupErr
+	}
 }
 
 // MountImage mounts an image to a directory

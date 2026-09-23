@@ -17,6 +17,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
+func TestContainerImageHiddenBytesDeepCopy(t *testing.T) {
+	hidden := uint64(42)
+	zero := uint64(0)
+	image := ContainerImageMetadata{Layers: []ContainerImageLayer{
+		{DiffID: "unavailable"},
+		{DiffID: "zero", HiddenBytes: &zero},
+		{DiffID: "hidden", HiddenBytes: &hidden},
+	}}
+	clone := image.DeepCopy().(*ContainerImageMetadata)
+	assert.Equal(t, image.Layers, clone.Layers)
+	*clone.Layers[2].HiddenBytes = 100
+	assert.Equal(t, uint64(42), *image.Layers[2].HiddenBytes)
+	assert.Contains(t, image.Layers[1].String(), "Hidden bytes: 0")
+	assert.NotContains(t, image.Layers[0].String(), "Hidden bytes:")
+}
+
 func TestNewContainerImage(t *testing.T) {
 	tests := []struct {
 		name                      string

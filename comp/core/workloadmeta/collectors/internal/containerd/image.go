@@ -257,6 +257,8 @@ func (c *collector) handleImageEvent(ctx context.Context, containerdEvent *conta
 			return c.handleImageCreateOrUpdate(ctx, containerdEvent.Namespace, ref, nil)
 		}
 
+		delete(c.latestImages, imageID)
+		c.forgetHiddenBytesImageLocked(imageID)
 		c.store.Notify([]workloadmeta.CollectorEvent{
 			{
 				Type:   workloadmeta.EventTypeUnset,
@@ -288,15 +290,12 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 
 // createOrUpdateImageMetadata: Create image metadata from containerd image and manifest if not already present
 // Update image metadata by adding references when existing entity is found
-// return nil when it fails to get image manifest
+// return nil when it fails to get image manifest. Caller holds handleImagesMut.
 func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	namespace string,
 	img containerd.Image,
 	sbom *workloadmeta.SBOM,
 	isStartupInit bool) (*workloadmeta.ContainerImageMetadata, error) {
-	c.handleImagesMut.Lock()
-	defer c.handleImagesMut.Unlock()
-
 	ctxWithNamespace := namespaces.WithNamespace(ctx, namespace)
 
 	// Build initial workloadmeta.ContainerImageMetadata from manifest and image
@@ -358,10 +357,20 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	// more user-friendly (the digests are already present in other attributes
 	// like ID, and repo digest).
 	wlmImage.Name = c.knownImages.getPreferredName(wlmImage.ID)
-	existingImg, err := c.store.GetImage(wlmImage.ID)
-	if err == nil {
+	existingImg := c.latestImages[wlmImage.ID]
+	if existingImg == nil {
+		existingImg, _ = c.store.GetImage(wlmImage.ID)
+	}
+	if existingImg != nil {
 		if strings.Contains(wlmImage.Name, "sha256:") && !strings.Contains(existingImg.Name, "sha256:") {
 			wlmImage.Name = existingImg.Name
+		}
+		preserveHiddenBytes(&wlmImage, existingImg)
+		if c.hiddenBytes != nil && sbom == nil && existingImg.SBOM != nil {
+			sbom, err = sbomutil.UncompressSBOM(existingImg.SBOM)
+			if err != nil {
+				return nil, fmt.Errorf("failed to uncompress existing SBOM for image %s: %w", wlmImage.ID, err)
+			}
 		}
 	}
 
@@ -387,18 +396,65 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 }
 
 func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, sbom *workloadmeta.SBOM) error {
+	c.handleImagesMut.Lock()
+	defer c.handleImagesMut.Unlock()
 	wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, img, sbom, false)
 	if err != nil {
 		return err
 	}
+	if sbom == nil {
+		c.retryHiddenBytesImageLocked(wlmImage.ID)
+	}
+	c.publishImageLocked(wlmImage)
+	return nil
+}
+
+// publishImageLocked keeps the authoritative runtime entity and publication in
+// the same critical section. Objects already sent to workloadmeta are immutable.
+func (c *collector) publishImageLocked(img *workloadmeta.ContainerImageMetadata) {
+	if c.hiddenBytes != nil {
+		if c.latestImages == nil {
+			c.latestImages = make(map[string]*workloadmeta.ContainerImageMetadata)
+		}
+		c.latestImages[img.ID] = img
+	}
+	c.enqueueHiddenBytesImageLocked(img)
 	c.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceRuntime,
-			Entity: wlmImage,
+			Entity: img,
 		},
 	})
-	return nil
+}
+
+func preserveHiddenBytes(dst, src *workloadmeta.ContainerImageMetadata) {
+	var sourceLayers []workloadmeta.ContainerImageLayer
+	for _, layer := range src.Layers {
+		if layer.DiffID != "" {
+			sourceLayers = append(sourceLayers, layer)
+		}
+	}
+	index := 0
+	for _, layer := range dst.Layers {
+		if layer.DiffID == "" {
+			continue
+		}
+		if index >= len(sourceLayers) || sourceLayers[index].DiffID != layer.DiffID {
+			return
+		}
+		index++
+	}
+	if index != len(sourceLayers) {
+		return
+	}
+	index = 0
+	for i := range dst.Layers {
+		if dst.Layers[i].DiffID != "" {
+			dst.Layers[i].HiddenBytes = sourceLayers[index].HiddenBytes
+			index++
+		}
+	}
 }
 
 func extractFromConfigBlob(ctx context.Context, img containerd.Image, manifest ocispec.Manifest, outImage *workloadmeta.ContainerImageMetadata) error {

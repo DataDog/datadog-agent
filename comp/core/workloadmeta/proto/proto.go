@@ -419,10 +419,11 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 	var protoLayers []*pb.ContainerImageLayer
 	for _, layer := range containerImageMetadata.Layers {
 		protoLayers = append(protoLayers, &pb.ContainerImageLayer{
-			MediaType: layer.MediaType,
-			DiffID:    layer.DiffID,
-			SizeBytes: layer.SizeBytes,
-			Urls:      layer.URLs,
+			MediaType:   layer.MediaType,
+			DiffID:      layer.DiffID,
+			SizeBytes:   layer.SizeBytes,
+			Urls:        layer.URLs,
+			HiddenBytes: layer.HiddenBytes,
 		})
 	}
 
@@ -1268,10 +1269,11 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 	var layers []workloadmeta.ContainerImageLayer
 	for _, protoLayer := range protoContainerImageMetadata.Layers {
 		layers = append(layers, workloadmeta.ContainerImageLayer{
-			MediaType: protoLayer.MediaType,
-			DiffID:    protoLayer.DiffID,
-			SizeBytes: protoLayer.SizeBytes,
-			URLs:      protoLayer.Urls,
+			MediaType:   protoLayer.MediaType,
+			DiffID:      protoLayer.DiffID,
+			SizeBytes:   protoLayer.SizeBytes,
+			URLs:        protoLayer.Urls,
+			HiddenBytes: protoLayer.HiddenBytes,
 		})
 	}
 

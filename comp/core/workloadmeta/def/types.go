@@ -1785,6 +1785,9 @@ type ContainerImageLayer struct {
 	SizeBytes int64
 	URLs      []string
 	History   *v1.History `proto:"ignore"`
+	// HiddenBytes counts logical file bytes hidden by later layers of this image.
+	// Nil means unavailable; a pointer to zero means collection found no hidden bytes.
+	HiddenBytes *uint64
 }
 
 // SBOM represents the Software Bill Of Materials (SBOM) of a container
@@ -1904,6 +1907,9 @@ func (layer ContainerImageLayer) String() string {
 	_, _ = fmt.Fprintln(&sb, "Media Type:", layer.MediaType)
 	_, _ = fmt.Fprintln(&sb, "Diff ID:", layer.DiffID)
 	_, _ = fmt.Fprintln(&sb, "Size in bytes:", layer.SizeBytes)
+	if layer.HiddenBytes != nil {
+		_, _ = fmt.Fprintln(&sb, "Hidden bytes:", *layer.HiddenBytes)
+	}
 	_, _ = fmt.Fprintln(&sb, "URLs:", layer.URLs)
 
 	printHistory(&sb, layer.History)

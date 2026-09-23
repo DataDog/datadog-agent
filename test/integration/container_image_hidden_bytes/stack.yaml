@@ -1,0 +1,183 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+  namespace: hidden-bytes-validation
+data:
+  datadog.yaml: |
+    api_key: "00000000000000000000000000000000"
+    hostname: hidden-bytes-validation
+    cloud_provider_metadata: []
+    inventories_diagnostics_enabled: false
+    dd_url: http://fakeintake:8080
+    log_level: debug
+    run_path: /var/run/hidden-bytes-agent
+    auth_token_file_path: /var/run/hidden-bytes-agent/auth_token
+    confd_path: /etc/hidden-bytes/conf.d
+    cri_socket_path: /var/run/containerd/containerd.sock
+    containerd_namespaces: [k8s.io]
+    container_image:
+      enabled: true
+      logs_dd_url: fakeintake:8080
+      logs_no_ssl: true
+      additional_endpoints: []
+    sbom:
+      enabled: false
+      logs_dd_url: fakeintake:8080
+      logs_no_ssl: true
+      additional_endpoints: []
+      container_image:
+        enabled: false
+        overlayfs_direct_scan: true
+    remote_configuration:
+      enabled: false
+    agent_telemetry:
+      enabled: false
+    health_platform:
+      enabled: false
+    container_lifecycle:
+      enabled: false
+    logs_enabled: false
+    apm_config:
+      enabled: false
+    process_config:
+      process_dd_url: http://fakeintake:8080
+      process_collection:
+        enabled: false
+      container_collection:
+        enabled: false
+      process_discovery:
+        enabled: false
+    data_plane:
+      preflight_mode: false
+    telemetry:
+      enabled: false
+  container_image.yaml: |
+    init_config: {}
+    instances:
+      - chunk_size: 1
+        new_images_max_latency_seconds: 1
+        periodic_refresh_seconds: 60
+  sbom.yaml: |
+    init_config: {}
+    instances:
+      - chunk_size: 1
+        new_sbom_max_latency_seconds: 1
+        periodic_refresh_seconds: 60
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fakeintake
+  namespace: hidden-bytes-validation
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hidden-bytes-fakeintake
+  template:
+    metadata:
+      labels:
+        app: hidden-bytes-fakeintake
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: fakeintake
+          image: localhost/hidden-bytes/fakeintake:qa
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fakeintake
+  namespace: hidden-bytes-validation
+spec:
+  selector:
+    app: hidden-bytes-fakeintake
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+  namespace: hidden-bytes-validation
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: hidden-bytes-agent
+  template:
+    metadata:
+      labels:
+        app: hidden-bytes-agent
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: agent
+          image: localhost/hidden-bytes/agent:qa
+          imagePullPolicy: Never
+          env:
+            - name: HOST_ROOT
+              value: /host
+            - name: DOCKER_DD_AGENT
+              value: "true"
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: [SYS_ADMIN]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/hidden-bytes
+              readOnly: true
+            - name: containerd-storage
+              mountPath: /host/var/lib/containerd
+              readOnly: true
+            - name: containerd-socket
+              mountPath: /var/run/containerd/containerd.sock
+              readOnly: true
+            - name: cache
+              mountPath: /var/run/hidden-bytes-agent
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 200m
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: config
+          configMap:
+            name: agent-config
+            items:
+              - key: datadog.yaml
+                path: datadog.yaml
+              - key: container_image.yaml
+                path: conf.d/container_image.d/conf.yaml
+              - key: sbom.yaml
+                path: conf.d/sbom.d/conf.yaml
+        - name: containerd-storage
+          hostPath:
+            path: /var/lib/containerd
+            type: Directory
+        - name: containerd-socket
+          hostPath:
+            path: /var/run/containerd/containerd.sock
+            type: Socket
+        - name: cache
+          hostPath:
+            path: /var/lib/hidden-bytes-validation-agent
+            type: DirectoryOrCreate
