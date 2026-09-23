@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/aggregator",
+        "//pkg/util/filesystem",
         "@com_github_datadog_zstd//:zstd",
     ],
 )

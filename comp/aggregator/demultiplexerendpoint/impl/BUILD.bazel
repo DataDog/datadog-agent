@@ -15,6 +15,7 @@ go_library(
         "//pkg/aggregator/contexttop",
         "//pkg/util/http",
         "@com_github_datadog_zstd//:zstd",
+        "@org_golang_x_sync//singleflight",
     ],
 )
 
@@ -27,6 +28,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//pkg/aggregator",
+        "@com_github_datadog_zstd//:zstd",
         "@com_github_stretchr_testify//require",
     ],
 )

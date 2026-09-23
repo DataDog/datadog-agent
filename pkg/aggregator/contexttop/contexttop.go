@@ -11,13 +11,13 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 // Result contains the metrics with the most active contexts.
@@ -58,7 +58,7 @@ func FromFileWithStrictLimits(filePath string, numMetrics, numTags int) (Result,
 }
 
 func fromFile(filePath string, numMetrics, numTags int, strictLimits bool) (Result, error) {
-	f, err := os.Open(filePath)
+	f, err := filesystem.OpenShared(filePath)
 	if err != nil {
 		return Result{}, err
 	}

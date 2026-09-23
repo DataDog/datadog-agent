@@ -14,10 +14,10 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
-	"sync"
+	"path/filepath"
 
 	"github.com/DataDog/zstd"
+	"golang.org/x/sync/singleflight"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -56,7 +56,7 @@ type demultiplexerEndpoint struct {
 	runPath              string
 	dogstatsdOnDataPlane bool
 	log                  log.Component
-	dumpMu               sync.RWMutex
+	dumpGroup            singleflight.Group
 }
 
 // Provides defines the output of the demultiplexerendpoint component
@@ -116,7 +116,7 @@ func (demuxendpoint *demultiplexerEndpoint) topDogstatsdContexts(w http.Response
 		result, err = demuxendpoint.getDogstatsdTop(request.NumMetrics, request.NumTags)
 	case topSourceDump:
 		result, err = contexttop.FromFileWithStrictLimits(
-			path.Join(demuxendpoint.runPath, dogstatsdContextsDumpFilename),
+			filepath.Join(demuxendpoint.runPath, dogstatsdContextsDumpFilename),
 			request.NumMetrics,
 			request.NumTags,
 		)
@@ -153,7 +153,7 @@ func (demuxendpoint *demultiplexerEndpoint) getDogstatsdTop(numMetrics, numTags 
 	filePath := f.Name()
 	defer os.Remove(filePath)
 
-	if err := demuxendpoint.writeDogstatsdContextsFile(f); err != nil {
+	if err := demuxendpoint.writeDogstatsdContextsToFile(f); err != nil {
 		return contexttop.Result{}, err
 	}
 	return contexttop.FromFileWithStrictLimits(filePath, numMetrics, numTags)
@@ -182,22 +182,50 @@ func (demuxendpoint *demultiplexerEndpoint) dumpDogstatsdContexts(w http.Respons
 }
 
 func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, error) {
-	demuxendpoint.dumpMu.Lock()
-	defer demuxendpoint.dumpMu.Unlock()
+	finalPath := filepath.Join(demuxendpoint.runPath, dogstatsdContextsDumpFilename)
 
-	path := path.Join(demuxendpoint.runPath, dogstatsdContextsDumpFilename)
-
-	f, err := os.Create(path)
+	result, err, _ := demuxendpoint.dumpGroup.Do(finalPath, func() (any, error) {
+		return demuxendpoint.writeDogstatsdContextsFile(finalPath)
+	})
 	if err != nil {
 		return "", err
 	}
-	if err := demuxendpoint.writeDogstatsdContextsFile(f); err != nil {
-		return "", err
-	}
-	return path, nil
+
+	return result.(string), nil
 }
 
-func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(f *os.File) error {
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath string) (string, error) {
+	f, err := os.CreateTemp(demuxendpoint.runPath, ".dogstatsd_contexts-*.tmp")
+	if err != nil {
+		return "", err
+	}
+	tempPath := f.Name()
+	defer os.Remove(tempPath)
+
+	mode := os.FileMode(0644)
+	if info, statErr := os.Stat(finalPath); statErr == nil {
+		mode = info.Mode().Perm()
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		_ = f.Close()
+		return "", statErr
+	}
+	if err := f.Chmod(mode); err != nil {
+		_ = f.Close()
+		return "", err
+	}
+
+	if err := demuxendpoint.writeDogstatsdContextsToFile(f); err != nil {
+		return "", err
+	}
+
+	if err := os.Rename(tempPath, finalPath); err != nil {
+		return "", err
+	}
+
+	return finalPath, nil
+}
+
+func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsToFile(f *os.File) error {
 	c := zstd.NewWriter(f)
 	w := bufio.NewWriter(c)
 
