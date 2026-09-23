@@ -118,6 +118,23 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
+	// Persist the process manager selection, and write the ADP/PAR/PAR-executor processes.d
+	// configs, before touching extensions below: postInstallDDOTExtension (via
+	// installAgentExtensions/restoreAgentExtensions) reads process_manager.enabled back from
+	// datadog.yaml, so the config must already reflect the requested value by the time it runs.
+	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
+	if err := writeProcessManagerEnabledToConfig(processManagerEnabled); err != nil {
+		return fmt.Errorf("failed to persist process manager selection: %w", err)
+	}
+	for _, cfg := range procmgrConfigs {
+		if cfg.label == "DDOT" {
+			continue
+		}
+		if err := ensureProcmgrConfig(cfg, processManagerEnabled); err != nil {
+			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
+		}
+	}
+
 	// Common for both OCI and MSI: Restore extensions.
 	// For OCI fleet installs the MSI custom action fires RunPostInstallHook (PackageTypeMSI)
 	// AND the OCI hook chain also calls restoreAgentExtensions. The Install() call inside
@@ -145,19 +162,6 @@ func postInstallDatadogAgent(ctx HookContext) error {
 	if !isExperiment {
 		if err := installAgentExtensions(ctx, agentVersion, isExperiment); err != nil {
 			log.Warnf("failed to install extensions: %s", err)
-		}
-	}
-
-	processManagerEnabled := env.FromEnv().ProcessManagerEnabled
-	if err := writeProcessManagerEnabledToConfig(processManagerEnabled); err != nil {
-		return fmt.Errorf("failed to persist process manager selection: %w", err)
-	}
-	for _, cfg := range procmgrConfigs {
-		if cfg.label == "DDOT" {
-			continue
-		}
-		if err := ensureProcmgrConfig(cfg, processManagerEnabled); err != nil {
-			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
 		}
 	}
 
