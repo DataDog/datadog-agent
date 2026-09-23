@@ -10,10 +10,12 @@ package dmi
 
 // Used by the mock
 var (
-	boardAssetTag  = ""
-	boardVendor    = ""
-	productUUID    = ""
-	hypervisorUUID = ""
+	boardAssetTag   = ""
+	boardVendor     = ""
+	productUUID     = ""
+	hypervisorUUID  = ""
+	productName     = ""
+	chassisAssetTag = ""
 )
 
 // GetBoardAssetTag returns an empty string on Windows
@@ -34,4 +36,14 @@ func GetProductUUID() string {
 // GetHypervisorUUID returns an empty string on Windows
 func GetHypervisorUUID() string {
 	return hypervisorUUID
+}
+
+// GetProductName returns an empty string on Windows
+func GetProductName() string {
+	return productName
+}
+
+// GetChassisAssetTag returns an empty string on Windows
+func GetChassisAssetTag() string {
+	return chassisAssetTag
 }
