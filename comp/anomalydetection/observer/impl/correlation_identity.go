@@ -5,7 +5,11 @@
 
 package observerimpl
 
-import observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+import (
+	"sort"
+
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+)
 
 type correlationMembers struct {
 	descriptors []observer.SeriesDescriptor
@@ -35,4 +39,27 @@ func uniqueMembers(anomalies []observer.Anomaly) correlationMembers {
 		}
 	}
 	return members
+}
+
+// sortedForDisplay returns members in the legacy descriptor order. It is called
+// only while materializing correlation or debug output, never while ingesting
+// anomalies or deduplicating storage-backed identity.
+func (m correlationMembers) sortedForDisplay() correlationMembers {
+	indices := make([]int, len(m.descriptors))
+	for i := range indices {
+		indices[i] = i
+	}
+	sort.Slice(indices, func(i, j int) bool {
+		return formatSeriesDescriptor(m.descriptors[indices[i]]) < formatSeriesDescriptor(m.descriptors[indices[j]])
+	})
+
+	sorted := correlationMembers{
+		descriptors: make([]observer.SeriesDescriptor, len(m.descriptors)),
+		handles:     make([]*observer.QueryHandle, len(m.handles)),
+	}
+	for i, index := range indices {
+		sorted.descriptors[i] = m.descriptors[index]
+		sorted.handles[i] = m.handles[index]
+	}
+	return sorted
 }

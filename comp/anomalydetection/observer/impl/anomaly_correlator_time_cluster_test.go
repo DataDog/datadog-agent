@@ -70,6 +70,20 @@ func TestUniqueMembersKeepsRefLessFallbackBehavior(t *testing.T) {
 	assert.Nil(t, members.handles[0])
 }
 
+func TestCorrelationMembersSortForDisplayAndKeepHandlesAligned(t *testing.T) {
+	cpuHandle := observer.QueryHandle{Ref: 1, Aggregate: observer.AggregateAverage}
+	memoryHandle := observer.QueryHandle{Ref: 2, Aggregate: observer.AggregateAverage}
+	members := correlationMembers{
+		descriptors: []observer.SeriesDescriptor{{Name: "memory"}, {Name: "cpu"}},
+		handles:     []*observer.QueryHandle{&memoryHandle, &cpuHandle},
+	}
+
+	sorted := members.sortedForDisplay()
+	assert.Equal(t, []string{"cpu", "memory"}, []string{sorted.descriptors[0].Name, sorted.descriptors[1].Name})
+	assert.Equal(t, &cpuHandle, sorted.handles[0])
+	assert.Equal(t, &memoryHandle, sorted.handles[1])
+}
+
 func TestTimeClusterInfoSourcesUseLegacyFormat(t *testing.T) {
 	c := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 	handle := observer.QueryHandle{Ref: 1, Aggregate: observer.AggregateAverage}
