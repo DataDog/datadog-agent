@@ -31,6 +31,10 @@ const (
 	// The provisioned datadog.yaml leaves log_level at its info default, so a running
 	// process-agent can only report this level if it came through the merged environment.
 	legacySCMLogLevel = "warn"
+
+	// Substring of the stale DD_FLEET_POLICIES_DIR value, distinctive enough to find in
+	// process-agent's config output however YAML quotes or escapes the path.
+	staleFleetPoliciesMarker = "procmgr-e2e-stale-fleet-dir"
 )
 
 type processProcmgrWindowsSuite struct {
@@ -91,9 +95,10 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegac
 // TestProcessAgentInheritsFilteredLegacyScmEnvironment covers the environment hand-off that
 // makes the cutover transparent: process-agent used to run as an SCM service and pick up the
 // Environment block configured on it, so dd-procmgr merges that same block when it spawns the
-// process. The denylist matters as much as the merge. procmgr resolves the fleet policy
-// directory itself, and inheriting a stale DD_FLEET_POLICIES_DIR from the legacy service would
-// point process-agent at the wrong policies.
+// process. The denylist matters as much as the merge. process-agent reads its fleet policy
+// directory from the registry only when fleet_policies_dir is not already configured, so a
+// stale DD_FLEET_POLICIES_DIR inherited from the legacy service would silently win and point
+// process-agent at the wrong policies.
 func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEnvironment() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
@@ -114,7 +119,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 
 	_, err = host.Execute(psSetServiceEnvironment(processLegacySCMServiceName, []string{
 		"DD_LOG_LEVEL=" + legacySCMLogLevel,
-		`DD_FLEET_POLICIES_DIR=C:\stale\fleet\path`,
+		`DD_FLEET_POLICIES_DIR=C:\` + staleFleetPoliciesMarker,
 	}))
 	require.NoError(s.T(), err)
 
@@ -135,10 +140,21 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 			"process-agent should run with DD_LOG_LEVEL merged from %s", processLegacySCMServiceName)
 	}, 2*time.Minute, 5*time.Second)
 
+	// The same running process-agent, which the check above proved reads its merged
+	// environment, must not have picked up the denylisted value. /config/all renders
+	// defaults too, so fleet_policies_dir is always listed and its absence cannot make this
+	// pass.
+	out, err := host.Execute(fmt.Sprintf(`& "%s" config --all`, processAgentCLI))
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), out, "fleet_policies_dir")
+	assert.NotContains(s.T(), out, staleFleetPoliciesMarker,
+		"the denylisted DD_FLEET_POLICIES_DIR must not reach process-agent's config")
+
 	// The merge log line is written after filtering, so it lists exactly the keys that were
-	// merged into the child.
+	// merged. If the check above ever fails, this one says whether the leak came through the
+	// legacy SCM merge.
 	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
-	out, err := host.Execute(psSelectStringLines(logPath, "legacy SCM environment variable"))
+	out, err = host.Execute(psSelectStringLines(logPath, "legacy SCM environment variable"))
 	require.NoError(s.T(), err)
 	assert.Contains(s.T(), out, "DD_LOG_LEVEL")
 	assert.NotContains(s.T(), out, "DD_FLEET_POLICIES_DIR",
