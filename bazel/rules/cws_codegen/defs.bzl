@@ -24,6 +24,7 @@ def _operators_impl(name, output, visibility):
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 operators = macro(
@@ -97,6 +98,7 @@ def _bpf_maps_generator_impl(name, header, output, package_name, visibility):
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 bpf_maps_generator = macro(
@@ -165,6 +167,7 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 easyjson = macro(
@@ -255,4 +258,5 @@ def accessors(name, tags, model, types_file, output, field_handlers, field_acces
             field_handlers: ":{}/{}".format(out_dir, field_handlers),
             field_accessors_output: ":{}/{}".format(out_dir, field_accessors_output),
         },
+        visibility = visibility,
     )

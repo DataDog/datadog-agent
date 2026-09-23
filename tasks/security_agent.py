@@ -566,45 +566,7 @@ def generate_cws_documentation(ctx):
 def cws_go_generate(ctx):
     # CWS codegens keep their //go:generate directives so a future Gazelle
     # extension can emit the matching Bazel targets from them (ABLD-475).
-    bazel("run", "//pkg/security/secl/compiler/eval:eval_operators")
-    bazel("run", "//pkg/security/secl/model:consts_map_names_linux")
-    bazel("run", "//pkg/security/secl/model:accessors_unix")
-    bazel("run", "//pkg/security/secl/model:accessors_windows")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_unix")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
-    bazel("run", "//pkg/security/secl/model:model_string")
-    bazel("run", "//pkg/security/config:enum_string")
-    bazel("run", "//docs/cloud-workload-security:secl_linux")
-    bazel("run", "//docs/cloud-workload-security:secl_windows")
-    bazel("run", "//pkg/security/secl/schemas:policy_schema")
-    bazel("run", "//docs/cloud-workload-security:workload_protection_agent_config_schema")
-    bazel("run", "//pkg/security/events:event_easyjson")
-    bazel("run", "//pkg/security/probe:actions_easyjson")
-    bazel("run", "//pkg/security/rules/monitor:policy_monitor_easyjson")
-    if sys.platform == "linux":
-        bazel("run", "//docs/cloud-workload-security:backend_linux_schema")
-        # These marshalers are stamped //go:build linux, so they can only be
-        # generated from the Linux view of the annotated types. The equivalent
-        # `go generate` invocations could not run off Linux either.
-        #
-        # Do not pre-stub from serializers_linux_easyjson.mock: generating
-        # against the stubs inlines nested decoders, so the first pass diverges.
-        # It stays a manual hatch for when the package no longer compiles — copy
-        # it over the .go file, then run this task twice to converge.
-        bazel("run", "//pkg/security/probe:actions_linux_easyjson")
-        bazel("run", "//pkg/security/probe:custom_events_easyjson")
-        bazel("run", "//pkg/security/probe:remediations_linux_easyjson")
-        bazel("run", "//pkg/security/serializers:serializers_linux_easyjson")
-        bazel("run", "//pkg/security/serializers:serializers_base_linux_easyjson")
-    elif is_windows:
-        bazel("run", "//docs/cloud-workload-security:backend_windows_schema")
-
-    # synchronize the seclwin package from the secl package
-    bazel("run", "//pkg/security/seclwin:sync")
-    bazel("run", "//pkg/security/seclwin/model:sync")
-
-    # generate documentation
-    generate_cws_documentation(ctx)
+    bazel("run", "//pkg/security:cws_codegen")
 
 
 @task
