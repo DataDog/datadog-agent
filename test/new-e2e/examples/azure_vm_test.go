@@ -11,11 +11,11 @@ import (
 	azurehost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/host/windows"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments/windowshost"
 )
 
 type azureVMSuite struct {
-	e2e.BaseSuite[environments.WindowsHost]
+	e2e.BaseSuite[windowshost.WindowsHost]
 }
 
 // TestVMSuite runs tests for the VM interface to ensure its implementation is correct.

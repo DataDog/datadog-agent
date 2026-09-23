@@ -10,7 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/infraconfig"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 
@@ -26,7 +26,7 @@ type mySuite struct {
 }
 
 func TestMySuite(t *testing.T) {
-	e2e.Run(t, &mySuite{}, e2e.WithUntypedPulumiProvisioner(kindvm.Run, runner.ConfigMap{
+	e2e.Run(t, &mySuite{}, e2e.WithUntypedPulumiProvisioner(kindvm.Run, infraconfig.ConfigMap{
 		"ddagent:deploy":        auto.ConfigValue{Value: "false"},
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "false"},
 	}))

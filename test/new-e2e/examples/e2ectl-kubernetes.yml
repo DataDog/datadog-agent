@@ -1,0 +1,20 @@
+# The minimal e2ectl Kubernetes environment for
+# e2ectl_kubernetes_test.go (TestE2ectlKubernetesSuiteOnLocalKind).
+#
+#   e2ectl start --config e2ectl-kubernetes.yml --name mykube
+#   e2ectl install -env mykube --config e2ectl-kubernetes.yml
+#   e2ectl test -env mykube --suite ./test/new-e2e/examples/
+#
+# A local kind cluster, the agent at a released version via the Helm chart,
+# and the fakeintake provisioned with the environment — the smallest setup
+# the example suite's assertions need.
+schema: 1
+environment:
+  base: kind
+  fakeintake: true
+  kind:
+    nodes: 0
+agent:
+  version: 7.83.0
+  receiver:
+    type: fakeintake
