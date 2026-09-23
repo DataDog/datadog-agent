@@ -3,6 +3,13 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 # gazelle:dd_agent_go_test on
 
+# The procmgr e2e suite reads the legacy SCM service definitions to check that the shipped
+# processes.d gate for process-agent has not drifted from them.
+exports_files(
+    ["dependent_services_windows.go"],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
 go_library(
     name = "run",
     srcs = [
