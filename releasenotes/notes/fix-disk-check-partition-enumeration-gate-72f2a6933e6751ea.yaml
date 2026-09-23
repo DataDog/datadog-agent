@@ -1,7 +1,0 @@
----
-fixes:
-  - |
-    Fix a race in the disk check that could intermittently skip the second
-    partition enumeration when ``tag_by_physical_storage`` or
-    ``collect_physical_metrics`` is enabled, causing non-physical partitions
-    (e.g. tmpfs) to be temporarily missing from disk metrics.
