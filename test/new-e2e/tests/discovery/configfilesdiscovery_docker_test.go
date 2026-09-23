@@ -41,8 +41,14 @@ const (
 	redisDefaultContainerName    = "redis-configfilesdiscovery-default"
 	redisEnvContainerName        = "redis-env-configfilesdiscovery"
 	redisExplicitContainerPath   = "/configfilesdiscovery/redis-explicit.conf"
+	redisNestedContainerPath     = "/configfilesdiscovery/nested.conf"
+	redisGlobAContainerPath      = "/configfilesdiscovery/conf.d/a.conf"
+	redisGlobBContainerPath      = "/configfilesdiscovery/conf.d/b.conf"
 	redisDefaultContainerPath    = "/etc/redis/redis.conf"
 	redisExplicitConfigFileName  = "redis-explicit.conf"
+	redisNestedConfigFileName    = "nested.conf"
+	redisGlobAConfigFileName     = "a.conf"
+	redisGlobBConfigFileName     = "b.conf"
 	redisDefaultConfigFileName   = "redis-default.conf"
 	redisExplicitStartScriptName = "start-redis.sh"
 	redisDefaultStartScriptName  = "start-default-redis.sh"
@@ -73,6 +79,7 @@ const (
 	nginxExplicitContainerPath  = "/configfilesdiscovery/nginx-explicit.conf"
 	nginxDefaultConfigFileName  = "nginx-default.conf"
 	nginxExplicitConfigFileName = "nginx-explicit.conf"
+	nginxStatusConfName         = "nginx-status.conf"
 	nginxIntegrationName        = "nginx"
 )
 
@@ -84,6 +91,11 @@ const (
 	postgresIntegrationName = "postgres"
 	postgresDBName          = "configfilesdiscovery"
 	postgresUser            = "configfilesdiscovery"
+)
+
+const (
+	pgbouncerContainerName   = "pgbouncer-env-configfilesdiscovery"
+	pgbouncerIntegrationName = "pgbouncer"
 )
 
 const (
@@ -108,13 +120,43 @@ var nginxCompose string
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-postgres.yaml
 var postgresCompose string
 
+//go:embed testdata/compose/docker-compose.configfilesdiscovery-pgbouncer.yaml
+var pgbouncerCompose string
+
 //go:embed testdata/compose/docker-compose.configfilesdiscovery-spark.yaml
 var sparkCompose string
+
+const nginxStatusConf = `server {
+  listen 80;
+
+  # Expose stub_status so the nginx auto-conf's configuration-discovery probe
+  # can validate a candidate check instance before the check is scheduled.
+  # Without a responding status endpoint the discovery probe always fails and
+  # the nginx check is never scheduled.
+  location = /nginx_status {
+    stub_status;
+  }
+}
+`
 
 const redisExplicitConfig = `port 6379
 appendonly no
 maxmemory-policy allkeys-lru
+include nested.conf
+include conf.d/*.conf
 # configfilesdiscovery-explicit-e2e-sentinel
+`
+
+const redisNestedConfig = `timeout 0
+# configfilesdiscovery-nested-e2e-sentinel
+`
+
+const redisGlobAConfig = `tcp-keepalive 300
+# configfilesdiscovery-glob-a-e2e-sentinel
+`
+
+const redisGlobBConfig = `databases 16
+# configfilesdiscovery-glob-b-e2e-sentinel
 `
 
 const redisDefaultConfig = `port 6379
@@ -128,6 +170,15 @@ events {
     worker_connections 1024;
 }
 http {
+    # Expose stub_status so the nginx auto-conf's configuration-discovery
+    # probe can validate a candidate check instance before the check is
+    # scheduled.
+    server {
+        listen 80;
+        location = /nginx_status {
+            stub_status;
+        }
+    }
     server {
         listen 8080;
     }
@@ -141,6 +192,15 @@ events {
     worker_connections 1024;
 }
 http {
+    # Expose stub_status so the nginx auto-conf's configuration-discovery
+    # probe can validate a candidate check instance before the check is
+    # scheduled.
+    server {
+        listen 80;
+        location = /nginx_status {
+            stub_status;
+        }
+    }
     server {
         listen 8081;
     }
@@ -231,6 +291,7 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-kafka", pulumi.String(kafkaCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-nginx", pulumi.String(nginxCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-postgres", pulumi.String(postgresCompose)),
+		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-pgbouncer", pulumi.String(pgbouncerCompose)),
 		dockeragentparams.WithExtraComposeManifest("configfilesdiscovery-spark", pulumi.String(sparkCompose)),
 		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
 			"CONFIG_FILES_DISCOVERY_REDIS_CONFIG_DIR":    pulumi.String(redisConfigDir),
@@ -252,16 +313,41 @@ func TestConfigFilesDiscoveryDockerSuite(t *testing.T) {
 }
 
 func createConfigFilesDiscoveryRedisConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
-	return createConfigFilesDiscoveryFixtureFiles(
+	rootFiles, err := createConfigFilesDiscoveryFixtureFiles(
 		host,
 		redisConfigDir,
 		[]configFilesDiscoveryFixtureFile{
 			{name: redisExplicitConfigFileName, content: redisExplicitConfig},
+			{name: redisNestedConfigFileName, content: redisNestedConfig},
 			{name: redisDefaultConfigFileName, content: redisDefaultConfig},
 			{name: redisExplicitStartScriptName, content: redisExplicitStartScript},
 			{name: redisDefaultStartScriptName, content: redisDefaultStartScript},
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+
+	fileManager := host.OS.FileManager()
+	confDir, err := fileManager.CreateDirectory(path.Join(redisConfigDir, "conf.d"), false)
+	if err != nil {
+		return nil, err
+	}
+	dependency := rootFiles
+	for _, file := range []configFilesDiscoveryFixtureFile{
+		{name: redisGlobAConfigFileName, content: redisGlobAConfig},
+		{name: redisGlobBConfigFileName, content: redisGlobBConfig},
+	} {
+		dependency, err = fileManager.CopyInlineFile(
+			pulumi.String(file.content),
+			path.Join(redisConfigDir, "conf.d", file.name),
+			utils.PulumiDependsOn(dependency, confDir),
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return dependency, nil
 }
 
 func createConfigFilesDiscoveryKafkaConfig(_ *aws.Environment, host *remote.Host) (pulumi.Resource, error) {
@@ -281,6 +367,7 @@ func createConfigFilesDiscoveryNginxConfig(_ *aws.Environment, host *remote.Host
 		[]configFilesDiscoveryFixtureFile{
 			{name: nginxDefaultConfigFileName, content: nginxDefaultConfig},
 			{name: nginxExplicitConfigFileName, content: nginxExplicitConfig},
+			{name: nginxStatusConfName, content: nginxStatusConf},
 		},
 	)
 }
@@ -456,6 +543,10 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisEnvVarsDiscoveredWithoutConfi
 
 func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf() {
 	t := s.T()
+	// Unlike the other fixtures, the nginx container runs a real nginx serving
+	// stub_status: the nginx auto-conf is discovery-gated, so the check is only
+	// scheduled after the configuration-discovery probe reaches
+	// /nginx_status and collects a metric.
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
 		integrationName: nginxIntegrationName,
 		containerNames:  []string{nginxContainerName},
@@ -603,6 +694,46 @@ func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscov
 			assert.NotContains(c, envVars, "POSTGRESQL_LDAP_URL")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for postgres config file discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestPgbouncerEnvVarsDiscoveredWithoutConfigFile() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: pgbouncerIntegrationName,
+		containerNames:  []string{pgbouncerContainerName},
+	})
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), pgbouncerIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		pgbouncerPayloads := findEnvPayloads(payloads, pgbouncerIntegrationName)
+		if !assert.NotEmpty(c, pgbouncerPayloads, "no pgbouncer env payloads found in %+v", payloads) {
+			return
+		}
+
+		for _, payload := range pgbouncerPayloads {
+			assertAgentDiscoveryPayload(c, payload, pgbouncerIntegrationName)
+			assert.Empty(c, payload.ConfigFiles)
+
+			envVars := make(map[string]string, len(payload.EnvVars))
+			for _, envVar := range payload.EnvVars {
+				envVars[envVar.Name] = envVar.Value
+			}
+			assert.Equal(c, "md5", envVars["AUTH_TYPE"])
+			assert.Equal(c, "postgres-configfilesdiscovery", envVars["DB_HOST"])
+			assert.Equal(c, postgresDBName, envVars["DB_NAME"])
+			assert.Equal(c, postgresUser, envVars["DB_USER"])
+			assert.Equal(c, "100", envVars["MAX_CLIENT_CONN"])
+			assert.Equal(c, "transaction", envVars["POOL_MODE"])
+			assert.NotContains(c, envVars, "DATABASE_URL")
+			assert.NotContains(c, envVars, "DB_PASSWORD")
+			assert.NotContains(c, envVars, "SERVER_RESET_QUERY")
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for pgbouncer env var discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestSparkDriverEnvVarsDiscovered() {
@@ -770,6 +901,21 @@ func (s *configFilesDiscoveryDockerSuite) TestRedisConfigFilesDiscoveredAndHeart
 			path:     redisExplicitContainerPath,
 			content:  redisExplicitConfig,
 			sentinel: redisExplicitConfigSentinel,
+		},
+		{
+			path:     redisNestedContainerPath,
+			content:  redisNestedConfig,
+			sentinel: "configfilesdiscovery-nested-e2e-sentinel",
+		},
+		{
+			path:     redisGlobAContainerPath,
+			content:  redisGlobAConfig,
+			sentinel: "configfilesdiscovery-glob-a-e2e-sentinel",
+		},
+		{
+			path:     redisGlobBContainerPath,
+			content:  redisGlobBConfig,
+			sentinel: "configfilesdiscovery-glob-b-e2e-sentinel",
 		},
 		{
 			path:     redisDefaultContainerPath,

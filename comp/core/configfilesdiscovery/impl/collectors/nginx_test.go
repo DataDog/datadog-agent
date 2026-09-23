@@ -203,12 +203,17 @@ func (r *nginxCollectorTestReader) Runtime() configfilesdiscoveryimpl.RuntimeTyp
 
 func (r *nginxCollectorTestReader) Close() {}
 
-func (r *nginxCollectorTestReader) ReadFile(_ context.Context, path string) (configfilesdiscoveryimpl.ConfigFile, error) {
-	file, ok := r.files[path]
+func (r *nginxCollectorTestReader) ReadFile(_ context.Context, filePath configfilesdiscoveryimpl.VerifiedConfigFilePath) (configfilesdiscoveryimpl.ConfigFile, error) {
+	file, ok := r.files[filePath.String()]
 	if !ok {
 		return configfilesdiscoveryimpl.ConfigFile{}, errors.New("file not found")
 	}
 	return file, nil
+}
+
+// ReadMatchingFiles is not used by the nginx collector.
+func (r *nginxCollectorTestReader) ReadMatchingFiles(context.Context, configfilesdiscoveryimpl.ConfigFileSearch, int, configfilesdiscoveryimpl.ConfigFilePathMatcher) ([]configfilesdiscoveryimpl.ConfigFileReadResult, bool, error) {
+	return nil, false, errors.New("not implemented")
 }
 
 func (r *nginxCollectorTestReader) ReadEnvVars(_ context.Context, predicate configfilesdiscoveryimpl.ConfigEnvVarPredicate) (map[string]string, error) {

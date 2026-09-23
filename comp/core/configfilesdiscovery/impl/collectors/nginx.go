@@ -87,7 +87,7 @@ func (nginxConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 		envVars = nil
 	}
 
-	file, ok, err := readConfigFile(
+	selection, err := selectConfigFile(
 		ctx,
 		reader,
 		nginxGetConfigArgFromCommandline,
@@ -98,7 +98,7 @@ func (nginxConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 	if err != nil {
 		return configfilesdiscoveryimpl.CollectedConfig{}, fmt.Errorf("collect nginx config file: %w", err)
 	}
-	if !ok {
+	if selection == nil {
 		// Without a config file, env vars are the only NGINX config source.
 		// Return the error so the scheduler retries.
 		if envErr != nil {
@@ -117,7 +117,7 @@ func (nginxConfigCollector) Collect(ctx context.Context, reader configfilesdisco
 	// (PAYLOAD_FORMAT_UNKNOWN), matching how other formatless config files are
 	// reported.
 	return configfilesdiscoveryimpl.CollectedConfig{
-		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{file},
+		ConfigFiles: []configfilesdiscoveryimpl.ConfigFile{selection.file},
 		EnvVars:     envVars,
 	}, nil
 }

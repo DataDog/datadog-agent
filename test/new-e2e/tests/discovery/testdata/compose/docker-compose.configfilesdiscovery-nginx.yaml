@@ -3,7 +3,11 @@ services:
     image: ${DD_REGISTRY:-docker.io}/library/nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901
     container_name: nginx-env-configfilesdiscovery
     # NGINX's auto_conf.yaml has discovery enabled, so this fixture intentionally
-    # has no AD label. It verifies selection from the standard nginx image.
+    # has no AD label. It verifies selection from the standard nginx image. The
+    # auto-conf is discovery-gated: the check is only scheduled after the
+    # configuration-discovery probe validates an instance against
+    # http://<container>:80/nginx_status, so nginx must actually run and serve
+    # stub_status (mounted from the host fixture directory below).
     environment:
       NGINX_ENTRYPOINT_QUIET_LOGS: "1"
       NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE: "1"
@@ -15,6 +19,11 @@ services:
       NGINX_ENVSUBST_FILTER: "^APP_"
       NGINX_HTTP_PORT_NUMBER_FILE: /run/secrets/http-port
       NGINX_PASSWORD: must-not-be-forwarded
+    volumes:
+      # Replace the image's default.conf (which owns port 80) with a server
+      # exposing stub_status, so the nginx auto-conf's discovery probe can
+      # validate a candidate check instance.
+      - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}/nginx-status.conf:/etc/nginx/conf.d/default.conf:ro
 
   nginx-configfilesdiscovery-default:
     image: ${DD_REGISTRY:-docker.io}/library/nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901

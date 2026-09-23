@@ -65,11 +65,12 @@ func newOptionalComponent(reqs Requires) Provides {
 		WorkloadMeta:  reqs.WorkloadMeta,
 		EventPlatform: reqs.EventPlatform,
 		Collectors: map[string]configfilesdiscoveryimpl.ConfigCollector{
-			collectors.KafkaIntegrationName:    collectors.NewKafka(),
-			collectors.NginxIntegrationName:    collectors.NewNginx(),
-			collectors.PostgresIntegrationName: collectors.NewPostgres(),
-			collectors.RedisIntegrationName:    collectors.NewRedis(),
-			collectors.SparkIntegrationName:    collectors.NewSpark(),
+			collectors.KafkaIntegrationName:     collectors.NewKafka(),
+			collectors.NginxIntegrationName:     collectors.NewNginx(),
+			collectors.PgbouncerIntegrationName: collectors.NewPgbouncer(),
+			collectors.PostgresIntegrationName:  collectors.NewPostgres(),
+			collectors.RedisIntegrationName:     collectors.NewRedis(),
+			collectors.SparkIntegrationName:     collectors.NewSpark(),
 		},
 	})
 	return Provides{Comp: option.New(provides.Comp)}

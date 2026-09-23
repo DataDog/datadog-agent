@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -80,4 +81,33 @@ func TestInstallConfigExperiment_Success(t *testing.T) {
 	err := i.InstallConfigExperiment(context.Background(), "datadog-agent", config.Operations{}, nil)
 
 	assert.NoError(t, err)
+}
+
+func TestGetStatesSuccess(t *testing.T) {
+	binPath := writeFakeInstaller(t, "", 0)
+	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' '{\"states\":{},\"config_states\":{}}'\n"), 0o755))
+
+	i := NewInstallerExec(&env.Env{}, binPath)
+	states, err := i.getStates(context.Background())
+
+	require.NoError(t, err)
+	require.NotNil(t, states)
+	assert.Empty(t, states.States)
+	assert.Empty(t, states.ConfigStates)
+}
+
+func TestGetStatesTimesOutAndKillsUnresponsiveChild(t *testing.T) {
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "unresponsive-installer.sh")
+	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\ntrap '' INT\nwhile :; do :; done\n"), 0o755))
+
+	i := NewInstallerExec(&env.Env{}, binPath)
+
+	started := time.Now()
+	_, err := i.getStatesWithTimeout(context.Background(), 100*time.Millisecond, 100*time.Millisecond)
+	elapsed := time.Since(started)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, elapsed, 5*time.Second, "get-states did not terminate promptly")
 }

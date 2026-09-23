@@ -130,6 +130,7 @@
 /.gitlab/.pre/*                                                           @DataDog/agent-devx
 /.gitlab/.post/*                                                          @DataDog/agent-devx
 /.gitlab/build/bazel/*                                                    @DataDog/agent-build @DataDog/agent-devx
+/.gitlab/build/package_build/*                                            @DataDog/agent-build @Datadog/agent-delivery
 /.gitlab/deploy/check_deploy/*                                            @DataDog/agent-delivery
 /.gitlab/.post/do_not_merge.yml                                           @DataDog/agent-devx
 /.gitlab/deploy*/*                                                        @DataDog/agent-delivery
@@ -385,7 +386,12 @@
 /docs/dev/agent_api.md                                       @DataDog/agent-runtimes
 /docs/dev/checks/                                            @DataDog/agent-runtimes
 /docs/cloud-workload-security/                               @DataDog/documentation @DataDog/agent-security
-/docs/public/components/                                     @DataDog/agent-runtimes
+/docs/public/architecture/components/                        @DataDog/agent-runtimes
+/docs/public/tutorials/components/                           @DataDog/agent-runtimes
+/docs/public/how-to/components/                              @DataDog/agent-runtimes
+/docs/public/guidelines/components.md                        @DataDog/agent-runtimes
+/docs/public/reference/components/                           @DataDog/agent-runtimes
+/docs/public/how-to/run-jmxfetch.md                           @DataDog/agent-runtimes
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /docs/public/architecture/dogstatsd/                         @DataDog/agent-metric-pipelines
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
@@ -400,19 +406,18 @@
 /omnibus/package-scripts/agent-rpm/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-dmg/                      @DataDog/agent-build @DataDog/windows-products
-/omnibus/package-scripts/installer-deb/                  @DataDog/agent-build @DataDog/fleet
-/omnibus/package-scripts/installer-rpm/                  @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                                 @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/                                          @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb @DataDog/agent-integrations
 /deps/agent_integrations/                                @DataDog/agent-build @DataDog/agent-integrations
 /omnibus/resources/*/msi/                                @DataDog/windows-products
 
-/packages/        @DataDog/agent-build
-/packages/debian/ @DataDog/agent-build @DataDog/fleet
-/packages/redhat/ @DataDog/agent-build @DataDog/fleet
-/packages/macos   @DataDog/agent-build @DataDog/windows-products
-/packages/windows @DataDog/agent-build @DataDog/windows-products
+/packages/                                               @DataDog/agent-build
+/packages/debian/                                        @DataDog/agent-build @DataDog/fleet
+/packages/redhat/                                        @DataDog/agent-build @DataDog/fleet
+/packages/macos                                          @DataDog/agent-build @DataDog/windows-products
+/packages/windows                                        @DataDog/agent-build @DataDog/windows-products
+/packages/installer                                      @DataDog/agent-build @DataDog/fleet
 
 # AIX
 /packaging/aix/ @DataDog/agent-build
@@ -1119,6 +1124,7 @@
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/*.bzl       @DataDog/agent-build
+/tasks/agent_payload_version.bzl # do not notify anyone
 
 # Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
 # Must stay last for the same reason as the /**/*.bzl rule above.
