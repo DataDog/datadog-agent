@@ -886,6 +886,22 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  device.lost:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Whether NVML reports this GPU as inaccessible (NVML_ERROR_GPU_IS_LOST,
+        typically because it has fallen off the bus). 0 means the GPU is
+        enumerable, 1 means it is lost.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   device.needs_recovery:
     metadata:
       metric_type: gauge
