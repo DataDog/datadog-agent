@@ -350,23 +350,37 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 0, 0)
 	}, 500*time.Millisecond, 100*time.Millisecond)
 
-	// High util checks should be reflected in expvars
+	// High util checks should be reflected in expvars, but a regular blocking
+	// check should not exclude the worker from the aggregate utilization stats.
 
 	pendingChecksChan <- blockingCheck
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
+		assert.False(c, getWorkerExcludedExpvar(c, "worker_2"))
 	}, 2*time.Second, 200*time.Millisecond)
+
+	monitor := NewUtilizationMonitor(0.8)
+	utilizations, err := monitor.GetAllWorkerUtilizations()
+	require.NoError(t, err)
+	assert.Contains(t, utilizations, "worker_2")
 
 	blockingCheck.Unlock()
 
-	// Long running checks should also be counted as high utilization
+	// Long running checks should also be counted as high utilization in the
+	// per-worker expvars, but the worker should now be excluded from the
+	// aggregate utilization stats since it's now dedicated to that check.
 
 	pendingChecksChan <- longRunningCheck
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
+		assert.True(c, getWorkerExcludedExpvar(c, "worker_2"))
 	}, 2*time.Second, 200*time.Millisecond)
+
+	utilizations, err = monitor.GetAllWorkerUtilizations()
+	require.NoError(t, err)
+	assert.NotContains(t, utilizations, "worker_2")
 
 	longRunningCheck.Unlock()
 }
@@ -648,6 +662,59 @@ func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
 }
 
+func TestShadowWorkerExcludedFromUtilizationAggregate(t *testing.T) {
+	expvars.Reset()
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("hostname", "myhost")
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	blockingCheck := newCheck(t, "testing:123", false, nil)
+	blockingCheck.Lock()
+
+	worker, err := newWorkerWithOptions(
+		1,
+		2,
+		pendingChecksChan,
+		checksTracker,
+		mockShouldAddStatsFunc,
+		func() (sender.Sender, error) { return nil, nil },
+		haagentmock.NewMockHaAgent(),
+		100*time.Millisecond,
+		10*time.Second,
+		true, // isShadowWorker
+	)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(context.Background())
+	}()
+
+	defer func() {
+		close(pendingChecksChan)
+		wg.Wait()
+	}()
+
+	pendingChecksChan <- blockingCheck
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.InDelta(c, getWorkerUtilizationExpvar(c, worker.Name), 1, 0.05)
+		assert.True(c, getWorkerExcludedExpvar(c, worker.Name))
+	}, 2*time.Second, 200*time.Millisecond)
+
+	monitor := NewUtilizationMonitor(0.8)
+	utilizations, err := monitor.GetAllWorkerUtilizations()
+	require.NoError(t, err)
+	assert.NotContains(t, utilizations, worker.Name)
+
+	blockingCheck.Unlock()
+}
+
 func TestWorkerSenderNil(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
@@ -838,6 +905,21 @@ func getWorkerUtilizationExpvar(c *assert.CollectT, name string) float64 {
 	require.NotNil(c, workerStats)
 
 	return workerStats.Utilization
+}
+
+// getWorkerExcludedExpvar returns the Excluded flag as presented by expvars
+// for a named worker.
+func getWorkerExcludedExpvar(c *assert.CollectT, name string) bool {
+	instancesExpvar := expvars.GetWorkerInstances()
+	require.NotNil(c, instancesExpvar)
+
+	workerStatsExpvar := instancesExpvar.Get(name)
+	require.NotNil(c, workerStatsExpvar)
+
+	workerStats := workerStatsExpvar.(*expvars.WorkerStats)
+	require.NotNil(c, workerStats)
+
+	return workerStats.Excluded
 }
 
 func TestWorkerWatchdogWarningLog(t *testing.T) {

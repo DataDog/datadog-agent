@@ -171,7 +171,7 @@ func (w *Worker) Run(ctx context.Context) {
 	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
 	defer utilizationTracker.Stop()
 
-	startUtilizationUpdater(w.Name, utilizationTracker)
+	startUtilizationUpdater(w, utilizationTracker)
 	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
 	defer cancel()
 
@@ -212,7 +212,7 @@ func (w *Worker) Run(ctx context.Context) {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		utilizationTracker.Started()
+		utilizationTracker.Started(longRunning)
 
 		// Run the check, recovering from any panic so that a single
 		// misbehaving check cannot crash the entire agent process.
@@ -292,9 +292,12 @@ func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
+func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracker) {
+	name := w.Name
+
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
 		Utilization: 0.0,
+		Excluded:    w.isShadowWorker, // isShadowWorker is known for the lifetime of the worker
 	})
 
 	workerUtilization.Set(0, name)
@@ -302,12 +305,14 @@ func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTrac
 	go func() {
 		for value := range ut.Output {
 			expvars.SetWorkerStats(name, &expvars.WorkerStats{
-				Utilization: value,
+				Utilization: value.Utilization,
+				Excluded:    w.isShadowWorker || value.Excluded,
 			})
 
-			workerUtilization.Set(value, name)
+			workerUtilization.Set(value.Utilization, name)
 		}
 		expvars.DeleteWorkerStats(name)
+		workerUtilization.Delete(name)
 	}()
 }
 
