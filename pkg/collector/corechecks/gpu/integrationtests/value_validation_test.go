@@ -194,6 +194,9 @@ func gpuConfigForPhysicalDevice(t *testing.T, specs *gpuspec.Specs, device safen
 
 	capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
 	capabilities.NVLink = archSpec.SupportedNVLinkGeneration()
+	if deviceInfo.NVLinkLinkCount == 0 {
+		capabilities.NVLink = 0
+	}
 	if linkCount(t, device, "C2C", nvidia.GetC2CLinkCount) == 0 {
 		capabilities.C2C = false
 	}

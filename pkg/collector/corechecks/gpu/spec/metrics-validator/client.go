@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"maps"
 	"path"
 	"slices"
@@ -226,38 +227,6 @@ func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS 
 		metadata.tags["kube_cluster_name"] = map[string]struct{}{cluster: {}}
 	}
 
-	for _, tagName := range agentFilterCandidateTags {
-		if tagName == "kube_cluster_name" {
-			continue
-		}
-		tagColumns, err := c.runScalarQueries(
-			[]datadogV2.ScalarQuery{
-				buildScalarQuery(
-					"q0",
-					fmt.Sprintf("avg:datadog.agent.running{*} by {kube_cluster_name,%s}", tagName),
-					datadogV2.METRICSAGGREGATOR_AVG,
-				),
-			},
-			fromTS,
-			toTS,
-		)
-		if err != nil {
-			return agentVersionFilter{}, fmt.Errorf("query agent %s tags by Kubernetes cluster: %w", tagName, err)
-		}
-		for _, column := range tagColumns {
-			cluster := column.tags["kube_cluster_name"]
-			tagValue := column.tags[tagName]
-			if isNullishGroupValue(cluster) || isNullishGroupValue(tagValue) {
-				continue
-			}
-			metadata := ensureClusterAgentMetadata(metadataByCluster, cluster)
-			if metadata.tags[tagName] == nil {
-				metadata.tags[tagName] = make(map[string]struct{})
-			}
-			metadata.tags[tagName][tagValue] = struct{}{}
-		}
-	}
-
 	clusters := make([]string, 0, len(metadataByCluster))
 	for cluster, metadata := range metadataByCluster {
 		if len(metadata.versions) == 0 {
@@ -283,10 +252,46 @@ func (c *metricsClient) filterForAgentVersion(agentVersion string, fromTS, toTS 
 	}
 
 	sort.Strings(clusters)
-	return agentVersionFilter{
+	versionFilter := agentVersionFilter{
 		metricFilter: fmt.Sprintf("kube_cluster_name:(%s)", strings.Join(clusters, " OR ")),
-		tagFilters:   minimumTagFiltersForClusters(metadataByCluster, clusters),
-	}, nil
+		tagFilters:   clusterTagFilters(clusters),
+	}
+
+	for _, tagName := range agentFilterCandidateTags {
+		if tagName == "kube_cluster_name" {
+			continue
+		}
+		tagColumns, err := c.runScalarQueries(
+			[]datadogV2.ScalarQuery{
+				buildScalarQuery(
+					"q0",
+					fmt.Sprintf("avg:datadog.agent.running{*} by {kube_cluster_name,%s}", tagName),
+					datadogV2.METRICSAGGREGATOR_AVG,
+				),
+			},
+			fromTS,
+			toTS,
+		)
+		if err != nil {
+			log.Printf("could not optimize tag inventory filters using agent %s tags: %v; falling back to exact cluster filters", tagName, err)
+			return versionFilter, nil
+		}
+		for _, column := range tagColumns {
+			cluster := column.tags["kube_cluster_name"]
+			tagValue := column.tags[tagName]
+			if isNullishGroupValue(cluster) || isNullishGroupValue(tagValue) {
+				continue
+			}
+			metadata := ensureClusterAgentMetadata(metadataByCluster, cluster)
+			if metadata.tags[tagName] == nil {
+				metadata.tags[tagName] = make(map[string]struct{})
+			}
+			metadata.tags[tagName][tagValue] = struct{}{}
+		}
+	}
+
+	versionFilter.tagFilters = minimumTagFiltersForClusters(metadataByCluster, clusters)
+	return versionFilter, nil
 }
 
 func ensureClusterAgentMetadata(metadataByCluster map[string]*clusterAgentMetadata, cluster string) *clusterAgentMetadata {

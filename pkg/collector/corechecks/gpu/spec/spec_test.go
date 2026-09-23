@@ -369,7 +369,7 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 			}
 
 			nvlinkState, err := dev.GetNvLinkState(0)
-			if effectiveCapabilities.NVLink > 0 {
+			if config.Capabilities.NVLink > 0 {
 				require.NoError(t, err, "GetNvLinkState should not return an error")
 				if config.NVLinkLinkCount > 0 {
 					assert.Equal(t, nvml.FEATURE_ENABLED, nvlinkState, "GetNvLinkState should report enabled when NVLink links are active")

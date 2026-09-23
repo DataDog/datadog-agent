@@ -234,9 +234,6 @@ func ExpectedMetricsForConfig(specs *Specs, config GPUConfig, options Validation
 		if !metricSpec.SupportsConfig(config) {
 			continue
 		}
-		if suppressInactiveNVLinkMetric(metricName, config) {
-			continue
-		}
 		if !metricSpec.SupportsCapabilities(config.Capabilities) {
 			continue
 		}
@@ -457,7 +454,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 			continue
 		}
 
-		if suppressInactiveNVLinkMetric(metricName, config) || !metricSpec.SupportsCapabilities(config.Capabilities) {
+		if !metricSpec.SupportsCapabilities(config.Capabilities) {
 			results.getMetricStatus(metricName).Unsupported++
 		}
 	}
@@ -536,11 +533,4 @@ func validateMetricAgainstKnownGood(results *ValidationResult, metricName string
 	if err := validator.ValidateKnownGoodValue(*latest.Value, knownGoodValues[metricName]); err != nil {
 		results.addInvalidValue(metricName, err.Error())
 	}
-}
-
-func suppressInactiveNVLinkMetric(metricName string, config GPUConfig) bool {
-	return strings.HasPrefix(metricName, "nvlink.") &&
-		// NVSwitch connectivity can be reported as zero even when no active NVLink ports are present.
-		metricName != "nvlink.nvswitch_connected" &&
-		config.NVLinkLinkCount == 0
 }
