@@ -57,21 +57,22 @@ func (m *UtilizationMonitor) GetWorkerUtilization(workerName string) (float64, e
 	return workerStats.Utilization, nil
 }
 
-// GetAllWorkerUtilizations - returns utilization data for all workers
+// GetAllWorkerUtilizations - returns utilization data for all non-excluded workers
 func (m *UtilizationMonitor) GetAllWorkerUtilizations() (map[string]float64, error) {
 	// Retrieve the worker instance data from expvars (needs several expvar lookups)
 	// Race conditions are possible here since expvar is global state
 
-	// Get instances map using the new getter function
+	// Get instances map
 	instancesMap := expvars.GetWorkerInstances()
 	if instancesMap == nil {
 		return nil, errors.New("worker instances not found in expvars")
 	}
 
-	// Add all data to the return map
+	// Add non-excluded data to the return map
+	// Workers are excluded if they are not representative of actual utilization
 	utilizations := make(map[string]float64)
 	instancesMap.Do(func(kv expvar.KeyValue) {
-		if workerStats, ok := kv.Value.(*expvars.WorkerStats); ok {
+		if workerStats, ok := kv.Value.(*expvars.WorkerStats); ok && !workerStats.Excluded {
 			utilizations[kv.Key] = workerStats.Utilization
 		}
 	})
