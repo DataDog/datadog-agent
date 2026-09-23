@@ -6,8 +6,10 @@
 package connectcmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -50,6 +52,9 @@ func connectHost(entry envstore.Entry, printOnly bool) error {
 			strings.ToUpper(string(host.CloudProvider)))
 		return nil
 	}
+	if err := ensureKeyLoaded(keyPath, host, printOnly); err != nil {
+		return err
+	}
 	return writeSSHConfig(entry.Name, host, keyPath, printOnly)
 }
 
@@ -67,6 +72,112 @@ func resolveSSHKeyPath(host outputs.HostOutput) (keyPath string, err error) {
 		parameters.StoreKey(host.CloudProvider+parameters.PrivateKeyPathSuffix), "")
 }
 
+// resolveSSHKeyPassphrase reads the key's passphrase from the runner profile
+// secret store — the same lookup the framework's in-process SSH client uses
+// to decrypt the key. The passphrase is never printed.
+func resolveSSHKeyPassphrase(host outputs.HostOutput) (passphrase string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("initializing the runner profile: %v", r)
+		}
+	}()
+	return runner.GetProfile().SecretStore().GetWithDefault(
+		parameters.StoreKey(host.CloudProvider+parameters.PrivateKeyPasswordSuffix), "")
+}
+
+// keyHasPassphrase reports whether the private key needs a passphrase, by
+// probing ssh-keygen with an empty one (exit 0 means it loaded unprotected).
+func keyHasPassphrase(keyPath string) bool {
+	cmd := exec.Command("ssh-keygen", "-y", "-P", "", "-f", keyPath)
+	return cmd.Run() != nil
+}
+
+// ensureKeyLoaded makes `ssh <env>` work without typing the key passphrase.
+// A protected key cannot carry its passphrase in an ssh config entry, so the
+// key is loaded into the running ssh-agent once, via an ephemeral askpass
+// helper that holds the profile passphrase; AddKeysToAgent yes in the entry
+// keeps it loaded. Without a reachable agent or a stored passphrase the
+// manual one-time command is printed — never a silent fallback.
+func ensureKeyLoaded(keyPath string, host outputs.HostOutput, printOnly bool) error {
+	if !keyHasPassphrase(keyPath) {
+		return nil
+	}
+	if !agentReachable() {
+		fmt.Println("note: the private key is passphrase-protected and no ssh-agent is running")
+		fmt.Printf("load it once per session with:\n  ssh-add %s\n", keyPath)
+		fmt.Println("(the ssh entry keeps AddKeysToAgent yes, so ssh re-adds it after the first use)")
+		return nil
+	}
+	passphrase, err := resolveSSHKeyPassphrase(host)
+	if err != nil {
+		return err
+	}
+	if passphrase == "" {
+		fmt.Println("note: the private key is passphrase-protected and the runner profile stores no passphrase for it")
+		fmt.Printf("load it once per session with:\n  ssh-add %s\n", keyPath)
+		return nil
+	}
+	if printOnly {
+		fmt.Printf("would load %s into the running ssh-agent using the profile passphrase\n", keyPath)
+		return nil
+	}
+	if err := sshAddWithPassphrase(keyPath, passphrase); err != nil {
+		fmt.Printf("note: could not load the key into the ssh-agent (%v); load it once with:\n  ssh-add %s\n", err, keyPath)
+		return nil
+	}
+	fmt.Printf("loaded %s into the running ssh-agent (AddKeysToAgent keeps it)\n", keyPath)
+	return nil
+}
+
+// agentReachable reports whether an ssh-agent answers on SSH_AUTH_SOCK.
+// ssh-add -l exits 0 or 1 with a reachable agent (identities or none) and 2
+// when no agent is running.
+func agentReachable() bool {
+	if os.Getenv("SSH_AUTH_SOCK") == "" {
+		return false
+	}
+	cmd := exec.Command("ssh-add", "-l")
+	return cmd.Run() == nil || cmd.ProcessState.ExitCode() == 1
+}
+
+// sshAddWithPassphrase loads the key into the running agent. ssh-add has no
+// passphrase flag, so it is driven through OpenSSH's SSH_ASKPASS mechanism:
+// an ephemeral 0700 script echoes the profile passphrase, is removed right
+// after, and the passphrase is never printed or stored anywhere else. The
+// script is one-shot: ssh-add retries a wrong passphrase indefinitely, so a
+// second invocation fails and ssh-add aborts with an error instead of
+// looping forever.
+func sshAddWithPassphrase(keyPath, passphrase string) error {
+	dir, err := os.MkdirTemp("", "e2ectl-askpass-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	script := filepath.Join(dir, "askpass.sh")
+	// A quoted heredoc keeps every passphrase byte literal, including quotes
+	// and dollar signs; the delimiter cannot collide with a passphrase line
+	// because it carries the marker.
+	content := fmt.Sprintf("#!/bin/sh\nf=%s/used\ntest -e \"$f\" && exit 1\ntouch \"$f\"\ncat <<'e2ectl-passphrase-end'\n%s\ne2ectl-passphrase-end\n", dir, passphrase)
+	if err := os.WriteFile(script, []byte(content), 0o700); err != nil {
+		return err
+	}
+	cmd := exec.Command("ssh-add", keyPath)
+	cmd.Env = append(os.Environ(),
+		"SSH_ASKPASS="+script,
+		"SSH_ASKPASS_REQUIRE=force",
+		"DISPLAY=:0")
+	// ssh-add retries the askpass three times, then falls back to reading the
+	// passphrase from its terminal. Without one (or with a wrong stored
+	// passphrase) it would block forever on inherited stdin; an empty stdin
+	// makes that fallback fail fast with an error instead.
+	cmd.Stdin = bytes.NewReader(nil)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ssh-add: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // sshHostBlock renders the managed config entry for one environment.
 func sshHostBlock(env string, host outputs.HostOutput, keyPath string) string {
 	return fmt.Sprintf(`# e2ectl:%s begin
@@ -76,6 +187,7 @@ Host %s
     User %s
     IdentityFile %s
     IdentitiesOnly yes
+    AddKeysToAgent yes
     StrictHostKeyChecking accept-new
 # e2ectl:%s end`, env, env, host.Address, host.Port, host.Username, keyPath, env)
 }

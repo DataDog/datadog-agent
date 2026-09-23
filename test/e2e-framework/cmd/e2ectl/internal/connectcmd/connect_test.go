@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -88,6 +89,7 @@ func TestSSHHostEntryIsManagedAndIdempotent(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("CI", "")
 	t.Setenv("E2E_PROFILE", "")
+	t.Setenv("SSH_AUTH_SOCK", "")
 	key := filepath.Join(t.TempDir(), "id_test")
 	if err := os.WriteFile(key, []byte("private"), 0o600); err != nil {
 		t.Fatal(err)
@@ -444,4 +446,108 @@ func TestDispatchCardLocalAndUnknownBase(t *testing.T) {
 	if !strings.Contains(out, "dev") {
 		t.Fatalf("a missing environment name must list the available ones:\n%s", out)
 	}
+}
+
+// generateKey creates a real key with ssh-keygen; passphrase "" leaves it
+// unprotected. The test is skipped when ssh-keygen is unavailable.
+func generateKey(t *testing.T, path, passphrase string) {
+	t.Helper()
+	if _, err := exec.LookPath("ssh-keygen"); err != nil {
+		t.Skip("ssh-keygen not available")
+	}
+	args := []string{"-t", "ed25519", "-N", passphrase, "-f", path, "-q"}
+	cmd := exec.Command("ssh-keygen", args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("ssh-keygen: %v: %s", err, out)
+	}
+}
+
+func TestKeyHasPassphrase(t *testing.T) {
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "plain")
+	protected := filepath.Join(dir, "protected")
+	generateKey(t, plain, "")
+	generateKey(t, protected, "s3cret pass'word $x")
+	if keyHasPassphrase(plain) {
+		t.Fatal("unprotected key reported as protected")
+	}
+	if !keyHasPassphrase(protected) {
+		t.Fatal("protected key reported as unprotected")
+	}
+}
+
+func TestSSHAddWithPassphrase(t *testing.T) {
+	if _, err := exec.LookPath("ssh-agent"); err != nil {
+		t.Skip("ssh-agent not available")
+	}
+	// A private agent serves the round trip without touching the user's. The
+	// daemonized agent child inherits stdout, so the env lines are captured
+	// through a file — Output() would block until EOF that never comes.
+	outfile := filepath.Join(t.TempDir(), "agent.env")
+	agent := exec.Command("ssh-agent", "-s")
+	f, err := os.Create(outfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent.Stdout = f
+	agent.Stderr = f
+	if err := agent.Run(); err != nil {
+		t.Skipf("starting ssh-agent: %v", err)
+	}
+	f.Close()
+	env, err := os.ReadFile(outfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sock, pid := parseAgentEnv(string(env))
+	if sock == "" {
+		t.Fatal("could not parse ssh-agent environment")
+	}
+	if pid != "" {
+		t.Setenv("SSH_AGENT_PID", pid)
+		t.Cleanup(func() {
+			_ = exec.Command("ssh-agent", "-k").Run()
+		})
+	}
+	t.Setenv("SSH_AUTH_SOCK", sock)
+
+	dir := t.TempDir()
+	key := filepath.Join(dir, "id_protected")
+	generateKey(t, key, "pass with 'quotes' and $dollar")
+
+	if err := sshAddWithPassphrase(key, "pass with 'quotes' and $dollar"); err != nil {
+		t.Fatal(err)
+	}
+	list, err := exec.Command("ssh-add", "-l").Output()
+	if err != nil {
+		t.Fatalf("ssh-add -l after load: %v", err)
+	}
+	if !strings.Contains(string(list), "ED25519") {
+		t.Fatalf("key not listed in the agent:\n%s", list)
+	}
+
+	// A wrong passphrase must be an error, never a silent success.
+	wrong := filepath.Join(dir, "id_wrong")
+	generateKey(t, wrong, "correct-horse")
+	if err := sshAddWithPassphrase(wrong, "wrong-horse"); err == nil {
+		t.Fatal("wrong passphrase accepted")
+	}
+}
+
+// parseAgentEnv extracts SSH_AUTH_SOCK and SSH_AGENT_PID from `ssh-agent -s`
+// output lines like `SSH_AUTH_SOCK=/tmp/...; export SSH_AUTH_SOCK;`.
+func parseAgentEnv(out string) (sock, pid string) {
+	for _, line := range strings.Split(out, "\n") {
+		for _, prefix := range []string{"SSH_AUTH_SOCK=", "SSH_AGENT_PID="} {
+			if value, ok := strings.CutPrefix(line, prefix); ok && value != "" {
+				value = strings.TrimSuffix(strings.SplitN(value, ";", 2)[0], ";")
+				if prefix == "SSH_AUTH_SOCK=" {
+					sock = value
+				} else {
+					pid = value
+				}
+			}
+		}
+	}
+	return sock, pid
 }
