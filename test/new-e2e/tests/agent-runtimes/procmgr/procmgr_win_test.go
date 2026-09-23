@@ -132,23 +132,41 @@ func skipUnlessHostPath(t *testing.T, host *components.RemoteHost, path, reason 
 	}
 }
 
-// waitProcmgrRunning polls dd-procmgr describe until name is Running with a real PID and
-// returns that PID.
+// waitProcmgrStableFor is how long the same PID must stay Running before waitProcmgrRunning
+// accepts it, so a restart blip is not treated as steady state.
+const waitProcmgrStableFor = 5 * time.Second
+
+// waitProcmgrRunning polls dd-procmgr describe until name is Running with the same real PID
+// for waitProcmgrStableFor, so a brief Running blip during a restart is not accepted.
 func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) string {
 	t.Helper()
-	var pid string
+	var (
+		pid         string
+		stableSince time.Time
+	)
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
 		if !assert.NoError(ct, err) {
+			pid = ""
 			return
 		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"), "process %s: %s", name, out)
+		if !assert.Equal(ct, "Running", fieldValue(out, "State"), "process %s: %s", name, out) {
+			pid = ""
+			return
+		}
 		p := fieldValue(out, "PID")
 		if !assert.NotEmpty(ct, p, "PID should be present for a Running process") ||
 			!assert.NotEqual(ct, "-", p, "PID should not be '-' for a Running process") {
+			pid = ""
 			return
 		}
-		pid = p
+		now := time.Now()
+		if p != pid {
+			pid = p
+			stableSince = now
+		}
+		assert.GreaterOrEqual(ct, now.Sub(stableSince), waitProcmgrStableFor,
+			"process %s PID %s not stable for %s yet (seen for %s)", name, p, waitProcmgrStableFor, now.Sub(stableSince).Round(time.Second))
 	}, timeout, 3*time.Second)
 	return pid
 }
