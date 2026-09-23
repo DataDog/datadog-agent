@@ -7,6 +7,7 @@
 mod helpers;
 
 mod cli_contracts;
+mod config_gates;
 mod config_status;
 mod create;
 mod daemon;
@@ -14,6 +15,8 @@ mod ddot;
 mod describe;
 mod env_files;
 mod fixtures;
+mod fleet_process_template;
+mod identity;
 mod list;
 #[cfg(windows)]
 mod privileged_allowlist;

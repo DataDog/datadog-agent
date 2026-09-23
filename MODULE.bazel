@@ -88,7 +88,7 @@ bazel_dep(name = "rules_go", version = "0.63.0")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
-bazel_dep(name = "rules_python", version = "2.3.3")
+bazel_dep(name = "rules_python", version = "2.3.4")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
@@ -564,25 +564,6 @@ include("//deps/agent_integrations:integrations.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.8.4")
+bazel_dep(name = "apple_support", version = "2.9.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
-
-###########################################################################
-## Hybrid build. Capture binaries built with dda (or whatever) as if they
-## were built as bazel targets.
-###########################################################################
-
-prebuilt_file = use_repo_rule("//bazel/repo:prebuilt_file.bzl", "prebuilt_file")
-
-prebuilt_file(
-    name = "installer_binary",
-    target_label = "@@//:bin/installer/installer",
-    target_name = "installer",
-)
-
-prebuilt_file(
-    name = "trace_loader_binary",
-    target_label = "@@//:bin/trace-loader/trace-loader",
-    target_name = "trace_loader",
-)
