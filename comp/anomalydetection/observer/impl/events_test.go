@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"unicode/utf8"
@@ -403,6 +404,29 @@ func TestTruncatePreservesUTF8RuneBoundaries(t *testing.T) {
 	got := truncate("hello世界", 6)
 	assert.Equal(t, "hello世...", got)
 	assert.True(t, utf8.ValidString(got))
+}
+
+func TestBoundedLogExample(t *testing.T) {
+	t.Run("short input", func(t *testing.T) {
+		input := string([]byte("hello 世界"))
+		got := boundedLogExample(input)
+		assert.Equal(t, input, got)
+		assert.True(t, utf8.ValidString(got))
+	})
+
+	t.Run("caps bytes at a UTF-8 boundary", func(t *testing.T) {
+		input := strings.Repeat("a", maxLogExampleBytes-2) + "世界"
+		got := boundedLogExample(input)
+		assert.Len(t, got, maxLogExampleBytes)
+		assert.True(t, utf8.ValidString(got))
+		assert.True(t, strings.HasSuffix(got, "..."))
+	})
+
+	t.Run("drops invalid UTF-8", func(t *testing.T) {
+		got := boundedLogExample("valid\xffsuffix")
+		assert.Equal(t, "validsuffix", got)
+		assert.True(t, utf8.ValidString(got))
+	})
 }
 
 func TestAdvanceEmitsCorrelationUpdatedEvents(t *testing.T) {

@@ -7,9 +7,13 @@ package observerimpl
 
 import (
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
+
+const maxLogExampleBytes = 160
 
 // validateUniqueExtractorNames rejects duplicate runtime extractor names since
 // they are used as namespaces in storage and context lookup.
@@ -31,4 +35,20 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return string(runes[:maxLen]) + "..."
+}
+
+// boundedLogExample returns a bounded, UTF-8-valid stored log example.
+func boundedLogExample(s string) string {
+	if !utf8.ValidString(s) {
+		s = strings.ToValidUTF8(s, "")
+	}
+	if len(s) <= maxLogExampleBytes {
+		return s
+	}
+
+	end := maxLogExampleBytes - len("...")
+	for end > 0 && !utf8.ValidString(s[:end]) {
+		end--
+	}
+	return s[:end] + "..."
 }

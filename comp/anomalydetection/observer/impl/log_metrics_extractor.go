@@ -74,7 +74,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 		Tags:  tags,
 		Context: &observer.MetricContext{
 			Pattern: patternSig,
-			Example: content,
+			Example: boundedLogExample(content),
 			Source:  "log_metrics_extractor",
 		},
 	}}
@@ -102,7 +102,7 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagse
 		return nil
 	}
 
-	example := truncate(content, 160)
+	example := boundedLogExample(content)
 	var out []observer.MetricOutput
 	for k, v := range obj {
 		if a.config.ExcludeFields != nil {

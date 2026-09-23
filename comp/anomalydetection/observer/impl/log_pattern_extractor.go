@@ -240,7 +240,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		Tags:  tagset.CompositeTagsFromSlice(log.Tags()),
 		Context: &observerdef.MetricContext{
 			Pattern:   cluster.PatternString(),
-			Example:   truncate(message, 160),
+			Example:   boundedLogExample(message),
 			Source:    e.Name(),
 			SplitTags: group.AsMap(),
 		},
