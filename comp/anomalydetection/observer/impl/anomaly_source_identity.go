@@ -9,8 +9,8 @@ import observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/obser
 
 // anomalySourceIdentity is a comparable identity for an anomaly source.
 // Storage-backed anomalies use their QueryHandle, which distinguishes aggregates
-// without constructing a string. Anomalies without a storage-backed source use a
-// temporary descriptor-key fallback until SeriesDescriptor.Key is removed.
+// without constructing a string. Ref-less anomalies use the descriptor formatter
+// fallback; RRCF is currently the only production source in that category.
 type anomalySourceIdentity struct {
 	handle    observerdef.QueryHandle
 	fallback  string
