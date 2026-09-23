@@ -150,15 +150,20 @@ func rodcProvisioner() provisioners.PulumiEnvRunFunc[rodcEnvironment] {
 		siteCommand, err := writableController.OS.Runner().Command("configure-rodc-site", &command.Args{
 			Create: pulumi.Sprintf(`
 Import-Module ActiveDirectory
-if (-not (Get-ADReplicationSite -Filter "Name -eq '%s'")) {
-    New-ADReplicationSite -Name '%s' | Out-Null
+$site = Get-ADReplicationSite -Filter "Name -eq '%s'"
+if (-not $site) {
+    $site = New-ADReplicationSite -Name '%s' -PassThru
 }
-Set-ADReplicationSiteLink -Identity 'DEFAULTIPSITELINK' -SitesIncluded @('Default-First-Site-Name', '%s')
+$siteLink = Get-ADReplicationSiteLink -Identity 'DEFAULTIPSITELINK'
+$includedSites = @($siteLink.SitesIncluded | ForEach-Object { $_.ToString() })
+if ($includedSites -notcontains $site.DistinguishedName) {
+    Set-ADReplicationSiteLink -Identity $siteLink -SitesIncluded @{ Add = $site.DistinguishedName }
+}
 $subnetName = '%s/32'
-if (-not (Get-ADReplicationSubnet -Identity $subnetName -ErrorAction SilentlyContinue)) {
-    New-ADReplicationSubnet -Name $subnetName -Site '%s' | Out-Null
+if (-not (Get-ADReplicationSubnet -Filter "Name -eq '$subnetName'")) {
+    New-ADReplicationSubnet -Name $subnetName -Site $site | Out-Null
 }
-`, rodcSiteName, rodcSiteName, rodcSiteName, readOnlyController.Address, rodcSiteName),
+`, rodcSiteName, rodcSiteName, readOnlyController.Address),
 		}, pulumi.DependsOn(writableResources))
 		if err != nil {
 			return err
