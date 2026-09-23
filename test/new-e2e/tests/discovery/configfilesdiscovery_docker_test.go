@@ -71,10 +71,16 @@ const (
 )
 
 const (
-	nginxContainerName   = "nginx-env-configfilesdiscovery"
-	nginxIntegrationName = "nginx"
-	nginxConfigDir       = "/tmp/configfilesdiscovery-nginx"
-	nginxStatusConfName  = "nginx-status.conf"
+	nginxConfigDir              = "/tmp/configfilesdiscovery-nginx"
+	nginxContainerName          = "nginx-env-configfilesdiscovery"
+	nginxDefaultContainerName   = "nginx-configfilesdiscovery-default"
+	nginxExplicitContainerName  = "nginx-configfilesdiscovery-explicit"
+	nginxDefaultContainerPath   = "/etc/nginx/nginx.conf"
+	nginxExplicitContainerPath  = "/configfilesdiscovery/nginx-explicit.conf"
+	nginxDefaultConfigFileName  = "nginx-default.conf"
+	nginxExplicitConfigFileName = "nginx-explicit.conf"
+	nginxStatusConfName         = "nginx-status.conf"
+	nginxIntegrationName        = "nginx"
 )
 
 const (
@@ -157,6 +163,49 @@ const redisDefaultConfig = `port 6379
 appendonly no
 maxmemory-policy allkeys-lru
 # configfilesdiscovery-default-e2e-sentinel
+`
+
+const nginxDefaultConfig = `worker_processes auto;
+events {
+    worker_connections 1024;
+}
+http {
+    # Expose stub_status so the nginx auto-conf's configuration-discovery
+    # probe can validate a candidate check instance before the check is
+    # scheduled.
+    server {
+        listen 80;
+        location = /nginx_status {
+            stub_status;
+        }
+    }
+    server {
+        listen 8080;
+    }
+}
+# configfilesdiscovery-nginx-default-e2e-sentinel
+`
+
+const nginxExplicitConfig = `daemon off;
+worker_processes auto;
+events {
+    worker_connections 1024;
+}
+http {
+    # Expose stub_status so the nginx auto-conf's configuration-discovery
+    # probe can validate a candidate check instance before the check is
+    # scheduled.
+    server {
+        listen 80;
+        location = /nginx_status {
+            stub_status;
+        }
+    }
+    server {
+        listen 8081;
+    }
+}
+# configfilesdiscovery-nginx-explicit-e2e-sentinel
 `
 
 const postgresInitScript = `#!/bin/sh
@@ -315,7 +364,11 @@ func createConfigFilesDiscoveryNginxConfig(_ *aws.Environment, host *remote.Host
 	return createConfigFilesDiscoveryFixtureFiles(
 		host,
 		nginxConfigDir,
-		[]configFilesDiscoveryFixtureFile{{name: nginxStatusConfName, content: nginxStatusConf}},
+		[]configFilesDiscoveryFixtureFile{
+			{name: nginxDefaultConfigFileName, content: nginxDefaultConfig},
+			{name: nginxExplicitConfigFileName, content: nginxExplicitConfig},
+			{name: nginxStatusConfName, content: nginxStatusConf},
+		},
 	)
 }
 
@@ -496,7 +549,12 @@ func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf
 	// /nginx_status and collects a metric.
 	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
 		integrationName: nginxIntegrationName,
-		containerNames:  []string{nginxContainerName},
+		containerNames: []string{
+			nginxContainerName,
+			nginxDefaultContainerName,
+			nginxExplicitContainerName,
+		},
+		startContainerNames: []string{nginxContainerName},
 	})
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -513,7 +571,15 @@ func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf
 
 		for _, payload := range nginxPayloads {
 			assertAgentDiscoveryPayload(c, payload, nginxIntegrationName)
-			assert.Empty(c, payload.ConfigFiles)
+
+			// This fixture runs the official image without -c, so the config
+			// file collector also reports the image's default nginx.conf
+			// alongside the env vars. Its content is dynamic (the entrypoint
+			// rewrites worker_processes to the host CPU count), so only the
+			// path is asserted here.
+			if assert.Len(c, payload.ConfigFiles, 1) {
+				assert.Equal(c, nginxDefaultContainerPath, payload.ConfigFiles[0].Path)
+			}
 
 			envVars := make(map[string]string, len(payload.EnvVars))
 			for _, envVar := range payload.EnvVars {
@@ -529,6 +595,57 @@ func (s *configFilesDiscoveryDockerSuite) TestNginxEnvVarsDiscoveredFromAutoConf
 			assert.NotContains(c, envVars, "NGINX_PASSWORD")
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for nginx env var discovery payload")
+}
+
+func (s *configFilesDiscoveryDockerSuite) TestNginxConfigFilesDiscovered() {
+	t := s.T()
+	s.prepareConfigFilesDiscoveryContainers(t, configFilesDiscoveryContainerFixture{
+		integrationName: nginxIntegrationName,
+		containerNames: []string{
+			nginxContainerName,
+			nginxDefaultContainerName,
+			nginxExplicitContainerName,
+		},
+		startContainerNames: []string{nginxDefaultContainerName, nginxExplicitContainerName},
+	})
+
+	expectedNginxConfigs := []struct {
+		path    string
+		content string
+	}{
+		// No -c override: the image's default CMD supplies "-g daemon off;",
+		// so this fixture must not itself set the daemon directive.
+		{path: nginxDefaultContainerPath, content: nginxDefaultConfig},
+		// -c override replaces the default CMD entirely, so this fixture must
+		// set "daemon off;" itself or the container exits immediately.
+		{path: nginxExplicitContainerPath, content: nginxExplicitConfig},
+	}
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, isIntegrationScheduled(s.Env().Agent.Client.ConfigCheck(), nginxIntegrationName))
+
+		payloads, err := s.Env().FakeIntake.Client().GetAgentDiscoveryPayloads()
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotEmpty(c, payloads, "no Agent Discovery payloads on %s", agentDiscoveryEndpoint) {
+			return
+		}
+
+		for _, tt := range expectedNginxConfigs {
+			nginxPayloads := findConfigFilePayloads(payloads, nginxIntegrationName, tt.path)
+			if !assert.NotEmpty(c, nginxPayloads, "no nginx config payloads for %q found in %+v", tt.path, payloads) {
+				continue
+			}
+			for _, nginxPayload := range nginxPayloads {
+				assertConfigFilePayload(c, nginxPayload, configFilePayloadExpectation{
+					integrationName: nginxIntegrationName,
+					configPath:      tt.path,
+				})
+				assert.Equal(c, tt.content, string(nginxPayload.config.Content))
+			}
+		}
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for nginx config file discovery payload")
 }
 
 func (s *configFilesDiscoveryDockerSuite) TestPostgresConfigFileAndEnvVarsDiscovered() {

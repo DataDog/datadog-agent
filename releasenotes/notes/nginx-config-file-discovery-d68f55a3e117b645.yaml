@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Config Files Discovery now collects the main NGINX configuration file, either
+    from an explicit ``-c`` command-line argument or from the default path shipped
+    by the official and Bitnami NGINX images.
