@@ -110,20 +110,13 @@ type KubeMetadataStreamServer struct {
 
 	// Per-node workload filtering, see WithPerNodeWorkloadFiltering.
 	//
-	// workloadNodes counts, for every workload, its pods bound to each node.
-	// It covers all workloads, not only autoscaled ones, so that a workload
+	// placements counts, for every workload, its pods bound to each node. It
+	// covers all workloads, not only autoscaled ones, so that a workload
 	// gaining an autoscaler notifies exactly the nodes already hosting it.
-	// Guarded by metadataMutex, like podPlacements.
+	// Guarded by metadataMutex.
 	waitPodPlacementSynced func(context.Context) bool
 	filterByNode           atomic.Bool
-	podPlacements          map[string]podPlacement // pod UID -> placement
-	workloadNodes          map[kubernetes.WorkloadTarget]map[string]int
-}
-
-// podPlacement is where a pod runs and which workload owns it.
-type podPlacement struct {
-	node   string
-	target kubernetes.WorkloadTarget
+	placements             *placementIndex
 }
 
 // KubeMetadataStreamServerOption configures a KubeMetadataStreamServer.
@@ -150,8 +143,7 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 		wmeta:                wmeta,
 		metadata:             newMetadataSnapshot(),
 		namespaceSubscribers: make(map[string][]chan struct{}),
-		podPlacements:        make(map[string]podPlacement),
-		workloadNodes:        make(map[kubernetes.WorkloadTarget]map[string]int),
+		placements:           newPlacementIndex(),
 	}
 	for _, opt := range opts {
 		opt(srv)
@@ -242,13 +234,13 @@ func (srv *KubeMetadataStreamServer) startPodPlacementTracking(ctx context.Conte
 	}()
 }
 
-// processPodEvents maintains workloadNodes, and notifies the nodes whose view
-// of autoscaled workloads changed.
+// processPodEvents maintains the placement index, and notifies the nodes whose
+// view of autoscaled workloads changed.
 func (srv *KubeMetadataStreamServer) processPodEvents(events []workloadmeta.Event) {
 	srv.metadataMutex.Lock()
 	defer srv.metadataMutex.Unlock()
 
-	affectedNodes := sets.New[string]()
+	var changes []hostingChange
 	for _, event := range events {
 		pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
 		if !ok {
@@ -256,68 +248,26 @@ func (srv *KubeMetadataStreamServer) processPodEvents(events []workloadmeta.Even
 		}
 
 		// A pod counts once it is bound to a node and owned by a workload.
-		var next podPlacement
-		placed := false
 		if event.Type == workloadmeta.EventTypeSet && pod.NodeName != "" {
 			if target, found := util.PodWorkloadTarget(pod); found {
-				next, placed = podPlacement{node: pod.NodeName, target: target}, true
+				changes = srv.placements.set(pod.ID, pod.NodeName, target, changes)
+				continue
 			}
 		}
+		changes = srv.placements.delete(pod.ID, changes)
+	}
 
-		previous, known := srv.podPlacements[pod.ID]
-		if known && placed && previous == next {
-			continue
-		}
-		if known {
-			delete(srv.podPlacements, pod.ID)
-			if srv.removePlacementLocked(previous) {
-				affectedNodes.Insert(previous.node)
-			}
-		}
-		if placed {
-			srv.podPlacements[pod.ID] = next
-			if srv.addPlacementLocked(next) {
-				affectedNodes.Insert(next.node)
-			}
+	// A node's view changes only when an autoscaled workload joins or leaves it.
+	affectedNodes := sets.New[string]()
+	for _, change := range changes {
+		if _, autoscaled := srv.metadata.workloadAutoscalers[change.target]; autoscaled {
+			affectedNodes.Insert(change.node)
 		}
 	}
 
 	if srv.filterByNode.Load() {
 		srv.notifyNodeSubscribersLocked(affectedNodes)
 	}
-}
-
-// addPlacementLocked records a pod of a workload on a node. It reports whether
-// that node's view changed: the workload is autoscaled and was not on it yet.
-func (srv *KubeMetadataStreamServer) addPlacementLocked(p podPlacement) bool {
-	nodes := srv.workloadNodes[p.target]
-	if nodes == nil {
-		nodes = make(map[string]int)
-		srv.workloadNodes[p.target] = nodes
-	}
-	nodes[p.node]++
-	_, autoscaled := srv.metadata.workloadAutoscalers[p.target]
-	return nodes[p.node] == 1 && autoscaled
-}
-
-// removePlacementLocked forgets a pod of a workload on a node. It reports
-// whether that node's view changed: the workload is autoscaled and this was
-// its last pod there.
-func (srv *KubeMetadataStreamServer) removePlacementLocked(p podPlacement) bool {
-	nodes := srv.workloadNodes[p.target]
-	if nodes[p.node] == 0 {
-		return false
-	}
-	nodes[p.node]--
-	if nodes[p.node] > 0 {
-		return false
-	}
-	delete(nodes, p.node)
-	if len(nodes) == 0 {
-		delete(srv.workloadNodes, p.target)
-	}
-	_, autoscaled := srv.metadata.workloadAutoscalers[p.target]
-	return autoscaled
 }
 
 // notifyNodeSubscribersLocked signals the streams of the given nodes only.
@@ -489,7 +439,7 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	case len(changedWorkloads) > 0:
 		nodes := sets.New[string]()
 		for _, target := range changedWorkloads {
-			for node := range srv.workloadNodes[target] {
+			for node := range srv.placements.nodesOf(target) {
 				nodes.Insert(node)
 			}
 		}
@@ -726,7 +676,7 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshotForNode(nodeName strin
 	srv.metadataMutex.RLock()
 	defer srv.metadataMutex.RUnlock()
 	for target := range snapshot.workloadAutoscalers {
-		if srv.workloadNodes[target][nodeName] == 0 {
+		if !srv.placements.hosts(target, nodeName) {
 			delete(snapshot.workloadAutoscalers, target)
 		}
 	}

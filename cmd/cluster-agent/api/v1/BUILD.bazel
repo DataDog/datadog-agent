@@ -15,6 +15,7 @@ go_library(
         "instrumentationchecks_nocompile.go",
         "kubernetes_metadata.go",
         "kubernetes_metadata_stream.go",
+        "placement_index.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1",
     visibility = ["//visibility:public"],
@@ -48,6 +49,7 @@ dd_agent_go_test(
         "kubernetes_metadata_stream_test.go",
         "kubernetes_metadata_stream_tracing_test.go",
         "kubernetes_metadata_test.go",
+        "placement_index_test.go",
     ],
     embed = [":api"],
     gotags_sets = [[
