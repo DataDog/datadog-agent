@@ -1351,8 +1351,9 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 				if meta == nil {
 					continue
 				}
+				context, _ := storage.GetLogContext(contributor.Handle.Ref)
 				report.Contributors = append(report.Contributors, scorerReportContributor{
-					Name:  scorerReportContributorName(meta, storage.GetContext(contributor.Handle.Ref), contributor.Handle.Aggregate),
+					Name:  scorerReportContributorName(meta, context, contributor.Handle.Aggregate),
 					Share: contributor.Share,
 				})
 			}
@@ -1372,20 +1373,18 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 // scorerReportContributorName presents log-derived metrics with the same
 // readable example/pattern used by reporter events. The scorer UI otherwise
 // displays the regular metric descriptor.
-func scorerReportContributorName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
-	if context != nil {
-		switch meta.Namespace {
-		case "log_metrics_extractor":
-			if example := strings.TrimSpace(context.Example); example != "" {
-				return logReportContributorName(example, meta.Host, meta.Tags)
-			}
-			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Host, meta.Tags)
-			}
-		case "log_pattern_extractor":
-			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Host, meta.Tags)
-			}
+func scorerReportContributorName(meta *observerdef.SeriesMeta, context observerdef.LogContext, aggregate observerdef.Aggregate) string {
+	switch meta.Namespace {
+	case "log_metrics_extractor":
+		if example := strings.TrimSpace(context.Example); example != "" {
+			return logReportContributorName(example, meta.Host, meta.Tags)
+		}
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return logReportContributorName(pattern, meta.Host, meta.Tags)
+		}
+	case "log_pattern_extractor":
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return logReportContributorName(pattern, meta.Host, meta.Tags)
 		}
 	}
 	return observerdef.SeriesDescriptor{

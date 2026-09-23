@@ -33,7 +33,7 @@ func buildReportedEvents(correlations []observerdef.ActiveCorrelation, storage o
 	events := make([]ReportedEvent, 0, len(correlations))
 	for _, ac := range correlations {
 		msg := reporterimpl.BuildChangeMessage(ac, storage)
-		tags := reporterimpl.BuildEventTags(ac)
+		tags := reporterimpl.BuildEventTags(ac, storage)
 		events = append(events, ReportedEvent{
 			Pattern:       ac.Pattern,
 			Title:         ac.Title,

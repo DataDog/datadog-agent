@@ -21,12 +21,15 @@ import (
 // sumRangeStorage is a minimal StorageReader that answers SumRange calls via a
 // user-supplied function and panics on all other methods (they are unused here).
 type sumRangeStorage struct {
-	fn       func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
-	metas    map[observerdef.SeriesRef]observerdef.SeriesMeta
-	contexts map[observerdef.SeriesRef]*observerdef.MetricContext
+	fn          func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	metas       map[observerdef.SeriesRef]observerdef.SeriesMeta
+	logContexts map[observerdef.SeriesRef]observerdef.LogContext
 }
 
 func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64 {
+	if s.fn == nil {
+		return 0
+	}
 	return s.fn(handle, start, end, agg)
 }
 func (s *sumRangeStorage) ListSeries(_ observerdef.SeriesFilter) []observerdef.SeriesMeta {
@@ -40,11 +43,12 @@ func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.
 	return &meta
 }
 func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
-	return s.contexts[ref]
+	return nil
 }
 
-func (*sumRangeStorage) GetLogContext(observerdef.SeriesRef) (observerdef.LogContext, bool) {
-	return observerdef.LogContext{}, false
+func (s *sumRangeStorage) GetLogContext(ref observerdef.SeriesRef) (observerdef.LogContext, bool) {
+	context, ok := s.logContexts[ref]
+	return context, ok
 }
 
 func TestFormatScorerContributorMessage(t *testing.T) {
@@ -70,7 +74,7 @@ func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
 			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
 			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"})},
 		},
-		contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
+		logContexts: map[observerdef.SeriesRef]observerdef.LogContext{
 			42: {Pattern: "C3:C8_C1", Example: "ERROR: connection refused to db.prod:5432"},
 			43: {Pattern: "GET /checkout <*> returned 500"},
 		},
@@ -96,7 +100,7 @@ func TestScorerContributorDisplayNameUsesBothCompositeTagSegments(t *testing.T) 
 
 	assert.Equal(t,
 		"log: ERROR <*> — {host:web-1,service:api,env:prod}",
-		scorerContributorDisplayName(meta, &observerdef.MetricContext{Example: "ERROR <*>"}, observerdef.AggregateCount),
+		scorerContributorDisplayName(meta, observerdef.LogContext{Example: "ERROR <*>"}, observerdef.AggregateCount),
 	)
 }
 
@@ -180,7 +184,7 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorNoContext(t *testing.T) {
 		Source:  observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
 		Context: nil,
 	}
-	assert.False(t, IsLogDerivedAnomaly(a))
+	assert.True(t, IsLogDerivedAnomaly(a))
 }
 
 func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
@@ -188,16 +192,16 @@ func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
 		Pattern: "p",
 		Anomalies: []observerdef.Anomaly{
 			{
-				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
-				Context: &observerdef.MetricContext{
-					Pattern: "C3:C8_C1",
-					Example: "ERROR: connection refused to db.prod:5432",
-				},
+				Type:      observerdef.AnomalyTypeMetric,
+				Source:    observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
+				SourceRef: &observerdef.QueryHandle{Ref: 1},
 			},
 		},
 	}
-	msg := BuildChangeMessage(c, nil)
+	storage := &sumRangeStorage{logContexts: map[observerdef.SeriesRef]observerdef.LogContext{
+		1: {Pattern: "C3:C8_C1", Example: "ERROR: connection refused to db.prod:5432"},
+	}}
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, "Log frequency change detected")
 	assert.Contains(t, msg, "ERROR: connection refused to db.prod:5432")
 	assert.NotContains(t, msg, "C3:C8_C1") // tokenized signature should not appear
@@ -208,16 +212,16 @@ func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t
 		Pattern: "p",
 		Anomalies: []observerdef.Anomaly{
 			{
-				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
-				Context: &observerdef.MetricContext{
-					Pattern: "C3:C8_C1",
-					Example: "",
-				},
+				Type:      observerdef.AnomalyTypeMetric,
+				Source:    observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
+				SourceRef: &observerdef.QueryHandle{Ref: 1},
 			},
 		},
 	}
-	msg := BuildChangeMessage(c, nil)
+	storage := &sumRangeStorage{logContexts: map[observerdef.SeriesRef]observerdef.LogContext{
+		1: {Pattern: "C3:C8_C1"},
+	}}
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, "Log frequency change detected")
 	assert.Contains(t, msg, "C3:C8_C1")
 }
@@ -236,14 +240,14 @@ func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {
 			},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "anomaly_type:log")
 	assert.NotContains(t, tags, "anomaly_type:metric")
 }
 
 func TestBuildEventTags_BaseTagsAlwaysPresent(t *testing.T) {
 	c := observerdef.ActiveCorrelation{Pattern: "kernel_bottleneck"}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "source:edge-intelligence")
 	assert.Contains(t, tags, "pattern:kernel_bottleneck")
 }
@@ -255,7 +259,7 @@ func TestBuildEventTags_MetricAnomalyType(t *testing.T) {
 			{Type: observerdef.AnomalyTypeMetric, Source: observerdef.SeriesDescriptor{Namespace: "dogstatsd"}},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "anomaly_type:metric")
 	assert.NotContains(t, tags, "anomaly_type:log")
 }
@@ -267,7 +271,7 @@ func TestBuildEventTags_LogAnomalyType(t *testing.T) {
 			{Type: observerdef.AnomalyTypeLog, Source: observerdef.SeriesDescriptor{Namespace: "log_detector"}},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "anomaly_type:log")
 	assert.NotContains(t, tags, "anomaly_type:metric")
 }
@@ -289,7 +293,7 @@ func TestBuildEventTags_LogDerivedMetricAnomaly(t *testing.T) {
 			},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "anomaly_type:log")
 	assert.NotContains(t, tags, "anomaly_type:metric")
 }
@@ -302,7 +306,7 @@ func TestBuildEventTags_BothTypes(t *testing.T) {
 			{Type: observerdef.AnomalyTypeLog, Source: observerdef.SeriesDescriptor{Namespace: "log_detector"}},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "anomaly_type:metric")
 	assert.Contains(t, tags, "anomaly_type:log")
 }
@@ -320,7 +324,7 @@ func TestBuildEventTags_DimensionalTagsFromSourceTags(t *testing.T) {
 			},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "service:web")
 	assert.Contains(t, tags, "env:prod")
 	assert.Contains(t, tags, "host:h1")
@@ -342,30 +346,25 @@ func TestBuildEventTags_DimensionalHostFromSource(t *testing.T) {
 		},
 	}
 
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Contains(t, tags, "host:web-1")
 }
 
-func TestBuildEventTags_DimensionalTagsFromSplitTags(t *testing.T) {
-	// Log-derived anomalies carry dimensional info in Context.SplitTags.
+func TestBuildEventTags_DimensionalTagsFromStoredContext(t *testing.T) {
 	c := observerdef.ActiveCorrelation{
 		Pattern: "p",
 		Anomalies: []observerdef.Anomaly{
 			{
-				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
-				Context: &observerdef.MetricContext{
-					Pattern: "some log pattern",
-					SplitTags: map[string]string{
-						"service": "api",
-						"env":     "staging",
-						"host":    "h2",
-					},
-				},
+				Type:      observerdef.AnomalyTypeMetric,
+				Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
+				SourceRef: &observerdef.QueryHandle{Ref: 1},
 			},
 		},
 	}
-	tags := BuildEventTags(c)
+	storage := &sumRangeStorage{logContexts: map[observerdef.SeriesRef]observerdef.LogContext{
+		1: {Dimensions: observerdef.LogDimensions{Service: "api", Env: "staging", Host: "h2"}},
+	}}
+	tags := BuildEventTags(c, storage)
 	assert.Contains(t, tags, "service:api")
 	assert.Contains(t, tags, "env:staging")
 	assert.Contains(t, tags, "host:h2")
@@ -385,7 +384,7 @@ func TestBuildEventTags_DeduplicatesDimensions(t *testing.T) {
 			},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	count := 0
 	for _, t := range tags {
 		if t == "service:web" {
@@ -405,7 +404,7 @@ func TestBuildEventTags_SourceAndPatternAreFirstTwo(t *testing.T) {
 			},
 		},
 	}
-	tags := BuildEventTags(c)
+	tags := BuildEventTags(c, nil)
 	assert.Equal(t, "source:edge-intelligence", tags[0])
 	assert.Equal(t, "pattern:mypat", tags[1])
 	// Remaining tags are sorted
@@ -449,6 +448,9 @@ func TestIsSignificantRateChange_RateDrops(t *testing.T) {
 // identified by the end timestamp.
 func makeStorageWithRates(ts int64, prevTotal, currTotal float64) *sumRangeStorage {
 	return &sumRangeStorage{
+		logContexts: map[observerdef.SeriesRef]observerdef.LogContext{
+			42: {Pattern: "connection refused", Example: "ERROR: connection refused to db:5432"},
+		},
 		fn: func(_ observerdef.SeriesRef, _ int64, end int64, _ observerdef.Aggregate) float64 {
 			if end == ts-logPatternRateWindowSec {
 				return prevTotal
@@ -464,10 +466,6 @@ func makeLogPatternAnomaly(ts int64) observerdef.Anomaly {
 		Timestamp: ts,
 		Source:    observerdef.SeriesDescriptor{Namespace: logPatternExtractorNamespace},
 		SourceRef: &observerdef.QueryHandle{Ref: observerdef.SeriesRef(42)},
-		Context: &observerdef.MetricContext{
-			Pattern: "connection refused",
-			Example: "ERROR: connection refused to db:5432",
-		},
 	}
 }
 
@@ -475,6 +473,9 @@ func TestLogPatternRatesSumRepresentedLogCounts(t *testing.T) {
 	const ts = int64(10_000)
 	var aggregates []observerdef.Aggregate
 	storage := &sumRangeStorage{
+		logContexts: map[observerdef.SeriesRef]observerdef.LogContext{
+			42: {Pattern: "connection refused", Example: "ERROR: connection refused to db:5432"},
+		},
 		fn: func(_ observerdef.SeriesRef, _ int64, _ int64, agg observerdef.Aggregate) float64 {
 			aggregates = append(aggregates, agg)
 			return 300
@@ -526,32 +527,27 @@ func TestBuildChangeMessage_LogFrequency_RateChangedDisplay(t *testing.T) {
 	const ts = int64(10000)
 	// prev window: 0.2 log/s, curr window: 5.0 log/s — large jump
 	storage := makeStorageWithRates(ts, 0.2*logPatternPrevRateWindowSec, 5.0*logPatternRateWindowSec)
+	storage.logContexts[7] = observerdef.LogContext{Example: "panic: runtime error"}
 	a := observerdef.Anomaly{
 		Type:      observerdef.AnomalyTypeMetric,
 		Timestamp: ts,
 		Source:    observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
 		SourceRef: &observerdef.QueryHandle{Ref: observerdef.SeriesRef(7)},
-		Context: &observerdef.MetricContext{
-			Example: "panic: runtime error",
-		},
 	}
 	c := observerdef.ActiveCorrelation{Pattern: "p", Anomalies: []observerdef.Anomaly{a}}
 	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, fmt.Sprintf("rate: %.1flog/s (was %.1flog/s last minutes)", 5.0, 0.2))
 }
 
-func TestBuildChangeMessage_LogFrequencyWithoutStorageOmitsRate(t *testing.T) {
+func TestBuildChangeMessage_LogFrequencyWithoutStorageFallsBackToDescriptor(t *testing.T) {
 	a := observerdef.Anomaly{
-		Type:   observerdef.AnomalyTypeMetric,
-		Source: observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
-		Context: &observerdef.MetricContext{
-			Example: "panic: runtime error",
-		},
+		Type:      observerdef.AnomalyTypeMetric,
+		Source:    observerdef.SeriesDescriptor{Namespace: logMetricsExtractorNamespace},
 		DebugInfo: &observerdef.AnomalyDebugInfo{CurrentValue: 5},
 	}
 	c := observerdef.ActiveCorrelation{Pattern: "p", Anomalies: []observerdef.Anomaly{a}}
 	msg := BuildChangeMessage(c, nil)
-	assert.Contains(t, msg, "panic: runtime error")
+	assert.Contains(t, msg, "Log-derived metric change detected")
 	assert.NotContains(t, msg, "rate:")
 }
 

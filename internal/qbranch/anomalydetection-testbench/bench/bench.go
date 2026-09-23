@@ -917,8 +917,8 @@ func (tb *Bench) collectReplayResultsLocked() {
 	// Build reported events from correlation history.
 	storage := tb.debug.StorageReader()
 	if tb.config.StreamParquet {
-		// Old windows may already have been evicted. BuildChangeMessage has a
-		// context-based fallback when storage is nil.
+		// Old windows may already have been evicted. Rendering falls back to the
+		// series descriptor when storage metadata is unavailable.
 		storage = nil
 	}
 	tb.reportedEvents = buildReportedEvents(tb.correlationsLocked(sv), storage)

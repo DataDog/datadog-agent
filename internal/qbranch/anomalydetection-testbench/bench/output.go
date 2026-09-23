@@ -104,6 +104,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	}
 
 	replayStats := tb.replayStats
+	storage := tb.debug.StorageReader()
 	tb.mu.RUnlock()
 
 	sort.Strings(detectorNames)
@@ -124,7 +125,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 
 		if verbose {
 			oc.Title = corr.Title
-			oc.Message = reporterimpl.BuildChangeMessage(corr, nil)
+			oc.Message = reporterimpl.BuildChangeMessage(corr, storage)
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
 			oc.MemberSeries = make([]string, len(corr.Members))
 			for j, m := range corr.Members {

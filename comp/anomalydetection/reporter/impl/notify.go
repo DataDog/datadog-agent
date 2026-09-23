@@ -160,7 +160,7 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		if meta == nil {
 			continue
 		}
-		context := storage.GetContext(contributor.Handle.Ref)
+		context, _ := storage.GetLogContext(contributor.Handle.Ref)
 		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
 		compactDisplay := fullDisplay
 		if meta.Tags.Len() > 0 {
@@ -194,7 +194,7 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 // scorerContributorDisplayName uses the same human-readable identifier as the
 // regular reporter for log-derived metrics: a log-frequency example, or a log
 // pattern when no example is available. Other metrics retain their series name.
-func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context observerdef.LogContext, aggregate observerdef.Aggregate) string {
 	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
 		if meta.Tags.Len() == 0 && meta.Host == "" {
 			return name
@@ -225,10 +225,7 @@ func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observe
 // logDerivedContributorName returns the human-readable name for a log-derived
 // metric. An empty result lets callers fall back to the metric descriptor when
 // its context is no longer available.
-func logDerivedContributorName(namespace string, context *observerdef.MetricContext) string {
-	if context == nil {
-		return ""
-	}
+func logDerivedContributorName(namespace string, context observerdef.LogContext) string {
 	switch namespace {
 	case logMetricsExtractorNamespace:
 		if example := strings.TrimSpace(context.Example); example != "" {
@@ -285,7 +282,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 
 	logging.Infof("reporter sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
-	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
+	payload := buildChangeEventPayload(c, msg, ts, aggKey, host, s.storage)
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal change-event payload: %w", err)
@@ -391,16 +388,16 @@ func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observe
 // category, integration_id, tags, timestamp, aggregation_key, attributes}).
 // integration_id pins the publisher to the `edge-intelligence` integration so
 // the event-management intake can route and authorize the event.
-func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey, host string) map[string]any {
+func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey, host string, storage observerdef.StorageReader) map[string]any {
 	attrs := map[string]any{
 		"title":           c.Title,
 		"message":         msg,
 		"category":        "change",
 		"integration_id":  changeEventIntegrationID,
-		"tags":            BuildEventTags(c),
+		"tags":            BuildEventTags(c, storage),
 		"timestamp":       ts,
 		"aggregation_key": aggKey,
-		"attributes":      buildChangeAttributes(c),
+		"attributes":      buildChangeAttributes(c, storage),
 	}
 	if host != "" {
 		attrs["host"] = host
@@ -418,9 +415,8 @@ func buildChangeEventPayload(c observerdef.ActiveCorrelation, msg, ts, aggKey, h
 // It adds "anomaly_type:metric" and/or "anomaly_type:log" depending on which
 // anomaly types are present (log-derived metric anomalies count as log).
 // It also propagates "service:", "env:", and "host:" dimensions collected from
-// each anomaly's source tags and from Context.SplitTags (set by the log pattern
-// extractor for sub-clustered log series).
-func BuildEventTags(c observerdef.ActiveCorrelation) []string {
+// each anomaly's source tags and stored log dimensions.
+func BuildEventTags(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) []string {
 	hasMetric := false
 	hasLog := false
 	dimensionSet := make(map[string]struct{})
@@ -443,12 +439,16 @@ func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 		if a.Source.Host != "" {
 			dimensionSet["host:"+a.Source.Host] = struct{}{}
 		}
-		// For log-derived anomalies, dimensional info lives in Context.SplitTags
-		// (set by the log tagged pattern clusterer).
-		if a.Context != nil {
-			for _, k := range []string{"service", "env", "host"} {
-				if v, ok := a.Context.SplitTags[k]; ok {
-					dimensionSet[k+":"+v] = struct{}{}
+		if context, ok := logContextForAnomaly(a, storage); ok {
+			for _, dimension := range []struct {
+				key, value string
+			}{
+				{"service", context.Dimensions.Service},
+				{"env", context.Dimensions.Env},
+				{"host", context.Dimensions.Host},
+			} {
+				if dimension.value != "" {
+					dimensionSet[dimension.key+":"+dimension.value] = struct{}{}
 				}
 			}
 		}
@@ -472,7 +472,7 @@ func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 // The shape mirrors the v2 Events API ChangeEventCustomAttributes schema:
 // changed_resource (required), author, impacted_resources, prev_value,
 // new_value, change_metadata.
-func buildChangeAttributes(c observerdef.ActiveCorrelation) map[string]any {
+func buildChangeAttributes(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) map[string]any {
 	name := truncateChars(c.Pattern, changedResourceNameMaxLen)
 	attrs := map[string]any{
 		"changed_resource": map[string]any{
@@ -485,7 +485,7 @@ func buildChangeAttributes(c observerdef.ActiveCorrelation) map[string]any {
 		},
 		"prev_value":      buildPrevValue(c),
 		"new_value":       buildNewValue(c),
-		"change_metadata": buildChangeMetadata(c),
+		"change_metadata": buildChangeMetadata(c, storage),
 	}
 	if impacted := extractImpactedServices(c); len(impacted) > 0 {
 		attrs["impacted_resources"] = impacted
@@ -566,7 +566,7 @@ func buildNewValue(c observerdef.ActiveCorrelation) map[string]any {
 }
 
 // buildChangeMetadata creates the full structured anomaly inventory.
-func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]any {
+func buildChangeMetadata(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) map[string]any {
 	var metricAnomalies, logAnomalies []any
 	for _, a := range c.Anomalies {
 		entry := map[string]any{
@@ -592,16 +592,16 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]any {
 				"deviation_sigma": a.DebugInfo.DeviationSigma,
 			}
 		}
-		if a.Context != nil {
+		if context, ok := logContextForAnomaly(a, storage); ok {
 			ctx := map[string]any{}
-			if a.Context.Pattern != "" {
-				ctx["pattern"] = a.Context.Pattern
+			if context.Pattern != "" {
+				ctx["pattern"] = context.Pattern
 			}
-			if a.Context.Example != "" {
-				ctx["example"] = a.Context.Example
+			if context.Example != "" {
+				ctx["example"] = context.Example
 			}
-			if len(a.Context.SplitTags) > 0 {
-				ctx["split_tags"] = a.Context.SplitTags
+			if dimensions := logContextDimensions(context.Dimensions); len(dimensions) > 0 {
+				ctx["split_tags"] = dimensions
 			}
 			if len(ctx) > 0 {
 				entry["context"] = ctx
@@ -753,14 +753,12 @@ func classifyCorrelationSubCategory(c observerdef.ActiveCorrelation) string {
 // log pattern extraction. These should be presented as log anomalies with
 // pattern/example/rate context rather than raw metric descriptions.
 func IsLogDerivedAnomaly(a observerdef.Anomaly) bool {
-	if a.Type == observerdef.AnomalyTypeLog || a.Context == nil {
+	if a.Type == observerdef.AnomalyTypeLog {
 		return false
 	}
 	switch a.Source.Namespace {
-	case logPatternExtractorNamespace:
-		return strings.TrimSpace(a.Context.Pattern) != ""
-	case logMetricsExtractorNamespace:
-		return strings.TrimSpace(a.Context.Pattern) != "" || strings.TrimSpace(a.Context.Example) != ""
+	case logPatternExtractorNamespace, logMetricsExtractorNamespace:
+		return true
 	}
 	return false
 }
@@ -768,21 +766,25 @@ func IsLogDerivedAnomaly(a observerdef.Anomaly) bool {
 // logDerivedDescription builds a human-readable description for a log-derived
 // metric anomaly, including pattern, example, and windowed average rate.
 func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
-	if a.Source.Namespace == logMetricsExtractorNamespace {
-		return logFrequencyDerivedDescription(a, storage)
+	context, ok := logContextForAnomaly(a, storage)
+	if !ok {
+		return fmt.Sprintf("Log-derived metric change detected: %s%s", anomalyDisplayKey(a), logRatePart(a, storage))
 	}
-	pattern := strings.TrimSpace(a.Context.Pattern)
+	if a.Source.Namespace == logMetricsExtractorNamespace {
+		return logFrequencyDerivedDescription(a, context, storage)
+	}
+	pattern := strings.TrimSpace(context.Pattern)
 	var example string
 	// Don't display example if it's the same as the pattern
-	if a.Context.Example != "" && strings.TrimSpace(a.Context.Example) != pattern {
-		example = "\n\texample: " + strings.TrimSpace(a.Context.Example)
+	if context.Example != "" && strings.TrimSpace(context.Example) != pattern {
+		example = "\n\texample: " + strings.TrimSpace(context.Example)
 	}
 	ratePart := logRatePart(a, storage)
 	var tagsPart string
-	if len(a.Context.SplitTags) > 0 {
+	if dimensions := logContextDimensions(context.Dimensions); len(dimensions) > 0 {
 		var parts []string
 		for _, k := range splitTagKeyOrder {
-			if v, ok := a.Context.SplitTags[k]; ok {
+			if v, ok := dimensions[k]; ok {
 				parts = append(parts, k+"="+v)
 			}
 		}
@@ -797,10 +799,34 @@ func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageRea
 // log.pattern.* anomalies from LogMetricsExtractor. The stored pattern is an
 // internal tokenized structural signature (not human-readable), so the example
 // log line is used as the primary identifier instead.
-func logFrequencyDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
-	example := strings.TrimSpace(a.Context.Example)
+func logFrequencyDerivedDescription(a observerdef.Anomaly, context observerdef.LogContext, storage observerdef.StorageReader) string {
+	example := strings.TrimSpace(context.Example)
 	if example == "" {
-		example = strings.TrimSpace(a.Context.Pattern)
+		example = strings.TrimSpace(context.Pattern)
 	}
 	return fmt.Sprintf("Log frequency change detected:\n\texample: %s%s", example, logRatePart(a, storage))
+}
+
+func logContextForAnomaly(a observerdef.Anomaly, storage observerdef.StorageReader) (observerdef.LogContext, bool) {
+	if a.SourceRef == nil || storage == nil {
+		return observerdef.LogContext{}, false
+	}
+	return storage.GetLogContext(a.SourceRef.Ref)
+}
+
+func logContextDimensions(dimensions observerdef.LogDimensions) map[string]string {
+	result := make(map[string]string, 4)
+	for _, dimension := range []struct {
+		key, value string
+	}{
+		{"source", dimensions.Source},
+		{"service", dimensions.Service},
+		{"env", dimensions.Env},
+		{"host", dimensions.Host},
+	} {
+		if dimension.value != "" {
+			result[dimension.key] = dimension.value
+		}
+	}
+	return result
 }
