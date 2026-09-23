@@ -8,7 +8,6 @@ package procmgr
 import (
 	"encoding/base64"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +45,9 @@ type processProcmgrWindowsSuite struct {
 	// installedCfgBase64 is the base64 of the processes.d YAML as installed, the baseline every
 	// test starts from.
 	installedCfgBase64 string
+	// autoSpawnPID is the process-agent PID dd-procmgr reported after a default install, before
+	// any test could start it. The cutover test requires this same PID still be Running.
+	autoSpawnPID string
 }
 
 func TestProcessAgentManagedByProcmgrWindows(t *testing.T) {
@@ -67,8 +69,8 @@ func (s *processProcmgrWindowsSuite) SetupSuite() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
 	s.Require().NoError(err)
-	s.cli = joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
-	s.cfgPath = joinWindowsPath(installRoot, "processes.d", processProcmgrConfigFileName)
+	s.cli = agentBin(installRoot, "dd-procmgr.exe")
+	s.cfgPath = processesDConfig(installRoot, processProcmgrConfigFileName)
 
 	out, err := host.Execute(psReadFileBase64(s.cfgPath))
 	s.Require().NoError(err)
@@ -83,22 +85,21 @@ func (s *processProcmgrWindowsSuite) SetupSuite() {
 
 	// This is the first half of the cutover proof, and it has to run before BeforeTest or
 	// any test calls start, since either would bring up a process-agent whose automatic
-	// spawn failed.
-	s.Require().EventuallyWithT(func(ct *assert.CollectT) {
-		out, err := host.Execute(procmgrCmd(s.cli, "describe "+processProcessName))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"),
-			"dd-procmgr should bring process-agent up on its own on a default install: %s", out)
-	}, 2*time.Minute, 3*time.Second)
+	// spawn failed. The PID is kept so the cutover test can require the same process.
+	s.autoSpawnPID = waitProcmgrRunning(s.T(), host, s.cli, processProcessName, 2*time.Minute)
 }
 
 // BeforeTest puts the host back to the installed baseline, so no test depends on whether an
 // earlier test's cleanup succeeded. Tests run in name order on the same VM, so a failed
 // cleanup would otherwise fail every test after it for reasons unrelated to what it checks.
+//
+// The cutover test is skipped: resetProcessAgent may stop or start process-agent, which would
+// replace the auto-spawned PID SetupSuite recorded.
 func (s *processProcmgrWindowsSuite) BeforeTest(suiteName, testName string) {
 	s.BaseSuite.BeforeTest(suiteName, testName)
+	if testName == "TestProcessAgentCutoverSupervisedByProcmgrAndLegacySCMStopped" {
+		return
+	}
 	s.resetProcessAgent()
 }
 
@@ -142,39 +143,29 @@ func (s *processProcmgrWindowsSuite) resetProcessAgent() {
 	}, 3*time.Minute, 5*time.Second)
 }
 
-// TestProcessAgentSupervisedByProcmgrAndLegacySCMStopped is the end-to-end proof of the
+// TestProcessAgentCutoverSupervisedByProcmgrAndLegacySCMStopped is the end-to-end proof of the
 // Windows cutover: on a default install dd-procmgr brings process-agent up on its own, and
 // the core Agent leaves the legacy SCM service alone. Both halves have to hold at once.
 // Either one alone is a bug: only the first means two process-agents, only the second means
 // none at all.
 //
-// SetupSuite checks the first half, because BeforeTest may start process-agent itself and
-// so would hide an automatic spawn that failed. This test checks that the process is still
-// supervised and that the legacy service stayed down.
-func (s *processProcmgrWindowsSuite) TestProcessAgentSupervisedByProcmgrAndLegacySCMStopped() {
+// SetupSuite records the auto-spawned PID before any test can start process-agent. This test
+// requires that same PID still be Running (same process), and that the legacy service stayed
+// down. The method name starts with Cutover so it runs first in lexical order, before tests
+// that respawn process-agent.
+func (s *processProcmgrWindowsSuite) TestProcessAgentCutoverSupervisedByProcmgrAndLegacySCMStopped() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
 	require.NoError(s.T(), err)
 
 	// Unlike PAR, process-agent ships with every install, so a missing binary is a failure
 	// rather than a reason to skip.
-	processBin := filepath.Join(installRoot, "bin", "agent", "process-agent.exe")
-	exists, err := host.FileExists(processBin)
-	require.NoError(s.T(), err)
-	require.True(s.T(), exists, "process-agent.exe should be installed at %s", processBin)
+	requireHostPath(s.T(), host, agentBin(installRoot, "process-agent.exe"),
+		"process-agent.exe should be installed at %s")
+	requireHostPath(s.T(), host, processesDConfig(installRoot, processProcmgrConfigFileName),
+		"fleet process-agent processes.d config should exist at %s")
 
-	cfg := filepath.Join(installRoot, "processes.d", processProcmgrConfigFileName)
-	exists, err = host.FileExists(cfg)
-	require.NoError(s.T(), err)
-	require.True(s.T(), exists, "fleet process-agent processes.d config should exist at %s", cfg)
-
-	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(fmt.Sprintf(`& "%s" describe %s`, cli, processProcessName))
-		assert.NoError(ct, err)
-		assert.Contains(ct, out, "State")
-		assert.Contains(ct, out, "Running")
-	}, 120*time.Second, 3*time.Second)
+	requireProcmgrRunningPID(s.T(), host, s.cli, processProcessName, s.autoSpawnPID, 2*time.Minute)
 
 	// Anything short of Stopped, StartPending in particular, can be the SCM on its way to a
 	// second process-agent, so only Stopped or Absent passes.
@@ -231,7 +222,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 
 	// config get asks the running process-agent for its live logger level over IPC, so this
 	// holds only if the merged value reached the child's environment and took effect.
-	processAgentCLI := joinWindowsPath(installRoot, "bin", "agent", "process-agent.exe")
+	processAgentCLI := agentBin(installRoot, "process-agent.exe")
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out, err := host.Execute(fmt.Sprintf(`& "%s" config get log_level`, processAgentCLI))
 		if !assert.NoError(ct, err) {
@@ -340,14 +331,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 		"dd-procmgr.log should gain a %q line for this mutation", rejection)
 
 	require.NoError(s.T(), restore())
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(procmgrCmd(cli, "describe "+processProcessName))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"),
-			"process-agent should come back once the YAML matches the catalog again")
-	}, 2*time.Minute, 5*time.Second)
+	_ = waitProcmgrRunning(s.T(), host, cli, processProcessName, 2*time.Minute)
 }
 
 func procmgrCmd(cli, args string) string {
