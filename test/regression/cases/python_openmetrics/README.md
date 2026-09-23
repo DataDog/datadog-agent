@@ -2,7 +2,7 @@
 
 ## Overview
 
-This quality gate experiment measures the Datadog Agent's CPU, memory, and average 
+This experiment measures the Datadog Agent's CPU, memory, and average 
 check execution time when scraping a high-volume OpenMetrics endpoint. It validates 
 that the agent can process many concurrent OpenMetrics check instances without exceeding
 defined resource bounds.
@@ -45,7 +45,7 @@ Each metric is labeled with a realistic set of dimensions:
 - **4 check runners** to parallelize execution
 - All metrics matched via `.*` wildcard
 
-### Quality Gate Bounds
+### Experiment  Bounds
 
 - **CPU usage**: average total CPU must stay below 1,500 millicores
 - **Memory usage**: total PSS must stay below 4.75 GiB
