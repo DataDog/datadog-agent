@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package dpi provides deep packet inspection enrichment for IPFIX flows,
+// resolved from applicationId/applicationName reported by exporters.
 package dpi
 
 import (
