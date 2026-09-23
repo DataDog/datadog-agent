@@ -47,8 +47,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/orchestrion v1.13.0 h1:jWTSx6hXuw3kYc6VkYpYWGztbPhtX/9TUEs1qxgZwN8=
 github.com/DataDog/orchestrion v1.13.0/go.mod h1:171YCBdrzvqcrE7v1iaQU1u+S4Qnwh4rsVoFyHhkrn8=
-github.com/DataDog/rshell v0.0.28 h1:z0roo5q7TQUpQHggs+57jc+jS93wusoQNV7GXczOq3w=
-github.com/DataDog/rshell v0.0.28/go.mod h1:nUaT924NZ0EJu7tre4zxamG1yPUYa8hg1dNe0JCboak=
+github.com/DataDog/rshell v0.0.29 h1:LLmgiYgaxdsOprdyBbw2GYMkgTABO1I5v225RqZiC28=
+github.com/DataDog/rshell v0.0.29/go.mod h1:nUaT924NZ0EJu7tre4zxamG1yPUYa8hg1dNe0JCboak=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
 github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 h1:zDAogP70WYpLD6MiIjQ9tHZYmkfbFcsfGb26CMf99To=

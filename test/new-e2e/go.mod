@@ -25,7 +25,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
 	github.com/DataDog/dd-trace-go/v2 v2.10.1
 	github.com/DataDog/orchestrion v1.13.0
-	github.com/DataDog/rshell v0.0.28
+	github.com/DataDog/rshell v0.0.29
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.98.0
