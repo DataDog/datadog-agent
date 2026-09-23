@@ -73,14 +73,9 @@ func fileHasStorageExtension(path string) bool {
 	return err == nil
 }
 
-// ClearLocalProfilesOnStart deletes every locally stored security profile in directoryPath when
-// enabled, and is a no-op otherwise. Unlike a persisted marker it clears on every start, which is
-// the behavior wanted for tests.
-func ClearLocalProfilesOnStart(directoryPath string, enabled bool) error {
-	if !enabled {
-		return nil
-	}
-
+// ClearLocalProfilesOnStart deletes every locally stored security profile in directoryPath. Unlike
+// a persisted marker it clears on every start, which is the behavior wanted for tests.
+func ClearLocalProfilesOnStart(directoryPath string) error {
 	entries, err := os.ReadDir(directoryPath)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -198,20 +198,18 @@ func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
 		assert.False(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, start.Add(-time.Hour)))
 	})
 
-	t.Run("time-based falls back to the in-memory start when none is persisted", func(t *testing.T) {
+	t.Run("time-based with an unset start sends immediately", func(t *testing.T) {
 		p := profile.New()
 		require.True(t, p.Metadata.Start.IsZero())
-		m := timeBased(time.Hour)
-		assert.False(t, m.shouldSendAnomalyDetection(p, p.StartedAt()))
-		assert.True(t, m.shouldSendAnomalyDetection(p, p.StartedAt().Add(time.Hour)))
+		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, time.Now()))
 	})
 }
 
 func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
-	start := time.Now()
+	const startMono = int64(time.Hour)
 	newManager := func(delay time.Duration) *ManagerV2 {
 		return &ManagerV2{
-			startTime: start,
+			startTimeMono: startMono,
 			config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
 				SecurityProfileV2ProfilingStartupDelay: delay,
 			}},
@@ -219,17 +217,13 @@ func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
 	}
 
 	t.Run("disabled by default", func(t *testing.T) {
-		assert.False(t, newManager(0).withinProfilingStartupDelay(start))
+		assert.False(t, newManager(0).withinProfilingStartupDelay(uint64(startMono)))
 	})
 
 	t.Run("ignores events within the delay and resumes after it", func(t *testing.T) {
 		m := newManager(time.Minute)
-		assert.True(t, m.withinProfilingStartupDelay(start))
-		assert.True(t, m.withinProfilingStartupDelay(start.Add(time.Minute-time.Nanosecond)))
-		assert.False(t, m.withinProfilingStartupDelay(start.Add(time.Minute)))
-	})
-
-	t.Run("a backward clock jump keeps events within the delay window", func(t *testing.T) {
-		assert.True(t, newManager(time.Minute).withinProfilingStartupDelay(start.Add(-time.Hour)))
+		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono)))
+		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds()-1)))
+		assert.False(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds())))
 	})
 }
