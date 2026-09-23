@@ -215,7 +215,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 	pkgconfig.Set("api_key", string(ddc.API.Key), pkgconfigmodel.SourceFile)
-	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
+	pkgconfig.Set("site", strings.TrimSpace(ddc.API.Site), pkgconfigmodel.SourceFile)
 
 	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
 	if ddc.ClientConfig.TLS.InsecureSkipVerify {
@@ -498,13 +498,14 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 // Returns an error if the input datadog exporter config is invalid.
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
 	// Validate that site is configured in pkgconfig
-	site := pkgconfig.GetString("site")
-	if site == "" {
-		return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
-	}
-
+	site := strings.TrimSpace(pkgconfig.GetString("site"))
+	isSiteEmpty := site == ""
 	if ddcfg == nil {
-		return map[string]any{"api": map[string]any{"site": site}}, nil
+		if !isSiteEmpty {
+			return map[string]any{"api": map[string]any{"site": site}}, nil
+		} else {
+			return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
+		}
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -512,8 +513,12 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		ddcfgMap["api"] = map[string]any{"site": site}
-		return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		if !isSiteEmpty {
+			ddcfgMap["api"] = map[string]any{"site": site}
+			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		} else {
+			return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
+		}
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
@@ -521,8 +526,12 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apiSite, ok := apicfgMap["site"]
 	apiSiteStr, isString := apiSite.(string)
-	if !ok || !isString || apiSiteStr == "" {
-		apicfgMap["site"] = site
+	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
+		if !isSiteEmpty {
+			apicfgMap["site"] = site
+		} else {
+			return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
+		}
 	}
 	return ddcfgMap, nil
 }

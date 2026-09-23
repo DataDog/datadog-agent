@@ -406,16 +406,17 @@ func (suite *ConfigTestSuite) TestDDAPIBlockAbsentWithDDSite() {
 	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
 }
 
-func (suite *ConfigTestSuite) TestEmptyDDSiteError() {
+func (suite *ConfigTestSuite) TestExplicitSiteWithEmptyDDSite() {
 	t := suite.T()
-	// Explicitly set DD_SITE to empty string to test error handling
+	// Verify that explicit api.site in OTel config works even with empty DD_SITE
 	t.Setenv("DD_SITE", "")
-	fileName := "testdata/config_no_api_block.yaml"
+	fileName := "testdata/config.yaml"
 	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
-	// Should return an error when site is empty
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "site configuration is empty")
-	assert.Nil(t, c)
+	// Should NOT return an error - explicit api.site takes precedence
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	// config.yaml has custom endpoint, so dd_url uses that instead of deriving from site
+	assert.Equal(t, "test.metrics.com", c.Get("dd_url"))
 }
 
 func (suite *ConfigTestSuite) TestNilDatadogExporter() {
