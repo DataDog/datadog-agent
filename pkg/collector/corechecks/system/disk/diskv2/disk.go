@@ -666,12 +666,7 @@ func (c *Check) getDiskPartitionsWithTimeout(includeAllDevices bool) ([]gopsutil
 	}
 	go func() {
 		partitions, err := c.diskPartitionsWithContext(ctx, includeAllDevices)
-		// Clear the in-flight gate *before* publishing the result: the caller
-		// may start a new enumeration as soon as it receives on resultCh (e.g.
-		// the physical scan followed by the all-partitions scan), and clearing
-		// after the send would let that next call race the deferred clear and
-		// be rejected with "still in progress". The channel is buffered, so
-		// the send cannot block.
+		// Clear the gate before publishing the result so back-to-back calls don't race the clear.
 		c.partitionEnumInFlight.Store(false)
 		resultCh <- partitionsResult{partitions, err}
 	}()
@@ -699,9 +694,7 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	go func() {
 		// UsageWithContext in gopsutil ignores the context for now (PR opened: https://github.com/shirou/gopsutil/pull/1837)
 		usage, err := c.diskUsage(mountpoint)
-		// Delete the in-flight key *before* publishing the result so that a
-		// follow-up call for the same mountpoint isn't rejected as concurrent
-		// once this call is already done (see getDiskPartitionsWithTimeout).
+		// Clear before publishing so back-to-back calls for the same mountpoint aren't rejected.
 		c.diskUsageInFlight.Delete(mountpoint)
 		resultCh <- usageResult{usage, err}
 	}()
