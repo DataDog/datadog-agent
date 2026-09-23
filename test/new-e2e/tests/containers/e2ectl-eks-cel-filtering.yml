@@ -1,0 +1,59 @@
+# The e2ectl EKS environment for the containers CEL filtering suite. Kept next
+# to the test it serves: TestK8SCELFilteringSuiteOnEKS (local_filtering_test.go)
+# runs the same k8sFilteringSuiteBase against an environment created from this
+# file:
+#
+#   e2ectl start --config e2ectl-eks-cel-filtering.yml --name <name>
+#   e2ectl install -env <name> --config e2ectl-eks-cel-filtering.yml
+#   e2ectl test -env <name> --suite ./test/new-e2e/tests/containers/
+#
+# The EKS flavor of e2ectl-kind-cel-filtering.yml: the same CEL exclude rules
+# and workload topology, on managed AL2023 nodes with the Pulumi cloud
+# fakeintake instead of local kind + Docker fakeintake.
+schema: 1
+environment:
+  base: eks
+  # The ECS Fargate fakeintake is provisioned with the cluster (Pulumi).
+  fakeintake: true
+  eks:
+    linux: true
+    version: "1.34"
+agent:
+  # A released version that carries CEL workload filtering: the parsing
+  # landed after 7.69.0 — older images silently ignore DD_CEL_WORKLOAD_EXCLUDE
+  # and the filtered-namespace exclusion fails (found while validating the
+  # kind migration of this suite).
+  version: 7.83.0
+  values: |
+    datadog:
+      # The embedded CEL-exclude fixture, verbatim.
+      envDict:
+        DD_CEL_WORKLOAD_EXCLUDE: |-
+          [
+            {
+              "products": [
+                "global"
+              ],
+              "rules": {
+                "containers": [
+                  "container.name == \"redis\"",
+                  "container.pod.namespace == \"filtered-ns\""
+                ]
+              }
+            }
+          ]
+      # Installs the datadog-crds subchart (DatadogMetric CRD) — the
+      # catalog nginx manifests declare a DatadogMetric.
+      autoscaling:
+        workload:
+          enabled: true
+workloads:
+  # The VerticalPodAutoscaler CRD comes first: the catalog nginx manifests
+  # declare a VPA.
+  - app: vpa-crd
+  - app: nginx
+  - app: nginx
+    namespace: filtered-ns
+  - image: ghcr.io/datadog/redis:v0.0.7
+    name: redis
+    namespace: default

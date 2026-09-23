@@ -65,3 +65,17 @@ func TestK8SCELFilteringSuiteOnLocalKind(t *testing.T) {
 		e2ectlenv.Attach[environments.Kubernetes](envName),
 	))
 }
+
+// TestK8SCELFilteringSuiteOnEKS runs the same CEL filtering suite against an
+// EKS base environment started from e2ectl-eks-cel-filtering.yml. The suite
+// bodies are kubernetes-generic (namespace-scoped exclusion assertions), so
+// the same suite type attaches: only the environment differs — EKS managed
+// nodes instead of kind containers, cloud fakeintake instead of local Docker.
+func TestK8SCELFilteringSuiteOnEKS(t *testing.T) {
+	envName := e2ectlenv.RequireEnv(t)
+	e2ectlenv.RequireSnapshot(t, envName)
+	t.Parallel()
+	e2e.Run(t, &localKindCELFilteringSuite{}, e2e.WithProvisioner(
+		e2ectlenv.Attach[environments.Kubernetes](envName),
+	))
+}
