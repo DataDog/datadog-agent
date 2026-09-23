@@ -72,11 +72,11 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 		Name:  metricName,
 		Value: 1,
 		Tags:  tags,
-		Context: &observer.MetricContext{
+		LogContext: observer.LogContext{
 			Pattern: patternSig,
 			Example: boundedLogExample(content),
-			Source:  "log_metrics_extractor",
 		},
+		HasLogContext: true,
 	}}
 
 	// For JSON logs, also extract numeric field metrics
@@ -125,11 +125,11 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags tagse
 			Name:  "log.field." + sanitizeMetricFragment(k),
 			Value: f,
 			Tags:  tags,
-			Context: &observer.MetricContext{
+			LogContext: observer.LogContext{
 				Pattern: k,
 				Example: example,
-				Source:  "log_metrics_extractor",
 			},
+			HasLogContext: true,
 		})
 	}
 

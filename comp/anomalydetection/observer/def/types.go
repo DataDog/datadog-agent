@@ -95,8 +95,11 @@ type MetricOutput struct {
 	Value float64
 	Host  string
 	// Tags is an immutable view retained by the observer storage.
-	Tags    tagset.CompositeTags
-	Context *MetricContext // optional; stored on the series for anomaly enrichment
+	Tags tagset.CompositeTags
+	// LogContext is optional display metadata for a log-derived series. The
+	// engine stores it against the resulting SeriesRef.
+	LogContext    LogContext
+	HasLogContext bool
 }
 
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.

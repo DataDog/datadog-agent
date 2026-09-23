@@ -28,13 +28,12 @@ func TestLogPatternExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 
 	res := e.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotNil(t, res.Metrics[0].Context)
+	require.True(t, res.Metrics[0].HasLogContext)
 
-	ctx := res.Metrics[0].Context
-	assert.Equal(t, "log_pattern_extractor", ctx.Source)
+	ctx := res.Metrics[0].LogContext
 	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
 	assert.NotEmpty(t, ctx.Pattern)
-	assert.Equal(t, map[string]string{"service": "web", "env": "prod"}, ctx.SplitTags)
+	assert.Equal(t, observerdef.LogDimensions{Service: "web", Env: "prod"}, ctx.Dimensions)
 }
 
 func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *testing.T) {
@@ -71,18 +70,18 @@ func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *te
 	require.Len(t, resB.Metrics, 1)
 	// Different tag groups → different sub-clusterers → different globalClusterHash → different names.
 	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotNil(t, resA.Metrics[0].Context)
-	require.NotNil(t, resB.Metrics[0].Context)
+	require.True(t, resA.Metrics[0].HasLogContext)
+	require.True(t, resB.Metrics[0].HasLogContext)
 
-	ctxA := resA.Metrics[0].Context
-	ctxB := resB.Metrics[0].Context
+	ctxA := resA.Metrics[0].LogContext
+	ctxB := resB.Metrics[0].LogContext
 
 	assert.Equal(t, "GET /users/123 returned 500", ctxA.Example)
 	assert.Equal(t, "GET /users/456 returned 500", ctxB.Example)
 	assert.NotEmpty(t, ctxA.Pattern)
 	assert.NotEmpty(t, ctxB.Pattern)
-	assert.Equal(t, map[string]string{"service": "api"}, ctxA.SplitTags)
-	assert.Equal(t, map[string]string{"service": "worker"}, ctxB.SplitTags)
+	assert.Equal(t, observerdef.LogDimensions{Service: "api"}, ctxA.Dimensions)
+	assert.Equal(t, observerdef.LogDimensions{Service: "worker"}, ctxB.Dimensions)
 }
 
 func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNoHostTag(t *testing.T) {
@@ -110,10 +109,10 @@ func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNo
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
 	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotNil(t, resA.Metrics[0].Context)
-	require.NotNil(t, resB.Metrics[0].Context)
-	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-a"}, resA.Metrics[0].Context.SplitTags)
-	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-b"}, resB.Metrics[0].Context.SplitTags)
+	require.True(t, resA.Metrics[0].HasLogContext)
+	require.True(t, resB.Metrics[0].HasLogContext)
+	assert.Equal(t, observerdef.LogDimensions{Service: "api", Env: "prod", Host: "host-a"}, resA.Metrics[0].LogContext.Dimensions)
+	assert.Equal(t, observerdef.LogDimensions{Service: "api", Env: "prod", Host: "host-b"}, resB.Metrics[0].LogContext.Dimensions)
 }
 
 func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
@@ -128,7 +127,7 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 
 	res := e.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotNil(t, res.Metrics[0].Context)
+	require.True(t, res.Metrics[0].HasLogContext)
 
 	e.Reset()
 
@@ -229,7 +228,7 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	require.Len(t, res1.Metrics, 1)
 	require.Empty(t, res1.EvictedMetricNames, "no GC on first log")
 	metricName1 := res1.Metrics[0].Name
-	require.NotNil(t, res1.Metrics[0].Context, "pattern context should be inline on first metric")
+	require.True(t, res1.Metrics[0].HasLogContext, "pattern context should be inline on first metric")
 
 	// t=1015: GC runs first (cutoff 1015-10=1005); cluster A last seen 1000 is stale.
 	// Then a new log creates cluster B.
@@ -242,7 +241,7 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 	})
 	require.Len(t, res2.Metrics, 1)
 	require.Equal(t, []string{metricName1}, res2.EvictedMetricNames, "GC should report evicted metric names for storage cleanup")
-	require.NotNil(t, res2.Metrics[0].Context)
+	require.True(t, res2.Metrics[0].HasLogContext)
 	require.NotEqual(t, metricName1, res2.Metrics[0].Name)
 
 	// Only cluster B should remain in the tagged clusterer.
@@ -273,7 +272,7 @@ func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testi
 		timestampMs: tsMs1,
 	})
 	require.Len(t, res1.Metrics, 1)
-	require.NotNil(t, res1.Metrics[0].Context)
+	require.True(t, res1.Metrics[0].HasLogContext)
 
 	// Same timeline as TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext, where GC
 	// would evict cluster A — but with DisableOptimizations, TTL is off so A stays.
@@ -286,7 +285,7 @@ func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testi
 	})
 	require.Len(t, res2.Metrics, 1)
 	require.Empty(t, res2.EvictedMetricNames, "GC must not run when optimizations are disabled")
-	require.NotNil(t, res2.Metrics[0].Context)
+	require.True(t, res2.Metrics[0].HasLogContext)
 
 	remaining := e.taggedClusterer.GetAllClusters()
 	require.Len(t, remaining, 2, "both clusters should still exist when GC is disabled")
@@ -378,7 +377,7 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 			timestampMs: int64(1_000_000 + i*1_000), // 1s apart so LastSeenUnix differs
 		})
 		require.Len(t, res.Metrics, 1, "each distinct shape should emit a metric (i=%d)", i)
-		require.NotNil(t, res.Metrics[0].Context)
+		require.True(t, res.Metrics[0].HasLogContext)
 		metricNames = append(metricNames, res.Metrics[0].Name)
 
 		switch i {

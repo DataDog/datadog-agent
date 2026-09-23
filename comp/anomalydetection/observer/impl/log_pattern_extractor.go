@@ -238,12 +238,17 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		Name:  metricName,
 		Value: 1,
 		Tags:  tagset.CompositeTagsFromSlice(log.Tags()),
-		Context: &observerdef.MetricContext{
-			Pattern:   cluster.PatternString(),
-			Example:   boundedLogExample(message),
-			Source:    e.Name(),
-			SplitTags: group.AsMap(),
+		LogContext: observerdef.LogContext{
+			Pattern: cluster.PatternString(),
+			Example: boundedLogExample(message),
+			Dimensions: observerdef.LogDimensions{
+				Source:  group.Source,
+				Service: group.Service,
+				Env:     group.Env,
+				Host:    group.Host,
+			},
 		},
+		HasLogContext: true,
 	}}
 	return result
 }

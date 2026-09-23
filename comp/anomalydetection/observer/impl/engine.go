@@ -483,8 +483,10 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				continue
 			}
 			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
-			if m.Context != nil && res.Ref >= 0 {
-				e.storage.SetContext(res.Ref, m.Context)
+			if m.HasLogContext && res.Ref >= 0 {
+				e.storage.SetLogContext(res.Ref, m.LogContext)
+				// Temporary adapter until reporters resolve LogContext lazily.
+				e.storage.SetContext(res.Ref, legacyMetricContext(m.LogContext, extractor.Name()))
 			}
 		}
 	}
@@ -494,6 +496,32 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	dataTimeSec := l.timestampMs / 1000
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
+}
+
+func legacyMetricContext(context observerdef.LogContext, source string) *observerdef.MetricContext {
+	var splitTags map[string]string
+	for _, dimension := range []struct {
+		key, value string
+	}{
+		{"source", context.Dimensions.Source},
+		{"service", context.Dimensions.Service},
+		{"env", context.Dimensions.Env},
+		{"host", context.Dimensions.Host},
+	} {
+		if dimension.value == "" {
+			continue
+		}
+		if splitTags == nil {
+			splitTags = make(map[string]string, 4)
+		}
+		splitTags[dimension.key] = dimension.value
+	}
+	return &observerdef.MetricContext{
+		Pattern:   context.Pattern,
+		Example:   context.Example,
+		Source:    source,
+		SplitTags: splitTags,
+	}
 }
 
 func (e *engine) contextKeyForLogComposite(name, host string, tags tagset.CompositeTags) uint64 {

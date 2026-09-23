@@ -52,11 +52,11 @@ func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.Log
 					Name:  "connection.errors",
 					Value: 1.0,
 					Tags:  tagset.CompositeTagsFromSlice(tags),
-					Context: &observer.MetricContext{
+					LogContext: observer.LogContext{
 						Pattern: pattern,
-						Example: truncate(log.GetContent(), 160),
-						Source:  "connection_error_extractor",
+						Example: boundedLogExample(log.GetContent()),
 					},
+					HasLogContext: true,
 				}},
 			}
 		}

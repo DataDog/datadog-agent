@@ -44,13 +44,14 @@ type logCountBucketInterval struct {
 }
 
 type logCountBucketSeries struct {
-	namespace string
-	name      string
-	host      string
-	tags      tagset.CompositeTags
-	seriesKey uint64
-	context   *observerdef.MetricContext
-	anchor    int64
+	namespace     string
+	name          string
+	host          string
+	tags          tagset.CompositeTags
+	seriesKey     uint64
+	logContext    observerdef.LogContext
+	hasLogContext bool
+	anchor        int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
 	// not advance it, so storage can evict genuinely idle series first.
 	lastObserved int64
@@ -115,22 +116,24 @@ func (b *materializedLogCountBucketizer) observe(
 
 	if state == nil {
 		state = &logCountBucketSeries{
-			namespace:    namespace,
-			name:         metric.Name,
-			host:         host,
-			tags:         tags,
-			seriesKey:    seriesKey,
-			context:      metric.Context,
-			anchor:       timestamp,
-			lastObserved: timestamp,
-			storageRef:   -1,
-			values:       make(map[int64]float64),
+			namespace:     namespace,
+			name:          metric.Name,
+			host:          host,
+			tags:          tags,
+			seriesKey:     seriesKey,
+			logContext:    metric.LogContext,
+			hasLogContext: metric.HasLogContext,
+			anchor:        timestamp,
+			lastObserved:  timestamp,
+			storageRef:    -1,
+			values:        make(map[int64]float64),
 		}
 		b.series[seriesKey] = state
 	} else {
 		state.lastObserved = max(state.lastObserved, timestamp)
-		if metric.Context != nil {
-			state.context = metric.Context
+		if metric.HasLogContext {
+			state.logContext = metric.LogContext
+			state.hasLogContext = true
 		}
 	}
 
@@ -168,8 +171,9 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 					state.tags,
 					state.seriesKey,
 				)
-				if state.context != nil && result.Ref >= 0 {
-					storage.SetContext(result.Ref, state.context)
+				if state.hasLogContext && result.Ref >= 0 {
+					storage.SetLogContext(result.Ref, state.logContext)
+					storage.SetContext(result.Ref, legacyMetricContext(state.logContext, state.namespace))
 				}
 				if result.Ref >= 0 {
 					state.storageRef = result.Ref
