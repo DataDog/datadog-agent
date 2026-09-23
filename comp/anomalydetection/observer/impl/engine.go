@@ -750,7 +750,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		result := detector.Detect(storageForDetect, upTo)
-		e.recordDetectorOutputs(detector.Name(), result.Anomalies)
+		if e.trackDetectorOutputHistory && len(result.Anomalies) > 0 {
+			e.recordDetectorOutputs(detector.Name(), result.Anomalies)
+		}
 		if e.baseline != nil && detector.Ready() {
 			e.baseline.ready(detector.Name(), upTo)
 		}
