@@ -39,14 +39,15 @@ type InvalidConfigIssue struct{}
 func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Issue, error) {
 	count, _ := strconv.Atoi(ctx[contextKeyErrorCount])
 	errorWord := english.PluralWord(count, "error", "errors")
-	violationWord := english.PluralWord(count, "Schema Violation", "Schema Violations")
 	path := ctx[contextKeyConfigPath]
-	var desc, configStep string
+	var title, desc, configStep string
 	if path == "" {
 		path = "(unknown path)"
 		desc = fmt.Sprintf("Found %d %s in the Agent configuration", count, errorWord)
+		title = desc
 		configStep = "Check the settings listed below in your Agent configuration file or environment variables."
 	} else {
+		title = fmt.Sprintf("Found %d configuration %s in %s", count, errorWord, filepath.Base(path))
 		desc = fmt.Sprintf("Found %d configuration %s in %s", count, errorWord, path)
 		configStep = fmt.Sprintf("Open %s in an editor.", path)
 	}
@@ -101,7 +102,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
 		IssueType:   IssueType,
-		Title:       fmt.Sprintf("Datadog Agent Configuration Has %d %s in %s", count, violationWord, filepath.Base(path)),
+		Title:       title,
 		Description: desc,
 		Category:    "configuration",
 		Location:    "agent",

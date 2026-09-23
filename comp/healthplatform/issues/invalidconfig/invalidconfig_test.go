@@ -59,7 +59,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 	assert.Equal(t, IssueName, issue.GetIssueName())
 	assert.Equal(t, IssueType, issue.GetIssueType())
 	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, issue.GetSeverity())
-	assert.Equal(t, "Datadog Agent Configuration Has 2 Schema Violations in datadog.yaml", issue.GetTitle())
+	assert.Equal(t, "Found 2 configuration errors in datadog.yaml", issue.GetTitle())
 	assert.Equal(t, "Open /etc/datadog-agent/datadog.yaml in an editor.", issue.Remediation.Steps[0].Text)
 	assert.Equal(t, float64(2),
 		issue.GetExtra().GetFields()[contextKeyErrorCount].GetNumberValue())
@@ -77,6 +77,7 @@ func TestBuildIssue_SchemaViolationProducesMediumSeverity(t *testing.T) {
 func TestBuildIssue_MissingConfigPath(t *testing.T) {
 	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{contextKeyErrorCount: "1"})
 	require.NoError(t, err)
+	assert.Equal(t, "Found 1 error in the Agent configuration", issue.Title)
 	assert.Equal(t, "Found 1 error in the Agent configuration.", issue.Description)
 	assert.Equal(t, "Check the settings listed below in your Agent configuration file or environment variables.", issue.Remediation.Steps[0].Text)
 	assert.Equal(t, "(unknown path)", issue.Extra.GetFields()[contextKeyConfigPath].GetStringValue())
@@ -121,6 +122,7 @@ func TestBuildIssue_Remediation(t *testing.T) {
 			if description == "" {
 				description = "at '/setting': configuration does not match schema"
 			}
+			assert.Equal(t, "Found 1 configuration error in datadog.yaml", issue.Title)
 			assert.Equal(t, "Found 1 configuration error in /etc/datadog-agent/datadog.yaml: "+description, issue.Description)
 			assert.Equal(t, tc.want, issue.Remediation.Steps[1].Text)
 		})
@@ -140,6 +142,7 @@ func TestBuildIssue_MultipleCorrections(t *testing.T) {
 		contextKeyViolations: string(raw),
 	})
 	require.NoError(t, err)
+	assert.Equal(t, "Found 12 errors in the Agent configuration", issue.Title)
 	text := issue.Remediation.Steps[1].Text
 	assert.True(t, strings.HasPrefix(text, "- Set `/setting0` to a whole number."))
 	assert.Equal(t, count, strings.Count(text, "to a whole number."))
