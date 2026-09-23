@@ -73,6 +73,12 @@ func IsInvalidArgument(err error) bool {
 	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_INVALID_ARGUMENT)
 }
 
+// IsGPULost reports whether err is NVML_ERROR_GPU_IS_LOST, including when it is wrapped.
+func IsGPULost(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_GPU_IS_LOST)
+}
+
 // IsAPIUnsupportedOnDevice checks if an error indicates that the API is not supported on the device.
 // Requires the device because some error codes indicate unsupported APIs when the device is MIG.
 func IsAPIUnsupportedOnDevice(err error, device Device) bool {

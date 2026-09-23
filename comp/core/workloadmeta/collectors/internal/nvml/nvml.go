@@ -46,6 +46,7 @@ type collector struct {
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
 	lastCollectionTimestamp            time.Time
+	deviceCache                        ddnvml.DeviceCache
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -127,14 +128,7 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		gpuDeviceInfo.MemoryBusWidth = memBusWidth
 	}
 
-	pciInfo, err := physicalDevice.GetPciInfo()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
-	}
+	gpuDeviceInfo.PCIBusID = physicalDevice.GetDeviceInfo().PCIBusID
 
 	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
 	if err == nil {
@@ -279,8 +273,10 @@ func (c *collector) Pull(ctx context.Context) error {
 	// the in-flight pull to finish instead of racing it. The gated helper
 	// keeps the library wrapper from escaping.
 	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
-		deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
-		if err := deviceCache.Refresh(); err != nil {
+		if c.deviceCache == nil {
+			c.deviceCache = ddnvml.NewDeviceCache()
+		}
+		if err := c.deviceCache.Refresh(); err != nil {
 			return fmt.Errorf("failed to initialize device cache: %w", err)
 		}
 
@@ -302,7 +298,7 @@ func (c *collector) Pull(ctx context.Context) error {
 		}
 
 		// note: the device list can change over time so we need to set/unset for reconciliation
-		allDevices, err := deviceCache.All()
+		allDevices, err := c.deviceCache.All()
 		if err != nil {
 			// Should not happen as we check the last init error for the library
 			return fmt.Errorf("failed to get all devices: %w", err)
@@ -370,8 +366,13 @@ func (c *collector) Pull(ctx context.Context) error {
 	})
 	if err != nil {
 		// While NVML is deliberately released, skip quietly: the pull is
-		// retried on the next cycle.
+		// retried on the next cycle. Invalidate while new users are still
+		// rejected so the next successful pull cannot reuse pre-shutdown
+		// device handles.
 		if errors.Is(err, ddnvml.ErrNVMLReleased) {
+			if c.deviceCache != nil {
+				c.deviceCache.Invalidate()
+			}
 			return nil
 		}
 		// Do not consider an unloaded driver as an error more than once.

@@ -14,6 +14,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -154,6 +155,8 @@ type DeviceInfo struct {
 	CoreCount          int
 	Architecture       nvml.DeviceArchitecture
 	VirtualizationMode nvml.GpuVirtualizationMode
+	// PCIBusID is the normalized PCI BDF from the last successful enumeration.
+	PCIBusID string
 
 	// NVLinkLinkCount is the number of NVLink links available on the device.
 	NVLinkLinkCount int
@@ -310,6 +313,8 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
 		migChildDevice.Architecture = d.Architecture
+		// MIG instances share their parent's PCI function.
+		migChildDevice.PCIBusID = d.PCIBusID
 		// MIG slices do not have NVLink ports; keep the parent's protocol version for tags.
 		migChildDevice.NVLinkVersion = d.NVLinkVersion
 		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
@@ -396,6 +401,15 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 		d.VirtualizationMode = virtualizationMode
 	} else if logLimiter.ShouldLog() {
 		log.Warnf("cannot get virtualization mode: %v", err)
+	}
+
+	pciInfo, err := dev.GetPciInfo()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("cannot get PCI info: %v", err)
+		}
+	} else {
+		d.PCIBusID = gpuutil.PCIInfoToBusID(pciInfo)
 	}
 
 	d.fillNVLinkDataFromNVML(dev)

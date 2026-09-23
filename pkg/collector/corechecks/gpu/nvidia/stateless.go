@@ -881,6 +881,28 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		}
 	}
 
+	apis = append(apis, apiCallInfo{
+		Name: "device_lost",
+		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
+			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
+				return nil, 0, errUnsupportedDevice
+			}
+
+			value := 0.0
+			if _, err := device.GetIndex(); err != nil {
+				if !ddnvml.IsGPULost(err) {
+					return nil, 0, err
+				}
+				value = 1
+			}
+			return []Sample{&Metric{
+				Name:  "device.lost",
+				Value: value,
+				Type:  metrics.GaugeType,
+			}}, 0, nil
+		},
+	})
+
 	return apis
 }
 
