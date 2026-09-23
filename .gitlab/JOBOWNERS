@@ -32,6 +32,7 @@ tests_flavor_*                          @DataDog/agent-runtimes
 tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
 tests_serverless-init*                  @DataDog/serverless-azure-and-gcp
 security_go_generate_check              @DataDog/agent-security
+new_e2e_scenario_imports_check          @DataDog/fleet-remediation
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 test_kmt_local_setup*                   @DataDog/ebpf-platform
