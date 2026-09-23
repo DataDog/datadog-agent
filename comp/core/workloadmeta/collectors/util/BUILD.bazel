@@ -28,6 +28,7 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/pointer",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
     ],
 )
 

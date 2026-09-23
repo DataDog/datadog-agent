@@ -117,6 +117,29 @@ func TestTagsClearedWhenAnEntityLosesThem(t *testing.T) {
 		assertGone(t, tagStore, metadataTaggerID)
 	})
 
+	// StatefulSets and Argo Rollouts carry their autoscaler kinds on their
+	// generic metadata entity.
+	t.Run("autoscaler kinds on a statefulset, then removed", func(t *testing.T) {
+		collector, tagStore := newCollector(t, nil)
+
+		metadataID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: "apps/statefulsets/default/db"}
+		metadataTaggerID := types.NewEntityID(types.KubernetesMetadata, metadataID.ID)
+		statefulSet := func(kinds sets.Set[string]) *workloadmeta.KubernetesMetadata {
+			return &workloadmeta.KubernetesMetadata{
+				EntityID:        metadataID,
+				EntityMeta:      workloadmeta.EntityMeta{Name: "db", Namespace: "default"},
+				GVR:             &schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"},
+				AutoscalerKinds: kinds,
+			}
+		}
+
+		set(collector, statefulSet(sets.New(kubernetes.AutoscalerKindHPA, kubernetes.AutoscalerKindVPA)))
+		assert.ElementsMatch(t, []string{"kube_autoscaler_kind:hpa", "kube_autoscaler_kind:vpa"}, lowTags(t, tagStore, metadataTaggerID))
+
+		set(collector, statefulSet(nil))
+		assertGone(t, tagStore, metadataTaggerID)
+	})
+
 	// The reason handlers used to return nil: an entity that never had tags
 	// must not get an empty tagger entity. The store now guarantees it.
 	t.Run("entity that never had tags gets no tagger entity", func(t *testing.T) {

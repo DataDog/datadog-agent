@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -268,7 +269,13 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 	for _, event := range events {
 		switch entity := event.Entity.(type) {
 		case *workloadmeta.KubernetesMetadata:
-			if srv.metadata.processNamespaceEvent(event.Type, entity) {
+			// Namespaces and workloads represented as generic metadata
+			// (StatefulSets, Argo Rollouts) share the entity kind.
+			if target, isWorkload := util.WorkloadTargetFromMetadata(entity); isWorkload {
+				if srv.metadata.processWorkloadAutoscalersEvent(event.Type, target, entity.AutoscalerKinds) {
+					changed = true
+				}
+			} else if srv.metadata.processNamespaceEvent(event.Type, entity) {
 				changed = true
 			}
 		case *workloadmeta.KubernetesKueueQueue:
@@ -395,10 +402,6 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 }
 
 // processDeploymentEvent tracks the autoscaler kinds acting on a Deployment.
-//
-// Unlike the other entity kinds here, it reports a change only when the set of
-// kinds actually changed: Deployments are far more numerous than Kueue objects,
-// and every reported change wakes up the stream of every node.
 func (s *metadataSnapshot) processDeploymentEvent(eventType workloadmeta.EventType, deployment *workloadmeta.KubernetesDeployment) bool {
 	// Taken from the entity ID ("namespace/name"), not from EntityMeta: an
 	// Unset for a deleted Deployment carries only its ID, and a Deployment
@@ -409,12 +412,22 @@ func (s *metadataSnapshot) processDeploymentEvent(eventType workloadmeta.EventTy
 		return false
 	}
 	target := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: namespace, Name: name}
+	return s.processWorkloadAutoscalersEvent(eventType, target, deployment.AutoscalerKinds)
+}
 
-	kinds := deployment.AutoscalerKinds
-	if eventType == workloadmeta.EventTypeUnset {
+// processWorkloadAutoscalersEvent tracks the autoscaler kinds acting on a
+// workload, whichever entity kind carries them.
+//
+// Unlike the other entity kinds here, it reports a change only when the set of
+// kinds actually changed: workloads are far more numerous than Kueue objects,
+// and every reported change wakes up the stream of every node.
+func (s *metadataSnapshot) processWorkloadAutoscalersEvent(eventType workloadmeta.EventType, target kubernetes.WorkloadTarget, kinds sets.Set[string]) bool {
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+	case workloadmeta.EventTypeUnset:
 		kinds = nil
-	} else if eventType != workloadmeta.EventTypeSet {
-		log.Errorf("Unknown event type %d for Deployment %s", eventType, deployment.EntityID.ID)
+	default:
+		log.Errorf("Unknown event type %d for workload %s/%s/%s", eventType, target.Kind, target.Namespace, target.Name)
 		return false
 	}
 
@@ -536,7 +549,10 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 		workloadmeta.KindKubernetesMetadata,
 		func(entity workloadmeta.Entity) bool {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
-			return workloadmeta.IsNamespaceMetadata(metadata)
+			// Workloads are recognised by resource, never by "has autoscaler
+			// kinds": that would drop exactly the event that clears them.
+			_, isWorkload := util.WorkloadTargetFromMetadata(metadata)
+			return workloadmeta.IsNamespaceMetadata(metadata) || isWorkload
 		},
 	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).
 		// No entity filter on Deployments: filtering on "has autoscaler kinds"

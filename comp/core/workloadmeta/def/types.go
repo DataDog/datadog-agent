@@ -1201,6 +1201,11 @@ type KubernetesMetadata struct {
 	EntityID
 	EntityMeta
 	GVR *schema.GroupVersionResource
+
+	// AutoscalerKinds is the set of autoscaler kinds acting on the resource,
+	// when it is a workload represented as generic metadata (StatefulSet,
+	// Argo Rollout): hpa, wpa, dpa, keda, vpa. Empty for other resources.
+	AutoscalerKinds sets.Set[string]
 }
 
 // GetID implements Entity#GetID.
@@ -1332,6 +1337,11 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Resource -----------")
 		_, _ = fmt.Fprintln(&sb, m.GVR.String())
+	}
+
+	if m.AutoscalerKinds.Len() > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- Autoscalers -----------")
+		_, _ = fmt.Fprintln(&sb, "Autoscaler Kinds:", sliceToString(sets.List(m.AutoscalerKinds)))
 	}
 
 	return sb.String()

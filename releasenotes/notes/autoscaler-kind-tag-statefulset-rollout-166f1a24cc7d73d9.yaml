@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``kube_autoscaler_kind`` tag now also covers StatefulSets and Argo
+    Rollouts, not only Deployments: their pods and containers carry it, and so
+    does the workload's own ``kubernetes_metadata`` tagger entity. The Cluster
+    Agent needs ``get``, ``list`` and ``watch`` on ``rollouts.argoproj.io`` when
+    the Argo Rollouts CRD is installed and workload autoscaling is enabled.

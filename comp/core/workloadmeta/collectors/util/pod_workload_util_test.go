@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -76,4 +77,36 @@ func TestPodWorkloadTarget(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWorkloadMetadataEntityRoundTrip(t *testing.T) {
+	for _, target := range []kubernetes.WorkloadTarget{
+		{Kind: kubernetes.StatefulSetKind, Namespace: "ns", Name: "db"},
+		{Kind: kubernetes.RolloutKind, Namespace: "ns", Name: "web"},
+	} {
+		t.Run(target.Kind, func(t *testing.T) {
+			entity, ok := WorkloadMetadataEntity(target)
+			require.True(t, ok)
+			assert.Equal(t, workloadmeta.KindKubernetesMetadata, entity.Kind)
+			require.NotNil(t, entity.GVR)
+
+			// The inverse must work from the ID alone, as for an Unset event.
+			back, ok := WorkloadTargetFromMetadata(&workloadmeta.KubernetesMetadata{EntityID: entity.EntityID})
+			require.True(t, ok)
+			assert.Equal(t, target, back)
+		})
+	}
+
+	// Same ID the generic metadata collector uses, so both merge onto one
+	// entity.
+	sts, _ := WorkloadMetadataEntity(kubernetes.WorkloadTarget{Kind: kubernetes.StatefulSetKind, Namespace: "ns", Name: "db"})
+	assert.Equal(t, string(GenerateKubeMetadataEntityID("apps", "statefulsets", "ns", "db")), sts.ID)
+
+	_, ok := WorkloadMetadataEntity(kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: "ns", Name: "app"})
+	assert.False(t, ok, "Deployments have their own entity kind")
+
+	_, ok = WorkloadTargetFromMetadata(&workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: string(GenerateKubeMetadataEntityID("", "namespaces", "", "ns"))},
+	})
+	assert.False(t, ok, "a namespace is not a workload")
 }

@@ -23,6 +23,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -247,19 +248,48 @@ func TestAutoscalerIndexLifecycle(t *testing.T) {
 	}
 }
 
-func TestAutoscalerIndexIgnoresUnsupportedTargets(t *testing.T) {
+// StatefulSets and Argo Rollouts have no entity kind of their own: they are
+// represented as generic KubernetesMetadata, which is where their kinds go.
+func TestAutoscalerIndexStatefulSetAndRollout(t *testing.T) {
 	index, recorder := newTestIndex()
 	store := newTestStore(index, hpaSpec(), kubernetes.HorizontalPodAutoscalerResourceName)
 
-	// StatefulSets and Rollouts have no workloadmeta entity to carry the tag
-	// yet, so nothing is emitted for them.
-	require.NoError(t, store.Add(newAutoscalerObj("ns", "sts-hpa", "scaleTargetRef", "StatefulSet", "my-sts", autoscalerOpts{})))
-	require.NoError(t, store.Add(newAutoscalerObj("ns", "ro-hpa", "scaleTargetRef", "Rollout", "my-rollout", autoscalerOpts{})))
-	assert.Empty(t, recorder.drain())
+	metadataKinds := func(events []workloadmeta.CollectorEvent) map[string][]string {
+		out := map[string][]string{}
+		for _, event := range events {
+			if m, ok := event.Entity.(*workloadmeta.KubernetesMetadata); ok {
+				require.NotNil(t, m.GVR, "the tagger needs the GVR of a metadata entity")
+				out[m.ID] = sets.List(m.AutoscalerKinds)
+			}
+		}
+		return out
+	}
 
-	// They are still tracked in the index, so adding their entities later is
-	// purely additive.
-	assert.Len(t, index.byAutoscaler, 2)
+	require.NoError(t, store.Add(newAutoscalerObj("ns", "sts-hpa", "scaleTargetRef", "StatefulSet", "db", autoscalerOpts{})))
+	require.NoError(t, store.Add(newAutoscalerObj("ns", "ro-hpa", "scaleTargetRef", "Rollout", "web", autoscalerOpts{})))
+	// Same IDs the generic metadata collector uses, so both sources merge onto
+	// one entity.
+	assert.Equal(t, map[string][]string{
+		string(util.GenerateKubeMetadataEntityID("apps", "statefulsets", "ns", "db")):     {"hpa"},
+		string(util.GenerateKubeMetadataEntityID("argoproj.io", "rollouts", "ns", "web")): {"hpa"},
+	}, metadataKinds(recorder.drain()))
+
+	// A target kind with no entity at all emits nothing, but is still indexed.
+	require.NoError(t, store.Add(newAutoscalerObj("ns", "rs-hpa", "scaleTargetRef", "ReplicaSet", "raw-rs", autoscalerOpts{})))
+	assert.Empty(t, recorder.drain())
+	assert.Len(t, index.byAutoscaler, 3)
+
+	// A StatefulSet's pods are stamped too.
+	index.handlePodEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: &workloadmeta.KubernetesPod{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "db-0-uid"},
+			EntityMeta: workloadmeta.EntityMeta{Name: "db-0", Namespace: "ns"},
+			Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.StatefulSetKind, Name: "db"}},
+		}}},
+	})
+	events := recorder.drain()
+	require.Len(t, events, 1)
+	assert.Equal(t, []string{"hpa"}, sets.List(events[0].Entity.(*workloadmeta.KubernetesPod).AutoscalerKinds))
 }
 
 func TestAutoscalerStoreReplace(t *testing.T) {
@@ -514,4 +544,40 @@ func TestAutoscalerTagsClearRemovesSoleSourceEntity(t *testing.T) {
 	last := events.last(t, "ns/ghost")
 	assert.Equal(t, workloadmeta.EventTypeUnset, last.Type)
 	assert.Empty(t, sets.List(last.Entity.(*workloadmeta.KubernetesDeployment).AutoscalerKinds))
+}
+
+// Same as TestAutoscalerTagsClearThroughRealStore, for a StatefulSet: its
+// KubernetesMetadata entity also carries the generic metadata collector's
+// source, so clearing hits the same partial-unset behaviour.
+func TestAutoscalerTagsClearStatefulSetThroughRealStore(t *testing.T) {
+	store := mockedWorkloadmeta(t)
+	events := collectEvents(t, store, workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesMetadata).Build())
+
+	id := string(util.GenerateKubeMetadataEntityID("apps", "statefulsets", "ns", "db"))
+	store.Notify([]workloadmeta.CollectorEvent{{
+		Type:   workloadmeta.EventTypeSet,
+		Source: workloadmeta.SourceKubeAPIServer,
+		Entity: &workloadmeta.KubernetesMetadata{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: id},
+			EntityMeta: workloadmeta.EntityMeta{Name: "db", Namespace: "ns", Labels: map[string]string{"team": "data"}},
+			GVR:        &schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"},
+		},
+	}})
+
+	index := newAutoscalerIndex(store)
+	hpaStore := newTestStore(index, hpaSpec(), kubernetes.HorizontalPodAutoscalerResourceName)
+	hpa := newAutoscalerObj("ns", "db-hpa", "scaleTargetRef", "StatefulSet", "db", autoscalerOpts{})
+
+	require.NoError(t, hpaStore.Add(hpa))
+	got := events.last(t, id).Entity.(*workloadmeta.KubernetesMetadata)
+	require.Equal(t, []string{"hpa"}, sets.List(got.AutoscalerKinds))
+
+	require.NoError(t, hpaStore.Delete(hpa))
+	got = events.last(t, id).Entity.(*workloadmeta.KubernetesMetadata)
+	assert.Empty(t, sets.List(got.AutoscalerKinds), "subscribers must see the kinds cleared")
+
+	stored, err := store.GetKubernetesMetadata(workloadmeta.KubeMetadataEntityID(id))
+	require.NoError(t, err, "the generic metadata collector's entity must survive")
+	assert.Empty(t, sets.List(stored.AutoscalerKinds))
+	assert.Equal(t, map[string]string{"team": "data"}, stored.Labels)
 }

@@ -224,14 +224,13 @@ func (i *autoscalerIndex) apply(mutate func() []kubernetes.WorkloadTarget) {
 // owns. It returns nothing when the kind set is unchanged since the last
 // notification, so resyncs are free.
 func (i *autoscalerIndex) eventsForWorkloadLocked(target kubernetes.WorkloadTarget) []workloadmeta.CollectorEvent {
-	// Only Deployments have a workloadmeta entity to hang the kinds off today.
-	// StatefulSets and Argo Rollouts stay in the index so that adding their
-	// entities later is purely additive.
-	if target.Kind != kubernetes.DeploymentKind {
+	kinds := i.kindsForLocked(target)
+	workload, supported := workloadEntity(target, kinds)
+	if !supported {
+		// Kept in the index regardless, so supporting another workload kind
+		// later is purely additive.
 		return nil
 	}
-
-	kinds := i.kindsForLocked(target)
 
 	previous, everEmitted := i.emitted[target]
 	if everEmitted && previous.Equal(kinds) {
@@ -249,18 +248,35 @@ func (i *autoscalerIndex) eventsForWorkloadLocked(target kubernetes.WorkloadTarg
 		i.emitted[target] = kinds
 	}
 
-	events := kindsEvents(&workloadmeta.KubernetesDeployment{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesDeployment,
-			ID:   target.Namespace + "/" + target.Name,
-		},
-		AutoscalerKinds: kinds,
-	})
+	events := kindsEvents(workload)
 	for podUID := range i.podsByWorkload[target] {
 		events = append(events, podEvents(podUID, kinds)...)
 	}
 
 	return events
+}
+
+// workloadEntity builds the workloadmeta entity carrying a workload's
+// autoscaler kinds: the dedicated KubernetesDeployment for Deployments, and the
+// generic KubernetesMetadata that already represents StatefulSets and Argo
+// Rollouts. It reports false for workload kinds with neither.
+func workloadEntity(target kubernetes.WorkloadTarget, kinds sets.Set[string]) (workloadmeta.Entity, bool) {
+	if target.Kind == kubernetes.DeploymentKind {
+		return &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   target.Namespace + "/" + target.Name,
+			},
+			AutoscalerKinds: kinds,
+		}, true
+	}
+
+	metadata, ok := util.WorkloadMetadataEntity(target)
+	if !ok {
+		return nil, false
+	}
+	metadata.AutoscalerKinds = kinds
+	return metadata, true
 }
 
 // podEvents builds the events carrying a pod's autoscaler kinds.
@@ -314,6 +330,8 @@ func kindsEmpty(entity workloadmeta.Entity) bool {
 	case *workloadmeta.KubernetesDeployment:
 		return e.AutoscalerKinds.Len() == 0
 	case *workloadmeta.KubernetesPod:
+		return e.AutoscalerKinds.Len() == 0
+	case *workloadmeta.KubernetesMetadata:
 		return e.AutoscalerKinds.Len() == 0
 	}
 	return false

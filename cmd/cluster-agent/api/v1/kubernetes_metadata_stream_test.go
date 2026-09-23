@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -1012,5 +1013,62 @@ func TestStreamWorkloadAutoscalersThroughRealStore(t *testing.T) {
 		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceKubeAutoscalers, Entity: deploymentEntity("ns/app", sets.New[string]())},
 	})
 	expectNotified("last autoscaler removed")
+	assert.Empty(t, srv.buildMetadataSnapshot().workloadAutoscalers)
+}
+
+// StatefulSets and Argo Rollouts arrive as KubernetesMetadata, the same entity
+// kind as namespaces. They must feed the workload index and never be mistaken
+// for a namespace.
+func TestStreamWorkloadMetadataThroughRealStore(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock)
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	notified := srv.subscribeToNamespaceEvents("node1")
+	srv.Start(ctx)
+	waitNotified := func(what string) {
+		t.Helper()
+		select {
+		case <-notified:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for a notification: %s", what)
+		}
+	}
+
+	db := kubernetes.WorkloadTarget{Kind: kubernetes.StatefulSetKind, Namespace: "ns", Name: "db"}
+	dbEntity := func(kinds sets.Set[string]) *workloadmeta.KubernetesMetadata {
+		entity, ok := util.WorkloadMetadataEntity(db)
+		require.True(t, ok)
+		entity.AutoscalerKinds = kinds
+		return entity
+	}
+
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{{
+		Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceKubeAutoscalers, Entity: dbEntity(sets.New("hpa")),
+	}})
+	waitNotified("statefulset autoscaler added")
+
+	snapshot := srv.buildMetadataSnapshot()
+	assert.Equal(t, sets.New("hpa"), snapshot.workloadAutoscalers[db])
+	assert.NotContains(t, snapshot.namespaces, "db", "a StatefulSet must not be recorded as a namespace")
+
+	// A real namespace still takes the namespace path.
+	wmetaMock.Set(&workloadmeta.KubernetesMetadata{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesMetadata, ID: string(util.GenerateKubeMetadataEntityID("", "namespaces", "", "ns"))},
+		EntityMeta: workloadmeta.EntityMeta{Name: "ns", Labels: map[string]string{"team": "data"}},
+		GVR:        &schema.GroupVersionResource{Version: "v1", Resource: "namespaces"},
+	})
+	waitNotified("namespace added")
+	assert.Contains(t, srv.buildMetadataSnapshot().namespaces, "ns")
+
+	// Cleared as the autoscaler collector does it.
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceKubeAutoscalers, Entity: dbEntity(sets.New[string]())},
+		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceKubeAutoscalers, Entity: dbEntity(sets.New[string]())},
+	})
+	waitNotified("statefulset autoscaler removed")
 	assert.Empty(t, srv.buildMetadataSnapshot().workloadAutoscalers)
 }

@@ -822,6 +822,12 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
 	}
 
+	// Set for workloads represented as generic metadata (StatefulSets, Argo
+	// Rollouts); empty for every other resource.
+	for kind := range kubeMetadata.AutoscalerKinds {
+		tagList.AddLow(tags.KubeAutoscalerKind, kind)
+	}
+
 	return []*types.TagInfo{newTagInfo(kubeMetadataSource, kubeMetadata.EntityID, tagList, ev.IsComplete)}
 }
 
