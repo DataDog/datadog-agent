@@ -128,8 +128,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}}, nil
 }
 
-// Configured backends resolve before startup checks, or fail configuration loading.
-// Diagnose references left behind when no backend is configured, without exposing handles.
+// Diagnose references in known settings when no backend is configured, without exposing handles.
 func (c *checker) unresolvedSecrets(normalized map[string]any) (map[string]bool, error) {
 	if c.cfg.GetString("secret_backend_command") != "" || c.cfg.GetString("secret_backend_type") != "" || len(c.cfg.GetStringMap("multi_secret_backends")) > 0 {
 		return nil, nil
@@ -143,7 +142,7 @@ func (c *checker) unresolvedSecrets(normalized map[string]any) (map[string]bool,
 		for i := len(path); i > 0; i-- {
 			key := strings.Join(path[:i], ".")
 			if c.cfg.IsSetting(key) {
-				if c.cfg.GetSource(key) != model.SourceSecret {
+				if c.cfg.IsKnown(key) && c.cfg.GetSource(key) != model.SourceSecret {
 					paths[jsonpointer.Pointer(path).String()] = true
 				}
 				break

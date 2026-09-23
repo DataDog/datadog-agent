@@ -216,6 +216,8 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		{"api_key: {value: secret}\n", "got object, want string"},
 		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
 		{"agent_ipc:\n  port: ENC[ipc_port]\n", "secret backend is not configured"},
+		{"unknown_setting: ENC[unused]\n", ""},
+		{"agent_ipc: {unknown_setting: 'ENC[unused]'}\n", ""},
 	} {
 		t.Run(testCase.yaml, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, testCase.yaml)
