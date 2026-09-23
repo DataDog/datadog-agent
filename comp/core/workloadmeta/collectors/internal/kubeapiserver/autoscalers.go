@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -563,7 +564,7 @@ func (i *autoscalerIndex) handlePodEvents(bundle workloadmeta.EventBundle) {
 
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
-			target, found := workloadTargetForPod(pod)
+			target, found := util.PodWorkloadTarget(pod)
 			if !found {
 				i.forgetPodLocked(pod.ID)
 				continue
@@ -609,18 +610,6 @@ func (i *autoscalerIndex) forgetPodLocked(podUID string) {
 	if pods.Len() == 0 {
 		delete(i.podsByWorkload, target)
 	}
-}
-
-// workloadTargetForPod resolves the workload controller owning a pod. A pod
-// with several owners is not something Kubernetes produces for the controllers
-// we track, so the first resolvable owner wins.
-func workloadTargetForPod(pod *workloadmeta.KubernetesPod) (kubernetes.WorkloadTarget, bool) {
-	for _, owner := range pod.Owners {
-		if target, ok := kubernetes.ResolveWorkloadTarget(pod.Namespace, owner.Kind, owner.Name, pod.Labels); ok {
-			return target, true
-		}
-	}
-	return kubernetes.WorkloadTarget{}, false
 }
 
 // startAutoscalerStores wires up one reflector per autoscaler resource the

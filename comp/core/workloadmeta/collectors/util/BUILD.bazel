@@ -9,6 +9,7 @@ go_library(
         "image_metadata_util.go",
         "kube_metadata_util.go",
         "kubelet.go",
+        "pod_workload_util.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util",
     visibility = ["//visibility:public"],
@@ -37,6 +38,7 @@ dd_agent_go_test(
         "image_metadata_util_test.go",
         "kube_metadata_util_test.go",
         "kubelet_test.go",
+        "pod_workload_util_test.go",
     ],
     embed = [":util"],
     gotags_sets = [[
@@ -54,6 +56,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/mock",
         "//pkg/util/ecs/metadata/v3or4",
         "//pkg/util/fxutil",
+        "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",

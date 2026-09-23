@@ -25,6 +25,7 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",

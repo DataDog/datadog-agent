@@ -25,6 +25,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -883,4 +884,133 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 		t.Fatalf("%s subscriber was notified but should not have been", name)
 	case <-time.After(50 * time.Millisecond):
 	}
+}
+
+func deploymentEntity(id string, kinds sets.Set[string]) *workloadmeta.KubernetesDeployment {
+	return &workloadmeta.KubernetesDeployment{
+		EntityID:        workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: id},
+		AutoscalerKinds: kinds,
+	}
+}
+
+func TestProcessDeploymentEvents(t *testing.T) {
+	app := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: "ns", Name: "app"}
+	s := newMetadataSnapshot()
+
+	// A deployment without autoscalers is not tracked, and waking every node's
+	// stream for it would be wasted work.
+	assert.False(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", nil)))
+	assert.Empty(t, s.workloadAutoscalers)
+
+	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa"))))
+	assert.Equal(t, sets.New("hpa"), s.workloadAutoscalers[app])
+
+	// Same set again, e.g. the deployment reflector reporting an unrelated
+	// change: no wakeup.
+	assert.False(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa"))))
+
+	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("hpa", "vpa"))))
+	assert.Equal(t, sets.New("hpa", "vpa"), s.workloadAutoscalers[app])
+
+	// The stored set must not alias the entity's: workloadmeta owns that one.
+	kinds := sets.New("wpa")
+	s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", kinds))
+	kinds.Insert("vpa")
+	assert.Equal(t, sets.New("wpa"), s.workloadAutoscalers[app])
+
+	// Cleared through a Set with an empty set, as the autoscaler collector does.
+	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New[string]())))
+	assert.Empty(t, s.workloadAutoscalers)
+
+	// An Unset for a deleted Deployment carries only its ID: the workload must
+	// still be identified, from the ID.
+	s.processDeploymentEvent(workloadmeta.EventTypeSet, deploymentEntity("ns/app", sets.New("keda")))
+	assert.True(t, s.processDeploymentEvent(workloadmeta.EventTypeUnset, deploymentEntity("ns/app", nil)))
+	assert.Empty(t, s.workloadAutoscalers)
+	assert.False(t, s.processDeploymentEvent(workloadmeta.EventTypeUnset, deploymentEntity("ns/app", nil)), "unset of an untracked deployment")
+}
+
+func TestComputeWorkloadAutoscalersDiff(t *testing.T) {
+	target := func(name string) kubernetes.WorkloadTarget {
+		return kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: "ns", Name: name}
+	}
+	old := map[kubernetes.WorkloadTarget]sets.Set[string]{
+		target("unchanged"): sets.New("hpa"),
+		target("changed"):   sets.New("hpa"),
+		target("removed"):   sets.New("vpa"),
+	}
+	current := map[kubernetes.WorkloadTarget]sets.Set[string]{
+		target("unchanged"): sets.New("hpa"),
+		target("changed"):   sets.New("vpa", "hpa", "dpa"),
+		target("added"):     sets.New("keda"),
+	}
+
+	assert.ElementsMatch(t, []*pb.WorkloadAutoscalers{
+		// Sorted on the wire, whatever the set's iteration order.
+		{Namespace: "ns", Kind: "Deployment", Name: "changed", AutoscalerKinds: []string{"dpa", "hpa", "vpa"}, Type: pb.KubeMetadataEventType_SET},
+		{Namespace: "ns", Kind: "Deployment", Name: "added", AutoscalerKinds: []string{"keda"}, Type: pb.KubeMetadataEventType_SET},
+		{Namespace: "ns", Kind: "Deployment", Name: "removed", AutoscalerKinds: []string{}, Type: pb.KubeMetadataEventType_UNSET},
+	}, computeWorkloadAutoscalersDiff(old, current))
+}
+
+// TestStreamWorkloadAutoscalersThroughRealStore replays what the Cluster Agent
+// really produces: a Deployment with two workloadmeta sources (its reflector
+// and the autoscaler collector), and a clear done as Set(empty) then Unset.
+// The server must follow the merged entity, stay quiet on unrelated
+// Deployment updates, and see the clear.
+func TestStreamWorkloadAutoscalersThroughRealStore(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock)
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	notified := srv.subscribeToNamespaceEvents("node1")
+	srv.Start(ctx)
+
+	app := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: "ns", Name: "app"}
+	reflectorEntity := func(labels map[string]string) *workloadmeta.KubernetesDeployment {
+		return &workloadmeta.KubernetesDeployment{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesDeployment, ID: "ns/app"},
+			EntityMeta: workloadmeta.EntityMeta{Name: "app", Namespace: "ns", Labels: labels},
+		}
+	}
+	notify := func(eventType workloadmeta.EventType, source workloadmeta.Source, entity workloadmeta.Entity) {
+		wmetaMock.Notify([]workloadmeta.CollectorEvent{{Type: eventType, Source: source, Entity: entity}})
+	}
+	expectNotified := func(what string) {
+		t.Helper()
+		select {
+		case <-notified:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for a notification: %s", what)
+		}
+	}
+	expectQuiet := func(what string) {
+		t.Helper()
+		select {
+		case <-notified:
+			t.Fatalf("unexpected notification: %s", what)
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
+
+	notify(workloadmeta.EventTypeSet, workloadmeta.SourceKubeAPIServer, reflectorEntity(nil))
+	expectQuiet("deployment without autoscalers")
+
+	notify(workloadmeta.EventTypeSet, workloadmeta.SourceKubeAutoscalers, deploymentEntity("ns/app", sets.New("hpa")))
+	expectNotified("autoscaler added")
+	assert.Equal(t, sets.New("hpa"), srv.buildMetadataSnapshot().workloadAutoscalers[app])
+
+	notify(workloadmeta.EventTypeSet, workloadmeta.SourceKubeAPIServer, reflectorEntity(map[string]string{"team": "platform"}))
+	expectQuiet("unrelated deployment update")
+
+	// The clear, exactly as the autoscaler collector emits it.
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceKubeAutoscalers, Entity: deploymentEntity("ns/app", sets.New[string]())},
+		{Type: workloadmeta.EventTypeUnset, Source: workloadmeta.SourceKubeAutoscalers, Entity: deploymentEntity("ns/app", sets.New[string]())},
+	})
+	expectNotified("last autoscaler removed")
+	assert.Empty(t, srv.buildMetadataSnapshot().workloadAutoscalers)
 }

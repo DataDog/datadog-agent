@@ -11,6 +11,7 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -84,6 +86,10 @@ type metadataSnapshot struct {
 	kueueQueues          map[string]kueueQueueEntry
 	kueueResourceFlavors map[string]kueueResourceFlavorEntry
 	kueueWorkloads       map[string]kueueWorkloadEntry
+	// workloadAutoscalers holds the autoscaler kinds acting on each workload
+	// that has at least one. The sets are never mutated once stored, only
+	// replaced, so a shallow copy of the map is a safe snapshot.
+	workloadAutoscalers map[kubernetes.WorkloadTarget]sets.Set[string]
 }
 
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
@@ -117,6 +123,7 @@ func newMetadataSnapshot() metadataSnapshot {
 		kueueQueues:          make(map[string]kueueQueueEntry),
 		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
 		kueueWorkloads:       make(map[string]kueueWorkloadEntry),
+		workloadAutoscalers:  make(map[kubernetes.WorkloadTarget]sets.Set[string]),
 	}
 }
 
@@ -276,6 +283,10 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
 				changed = true
 			}
+		case *workloadmeta.KubernetesDeployment:
+			if srv.metadata.processDeploymentEvent(event.Type, entity) {
+				changed = true
+			}
 		default:
 			log.Errorf("Unexpected workloadmeta entity %T in kube metadata stream", event.Entity)
 		}
@@ -383,6 +394,45 @@ func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.Even
 	return false
 }
 
+// processDeploymentEvent tracks the autoscaler kinds acting on a Deployment.
+//
+// Unlike the other entity kinds here, it reports a change only when the set of
+// kinds actually changed: Deployments are far more numerous than Kueue objects,
+// and every reported change wakes up the stream of every node.
+func (s *metadataSnapshot) processDeploymentEvent(eventType workloadmeta.EventType, deployment *workloadmeta.KubernetesDeployment) bool {
+	// Taken from the entity ID ("namespace/name"), not from EntityMeta: an
+	// Unset for a deleted Deployment carries only its ID, and a Deployment
+	// known only through its autoscalers has no metadata at all.
+	namespace, name, ok := strings.Cut(deployment.EntityID.ID, "/")
+	if !ok {
+		log.Errorf("Unexpected Deployment entity ID %q in kube metadata stream", deployment.EntityID.ID)
+		return false
+	}
+	target := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: namespace, Name: name}
+
+	kinds := deployment.AutoscalerKinds
+	if eventType == workloadmeta.EventTypeUnset {
+		kinds = nil
+	} else if eventType != workloadmeta.EventTypeSet {
+		log.Errorf("Unknown event type %d for Deployment %s", eventType, deployment.EntityID.ID)
+		return false
+	}
+
+	previous, exists := s.workloadAutoscalers[target]
+	if kinds.Len() == 0 {
+		if !exists {
+			return false
+		}
+		delete(s.workloadAutoscalers, target)
+		return true
+	}
+	if exists && previous.Equal(kinds) {
+		return false
+	}
+	s.workloadAutoscalers[target] = kinds.Clone()
+	return true
+}
+
 func kueuePodSetAssignmentEntries(assignments []workloadmeta.KueuePodSetAssignment) []kueuePodSetAssignmentEntry {
 	entries := make([]kueuePodSetAssignmentEntry, 0, len(assignments))
 	for _, assignment := range assignments {
@@ -467,6 +517,7 @@ func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
 	maps.Copy(snapshot.kueueQueues, srv.metadata.kueueQueues)
 	maps.Copy(snapshot.kueueResourceFlavors, srv.metadata.kueueResourceFlavors)
 	maps.Copy(snapshot.kueueWorkloads, srv.metadata.kueueWorkloads)
+	maps.Copy(snapshot.workloadAutoscalers, srv.metadata.workloadAutoscalers)
 	return snapshot
 }
 
@@ -487,7 +538,10 @@ func kubeMetadataStreamFilter() *workloadmeta.Filter {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).Build()
+	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).
+		// No entity filter on Deployments: filtering on "has autoscaler kinds"
+		// would drop exactly the event that clears them.
+		AddKind(workloadmeta.KindKubernetesDeployment).Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -528,6 +582,7 @@ type metadataDiff struct {
 	kueueQueues          []*pb.KueueQueue
 	kueueResourceFlavors []*pb.KueueResourceFlavor
 	kueueWorkloads       []*pb.KueueWorkload
+	workloadAutoscalers  []*pb.WorkloadAutoscalers
 }
 
 func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
@@ -536,11 +591,12 @@ func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
 		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
 		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
 		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
+		workloadAutoscalers:  computeWorkloadAutoscalersDiff(old.workloadAutoscalers, current.workloadAutoscalers),
 	}
 }
 
 func (d metadataDiff) isEmpty() bool {
-	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads) == 0
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.workloadAutoscalers) == 0
 }
 
 func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
@@ -550,6 +606,7 @@ func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse 
 		KueueQueues:          d.kueueQueues,
 		KueueResourceFlavors: d.kueueResourceFlavors,
 		KueueWorkloads:       d.kueueWorkloads,
+		WorkloadAutoscalers:  d.workloadAutoscalers,
 	}
 }
 
@@ -667,6 +724,35 @@ func computeKueueWorkloadDiff(old, current map[string]kueueWorkloadEntry) []*pb.
 	}
 
 	return diff
+}
+
+func computeWorkloadAutoscalersDiff(old, current map[kubernetes.WorkloadTarget]sets.Set[string]) []*pb.WorkloadAutoscalers {
+	var diff []*pb.WorkloadAutoscalers
+
+	for target, kinds := range current {
+		if prev, existed := old[target]; !existed || !prev.Equal(kinds) {
+			diff = append(diff, protoWorkloadAutoscalers(target, kinds, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for target := range old {
+		if _, exists := current[target]; !exists {
+			diff = append(diff, protoWorkloadAutoscalers(target, nil, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
+func protoWorkloadAutoscalers(target kubernetes.WorkloadTarget, kinds sets.Set[string], eventType pb.KubeMetadataEventType) *pb.WorkloadAutoscalers {
+	return &pb.WorkloadAutoscalers{
+		Namespace: target.Namespace,
+		Kind:      target.Kind,
+		Name:      target.Name,
+		// Sorted, so the same set always serializes the same way.
+		AutoscalerKinds: sets.List(kinds),
+		Type:            eventType,
+	}
 }
 
 func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) *pb.KueueQueue {

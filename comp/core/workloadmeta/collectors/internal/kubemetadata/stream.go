@@ -21,7 +21,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	grpcmeta "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -243,6 +245,28 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 			}
 		}
 
+		// Autoscaler updates are keyed by workload: re-enrich the pods it owns.
+		if len(update.updatedWorkloadAutoscalers) > 0 {
+			for _, uid := range seenPods {
+				if _, seen := reenrichedPods[uid]; seen {
+					continue
+				}
+				pod, err := p.wmeta.GetKubernetesPod(uid)
+				if err != nil {
+					continue
+				}
+				target, ok := util.PodWorkloadTarget(pod)
+				if !ok {
+					continue
+				}
+				if _, updated := update.updatedWorkloadAutoscalers[target]; !updated {
+					continue
+				}
+				events = append(events, p.buildPodEvent(pod))
+				reenrichedPods[uid] = struct{}{}
+			}
+		}
+
 		// Kueue Workload and ResourceFlavor updates can change tags for any
 		// seen pod that joins to those entities. Only re-enrich pods that
 		// actually join to an updated Workload (directly, or transitively
@@ -283,6 +307,13 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 
 	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
 
+	// The index is already in memory when the kubelet reports a new pod, so the
+	// pod is tagged in the same pass, with no round-trip to the Cluster Agent.
+	var autoscalerKinds sets.Set[string]
+	if target, ok := util.PodWorkloadTarget(pod); ok {
+		autoscalerKinds = p.dcaStream.getAutoscalerKinds(target)
+	}
+
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
 		Type:   workloadmeta.EventTypeSet,
@@ -297,6 +328,10 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 			KubeServices:         services,
 			NamespaceLabels:      nsLabels,
 			NamespaceAnnotations: nsAnnotations,
+			// Clearing needs nothing special: every event replaces this
+			// source's whole entity, so a pod whose workload lost its last
+			// autoscaler simply gets no kinds.
+			AutoscalerKinds: autoscalerKinds,
 		},
 	}
 }
@@ -457,6 +492,7 @@ type streamUpdate struct {
 	updatedKueueQueues          map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKueueResourceFlavors map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKueueWorkloads       map[string]struct{} // keys are workloadmeta entity IDs
+	updatedWorkloadAutoscalers  map[kubernetes.WorkloadTarget]struct{}
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -471,9 +507,12 @@ type dcaStreamClient struct {
 	kueueQueues          map[string]*workloadmeta.KubernetesKueueQueue
 	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
 	kueueWorkloads       map[string]*workloadmeta.KubernetesKueueWorkload
-	initialized          bool
-	unimplemented        bool
-	pendingUpdate        streamUpdate
+	// workloadAutoscalers is the cluster-wide index of autoscaler kinds per
+	// workload, joined locally to this node's pods.
+	workloadAutoscalers map[kubernetes.WorkloadTarget]sets.Set[string]
+	initialized         bool
+	unimplemented       bool
+	pendingUpdate       streamUpdate
 
 	updateCh chan struct{} // signals that pendingUpdate has new data
 
@@ -492,6 +531,7 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		kueueQueues:          make(map[string]*workloadmeta.KubernetesKueueQueue),
 		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
 		kueueWorkloads:       make(map[string]*workloadmeta.KubernetesKueueWorkload),
+		workloadAutoscalers:  make(map[kubernetes.WorkloadTarget]sets.Set[string]),
 		readyCh:              make(chan struct{}),
 		updateCh:             make(chan struct{}, 1),
 	}
@@ -555,6 +595,20 @@ func (sc *dcaStreamClient) getNamespaceMetadata(namespace string) (labels, annot
 		return nil, nil, false
 	}
 	return ns.labels, ns.annotations, true
+}
+
+// getAutoscalerKinds returns the autoscaler kinds acting on a workload, or nil.
+// It returns a copy: the cache is written by the stream goroutine.
+func (sc *dcaStreamClient) getAutoscalerKinds(target kubernetes.WorkloadTarget) sets.Set[string] {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	kinds, found := sc.workloadAutoscalers[target]
+	if !found {
+		// Not Clone(): that would turn "no autoscalers" into an empty set.
+		return nil
+	}
+	return kinds.Clone()
 }
 
 func (sc *dcaStreamClient) getKueueQueue(queueID string) (*workloadmeta.KubernetesKueueQueue, bool) {
@@ -773,6 +827,16 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.kueueWorkloads = newKueueWorkloads
 
+		// No per-workload update set needed: a full state re-enriches every
+		// seen pod anyway.
+		newWorkloadAutoscalers := make(map[kubernetes.WorkloadTarget]sets.Set[string], len(resp.WorkloadAutoscalers))
+		for _, wa := range resp.WorkloadAutoscalers {
+			if len(wa.AutoscalerKinds) > 0 {
+				newWorkloadAutoscalers[workloadAutoscalersTarget(wa)] = sets.New(wa.AutoscalerKinds...)
+			}
+		}
+		sc.workloadAutoscalers = newWorkloadAutoscalers
+
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
 		sc.pendingUpdate.updatedKueueQueues = updatedKueueQueues
@@ -783,7 +847,7 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.WorkloadAutoscalers) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -890,9 +954,34 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedKueueWorkloads[workloadID] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 {
+	for _, wa := range resp.WorkloadAutoscalers {
+		target := workloadAutoscalersTarget(wa)
+		switch wa.Type {
+		case pb.KubeMetadataEventType_SET:
+			if len(wa.AutoscalerKinds) == 0 {
+				delete(sc.workloadAutoscalers, target)
+			} else {
+				sc.workloadAutoscalers[target] = sets.New(wa.AutoscalerKinds...)
+			}
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.workloadAutoscalers, target)
+		default:
+			log.Errorf("Unknown event type %d for workload autoscalers %s/%s/%s", wa.Type, wa.Kind, wa.Namespace, wa.Name)
+			continue
+		}
+		if sc.pendingUpdate.updatedWorkloadAutoscalers == nil {
+			sc.pendingUpdate.updatedWorkloadAutoscalers = make(map[kubernetes.WorkloadTarget]struct{})
+		}
+		sc.pendingUpdate.updatedWorkloadAutoscalers[target] = struct{}{}
+	}
+
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.WorkloadAutoscalers) > 0 {
 		sc.notifyUpdate()
 	}
+}
+
+func workloadAutoscalersTarget(wa *pb.WorkloadAutoscalers) kubernetes.WorkloadTarget {
+	return kubernetes.WorkloadTarget{Kind: wa.Kind, Namespace: wa.Namespace, Name: wa.Name}
 }
 
 func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQueue {

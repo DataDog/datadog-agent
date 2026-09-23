@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Node Agents now attach the ``kube_autoscaler_kind`` tag to the pods and
+    containers of autoscaled workloads, so it appears on their metrics. The
+    Cluster Agent streams which autoscalers act on each workload over the
+    existing Kubernetes metadata stream, and the Node Agent joins its pods to
+    that information locally, so a new pod carries the tag from its first
+    metric. Requires ``cluster_agent.autoscaler_tags.enabled`` on the Cluster
+    Agent and ``kubernetes_metadata_streaming`` on the Node Agent (enabled by
+    default).

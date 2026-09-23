@@ -69,6 +69,17 @@ message KueueWorkload {
   KubeMetadataEventType type = 9;
 }
 
+// WorkloadAutoscalers is the set of autoscaler kinds acting on one workload
+// controller. It is cluster-wide: every node receives every entry, and joins
+// its own pods to them through their owner references.
+message WorkloadAutoscalers {
+  string namespace = 1;
+  string kind = 2;                       // workload kind, e.g. Deployment
+  string name = 3;
+  repeated string autoscaler_kinds = 4;  // hpa, wpa, dpa, keda, vpa; sorted
+  KubeMetadataEventType type = 5;
+}
+
 message KubeMetadataStreamResponse {
   bool is_full_state = 1;
   repeated PodServiceMapping mappings = 2;
@@ -76,4 +87,5 @@ message KubeMetadataStreamResponse {
   repeated KueueQueue kueue_queues = 4;
   repeated KueueResourceFlavor kueue_resource_flavors = 5;
   repeated KueueWorkload kueue_workloads = 6;
+  repeated WorkloadAutoscalers workload_autoscalers = 7;
 }

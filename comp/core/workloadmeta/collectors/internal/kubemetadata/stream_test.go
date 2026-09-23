@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -1436,4 +1437,118 @@ func makePodUnsetEvent(uid string) workloadmeta.Event {
 			},
 		},
 	}
+}
+
+func TestDCAStreamClient_ApplyResponse_WorkloadAutoscalers(t *testing.T) {
+	app := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: "ns", Name: "app"}
+	other := kubernetes.WorkloadTarget{Kind: kubernetes.DeploymentKind, Namespace: "ns", Name: "other"}
+	sc := newDCAStreamClient("node-a", nil)
+
+	// Before the first full state, an incremental update is ignored.
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		WorkloadAutoscalers: []*pb.WorkloadAutoscalers{
+			{Namespace: "ns", Kind: "Deployment", Name: "app", AutoscalerKinds: []string{"hpa"}, Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+	assert.Nil(t, sc.getAutoscalerKinds(app))
+
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		WorkloadAutoscalers: []*pb.WorkloadAutoscalers{
+			{Namespace: "ns", Kind: "Deployment", Name: "app", AutoscalerKinds: []string{"hpa"}, Type: pb.KubeMetadataEventType_SET},
+			{Namespace: "ns", Kind: "Deployment", Name: "other", AutoscalerKinds: []string{"vpa"}, Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+	assert.Equal(t, sets.New("hpa"), sc.getAutoscalerKinds(app))
+	assert.True(t, sc.drainPendingUpdate().updateIsFullState)
+
+	// A copy is returned: the cache is shared with the stream goroutine.
+	sc.getAutoscalerKinds(app).Insert("vpa")
+	assert.Equal(t, sets.New("hpa"), sc.getAutoscalerKinds(app))
+
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{
+		WorkloadAutoscalers: []*pb.WorkloadAutoscalers{
+			{Namespace: "ns", Kind: "Deployment", Name: "app", AutoscalerKinds: []string{"hpa", "vpa"}, Type: pb.KubeMetadataEventType_SET},
+			{Namespace: "ns", Kind: "Deployment", Name: "other", Type: pb.KubeMetadataEventType_UNSET},
+		},
+	})
+	assert.Equal(t, sets.New("hpa", "vpa"), sc.getAutoscalerKinds(app))
+	assert.Nil(t, sc.getAutoscalerKinds(other))
+	assert.Equal(t, map[kubernetes.WorkloadTarget]struct{}{app: {}, other: {}}, sc.drainPendingUpdate().updatedWorkloadAutoscalers)
+
+	// A full state replaces the whole index.
+	sc.applyResponse(&pb.KubeMetadataStreamResponse{IsFullState: true})
+	assert.Nil(t, sc.getAutoscalerKinds(app))
+}
+
+// TestStreamingProvider_WorkloadAutoscalers goes through the real workloadmeta
+// store, where a node's pod has two sources: the kubelet collector and this
+// provider. The kinds must appear on a pod the moment it is discovered, follow
+// updates, and clear.
+func TestStreamingProvider_WorkloadAutoscalers(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+		wmeta:     wmetaMock,
+	}
+
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		WorkloadAutoscalers: []*pb.WorkloadAutoscalers{
+			{Namespace: "ns", Kind: "Deployment", Name: "app", AutoscalerKinds: []string{"hpa"}, Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+	provider.dcaStream.drainPendingUpdate()
+
+	kubeletPod := func(uid, name string, labels map[string]string, ownerKind, ownerName string) *workloadmeta.KubernetesPod {
+		return &workloadmeta.KubernetesPod{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: uid},
+			EntityMeta: workloadmeta.EntityMeta{Name: name, Namespace: "ns", Labels: labels},
+			Owners:     []workloadmeta.KubernetesPodOwner{{Kind: ownerKind, Name: ownerName}},
+		}
+	}
+	pods := []*workloadmeta.KubernetesPod{
+		kubeletPod("uid-app", "app-7d9f8b6c5d-abcde", nil, kubernetes.ReplicaSetKind, "app-7d9f8b6c5d"),
+		// Same ReplicaSet name, but owned by an Argo Rollout: it must not
+		// inherit the Deployment's autoscalers.
+		kubeletPod("uid-rollout", "app-7d9f8b6c5d-fghij", map[string]string{kubernetes.ArgoRolloutLabelKey: "7d9f8b6c5d"}, kubernetes.ReplicaSetKind, "app-7d9f8b6c5d"),
+		kubeletPod("uid-other", "other-5c4b3a2d1e-klmno", nil, kubernetes.ReplicaSetKind, "other-5c4b3a2d1e"),
+	}
+	kinds := func(uid string) []string {
+		t.Helper()
+		pod, err := wmetaMock.GetKubernetesPod(uid)
+		require.NoError(t, err)
+		return sets.List(pod.AutoscalerKinds)
+	}
+
+	// Discovery: the kubelet reports the pods, the provider enriches them in
+	// the same pass.
+	seenPods := map[string]string{}
+	var bundle workloadmeta.EventBundle
+	for _, pod := range pods {
+		wmetaMock.Notify([]workloadmeta.CollectorEvent{{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceNodeOrchestrator, Entity: pod}})
+		bundle.Events = append(bundle.Events, workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod})
+	}
+	provider.handleWmetaPodEvents(bundle, seenPods)
+
+	assert.Equal(t, []string{"hpa"}, kinds("uid-app"), "a new pod is tagged on first sight")
+	assert.Empty(t, kinds("uid-rollout"))
+	assert.Empty(t, kinds("uid-other"))
+
+	applyAndHandle := func(wa *pb.WorkloadAutoscalers) {
+		provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{WorkloadAutoscalers: []*pb.WorkloadAutoscalers{wa}})
+		provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), seenPods)
+	}
+
+	applyAndHandle(&pb.WorkloadAutoscalers{Namespace: "ns", Kind: "Deployment", Name: "app", AutoscalerKinds: []string{"hpa", "vpa"}, Type: pb.KubeMetadataEventType_SET})
+	assert.Equal(t, []string{"hpa", "vpa"}, kinds("uid-app"))
+	assert.Empty(t, kinds("uid-rollout"))
+
+	// Clearing: the kubelet source never carries kinds, so replacing this
+	// provider's entity with one without kinds clears the merged pod.
+	applyAndHandle(&pb.WorkloadAutoscalers{Namespace: "ns", Kind: "Deployment", Name: "app", Type: pb.KubeMetadataEventType_UNSET})
+	assert.Empty(t, kinds("uid-app"))
 }
