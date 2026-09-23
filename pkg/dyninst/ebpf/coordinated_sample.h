@@ -72,7 +72,7 @@ session_throttler_consume(void) {
 // The first event of a trace decides via the session-global throttler and
 // stores the result; later events inherit it. On EMIT, each probe may emit at
 // most once per trace. Returns true to drop.
-__attribute__((noinline)) bool
+static __attribute__((noinline)) bool
 coordinated_should_drop(const probe_params_t* params, uint64_t start_ns,
                         uint64_t trace_id) {
   if (!params) {
@@ -166,13 +166,58 @@ coord_read_arg_reg(const struct pt_regs* regs, uint8_t regnum) {
   return v;
 }
 
+// Copy the pt_regs fields the trace_id path reads (DWARF arg registers 0-15
+// plus the frame and stack pointers) out of the raw uprobe context into the
+// per-CPU scratch.
+//
+// This must run in the caller, on the real context pointer, and copy one field
+// at a time. Copying the whole struct instead (s->regs = *regs) is rejected by
+// the verifier: arm64 pt_regs is 336 bytes, wider than the context window the
+// verifier allows, so the tail of the copy fails with "invalid bpf_context
+// access off=335". Constant-offset field reads stay in range, and handing the
+// scratch copy onward keeps the context pointer out of the noinline
+// subprograms entirely.
+static inline __attribute__((always_inline)) void
+coord_copy_regs(const struct pt_regs* regs) {
+  uint32_t zero = 0;
+  coord_scratch_t* s =
+      (coord_scratch_t*)bpf_map_lookup_elem(&coord_scratch_buf, &zero);
+  if (!s || !regs) {
+    return;
+  }
+  __builtin_memset(&s->regs, 0, sizeof(s->regs));
+#define COORD_COPY_REG(n) s->regs.DWARF_REGISTER(n) = regs->DWARF_REGISTER(n)
+  COORD_COPY_REG(0);
+  COORD_COPY_REG(1);
+  COORD_COPY_REG(2);
+  COORD_COPY_REG(3);
+  COORD_COPY_REG(4);
+  COORD_COPY_REG(5);
+  COORD_COPY_REG(6);
+  COORD_COPY_REG(7);
+  COORD_COPY_REG(8);
+  COORD_COPY_REG(9);
+  COORD_COPY_REG(10);
+  COORD_COPY_REG(11);
+  COORD_COPY_REG(12);
+  COORD_COPY_REG(13);
+  COORD_COPY_REG(14);
+  COORD_COPY_REG(15);
+#undef COORD_COPY_REG
+  s->regs.DWARF_BP_REG = regs->DWARF_BP_REG;
+  s->regs.DWARF_SP_REG = regs->DWARF_SP_REG;
+}
+
 // Walk the in-scope context.Context (located via params->ctx_loc_*) to the
 // active dd-trace span and publish its trace_id into coord scratch
 // (s->trace_id / s->present). Runs before the gate, reusing the capture-time
 // span-extraction / interface-resolution helpers from stack_machine.h. Only
 // included by event.c, after walk_stack.h has pulled in stack_machine.h.
-__attribute__((noinline)) int
-coord_extract_trace_id(const probe_params_t* params, struct pt_regs* regs) {
+//
+// Reads the registers from scratch, which coord_copy_regs must have populated
+// first; the raw context pointer deliberately does not cross into here.
+static __attribute__((noinline)) int
+coord_extract_trace_id(const probe_params_t* params) {
   uint32_t zero = 0;
   coord_scratch_t* s =
       (coord_scratch_t*)bpf_map_lookup_elem(&coord_scratch_buf, &zero);
@@ -181,7 +226,7 @@ coord_extract_trace_id(const probe_params_t* params, struct pt_regs* regs) {
   }
   s->trace_id = 0;
   s->present = 0;
-  if (!params || !regs) {
+  if (!params) {
     return 0;
   }
   target_ptr_t impl_addr = 0;
@@ -189,7 +234,6 @@ coord_extract_trace_id(const probe_params_t* params, struct pt_regs* regs) {
   if (params->ctx_loc_kind != 1 && params->ctx_loc_kind != 2) {
     return 0; // no ctx in scope
   }
-  s->regs = *regs;
   if (params->ctx_loc_kind == 1 /* registers */) {
     itab = coord_read_arg_reg(&s->regs, params->ctx_reg_tab);
     impl_addr = coord_read_arg_reg(&s->regs, params->ctx_reg_data);

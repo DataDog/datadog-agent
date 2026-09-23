@@ -495,8 +495,10 @@ int probe_run_with_cookie(struct pt_regs* regs) {
   __sync_fetch_and_add(&stats->hit_cnt, 1);
 
   // Resolve the trace_id once, before capture; both throttle gates read the
-  // result via should_drop_event.
-  coord_extract_trace_id(params, regs);
+  // result via should_drop_event. The register copy happens here, on the real
+  // context pointer, so the context never crosses into the subprogram.
+  coord_copy_regs(regs);
+  coord_extract_trace_id(params);
 
   if (params->throttle_mode == THROTTLE_AT_START &&
       should_drop_event(params, start_ns)) {
