@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -141,28 +140,28 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 
 		tagLookbackSeconds := max(14400, toTS-fromTS) // 4 hours is the minimum lookback for the API
 
-		tagInventoryPrefixes := tagInventoryPrefixesForMetric(expectedTags)
-
-		// Also get tag values for the metric. Physical GPU configs use multiple positive
-		// all-tags scopes because the endpoint does not handle NOT filters like scalar queries do.
+		// Also discover unexpected GPU tag keys for the metric. Physical GPU configs
+		// use multiple positive all-tags scopes because the endpoint does not handle
+		// NOT filters like scalar queries do.
 		for _, tagInventoryFilter := range tagInventoryFilters {
 			group.Go(func() error {
-				metricTags, err := client.fetchMetricAllTags(prefixedMetricName, tagInventoryPrefixes, tagLookbackSeconds, tagInventoryFilter)
+				unknownTagKeys, err := client.fetchMetricUnknownTagKeys(prefixedMetricName, expectedTags, tagLookbackSeconds, tagInventoryFilter)
 				if err != nil {
-					retrievalError := fmt.Errorf("fetch metric tags for %s: %w", metricName, err)
+					retrievalError := fmt.Errorf("fetch unknown metric tag keys for %s: %w", metricName, err)
 					mu.Lock()
 					result.RetrievalErrors = append(result.RetrievalErrors, retrievalError.Error())
 					mu.Unlock()
 					return retrievalError
 				}
-				if len(metricTags) == 0 {
+				if len(unknownTagKeys) == 0 {
 					return nil
 				}
 
 				mu.Lock()
 				tagObservations[metricName] = append(tagObservations[metricName], gpuspec.MetricObservation{
-					Name: metricName,
-					Tags: metricTags,
+					Name:           metricName,
+					TagKeys:        unknownTagKeys,
+					TagsArePartial: true,
 				})
 				mu.Unlock()
 				return nil
@@ -266,10 +265,4 @@ func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilters []strin
 		}
 	}
 	return filters
-}
-
-func tagInventoryPrefixesForMetric(expectedTags map[string]gpuspec.TagSpec) map[string]gpuspec.TagSpec {
-	prefixes := maps.Clone(expectedTags)
-	prefixes["gpu_"] = gpuspec.TagSpec{}
-	return prefixes
 }

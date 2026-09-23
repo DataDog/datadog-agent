@@ -92,7 +92,10 @@ type MetricObservation struct {
 	Name       string
 	MetricType string
 	Tags       []string
+	TagKeys    []string
 	Value      *float64
+	// TagsArePartial means absent tags must not be interpreted as missing.
+	TagsArePartial bool
 }
 
 const maxInvalidValueSamplesPerMetric = 5
@@ -395,7 +398,7 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 		for tag, tagSpec := range expectedTags {
 			summary := getTagSummary(tag)
 			if values, found := tagsByKey[tag]; !found || len(values) == 0 {
-				if tagSpec.Optional {
+				if tagSpec.Optional || sample.TagsArePartial {
 					continue
 				}
 				summary.Missing++
@@ -419,6 +422,12 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 					getTagSummary(tag).addInvalidValue(value)
 					continue
 				}
+			}
+		}
+
+		for _, tag := range sample.TagKeys {
+			if _, allowed := expectedTags[tag]; !allowed {
+				getTagSummary(tag).Unknown++
 			}
 		}
 	}
