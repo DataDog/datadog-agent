@@ -182,9 +182,12 @@ func (p *metadataPeerPool) peers() []cm.Store {
 		}
 		live[info.Name] = true
 
-		conn := p.conns[info.Name]
-		if conn == nil {
-			conn, err := grpc.NewClient(
+		conn, cached := p.conns[info.Name]
+		if !cached || conn == nil {
+			// Note: plain assignment, not := — a shadowed conn here builds
+			// the client on a nil connection and segfaults on first use.
+			var err error
+			conn, err = grpc.NewClient(
 				net.JoinHostPort(info.PodIP, strconv.Itoa(p.port)),
 				grpc.WithTransportCredentials(credentials.NewTLS(p.tlsConfig)),
 				grpc.WithPerRPCCredentials(bearerToken{token: p.authToken}),
