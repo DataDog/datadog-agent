@@ -20,7 +20,9 @@ _LIB_SRCS = glob(
 _LIB_DEPS = [
     "//pkg/procmgr/rust/client:dd-procmgr-client",
     "@crates//:anyhow",
+    "@crates//:base64",
     "@crates//:log",
+    "@crates//:saphyr-parser",
     "@crates//:serde",
     "@crates//:serde_json",
     "@crates//:serde_yaml",
@@ -52,6 +54,13 @@ rust_library(
     deps = _LIB_DEPS,
 )
 
+# src/test_helpers.rs locates the graceful-sleeper runfile, so anything that
+# compiles it needs the runfiles library. The shipped library does not.
+_TEST_HELPERS_DEPS = select({
+    "@platforms//os:windows": ["@crates//:runfiles"],
+    "//conditions:default": [],
+})
+
 rust_library(
     name = "dd-procmgrd-lib-testhelpers",
     testonly = True,
@@ -61,7 +70,7 @@ rust_library(
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = _LIB_DEPS,
+    deps = _LIB_DEPS + _TEST_HELPERS_DEPS,
 )
 
 # ============================================================================
@@ -183,7 +192,7 @@ rust_test(
     }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"],
+    deps = ["@crates//:tempfile"] + _TEST_HELPERS_DEPS,
 )
 
 rust_test(
@@ -200,11 +209,13 @@ rust_test(
         "tests/e2e/*.rs",
         "tests/helpers/*.rs",
     ]),
+    compile_data = ["//cmd/agent/subcommands/run:dependent_services_windows.go"],
     crate_root = "tests/e2e/main.rs",
     data = [
         ":dd-procmgr",
         ":dd-procmgrd",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
         "//pkg/procmgr/rust/tests/fixtures:.marker",
         "//pkg/procmgr/rust/tests/fixtures:test_fixtures",
     ],
@@ -213,6 +224,7 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
+        "PROCESS_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl)",
         "PROCMGR_TEST_FIXTURES_MARKER": "$(rootpath //pkg/procmgr/rust/tests/fixtures:.marker)",
     },
     # E2E tests use UDS for transport and spawn the Linux daemon binary.

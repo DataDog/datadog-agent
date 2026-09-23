@@ -211,7 +211,7 @@ func (is *persistingIntegrationsSuite) DisableSkipInstallThirdPartyDepsFlag(VMcl
 
 func (is *persistingIntegrationsSuite) SetupAgentStartVersion(VMclient *common.TestClient) string {
 	// By default, pipelineID is set to E2E_PIPELINE_ID, we need to unset it to avoid installing the agent from the pipeline
-	install.Unix(is.T(), VMclient, installparams.WithArch(string(is.osDesc.Architecture)), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
+	install.Unix(is.T(), VMclient, installparams.WithArch(string(is.osDesc.Architecture)), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithPipelineID(""))
 	common.CheckInstallation(is.T(), VMclient)
 	return VMclient.AgentClient.Version()
 }
