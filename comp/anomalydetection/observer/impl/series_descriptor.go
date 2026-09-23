@@ -16,12 +16,7 @@ import (
 // debug, UI, and digest boundaries: "namespace|name:agg|host|tag1,tag2,...".
 // It must not be used as runtime identity for storage-backed series.
 func formatSeriesDescriptor(sd observerdef.SeriesDescriptor) string {
-	tags := sortedSeriesDescriptorTags(sd.Tags)
+	tags := append([]string(nil), sd.Tags.UnsafeToReadOnlySliceString()...)
+	sort.Strings(tags)
 	return sd.Namespace + "|" + sd.Name + ":" + observerdef.AggregateString(sd.Aggregate) + "|" + sd.Host + "|" + strings.Join(tags, ",")
-}
-
-func sortedSeriesDescriptorTags(tags []string) []string {
-	sorted := append([]string(nil), tags...)
-	sort.Strings(sorted)
-	return sorted
 }

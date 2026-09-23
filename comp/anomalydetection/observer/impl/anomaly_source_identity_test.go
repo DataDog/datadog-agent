@@ -59,13 +59,13 @@ func TestAnomalySourceIdentityForAnomalyWithoutStorageSource(t *testing.T) {
 		Namespace: "rrcf",
 		Name:      "score",
 		Host:      "agent-a",
-		Tags:      []string{"env:test", "team:agent"},
+		Tags:      testCompositeTags([]string{"env:test", "team:agent"}),
 	}})
 	second := anomalySourceIdentityFor(observerdef.Anomaly{Source: observerdef.SeriesDescriptor{
 		Namespace: "rrcf",
 		Name:      "score",
 		Host:      "agent-a",
-		Tags:      []string{"team:agent", "env:test"},
+		Tags:      testCompositeTags([]string{"team:agent", "env:test"}),
 	}})
 
 	if first.hasHandle {

@@ -30,7 +30,7 @@ func seriesKey(namespace, nameWithAgg, host string, tags []string) string {
 }
 
 func formatSeriesDescriptor(sd observerdef.SeriesDescriptor) string {
-	return seriesKey(sd.Namespace, sd.Name+":"+aggSuffix(sd.Aggregate), sd.Host, sd.Tags)
+	return seriesKey(sd.Namespace, sd.Name+":"+aggSuffix(sd.Aggregate), sd.Host, sd.Tags.UnsafeToReadOnlySliceString())
 }
 
 func seriesDescriptorsEqual(left, right observerdef.SeriesDescriptor) bool {
@@ -38,15 +38,10 @@ func seriesDescriptorsEqual(left, right observerdef.SeriesDescriptor) bool {
 		left.Name != right.Name ||
 		left.Host != right.Host ||
 		left.Aggregate != right.Aggregate ||
-		len(left.Tags) != len(right.Tags) {
+		left.Tags.Len() != right.Tags.Len() {
 		return false
 	}
-
-	leftTags := append([]string(nil), left.Tags...)
-	rightTags := append([]string(nil), right.Tags...)
-	sort.Strings(leftTags)
-	sort.Strings(rightTags)
-	return tagsMatch(leftTags, rightTags)
+	return formatSeriesDescriptor(left) == formatSeriesDescriptor(right)
 }
 
 // parseSeriesKey parses a seriesKey back into its components.

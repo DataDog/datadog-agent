@@ -42,8 +42,8 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 func TestUniqueMembersUseStorageHandleAndRetainFirstDescriptor(t *testing.T) {
 	firstHandle := observer.QueryHandle{Ref: 1, Aggregate: observer.AggregateAverage}
 	secondHandle := observer.QueryHandle{Ref: 2, Aggregate: observer.AggregateAverage}
-	first := observer.SeriesDescriptor{Name: "cpu", Tags: []string{"env:prod"}}
-	updated := observer.SeriesDescriptor{Name: "cpu-updated", Tags: []string{"env:prod"}}
+	first := observer.SeriesDescriptor{Name: "cpu", Tags: testCompositeTags([]string{"env:prod"})}
+	updated := observer.SeriesDescriptor{Name: "cpu-updated", Tags: testCompositeTags([]string{"env:prod"})}
 
 	members := uniqueMembers([]observer.Anomaly{
 		{Source: first, SourceRef: &firstHandle},
@@ -60,8 +60,8 @@ func TestUniqueMembersUseStorageHandleAndRetainFirstDescriptor(t *testing.T) {
 
 func TestUniqueMembersKeepsRefLessFallbackBehavior(t *testing.T) {
 	anomalies := []observer.Anomaly{
-		{Source: observer.SeriesDescriptor{Name: "rrcf", Tags: []string{"team:agent", "env:prod"}}},
-		{Source: observer.SeriesDescriptor{Name: "rrcf", Tags: []string{"env:prod", "team:agent"}}},
+		{Source: observer.SeriesDescriptor{Name: "rrcf", Tags: testCompositeTags([]string{"team:agent", "env:prod"})}},
+		{Source: observer.SeriesDescriptor{Name: "rrcf", Tags: testCompositeTags([]string{"env:prod", "team:agent"})}},
 	}
 
 	members := uniqueMembers(anomalies)
@@ -91,7 +91,7 @@ func TestTimeClusterInfoSourcesUseLegacyFormat(t *testing.T) {
 		Source: observer.SeriesDescriptor{
 			Namespace: "metrics",
 			Name:      "cpu",
-			Tags:      []string{"team:agent", "env:prod"},
+			Tags:      testCompositeTags([]string{"team:agent", "env:prod"}),
 			Aggregate: observer.AggregateAverage,
 		},
 		SourceRef: &handle,
