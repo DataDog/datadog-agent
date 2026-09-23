@@ -18,8 +18,6 @@ data:
     containerd_namespaces: [k8s.io]
     container_image:
       enabled: true
-      hidden_bytes:
-        enabled: true
       logs_dd_url: fakeintake:8080
       logs_no_ssl: true
       additional_endpoints: []

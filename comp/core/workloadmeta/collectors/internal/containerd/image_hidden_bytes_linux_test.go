@@ -284,17 +284,38 @@ func TestHiddenBytesShutdownCancelsScan(t *testing.T) {
 	assert.Empty(t, c.hiddenBytes.cache.entries)
 }
 
-func TestHiddenBytesDisabledHasNoState(t *testing.T) {
-	c := &collector{cfg: config.NewMockWithOverrides(t, map[string]interface{}{
-		"container_image.enabled":              true,
-		"container_image.hidden_bytes.enabled": false,
-	}), store: &hiddenBytesTestStore{}}
-	c.initHiddenBytesCollection()
-	c.startHiddenBytesCollection(t.Context())
-	defer c.stopHiddenBytesCollection()
-	publishHiddenBytesTestImage(c, hiddenBytesTestImage("disabled"))
-	assert.Nil(t, c.hiddenBytes)
-	assert.Nil(t, c.latestImages)
+func TestHiddenBytesConfiguration(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		imagesEnabled bool
+		disableHidden bool
+		wantEnabled   bool
+	}{
+		{"enabled by default", true, false, true},
+		{"explicitly disabled", true, true, false},
+		{"image collection disabled", false, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			overrides := map[string]interface{}{
+				"container_image.enabled": tc.imagesEnabled,
+				"run_path":                t.TempDir(),
+			}
+			if tc.disableHidden {
+				overrides["container_image.hidden_bytes.enabled"] = false
+			}
+			c := &collector{cfg: config.NewMockWithOverrides(t, overrides), store: &hiddenBytesTestStore{}}
+			c.initHiddenBytesCollection()
+			if tc.wantEnabled {
+				require.NotNil(t, c.hiddenBytes)
+				return
+			}
+			c.startHiddenBytesCollection(t.Context())
+			defer c.stopHiddenBytesCollection()
+			publishHiddenBytesTestImage(c, hiddenBytesTestImage("disabled"))
+			assert.Nil(t, c.hiddenBytes)
+			assert.Nil(t, c.latestImages)
+		})
+	}
 }
 
 func TestPreserveHiddenBytesRequiresMatchingOrderedLayers(t *testing.T) {

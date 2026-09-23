@@ -5,6 +5,11 @@ exact values received at fakeintake's `/api/v2/contimage` endpoint, using overla
 snapshots first and local layer archives when snapshots cannot be scanned.
 A missing field is not zero. The Agent does not download missing image layers.
 
+Hidden-byte collection is enabled by default when container-image collection is
+enabled. The QA manifest intentionally omits `container_image.hidden_bytes.enabled`
+to exercise that default. Set it to `false` (or set
+`DD_CONTAINER_IMAGE_HIDDEN_BYTES_ENABLED=false`) to opt out.
+
 Use a dedicated **ARM64** Docker/minikube environment. These wrappers use an ARM64
 Agent base pinned by digest; on another architecture select a compatible pinned
 base and rebuild all binaries for that architecture. Allow roughly 6 GiB RAM,

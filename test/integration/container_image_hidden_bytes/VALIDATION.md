@@ -1,5 +1,13 @@
 # Local validation
 
+## Default-on follow-up
+
+Hidden-byte collection now defaults to enabled. Configuration regression coverage
+verifies that an omitted setting enables collection, an explicit `false` disables
+it, and disabling container-image collection still disables it. The QA manifest
+now omits the setting. The minikube runs below used an explicit enable setting;
+the default-on change has not been redeployed to that retained cluster.
+
 ## Hardlinks and local archive fallback, 2026-09-23
 
 Same retained ARM64 minikube profile and namespace, `hidden-bytes-validation`.

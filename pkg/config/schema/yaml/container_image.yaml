@@ -59,13 +59,14 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
         description: >-
           Collect hidden bytes per image layer on Linux from containerd overlayfs
           snapshots, falling back to locally available layer archives. Snapshot
           scanning requires read-only access to unpacked layer directories and
           permission to read overlayfs extended attributes. The archive fallback
           reads and decompresses local layers without downloading image content.
+          Set to false to disable hidden-byte collection.
   input_chan_size:
     node_type: setting
     type: integer
