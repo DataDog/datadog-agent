@@ -284,6 +284,8 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//comp/checks/agentcrashdetect/def",
             "//comp/checks/agentcrashdetect/fx",
+            "//comp/checks/ddinjectorcrash/def",
+            "//comp/checks/ddinjectorcrash/fx",
             "//comp/checks/windowseventlog/def",
             "//comp/checks/windowseventlog/fx",
             "//comp/checks/winregistry/def",

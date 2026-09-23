@@ -456,6 +456,7 @@
 /comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
 /comp/agent/jmxlogger @DataDog/agent-metric-pipelines
 /comp/checks/agentcrashdetect @DataDog/windows-products
+/comp/checks/ddinjectorcrash @DataDog/windows-products
 /comp/checks/windowseventlog @DataDog/windows-products
 /comp/checks/winregistry @DataDog/windows-products
 /comp/core/agenttelemetry @DataDog/fleet-remediation
