@@ -29,7 +29,7 @@ def is_enabled(ctx: Context, feature: str, verbose: bool = True, default: bool =
     if verbose:
         if error:
             print(
-                f'[{color_message("Warning", Color.BLUE)}] Failed to get feature flag {feature}: {error}',
+                f'[{color_message("Warning", Color.ORANGE)}] Failed to get feature flag {feature}: {error}',
                 file=sys.stderr,
             )
         if enabled or error:
@@ -39,7 +39,7 @@ def is_enabled(ctx: Context, feature: str, verbose: bool = True, default: bool =
             )
     elif error:
         print(
-            f'[{color_message("Warning", Color.BLUE)}] Failed to get feature flag {feature}: {error}', file=sys.stderr
+            f'[{color_message("Warning", Color.ORANGE)}] Failed to get feature flag {feature}: {error}', file=sys.stderr
         )
 
     return enabled
