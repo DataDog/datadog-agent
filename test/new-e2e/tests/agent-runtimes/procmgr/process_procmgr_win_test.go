@@ -157,9 +157,21 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
 	require.NoError(s.T(), err)
+	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
+	require.NoError(s.T(), err)
 
 	cli := joinWindowsPath(installRoot, "bin", "agent", "dd-procmgr.exe")
 	cfgPath := joinWindowsPath(installRoot, "processes.d", processProcmgrConfigFileName)
+
+	// reload respawns a changed process only if it was running, so the validator is reached
+	// only from a running process-agent.
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := host.Execute(procmgrCmd(cli, "describe "+processProcessName))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		assert.Equal(ct, "Running", fieldValue(out, "State"))
+	}, 2*time.Minute, 5*time.Second)
 
 	backup, err := host.Execute(psReadFileBase64(cfgPath))
 	require.NoError(s.T(), err)
@@ -198,14 +210,22 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	_, err = host.Execute(procmgrCmd(cli, "reload"))
 	require.NoError(s.T(), err)
 
+	// reload first stops the running process, so anything short of Failed may just be that
+	// stop in progress rather than a refused spawn.
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		out, err := host.Execute(procmgrCmd(cli, "describe "+processProcessName))
 		if !assert.NoError(ct, err) {
 			return
 		}
-		assert.NotEqual(ct, "Running", fieldValue(out, "State"),
+		assert.Equal(ct, "Failed", fieldValue(out, "State"),
 			"dd-procmgr must refuse the privileged spawn when the YAML violates the catalog")
 	}, 2*time.Minute, 5*time.Second)
+
+	// Failed alone could be any spawn error. The catalog's own reason ties it to validation.
+	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
+	out, err := host.Execute(psSelectStringLines(logPath, "refusing privileged spawn"))
+	require.NoError(s.T(), err)
+	require.Contains(s.T(), out, "["+processProcessName+"] refusing privileged spawn: stdout/stderr must be inherit or null")
 
 	require.NoError(s.T(), restore())
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
