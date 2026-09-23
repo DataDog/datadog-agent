@@ -39,7 +39,7 @@ func TestNetflowState_TelemetryMetrics(t *testing.T) {
 	require.NoError(t, err, "error with template")
 	defer templateSystem.Close(ctx)
 
-	state := NewStateNetFlow(nil, false)
+	state := NewStateNetFlow(nil, false, false)
 	state.Format = &mockedFormatDriver{}
 	state.Logger = logrusLogger
 	state.TemplateSystem = templateSystem

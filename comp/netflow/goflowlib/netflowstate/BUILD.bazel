@@ -13,6 +13,7 @@ go_library(
         "//comp/netflow/common",
         "//comp/netflow/config/def",
         "//comp/netflow/goflowlib/additionalfields",
+        "//comp/netflow/goflowlib/dpi",
         "@com_github_netsampler_goflow2//decoders/netflow",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",
         "@com_github_netsampler_goflow2//format",
