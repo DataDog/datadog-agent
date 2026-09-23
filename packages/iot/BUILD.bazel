@@ -162,8 +162,6 @@ pkg_rpm(
     pre_scriptlet_file = "//omnibus:package-scripts/iot-agent-rpm/preinst",
     preun_scriptlet_file = "//omnibus:package-scripts/iot-agent-rpm/prerm",
     release = "1",
-    # requires_contextual can't select() a single dict value, so the whole dict
-    # is select()ed, with _RPM_PRE_DEPS_COMMON factored out of each branch.
     requires_contextual = select({
         "//packages/agent:distribution_suse": {"pre": _RPM_PRE_DEPS_COMMON + [
             "glibc",
