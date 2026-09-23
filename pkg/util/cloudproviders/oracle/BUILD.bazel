@@ -5,6 +5,7 @@ go_library(
     name = "oracle",
     srcs = [
         "diagnosis.go",
+        "dmi.go",
         "oracle.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle",
@@ -14,16 +15,21 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/cachedfetch",
+        "//pkg/util/dmi",
         "//pkg/util/http",
     ],
 )
 
 dd_agent_go_test(
     name = "oracle_test",
-    srcs = ["oracle_test.go"],
+    srcs = [
+        "dmi_test.go",
+        "oracle_test.go",
+    ],
     embed = [":oracle"],
     deps = [
         "//pkg/config/mock",
+        "//pkg/util/dmi",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
