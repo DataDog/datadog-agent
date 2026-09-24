@@ -249,13 +249,16 @@ fn signal_ctrl_break(pgid: u32) -> Result<()> {
     Ok(())
 }
 
-// Declaration order matters: guards drop in reverse, so the caller console is restored
-// after leaving the child's and before the ctrl handler goes back to normal.
+// Declaration order matters: guards drop in reverse, so the ctrl handler is
+// removed while still attached to the child console — removing it after
+// FreeConsole fails with ERROR_INVALID_PARAMETER when the daemon has no
+// console of its own (service mode) — and the caller console is restored
+// after leaving the child's.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
-    let _ignore_ctrl = IgnoreCtrlGuard::install()?;
     let _caller_console = CallerConsoleGuard::capture();
     let _child_console = ChildConsoleGuard::attach(pid)?;
+    let _ignore_ctrl = IgnoreCtrlGuard::install()?;
     signal_ctrl_break(pid)
 }
 
