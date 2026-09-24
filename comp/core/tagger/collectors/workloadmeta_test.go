@@ -5317,7 +5317,7 @@ func TestHandleProcess(t *testing.T) {
 			},
 		},
 		{
-			name: "process with only ProcessTags (no UST), high cardinality tags dropped",
+			name: "process with only ProcessTags (no UST)",
 			process: &workloadmeta.Process{
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindProcess,
@@ -5328,7 +5328,7 @@ func TestHandleProcess(t *testing.T) {
 					UST: workloadmeta.UST{}, // Empty UST
 					TracerMetadata: []tracermetadata.TracerMetadata{
 						{
-							ProcessTags: "entrypoint.workdir:app,entrypoint.basedir:bin,service.framework:spring-boot",
+							ProcessTags: "entrypoint.workdir:app,service.framework:spring-boot",
 						},
 					},
 				},
@@ -5336,7 +5336,7 @@ func TestHandleProcess(t *testing.T) {
 			expectedTagInfo: &types.TagInfo{
 				Source:               processSource,
 				EntityID:             types.NewEntityID(types.Process, pid),
-				LowCardTags:          []string{"service.framework:spring-boot"},
+				LowCardTags:          []string{"entrypoint.workdir:app", "service.framework:spring-boot"},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags:         []string{},
@@ -5370,6 +5370,7 @@ func TestHandleProcess(t *testing.T) {
 				LowCardTags: []string{
 					"entrypoint.name:com.myapp.Server1",
 					"entrypoint.name:com.myapp.Server2",
+					"entrypoint.workdir:myapp",
 					"service:" + serviceNameFromDD,
 					"service.runtime:openjdk-17",
 					"service.type:web-server",

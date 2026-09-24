@@ -374,8 +374,7 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 
 		for _, tracerMeta := range process.Service.TracerMetadata {
 			for key, value := range tracerMeta.Tags() {
-				if tracermetadata.ShouldSkipServiceTagKV(key, value, ustService, ustEnv, ustVersion) ||
-					tracermetadata.IsHighCardinalityProcessTag(key) {
+				if tracermetadata.ShouldSkipServiceTagKV(key, value, ustService, ustEnv, ustVersion) {
 					continue
 				}
 

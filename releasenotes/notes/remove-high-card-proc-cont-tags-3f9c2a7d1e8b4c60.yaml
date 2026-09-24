@@ -18,8 +18,9 @@ upgrade:
     involved object is a ReplicaSet or Job, still carry these tags; Kubernetes
     events about pods no longer do.
   - |
-    The ``entrypoint.workdir`` and ``entrypoint.basedir`` tracer process tags
-    are no longer added as tags to processes by the tagger or to network
-    connections. Their values depend on deployment paths and can be unbounded.
-    Other tracer process tags such as ``entrypoint.name`` and
-    ``entrypoint.type`` are unchanged.
+    The Trace Agent now drops the ``entrypoint.workdir`` and
+    ``entrypoint.basedir`` process tags sent by tracers, both on traces
+    (``_dd.tags.process``, ``X-Datadog-Process-Tags``) and on client-computed
+    stats. Their values depend on deployment paths and can be unbounded, and
+    process tags are part of the APM stats aggregation key. Other process tags
+    such as ``entrypoint.name`` and ``entrypoint.type`` are unchanged.

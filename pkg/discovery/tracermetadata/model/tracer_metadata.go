@@ -60,23 +60,6 @@ func ShouldSkipServiceTagKV(tagKey, tagValue, ustService, ustEnv, ustVersion str
 	return false
 }
 
-// highCardinalityProcessTags are tracer process tags whose values are not
-// stable across deployments or instances of the same service (e.g. versioned
-// release directories, temporary directories), and therefore must not be
-// attached to metrics or other telemetry as tags. They are still reported by
-// the tracer itself and remain available in the raw ProcessTags field.
-var highCardinalityProcessTags = map[string]struct{}{
-	"entrypoint.workdir": {},
-	"entrypoint.basedir": {},
-}
-
-// IsHighCardinalityProcessTag returns true if the given tracer process tag key
-// has unbounded cardinality and should not be emitted as a tag.
-func IsHighCardinalityProcessTag(tagKey string) bool {
-	_, ok := highCardinalityProcessTags[tagKey]
-	return ok
-}
-
 // ShouldSkipServiceTag checks if a tracer service tag should be skipped if it
 // matches the UST tags.
 func ShouldSkipServiceTag(tag string, ustService, ustEnv, ustVersion string) bool {
