@@ -97,7 +97,6 @@ type testProvider string
 func (t testProvider) Source(context.Context) (source.Source, error) {
 	return source.Source{
 		Kind:             source.HostnameKind,
-		Identifier:       string(t), //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		SourceIdentifier: source.SourceIdentifier{Primary: string(t)},
 	}, nil
 }
