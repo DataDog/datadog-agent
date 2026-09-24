@@ -57,6 +57,7 @@ func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.Syscall
 		return
 	}
 	ctx.resolveProcessContext(process)
+	ctx.attachOTelStaticSpanContext(process, msg)
 	msg.PID = uint32(process.Tgid)
 	msg.Timestamp = uint64(time.Now().UnixNano())
 	msg.ContainerID = process.ContainerID
@@ -137,6 +138,7 @@ func (ctx *CWSPtracerCtx) handleClone(flags uint64, process *Process, ppid int) 
 
 	if flags&unix.CLONE_THREAD == 0 {
 		if parent := ctx.processCache.Get(ppid); parent != nil {
+			ctx.inheritOTelStaticTLS(parent.Tgid, process.Tgid)
 			ctx.sendSyscallMsg(process, &ebpfless.SyscallMsg{
 				Type: ebpfless.SyscallTypeFork,
 				Fork: &ebpfless.ForkSyscallMsg{
@@ -169,6 +171,9 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, ppid int, regs syscall.PtraceR
 	case ExecveNr, ExecveatNr:
 		// now the pid is the tgid
 		process.Pid = process.Tgid
+		// the exec'd binary may not be the one otelStaticTLS[tgid] (if any)
+		// was resolved for; drop it so a later OTEL_CTX signal re-resolves.
+		delete(ctx.otelStaticTLS, process.Tgid)
 	case CloneNr:
 		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, ppid)
 	case Clone3Nr:
@@ -214,6 +219,9 @@ func (ctx *CWSPtracerCtx) handleExit(process *Process, waitStatus *syscall.WaitS
 
 	ctx.processCache.Remove(process)
 
+	if process.Pid == process.Tgid {
+		delete(ctx.otelStaticTLS, process.Tgid)
+	}
 }
 
 func (ctx *CWSPtracerCtx) handleHooks(cbType CallbackType, nr int, pid int, ppid int, regs syscall.PtraceRegs, waitStatus *syscall.WaitStatus) {

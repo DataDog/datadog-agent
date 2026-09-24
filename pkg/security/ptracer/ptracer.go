@@ -74,6 +74,11 @@ type Tracer struct {
 	groupCache               map[int]string
 	groupCacheRefreshLimiter *rate.Limiter
 	lastGroupMTime           uint64
+
+	// otelStaticTLS caches, per tgid, the resolved local-exec TLS offset of
+	// the otel_thread_ctx_v1 export (or that none applies). See
+	// otel_span_context.go.
+	otelStaticTLS map[int]otelStaticTLSEntry
 }
 
 // Creds defines credentials
