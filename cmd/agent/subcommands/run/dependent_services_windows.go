@@ -22,6 +22,7 @@ type Servicedef struct {
 	name           string
 	configKeys     map[string]model.Reader
 	suppressIf     func() bool
+	enableIf       func() bool // enables the service beyond configKeys (e.g. a dependency another feature needs it for)
 	shouldShutdown bool
 
 	serviceName string
@@ -49,6 +50,8 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"network_config.enabled":                      sysprobeConf,
 				"system_probe_config.enabled":                 sysprobeConf,
 			},
+			// The GUI (in the core agent, running as ddagentuser) delegates peer-identity SID resolution to process-agent (LocalSystem) to bind intent tokens to the caller's OS identity (CWE-214), so process-agent must run whenever the GUI is enabled even with all process/network collection disabled.
+			enableIf:       func() bool { return coreConf.GetString("GUI_port") != "-1" },
 			serviceName:    "datadog-process-agent",
 			serviceInit:    processInit,
 			shouldShutdown: false,
@@ -189,6 +192,9 @@ func (s *Servicedef) IsEnabled() bool {
 		if cfg.GetBool(configKey) {
 			return true
 		}
+	}
+	if s.enableIf != nil && s.enableIf() {
+		return true
 	}
 	return false
 }

@@ -41,11 +41,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// intentTokenTTL bounds how long a single-use intent token stays valid. Intent
-// tokens are handed to the OS URL-opener as part of a query string and can end
-// up exposed in a child process's argv (e.g. /proc/<pid>/cmdline); a short TTL
-// limits how long that exposure is exploitable.
+// intentTokenTTL bounds a single-use intent token's validity, limiting argv-leak exposure; redemption is also bound to the minting OS identity (see intentTokenRecord).
 const intentTokenTTL = 30 * time.Second
+
+// intentTokenRecord tracks a single-use intent token's expiration and the minting caller's OS identity.
+type intentTokenRecord struct {
+	expiresAt time.Time
+	// identity is the minting caller's OS identity; empty falls back to TTL/single-use-only protection.
+	identity peerIdentity
+}
 
 type gui struct {
 	logger log.Component
@@ -55,7 +59,7 @@ type gui struct {
 	router   *http.ServeMux
 
 	auth         authenticator
-	intentTokens map[string]time.Time // token -> expiration time
+	intentTokens map[string]intentTokenRecord // token -> record
 	intentMu     sync.Mutex
 
 	sysprobeConfig sysprobeconfig.Component
@@ -118,9 +122,11 @@ func NewComponent(deps Requires) Provides {
 	g := gui{
 		address:        net.JoinHostPort(guiHost, guiPort),
 		logger:         deps.Log,
-		intentTokens:   make(map[string]time.Time),
+		intentTokens:   make(map[string]intentTokenRecord),
 		sysprobeConfig: deps.SysprobeConfig,
 	}
+
+	configurePeerIdentityResolution(deps.Ipc, deps.Config)
 
 	publicRouter := http.NewServeMux()
 
@@ -190,7 +196,7 @@ func (g *gui) stop(_ context.Context) error {
 }
 
 // Generate a single use IntentToken (32 random chars base64 encoded)
-func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
+func (g *gui) getIntentToken(w http.ResponseWriter, r *http.Request) {
 	key := make([]byte, 32)
 	_, e := rand.Read(key)
 	if e != nil {
@@ -198,19 +204,30 @@ func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
+	// Bind the token to the caller's OS identity; fail open to an unconstrained token on resolution failure since this endpoint already requires bearer auth. Logged at error level because on Windows this now depends on process-agent being reachable over IPC (see peeridentity_windows.go).
+	localAddr, _ := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	identity, err := resolvePeerIdentity(localAddr, r.RemoteAddr)
+	if err != nil {
+		g.logger.Errorf("GUI intent token: could not determine caller's OS identity, issuing an unconstrained token: %s", err)
+	}
+	identity = mintTimeIdentity(identity)
+
 	token := base64.RawURLEncoding.EncodeToString(key)
 	g.intentMu.Lock()
 	defer g.intentMu.Unlock()
 	g.purgeExpiredIntentTokensLocked()
-	g.intentTokens[token] = time.Now().Add(intentTokenTTL)
+	g.intentTokens[token] = intentTokenRecord{
+		expiresAt: time.Now().Add(intentTokenTTL),
+		identity:  identity,
+	}
 	w.Write([]byte(token))
 }
 
 // purgeExpiredIntentTokensLocked removes expired intent tokens. Callers must hold intentMu.
 func (g *gui) purgeExpiredIntentTokensLocked() {
 	now := time.Now()
-	for token, expiresAt := range g.intentTokens {
-		if now.After(expiresAt) {
+	for token, record := range g.intentTokens {
+		if now.After(record.expiresAt) {
 			delete(g.intentTokens, token)
 		}
 	}
@@ -287,13 +304,29 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	g.intentMu.Lock()
-	expiresAt, ok := g.intentTokens[intentToken]
+	record, ok := g.intentTokens[intentToken]
 	// Remove single use token from map (atomic with validation), whether or not it's expired
 	delete(g.intentTokens, intentToken)
 	g.intentMu.Unlock()
-	if !ok || time.Now().After(expiresAt) {
+	if !ok || time.Now().After(record.expiresAt) {
 		http.Error(w, "invalid intentToken", http.StatusUnauthorized)
 		return
+	}
+
+	// Only the minting OS identity may redeem; fail closed here, since a resolution failure at redeem time is attacker-observable and thus bypassable if we failed open instead.
+	if record.identity != "" {
+		localAddr, _ := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+		redeemIdentity, err := resolvePeerIdentity(localAddr, r.RemoteAddr)
+		switch {
+		case err != nil:
+			g.logger.Warnf("GUI intent token redemption refused: could not determine caller's OS identity: %s", err)
+			http.Error(w, "invalid intentToken", http.StatusUnauthorized)
+			return
+		case redeemIdentity != record.identity:
+			g.logger.Warnf("GUI intent token redemption refused: caller's OS identity does not match the minting caller's")
+			http.Error(w, "invalid intentToken", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	// generate accessToken

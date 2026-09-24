@@ -308,6 +308,7 @@ dd_agent_go_test(
     srcs = [
         "command_test.go",
         "command_windows_test.go",
+        "dependent_services_windows_test.go",
     ],
     embed = [":run"],
     deps = [
@@ -316,5 +317,12 @@ dd_agent_go_test(
         "//comp/core/pid/impl",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
 )

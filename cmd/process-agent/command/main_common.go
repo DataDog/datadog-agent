@@ -229,10 +229,15 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			processAgent agent.Component,
 			_ autoexit.Component,
 		) error {
-			if !processAgent.Enabled() && !collector.Enabled(cfg) {
-				return errAgentDisabled
+			if processAgent.Enabled() || collector.Enabled(cfg) {
+				return nil
 			}
-			return nil
+			// No checks/collection to run, but on Windows keep process-agent alive to serve the GUI's peer-identity API (/connection/owner-sid, LocalSystem); exiting would make GUI token minting fail open (CWE-214). Returning nil starts the apiserver and falls through to the exit-signal wait.
+			if shouldServeGUIIdentityAPI(cfg) {
+				log.Info("process-agent has no checks enabled but is staying alive to serve the peer-identity API required by the GUI")
+				return nil
+			}
+			return errAgentDisabled
 		}),
 	)
 
