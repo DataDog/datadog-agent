@@ -1,6 +1,5 @@
 ---
 enhancements:
   - |
-    The ``datasecurity`` check now scans Postgres ``json``, ``jsonb``, boolean,
-    integer, and floating-point columns, as well as arrays of these types,
-    in addition to text columns.
+    The ``datasecurity`` check now scans Postgres ``json``, ``xml``, boolean,
+    integer, and floating-point columns, in addition to text columns.
