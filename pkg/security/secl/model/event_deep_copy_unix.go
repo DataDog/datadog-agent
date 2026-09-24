@@ -904,6 +904,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 	copied.Detached = fieldToCopy.Detached
 	copied.Device = fieldToCopy.Device
 	copied.FSType = fieldToCopy.FSType
+	copied.MountFlags = fieldToCopy.MountFlags
 	copied.MountID = fieldToCopy.MountID
 	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	copied.MountPointStr = fieldToCopy.MountPointStr
