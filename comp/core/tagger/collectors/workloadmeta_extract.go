@@ -1362,14 +1362,13 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 			}
 		}
 
-	// kube_job and kube_replica_set are intentionally not emitted: job and
-	// replica set names are generated per run/rollout, so they explode the
-	// cardinality of every container metric. The owner name is still
-	// available at orchestrator cardinality through kube_ownerref_name.
 	case kubernetes.JobKind:
 		cronjob, _ := kubernetes.ParseCronJobForJob(owner.Name)
 		if cronjob != "" {
+			tagList.AddOrchestrator(tags.KubeJob, owner.Name)
 			tagList.AddLow(tags.KubeCronjob, cronjob)
+		} else {
+			tagList.AddLow(tags.KubeJob, owner.Name)
 		}
 
 	case kubernetes.ReplicaSetKind:
@@ -1381,6 +1380,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 				tagList.AddLow(tags.KubeArgoRollout, deployment)
 			}
 		}
+		tagList.AddLow(tags.KubeReplicaSet, owner.Name)
 	}
 }
 

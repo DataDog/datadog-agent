@@ -1030,9 +1030,11 @@ func getCalendarAppEnvVars(name string, otlpEndpoint string, ust bool, service s
 func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	assert.NotNil(t, tags["kube_deployment"])
 	assert.NotNil(t, tags["kube_qos"])
+	assert.NotNil(t, tags["kube_replica_set"])
 	assert.NotNil(t, tags["pod_phase"])
 	assert.Equal(t, "replicaset", tags["kube_ownerref_kind"])
 	assert.Equal(t, tags["kube_app_instance"], tags["kube_app_name"])
+	assert.Contains(t, tags["k8s.pod.name"], tags["kube_replica_set"])
 
 	if iaParams.EKS {
 		assert.NotNil(t, tags["container_id"])
@@ -1043,7 +1045,7 @@ func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	}
 	if iaParams.Cardinality == types.OrchestratorCardinality || iaParams.Cardinality == types.HighCardinality {
 		assert.Contains(t, tags["k8s.pod.name"], tags["kube_ownerref_name"])
-		assert.Contains(t, tags["kube_ownerref_name"], tags["kube_deployment"])
+		assert.Equal(t, tags["kube_replica_set"], tags["kube_ownerref_name"])
 	}
 	if iaParams.Cardinality == types.HighCardinality && iaParams.EKS {
 		assert.NotNil(t, tags["display_container_name"])

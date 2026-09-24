@@ -685,6 +685,7 @@ func TestHandleKubePod(t *testing.T) {
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:job",
+						"kube_job:owner_name",
 					},
 					StandardTags: []string{},
 				},
@@ -717,6 +718,7 @@ func TestHandleKubePod(t *testing.T) {
 					OrchestratorCardTags: []string{
 						"pod_name:" + podName,
 						"kube_ownerref_name:some_cronjob-123",
+						"kube_job:some_cronjob-123",
 					},
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
@@ -754,6 +756,7 @@ func TestHandleKubePod(t *testing.T) {
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicaset",
+						"kube_replica_set:owner_name",
 					},
 					StandardTags: []string{},
 				},
@@ -795,6 +798,7 @@ func TestHandleKubePod(t *testing.T) {
 					LowCardTags: []string{
 						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicaset",
+						"kube_replica_set:some_deployment-bcd2",
 						"kube_deployment:some_deployment",
 						"kube_argo_rollout:some_deployment",
 					},

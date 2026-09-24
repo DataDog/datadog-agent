@@ -860,8 +860,6 @@ func (r *HTTPReceiver) handleStats(w http.ResponseWriter, req *http.Request) {
 		return cs.Stats[0].Stats[0].Service
 	}
 
-	in.ProcessTags = filterProcessTags(in.ProcessTags)
-
 	ts := r.tagStats(V06, req, firstService(in))
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_payload", 1, ts.AsTags(), 1)
 	_ = r.statsd.Count("datadog.trace_agent.receiver.stats_bytes", rd.Count, ts.AsTags(), 1)
@@ -993,15 +991,12 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		}
 		tp.Tags[tagContainersTags] = strings.Join(ctags, ",")
 	}
-	ptags := filterProcessTags(getProcessTags(req.Header, tp))
-	filterSpanProcessTags(tp)
+	ptags := getProcessTags(req.Header, tp)
 	if ptags != "" {
 		if tp.Tags == nil {
 			tp.Tags = make(map[string]string)
 		}
 		tp.Tags[tagProcessTags] = ptags
-	} else {
-		delete(tp.Tags, tagProcessTags)
 	}
 	payload := &Payload{
 		Source:                 ts,
@@ -1116,12 +1111,9 @@ func (r *HTTPReceiver) handleTracesV1(v Version, w http.ResponseWriter, req *htt
 	if len(ctags) > 0 {
 		tp.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 	}
-	ptags := filterProcessTags(getProcessTagsV1(req.Header, tp))
-	filterSpanProcessTagsV1(tp)
+	ptags := getProcessTagsV1(req.Header, tp)
 	if ptags != "" {
 		tp.SetStringAttribute(tagProcessTags, ptags)
-	} else if _, ok := tp.GetAttributeAsString(tagProcessTags); ok {
-		tp.DeleteAttribute(tagProcessTags)
 	}
 	payload := &PayloadV1{
 		Source:                 ts,
