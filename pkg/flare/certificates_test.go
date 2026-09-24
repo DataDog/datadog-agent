@@ -14,6 +14,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -113,13 +114,30 @@ func TestWriteCertDirListing(t *testing.T) {
 
 func TestGetCertificateSourcesReport(t *testing.T) {
 	if _, ok := certFilesByOS[runtime.GOOS]; !ok {
-		return
+		t.Skipf("skipping on %s", runtime.GOOS)
 	}
+
+	// Build a temporary bundle and certificate directory and set both env
+	// overrides, so the report does not depend on the certificates installed
+	// on the test host.
+	dir := t.TempDir()
+	certPEM := generateTestCertificate(t)
+	bundle := filepath.Join(dir, "bundle.crt")
+	certDir := filepath.Join(dir, "certs")
+	require.NoError(t, os.WriteFile(bundle, certPEM, 0644))
+	require.NoError(t, os.Mkdir(certDir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(certDir, "ca.pem"), certPEM, 0644))
+	t.Setenv(certFileEnv, bundle)
+	t.Setenv(certDirEnv, certDir)
 
 	report, err := getCertificateSourcesReport()
 	require.NoError(t, err)
-	assert.Contains(t, string(report), certFileEnv+": ")
-	assert.Contains(t, string(report), certDirEnv+": ")
-	assert.Contains(t, string(report), "certificates (used)")
-	assert.Contains(t, string(report), "total: ")
+
+	s := string(report)
+	assert.Contains(t, s, certFileEnv+": "+bundle)
+	assert.Contains(t, s, certDirEnv+": "+certDir)
+	assert.Contains(t, s, fmt.Sprintf("%s: %d bytes, 1 certificates (used)", bundle, len(certPEM)))
+	assert.Contains(t, s, certDir+": 1 entries")
+	assert.Contains(t, s, "ca.pem (1 certificates)")
+	assert.Contains(t, s, "total: 1 certificates")
 }

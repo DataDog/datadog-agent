@@ -156,6 +156,7 @@ func writeCertDirListings(b *bytes.Buffer, loaded map[[sha256.Size]byte]struct{}
 type certDirStats struct {
 	dirs      int
 	files     int
+	entries   int
 	truncated bool
 }
 
@@ -177,10 +178,13 @@ func writeCertDirListing(b *bytes.Buffer, dir string, depth int, stats *certDirS
 	var subDirs []string
 	dirBuffer := new(bytes.Buffer)
 	for _, e := range entries {
-		if stats.files+stats.dirs+len(subDirs) >= certDirListMaxEntries {
+		// Every visited entry counts toward the limit, including symlinks
+		// (certificate directories are mostly symlinks) and skipped entries.
+		if stats.entries >= certDirListMaxEntries {
 			stats.truncated = true
 			break
 		}
+		stats.entries++
 		name := e.Name()
 		full := filepath.Join(dir, name)
 
