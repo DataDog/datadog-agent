@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
-	"strconv"
 
 	"go.yaml.in/yaml/v3"
 
@@ -17,11 +16,11 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/configschema"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // checker validates the customer-provided system-probe config against the schema.
@@ -60,12 +59,12 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalidsysprobeconfig: normalize config: %w", err)
 	}
-	errs, schemaErr := schema.ValidateSystemProbeConfig(normalized)
+	violations, schemaErr := schema.ValidateSystemProbeConfigDetailed(normalized)
 	if schemaErr != nil {
 		pkglog.Warnf("invalidsysprobeconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	if len(errs) == 0 {
+	if len(violations) == 0 {
 		return nil, nil
 	}
 	return []runnerdef.IssueReport{
@@ -73,16 +72,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "system-probe",
-			Context: func() map[string]string {
-				ctx := map[string]string{
-					contextKeyConfigPath: c.cfg.ConfigFileUsed(),
-					contextKeyErrorCount: strconv.Itoa(len(errs)),
-				}
-				for i, e := range errs {
-					ctx[contextErrorKey(i)] = e
-				}
-				return ctx
-			}(),
+			Context:   configschema.BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violations),
 		},
 	}, nil
 }
@@ -119,19 +109,14 @@ func deepMerge(dst, src map[string]any) {
 	}
 }
 
-// normalizeForSchema coerces a Go-native config map into JSON-native types via
-// a YAML round-trip. ScrubYaml strips any accidental secret-like values
+// normalizeForSchema converts Go-native config types without changing the values.
 func normalizeForSchema(in map[string]any) (map[string]any, error) {
 	b, err := yaml.Marshal(in)
 	if err != nil {
 		return nil, err
 	}
-	scrubbed, err := scrubber.ScrubYaml(b)
-	if err != nil {
-		return nil, err
-	}
 	var out map[string]any
-	if err := yaml.Unmarshal(scrubbed, &out); err != nil {
+	if err := yaml.Unmarshal(b, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
