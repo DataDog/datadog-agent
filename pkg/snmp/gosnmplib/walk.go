@@ -42,7 +42,6 @@ func ConditionalWalk(
 	rootIndex := 0
 	oid := rootOIDs[rootIndex]
 	requests := 0
-	hasOIDs := false
 
 RequestLoop:
 	for {
@@ -65,7 +64,7 @@ RequestLoop:
 
 		response, err := session.GetNext([]string{oid})
 		if err != nil || response.Error != gosnmp.NoError {
-			if !hasOIDs && rootIndex+1 < len(rootOIDs) {
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
 				rootIndex++
 				session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
 				oid = rootOIDs[rootIndex]
@@ -77,16 +76,13 @@ RequestLoop:
 			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
 			break RequestLoop
 		}
-
-		emptyResponse := len(response.Variables) == 0
-		endOfMIB := !emptyResponse && IsEndOfMIB(response.Variables[0].Type)
-		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (emptyResponse || endOfMIB) {
-			rootIndex++
-			session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
-			oid = rootOIDs[rootIndex]
-			continue
-		}
-		if emptyResponse {
+		if len(response.Variables) == 0 || IsEndOfMIB(response.Variables[0].Type) {
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				session.Logger.Printf("ConditionalWalk returned no OIDs at %s, retrying from %s", oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				continue
+			}
 			break RequestLoop
 		}
 
@@ -119,7 +115,6 @@ RequestLoop:
 			if err != nil {
 				return err
 			}
-			hasOIDs = true
 			if oid == "" {
 				oid = pdu.Name
 			}
@@ -138,7 +133,7 @@ RequestLoop:
 			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
-	if !hasOIDs {
+	if oid == rootOIDs[rootIndex] {
 		return fmt.Errorf("no OIDs collected after %d requests", requests)
 	}
 	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)

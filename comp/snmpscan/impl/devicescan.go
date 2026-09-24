@@ -330,7 +330,6 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 	// when multiple devices are scanned concurrently.
 	maxRepOptimizer := batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 
-RequestLoop:
 	for {
 		select {
 		case <-ctx.Done():
@@ -350,31 +349,23 @@ RequestLoop:
 		// Use GetBulk with REAL OIDs only (never fabricated).
 		maxRep := uint32(maxRepOptimizer.BatchSize())
 		response, err := snmp.GetBulk([]string{oid}, 0, maxRep)
-		requestFailed := err != nil || response.Error != gosnmp.NoError
-		if requestFailed {
+		if err != nil || response.Error != gosnmp.NoError {
 			// Both a transport error and a non-NoError SNMP status mean this
 			// request failed; back the batch size off and retry the same OID.
 			if maxRepOptimizer.OnFailure() {
 				continue
 			}
-		}
-		var emptyResponse, endOfMIB bool
-		if err == nil {
-			emptyResponse = len(response.Variables) == 0
-			endOfMIB = !emptyResponse && gosnmplib.IsEndOfMIB(response.Variables[0].Type)
-		}
-		if emitted == 0 && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
-			rootIndex++
-			log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
-			oid = rootOIDs[rootIndex]
-			prevInts, err = gosnmplib.OIDToInts(oid)
-			if err != nil {
-				return err
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				prevInts, err = gosnmplib.OIDToInts(oid)
+				if err != nil {
+					return err
+				}
+				maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
+				continue
 			}
-			maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
-			continue
-		}
-		if requestFailed {
 			if err != nil {
 				return gosnmplib.NewConnectionError(
 					fmt.Errorf("GetBulk error at OID %s (max-rep=%d): %w", oid, maxRep, err),
@@ -384,9 +375,20 @@ RequestLoop:
 		}
 		maxRepOptimizer.OnSuccess()
 
-		if emptyResponse {
+		if len(response.Variables) == 0 || gosnmplib.IsEndOfMIB(response.Variables[0].Type) {
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				log.Infof("SNMP scan for device %s returned no OIDs at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				prevInts, err = gosnmplib.OIDToInts(oid)
+				if err != nil {
+					return err
+				}
+				maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
+				continue
+			}
 			// No more data.
-			break RequestLoop
+			break
 		}
 
 		lastOID := oid
@@ -395,7 +397,7 @@ RequestLoop:
 			// End conditions.
 			if gosnmplib.IsEndOfMIB(pdu.Type) {
 				log.Debugf("SNMP scan for device %s reached end of MIB view at OID %s after %d requests, %d OIDs collected", deviceID, lastOID, requests, emitted)
-				break RequestLoop
+				return nil
 			}
 
 			// Loop/stuck detection: each returned OID must be strictly after
