@@ -14,6 +14,7 @@ new-e2e-windows-fips-compliance-test:
   variables:
     TARGETS: ./tests/fips-compliance
     TEAM: windows-products
+  retry: !reference [.retry_only_infra_failure, retry]
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestWindowsVM$"
