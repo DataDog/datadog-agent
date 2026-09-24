@@ -51,7 +51,10 @@ const (
 // it must stay stable for a given service. Tags whose values are generated per
 // rollout or per run (e.g. kube_replica_set, kube_job) must not be added here:
 // they change the hash on every deploy and inflate DSM pathway cardinality.
+// Their stable parent workload (kube_deployment, kube_cronjob) is used instead.
 var serviceOriginTags = map[string]struct{}{
+	"kube_deployment":     {},
+	"kube_cronjob":        {},
 	"kube_container_name": {},
 	"kube_namespace":      {},
 	"kube_app_name":       {},

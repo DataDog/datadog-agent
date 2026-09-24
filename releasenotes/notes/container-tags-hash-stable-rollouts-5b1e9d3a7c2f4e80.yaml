@@ -13,5 +13,5 @@ fixes:
     includes the ``kube_replica_set`` and ``kube_job`` tags. Their values
     change on every rolling deploy or job run, which made the hash, and the
     Data Streams Monitoring pathway hashes tracers derive from it, change on
-    every deploy. The ``kube_replica_set`` and ``kube_job`` tags themselves are
-    unchanged.
+    every deploy. Their stable parent workloads, ``kube_deployment`` and
+    ``kube_cronjob``, are hashed instead. The tags themselves are unchanged.
