@@ -35,11 +35,14 @@ func TestRenderCapabilities(t *testing.T) {
 		{name: "drop everything", add: nil, wantAdd: nil},
 		{name: "sorted and deduplicated", add: []string{"SETUID", "CHOWN", "SETUID"}, wantAdd: []corev1.Capability{"CHOWN", "SETUID"}},
 		{name: "not granted today", add: []string{"SYS_ADMIN"}, wantSkip: true},
+		{name: "not in implicit set", add: []string{"NET_RAW"}, wantSkip: true},
 		{name: "declared add", declared: &corev1.Capabilities{Add: []corev1.Capability{"CAP_SYS_ADMIN"}}, add: []string{"SYS_ADMIN"}, wantAdd: []corev1.Capability{"SYS_ADMIN"}},
 		{name: "declared add ALL", declared: &corev1.Capabilities{Add: []corev1.Capability{"ALL"}}, add: []string{"SYS_ADMIN"}, wantAdd: []corev1.Capability{"SYS_ADMIN"}},
 		{name: "declared drop ALL", declared: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}, Add: []corev1.Capability{"CHOWN"}}, add: []string{"NET_BIND_SERVICE"}, wantSkip: true},
 		{name: "declared drop ALL keeps added", declared: &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}, Add: []corev1.Capability{"CHOWN"}}, add: []string{"CHOWN"}, wantAdd: []corev1.Capability{"CHOWN"}},
 		{name: "declared drop wins over add", declared: &corev1.Capabilities{Add: []corev1.Capability{"NET_RAW"}, Drop: []corev1.Capability{"NET_RAW"}}, add: []string{"NET_RAW"}, wantSkip: true},
+		{name: "add ALL drop ALL grants nothing implicit", declared: &corev1.Capabilities{Add: []corev1.Capability{"ALL"}, Drop: []corev1.Capability{"ALL"}}, add: []string{"SYS_ADMIN"}, wantSkip: true},
+		{name: "add ALL drop ALL keeps individual add", declared: &corev1.Capabilities{Add: []corev1.Capability{"ALL", "CHOWN"}, Drop: []corev1.Capability{"ALL"}}, add: []string{"CHOWN"}, wantAdd: []corev1.Capability{"CHOWN"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -11,6 +11,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/utils/ptr"
@@ -207,6 +210,60 @@ func TestControllerWaitsForRollout(t *testing.T) {
 	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
 }
 
+func TestControllerRejectsUnsafeRolloutStrategy(t *testing.T) {
+	tests := map[string]func(d *appsv1.Deployment){
+		"recreate strategy": func(d *appsv1.Deployment) {
+			d.Spec.Strategy.Type = appsv1.RecreateDeploymentStrategyType
+		},
+		"maxUnavailable covers every replica": func(d *appsv1.Deployment) {
+			mu := intstr.FromString("100%")
+			d.Spec.Strategy = appsv1.DeploymentStrategy{
+				Type:          appsv1.RollingUpdateDeploymentStrategyType,
+				RollingUpdate: &appsv1.RollingUpdateDeployment{MaxUnavailable: &mu},
+			}
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			d := testDeployment(nil)
+			mutate(d)
+			c, client, _ := newTestController(t, d, rawRequest(t, nil))
+			c.reconcile(context.Background())
+			assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+			assert.Contains(t, c.rejected, "req-1")
+		})
+	}
+}
+
+func TestControllerAppliesWithSafeRollingUpdate(t *testing.T) {
+	d := testDeployment(nil)
+	mu := intstr.FromInt32(1)
+	d.Spec.Strategy = appsv1.DeploymentStrategy{
+		Type:          appsv1.RollingUpdateDeploymentStrategyType,
+		RollingUpdate: &appsv1.RollingUpdateDeployment{MaxUnavailable: &mu},
+	}
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	c.reconcile(context.Background())
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+	assert.NotContains(t, c.rejected, "req-1")
+}
+
+func TestControllerWaitsWhilePaused(t *testing.T) {
+	d := testDeployment(nil)
+	d.Spec.Paused = true
+	c, client, _ := newTestController(t, d, rawRequest(t, nil))
+	c.reconcile(context.Background())
+	assert.Empty(t, getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+	assert.NotContains(t, c.rejected, "req-1", "paused is not a rejection")
+
+	d = getDeployment(t, client)
+	d.Spec.Paused = false
+	_, err := client.AppsV1().Deployments("shop").Update(context.Background(), d, metav1.UpdateOptions{})
+	require.NoError(t, err)
+	c.reconcile(context.Background())
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation])
+}
+
 func TestControllerRevertAndExpiry(t *testing.T) {
 	for name, mutate := range map[string]func(m map[string]any){
 		"revert":  func(m map[string]any) { m["action"] = "revert" },
@@ -265,4 +322,31 @@ func TestControllerNotLeader(t *testing.T) {
 	c.isLeader = func() bool { return false }
 	c.reconcile(context.Background())
 	assert.Empty(t, client.Actions())
+}
+
+func TestControllerRunReconcilesOnceThenStopsOnAlreadyCancelledContext(t *testing.T) {
+	c, client, _ := newTestController(t, testDeployment(nil), rawRequest(t, nil))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	c.Run(ctx)
+
+	assert.Equal(t, "req-1", getDeployment(t, client).Spec.Template.Annotations[RequestsAnnotation],
+		"the in-flight reconcile pass completes even though ctx is already done")
+}
+
+func TestStartRequiresRCOrRequestsFile(t *testing.T) {
+	_, err := Start(context.Background(), "", testCluster, fake.NewClientset(), func() bool { return true }, nil)
+	assert.Error(t, err)
+}
+
+func TestStartWithRequestsFileReturnsStore(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // so the WatchFile and Run goroutines exit right away
+	path := filepath.Join(t.TempDir(), "requests.json")
+	require.NoError(t, os.WriteFile(path, []byte("[]"), 0o600))
+
+	store, err := Start(ctx, path, testCluster, fake.NewClientset(), func() bool { return true }, nil)
+	require.NoError(t, err)
+	assert.NotNil(t, store)
 }
