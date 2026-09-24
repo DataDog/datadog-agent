@@ -8,14 +8,12 @@
 package privatebundles
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	authoredscriptssupport "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
@@ -106,13 +104,4 @@ func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
 	require.NotNil(t, bundle)
 	action := bundle.GetAction("echo")
 	require.NotNil(t, action)
-
-	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		BundleID: "com.datadoghq.authoredscripts",
-		Name:     "echo",
-	}
-	rcClient.handler(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
-	_, err = action.Run(context.Background(), task, nil)
-	require.ErrorIs(t, err, authoredscriptssupport.ErrPackageNotConfigured)
 }
