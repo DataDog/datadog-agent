@@ -897,8 +897,7 @@ def test(
     """
     Run go tests.
 
-    This task uses Bazel to run the tests and will soon replace the existing `test` task, which
-    will be renamed to `legacy` and eventually be dropped.
+    This task is a thin wrapper around Bazel.
     """
 
     if only_modified_packages:
