@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"runtime"
 	"runtime/pprof"
 	"time"
 
@@ -25,10 +26,9 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
-	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	cluster "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
+	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -48,6 +48,17 @@ func openOrDie(name string) (file *os.File) {
 }
 
 func main() {
+	// The benchmark binary is built with the "test" tag,
+	// which unconditionally sets up a debug-level logger.
+	// Set it to info to keep it quiet.
+	ddlog.SetupLogger(ddlog.Default(), "info")
+
+	// fake.NewSimpleClientset() never sends the bookmark event that the watch-list
+	// initial sync (client-go's default since v0.35) requires, so reflectors would
+	// otherwise stall for the full randomized minWatchTimeout (5-10 minutes) before
+	// falling back to a regular List(). Must be set before any reflector starts.
+	os.Setenv("KUBE_FEATURE_WatchListClient", "false")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	fakeClient := fake.NewSimpleClientset()
 
@@ -165,7 +176,6 @@ func main() {
 	builder.WithFamilyGeneratorFilter(allowDenyList)
 	builder.WithKubeClient(fakeClient)
 	builder.WithContext(ctx)
-	builder.WithResync(1 * time.Second)
 	builder.WithGenerateStoresFunc(builder.GenerateStores)
 
 	store := builder.BuildStores()
@@ -208,16 +218,20 @@ func main() {
 	kubeStateMetricsCheck := cluster.KubeStateMetricsFactoryWithParam(labelsMapper, labelJoins, store, taggerComponent)
 
 	/*
-	 * Initialize the aggregator
-	 * As it has a `nil` serializer, it will panic if it tries to flush the metrics.
-	 * That’s why we need a big enough flush interval
+	 * The check's Run() needs a working sender.SenderManager.
+	 * A no-op stub (rather than a real aggregator/demultiplexer) keeps the
+	 * profile focused on the check's own logic instead of aggregator-side
+	 * bookkeeping (channel hop, context resolver, retained series).
 	 */
-	aggregator.NewBufferedAggregator(nil, nil, nil, taggerComponent, "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
+	if err := kubeStateMetricsCheck.CommonConfigure(noopSenderManager{}, nil, nil, "", ""); err != nil {
+		log.Fatalf("Failed to configure the sender manager on the check: %v\n", err)
+	}
 
 	/*
 	 * Wait for informers to get populated
+	 * TODO: wait for the initial reflector sync instead of a fixed sleep.
 	 */
-	time.Sleep(2 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	/*
 	 * Call and benchmark KSMCheck.Run()
@@ -228,11 +242,36 @@ func main() {
 		return
 	}
 
+	/*
+	 * alloc_space/alloc_objects are cumulative since process start.
+	 * Snapshot the heap immediately before and after Run() so callers can diff the two
+	 * via `go tool pprof -alloc_space -diff_base=heap_before.pprof heap_after.pprof`
+	 * and isolate what Run() itself allocated.
+	 */
+	writeHeapProfile("heap_before.pprof")
+
 	pprof.StartCPUProfile(file)
 	start := time.Now()
 	err = kubeStateMetricsCheck.Run()
 	elapsed := time.Since(start)
 	pprof.StopCPUProfile()
+
+	writeHeapProfile("heap_after.pprof")
+
+	/*
+	 * Also write the cumulative allocation profile (alloc_space/alloc_objects)
+	 * for the whole process, like `go test -memprofile`. It is dominated by
+	 * setup/informer allocations; use the heap_before/heap_after diff to
+	 * isolate what Run() itself allocated.
+	 */
+	if mf, mErr := os.Create("memprofile.pprof"); mErr == nil {
+		if mErr = pprof.Lookup("allocs").WriteTo(mf, 0); mErr != nil {
+			log.Printf("Failed to write \"memprofile.pprof\": %v\n", mErr)
+		}
+		if err = mf.Close(); err != nil {
+			log.Printf("failed to close \"memprofile.pprof\": %v\n", err)
+		}
+	}
 
 	cancel()
 	fmt.Printf("KSMCheck.Run() returned %v in %s\n", err, elapsed)
@@ -240,5 +279,23 @@ func main() {
 	if err = file.Close(); err != nil {
 		log.Printf("failed to close \"cpuprofile.pprof\": %v\n", err)
 		return
+	}
+}
+
+// writeHeapProfile forces a GC so inuse_space/inuse_objects reflect only
+// still-referenced data, then writes both the inuse and cumulative alloc
+// counters for the current point in the program to name.
+func writeHeapProfile(name string) {
+	runtime.GC()
+	f, err := os.Create(name)
+	if err != nil {
+		log.Printf("Failed to create %q: %v\n", name, err)
+		return
+	}
+	if err := pprof.WriteHeapProfile(f); err != nil {
+		log.Printf("Failed to write heap profile to %q: %v\n", name, err)
+	}
+	if err := f.Close(); err != nil {
+		log.Printf("failed to close %q: %v\n", name, err)
 	}
 }
