@@ -160,15 +160,15 @@ func (e *Kubernetes) WaitForAgentReady(ctx context.Context, options ...Kubernete
 		return fmt.Errorf("Agent readiness poll interval must be positive")
 	}
 
-	deadline := time.NewTimer(params.timeout)
-	defer deadline.Stop()
+	waitCtx, cancel := context.WithTimeout(ctx, params.timeout)
+	defer cancel()
 	ticker := time.NewTicker(params.pollInterval)
 	defer ticker.Stop()
 
 	var stableSince time.Time
 	var lastErr error
 	for {
-		err := e.checkAgentPodsReady(ctx, params.targets)
+		err := e.checkAgentPodsReady(waitCtx, params.targets)
 		if err == nil {
 			if params.stableFor <= 0 {
 				return nil
@@ -185,9 +185,10 @@ func (e *Kubernetes) WaitForAgentReady(ctx context.Context, options ...Kubernete
 		}
 
 		select {
-		case <-ctx.Done():
-			return fmt.Errorf("waiting for Agent readiness: %w", ctx.Err())
-		case <-deadline.C:
+		case <-waitCtx.Done():
+			if ctx.Err() != nil {
+				return fmt.Errorf("waiting for Agent readiness: %w", ctx.Err())
+			}
 			if lastErr == nil {
 				lastErr = fmt.Errorf("pods did not remain ready for %s", params.stableFor)
 			}
