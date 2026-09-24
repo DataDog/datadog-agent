@@ -22,6 +22,7 @@ new-e2e-agent-runtimes:
     TEAM: agent-runtimes
     EXTRA_PARAMS: --skip "Windows"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-fips-compliance-test:
   extends: .new_e2e_template
@@ -37,6 +38,7 @@ new-e2e-fips-compliance-test:
   variables:
     TARGETS: ./tests/fips-compliance
     TEAM: agent-runtimes
+  retry: !reference [.retry_only_infra_failure, retry]
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestFIPSCiphersLinuxSuite$"

@@ -26,6 +26,7 @@ new-e2e-agent-runtimes-windows:
     TEAM: agent-runtimes
     EXTRA_PARAMS: --run "Windows"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-agent-subcommands-windows:
   extends: .new_e2e_template_needs_windows_x64
