@@ -51,67 +51,6 @@ func scopeToProto(scope cm.Scope) *pb.ClusterMetadataScope {
 	}
 }
 
-// snapshotToProto converts a shard snapshot into its wire form.
-func snapshotToProto(snapshot cm.ShardSnapshot) *pb.ClusterMetadataSnapshot {
-	response := &pb.ClusterMetadataSnapshot{Nodes: snapshot.Nodes}
-	for _, event := range snapshot.Events {
-		response.Events = append(response.Events, eventToProto(event))
-	}
-	return response
-}
-
-// ringToProto converts a ring view into its wire form.
-func ringToProto(ring cm.RingInfo) *pb.ClusterMetadataRing {
-	response := &pb.ClusterMetadataRing{}
-	for _, member := range ring.Members {
-		response.Members = append(response.Members, &pb.ClusterMetadataRingMember{
-			Name:  member.Name,
-			Nodes: member.Nodes,
-			Ready: member.Ready,
-		})
-	}
-	return response
-}
-
-// eventToProto converts one stream event into its wire form.
-func eventToProto(event cm.NodeEvent) *pb.ClusterMetadataNodeEvent {
-	return &pb.ClusterMetadataNodeEvent{
-		Kind:      event.Kind,
-		Namespace: event.Namespace,
-		Name:      event.Name,
-		Deleted:   event.Deleted,
-		Tags:      event.Tags,
-	}
-}
-
-// snapshotFromProto converts a wire snapshot back into the local form.
-func snapshotFromProto(snapshot *pb.ClusterMetadataSnapshot) cm.ShardSnapshot {
-	result := cm.ShardSnapshot{Nodes: snapshot.GetNodes()}
-	for _, event := range snapshot.GetEvents() {
-		result.Events = append(result.Events, cm.NodeEvent{
-			Kind:      event.GetKind(),
-			Namespace: event.GetNamespace(),
-			Name:      event.GetName(),
-			Deleted:   event.GetDeleted(),
-			Tags:      event.GetTags(),
-		})
-	}
-	return result
-}
-
-// ringFromProto converts a wire ring view back into the local form.
-func ringFromProto(ring *pb.ClusterMetadataRing) cm.RingInfo {
-	info := cm.RingInfo{}
-	for _, member := range ring.GetMembers() {
-		info.Members = append(info.Members, cm.RingMember{
-			Name:  member.GetName(),
-			Nodes: member.GetNodes(),
-			Ready: member.GetReady(),
-		})
-	}
-	return info
-}
-
 func cardinalityFromProto(c pb.ClusterMetadataCardinality) taggertypes.TagCardinality {
 	switch c {
 	case pb.ClusterMetadataCardinality_CLUSTER_METADATA_ORCHESTRATOR:

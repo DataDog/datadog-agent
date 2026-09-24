@@ -189,18 +189,10 @@ func TestLocalStoreReadinessGate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, cm.AnswerAbsent, answer.Kind)
 
-	// The self member in Ring reflects the gate; the peer's Ready is unknown
-	// and stays true.
-	ring, err := store.Ring(ctx)
-	require.NoError(t, err)
-	require.Len(t, ring.Members, 2)
-	for _, member := range ring.Members {
-		if member.Name == MemberID("datadog", "dca-0") {
-			assert.True(t, member.Ready)
-		} else {
-			assert.True(t, member.Ready, "peer readiness is unknown, not false")
-		}
-	}
+	// The self member's readiness reflects the gate; the other members
+	// are unknown and not the store's business.
+	state := controller.State()
+	assert.True(t, state.Ready(), "self readiness follows the sync gate after marking nodes synced")
 }
 
 // TestRingControllerLeaseDeletionRecovery tests that a lease deleted out from
