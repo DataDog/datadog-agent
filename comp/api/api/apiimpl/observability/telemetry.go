@@ -8,6 +8,7 @@ package observability
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -53,6 +54,14 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) func(http.Ha
 			next.ServeHTTP(w, r)
 
 			path := capture.template
+			if path == "" && r.Pattern != "" {
+				// No route template was planted by a WrapWithRouteTemplate/WithRouteTemplate
+				// wrapper; fall back to the pattern matched by the stdlib ServeMux when the
+				// telemetry middleware is registered per-route inside it (e.g. the trace agent
+				// debug server and the system-probe API). It is empty when the middleware
+				// wraps the mux from the outside.
+				path = stripMethodFromPattern(r.Pattern)
+			}
 			if path == "" {
 				path = "unknown"
 			}
@@ -64,6 +73,17 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) func(http.Ha
 			th.requestDuration.Observe(durationSeconds, serverName, strconv.Itoa(statusCode), r.Method, path, auth)
 		})
 	}
+}
+
+// stripMethodFromPattern removes the leading HTTP method qualifier of a
+// ServeMux pattern ("GET /config" -> "/config") so the path tag stays
+// consistent with the templates planted by WrapWithRouteTemplate. Patterns
+// without a method qualifier start with a path or host and are returned as-is.
+func stripMethodFromPattern(pattern string) string {
+	if i := strings.IndexByte(pattern, ' '); i >= 0 && pattern[0] != '/' {
+		return pattern[i+1:]
+	}
+	return pattern
 }
 
 func newTelemetryMiddlewareFactory(telemetry telemetry.Component, clock clock.Clock, authTagGetter func(r *http.Request) string) TelemetryMiddlewareFactory {
