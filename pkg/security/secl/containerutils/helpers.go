@@ -18,8 +18,10 @@ import (
 // ([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4}) is container id used by Garden, length: 28
 var ContainerIDPatternStr = ""
 var containerIDPattern *regexp.Regexp
+var podUIDPattern *regexp.Regexp
 
 var containerIDCoreChars = "0123456789abcdefABCDEF"
+var podUIDBoundaryChars = "/-."
 
 func init() {
 	// when changing this pattern, make sure to also update the pre-check
@@ -27,6 +29,7 @@ func init() {
 
 	ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
+	podUIDPattern = regexp.MustCompile(`pod([0-9a-fA-F]{8}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{12})`)
 }
 
 // FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
@@ -50,6 +53,49 @@ func FindContainerID(s CGroupID) ContainerID {
 		}
 
 		return ContainerID(s[match[0]:match[1]])
+	}
+
+	return ""
+}
+
+// FindPodUID extracts the Kubernetes pod UID from a kubelet cgroup path.
+//
+// It supports both cgroupfs paths such as:
+//
+//	/kubepods/besteffort/pod48d25824-cbe2-4fdc-9928-5bb49e05473d/...
+//
+// and systemd paths such as:
+//
+//	/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod48d25824_cbe2_4fdc_9928_5bb49e05473d.slice/...
+//
+// The returned UID is normalized to the canonical dashed, lowercase form.
+func FindPodUID(s CGroupID) string {
+	matches := podUIDPattern.FindAllStringSubmatchIndex(string(s), -1)
+
+	for _, match := range slices.Backward(matches) {
+		if len(match) < 4 {
+			continue
+		}
+
+		podStart := match[0]
+		uidStart := match[2]
+		uidEnd := match[3]
+
+		if podStart != 0 {
+			previousChar := string(s[podStart-1])
+			if !strings.ContainsAny(previousChar, podUIDBoundaryChars) {
+				continue
+			}
+		}
+
+		if uidEnd < len(s) {
+			nextChar := string(s[uidEnd])
+			if !strings.ContainsAny(nextChar, podUIDBoundaryChars) {
+				continue
+			}
+		}
+
+		return strings.ToLower(strings.ReplaceAll(string(s[uidStart:uidEnd]), "_", "-"))
 	}
 
 	return ""
