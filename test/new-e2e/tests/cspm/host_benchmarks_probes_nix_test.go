@@ -75,8 +75,12 @@ func sshdCheck(distro) probe {
 func packageCheck(d distro) probe {
 	rule := rulePrefix + "package_telnet_removed"
 	if d.family == debian {
+		// telnet is baked into the Debian/Ubuntu e2e AMI (ami-builder
+		// provision-e2e-apt.sh), so the "broken" (non-compliant) state is
+		// already the machine's boot state; only the "fixed" transition
+		// needs a command, and removal needs no network access.
 		return probe{"package", rule,
-			"sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y telnet",
+			"true",
 			"sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y telnet"}
 	}
 	return probe{"package", rule, "sudo dnf install -y telnet", "sudo dnf remove -y telnet"}
