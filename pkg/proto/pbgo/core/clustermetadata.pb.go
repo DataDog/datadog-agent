@@ -408,386 +408,6 @@ func (x *ClusterMetadataAnswer) GetTags() []string {
 	return nil
 }
 
-type ClusterMetadataNodeEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	Namespace     string                 `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Deleted       bool                   `protobuf:"varint,4,opt,name=deleted,proto3" json:"deleted,omitempty"`
-	Tags          []string               `protobuf:"bytes,5,rep,name=tags,proto3" json:"tags,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClusterMetadataNodeEvent) Reset() {
-	*x = ClusterMetadataNodeEvent{}
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClusterMetadataNodeEvent) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClusterMetadataNodeEvent) ProtoMessage() {}
-
-func (x *ClusterMetadataNodeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClusterMetadataNodeEvent.ProtoReflect.Descriptor instead.
-func (*ClusterMetadataNodeEvent) Descriptor() ([]byte, []int) {
-	return file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *ClusterMetadataNodeEvent) GetKind() string {
-	if x != nil {
-		return x.Kind
-	}
-	return ""
-}
-
-func (x *ClusterMetadataNodeEvent) GetNamespace() string {
-	if x != nil {
-		return x.Namespace
-	}
-	return ""
-}
-
-func (x *ClusterMetadataNodeEvent) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ClusterMetadataNodeEvent) GetDeleted() bool {
-	if x != nil {
-		return x.Deleted
-	}
-	return false
-}
-
-func (x *ClusterMetadataNodeEvent) GetTags() []string {
-	if x != nil {
-		return x.Tags
-	}
-	return nil
-}
-
-type ClusterMetadataSnapshotRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	Namespace     string                 `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	Scope         *ClusterMetadataScope  `protobuf:"bytes,3,opt,name=scope,proto3" json:"scope,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClusterMetadataSnapshotRequest) Reset() {
-	*x = ClusterMetadataSnapshotRequest{}
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClusterMetadataSnapshotRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClusterMetadataSnapshotRequest) ProtoMessage() {}
-
-func (x *ClusterMetadataSnapshotRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClusterMetadataSnapshotRequest.ProtoReflect.Descriptor instead.
-func (*ClusterMetadataSnapshotRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *ClusterMetadataSnapshotRequest) GetKind() string {
-	if x != nil {
-		return x.Kind
-	}
-	return ""
-}
-
-func (x *ClusterMetadataSnapshotRequest) GetNamespace() string {
-	if x != nil {
-		return x.Namespace
-	}
-	return ""
-}
-
-func (x *ClusterMetadataSnapshotRequest) GetScope() *ClusterMetadataScope {
-	if x != nil {
-		return x.Scope
-	}
-	return nil
-}
-
-type ClusterMetadataSnapshot struct {
-	state         protoimpl.MessageState      `protogen:"open.v1"`
-	Nodes         []string                    `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
-	Events        []*ClusterMetadataNodeEvent `protobuf:"bytes,2,rep,name=events,proto3" json:"events,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClusterMetadataSnapshot) Reset() {
-	*x = ClusterMetadataSnapshot{}
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClusterMetadataSnapshot) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClusterMetadataSnapshot) ProtoMessage() {}
-
-func (x *ClusterMetadataSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClusterMetadataSnapshot.ProtoReflect.Descriptor instead.
-func (*ClusterMetadataSnapshot) Descriptor() ([]byte, []int) {
-	return file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *ClusterMetadataSnapshot) GetNodes() []string {
-	if x != nil {
-		return x.Nodes
-	}
-	return nil
-}
-
-func (x *ClusterMetadataSnapshot) GetEvents() []*ClusterMetadataNodeEvent {
-	if x != nil {
-		return x.Events
-	}
-	return nil
-}
-
-type ClusterMetadataRingMember struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Nodes         []string               `protobuf:"bytes,2,rep,name=nodes,proto3" json:"nodes,omitempty"`
-	Ready         bool                   `protobuf:"varint,3,opt,name=ready,proto3" json:"ready,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClusterMetadataRingMember) Reset() {
-	*x = ClusterMetadataRingMember{}
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClusterMetadataRingMember) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClusterMetadataRingMember) ProtoMessage() {}
-
-func (x *ClusterMetadataRingMember) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClusterMetadataRingMember.ProtoReflect.Descriptor instead.
-func (*ClusterMetadataRingMember) Descriptor() ([]byte, []int) {
-	return file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *ClusterMetadataRingMember) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ClusterMetadataRingMember) GetNodes() []string {
-	if x != nil {
-		return x.Nodes
-	}
-	return nil
-}
-
-func (x *ClusterMetadataRingMember) GetReady() bool {
-	if x != nil {
-		return x.Ready
-	}
-	return false
-}
-
-type ClusterMetadataRingRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClusterMetadataRingRequest) Reset() {
-	*x = ClusterMetadataRingRequest{}
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClusterMetadataRingRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClusterMetadataRingRequest) ProtoMessage() {}
-
-func (x *ClusterMetadataRingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClusterMetadataRingRequest.ProtoReflect.Descriptor instead.
-func (*ClusterMetadataRingRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP(), []int{9}
-}
-
-type ClusterMetadataRing struct {
-	state         protoimpl.MessageState       `protogen:"open.v1"`
-	Members       []*ClusterMetadataRingMember `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClusterMetadataRing) Reset() {
-	*x = ClusterMetadataRing{}
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClusterMetadataRing) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClusterMetadataRing) ProtoMessage() {}
-
-func (x *ClusterMetadataRing) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClusterMetadataRing.ProtoReflect.Descriptor instead.
-func (*ClusterMetadataRing) Descriptor() ([]byte, []int) {
-	return file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *ClusterMetadataRing) GetMembers() []*ClusterMetadataRingMember {
-	if x != nil {
-		return x.Members
-	}
-	return nil
-}
-
-type ClusterMetadataSubscribeRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Node          string                 `protobuf:"bytes,1,opt,name=node,proto3" json:"node,omitempty"`
-	Scope         *ClusterMetadataScope  `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClusterMetadataSubscribeRequest) Reset() {
-	*x = ClusterMetadataSubscribeRequest{}
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[11]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClusterMetadataSubscribeRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClusterMetadataSubscribeRequest) ProtoMessage() {}
-
-func (x *ClusterMetadataSubscribeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_clustermetadata_clustermetadata_proto_msgTypes[11]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ClusterMetadataSubscribeRequest.ProtoReflect.Descriptor instead.
-func (*ClusterMetadataSubscribeRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP(), []int{11}
-}
-
-func (x *ClusterMetadataSubscribeRequest) GetNode() string {
-	if x != nil {
-		return x.Node
-	}
-	return ""
-}
-
-func (x *ClusterMetadataSubscribeRequest) GetScope() *ClusterMetadataScope {
-	if x != nil {
-		return x.Scope
-	}
-	return nil
-}
-
 var File_datadog_clustermetadata_clustermetadata_proto protoreflect.FileDescriptor
 
 const file_datadog_clustermetadata_clustermetadata_proto_rawDesc = "" +
@@ -810,30 +430,7 @@ const file_datadog_clustermetadata_clustermetadata_proto_rawDesc = "" +
 	"\x05scope\x18\x04 \x01(\v2-.datadog.clustermetadata.ClusterMetadataScopeR\x05scope\"s\n" +
 	"\x15ClusterMetadataAnswer\x12F\n" +
 	"\x04kind\x18\x01 \x01(\x0e22.datadog.clustermetadata.ClusterMetadataAnswerKindR\x04kind\x12\x12\n" +
-	"\x04tags\x18\x02 \x03(\tR\x04tags\"\x8e\x01\n" +
-	"\x18ClusterMetadataNodeEvent\x12\x12\n" +
-	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1c\n" +
-	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x18\n" +
-	"\adeleted\x18\x04 \x01(\bR\adeleted\x12\x12\n" +
-	"\x04tags\x18\x05 \x03(\tR\x04tags\"\x97\x01\n" +
-	"\x1eClusterMetadataSnapshotRequest\x12\x12\n" +
-	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1c\n" +
-	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12C\n" +
-	"\x05scope\x18\x03 \x01(\v2-.datadog.clustermetadata.ClusterMetadataScopeR\x05scope\"z\n" +
-	"\x17ClusterMetadataSnapshot\x12\x14\n" +
-	"\x05nodes\x18\x01 \x03(\tR\x05nodes\x12I\n" +
-	"\x06events\x18\x02 \x03(\v21.datadog.clustermetadata.ClusterMetadataNodeEventR\x06events\"[\n" +
-	"\x19ClusterMetadataRingMember\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05nodes\x18\x02 \x03(\tR\x05nodes\x12\x14\n" +
-	"\x05ready\x18\x03 \x01(\bR\x05ready\"\x1c\n" +
-	"\x1aClusterMetadataRingRequest\"c\n" +
-	"\x13ClusterMetadataRing\x12L\n" +
-	"\amembers\x18\x01 \x03(\v22.datadog.clustermetadata.ClusterMetadataRingMemberR\amembers\"z\n" +
-	"\x1fClusterMetadataSubscribeRequest\x12\x12\n" +
-	"\x04node\x18\x01 \x01(\tR\x04node\x12C\n" +
-	"\x05scope\x18\x02 \x01(\v2-.datadog.clustermetadata.ClusterMetadataScopeR\x05scope*\x93\x01\n" +
+	"\x04tags\x18\x02 \x03(\tR\x04tags*\x93\x01\n" +
 	"\x19ClusterMetadataAnswerKind\x12\x1a\n" +
 	"\x16CLUSTER_METADATA_FOUND\x10\x00\x12\x1b\n" +
 	"\x17CLUSTER_METADATA_ABSENT\x10\x01\x12\x1d\n" +
@@ -842,18 +439,10 @@ const file_datadog_clustermetadata_clustermetadata_proto_rawDesc = "" +
 	"\x1aClusterMetadataCardinality\x12\x18\n" +
 	"\x14CLUSTER_METADATA_LOW\x10\x00\x12!\n" +
 	"\x1dCLUSTER_METADATA_ORCHESTRATOR\x10\x01\x12\x19\n" +
-	"\x15CLUSTER_METADATA_HIGH\x10\x022\xd8\x03\n" +
+	"\x15CLUSTER_METADATA_HIGH\x10\x022\xf6\x01\n" +
 	"\x0fClusterMetadata\x12m\n" +
 	"\x05Query\x124.datadog.clustermetadata.ClusterMetadataQueryRequest\x1a..datadog.clustermetadata.ClusterMetadataAnswer\x12t\n" +
-	"\vQueryOrigin\x125.datadog.clustermetadata.ClusterMetadataOriginRequest\x1a..datadog.clustermetadata.ClusterMetadataAnswer\x12u\n" +
-	"\bSnapshot\x127.datadog.clustermetadata.ClusterMetadataSnapshotRequest\x1a0.datadog.clustermetadata.ClusterMetadataSnapshot\x12i\n" +
-	"\x04Ring\x123.datadog.clustermetadata.ClusterMetadataRingRequest\x1a,.datadog.clustermetadata.ClusterMetadataRing2\xdc\x04\n" +
-	"\x17ClusterMetadataConsumer\x12m\n" +
-	"\x05Query\x124.datadog.clustermetadata.ClusterMetadataQueryRequest\x1a..datadog.clustermetadata.ClusterMetadataAnswer\x12t\n" +
-	"\vQueryOrigin\x125.datadog.clustermetadata.ClusterMetadataOriginRequest\x1a..datadog.clustermetadata.ClusterMetadataAnswer\x12u\n" +
-	"\bSnapshot\x127.datadog.clustermetadata.ClusterMetadataSnapshotRequest\x1a0.datadog.clustermetadata.ClusterMetadataSnapshot\x12z\n" +
-	"\tSubscribe\x128.datadog.clustermetadata.ClusterMetadataSubscribeRequest\x1a1.datadog.clustermetadata.ClusterMetadataNodeEvent0\x01\x12i\n" +
-	"\x04Ring\x123.datadog.clustermetadata.ClusterMetadataRingRequest\x1a,.datadog.clustermetadata.ClusterMetadataRingB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\vQueryOrigin\x125.datadog.clustermetadata.ClusterMetadataOriginRequest\x1a..datadog.clustermetadata.ClusterMetadataAnswerB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
 	file_datadog_clustermetadata_clustermetadata_proto_rawDescOnce sync.Once
@@ -868,56 +457,31 @@ func file_datadog_clustermetadata_clustermetadata_proto_rawDescGZIP() []byte {
 }
 
 var file_datadog_clustermetadata_clustermetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_datadog_clustermetadata_clustermetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_datadog_clustermetadata_clustermetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_datadog_clustermetadata_clustermetadata_proto_goTypes = []any{
-	(ClusterMetadataAnswerKind)(0),          // 0: datadog.clustermetadata.ClusterMetadataAnswerKind
-	(ClusterMetadataCardinality)(0),         // 1: datadog.clustermetadata.ClusterMetadataCardinality
-	(*ClusterMetadataScope)(nil),            // 2: datadog.clustermetadata.ClusterMetadataScope
-	(*ClusterMetadataEntityKey)(nil),        // 3: datadog.clustermetadata.ClusterMetadataEntityKey
-	(*ClusterMetadataQueryRequest)(nil),     // 4: datadog.clustermetadata.ClusterMetadataQueryRequest
-	(*ClusterMetadataOriginRequest)(nil),    // 5: datadog.clustermetadata.ClusterMetadataOriginRequest
-	(*ClusterMetadataAnswer)(nil),           // 6: datadog.clustermetadata.ClusterMetadataAnswer
-	(*ClusterMetadataNodeEvent)(nil),        // 7: datadog.clustermetadata.ClusterMetadataNodeEvent
-	(*ClusterMetadataSnapshotRequest)(nil),  // 8: datadog.clustermetadata.ClusterMetadataSnapshotRequest
-	(*ClusterMetadataSnapshot)(nil),         // 9: datadog.clustermetadata.ClusterMetadataSnapshot
-	(*ClusterMetadataRingMember)(nil),       // 10: datadog.clustermetadata.ClusterMetadataRingMember
-	(*ClusterMetadataRingRequest)(nil),      // 11: datadog.clustermetadata.ClusterMetadataRingRequest
-	(*ClusterMetadataRing)(nil),             // 12: datadog.clustermetadata.ClusterMetadataRing
-	(*ClusterMetadataSubscribeRequest)(nil), // 13: datadog.clustermetadata.ClusterMetadataSubscribeRequest
+	(ClusterMetadataAnswerKind)(0),       // 0: datadog.clustermetadata.ClusterMetadataAnswerKind
+	(ClusterMetadataCardinality)(0),      // 1: datadog.clustermetadata.ClusterMetadataCardinality
+	(*ClusterMetadataScope)(nil),         // 2: datadog.clustermetadata.ClusterMetadataScope
+	(*ClusterMetadataEntityKey)(nil),     // 3: datadog.clustermetadata.ClusterMetadataEntityKey
+	(*ClusterMetadataQueryRequest)(nil),  // 4: datadog.clustermetadata.ClusterMetadataQueryRequest
+	(*ClusterMetadataOriginRequest)(nil), // 5: datadog.clustermetadata.ClusterMetadataOriginRequest
+	(*ClusterMetadataAnswer)(nil),        // 6: datadog.clustermetadata.ClusterMetadataAnswer
 }
 var file_datadog_clustermetadata_clustermetadata_proto_depIdxs = []int32{
-	1,  // 0: datadog.clustermetadata.ClusterMetadataScope.cardinality:type_name -> datadog.clustermetadata.ClusterMetadataCardinality
-	3,  // 1: datadog.clustermetadata.ClusterMetadataQueryRequest.key:type_name -> datadog.clustermetadata.ClusterMetadataEntityKey
-	2,  // 2: datadog.clustermetadata.ClusterMetadataQueryRequest.scope:type_name -> datadog.clustermetadata.ClusterMetadataScope
-	2,  // 3: datadog.clustermetadata.ClusterMetadataOriginRequest.scope:type_name -> datadog.clustermetadata.ClusterMetadataScope
-	0,  // 4: datadog.clustermetadata.ClusterMetadataAnswer.kind:type_name -> datadog.clustermetadata.ClusterMetadataAnswerKind
-	2,  // 5: datadog.clustermetadata.ClusterMetadataSnapshotRequest.scope:type_name -> datadog.clustermetadata.ClusterMetadataScope
-	7,  // 6: datadog.clustermetadata.ClusterMetadataSnapshot.events:type_name -> datadog.clustermetadata.ClusterMetadataNodeEvent
-	10, // 7: datadog.clustermetadata.ClusterMetadataRing.members:type_name -> datadog.clustermetadata.ClusterMetadataRingMember
-	2,  // 8: datadog.clustermetadata.ClusterMetadataSubscribeRequest.scope:type_name -> datadog.clustermetadata.ClusterMetadataScope
-	4,  // 9: datadog.clustermetadata.ClusterMetadata.Query:input_type -> datadog.clustermetadata.ClusterMetadataQueryRequest
-	5,  // 10: datadog.clustermetadata.ClusterMetadata.QueryOrigin:input_type -> datadog.clustermetadata.ClusterMetadataOriginRequest
-	8,  // 11: datadog.clustermetadata.ClusterMetadata.Snapshot:input_type -> datadog.clustermetadata.ClusterMetadataSnapshotRequest
-	11, // 12: datadog.clustermetadata.ClusterMetadata.Ring:input_type -> datadog.clustermetadata.ClusterMetadataRingRequest
-	4,  // 13: datadog.clustermetadata.ClusterMetadataConsumer.Query:input_type -> datadog.clustermetadata.ClusterMetadataQueryRequest
-	5,  // 14: datadog.clustermetadata.ClusterMetadataConsumer.QueryOrigin:input_type -> datadog.clustermetadata.ClusterMetadataOriginRequest
-	8,  // 15: datadog.clustermetadata.ClusterMetadataConsumer.Snapshot:input_type -> datadog.clustermetadata.ClusterMetadataSnapshotRequest
-	13, // 16: datadog.clustermetadata.ClusterMetadataConsumer.Subscribe:input_type -> datadog.clustermetadata.ClusterMetadataSubscribeRequest
-	11, // 17: datadog.clustermetadata.ClusterMetadataConsumer.Ring:input_type -> datadog.clustermetadata.ClusterMetadataRingRequest
-	6,  // 18: datadog.clustermetadata.ClusterMetadata.Query:output_type -> datadog.clustermetadata.ClusterMetadataAnswer
-	6,  // 19: datadog.clustermetadata.ClusterMetadata.QueryOrigin:output_type -> datadog.clustermetadata.ClusterMetadataAnswer
-	9,  // 20: datadog.clustermetadata.ClusterMetadata.Snapshot:output_type -> datadog.clustermetadata.ClusterMetadataSnapshot
-	12, // 21: datadog.clustermetadata.ClusterMetadata.Ring:output_type -> datadog.clustermetadata.ClusterMetadataRing
-	6,  // 22: datadog.clustermetadata.ClusterMetadataConsumer.Query:output_type -> datadog.clustermetadata.ClusterMetadataAnswer
-	6,  // 23: datadog.clustermetadata.ClusterMetadataConsumer.QueryOrigin:output_type -> datadog.clustermetadata.ClusterMetadataAnswer
-	9,  // 24: datadog.clustermetadata.ClusterMetadataConsumer.Snapshot:output_type -> datadog.clustermetadata.ClusterMetadataSnapshot
-	7,  // 25: datadog.clustermetadata.ClusterMetadataConsumer.Subscribe:output_type -> datadog.clustermetadata.ClusterMetadataNodeEvent
-	12, // 26: datadog.clustermetadata.ClusterMetadataConsumer.Ring:output_type -> datadog.clustermetadata.ClusterMetadataRing
-	18, // [18:27] is the sub-list for method output_type
-	9,  // [9:18] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	1, // 0: datadog.clustermetadata.ClusterMetadataScope.cardinality:type_name -> datadog.clustermetadata.ClusterMetadataCardinality
+	3, // 1: datadog.clustermetadata.ClusterMetadataQueryRequest.key:type_name -> datadog.clustermetadata.ClusterMetadataEntityKey
+	2, // 2: datadog.clustermetadata.ClusterMetadataQueryRequest.scope:type_name -> datadog.clustermetadata.ClusterMetadataScope
+	2, // 3: datadog.clustermetadata.ClusterMetadataOriginRequest.scope:type_name -> datadog.clustermetadata.ClusterMetadataScope
+	0, // 4: datadog.clustermetadata.ClusterMetadataAnswer.kind:type_name -> datadog.clustermetadata.ClusterMetadataAnswerKind
+	4, // 5: datadog.clustermetadata.ClusterMetadata.Query:input_type -> datadog.clustermetadata.ClusterMetadataQueryRequest
+	5, // 6: datadog.clustermetadata.ClusterMetadata.QueryOrigin:input_type -> datadog.clustermetadata.ClusterMetadataOriginRequest
+	6, // 7: datadog.clustermetadata.ClusterMetadata.Query:output_type -> datadog.clustermetadata.ClusterMetadataAnswer
+	6, // 8: datadog.clustermetadata.ClusterMetadata.QueryOrigin:output_type -> datadog.clustermetadata.ClusterMetadataAnswer
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
+	5, // [5:5] is the sub-list for extension type_name
+	5, // [5:5] is the sub-list for extension extendee
+	0, // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_datadog_clustermetadata_clustermetadata_proto_init() }
@@ -931,9 +495,9 @@ func file_datadog_clustermetadata_clustermetadata_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_clustermetadata_clustermetadata_proto_rawDesc), len(file_datadog_clustermetadata_clustermetadata_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   5,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   1,
 		},
 		GoTypes:           file_datadog_clustermetadata_clustermetadata_proto_goTypes,
 		DependencyIndexes: file_datadog_clustermetadata_clustermetadata_proto_depIdxs,

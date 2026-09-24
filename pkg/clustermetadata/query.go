@@ -68,32 +68,6 @@ type LookupAnswer struct {
 }
 
 // NodeEvent is one change for a node-scoped stream subscription.
-type NodeEvent struct {
-	Kind      string
-	Namespace string
-	Name      string
-	Deleted   bool
-	Tags      []string
-}
-
 // ShardSnapshot is the per-shard answer to an enumeration query.
 // Consumers are responsible for merging snapshots from multiple DCA replicas.
-type ShardSnapshot struct {
-	Nodes  []string
-	Events []NodeEvent
-}
-
 // RingMember describes one metadata-serving replica.
-type RingMember struct {
-	// Name is the replica's shard identity (its Lease holder identity).
-	Name string
-	// Nodes are the node names this member is authoritative for.
-	Nodes []string
-	// Ready is false while the member's informers for its nodes are syncing.
-	Ready bool
-}
-
-// RingInfo is the membership view used for routing.
-type RingInfo struct {
-	Members []RingMember
-}

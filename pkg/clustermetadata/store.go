@@ -7,25 +7,19 @@ package clustermetadata
 
 import "context"
 
-// Store is the cluster workload metadata query contract.
-//
-// Note: This interface is implemented relative to a specific DCA replica.
+// Store is the cluster workload metadata query contract. The cluster-agent
+// runs the coordinator implementation (local caches plus the peer fanout);
+// a peer client implements it against another replica's local-answer
+// service. Both sides see the same interface.
 type Store interface {
-	// Lookup returns the tags of one named object, if the object is known to this DCA.
+	// Lookup returns the tags of one named object. Workload kinds are
+	// replicated, so any replica answers them. Pod misses defer to the
+	// coordinator: the answer comes from the owning replica or the
+	// reduced answers of the whole ring.
 	Lookup(ctx context.Context, req LookupRequest) (LookupAnswer, error)
 
-	// LookupOrigin resolves a pod by runtime identifiers (UID, container ID).
+	// LookupOrigin resolves a pod by runtime identifiers (UID, container
+	// ID). On the coordinator, a local miss fans out to the peers; first
+	// AnswerFound wins, see AnswerKind for the full protocol.
 	LookupOrigin(ctx context.Context, req OriginLookupRequest) (LookupAnswer, error)
-
-	// Subscribe streams metadata changes for one node. The stream
-	// first delivers a burst of the node's current state, then changes. When
-	// the owning replica changes, the stream ends with an error and the
-	// consumer must resubscribe to the new owning replica.
-	Subscribe(ctx context.Context, node string, scope Scope) (<-chan NodeEvent, func(), error)
-
-	// Snapshot returns this replica's shard of an enumeration. Callers are responsible for merging snapshots across replicas.
-	Snapshot(ctx context.Context, kind string, namespace string, scope Scope) (ShardSnapshot, error)
-
-	// Ring returns the current membership view.
-	Ring(ctx context.Context) (RingInfo, error)
 }

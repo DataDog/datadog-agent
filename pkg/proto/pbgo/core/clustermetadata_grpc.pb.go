@@ -21,8 +21,6 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ClusterMetadata_Query_FullMethodName       = "/datadog.clustermetadata.ClusterMetadata/Query"
 	ClusterMetadata_QueryOrigin_FullMethodName = "/datadog.clustermetadata.ClusterMetadata/QueryOrigin"
-	ClusterMetadata_Snapshot_FullMethodName    = "/datadog.clustermetadata.ClusterMetadata/Snapshot"
-	ClusterMetadata_Ring_FullMethodName        = "/datadog.clustermetadata.ClusterMetadata/Ring"
 )
 
 // ClusterMetadataClient is the client API for ClusterMetadata service.
@@ -31,12 +29,11 @@ const (
 //
 // ClusterMetadata is the peer-facing surface of the metadata ring: every
 // method answers from the serving replica's local cache only, never fanning
-// out to further peers.
+// out to further peers. Consumer-facing surfaces (the tagger gRPC) delegate
+// to the coordinator, which fans out through this service.
 type ClusterMetadataClient interface {
 	Query(ctx context.Context, in *ClusterMetadataQueryRequest, opts ...grpc.CallOption) (*ClusterMetadataAnswer, error)
 	QueryOrigin(ctx context.Context, in *ClusterMetadataOriginRequest, opts ...grpc.CallOption) (*ClusterMetadataAnswer, error)
-	Snapshot(ctx context.Context, in *ClusterMetadataSnapshotRequest, opts ...grpc.CallOption) (*ClusterMetadataSnapshot, error)
-	Ring(ctx context.Context, in *ClusterMetadataRingRequest, opts ...grpc.CallOption) (*ClusterMetadataRing, error)
 }
 
 type clusterMetadataClient struct {
@@ -67,38 +64,17 @@ func (c *clusterMetadataClient) QueryOrigin(ctx context.Context, in *ClusterMeta
 	return out, nil
 }
 
-func (c *clusterMetadataClient) Snapshot(ctx context.Context, in *ClusterMetadataSnapshotRequest, opts ...grpc.CallOption) (*ClusterMetadataSnapshot, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClusterMetadataSnapshot)
-	err := c.cc.Invoke(ctx, ClusterMetadata_Snapshot_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *clusterMetadataClient) Ring(ctx context.Context, in *ClusterMetadataRingRequest, opts ...grpc.CallOption) (*ClusterMetadataRing, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClusterMetadataRing)
-	err := c.cc.Invoke(ctx, ClusterMetadata_Ring_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ClusterMetadataServer is the server API for ClusterMetadata service.
 // All implementations must embed UnimplementedClusterMetadataServer
 // for forward compatibility.
 //
 // ClusterMetadata is the peer-facing surface of the metadata ring: every
 // method answers from the serving replica's local cache only, never fanning
-// out to further peers.
+// out to further peers. Consumer-facing surfaces (the tagger gRPC) delegate
+// to the coordinator, which fans out through this service.
 type ClusterMetadataServer interface {
 	Query(context.Context, *ClusterMetadataQueryRequest) (*ClusterMetadataAnswer, error)
 	QueryOrigin(context.Context, *ClusterMetadataOriginRequest) (*ClusterMetadataAnswer, error)
-	Snapshot(context.Context, *ClusterMetadataSnapshotRequest) (*ClusterMetadataSnapshot, error)
-	Ring(context.Context, *ClusterMetadataRingRequest) (*ClusterMetadataRing, error)
 	mustEmbedUnimplementedClusterMetadataServer()
 }
 
@@ -114,12 +90,6 @@ func (UnimplementedClusterMetadataServer) Query(context.Context, *ClusterMetadat
 }
 func (UnimplementedClusterMetadataServer) QueryOrigin(context.Context, *ClusterMetadataOriginRequest) (*ClusterMetadataAnswer, error) {
 	return nil, status.Error(codes.Unimplemented, "method QueryOrigin not implemented")
-}
-func (UnimplementedClusterMetadataServer) Snapshot(context.Context, *ClusterMetadataSnapshotRequest) (*ClusterMetadataSnapshot, error) {
-	return nil, status.Error(codes.Unimplemented, "method Snapshot not implemented")
-}
-func (UnimplementedClusterMetadataServer) Ring(context.Context, *ClusterMetadataRingRequest) (*ClusterMetadataRing, error) {
-	return nil, status.Error(codes.Unimplemented, "method Ring not implemented")
 }
 func (UnimplementedClusterMetadataServer) mustEmbedUnimplementedClusterMetadataServer() {}
 func (UnimplementedClusterMetadataServer) testEmbeddedByValue()                         {}
@@ -178,42 +148,6 @@ func _ClusterMetadata_QueryOrigin_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClusterMetadata_Snapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClusterMetadataSnapshotRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterMetadataServer).Snapshot(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterMetadata_Snapshot_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterMetadataServer).Snapshot(ctx, req.(*ClusterMetadataSnapshotRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ClusterMetadata_Ring_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClusterMetadataRingRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterMetadataServer).Ring(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterMetadata_Ring_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterMetadataServer).Ring(ctx, req.(*ClusterMetadataRingRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ClusterMetadata_ServiceDesc is the grpc.ServiceDesc for ClusterMetadata service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -229,284 +163,7 @@ var ClusterMetadata_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "QueryOrigin",
 			Handler:    _ClusterMetadata_QueryOrigin_Handler,
 		},
-		{
-			MethodName: "Snapshot",
-			Handler:    _ClusterMetadata_Snapshot_Handler,
-		},
-		{
-			MethodName: "Ring",
-			Handler:    _ClusterMetadata_Ring_Handler,
-		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "datadog/clustermetadata/clustermetadata.proto",
-}
-
-const (
-	ClusterMetadataConsumer_Query_FullMethodName       = "/datadog.clustermetadata.ClusterMetadataConsumer/Query"
-	ClusterMetadataConsumer_QueryOrigin_FullMethodName = "/datadog.clustermetadata.ClusterMetadataConsumer/QueryOrigin"
-	ClusterMetadataConsumer_Snapshot_FullMethodName    = "/datadog.clustermetadata.ClusterMetadataConsumer/Snapshot"
-	ClusterMetadataConsumer_Subscribe_FullMethodName   = "/datadog.clustermetadata.ClusterMetadataConsumer/Subscribe"
-	ClusterMetadataConsumer_Ring_FullMethodName        = "/datadog.clustermetadata.ClusterMetadataConsumer/Ring"
-)
-
-// ClusterMetadataConsumerClient is the client API for ClusterMetadataConsumer service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// ClusterMetadataConsumer is the consumer-facing surface: every method has
-// coordinator semantics. A pod query asked of any replica fans out to the
-// peer replicas through the ClusterMetadata service and answers for the
-// whole ring. Subscribe streams one node's events from its owning replica.
-type ClusterMetadataConsumerClient interface {
-	Query(ctx context.Context, in *ClusterMetadataQueryRequest, opts ...grpc.CallOption) (*ClusterMetadataAnswer, error)
-	QueryOrigin(ctx context.Context, in *ClusterMetadataOriginRequest, opts ...grpc.CallOption) (*ClusterMetadataAnswer, error)
-	Snapshot(ctx context.Context, in *ClusterMetadataSnapshotRequest, opts ...grpc.CallOption) (*ClusterMetadataSnapshot, error)
-	Subscribe(ctx context.Context, in *ClusterMetadataSubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ClusterMetadataNodeEvent], error)
-	Ring(ctx context.Context, in *ClusterMetadataRingRequest, opts ...grpc.CallOption) (*ClusterMetadataRing, error)
-}
-
-type clusterMetadataConsumerClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewClusterMetadataConsumerClient(cc grpc.ClientConnInterface) ClusterMetadataConsumerClient {
-	return &clusterMetadataConsumerClient{cc}
-}
-
-func (c *clusterMetadataConsumerClient) Query(ctx context.Context, in *ClusterMetadataQueryRequest, opts ...grpc.CallOption) (*ClusterMetadataAnswer, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClusterMetadataAnswer)
-	err := c.cc.Invoke(ctx, ClusterMetadataConsumer_Query_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *clusterMetadataConsumerClient) QueryOrigin(ctx context.Context, in *ClusterMetadataOriginRequest, opts ...grpc.CallOption) (*ClusterMetadataAnswer, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClusterMetadataAnswer)
-	err := c.cc.Invoke(ctx, ClusterMetadataConsumer_QueryOrigin_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *clusterMetadataConsumerClient) Snapshot(ctx context.Context, in *ClusterMetadataSnapshotRequest, opts ...grpc.CallOption) (*ClusterMetadataSnapshot, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClusterMetadataSnapshot)
-	err := c.cc.Invoke(ctx, ClusterMetadataConsumer_Snapshot_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *clusterMetadataConsumerClient) Subscribe(ctx context.Context, in *ClusterMetadataSubscribeRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ClusterMetadataNodeEvent], error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &ClusterMetadataConsumer_ServiceDesc.Streams[0], ClusterMetadataConsumer_Subscribe_FullMethodName, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &grpc.GenericClientStream[ClusterMetadataSubscribeRequest, ClusterMetadataNodeEvent]{ClientStream: stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterMetadataConsumer_SubscribeClient = grpc.ServerStreamingClient[ClusterMetadataNodeEvent]
-
-func (c *clusterMetadataConsumerClient) Ring(ctx context.Context, in *ClusterMetadataRingRequest, opts ...grpc.CallOption) (*ClusterMetadataRing, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ClusterMetadataRing)
-	err := c.cc.Invoke(ctx, ClusterMetadataConsumer_Ring_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// ClusterMetadataConsumerServer is the server API for ClusterMetadataConsumer service.
-// All implementations must embed UnimplementedClusterMetadataConsumerServer
-// for forward compatibility.
-//
-// ClusterMetadataConsumer is the consumer-facing surface: every method has
-// coordinator semantics. A pod query asked of any replica fans out to the
-// peer replicas through the ClusterMetadata service and answers for the
-// whole ring. Subscribe streams one node's events from its owning replica.
-type ClusterMetadataConsumerServer interface {
-	Query(context.Context, *ClusterMetadataQueryRequest) (*ClusterMetadataAnswer, error)
-	QueryOrigin(context.Context, *ClusterMetadataOriginRequest) (*ClusterMetadataAnswer, error)
-	Snapshot(context.Context, *ClusterMetadataSnapshotRequest) (*ClusterMetadataSnapshot, error)
-	Subscribe(*ClusterMetadataSubscribeRequest, grpc.ServerStreamingServer[ClusterMetadataNodeEvent]) error
-	Ring(context.Context, *ClusterMetadataRingRequest) (*ClusterMetadataRing, error)
-	mustEmbedUnimplementedClusterMetadataConsumerServer()
-}
-
-// UnimplementedClusterMetadataConsumerServer must be embedded to have
-// forward compatible implementations.
-//
-// NOTE: this should be embedded by value instead of pointer to avoid a nil
-// pointer dereference when methods are called.
-type UnimplementedClusterMetadataConsumerServer struct{}
-
-func (UnimplementedClusterMetadataConsumerServer) Query(context.Context, *ClusterMetadataQueryRequest) (*ClusterMetadataAnswer, error) {
-	return nil, status.Error(codes.Unimplemented, "method Query not implemented")
-}
-func (UnimplementedClusterMetadataConsumerServer) QueryOrigin(context.Context, *ClusterMetadataOriginRequest) (*ClusterMetadataAnswer, error) {
-	return nil, status.Error(codes.Unimplemented, "method QueryOrigin not implemented")
-}
-func (UnimplementedClusterMetadataConsumerServer) Snapshot(context.Context, *ClusterMetadataSnapshotRequest) (*ClusterMetadataSnapshot, error) {
-	return nil, status.Error(codes.Unimplemented, "method Snapshot not implemented")
-}
-func (UnimplementedClusterMetadataConsumerServer) Subscribe(*ClusterMetadataSubscribeRequest, grpc.ServerStreamingServer[ClusterMetadataNodeEvent]) error {
-	return status.Error(codes.Unimplemented, "method Subscribe not implemented")
-}
-func (UnimplementedClusterMetadataConsumerServer) Ring(context.Context, *ClusterMetadataRingRequest) (*ClusterMetadataRing, error) {
-	return nil, status.Error(codes.Unimplemented, "method Ring not implemented")
-}
-func (UnimplementedClusterMetadataConsumerServer) mustEmbedUnimplementedClusterMetadataConsumerServer() {
-}
-func (UnimplementedClusterMetadataConsumerServer) testEmbeddedByValue() {}
-
-// UnsafeClusterMetadataConsumerServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ClusterMetadataConsumerServer will
-// result in compilation errors.
-type UnsafeClusterMetadataConsumerServer interface {
-	mustEmbedUnimplementedClusterMetadataConsumerServer()
-}
-
-func RegisterClusterMetadataConsumerServer(s grpc.ServiceRegistrar, srv ClusterMetadataConsumerServer) {
-	// If the following call panics, it indicates UnimplementedClusterMetadataConsumerServer was
-	// embedded by pointer and is nil.  This will cause panics if an
-	// unimplemented method is ever invoked, so we test this at initialization
-	// time to prevent it from happening at runtime later due to I/O.
-	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
-		t.testEmbeddedByValue()
-	}
-	s.RegisterService(&ClusterMetadataConsumer_ServiceDesc, srv)
-}
-
-func _ClusterMetadataConsumer_Query_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClusterMetadataQueryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterMetadataConsumerServer).Query(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterMetadataConsumer_Query_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterMetadataConsumerServer).Query(ctx, req.(*ClusterMetadataQueryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ClusterMetadataConsumer_QueryOrigin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClusterMetadataOriginRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterMetadataConsumerServer).QueryOrigin(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterMetadataConsumer_QueryOrigin_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterMetadataConsumerServer).QueryOrigin(ctx, req.(*ClusterMetadataOriginRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ClusterMetadataConsumer_Snapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClusterMetadataSnapshotRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterMetadataConsumerServer).Snapshot(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterMetadataConsumer_Snapshot_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterMetadataConsumerServer).Snapshot(ctx, req.(*ClusterMetadataSnapshotRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ClusterMetadataConsumer_Subscribe_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ClusterMetadataSubscribeRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(ClusterMetadataConsumerServer).Subscribe(m, &grpc.GenericServerStream[ClusterMetadataSubscribeRequest, ClusterMetadataNodeEvent]{ServerStream: stream})
-}
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ClusterMetadataConsumer_SubscribeServer = grpc.ServerStreamingServer[ClusterMetadataNodeEvent]
-
-func _ClusterMetadataConsumer_Ring_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ClusterMetadataRingRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ClusterMetadataConsumerServer).Ring(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ClusterMetadataConsumer_Ring_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClusterMetadataConsumerServer).Ring(ctx, req.(*ClusterMetadataRingRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-// ClusterMetadataConsumer_ServiceDesc is the grpc.ServiceDesc for ClusterMetadataConsumer service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var ClusterMetadataConsumer_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.clustermetadata.ClusterMetadataConsumer",
-	HandlerType: (*ClusterMetadataConsumerServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Query",
-			Handler:    _ClusterMetadataConsumer_Query_Handler,
-		},
-		{
-			MethodName: "QueryOrigin",
-			Handler:    _ClusterMetadataConsumer_QueryOrigin_Handler,
-		},
-		{
-			MethodName: "Snapshot",
-			Handler:    _ClusterMetadataConsumer_Snapshot_Handler,
-		},
-		{
-			MethodName: "Ring",
-			Handler:    _ClusterMetadataConsumer_Ring_Handler,
-		},
-	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "Subscribe",
-			Handler:       _ClusterMetadataConsumer_Subscribe_Handler,
-			ServerStreams: true,
-		},
-	},
 	Metadata: "datadog/clustermetadata/clustermetadata.proto",
 }
