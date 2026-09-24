@@ -1467,7 +1467,7 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 		"kube_cronjob_status_active":                       {},
 		"kube_node_status_phase":                           {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},
-		"kube_job_spec_active_dealine_seconds":             {},
+		"kube_job_spec_active_deadline_seconds":            {},
 		"kube_job_spec_completions":                        {},
 		"kube_job_spec_parallelism":                        {},
 		"kube_job_status_active":                           {},
