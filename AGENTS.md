@@ -105,6 +105,25 @@ Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table abo
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`, or use the `/run-e2e`
   skill, which runs the test in a `dda env dev` sandbox and triages setup failures
 
+**One-time E2E setup — AI agents must run it non-interactively.** Never launch the
+interactive setup (it blocks on prompts an agent cannot answer). Instead:
+
+1. Ask the user for their GitHub team (kebab-case, e.g. `agent-platform`) if you
+don't already know it — it tags cloud resources for cost attribution.
+2. Run on the host, with the team passed via the flag:
+
+```bash
+dda inv e2e.setup --team=<github-team>
+```
+
+This is fully non-interactive: the AWS SSO profile and keypair are configured
+automatically with no confirmation prompts (a keypair/SSO already configured is
+skipped — the task is idempotent, so re-running is always safe). If the SSH key
+cannot be added to ssh-agent, the task prints a non-blocking warning with the
+commands to fix it; continue and only revisit if SSH-based tests fail.
+Never run this interactive form inside a dev container (`dda env dev`) — it
+derives the keypair name from the container username; use the host instead.
+
 ### Manual QA
 - When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.
 - Full guide (scenarios, commands, stack lifecycle): `docs/public/how-to/test/manual-qa/index.md`

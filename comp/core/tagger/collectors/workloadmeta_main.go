@@ -60,14 +60,16 @@ type WorkloadMetaCollector struct {
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
 
-	containerEnvAsTags    map[string]string
-	containerLabelsAsTags map[string]string
+	containerEnvAsTags              map[string]string
+	containerLabelsAsTags           map[string]string
+	containerImageAnnotationsAsTags map[string]string
 
 	staticTags                    map[string][]string // for ECS, EKS Fargate, and DCA
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
 	globContainerLabels           map[string]glob.Glob
 	globContainerEnvLabels        map[string]glob.Glob
+	globContainerImageAnnotations map[string]glob.Glob
 	globK8sResourcesAnnotations   map[string]map[string]glob.Glob
 	globK8sResourcesLabels        map[string]map[string]glob.Glob
 
@@ -88,9 +90,10 @@ type refreshRequest struct {
 	done chan struct{}
 }
 
-func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
+func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags, imageAnnotationsAsTags map[string]string) {
 	c.containerLabelsAsTags, c.globContainerLabels = k8smetadata.InitMetadataAsTags(labelsAsTags)
 	c.containerEnvAsTags, c.globContainerEnvLabels = k8smetadata.InitMetadataAsTags(envAsTags)
+	c.containerImageAnnotationsAsTags, c.globContainerImageAnnotations = k8smetadata.InitMetadataAsTags(imageAnnotationsAsTags)
 }
 
 func (c *WorkloadMetaCollector) initK8sResourcesMetaAsTags(resourcesLabelsAsTags, resourcesAnnotationsAsTags map[string]map[string]string) {
@@ -234,7 +237,8 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		retrieveMappingFromConfig(cfg, "docker_env_as_tags"),
 		retrieveMappingFromConfig(cfg, "container_env_as_tags"),
 	)
-	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
+	containerImageAnnotationsAsTags := retrieveMappingFromConfig(cfg, "container_image_annotations_as_tags")
+	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags, containerImageAnnotationsAsTags)
 
 	// kubernetes resources metadata as tags
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)

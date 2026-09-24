@@ -4,6 +4,8 @@
 
 This site is built by [Zensical](https://zensical.org), using its classic theme variant for compatibility with Material for MkDocs.
 
+See the [developer documentation reference](../reference/docs.md) for the site's configuration, variable injection, and theme customizations.
+
 You can serve documentation locally with the `dda run docs serve` command.
 
 Once the site is built with `dda run docs build`, `dda run docs check-links` resolves every link it contains, which `dda run docs build --check` does for you in one step.
@@ -17,6 +19,20 @@ We strive to follow the principles of the Diátaxis [documentation framework](ht
 When adding new pages, first think about what it is _exactly_ that you are trying to document. For example, if you intend to write about something everyone must follow as a standard practice it would be classified as a guideline whereas a short piece about performing a particular task would be a how-to.
 
 After deciding the kind of content, further segment the page under logical groupings for easier navigation.
+
+### Independent navigation roots
+
+Use independent navigation roots rarely. Most topics belong under the existing How-to, Tutorials, Guidelines, or Reference tabs. Add a root only when a substantial, self-contained area needs its own set of top-level topics, as [Architecture](../architecture/index.md) does.
+
+To configure a root, define a top-level section in `nav` in <<<repo("mkdocs.yml")>>> and put its landing page first. Add that page's generated URL to `extra.navigation_roots`, relative to the site root, without the deployment prefix or a Markdown source path. For example, Architecture's landing page is configured as `architecture/`.
+
+```yaml
+extra:
+  navigation_roots:
+  - url: architecture/
+```
+
+See the [navigation roots reference](../reference/docs.md#navigation-roots) for available options, behavior, and limitations.
 
 ## Ordered lists
 

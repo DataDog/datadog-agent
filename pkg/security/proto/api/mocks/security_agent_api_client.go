@@ -19,10 +19,19 @@ func NewSecurityAgentAPIClient(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *SecurityAgentAPIClient {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &SecurityAgentAPIClient{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }

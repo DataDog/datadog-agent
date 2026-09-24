@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"math"
 	"math/rand"
 	"sync"
 	"testing"
@@ -18,6 +19,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/sketches-go/ddsketch"
+	"github.com/DataDog/sketches-go/ddsketch/mapping"
+	"github.com/DataDog/sketches-go/ddsketch/pb/sketchpb"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/protobuf/proto"
@@ -137,7 +140,9 @@ func generateTestSketch(t *testing.T) *ddsketch.DDSketch {
 		v := rand.NormFloat64()
 		sketch.Add(v)
 	}
-	return normalizeSketch(sketch)
+	normalized, err := normalizeSketch(sketch)
+	assert.NoError(t, err)
+	return normalized
 }
 
 func encodeTestSketch(t *testing.T, s *ddsketch.DDSketch) []byte {
@@ -195,7 +200,7 @@ func duplicateStats(insertionTime time.Time, p *pb.ClientStatsPayload, times uin
 				copy(okSumBytes, stat.OkSummary)
 
 				okSummary, _ := decodeSketch(stat.OkSummary)
-				okSummary = normalizeSketch(okSummary)
+				okSummary, _ = normalizeSketch(okSummary)
 
 				mergeSketch(okSummary, okSumBytes)
 				stat.OkSummary, _ = proto.Marshal(okSummary.ToProto())
@@ -205,7 +210,7 @@ func duplicateStats(insertionTime time.Time, p *pb.ClientStatsPayload, times uin
 				copy(errSumBytes, stat.ErrorSummary)
 
 				errSummary, _ := decodeSketch(stat.ErrorSummary)
-				errSummary = normalizeSketch(errSummary)
+				errSummary, _ = normalizeSketch(errSummary)
 
 				mergeSketch(errSummary, errSumBytes)
 
@@ -1111,4 +1116,163 @@ func deepCopyGroupedStats(s []*pb.ClientGroupedStats) []*pb.ClientGroupedStats {
 		}
 	}
 	return stats
+}
+
+// degenerateSketchBytes returns an encoded sketch whose index mapping has a
+// gamma large enough that its bucket lower bounds overflow to +Inf. sketches-go
+// only rejects gamma <= 1, so this decodes successfully; re-mapping it onto the
+// agent's mapping used to index out of the bounds of a collapsing store and
+// panic. Two bin counts are required: a single-bin sketch is re-mapped through a
+// path that does not compute a lower bound.
+func degenerateSketchBytes(t *testing.T) []byte {
+	t.Helper()
+	msg := &sketchpb.DDSketch{
+		Mapping: &sketchpb.IndexMapping{
+			Gamma:         math.MaxFloat64,
+			Interpolation: sketchpb.IndexMapping_NONE,
+		},
+		PositiveValues: &sketchpb.Store{BinCounts: map[int32]float64{1: 1, 2: 1}},
+		NegativeValues: &sketchpb.Store{},
+	}
+	data, err := proto.Marshal(msg)
+	require.NoError(t, err)
+	return data
+}
+
+func TestValidMapping(t *testing.T) {
+	canonical, err := mapping.NewLogarithmicMapping(relativeAccuracy)
+	require.NoError(t, err)
+	finer, err := mapping.NewLogarithmicMapping(0.005)
+	require.NoError(t, err)
+	// Passes the gamma > 1 check in sketches-go but is degenerate: both
+	// indexable bounds come out finite (4 and 0) yet inverted, and the relative
+	// accuracy is 1.
+	overflowing, err := mapping.NewLogarithmicMappingWithGamma(math.MaxFloat64, 0)
+	require.NoError(t, err)
+	coarse, err := mapping.NewLogarithmicMapping(0.9)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name  string
+		m     mapping.IndexMapping
+		valid bool
+	}{
+		{"nil", nil, false},
+		{"canonical", canonical, true},
+		{"finer", finer, true},
+		{"overflowing gamma", overflowing, false},
+		{"too coarse", coarse, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.valid, validMapping(tc.m))
+		})
+	}
+}
+
+func TestNormalizeSketch(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		s, err := normalizeSketch(nil)
+		assert.NoError(t, err)
+		assert.Nil(t, s)
+	})
+
+	t.Run("canonical mapping is returned as is", func(t *testing.T) {
+		in, err := ddsketch.LogCollapsingLowestDenseDDSketch(relativeAccuracy, maxNumBins)
+		require.NoError(t, err)
+		require.NoError(t, in.Add(1))
+		out, err := normalizeSketch(in)
+		assert.NoError(t, err)
+		assert.Same(t, in, out)
+	})
+
+	t.Run("finer mapping is normalized", func(t *testing.T) {
+		in, err := ddsketch.LogCollapsingLowestDenseDDSketch(0.005, maxNumBins)
+		require.NoError(t, err)
+		require.NoError(t, in.Add(1))
+		require.NoError(t, in.Add(1000))
+		out, err := normalizeSketch(in)
+		require.NoError(t, err)
+		require.NotNil(t, out)
+		assert.True(t, out.IndexMapping.Equals(ddsketchMapping))
+		assert.Equal(t, 2.0, out.GetCount())
+	})
+
+	t.Run("degenerate mapping is rejected", func(t *testing.T) {
+		in, err := decodeSketch(degenerateSketchBytes(t))
+		require.NoError(t, err)
+		require.NotNil(t, in)
+		out, err := normalizeSketch(in)
+		assert.Error(t, err)
+		assert.Nil(t, out)
+	})
+}
+
+func TestMergeSketchDegenerate(t *testing.T) {
+	raw := degenerateSketchBytes(t)
+
+	t.Run("no existing sketch", func(t *testing.T) {
+		out, err := mergeSketch(nil, raw)
+		assert.Error(t, err)
+		assert.Nil(t, out)
+	})
+
+	t.Run("existing sketch is preserved", func(t *testing.T) {
+		s1 := generateTestSketch(t)
+		count := s1.GetCount()
+		out, err := mergeSketch(s1, raw)
+		assert.Error(t, err)
+		assert.Same(t, s1, out)
+		assert.Equal(t, count, out.GetCount())
+	})
+}
+
+// TestAggregatorDegenerateSketch covers the full aggregation path: a client
+// sends the same degenerate sketch twice, so the second payload forces the
+// aggregator to decode and re-map the first one. The counts must survive and
+// only the distributions are dropped.
+func TestAggregatorDegenerateSketch(t *testing.T) {
+	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	testTime := time.Unix(time.Now().Unix(), 0)
+	raw := degenerateSketchBytes(t)
+	k := BucketsAggregationKey{Service: "s", Name: "n", Resource: "r"}
+
+	for i := 0; i < 2; i++ {
+		p := payloadWithCounts(testTime, k, "", "test-version", "", "", "", 11, 7, 100)
+		p.Stats[0].Stats[0].OkSummary = raw
+		p.Stats[0].Stats[0].ErrorSummary = raw
+		a.add(testTime, p)
+	}
+
+	a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+	require.Len(t, msw.payloads, 1)
+	stats := msw.payloads[0].Stats[0].Stats[0].Stats
+	require.Len(t, stats, 1)
+	assert.Equal(t, uint64(22), stats[0].Hits)
+	assert.Equal(t, uint64(14), stats[0].Errors)
+	assert.Equal(t, uint64(200), stats[0].Duration)
+	assert.Nil(t, stats[0].OkSummary)
+	assert.Nil(t, stats[0].ErrorSummary)
+	assert.Len(t, a.buckets, 0)
+}
+
+// TestAggregatorAddRecovers checks that a panic while aggregating one payload
+// drops that payload instead of taking down the trace-agent, and that the
+// aggregator's lock is released so later payloads still go through.
+func TestAggregatorAddRecovers(t *testing.T) {
+	a := newTestAggregator()
+	msw := &mockStatsWriter{}
+	a.writer = msw
+	testTime := time.Unix(time.Now().Unix(), 0)
+
+	assert.NotPanics(t, func() { a.add(testTime, nil) })
+
+	k := BucketsAggregationKey{Service: "s"}
+	a.add(testTime, payloadWithCounts(testTime, k, "", "test-version", "", "", "", 11, 7, 100))
+	a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+	require.Len(t, msw.payloads, 1)
+	stats := msw.payloads[0].Stats[0].Stats[0].Stats
+	require.Len(t, stats, 1)
+	assert.Equal(t, uint64(11), stats[0].Hits)
 }

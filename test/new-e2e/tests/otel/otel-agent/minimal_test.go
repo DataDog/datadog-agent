@@ -132,49 +132,49 @@ func (s *minimalTestSuite) TestOTelAgentFlare() {
 
 func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
 	const expectedCfg = `service:
-  extensions:
-  - pprof/dd-autoconfigured
-  - zpages/dd-autoconfigured
-  - health_check/dd-autoconfigured
-  - ddflare/dd-autoconfigured
-  - datadog/dd-autoconfigured
-  pipelines:
-    logs:
-      exporters:
-      - datadog
-      processors:
-      - infraattributes/dd-autoconfigured
-      receivers:
-      - otlp
-    metrics:
-      exporters:
-      - datadog
-      processors:
-      - infraattributes/dd-autoconfigured
-      - cumulativetodelta/dd-autoconfigured
-      receivers:
-      - otlp
-      - datadog/connector
-    metrics/dd-autoconfigured/datadog:
-      exporters:
-      - datadog
-      processors:
-      - filter/drop-prometheus-internal-metrics/dd-autoconfigured
-      receivers:
-      - prometheus/dd-autoconfigured
-    traces:
-      exporters:
-      - datadog/connector
-      processors:
-      - infraattributes/dd-autoconfigured
-      receivers:
-      - otlp
-    traces/send:
-      exporters:
-      - datadog
-      processors:
-      - infraattributes/dd-autoconfigured
-      receivers:
-      - otlp`
+    extensions:
+        - pprof/dd-autoconfigured
+        - zpages/dd-autoconfigured
+        - health_check/dd-autoconfigured
+        - ddflare/dd-autoconfigured
+        - datadog/dd-autoconfigured
+    pipelines:
+        logs:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/dd-autoconfigured
+            receivers:
+                - otlp
+        metrics:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/dd-autoconfigured
+                - cumulativetodelta/dd-autoconfigured
+            receivers:
+                - otlp
+                - datadog/connector
+        metrics/dd-autoconfigured/datadog:
+            exporters:
+                - datadog
+            processors:
+                - filter/drop-prometheus-internal-metrics/dd-autoconfigured
+            receivers:
+                - prometheus/dd-autoconfigured
+        traces:
+            exporters:
+                - datadog/connector
+            processors:
+                - infraattributes/dd-autoconfigured
+            receivers:
+                - otlp
+        traces/send:
+            exporters:
+                - datadog
+            processors:
+                - infraattributes/dd-autoconfigured
+            receivers:
+                - otlp`
 	utils.TestCoreAgentConfigCmd(s, expectedCfg)
 }

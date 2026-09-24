@@ -64,11 +64,24 @@ var ADPWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-action.yaml
 var PARWindowsProcmgrConfig string
 
+// ProcessWindowsProcmgrConfig is the codegen-rendered process manager config for the process
+// agent on Windows (see embedded/tmpl/main.go). Install time replaces __PROCESS_*__ placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-process.yaml
+var ProcessWindowsProcmgrConfig string
+
 // PARExecutorWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
 // on-demand executor on Windows (see embedded/tmpl/main.go).
 //
 //go:embed tmpl/gen/windows/datadog-agent-action-executor.yaml
 var PARExecutorWindowsProcmgrConfig string
+
+// PARControlWindowsProcmgrConfig is the codegen-rendered process manager config for the PAR
+// control plane on Windows (see embedded/tmpl/main.go). Installer replaces __PAR_*__
+// placeholders.
+//
+//go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
+var PARControlWindowsProcmgrConfig string
 
 // UnitType is the type of systemd unit.
 type UnitType string

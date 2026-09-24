@@ -11,11 +11,41 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// migProfileRegexp matches the MIG profile embedded in a MIG device name and
+// captures its GPU-instance-level part. NVIDIA's profile names vary by
+// generation: a plain "1g.35gb", suffixed variants such as "1g.24gb+me",
+// "1g.24gb-me", "1g.24gb+me.all" or "1g.24gb+gfx" (Blackwell), and, when a GPU
+// instance is split into several compute instances, a leading compute-slice
+// count as in "1c.3g.20gb". The tag describes the GPU instance, so that
+// leading "<n>c." is matched but not captured.
+var migProfileRegexp = regexp.MustCompile(`^(?:[0-9]+c\.)?([0-9]+g\.[0-9]+gb(?:[+-][a-z]+(?:\.[a-z]+)*)?)$`)
+
+// ParseMIGProfileFromDeviceName extracts the GPU-instance-level MIG profile
+// name (e.g. "1g.35gb", "1g.24gb+me.all", or "3g.20gb" from a split-CI
+// "1c.3g.20gb") from a MIG device name. NVML reports MIG device names as
+// "<GPU name> MIG <profile>" (e.g. "NVIDIA H200 MIG 1g.35gb", verified on
+// driver 580). This costs no NVML calls beyond the GetName the device cache
+// already performs, and needs no privileges. Returns "" when the name does
+// not carry a recognizable profile.
+func ParseMIGProfileFromDeviceName(name string) string {
+	idx := strings.LastIndex(name, " MIG ")
+	if idx < 0 {
+		return ""
+	}
+	m := migProfileRegexp.FindStringSubmatch(strings.TrimSpace(name[idx+len(" MIG "):]))
+	if m == nil {
+		return ""
+	}
+	return m[1]
+}
 
 // SafeDevice represents a safe wrapper around NVML device operations.
 // It ensures that operations are only performed when the corresponding
@@ -55,6 +85,14 @@ type SafeDevice interface {
 	GetGpuInstanceId() (int, error)
 	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
 	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
+	// GetMIGInstanceProfileName returns the canonical MIG profile name (e.g. "1g.35gb")
+	// of the GPU instance with the given ID, as reported by the driver. Only
+	// meaningful when called on the parent physical device of a MIG device.
+	// Requires a privileged agent: nvml.h marks nvmlDeviceGetGpuInstanceById
+	// as "Requires privileged user", so this fails on default non-privileged
+	// core-agent deployments. Returns an error if the driver does not support
+	// the versioned GPU instance profile info API.
+	GetMIGInstanceProfileName(gpuInstanceID int) (string, error)
 	// GetGpuFabricInfo returns the NVLink fabric information for the device.
 	GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error)
 	// GetIndex returns the index of the device
@@ -79,6 +117,8 @@ type SafeDevice interface {
 	GetNvLinkState(link int) (nvml.EnableState, error)
 	// GetNvLinkVersion returns the version of the specified NVLink.
 	GetNvLinkVersion(link int) (int, error)
+	// GetNvLinkErrorCounter returns the specified NVLink error counter for a link.
+	GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error)
 	// GetNumGpuCores returns the number of GPU cores in the device
 	GetNumGpuCores() (int, error)
 	// GetNumFans returns the number of fans in the device
@@ -200,6 +240,12 @@ type MIGDevice struct {
 
 	// MIGInstanceID is the instance ID of the MIG device
 	MIGInstanceID int
+
+	// Profile is the canonical MIG profile name of the device (e.g. "1g.35gb",
+	// "1g.18gb+me"), parsed from the device name when it carries one and
+	// otherwise resolved through the GPU instance handle (which requires a
+	// privileged agent). Empty when neither source resolves.
+	Profile string
 }
 
 var _ Device = &MIGDevice{}
@@ -320,6 +366,23 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		}
 		migChildDevice.MIGInstanceID = gpuInstanceID
 
+		// Primary source: the profile is embedded in the device's own name
+		// ("<GPU name> MIG <profile>") and is already fetched by NewMIGDevice,
+		// so this costs no additional NVML calls and needs no privileges.
+		migChildDevice.Profile = ParseMIGProfileFromDeviceName(migChildDevice.Name)
+
+		// Fallback for names without a recognizable profile: resolve through
+		// the GPU instance handle, which needs a privileged agent. Best effort
+		if migChildDevice.Profile == "" {
+			if profile, err := d.SafeDevice.GetMIGInstanceProfileName(gpuInstanceID); err != nil {
+				if logLimiter.ShouldLog() {
+					log.Infof("MIG device %s (GPU instance %d on %s): the gpu_mig_profile tag is unavailable because its name carries no profile and resolving it through the GPU instance handle requires a privileged agent (nvmlDeviceGetGpuInstanceById): %v", migChildDevice.UUID, gpuInstanceID, d.UUID, err)
+				}
+			} else {
+				migChildDevice.Profile = profile
+			}
+		}
+
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
 
@@ -394,8 +457,8 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 
 	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
 		d.VirtualizationMode = virtualizationMode
-	} else if logLimiter.ShouldLog() {
-		log.Warnf("cannot get virtualization mode: %v", err)
+	} else {
+		singleton.logDeviceWarning(d.UUID, "cannot get virtualization mode: %v", err)
 	}
 
 	d.fillNVLinkDataFromNVML(dev)
@@ -406,29 +469,21 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 	fields := []nvml.FieldValue{{FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT}}
 	if err := dev.GetFieldValues(fields); err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot get NVLink link count: %v", err)
-		}
+		singleton.logDeviceWarning(d.UUID, "cannot get NVLink link count: %v", err)
 		return
 	}
 	if ret := nvml.Return(fields[0].NvmlReturn); ret != nvml.SUCCESS {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot get NVLink link count: %s", nvml.ErrorString(ret))
-		}
+		singleton.logDeviceWarning(d.UUID, "cannot get NVLink link count: %s", nvml.ErrorString(ret))
 		return
 	}
 
 	linkCount, err := nvmlFieldValueToInt(fields[0])
 	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot parse NVLink link count: %v", err)
-		}
+		singleton.logDeviceWarning(d.UUID, "cannot parse NVLink link count: %v", err)
 		return
 	}
 	if linkCount < 0 {
-		if logLimiter.ShouldLog() {
-			log.Warnf("NVLink link count %d is negative", linkCount)
-		}
+		singleton.logDeviceWarning(d.UUID, "NVLink link count %d is negative", linkCount)
 		return
 	}
 
@@ -436,16 +491,14 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 	for link := range d.NVLinkLinkCount {
 		version, err := dev.GetNvLinkVersion(link)
 		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("cannot get NVLink version for link %d: %v", link, err)
-			}
+			singleton.logDeviceWarning(d.UUID, "cannot get NVLink version for link %d: %v", link, err)
 			continue
 		}
 
 		if d.NVLinkVersion == "" {
 			d.NVLinkVersion = nvlinkVersionString(version)
-		} else if d.NVLinkVersion != nvlinkVersionString(version) && logLimiter.ShouldLog() {
-			log.Warnf("NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+		} else if d.NVLinkVersion != nvlinkVersionString(version) {
+			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
 		}
 	}
 }

@@ -47,22 +47,23 @@ build do
         :live_stream => Omnibus.logger.live_stream(:info)
 
     # Next steps:
-    # - Add //cmd/installer:installer to the deps in //packages/agent/iot
+    # - Add //cmd/installer:installer to the deps in //packages/iot
     # - Drop the invoke here
     # - Drop the copy bin/agent -> install_dir/bin
     command "invoke agent.build --flavor iot --no-development", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     # Clean out the things that invoke agent.build leaves in bin/agent/dist, which we now get via bazel belowe.
     delete 'bin/agent/dist/conf.d'
     delete 'bin/agent/dist/datadog.yaml'
+    delete 'bin/agent/dist/system-probe.yaml'
 
     # Installs: bin/ and run/ dirs
     command "bazel run #{omnibazel_flags} -- " \
-            "//packages/agent/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+            "//packages/iot:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/agent', "#{install_dir}/bin/"
 
     # Installs: example yaml
     command "bazel run #{omnibazel_flags} -- " \
-            "//packages/agent/iot:install_example_config --destdir=/", :live_stream => Omnibus.logger.live_stream(:info)
+            "//packages/iot:install_example_config --destdir=/", :live_stream => Omnibus.logger.live_stream(:info)
 
     # /var/log/datadog is a runtime directory; not managed by Bazel packaging.
     mkdir "/var/log/datadog"

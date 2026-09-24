@@ -95,8 +95,8 @@ type NvidiaXid struct {
 	// Message is the bounded raw NVIDIA driver message, retained for forward-compatible diagnosis.
 	Message string `json:"message,omitempty"`
 
-	ProcessID   *uint64 `json:"process_id,omitempty"`
-	ProcessName string  `json:"process_name,omitempty"`
+	ProcessID   *uint64 `json:"process_id,omitempty" event_tag:"pid"`
+	ProcessName string  `json:"process_name,omitempty" event_tag:"process_name"`
 
 	MMUFault       *NvidiaXidMMUFault       `json:"mmu_fault,omitempty"`
 	NVLinkFault    *NvidiaXidNVLinkFault    `json:"nvlink_fault,omitempty"`
@@ -106,22 +106,22 @@ type NvidiaXid struct {
 
 // NvidiaXidMMUFault contains details from an NVIDIA Xid 31 MMU fault.
 type NvidiaXidMMUFault struct {
-	Channel      string `json:"channel,omitempty"`
-	Interrupt    string `json:"interrupt,omitempty"`
-	Engine       string `json:"engine,omitempty"`
-	EngineClient string `json:"engine_client,omitempty"`
+	Channel      string `json:"channel,omitempty" event_tag:"channel"`
+	Interrupt    string `json:"interrupt,omitempty" event_tag:"interrupt"`
+	Engine       string `json:"engine,omitempty" event_tag:"engine"`
+	EngineClient string `json:"engine_client,omitempty" event_tag:"engine_client"`
 	FaultAddress string `json:"fault_address,omitempty"`
-	FaultType    string `json:"fault_type,omitempty"`
-	AccessType   string `json:"access_type,omitempty"`
+	FaultType    string `json:"fault_type,omitempty" event_tag:"fault_type"`
+	AccessType   string `json:"access_type,omitempty" event_tag:"access_type"`
 }
 
 // NvidiaXidNVLinkFault contains details from NVIDIA Xid 144–150 NVLink5 faults.
 type NvidiaXidNVLinkFault struct {
-	Subcode          string   `json:"subcode,omitempty"`
-	Fatality         string   `json:"fatality,omitempty"`
-	CrossContainment string   `json:"cross_containment,omitempty"`
-	Instance         string   `json:"instance,omitempty"`
-	LinkID           *uint64  `json:"link_id,omitempty"`
+	Subcode          string   `json:"subcode,omitempty" event_tag:"nvlink_subcode"`
+	Fatality         string   `json:"fatality,omitempty" event_tag:"nvlink_fatality"`
+	CrossContainment string   `json:"cross_containment,omitempty" event_tag:"nvlink_cross_containment"`
+	Instance         string   `json:"instance,omitempty" event_tag:"nvlink_instance"`
+	LinkID           *uint64  `json:"link_id,omitempty" event_tag:"nvlink_link_id"`
 	StatusWords      []string `json:"status_words,omitempty"`
 }
 
@@ -129,20 +129,20 @@ type NvidiaXidNVLinkFault struct {
 type NvidiaXidMemoryFault struct {
 	PhysicalAddress     string  `json:"physical_address,omitempty"`
 	RowAddress          string  `json:"row_address,omitempty"`
-	RowRemapperSite     string  `json:"row_remapper_site,omitempty"`
-	Partition           *uint64 `json:"partition,omitempty"`
-	Subpartition        *uint64 `json:"subpartition,omitempty"`
-	Location            string  `json:"location,omitempty"`
-	RepairedTarget      string  `json:"repaired_target,omitempty"`
-	RepairedTargetIndex *uint64 `json:"repaired_target_index,omitempty"`
-	FBPA                *uint64 `json:"fbpa,omitempty"`
-	NodeRebootRequired  bool    `json:"node_reboot_required,omitempty"`
+	RowRemapperSite     string  `json:"row_remapper_site,omitempty" event_tag:"row_remapper_site"`
+	Partition           *uint64 `json:"partition,omitempty" event_tag:"memory_partition"`
+	Subpartition        *uint64 `json:"subpartition,omitempty" event_tag:"memory_subpartition"`
+	Location            string  `json:"location,omitempty" event_tag:"memory_location"`
+	RepairedTarget      string  `json:"repaired_target,omitempty" event_tag:"repaired_target"`
+	RepairedTargetIndex *uint64 `json:"repaired_target_index,omitempty" event_tag:"repaired_target_index"`
+	FBPA                *uint64 `json:"fbpa,omitempty" event_tag:"fbpa"`
+	NodeRebootRequired  bool    `json:"node_reboot_required,omitempty" event_tag:"node_reboot_required"`
 }
 
 // NvidiaXidRecoveryAction contains the transition reported by NVIDIA Xid 154.
 type NvidiaXidRecoveryAction struct {
-	PreviousCode  *uint64 `json:"previous_code,omitempty"`
-	PreviousLabel string  `json:"previous_label,omitempty"`
-	CurrentCode   *uint64 `json:"current_code,omitempty"`
-	CurrentLabel  string  `json:"current_label,omitempty"`
+	PreviousCode  *uint64 `json:"previous_code,omitempty" event_tag:"recovery_previous_code"`
+	PreviousLabel string  `json:"previous_label,omitempty" event_tag:"recovery_previous_label"`
+	CurrentCode   *uint64 `json:"current_code,omitempty" event_tag:"recovery_current_code"`
+	CurrentLabel  string  `json:"current_label,omitempty" event_tag:"recovery_current_label"`
 }

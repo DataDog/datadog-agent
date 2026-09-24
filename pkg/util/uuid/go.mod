@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/shirou/gopsutil/v4 v4.26.8
-	golang.org/x/sys v0.47.0
+	golang.org/x/sys v0.48.0
 )
 
 require (
@@ -203,6 +203,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/utilizationtracker => ../../../pkg/util/utilizationtracker
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e

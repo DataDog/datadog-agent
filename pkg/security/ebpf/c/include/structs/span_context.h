@@ -132,4 +132,12 @@ struct otel_tls_t {
     struct otel_dtv_info_t dtv_info; // unused when module_id == 0
 };
 
+// --- Per-event span context fill failures ---
+
+// One counter of the span_ctx_stats map, keyed by
+// reader * SPAN_CTX_EVENT_STATUS_LAST + status (see custom.h).
+struct span_ctx_event_stats_t {
+    u64 count;
+};
+
 #endif
