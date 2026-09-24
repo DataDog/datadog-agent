@@ -8,14 +8,19 @@
 package safenvml
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"maps"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestNewDevice(t *testing.T) {
@@ -94,6 +99,33 @@ func TestNewDeviceNVLinkLinkCount(t *testing.T) {
 			require.Equal(t, tt.expectedVersion, device.NVLinkVersion)
 		})
 	}
+}
+
+func TestNewDeviceLogsNVLinkWarningOncePerDevice(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithUnsupportedFields(nvml.FI_DEV_NVLINK_LINK_COUNT),
+	)
+	WithMockNVML(t, mockNvml)
+
+	var logs bytes.Buffer
+	writer := bufio.NewWriter(&logs)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(writer, log.DebugLvl)
+	require.NoError(t, err)
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
+	log.SetupLogger(logger, "debug")
+
+	oldLogLimiter := logLimiter
+	logLimiter = log.NewLogLimit(10, time.Hour)
+	t.Cleanup(func() { logLimiter = oldLogLimiter })
+
+	_, err = NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+	_, err = NewPhysicalDevice(mockNvml.Device(0))
+	require.NoError(t, err)
+
+	require.NoError(t, writer.Flush())
+	require.Equal(t, 1, strings.Count(logs.String(), "cannot get NVLink link count"))
 }
 
 func TestNewDeviceUUIDFailure(t *testing.T) {
