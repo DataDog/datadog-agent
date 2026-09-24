@@ -8,6 +8,7 @@
 package autoscalers
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -91,6 +92,11 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 		log.Tracef("No query in input - nothing to do")
 		return nil, nil
 	}
+	for _, query := range ddQueries {
+		if err := validateDatadogExternalQuery(query); err != nil {
+			return nil, NewProcessingError(fmt.Sprintf("invalid query %q: %v", query, err))
+		}
+	}
 
 	batchedQuery := strings.Join(ddQueries, ",")
 	currentTimeUnix := currentTime.Unix()
@@ -117,19 +123,18 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 	ddRequests.Inc("success", le.JoinLeaderValue)
 
 	processedMetrics := make(map[string]Point, ddQueriesLen)
-	for _, serie := range seriesSlice {
-		// Perform matching between query and reply, using query order and `QueryIndex` from API reply (QueryIndex is 0-based)
-		var matchedQuery string
-		if ddQueriesLen > 1 {
-			if serie.QueryIndex != nil && *serie.QueryIndex < ddQueriesLen {
-				matchedQuery = ddQueries[*serie.QueryIndex]
-			} else {
-				log.Errorf("Received Serie without QueryIndex or invalid QueryIndex while we sent multiple queries. Full query: %s / Serie expression: %v / QueryIndex: %v", batchedQuery, serie.Expression, serie.QueryIndex)
-				continue
-			}
-		} else {
-			matchedQuery = ddQueries[0]
+	matchedQueries := make([]string, len(seriesSlice))
+	for i, serie := range seriesSlice {
+		matchedQuery, err := matchDatadogExternalSeries(serie, ddQueries)
+		if err != nil {
+			log.Errorf("Received Serie that does not match the submitted query batch. Full query: %s / Serie expression: %v / QueryIndex: %v / Error: %v", batchedQuery, serie.Expression, serie.QueryIndex, err)
+			return invalidQueryResults(ddQueries, currentTimeUnix, "Datadog API response did not match the submitted query batch"), nil
 		}
+		matchedQueries[i] = matchedQuery
+	}
+
+	for i, serie := range seriesSlice {
+		matchedQuery := matchedQueries[i]
 
 		// Result point, by default it's invalid
 		resultPoint := Point{
@@ -208,6 +213,90 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 	}
 
 	return processedMetrics, nil
+}
+
+func invalidQueryResults(queries []string, timestamp int64, message string) map[string]Point {
+	results := make(map[string]Point, len(queries))
+	for _, query := range queries {
+		results[query] = Point{
+			Timestamp: timestamp,
+			Error:     NewProcessingError(message),
+		}
+	}
+	return results
+}
+
+func matchDatadogExternalSeries(serie datadog.Series, queries []string) (string, error) {
+	queryIndex := 0
+	if serie.QueryIndex == nil {
+		if len(queries) != 1 {
+			return "", fmt.Errorf("missing QueryIndex for a batch of %d queries", len(queries))
+		}
+	} else {
+		queryIndex = *serie.QueryIndex
+		if queryIndex < 0 || queryIndex >= len(queries) {
+			return "", fmt.Errorf("QueryIndex %d is outside the batch of %d queries", queryIndex, len(queries))
+		}
+	}
+
+	return queries[queryIndex], nil
+}
+
+// validateDatadogExternalQuery ensures a tenant-provided query cannot escape
+// its position in a comma-delimited request batch. Commas nested in functions,
+// scopes, or quoted strings remain valid.
+func validateDatadogExternalQuery(query string) error {
+	if strings.TrimSpace(query) == "" {
+		return errors.New("query is empty")
+	}
+
+	var delimiters []rune
+	var quote rune
+	escaped := false
+	for _, char := range query {
+		if quote != 0 {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if char == '\\' {
+				escaped = true
+				continue
+			}
+			if char == quote {
+				quote = 0
+			}
+			continue
+		}
+
+		switch char {
+		case '\'', '"':
+			quote = char
+		case '(', '{', '[':
+			delimiters = append(delimiters, char)
+		case ')', '}', ']':
+			if len(delimiters) == 0 || !matchingDelimiters(delimiters[len(delimiters)-1], char) {
+				return fmt.Errorf("unbalanced delimiter %q", char)
+			}
+			delimiters = delimiters[:len(delimiters)-1]
+		case ',':
+			if len(delimiters) == 0 {
+				return errors.New("query contains a top-level comma")
+			}
+		}
+	}
+
+	if quote != 0 {
+		return errors.New("query contains an unterminated quoted string")
+	}
+	if len(delimiters) != 0 {
+		return fmt.Errorf("query contains an unclosed delimiter %q", delimiters[len(delimiters)-1])
+	}
+	return nil
+}
+
+func matchingDelimiters(open, close rune) bool {
+	return open == '(' && close == ')' || open == '{' && close == '}' || open == '[' && close == ']'
 }
 
 // setTelemetryMetric is a helper to submit telemetry metrics
