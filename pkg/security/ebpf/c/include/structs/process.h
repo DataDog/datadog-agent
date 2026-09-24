@@ -75,4 +75,24 @@ union selinux_write_payload_t {
     } status;
 };
 
+// Debug aid for exec events that reach userspace with an all-zero file path_key.
+// handle_exec_event() is the only writer of syscall->exec.file.path_key, so the stamp it
+// leaves behind answers the two questions the event itself cannot: did that hook run for
+// this exec at all, and did it see the *same* syscall cache entry that send_exec_event()
+// later popped. A differing ctx_id means the two hooks worked on different entries, which
+// would explain both the 0/0 key and the foreign execve pathname the syscall context
+// reports. See exec_dentry_open_stamp / exec_zero_key_diag.
+struct exec_open_stamp_t {
+    u64 pid_tgid;
+    u32 ctx_id;
+    u32 padding;
+};
+
+struct exec_zero_key_diag_t {
+    u64 open_pid_tgid; // task handle_exec_event() ran on; 0 when it never ran for this tgid
+    u64 send_pid_tgid; // task send_exec_event() is running on
+    u32 open_ctx_id;   // ctx_id on the entry handle_exec_event() populated
+    u32 send_ctx_id;   // ctx_id on the entry send_exec_event() popped
+};
+
 #endif
