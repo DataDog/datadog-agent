@@ -183,6 +183,10 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 		"logs__bytes_sent",
 		"logs__encoded_bytes_sent",
 
+		// API server request telemetry for the token-authenticated endpoint. The system-probe
+		// HTTP server is plain (non-TLS), so requests are tagged "no_tls" rather than mTLS/token.
+		helper.APIServerRequestDurationMetric,
+
 		// Windows Injector metrics (using double underscore format from telemetry component)
 		"injector__processes_added_to_injection_tracker",
 		"injector__processes_removed_from_injection_tracker",
