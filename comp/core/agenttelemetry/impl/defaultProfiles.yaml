@@ -204,6 +204,7 @@ profiles:
           - method
           - path
           - auth
+          - emitter
       - name: grpc.request_duration_seconds
         preserve_tags:
           - service_method
