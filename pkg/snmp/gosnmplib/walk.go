@@ -64,26 +64,29 @@ RequestLoop:
 		}
 
 		response, err := session.GetNext([]string{oid})
-		requestFailed := err != nil || response.Error != gosnmp.NoError
-		var emptyResponse, endOfMIB bool
-		if err == nil {
-			emptyResponse = len(response.Variables) == 0
-			endOfMIB = !emptyResponse && IsEndOfMIB(response.Variables[0].Type)
+		if err != nil || response.Error != gosnmp.NoError {
+			if !hasOIDs && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				continue
+			}
+			if err != nil {
+				return NewConnectionError(err)
+			}
+			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
+			break RequestLoop
 		}
-		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
+
+		emptyResponse := len(response.Variables) == 0
+		endOfMIB := !emptyResponse && IsEndOfMIB(response.Variables[0].Type)
+		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (emptyResponse || endOfMIB) {
 			rootIndex++
 			session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
 			oid = rootOIDs[rootIndex]
 			continue
 		}
-		if err != nil {
-			return NewConnectionError(err)
-		}
 		if emptyResponse {
-			break RequestLoop
-		}
-		if response.Error != gosnmp.NoError {
-			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
 			break RequestLoop
 		}
 
