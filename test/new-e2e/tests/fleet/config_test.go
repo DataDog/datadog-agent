@@ -197,22 +197,35 @@ func (s *configSuite) TestConfigFailureTimeout() {
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
 	}, nil)
 	require.NoError(s.T(), err)
+	defer func() {
+		state, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+		if err != nil {
+			s.T().Logf("could not check config experiment state during cleanup: %v", err)
+			return
+		}
+		if state.ExperimentConfigVersion != "" {
+			if err := s.Backend.StopConfigExperiment(); err != nil {
+				s.T().Logf("could not stop config experiment during cleanup: %v", err)
+			}
+		}
+	}()
 	config, err := s.Agent.Configuration()
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "debug", config["log_level"])
 
-	time.Sleep(60 * time.Second)
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		config, err := s.Agent.Configuration()
 		require.NoError(c, err)
 		require.Equal(c, "info", config["log_level"])
+	}, 2*time.Minute, 5*time.Second)
 
-		if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+	if s.Env().RemoteHost.OSFamily == e2eos.WindowsFamily {
+		require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 			state, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
 			require.NoError(c, err)
 			require.Empty(c, state.ExperimentConfigVersion, "config experiment rollback should be complete")
-		}
-	}, 60*time.Second, 5*time.Second)
+		}, 2*time.Minute, 5*time.Second)
+	}
 }
 
 func (s *configSuite) TestConfigFailureHealth() {

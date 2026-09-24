@@ -147,7 +147,6 @@ dd_agent_go_test(
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
-            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
