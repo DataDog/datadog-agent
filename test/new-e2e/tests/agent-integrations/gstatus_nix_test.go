@@ -94,8 +94,8 @@ func (s *gstatusSuite) SetupSuite() {
 	// Make setup idempotent: if the volume already exists (e.g. from a
 	// previous retry against retained infrastructure), stop and delete it
 	// first so the create succeeds.
-	host.Execute("sudo gluster volume stop gv0 force || true")
-	host.Execute("sudo gluster volume delete gv0 || true")
+	host.Execute("sudo gluster --mode=script volume stop gv0 force || true")
+	host.Execute("sudo gluster --mode=script volume delete gv0 || true")
 	host.MustExecute(fmt.Sprintf(
 		"sudo gluster volume create gv0 replica 2 %s:/data/brick1/gv0 %s:/data/brick2/gv0 force",
 		hostname, hostname))

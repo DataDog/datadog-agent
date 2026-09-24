@@ -1,10 +1,11 @@
 # gstatus - fetched from upstream at build time, not committed.
 #
-# The gstatus entry-point script (gstatus.py) and the wheel build config
-# (pyproject.toml) are committed here. The glustercli and glusterlib
-# source is fetched from upstream via http_archive and assembled into
-# a wheel at build time. This avoids committing ~136 KiB of vendored
-# GPL source into the repo.
+# The wrapper script (gstatus_wrapper.py), wheel build config
+# (pyproject.toml), and version.py are committed here. The glustercli,
+# glusterlib, and gstatus (__main__.py, __init__.py) source is fetched
+# from upstream via http_archive and assembled into a wheel at build
+# time. This avoids committing ~136 KiB of vendored GPL source into
+# the repo.
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
