@@ -180,6 +180,15 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultLogPatternExtractorConfig(),
 				factory:        func(cfg any) any { return NewLogPatternExtractor(cfg.(LogPatternExtractorConfig)) },
 				defaultEnabled: true,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultLogPatternExtractorConfig()
+					if key := prefix + "max_patterns"; reader.IsConfigured(key) {
+						if value := reader.GetInt(key); value > 0 {
+							cfg.MaxPatterns = value
+						}
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(LogPatternExtractorConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {

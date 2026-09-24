@@ -38,6 +38,7 @@
     EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS --run TestUpgradeScript --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
     GIT_DEPTH: 1  # Overrides .new_e2e_template: this job does not pass --impacted
+    DYNAMIC_TESTS_FLAG: "" # Overrides .new_e2e_template: --impacted needs a deeper clone than GIT_DEPTH above provides
   parallel:
     matrix:
       - START_MAJOR_VERSION: [5, 6, 7]
@@ -51,6 +52,7 @@
     EXTRA_PARAMS: --flavor $FLAVOR --osdescriptors $E2E_DESCRIPTORS --run TestPersistingIntegrations --src-agent-version 7
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
     GIT_DEPTH: 1  # Overrides .new_e2e_template: this job does not pass --impacted
+    DYNAMIC_TESTS_FLAG: "" # Overrides .new_e2e_template: --impacted needs a deeper clone than GIT_DEPTH above provides
 
 .new-e2e_rpm:
   stage: e2e_install_packages
@@ -60,3 +62,4 @@
     EXTRA_PARAMS: --osdescriptors $E2E_DESCRIPTORS --run TestRpmScript
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2 # We use a single test suite and run all the platforms test as subtest
     GIT_DEPTH: 1  # Overrides .new_e2e_template: this job does not pass --impacted
+    DYNAMIC_TESTS_FLAG: "" # Overrides .new_e2e_template: --impacted needs a deeper clone than GIT_DEPTH above provides
