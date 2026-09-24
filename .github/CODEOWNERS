@@ -231,6 +231,7 @@
 /.gitlab/windows/build/package_build/windows.yml                          @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/package_build/installer.yml                                @DataDog/agent-build @DataDog/fleet
 /.gitlab/build/packaging/                                                 @DataDog/agent-build
+/.gitlab/windows/build/packaging/                                         @DataDog/fleet-automation @DataDog/windows-products
 /.gitlab/deploy/network_device_build/                                     @DataDog/agent-delivery
 /.gitlab/test/benchmarks/benchmarks.yml                                   @DataDog/agent-apm
 /.gitlab/test/functional_test/regression_detector.yml                     @DataDog/single-machine-performance
@@ -310,6 +311,7 @@
 /cmd/agent/dist/conf.d/telemetry.d/                    @DataDog/fleet-remediation
 /cmd/agent/dist/conf.d/thermal.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/uptime.d/                       @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/vdi.d/                          @DataDog/windows-products
 /cmd/agent/dist/conf.d/versa.d/                        @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/win32_event_log.d/              @DataDog/windows-products
 /cmd/agent/dist/conf.d/wincrashdetect.d/               @DataDog/windows-products
@@ -406,19 +408,18 @@
 /omnibus/package-scripts/agent-rpm/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-deb/                      @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/agent-dmg/                      @DataDog/agent-build @DataDog/windows-products
-/omnibus/package-scripts/installer-deb/                  @DataDog/agent-build @DataDog/fleet
-/omnibus/package-scripts/installer-rpm/                  @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                                 @DataDog/agent-integrations @DataDog/windows-products
 /deps/openscap/                                          @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb @DataDog/agent-integrations
 /deps/agent_integrations/                                @DataDog/agent-build @DataDog/agent-integrations
 /omnibus/resources/*/msi/                                @DataDog/windows-products
 
-/packages/        @DataDog/agent-build
-/packages/debian/ @DataDog/agent-build @DataDog/fleet
-/packages/redhat/ @DataDog/agent-build @DataDog/fleet
-/packages/macos   @DataDog/agent-build @DataDog/windows-products
-/packages/windows @DataDog/agent-build @DataDog/windows-products
+/packages/                                               @DataDog/agent-build
+/packages/debian/                                        @DataDog/agent-build @DataDog/fleet
+/packages/redhat/                                        @DataDog/agent-build @DataDog/fleet
+/packages/macos                                          @DataDog/agent-build @DataDog/windows-products
+/packages/windows                                        @DataDog/agent-build @DataDog/windows-products
+/packages/installer                                      @DataDog/agent-build @DataDog/fleet
 
 # AIX
 /packaging/aix/ @DataDog/agent-build
@@ -608,7 +609,6 @@
 /comp/core/autodiscovery/providers/config_reader*.go                  @DataDog/container-platform @DataDog/agent-log-pipelines
 /comp/core/autodiscovery/providers/cloudfoundry*.go                   @DataDog/agent-integrations
 /comp/core/autodiscovery/providers/process_log*.go                    @DataDog/agent-discovery @DataDog/agent-log-pipelines
-/comp/core/autodiscovery/providers/remote_config*.go                  @DataDog/fleet
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
@@ -669,6 +669,7 @@
 /pkg/collector/corechecks/system/windowscertificate/                  @DataDog/windows-products
 /pkg/collector/corechecks/system/winkmem/                             @DataDog/windows-products
 /pkg/collector/corechecks/system/winproc/                             @DataDog/windows-products
+/pkg/collector/corechecks/vdi/                                        @DataDog/windows-products
 /pkg/collector/corechecks/systemd/                                    @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/                                     @DataDog/agent-runtimes
 /pkg/collector/corechecks/telemetry                                   @DataDog/fleet-remediation
@@ -876,6 +877,7 @@
 /pkg/ssi/                                                             @DataDog/injection-platform
 /pkg/tagger/                                                          @DataDog/container-platform
 /pkg/windowsdriver/                                                   @DataDog/windows-products
+/pkg/zstd/                                                            @DataDog/agent-runtimes
 /comp/core/workloadmeta/collectors/internal/cloudfoundry              @DataDog/agent-integrations
 /comp/core/workloadmeta/collectors/internal/containerd                @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/crio                      @DataDog/container-platform @DataDog/container-integrations
@@ -1036,6 +1038,7 @@
 /test/new-e2e/tests/containers/cluster_agent_sgc_binary_test.go @DataDog/fleet-automation
 /test/new-e2e/tests/containers/ecs_test.go                      @DataDog/ecs-experiences
 /test/new-e2e/tests/cspm                                        @DataDog/agent-cspm @DataDog/agent-security
+/test/new-e2e/tests/ddi                                         @DataDog/container-platform
 /test/new-e2e/tests/discovery                                   @DataDog/agent-discovery
 /test/new-e2e/tests/fips-compliance                             @DataDog/agent-runtimes
 /test/new-e2e/tests/ha-agent                                    @DataDog/network-device-monitoring-core
@@ -1125,6 +1128,7 @@
 # Temporary during Bazel migration
 # This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
 /**/*.bzl       @DataDog/agent-build
+/tasks/agent_payload_version.bzl # do not notify anyone
 
 # Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
 # Must stay last for the same reason as the /**/*.bzl rule above.

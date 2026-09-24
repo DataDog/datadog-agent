@@ -76,13 +76,16 @@ def _run_gate(ctx, gate: StaticQualityGate) -> GateResult | GateExecutionError:
 
 
 @task
-def parse_and_trigger_gates(ctx, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS) -> list[StaticQualityGate]:
+def parse_and_trigger_gates(ctx, config_path: str | list[str] | None = None) -> list[StaticQualityGate]:
     """
     Parse and executes static quality gates using composition pattern
     :param ctx: Invoke context
-    :param config_path: Static quality gates configuration file path(s)
+    :param config_path: Static quality gates configuration file path(s) (default: all gate config files)
     :return: List of quality gates
     """
+    # invoke's CLI parser resolves an unset list-typed parameter to [] rather than the
+    # Python default, so the default is resolved here instead of in the signature.
+    config_path = config_path or ALL_GATE_CONFIG_PATHS
     metric_handler = GateMetricHandler(
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
@@ -348,7 +351,7 @@ def measure_package_local(
     ctx,
     package_path,
     gate_name,
-    config_path: str | list[str] = ALL_GATE_CONFIG_PATHS,
+    config_path: str | list[str] | None = None,
     output_path=None,
     build_job_name="local_test",
     debug=False,
@@ -371,6 +374,7 @@ def measure_package_local(
     Example:
         dda inv quality-gates.measure-package-local --package-path /path/to/package.deb --gate-name static_quality_gate_agent_deb_amd64
     """
+    config_path = config_path or ALL_GATE_CONFIG_PATHS
     return _measure_package_local(
         ctx=ctx,
         package_path=package_path,
@@ -388,7 +392,7 @@ def measure_image_local(
     ctx,
     image_ref,
     gate_name,
-    config_path: str | list[str] = ALL_GATE_CONFIG_PATHS,
+    config_path: str | list[str] | None = None,
     output_path=None,
     build_job_name="local_test",
     include_layer_analysis=True,
@@ -412,6 +416,7 @@ def measure_image_local(
     Example:
         dda inv quality-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
     """
+    config_path = config_path or ALL_GATE_CONFIG_PATHS
     return _measure_image_local(
         ctx=ctx,
         image_ref=image_ref,

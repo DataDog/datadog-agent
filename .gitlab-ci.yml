@@ -19,7 +19,7 @@
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
 .if_light_pipeline: &if_light_pipeline
-  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/ || ($GIT_BASE_BRANCH != null && $GIT_BASE_BRANCH != "main" && $GIT_BASE_BRANCH !~ /^[67]\.[0-9]+\.x$/)
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
@@ -361,7 +361,6 @@ variables:
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
   E2E_AZURE: e2e-azure # agent-devx
   E2E_GCP: e2e-gcp # agent-devx
-  INSTALL_SCRIPT_API_KEY_ORG2: install-script-api-key-org-2 # agent-devx
   MACOS_APPLE_APPLICATION_SIGNING: apple-application-signing # agent-delivery
   MACOS_APPLE_DEVELOPER_ACCOUNT: apple-developer-account # agent-delivery
   MACOS_APPLE_INSTALLER_SIGNING: apple-installer-signing # agent-delivery
@@ -975,10 +974,10 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
-  # A fakeintake server change rebuilds the image: run e2e against the built
-  # v<sha> image via the override. Must precede the run-all/main/release/rc cases
-  # (first-match-wins) so the override is never dropped. Needs publish_fakeintake.
-  - changes:
+  # Fakeintake server change: run e2e against the built v<sha> override image.
+  # Main-targeting pipelines only.
+  - if: $COMPARE_TO_BRANCH == "main"
+    changes:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
     variables:
@@ -1060,6 +1059,8 @@ workflow:
       paths:
         - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
+        - comp/core/workloadmeta/collectors/internal/process/**/*
+        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
         - comp/process/**/*
         - pkg/process/**/*
         - pkg/config/setup/process.go
@@ -1088,6 +1089,8 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - .gitlab/build/packaging/**/* # https://github.com/DataDog/datadog-agent/pull/56690
+        - .gitlab/windows/build/packaging/**/* # https://github.com/DataDog/datadog-agent/pull/56690
         - .gitlab/deploy/**/*
         - .gitlab/test/e2e_install_packages/**/*
         - .gitlab/test/e2e/e2e_templates.yml
@@ -1290,6 +1293,12 @@ workflow:
   - changes:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
+
+# Fakeintake is built and published from main-targeting pipelines only; release
+# branches and PRs targeting them are skipped (see test/fakeintake/AGENTS.md).
+.except_fakeintake_off_main:
+  - !reference [.except_release_branch]
+  - !reference [.except_pr_targeting_release_branch]
 
 .on_fakeintake_changes_on_main:
   - changes:

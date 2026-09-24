@@ -35,7 +35,7 @@ func (hs *hostnameService) Get(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if src.Kind == source.HostnameKind {
-		return src.Identifier, nil
+		return src.Identifier, nil //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 	}
 	return "", nil
 }

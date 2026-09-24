@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/xi2/xz"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/types"
@@ -49,7 +49,10 @@ func ExtractTarball(reader io.Reader, filename, directory string, logger types.L
 	case ".bz2":
 		compressedTarReader = bzip2.NewReader(reader)
 	case ".zst":
-		zstdReader := zstd.NewReader(reader)
+		zstdReader, err := zstd.NewReader(reader)
+		if err != nil {
+			return fmt.Errorf("extract %s: failed to create zstd reader: %w", filename, err)
+		}
 		defer zstdReader.Close()
 		compressedTarReader = zstdReader
 	default:

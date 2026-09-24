@@ -6,6 +6,7 @@
 pub mod agent_yaml;
 pub mod command;
 pub mod config;
+pub mod config_gate;
 pub mod env;
 pub mod grpc;
 mod handle;

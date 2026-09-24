@@ -7,7 +7,11 @@
 
 package safenvml
 
-import "github.com/NVIDIA/go-nvml/pkg/nvml"
+import (
+	"strings"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
 
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
@@ -141,6 +145,74 @@ func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanc
 	}
 	info, ret := d.nvmlDevice.GetGpuInstanceProfileInfo(profile)
 	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
+}
+
+// GetMIGInstanceProfileName resolves the canonical MIG profile name (e.g.
+// "1g.35gb") of the GPU instance with the given ID, by walking the
+// device -> GPU instance -> profile id -> versioned profile info chain. The
+// profile name is taken verbatim from the driver: deriving it from geometry
+// would conflate the media-extension (+me) profiles, which share slice count
+// and memory size with their plain counterparts.
+func (d *safeDeviceImpl) GetMIGInstanceProfileName(gpuInstanceID int) (string, error) {
+	return d.getMIGInstanceProfileName(gpuInstanceID, func(profileID int) (nvml.GpuInstanceProfileInfo_v2, nvml.Return) {
+		// The v1 struct carries geometry only; names require v2 or later.
+		return d.nvmlDevice.GetGpuInstanceProfileInfoByIdV(profileID).V2()
+	})
+}
+
+// getMIGInstanceProfileName isolates the versioned NVML call, whose concrete
+// handler cannot be mocked, so the lookup chain can be tested without hardware.
+func (d *safeDeviceImpl) getMIGInstanceProfileName(gpuInstanceID int, getProfileInfo func(int) (nvml.GpuInstanceProfileInfo_v2, nvml.Return)) (string, error) {
+	for _, symbol := range []string{
+		toNativeName("GetGpuInstanceById"),
+		"nvmlGpuInstanceGetInfo",
+		toNativeName("GetGpuInstanceProfileInfoByIdV"),
+	} {
+		if err := d.lib.lookup(symbol); err != nil {
+			return "", err
+		}
+	}
+
+	gpuInstance, ret := d.nvmlDevice.GetGpuInstanceById(gpuInstanceID)
+	if err := NewNvmlAPIErrorOrNil("GetGpuInstanceById", ret); err != nil {
+		return "", err
+	}
+
+	instanceInfo, ret := gpuInstance.GetInfo()
+	if err := NewNvmlAPIErrorOrNil("GpuInstanceGetInfo", ret); err != nil {
+		return "", err
+	}
+
+	profileInfo, ret := getProfileInfo(int(instanceInfo.ProfileId))
+	if err := NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfoByIdV", ret); err != nil {
+		return "", err
+	}
+
+	// The driver reports the profile name with a "MIG" prefix (e.g.
+	// "MIG 1g.35gb"); strip it so the value matches the canonical profile
+	// name as it appears in device names and ResourceSlices.
+	return normalizeMIGProfileName(fixedSizeString(profileInfo.Name[:])), nil
+}
+
+// normalizeMIGProfileName strips the driver's "MIG" prefix from a profile
+// name, e.g. "MIG 1g.35gb" -> "1g.35gb". Names without the prefix pass
+// through unchanged.
+func normalizeMIGProfileName(name string) string {
+	name = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "MIG"))
+	return strings.TrimSpace(name)
+}
+
+// fixedSizeString converts a fixed-size, NUL-terminated char array as used by
+// versioned NVML info structs into a Go string.
+func fixedSizeString(chars []int8) string {
+	var b strings.Builder
+	for _, c := range chars {
+		if c == 0 {
+			break
+		}
+		b.WriteByte(byte(c))
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func (d *safeDeviceImpl) GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error) {
