@@ -162,11 +162,44 @@ type SafeNVML interface {
 }
 
 type safeNvml struct {
-	lib              nvml.Interface
-	mu               sync.Mutex
-	gpmMutex         sync.Mutex
-	fieldValuesMutex sync.Mutex
-	capabilities     map[string]struct{}
+	lib                nvml.Interface
+	mu                 sync.Mutex
+	gpmMutex           sync.Mutex
+	fieldValuesMutex   sync.Mutex
+	capabilities       map[string]struct{}
+	deviceWarningsMu   sync.Mutex
+	deviceWarningsSeen map[deviceWarningKey]bool
+}
+
+type deviceWarningKey struct {
+	uuid    string
+	message string
+}
+
+// logDeviceWarning logs a device warning if it hasn't been logged yet. Avoids spamming the logs with the same warning each time a device is constructed.
+func (s *safeNvml) logDeviceWarning(uuid, format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	key := deviceWarningKey{uuid: uuid, message: message}
+
+	s.deviceWarningsMu.Lock()
+	defer s.deviceWarningsMu.Unlock()
+
+	if s.deviceWarningsSeen == nil {
+		s.deviceWarningsSeen = make(map[deviceWarningKey]bool)
+	}
+
+	if s.deviceWarningsSeen[key] {
+		return
+	}
+
+	// Consume the log limiter after we validate the warning has not been logged yet,
+	// but do not mark it as seen until we actually log it
+	if !logLimiter.ShouldLog() {
+		return
+	}
+
+	log.Warnf("%s (device UUID %s)", message, uuid)
+	s.deviceWarningsSeen[key] = true
 }
 
 func toNativeName(symbol string) string {

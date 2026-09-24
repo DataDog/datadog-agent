@@ -36,7 +36,7 @@ Consumers can now name the compression interface without importing a compression
 
 Create `comp/compression/impl-zstd/compressor.go`. Its `Requires` struct asks for configuration and logging, and its `Provides` struct exposes the compression interface. Both structs are plain Go types with exported fields.
 
-The implementation uses the repository's pure-Go ZSTD library and `serializer_zstd_compressor_level` setting. For this exercise, each call creates and closes its encoder or decoder to keep cleanup local, at the cost of repeated initialization. `EncodeAll` and `DecodeAll` also support concurrent reuse; the <<<repo("pkg/util/compression/impl-zstd-nocgo/zstd_nocgo_strategy.go", "production ZSTD strategy")>>> reuses its encoder to avoid this cost.
+The implementation uses the repository's pure-Go ZSTD library and `serializer_zstd_compressor_level` setting. For this exercise, each call creates and closes its encoder or decoder to keep cleanup local, at the cost of repeated initialization. `EncodeAll` and `DecodeAll` also support concurrent reuse; the <<<repo("pkg/zstd/zstd_nocgo.go", "production pure-Go backend")>>> also initializes a new encoder or decoder on every call.
 
 /// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
 ```go
