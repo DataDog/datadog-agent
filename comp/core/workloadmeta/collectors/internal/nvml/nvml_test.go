@@ -834,8 +834,7 @@ func TestCDIDeviceNodesUsesTheParsedSpec(t *testing.T) {
 	const uid = "c8593c85-440d-4156-b199-aea592ff83df"
 
 	t.Run("key order does not matter", func(t *testing.T) {
-		// The line scan only looks forward from "path", so a minor written
-		// before it is invisible to that path. Nothing forbids this order.
+		// Nothing forbids a minor written before its path.
 		writeCDISpec(t, uid, `cdiVersion: 0.5.0
 kind: k8s.gpu.nvidia.com/claim
 devices:
@@ -855,8 +854,6 @@ devices:
 	})
 
 	t.Run("nodes of another device in the same claim are not read", func(t *testing.T) {
-		// The parsed path knows which entry a node belongs to; the scan can
-		// only infer it from the most recent "- name:" line.
 		writeCDISpec(t, uid, `cdiVersion: 0.5.0
 kind: k8s.gpu.nvidia.com/claim
 devices:

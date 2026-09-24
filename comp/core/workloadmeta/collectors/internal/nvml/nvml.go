@@ -679,10 +679,7 @@ func (c *collector) resolveCDIToGPUs(deviceCache ddnvml.DeviceCache, cdiName str
 			continue
 		}
 		if node.minor < 0 {
-			// The spec pins a capability device but the scan did not find its
-			// minor. Logged rather than skipped silently: without the minor
-			// this container cannot be attributed at all, and the cause is a
-			// spec layout the scanner does not understand.
+			// Without the minor this container cannot be attributed at all.
 			log.Warnf("DRA: no minor for capability device %s in CDI spec for claim %s; the MIG container will not be attributed", node.path, claimUID)
 			continue
 		}
@@ -784,12 +781,6 @@ type cdiSpec struct {
 // A claim holding several devices lists them all in one file, so the entry is
 // selected by name: reading every node in the file would attribute all of the
 // claim's devices to any container holding one of them.
-//
-// The spec is unmarshalled, with a line scan kept as a fallback. The scan is
-// what was verified against real hardware, so it stays reachable if a driver
-// ever emits a document this struct does not fit; but it can only guess at
-// which entry a node belongs to, and it depends on the order and spacing of
-// keys, so it is not the primary path.
 func cdiDeviceNodes(claimUID, deviceKey string) ([]cdiDeviceNode, error) {
 	name := fmt.Sprintf("k8s.gpu.nvidia.com-claim_%s.yaml", claimUID)
 	var data []byte
@@ -816,9 +807,7 @@ func cdiDeviceNodes(claimUID, deviceKey string) ([]cdiDeviceNode, error) {
 
 // parseCDISpec returns the nvidia device nodes of one device entry. It reports
 // false when the document does not parse, does not contain the named entry, or
-// contains it with no nvidia device node -- in every one of those cases the
-// caller is better served by the scan than by an empty result, because an empty
-// result silently drops the container's attribution.
+// contains it with no nvidia device node.
 func parseCDISpec(data []byte, deviceKey string) ([]cdiDeviceNode, bool) {
 	var spec cdiSpec
 	if err := yaml.Unmarshal(data, &spec); err != nil {
@@ -844,16 +833,6 @@ func parseCDISpec(data []byte, deviceKey string) ([]cdiDeviceNode, bool) {
 	}
 	return nil, false
 }
-
-// nodes by reading lines, attributing each to the most recent sequence entry
-// named "name".
-//
-// When no entry matches deviceKey it returns every node in the file only if
-// the file describes a single device, where "all of them" and "this one" are
-// the same set. On a multi-device claim it returns nothing instead: handing
-// back every device would tag this container with GPUs belonging to its
-// siblings, and a wrong pod tag is worse than a missing one -- it is invisible
-// downstream, where a missing one shows up as untagged.
 
 // physicalDeviceMinor returns the minor number for a /dev/nvidiaN device node
 // path -- N is the minor, not NVML's enumeration index. Capability devices
