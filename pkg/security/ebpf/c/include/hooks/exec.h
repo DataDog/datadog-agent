@@ -814,6 +814,26 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     struct path_key_t on_stack_exec_path_key = syscall->exec.file.path_key;
     bpf_map_update_elem(&pid_path_keys, &tgid, &on_stack_exec_path_key, BPF_ANY);
 
+    // debug aid, kept inside the failing case so the ordinary exec path gains nothing.
+    // ctx_id is per-execve-syscall, so comparing the stamp's against this entry's is what
+    // says whether handle_exec_event() ran for *this* exec rather than an earlier one.
+    if (syscall->exec.file.path_key.ino == 0 && syscall->exec.file.path_key.mount_id == 0) {
+        struct exec_zero_key_diag_t diag = {
+            .open_pid_tgid = 0,
+            .send_pid_tgid = pid_tgid,
+            .open_ctx_id = 0,
+            .send_ctx_id = syscall->ctx_id,
+        };
+        // the NULL test has to dominate the loads: folded into a ternary this compiles to a
+        // select that dereferences first, and the verifier rejects it
+        struct exec_open_stamp_t *stamp = bpf_map_lookup_elem(&exec_dentry_open_stamp, &tgid);
+        if (stamp != NULL) {
+            diag.open_pid_tgid = stamp->pid_tgid;
+            diag.open_ctx_id = stamp->ctx_id;
+        }
+        bpf_map_update_elem(&exec_zero_key_diag, &tgid, &diag, BPF_ANY);
+    }
+
     u64 parent_inode = 0;
 
     // select the previous cookie entry in cache of the current process

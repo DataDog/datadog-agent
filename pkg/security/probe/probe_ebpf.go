@@ -1428,10 +1428,67 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		}
 	}
 
+	// an exec event whose file path_key is 0/0 has no path, no filesystem and no binary
+	// metadata, and the empty basename means nothing in the event itself identifies it.
+	// The kernel side records who populated the key (or that nobody did) in
+	// exec_zero_key_diag; read it here, where the manager is reachable.
+	if eventType == model.ExecEventType && event.ProcessCacheEntry != nil {
+		if f := &event.ProcessCacheEntry.FileEvent; f.Inode == 0 && f.MountID == 0 {
+			seclog.Errorf("zero exec path_key for pid %d (%s): %s",
+				event.ProcessCacheEntry.Pid, event.ProcessCacheEntry.Comm,
+				p.describeZeroExecKey(event.ProcessCacheEntry.Pid))
+		}
+	}
+
 	// flush exited process
 	p.Resolvers.ProcessResolver.DequeueExited()
 
 	return true
+}
+
+// execZeroKeyDiag mirrors struct exec_zero_key_diag_t. Keep it padding-free so that
+// binary.Size equals unsafe.Sizeof, otherwise Lookup fails at runtime.
+type execZeroKeyDiag struct {
+	OpenPIDTGID uint64
+	SendPIDTGID uint64
+	OpenCtxID   uint32
+	SendCtxID   uint32
+}
+
+// describeZeroExecKey reports whether handle_exec_event() -- the only writer of
+// syscall->exec.file.path_key -- ran for this exec, and whether it worked on the same
+// syscall cache entry that send_exec_event() popped. A missing stamp means the hook never
+// ran; differing ctx_ids mean the two hooks saw different entries, which would account for
+// both the zero key and the unrelated pathname the syscall context reports.
+func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
+	m, _, err := p.Manager.Get().GetMap("exec_zero_key_diag")
+	if err != nil || m == nil {
+		return fmt.Sprintf("exec_zero_key_diag unavailable (%v)", err)
+	}
+
+	var diag execZeroKeyDiag
+	if err := m.Lookup(pid, &diag); err != nil {
+		return fmt.Sprintf("no exec_zero_key_diag entry for tgid %d (%v)", pid, err)
+	}
+
+	openPid, openTid := uint32(diag.OpenPIDTGID>>32), uint32(diag.OpenPIDTGID)
+	sendPid, sendTid := uint32(diag.SendPIDTGID>>32), uint32(diag.SendPIDTGID)
+
+	// ctx_id identifies the execve syscall, so it is the only thing that ties a stamp to
+	// this exec: equal ids mean the same entry, and then a zero key cannot be explained by
+	// the hook having been skipped.
+	var verdict string
+	switch {
+	case diag.OpenPIDTGID == 0:
+		verdict = "handle_exec_event never ran for this tgid"
+	case diag.OpenCtxID != diag.SendCtxID:
+		verdict = "MISMATCH: the stamp belongs to another execve, so handle_exec_event did not run for this one"
+	default:
+		verdict = "same entry, so the key was zeroed with the hook having run"
+	}
+
+	return fmt.Sprintf("open_task=%d/%d open_ctx_id=%d send_task=%d/%d send_ctx_id=%d -> %s",
+		openPid, openTid, diag.OpenCtxID, sendPid, sendTid, diag.SendCtxID, verdict)
 }
 
 func (p *EBPFProbe) zeroEvent() *model.Event {

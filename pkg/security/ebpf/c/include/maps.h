@@ -74,6 +74,11 @@ BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
 // Debug aid: counts the offers reserve_traced_cgroup_spot() rejected per cgroup inode,
 // the one drop that leaves no other trace in any map. See describeADKernelState.
 BPF_LRU_MAP(ad_cgroup_reserve_failed, u64, u64, 512)
+// Debug aid: exec_dentry_open_stamp records, per tgid, which task ran handle_exec_event()
+// and the ctx_id it saw; send_exec_event() consumes it and, only when the resulting file
+// path_key is 0/0, records the comparison in exec_zero_key_diag for userspace to log.
+BPF_LRU_MAP(exec_dentry_open_stamp, u32, struct exec_open_stamp_t, 1024)
+BPF_LRU_MAP(exec_zero_key_diag, u32, struct exec_zero_key_diag_t, 1024)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)

@@ -32,6 +32,16 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     syscall->exec.file.path_key.mount_id = mount_id;
     set_file_inode(syscall->exec.dentry, &syscall->exec.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
+    // debug aid: record that we populated the key, on which task, and for which syscall
+    // cache entry. send_exec_event() compares this against what it pops.
+    u64 stamp_pid_tgid = bpf_get_current_pid_tgid();
+    u32 stamp_tgid = stamp_pid_tgid >> 32;
+    struct exec_open_stamp_t stamp = {
+        .pid_tgid = stamp_pid_tgid,
+        .ctx_id = syscall->ctx_id,
+    };
+    bpf_map_update_elem(&exec_dentry_open_stamp, &stamp_tgid, &stamp, BPF_ANY);
+
     // resolve dentry
     syscall->resolver.key = syscall->exec.file.path_key;
     syscall->resolver.dentry = syscall->exec.dentry;
