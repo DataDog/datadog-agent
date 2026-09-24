@@ -29,8 +29,17 @@ exporters:
 processors:
   # Stamps aws.ecs.launchtype / aws.ecs.task.arn onto the hostmetrics data so
   # the datadog exporter classifies its source as AWS ECS Fargate.
+  #
+  # timeout/retry are bounded here because the default retry config
+  # (retry forever, uncapped) makes the processor's Start() block collector
+  # startup indefinitely if the ECS Task Metadata Endpoint is briefly
+  # unreachable at cold start; a bounded retry lets the pipeline start (without
+  # Fargate tags for that cycle) instead of stalling.
   resourcedetection/ecs:
     detectors: [ecs]
+    timeout: 5s
+    retry:
+      max_elapsed_time: 15s
 
 service:
   extensions: [health_check]
