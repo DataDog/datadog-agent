@@ -16,7 +16,7 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/configschema"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
@@ -72,7 +72,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			IssueID:   c.instanceIssueID(),
 			IssueName: IssueName,
 			Source:    "system-probe",
-			Context:   configschema.BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violations),
+			Context:   invalidconfig.BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violations),
 		},
 	}, nil
 }

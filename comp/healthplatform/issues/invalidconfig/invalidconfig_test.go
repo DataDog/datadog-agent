@@ -21,7 +21,6 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/configschema"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
@@ -132,9 +131,9 @@ func TestBuildIssue_Remediation(t *testing.T) {
 
 func TestBuildIssue_MultipleCorrections(t *testing.T) {
 	const count = 12
-	violations := make([]configschema.ViolationPayload, count)
+	violations := make([]violationPayload, count)
 	for i := range violations {
-		violations[i] = configschema.ViolationPayload{Path: fmt.Sprintf("/setting%d", i), ActualType: "string", ExpectedTypes: []string{"integer"}, DefaultStatus: "unknown"}
+		violations[i] = violationPayload{Path: fmt.Sprintf("/setting%d", i), ActualType: "string", ExpectedTypes: []string{"integer"}, DefaultStatus: "unknown"}
 	}
 	raw, err := json.Marshal(violations)
 	require.NoError(t, err)
@@ -296,6 +295,20 @@ func TestCheck_ResolvedSecretInMap(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
 	assert.Equal(t, "at '/additional_endpoints/https:~1~1example.test': got string, want array", reports[0].Context[contextErrorKey(0)])
+}
+
+func TestResolveDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, "agent_ipc: invalid")
+	for _, tc := range []struct{ path, status string }{
+		{"/agent_ipc", "none"},
+		{"/unknown_setting", "unknown"},
+	} {
+		t.Run(tc.status, func(t *testing.T) {
+			status, value := resolveDefault(cfg, tc.path)
+			assert.Equal(t, tc.status, status)
+			assert.Nil(t, value)
+		})
+	}
 }
 
 // Two checkers with the same hostname but different config files must not

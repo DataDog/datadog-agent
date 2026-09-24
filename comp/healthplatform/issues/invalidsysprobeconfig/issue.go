@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/configschema"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
 	"github.com/dustin/go-humanize/english"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -82,7 +82,7 @@ func (InvalidSysprobeConfigIssue) BuildIssue(ctx map[string]string) (*healthplat
 	var violations []any
 	if err := json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations); err == nil && len(violations) > 0 {
 		fields[contextKeyViolations] = violations
-		if details, fixes := configschema.FormatViolations(ctx[contextKeyViolations]); details != "" {
+		if details, fixes := invalidconfig.FormatViolations(ctx[contextKeyViolations]); details != "" {
 			description, correction = details, fixes
 		}
 	}
