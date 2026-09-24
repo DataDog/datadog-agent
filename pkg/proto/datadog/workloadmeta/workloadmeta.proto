@@ -134,6 +134,8 @@ message ContainerState {
 message ContainerAllocatedResource {
   string Name = 1;
   string ID = 2;
+  string PoolName = 3;
+  repeated string CdiDevices = 4;
 }
 
 message ContainerResources {
