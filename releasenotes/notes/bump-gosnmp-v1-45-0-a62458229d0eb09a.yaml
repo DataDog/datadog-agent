@@ -2,5 +2,4 @@
 fixes:
   - |
     Bump the embedded GoSNMP library to v1.45.0 to fix SNMP device scans failing
-    when devices return zero-length encoded OIDs. These OIDs are now decoded as
-    ``.0.0`` instead of causing a parsing error.
+    when devices return zero-length encoded OIDs.
