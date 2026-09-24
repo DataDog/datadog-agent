@@ -60,6 +60,10 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+func (a *AppService) CanCollectInventory() bool {
+	return a.GetInventoryData().ResourceID != ""
+}
+
 // GetInventoryData derives the inventory metadata fields for Azure App Service,
 // reusing traceutil.GetAppServicesTags as the single source of truth for the
 // CCRID, subscription id, resource group, and runtime.

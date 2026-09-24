@@ -8,31 +8,123 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
+	serverlessInitInventory "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	agentmock "github.com/DataDog/datadog-agent/comp/logs/agent/mock"
+	inventoryagentimpl "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics/metricstest"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type inventoryRecordingSerializer struct {
+	serializer.MetricSerializer
+	payloads [][]byte
+}
+
+func (s *inventoryRecordingSerializer) SendMetadata(payload marshaler.JSONMarshaler) error {
+	data, err := payload.MarshalJSON()
+	if err == nil {
+		s.payloads = append(s.payloads, data)
+	}
+	return err
+}
+
+type inventoryTestCloudService struct {
+	cloudservice.CloudService
+	resourceID string
+}
+
+func (s inventoryTestCloudService) CanCollectInventory() bool { return s.resourceID != "" }
+func (s inventoryTestCloudService) GetInventoryData() cloudservice.InventoryData {
+	return cloudservice.InventoryData{ResourceID: s.resourceID}
+}
+
+func TestInventoryIdentityGate(t *testing.T) {
+	for _, scenario := range []string{"valid", "missing", "serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+		t.Run(scenario, func(t *testing.T) {
+			conf := coreconfig.NewMock(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte("inventories_enabled: true\n"), 0600))
+			pkgconfigsetup.Datadog().(configmodel.BuildableConfig).SetConfigFile(configPath)
+			for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+				conf.Set(key, true, configmodel.SourceAgentRuntime)
+			}
+			conf.Set("inventories_first_run_delay", 0, configmodel.SourceAgentRuntime)
+			conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
+			service := inventoryTestCloudService{resourceID: "test-resource"}
+			if scenario == "missing" {
+				service.resourceID = ""
+			} else if scenario != "valid" {
+				conf.Set(scenario, false, configmodel.SourceAgentRuntime)
+			}
+			configureInventory(service)
+			// setup reloads configuration after the pre-Fx gate.
+			require.NoError(t, pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil))
+			serial := &inventoryRecordingSerializer{}
+			hostname, _ := hostnamemock.NewMock("inventory-test")
+			provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
+				Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
+			})
+			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{}, conf, nil)
+			serverlessInitInventory.Submit(provides.Comp, conf)
+			if scenario != "valid" {
+				assert.Empty(t, serial.payloads)
+				assert.Nil(t, provides.Provider.Callback, "no periodic or in-flight collection may be registered")
+				return
+			}
+			require.Len(t, serial.payloads, 1, "startup submission is synchronous")
+			require.NotNil(t, provides.Provider.Callback)
+			provides.Provider.Callback(context.Background())
+			require.Len(t, serial.payloads, 2)
+			for _, data := range serial.payloads {
+				var payload struct {
+					Metadata map[string]interface{} `json:"agent_metadata"`
+				}
+				require.NoError(t, json.Unmarshal(data, &payload))
+				assert.Equal(t, service.resourceID, payload.Metadata["resource_id"])
+			}
+		})
+	}
+}
+
+func TestInventoryGateLeavesOtherPlatformsUnchanged(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("serverless.inventory_enabled", true, configmodel.SourceAgentRuntime)
+	conf.Set("inventories_enabled", true, configmodel.SourceAgentRuntime)
+	configureInventory(&cloudservice.LocalService{})
+	configureInventory(&cloudservice.MicroVM{})
+	assert.True(t, conf.GetBool("inventories_enabled"))
+}
 
 // TestMetricAgentNoOpWithoutDemux verifies that the methods called by the
 // lifecycle server on the metric agent are safe when the agent has not been

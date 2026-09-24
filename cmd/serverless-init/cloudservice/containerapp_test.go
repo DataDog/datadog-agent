@@ -199,6 +199,33 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 	}
 }
 
+func TestContainerAppMissingIdentity(t *testing.T) {
+	for _, missing := range []string{"none", AzureSubscriptionIdEnvVar, AzureResourceGroupEnvVar, ContainerAppNameEnvVar, ContainerAppRevision} {
+		t.Run(missing, func(t *testing.T) {
+			t.Setenv(AzureSubscriptionIdEnvVar, "subscription")
+			t.Setenv(AzureResourceGroupEnvVar, "resource group")
+			t.Setenv(ContainerAppNameEnvVar, "unknown")
+			t.Setenv(ContainerAppRevision, "revision")
+			t.Setenv(ContainerAppReplicaName, "")
+			t.Setenv(ContainerAppDNSSuffix, "")
+			if missing != "none" {
+				t.Setenv(missing, "")
+			}
+			service := NewContainerApp()
+			if missing == "none" {
+				assert.NotEmpty(t, service.GetInventoryData().ResourceID)
+				assert.True(t, service.CanCollectInventory())
+			} else {
+				assert.Empty(t, service.GetInventoryData().ResourceID)
+				assert.False(t, service.CanCollectInventory())
+			}
+			if missing != "none" && missing != ContainerAppRevision {
+				assert.NotContains(t, service.GetTags(), "resource_id")
+			}
+		})
+	}
+}
+
 func TestContainerAppShutdownEmitsMetrics(t *testing.T) {
 	skipOnWindows(t)
 	demux := createDemultiplexer(t)

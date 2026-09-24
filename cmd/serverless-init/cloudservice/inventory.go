@@ -54,6 +54,11 @@ type InventoryData struct {
 	ParentResourceID string
 }
 
+func (l *LocalService) CanCollectInventory() bool { return true }
+
+// MicroVM identity is supplied by lifecycle hooks after component construction.
+func (m *MicroVM) CanCollectInventory() bool { return true }
+
 // GetInventoryData returns the inventory metadata fields for this cloud
 // service. The default implementation returns an empty struct; each platform
 // overrides it with real derivation.

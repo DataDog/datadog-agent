@@ -98,6 +98,7 @@ func TestAppServiceGetInventoryData(t *testing.T) {
 		AzureResourceGroup:  "test_resource_group",
 		Runtime:             "Node.js",
 	}, inv)
+	assert.True(t, service.CanCollectInventory())
 }
 
 func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
@@ -111,6 +112,7 @@ func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
 
 	inv := service.GetInventoryData()
 
+	assert.True(t, service.CanCollectInventory())
 	assert.Equal(t, workloadTypeAzureFunction, inv.WorkloadType)
 	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name", inv.ResourceID)
 }
@@ -128,6 +130,7 @@ func TestAppServiceGetInventoryDataWithoutAzureIDs(t *testing.T) {
 
 	assert.Equal(t, workloadTypeAzureAppService, inv.WorkloadType)
 	assert.Empty(t, inv.ResourceID)
+	assert.False(t, service.CanCollectInventory())
 	assert.Equal(t, "test_site_name", inv.ResourceName)
 	assert.Equal(t, "eastus", inv.Region)
 }

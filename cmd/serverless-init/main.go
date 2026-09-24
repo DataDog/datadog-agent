@@ -258,6 +258,22 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
+// configureInventory must run before Fx constructs the component and snapshots
+// its enabled state. Never re-enable a user-disabled inventory pipeline.
+func configureInventory(cloudService cloudservice.CloudService) {
+	var actuallyDisable bool
+	if !pkgconfigsetup.Datadog().GetBool("serverless.inventory_enabled") {
+		actuallyDisable = true
+	}
+	if !cloudService.CanCollectInventory() {
+		log.Info("serverless-init inventory disabled: cloud service cannot collect inventory")
+		actuallyDisable = true
+	}
+	if actuallyDisable {
+		setOverride("inventories_enabled", false)
+	}
+}
+
 func main() {
 
 	preloadEarly()
@@ -331,15 +347,10 @@ func main() {
 		pkgconfigsetup.Datadog().Set("use_dogstatsd", false, model.SourceAgentRuntime)
 	}
 
-	// Gate the inventory metadata runner on the serverless ramp flag. The
-	// runner's enabled state is read once at fx component construction from the
-	// inventories_enabled config key; setting it here (before fxutil.OneShot)
-	// ensures the InventoryPayload.Enabled field is false when the feature is
-	// off, so the runner registers a nil provider and never emits a payload —
-	// even with inventories_first_run_delay forced to zero.
-	if !pkgconfigsetup.Datadog().GetBool("serverless.inventory_enabled") {
-		setOverride("inventories_enabled", false)
-	}
+	// Gate before Fx construction, including provider registration: skipping
+	// only startup Submit would still allow periodic/in-flight collection of
+	// unresolved inventory. GCP identity reuses configureTags' cached lookup.
+	configureInventory(cloudService)
 
 	metricTags := metrics.Tags{
 		Metric:              metricAgentTags,

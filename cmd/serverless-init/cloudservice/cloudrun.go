@@ -104,7 +104,7 @@ type CloudRun struct {
 }
 
 // resolveMetadata fetches the GCP metadata-service values once and caches them.
-// GetTags and GetInventoryData both trigger it, so exactly one network fetch
+// GetTags and GetInventoryData both trigger it, so exactly one lookup round
 // happens regardless of call order and neither method depends on the other
 // having run first. The cached map is read-only; callers that mutate clone it.
 func (c *CloudRun) resolveMetadata() map[string]string {
@@ -156,7 +156,9 @@ func (c *CloudRun) GetTags() map[string]string {
 	if c.isFunction {
 		return c.getFunctionTags(tags)
 	}
-	tags[cloudRunServiceTagPrefix+resourceName] = cloudRunServiceCCRID(tags[projectID], tags[location], tags[serviceName])
+	if id := cloudRunServiceCCRID(tags[projectID], tags[location], tags[serviceName]); id != "" {
+		tags[cloudRunServiceTagPrefix+resourceName] = id
+	}
 	return tags
 }
 
@@ -187,19 +189,32 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 		tags[cloudRunFunctionTagPrefix+functionSignature] = functionSignatureType
 	}
 
-	tags[cloudRunFunctionTagPrefix+resourceName] = cloudRunFunctionCCRID(tags[projectID], tags[location], tags[serviceName], functionTargetVal)
+	if id := cloudRunFunctionCCRID(tags[projectID], tags[location], tags[serviceName], functionTargetVal); id != "" {
+		tags[cloudRunFunctionTagPrefix+resourceName] = id
+	}
 	return tags
 }
 
 // cloudRunServiceCCRID builds the service-level Canonical Cloud Resource ID.
 // It is the stable parent that revision- and function-level CCRIDs nest under.
 func cloudRunServiceCCRID(project, region, service string) string {
+	if project == "" || region == "" || service == "" {
+		return ""
+	}
 	return fmt.Sprintf("projects/%s/locations/%s/services/%s", project, region, service)
 }
 
 // cloudRunFunctionCCRID extends the service CCRID with the function segment.
 func cloudRunFunctionCCRID(project, region, service, functionTarget string) string {
-	return fmt.Sprintf("%s/functions/%s", cloudRunServiceCCRID(project, region, service), functionTarget)
+	parent := cloudRunServiceCCRID(project, region, service)
+	if parent == "" || functionTarget == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/functions/%s", parent, functionTarget)
+}
+
+func (c *CloudRun) CanCollectInventory() bool {
+	return c.GetInventoryData().ResourceID != ""
 }
 
 // GetInventoryData derives the inventory metadata fields for Cloud Run services
@@ -241,12 +256,11 @@ func (c *CloudRun) GetInventoryData() InventoryData {
 }
 
 // cloudRunRevisionCCRID extends the CCRID of a revisable resource (a service or
-// a function) with the revision segment. It returns that CCRID unchanged when
-// the revision is unknown so the resource_id never dangles on a trailing empty
-// segment.
+// a function) with the revision segment. An unresolved revision must not fall
+// back to the parent identity or produce a dangling path segment.
 func cloudRunRevisionCCRID(revisableCCRID, revision string) string {
 	if revisableCCRID == "" || revision == "" {
-		return revisableCCRID
+		return ""
 	}
 	return fmt.Sprintf("%s/revisions/%s", revisableCCRID, revision)
 }
@@ -254,6 +268,9 @@ func cloudRunRevisionCCRID(revisableCCRID, revision string) string {
 // cloudRunInventoryID qualifies a Cloud Run CCRID with the API host that the
 // inventory resource and parent ids are keyed on.
 func cloudRunInventoryID(ccrid string) string {
+	if ccrid == "" {
+		return ""
+	}
 	return cloudRunInventoryIDPrefix + ccrid
 }
 
@@ -333,25 +350,29 @@ func getRegion(httpClient *http.Client, url string) string {
 func getSingleMetadata(httpClient *http.Client, url string) string {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		log.Error("unable to build the metadata request, defaulting to unknown")
-		return "unknown"
+		log.Error("unable to build the metadata request")
+		return ""
 	}
 	req.Header.Add("Metadata-Flavor", "Google")
 	res, err := httpClient.Do(req)
 	if err != nil {
-		log.Info("unable to get the requested metadata, defaulting to unknown")
-		return "unknown"
+		log.Info("unable to get the requested metadata")
+		return ""
 	}
 	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		log.Infof("metadata request failed with HTTP status %d", res.StatusCode)
+		return ""
+	}
 	data, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Error("unable to read metadata body, defaulting to unknown")
-		return "unknown"
+		log.Error("unable to read metadata body")
+		return ""
 	}
 	return strings.ToLower(string(data))
 }
 
-// GetMetaData returns the container's metadata
+// GetMetaData returns the container's metadata. Failed lookups have empty values.
 func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string {
 	type keyVal struct {
 		key, val string
@@ -361,7 +382,8 @@ func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string
 	}
 
 	metadata := make(map[string]string, 6)
-	metaChan := make(chan keyVal)
+	// Buffer all results so late requests can finish after the outer timeout.
+	metaChan := make(chan keyVal, 6)
 	getMeta := func(fnMetadata func(*http.Client, string) string, url string, baseKey string) {
 		val := fnMetadata(httpClient, url)
 		metaChan <- keyVal{baseKey, val}
@@ -389,7 +411,7 @@ func GetMetaData(config *GCPConfig, cloudRunType CloudRunType) map[string]string
 				return metadata
 			}
 		case <-timeout:
-			log.Warn("timed out while fetching GCP compute metadata, defaulting to unknown")
+			log.Warn("timed out while fetching GCP compute metadata")
 			return metadata
 		}
 	}

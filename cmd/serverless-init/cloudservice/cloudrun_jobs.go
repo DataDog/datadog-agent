@@ -64,7 +64,7 @@ type CloudRunJobs struct {
 }
 
 // resolveMetadata fetches the GCP metadata-service values once and caches them.
-// GetTags and GetInventoryData both trigger it, so exactly one network fetch
+// GetTags and GetInventoryData both trigger it, so exactly one lookup round
 // happens regardless of call order. The cached map is read-only; callers that
 // mutate clone it.
 func (c *CloudRunJobs) resolveMetadata() map[string]string {
@@ -107,27 +107,35 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 		tags[cloudRunJobTagPrefix+taskCountTag] = taskCountVal
 	}
 
-	tags[cloudRunJobTagPrefix+resourceNameTag] = cloudRunJobCCRID(tags["project_id"], tags["location"], jobNameVal)
+	if id := cloudRunJobCCRID(tags["project_id"], tags["location"], jobNameVal); id != "" {
+		tags[cloudRunJobTagPrefix+resourceNameTag] = id
+	}
 	return tags
 }
 
 // cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID. It is the
 // stable parent that execution-level CCRIDs nest under.
 func cloudRunJobCCRID(project, region, job string) string {
+	if project == "" || region == "" || job == "" {
+		return ""
+	}
 	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
 }
 
-// cloudRunJobExecutionCCRID extends a job CCRID with the execution segment. It
-// returns the job CCRID unchanged when the execution is unknown so the
-// resource_id never dangles on a trailing empty segment.
+// cloudRunJobExecutionCCRID extends a job CCRID with the execution segment.
+// Missing executions must not fall back to a job-level inventory identity.
 //
-// Tasks of one execution share this id: they run the same deployed code and
-// differ only in the task index and attempt the enhanced metric tags carry.
+// Tasks of one execution share this id: task index, attempt and instance
+// metadata must not split the execution's inventory identity.
 func cloudRunJobExecutionCCRID(jobCCRID, execution string) string {
 	if jobCCRID == "" || execution == "" {
-		return jobCCRID
+		return ""
 	}
 	return fmt.Sprintf("%s/executions/%s", jobCCRID, execution)
+}
+
+func (c *CloudRunJobs) CanCollectInventory() bool {
+	return c.GetInventoryData().ResourceID != ""
 }
 
 // GetInventoryData derives the inventory metadata fields for Cloud Run Jobs.

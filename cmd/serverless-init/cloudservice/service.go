@@ -103,6 +103,9 @@ type CloudService interface {
 	// inventory metadata payload. Each implementation resolves its own facts, so
 	// it does not depend on GetTags having run first.
 	GetInventoryData() InventoryData
+
+	// CanCollectInventory reports whether the platform permits inventory collection.
+	CanCollectInventory() bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter

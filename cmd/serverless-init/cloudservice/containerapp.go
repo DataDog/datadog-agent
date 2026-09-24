@@ -76,11 +76,17 @@ func (c *ContainerApp) resolveRegion() string {
 // containerAppCCRID builds the app-level Canonical Cloud Resource ID. It is the
 // stable parent that revision-level CCRIDs nest under.
 func containerAppCCRID(subscriptionID, resourceGroup, appName string) string {
+	if subscriptionID == "" || resourceGroup == "" || appName == "" {
+		return ""
+	}
 	return fmt.Sprintf("/subscriptions/%v/resourcegroups/%v/providers/microsoft.app/containerapps/%v", subscriptionID, resourceGroup, strings.ToLower(appName))
 }
 
 // containerAppRevisionCCRID extends an app CCRID with the revision segment.
 func containerAppRevisionCCRID(appCCRID, revision string) string {
+	if appCCRID == "" || revision == "" {
+		return ""
+	}
 	return fmt.Sprintf("%s/revisions/%s", appCCRID, revision)
 }
 
@@ -123,8 +129,7 @@ func (c *ContainerApp) GetTags() map[string]string {
 		tags[acaResourceGroup] = resourceGroup
 	}
 
-	if subscriptionID != "" && resourceGroup != "" {
-		resourceID := containerAppCCRID(subscriptionID, resourceGroup, appName)
+	if resourceID := containerAppCCRID(subscriptionID, resourceGroup, appName); resourceID != "" {
 		tags["resource_id"] = resourceID
 		tags[acaResourceID] = resourceID
 	}
@@ -132,21 +137,22 @@ func (c *ContainerApp) GetTags() map[string]string {
 	return tags
 }
 
+func (c *ContainerApp) CanCollectInventory() bool {
+	return c.GetInventoryData().ResourceID != ""
+}
+
 // GetInventoryData derives the inventory metadata fields for Azure Container
 // Apps. The app-level CCRID is the stable parent and the resource_id is the
-// revision under it. The CCRIDs require both subscription id and resource group
-// and are left empty otherwise, matching GetTags.
+// revision under it. Each CCRID requires all of its path components; an
+// unresolved revision cannot fall back to the app-level inventory identity.
 func (c *ContainerApp) GetInventoryData() InventoryData {
 	subscriptionID := os.Getenv(AzureSubscriptionIdEnvVar)
 	resourceGroup := os.Getenv(AzureResourceGroupEnvVar)
 	appName := os.Getenv(ContainerAppNameEnvVar)
 	revision := os.Getenv(ContainerAppRevision)
 
-	var resourceID, parentResourceID string
-	if subscriptionID != "" && resourceGroup != "" {
-		parentResourceID = containerAppCCRID(subscriptionID, resourceGroup, appName)
-		resourceID = containerAppRevisionCCRID(parentResourceID, revision)
-	}
+	parentResourceID := containerAppCCRID(subscriptionID, resourceGroup, appName)
+	resourceID := containerAppRevisionCCRID(parentResourceID, revision)
 
 	return InventoryData{
 		WorkloadType:        workloadTypeAzureContainerApp,
@@ -211,10 +217,7 @@ func (c *ContainerApp) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Conf
 
 // Init initializes ContainerApp specific code
 func (c *ContainerApp) Init(_ *TracingContext) error {
-	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
-	// and DD_AZURE_RESOURCE_GROUP.
-	// These environment variables are optional for now. Once we go GA,
-	// return an error if these are not set.
+	// Container Apps require subscription and resource group environment variables.
 	if _, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); !exists {
 		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
 	}
