@@ -771,3 +771,44 @@ func TestMountBindSubdirPivotRoot(t *testing.T) {
 		assertFieldEqual(t, event, "exec.file.path", "/mnt-bind-subdir-pivot-root")
 	}, "test_mount_bind_subdir_pivot_root")
 }
+
+// TestMountSubmountOfBindSubdir checks the path of a file under a mount whose mount point is inside a bind mount of a
+// sub directory
+func TestMountSubmountOfBindSubdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_submount_of_bind_subdir",
+		Expression: `exec.file.name == "mnt-submount-of-bind-subdir"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	env := newMountSubdirEnv(t)
+	if err := unix.Mount(env.srcDir, env.dstDir, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(env.dstDir, unix.MNT_DETACH)
+
+	inner := filepath.Join(env.dstDir, "inner")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount("tmpfs", inner, "tmpfs", 0, "size=8M"); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(inner, unix.MNT_DETACH)
+
+	expected := filepath.Join(inner, "mnt-submount-of-bind-subdir")
+	copyTrue(t, expected)
+
+	test.WaitSignalFromRule(t, func() error {
+		return exec.Command(expected).Run()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", expected)
+	}, "test_mount_submount_of_bind_subdir")
+}

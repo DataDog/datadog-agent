@@ -27,3 +27,19 @@ func getInodeNumFromLink(link string) (uint64, error) {
 	}
 	return ino, nil
 }
+
+// trimMountRoot makes a path relative to the file system root, relative to a mount root instead
+func trimMountRoot(p string, root string) string {
+	if root == "" || root == "/" {
+		return p
+	}
+
+	absPath := "/" + strings.TrimPrefix(p, "/")
+	if absPath == root {
+		return "/"
+	}
+	if rel, found := strings.CutPrefix(absPath, root+"/"); found {
+		return rel
+	}
+	return p
+}
