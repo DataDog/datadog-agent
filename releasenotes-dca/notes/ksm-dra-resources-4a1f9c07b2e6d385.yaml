@@ -12,8 +12,13 @@ features:
     On Kubernetes 1.37+, it also collects DeviceTaintRule objects as
     ``kubernetes_state.dra.device_taint_rule`` (tagged by ``devicetaintrule``,
     ``driver``, ``taint_key``, ``taint_effect``).
-    Set ``collect_dra_resources: true`` to enable it; it is off by default
-    because the ``resource.k8s.io`` API group is absent on most clusters. Use
+    Enable it by adding ``resourceclaims``, ``resourceslices`` and
+    ``devicetaintrules`` to the check's ``collectors`` list, individually or
+    together; they are not collected by default because the
+    ``resource.k8s.io`` API group is absent on most clusters. The check
+    resolves each to the API version the cluster serves. As with other
+    cluster-scoped resources, they are not collected in the ``node_kubelet``
+    pod collection mode. Use
     ``dra_device_classes`` to restrict collection to specific DeviceClasses
     (for example ``gpu.nvidia.com``). Collection requires ``list`` and
     ``watch`` on ``resourceclaims``, ``resourceslices``, and (on 1.37+)

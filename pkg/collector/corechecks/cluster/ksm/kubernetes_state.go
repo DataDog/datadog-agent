@@ -84,31 +84,53 @@ var extendedCollectors = map[string]string{
 	"pods":         "core/v1, Resource=pods_extended",
 }
 
-// draCollectors returns the GVR strings under which the DRA resourceclaim/
-// resourceslice factories register their stores
-// (util.GVRFromType(factory.Name(), factory.ExpectedType())). These must match
-// the availableStores keys the vendored KSM builder uses, or WithEnabledResources
-// fails with "resource <name> does not exist".
-//
-// The version is whichever one the cluster serves, not a constant: the DRA
-// group reached v1 only in Kubernetes 1.34 and clusters in the field still
-// serve a beta version.
-//
-// DeviceTaintRule takes its own version because it graduated later than
-// claims/slices: on Kubernetes 1.36 the group serves claims at v1 while
-// devicetaintrules is still only at v1beta2. Keying it off apiVersion would
-// enable a collector the factory never registered, and WithEnabledResources
-// then fails the whole check instance -- every KSM metric, not just DRA.
-// Empty means the cluster does not serve it at all.
-func draCollectors(apiVersion, taintAPIVersion string) []string {
-	gv := customresources.DRAGroup + "/" + apiVersion
-	collectors := []string{
-		gv + ", Resource=resourceclaims",
-		gv + ", Resource=resourceslices",
+// DRA resources are enabled like any other resource, by listing them in the
+// check's collectors, one name per resource. They are resolved here rather
+// than through collectorNameReplacement because their GVR is not a constant:
+// the group reached v1 only in Kubernetes 1.34, clusters in the field still
+// serve a beta version, and DeviceTaintRule graduated later still (on 1.36,
+// claims are at v1 while devicetaintrules is only at v1beta2).
+const (
+	draResourceClaims   = "resourceclaims"
+	draResourceSlices   = "resourceslices"
+	draDeviceTaintRules = "devicetaintrules"
+)
+
+// splitDRACollectors removes the DRA resource names from collectors and
+// returns which of them were requested. Passed through as-is they would name
+// no registered store, and WithEnabledResources fails the whole check instance
+// on an unknown name -- every KSM metric, not only DRA.
+func splitDRACollectors(collectors []string) ([]string, map[string]bool) {
+	requested := map[string]bool{}
+	remaining := make([]string, 0, len(collectors))
+	for _, c := range collectors {
+		switch c {
+		case draResourceClaims, draResourceSlices, draDeviceTaintRules:
+			requested[c] = true
+		default:
+			remaining = append(remaining, c)
+		}
 	}
-	if taintAPIVersion != "" {
-		collectors = append(collectors,
-			customresources.DRAGroup+"/"+taintAPIVersion+", Resource=devicetaintrules")
+	return remaining, requested
+}
+
+// draCollectors returns the store keys for the requested DRA resources the
+// cluster serves. They must match the keys the factories register under
+// (util.GVRFromType(factory.Name(), factory.ExpectedType())), so each uses the
+// version negotiated for that resource: claims and slices share apiVersion,
+// devicetaintrules has its own. An empty version means not served.
+func draCollectors(requested map[string]bool, apiVersion, taintAPIVersion string) []string {
+	var collectors []string
+	if apiVersion != "" {
+		gv := customresources.DRAGroup + "/" + apiVersion
+		for _, r := range []string{draResourceClaims, draResourceSlices} {
+			if requested[r] {
+				collectors = append(collectors, gv+", Resource="+r)
+			}
+		}
+	}
+	if requested[draDeviceTaintRules] && taintAPIVersion != "" {
+		collectors = append(collectors, customresources.DRAGroup+"/"+taintAPIVersion+", Resource="+draDeviceTaintRules)
 	}
 	return collectors
 }
@@ -244,19 +266,11 @@ type KSMConfig struct {
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
 
-	// CollectDRAResources enables the Dynamic Resource Allocation collectors
-	// (ResourceClaim, ResourceSlice), which report accelerator demand and
-	// supply. Off by default: the resource.k8s.io API group is absent on most
-	// clusters, and the Cluster Agent's shipped RBAC has to grant
-	// list/watch on it before the informers can start.
-	// Example:
-	// collect_dra_resources: true
-	CollectDRAResources bool `yaml:"collect_dra_resources"`
-
 	// DRADeviceClasses restricts DRA collection to claims requesting one of
 	// these DeviceClasses. Empty means every claim is counted, including those
 	// of non-accelerator drivers. Filtering is by DeviceClass, not driver: the
-	// names coincide for NVIDIA but diverge in general.
+	// names coincide for NVIDIA but diverge in general. Only meaningful when
+	// "resourceclaims" is listed in collectors.
 	// Example:
 	// dra_device_classes:
 	//   - gpu.nvidia.com
@@ -460,23 +474,13 @@ func (k *KSMCheck) buildStores() error {
 
 	switch k.instance.PodCollectionMode {
 	case nodeKubeletPodCollection:
-		// Pods come from the kubelet, nothing API-server related to set up
-		// for the pod factory itself. DRA resources, however, still need
-		// discovery and an API client: the mode changes where pod data comes
-		// from, not what metrics the check can produce.
+		// Pods come from the kubelet, nothing API-server related to set up.
+		// This mode runs on every node agent, so it must not collect
+		// cluster-scoped resources such as the DRA ones -- each node would
+		// report the whole cluster's claims and slices. Those belong to the
+		// cluster-side companion instance (cluster_unassigned).
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()
-
-		if k.instance.CollectDRAResources {
-			apiServerClient, err = apiserver.GetAPIClient()
-			if err != nil {
-				return err
-			}
-			resources, err = discoverResources(apiServerClient.Cl.Discovery())
-			if err != nil {
-				return err
-			}
-		}
 	case clusterAggregatesOnlyPodCollection:
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()
@@ -680,44 +684,19 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		}
 	}
 
-	// The DRA factories below are registered unconditionally once the cluster
-	// serves the API group, so their stores must be enabled even when the
-	// config carries an explicit collectors list. Without this,
-	// WithEnabledResources(cr.collectors) never enables them and the informers
-	// never start. Use the GVR strings, not the plain names — resourceExists()
-	// matches against availableStores keys.
-	//
-	// Note the DRA collectors are appended further down, after the two
-	// early returns: those modes register only their own pod factory, so
-	// enabling a DRA store there would ask WithEnabledResources for a resource
-	// with no factory behind it — the exact "resource does not exist" failure.
-	draAPIVersion := customresources.DRAAPIVersion(resources)
-	draTaintAPIVersion := customresources.DeviceTaintRuleAPIVersion(resources)
+	// DRA names are resolved below, against the versions the cluster serves;
+	// see splitDRACollectors for why they cannot stay in the list as-is.
+	collectors, draRequested := splitDRACollectors(collectors)
 
 	if k.instance.PodCollectionMode == nodeKubeletPodCollection {
-		// This mode changes where pod data comes from, not what metrics
-		// are produced. DRA resources (ResourceClaim, ResourceSlice) are
-		// independent of pod collection and must not be dropped here.
-		factories := []customresource.RegistryFactory{
-			customresources.NewExtendedPodFactoryForKubelet(),
-		}
-		if k.instance.CollectDRAResources && draAPIVersion != "" {
-			factories = append(factories,
-				customresources.NewResourceClaimFactory(c, draAPIVersion, k.instance.DRADeviceClasses),
-				customresources.NewResourceSliceFactory(c, draAPIVersion),
-			)
-			if draTaintAPIVersion != "" {
-				factories = append(factories,
-					customresources.NewDeviceTaintRuleFactory(c, draTaintAPIVersion),
-				)
-			}
-			collectors = lo.Uniq(append(collectors, draCollectors(draAPIVersion, draTaintAPIVersion)...))
-		} else if k.instance.CollectDRAResources {
-			log.Infof("DRA collection is enabled but this cluster serves no known %s API version (supported: %s); skipping resourceclaim/resourceslice collection", customresources.DRAGroup, strings.Join(customresources.DRASupportedVersions(), ", "))
-		}
+		// collectors is always just "pods" here (see Configure): this mode
+		// runs per node and leaves cluster-scoped resources, DRA included, to
+		// the cluster-side instance.
 		return customResources{
 			collectors: collectors,
-			factories:  factories,
+			factories: []customresource.RegistryFactory{
+				customresources.NewExtendedPodFactoryForKubelet(),
+			},
 		}
 	}
 
@@ -731,12 +710,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		// WithCustomResourceStoreFactories registers NewExtendedPodFactory
 		// under (util.GVRFromType("pods_extended", *v1.Pod)), so BuildStores
 		// finds and builds it. Returning nil collectors instead would build
-		// neither store and make .total disappear. DRA stores are excluded for
-		// the same reason: this mode exists to emit the four owner-tagged pod
-		// aggregates and nothing else.
-		if k.instance.CollectDRAResources {
-			log.Infof("DRA collection is enabled but pod_collection_mode is %q, which collects only the pod aggregates; resourceclaim/resourceslice metrics will not be produced", clusterAggregatesOnlyPodCollection)
-		}
+		// neither store and make .total disappear.
 		return customResources{
 			collectors: []string{extendedCollectors["pods"]},
 			factories: []customresource.RegistryFactory{
@@ -760,25 +734,31 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewControllerRevisionRolloutFactory(c, k.rolloutTracker),
 	}
 
-	// DRA is opt-in and only registered on a cluster that actually serves the
-	// group. Enabling it elsewhere starts informers against a missing API
-	// group, which on the overwhelming majority of clusters is nothing but
-	// error noise.
-	if k.instance.CollectDRAResources && draAPIVersion != "" {
-		factories = append(factories,
-			customresources.NewResourceClaimFactory(c, draAPIVersion, k.instance.DRADeviceClasses),
-			customresources.NewResourceSliceFactory(c, draAPIVersion),
-		)
-		if draTaintAPIVersion != "" {
-			factories = append(factories,
-				customresources.NewDeviceTaintRuleFactory(c, draTaintAPIVersion),
-			)
-		} else {
-			log.Debug("DRA device taint rules are not served by this cluster (stable in Kubernetes 1.37); skipping devicetaintrule collection")
+	// Register a DRA factory only for a resource that was both requested and
+	// is served at a version this code understands. Anything else would enable
+	// a store with no factory behind it. A name for a resource the cluster does
+	// not serve at all never reaches here: filterUnknownCollectors drops it.
+	if len(draRequested) > 0 {
+		draAPIVersion := customresources.DRAAPIVersion(resources)
+		draTaintAPIVersion := customresources.DeviceTaintRuleAPIVersion(resources)
+
+		if draAPIVersion == "" && (draRequested[draResourceClaims] || draRequested[draResourceSlices]) {
+			log.Infof("resourceclaims/resourceslices are listed in collectors but this cluster serves no known %s API version (supported: %s); skipping them", customresources.DRAGroup, strings.Join(customresources.DRASupportedVersions(), ", "))
 		}
-		collectors = lo.Uniq(append(collectors, draCollectors(draAPIVersion, draTaintAPIVersion)...))
-	} else if k.instance.CollectDRAResources {
-		log.Infof("DRA collection is enabled but this cluster serves no known %s API version (supported: %s); skipping resourceclaim/resourceslice collection", customresources.DRAGroup, strings.Join(customresources.DRASupportedVersions(), ", "))
+		if draAPIVersion != "" && draRequested[draResourceClaims] {
+			factories = append(factories, customresources.NewResourceClaimFactory(c, draAPIVersion, k.instance.DRADeviceClasses))
+		}
+		if draAPIVersion != "" && draRequested[draResourceSlices] {
+			factories = append(factories, customresources.NewResourceSliceFactory(c, draAPIVersion))
+		}
+		if draRequested[draDeviceTaintRules] {
+			if draTaintAPIVersion != "" {
+				factories = append(factories, customresources.NewDeviceTaintRuleFactory(c, draTaintAPIVersion))
+			} else {
+				log.Infof("devicetaintrules is listed in collectors but this cluster serves no known %s version of it (stable in Kubernetes 1.37); skipping it", customresources.DRAGroup)
+			}
+		}
+		collectors = lo.Uniq(append(collectors, draCollectors(draRequested, draAPIVersion, draTaintAPIVersion)...))
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)

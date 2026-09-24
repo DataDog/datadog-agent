@@ -2353,38 +2353,23 @@ func TestDiscoverCustomResources_ClusterAggregatesOnly(t *testing.T) {
 // silently vanish.
 func TestDiscoverCustomResources_EnablesDRAResources(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{CollectDRAResources: true}, fakeTagger, nil)
-	c := &apiserver.APIClient{
-		Cl:                fakeclientset.NewSimpleClientset(),
-		DynamicInformerCl: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
-	}
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 
-	cr := k.discoverCustomResources(c, []string{"pods", "nodes"}, draAPIResourceList("v1"))
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "nodes", "resourceclaims", "resourceslices"}, draAPIResourceList("v1"))
 
-	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceclaims",
-		"resourceclaims store must be enabled even with an explicit collectors list")
-	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceslices",
-		"resourceslices store must be enabled even with an explicit collectors list")
-
-	// Both DRA factories must be registered alongside the standard extended ones.
-	factoryNames := make([]string, 0, len(cr.factories))
-	for _, f := range cr.factories {
-		factoryNames = append(factoryNames, f.Name())
-	}
-	assert.Contains(t, factoryNames, "resourceclaims")
-	assert.Contains(t, factoryNames, "resourceslices")
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceclaims")
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceslices")
+	// The short names must be replaced, not kept alongside: they name no
+	// registered store, and WithEnabledResources fails the whole instance on
+	// an unknown name.
+	assert.NotContains(t, cr.collectors, "resourceclaims")
+	assert.NotContains(t, cr.collectors, "resourceslices")
 
 	// The enabled-resource GVR strings must be exactly what the factories
 	// register under (util.GVRFromType), otherwise WithEnabledResources fails
 	// with "resource <name> does not exist" and the informers never start.
 	for _, name := range []string{"resourceclaims", "resourceslices"} {
-		var f customresource.RegistryFactory
-		for _, fac := range cr.factories {
-			if fac.Name() == name {
-				f = fac
-				break
-			}
-		}
+		f := draFactoryByName(cr, name)
 		require.NotNil(t, f, "factory %s must be registered", name)
 		gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
 		require.NoError(t, err)
@@ -2414,39 +2399,62 @@ func newDRATestClient(t *testing.T) *apiserver.APIClient {
 	}
 }
 
-// TestDiscoverCustomResources_DRADisabledByDefault pins the opt-in: most
-// clusters do not serve resource.k8s.io and none of them have the RBAC, so
-// enabling these informers by default would turn every existing deployment
-// into an error loop.
-func TestDiscoverCustomResources_DRADisabledByDefault(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
-
-	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1"))
-
+func draFactoryByName(cr customResources, name string) customresource.RegistryFactory {
 	for _, f := range cr.factories {
-		assert.NotContains(t, []string{"resourceclaims", "resourceslices"}, f.Name())
+		if f.Name() == name {
+			return f
+		}
+	}
+	return nil
+}
+
+func assertNoDRA(t *testing.T, cr customResources) {
+	t.Helper()
+	for _, name := range []string{"resourceclaims", "resourceslices", "devicetaintrules"} {
+		assert.Nil(t, draFactoryByName(cr, name), "no %s factory expected", name)
+		assert.NotContains(t, cr.collectors, name, "the %s short name must not reach the builder", name)
 	}
 	for _, c := range cr.collectors {
 		assert.NotContains(t, c, "resource.k8s.io")
 	}
 }
 
-// TestDiscoverCustomResources_DRAGroupAbsent covers the cluster that has the
-// option on but does not serve the group: registering anyway would start
-// informers that can only fail.
+// TestDiscoverCustomResources_DRANotRequested pins the opt-in: a cluster that
+// serves the group does not get DRA informers unless they are listed.
+func TestDiscoverCustomResources_DRANotRequested(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1"))
+
+	assertNoDRA(t, cr)
+}
+
+// TestDiscoverCustomResources_OnlyRequestedDRAResources pins that the three
+// resources are independent: listing one registers that one only.
+func TestDiscoverCustomResources_OnlyRequestedDRAResources(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceslices"}, draAPIResourceList("v1"))
+
+	assert.NotNil(t, draFactoryByName(cr, "resourceslices"))
+	assert.Nil(t, draFactoryByName(cr, "resourceclaims"))
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceslices")
+	assert.NotContains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceclaims")
+}
+
+// TestDiscoverCustomResources_DRAGroupAbsent covers names that reach this
+// point for a cluster that serves no version this code understands. Nothing is
+// registered -- informers could only fail -- and the short names are still
+// stripped, since leaving them would fail the whole check instance.
 func TestDiscoverCustomResources_DRAGroupAbsent(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{CollectDRAResources: true}, fakeTagger, nil)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 
-	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, nil)
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceclaims", "resourceslices", "devicetaintrules"}, nil)
 
-	for _, f := range cr.factories {
-		assert.NotContains(t, []string{"resourceclaims", "resourceslices"}, f.Name())
-	}
-	for _, c := range cr.collectors {
-		assert.NotContains(t, c, "resource.k8s.io")
-	}
+	assertNoDRA(t, cr)
 }
 
 // TestDiscoverCustomResources_DRABetaVersion pins version negotiation: the
@@ -2454,52 +2462,47 @@ func TestDiscoverCustomResources_DRAGroupAbsent(t *testing.T) {
 // 404 on every earlier cluster.
 func TestDiscoverCustomResources_DRABetaVersion(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{CollectDRAResources: true}, fakeTagger, nil)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
 
-	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1beta1"))
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceclaims", "resourceslices"}, draAPIResourceList("v1beta1"))
 
 	assert.Contains(t, cr.collectors, "resource.k8s.io/v1beta1, Resource=resourceclaims")
 	assert.Contains(t, cr.collectors, "resource.k8s.io/v1beta1, Resource=resourceslices")
 }
 
-// TestDiscoverCustomResources_DRAInKubeletMode pins that node-kubelet pod
-// collection mode does not drop DRA factories: the mode changes where pod
-// data comes from, not what metrics are produced, and ResourceClaim /
-// ResourceSlice are independent of pod collection.
+// TestDiscoverCustomResources_DeviceTaintRuleOwnVersion pins, end to end, that
+// devicetaintrules registers and is enabled at its own negotiated version. On
+// Kubernetes 1.36 claims are at v1 while devicetaintrules is only at v1beta2.
+func TestDiscoverCustomResources_DeviceTaintRuleOwnVersion(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+	resources := append(draAPIResourceList("v1"), &apiv1.APIResourceList{
+		GroupVersion: "resource.k8s.io/v1beta2",
+		APIResources: []apiv1.APIResource{{Name: "devicetaintrules", Kind: "DeviceTaintRule"}},
+	})
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "devicetaintrules"}, resources)
+
+	f := draFactoryByName(cr, "devicetaintrules")
+	require.NotNil(t, f)
+	gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
+	require.NoError(t, err)
+	assert.Equal(t, "resource.k8s.io/v1beta2, Resource=devicetaintrules", gvr.String())
+	assert.Contains(t, cr.collectors, gvr.String())
+}
+
+// TestDiscoverCustomResources_DRAInKubeletMode pins that node_kubelet mode
+// never collects DRA resources. It runs on every node agent, so collecting
+// cluster-scoped objects there would report the whole cluster's claims and
+// slices once per node; the cluster-side companion instance owns them.
 func TestDiscoverCustomResources_DRAInKubeletMode(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	k := newKSMCheck(core.NewCheckBase(CheckName),
-		&KSMConfig{CollectDRAResources: true, PodCollectionMode: nodeKubeletPodCollection},
-		fakeTagger, nil)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: nodeKubeletPodCollection}, fakeTagger, nil)
 
-	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1"))
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceclaims", "resourceslices"}, draAPIResourceList("v1"))
 
-	// The kubelet pod factory must be registered
-	foundKubelet := false
-	for _, f := range cr.factories {
-		if f.Name() == "pods_extended" {
-			foundKubelet = true
-		}
-	}
-	assert.True(t, foundKubelet, "kubelet mode must register the kubelet pod factory")
-
-	// DRA factories must also be registered
-	foundDRA := false
-	for _, f := range cr.factories {
-		if f.Name() == "resourceclaims" || f.Name() == "resourceslices" {
-			foundDRA = true
-		}
-	}
-	assert.True(t, foundDRA, "DRA factories must be registered in kubelet mode; the mode changes pod data source, not metric scope")
-
-	// DRA collector keys must be present
-	foundDRACollector := false
-	for _, c := range cr.collectors {
-		if strings.Contains(c, "resource.k8s.io") {
-			foundDRACollector = true
-		}
-	}
-	assert.True(t, foundDRACollector, "DRA collector keys must be enabled in kubelet mode")
+	assert.NotNil(t, draFactoryByName(cr, "pods_extended"), "kubelet mode must register the kubelet pod factory")
+	assertNoDRA(t, cr)
 }
 
 // TestExtendedPodsCollectorKeyMatchesFactory guards the invariant the whole
@@ -2564,7 +2567,8 @@ func TestDRACollectorsUseTheNegotiatedTaintRuleVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, draCollectors(tt.apiVersion, tt.taintVersion))
+			all := map[string]bool{"resourceclaims": true, "resourceslices": true, "devicetaintrules": true}
+			assert.Equal(t, tt.expected, draCollectors(all, tt.apiVersion, tt.taintVersion))
 		})
 	}
 }

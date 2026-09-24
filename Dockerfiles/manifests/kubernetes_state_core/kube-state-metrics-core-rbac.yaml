@@ -96,7 +96,7 @@ rules:
     verbs:
       - list
       - watch
-  # Dynamic Resource Allocation, for the DRA collectors (collect_dra_resources).
+  # Dynamic Resource Allocation, for the resourceclaims/resourceslices/devicetaintrules collectors.
   # A rule naming an API group the server does not serve is inert, so this is
   # safe on clusters without DRA. NOTE: this manifest is generated from the Helm
   # chart -- the chart and the Operator must grant the same rule, or the check
