@@ -254,7 +254,7 @@ func TestGetHostAliasesUsesDMIDetectedProviderDirectly(t *testing.T) {
 	assert.ElementsMatch(t, []string{"config-alias", "ec2-alias"}, aliases)
 }
 
-func TestGetHostAliasesFallsBackWhenDMIDetectedProviderFails(t *testing.T) {
+func TestGetHostAliasesDoesNotFallBackWhenDMIDetectedProviderFails(t *testing.T) {
 	origDetectors := hostAliasesDetectors
 	defer func() { hostAliasesDetectors = origDetectors }()
 	setupDMIProvider(t, ec2.CloudProviderName)
@@ -271,9 +271,9 @@ func TestGetHostAliasesFallsBackWhenDMIDetectedProviderFails(t *testing.T) {
 	}
 
 	aliases, cloudprovider := GetHostAliases(context.TODO())
-	assert.True(t, gceCalled, "should fall back to probing all providers when the DMI-detected provider's fetch fails")
-	assert.Equal(t, gce.CloudProviderName, cloudprovider)
-	assert.Equal(t, []string{"gce-alias"}, aliases)
+	assert.False(t, gceCalled, "should not fall back to probing all providers when the DMI-detected provider's fetch fails")
+	assert.Equal(t, "", cloudprovider)
+	assert.Equal(t, []string{}, aliases)
 }
 
 // TestGetHostAliasesAlwaysRunsNonDMIDetectableDetectors ensures that detectors that aren't
@@ -348,28 +348,26 @@ func TestGetPublicIPv4UsesDMIDetectedProviderDirectly(t *testing.T) {
 	assert.False(t, ec2Called, "other providers should not be probed once one is positively detected via DMI")
 }
 
-func TestGetPublicIPv4FallsBackWhenDMIDetectedProviderFails(t *testing.T) {
+func TestGetPublicIPv4DoesNotFallBackWhenDMIDetectedProviderFails(t *testing.T) {
 	origProviders := publicIPv4Providers
 	defer func() { publicIPv4Providers = origProviders }()
 	setupDMIProvider(t, gce.CloudProviderName)
 
-	ec2Called, gceCalled := false, 0
+	ec2Called := false
 	publicIPv4Providers = map[string]func(context.Context) (string, error){
 		ec2.CloudProviderName: func(_ context.Context) (string, error) {
 			ec2Called = true
 			return "5.6.7.8", nil
 		},
 		gce.CloudProviderName: func(_ context.Context) (string, error) {
-			gceCalled++
 			return "", errors.New("gce metadata unreachable")
 		},
 	}
 
 	ip, err := GetPublicIPv4(context.TODO())
-	require.NoError(t, err)
-	assert.Equal(t, "5.6.7.8", ip)
-	assert.True(t, ec2Called, "should fall back to probing all providers when the DMI-detected provider's fetch fails")
-	assert.GreaterOrEqual(t, gceCalled, 1, "the DMI-detected provider should have been probed directly at least once")
+	assert.Error(t, err)
+	assert.Equal(t, "", ip)
+	assert.False(t, ec2Called, "should not fall back to probing all providers when the DMI-detected provider's fetch fails")
 }
 
 func TestCloudProviderHostCCRID(t *testing.T) {
