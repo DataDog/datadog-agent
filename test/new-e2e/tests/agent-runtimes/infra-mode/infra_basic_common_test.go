@@ -180,6 +180,38 @@ func (s *basicSuite) TestCheckSchedulingBehavior() {
 	})
 }
 
+// TestHostTags verifies that the infra_mode:basic marker tag is attached to
+// the agent's host-tags payload when running in basic infrastructure mode.
+func (s *basicSuite) TestHostTags() {
+	fakeintake := s.Env().FakeIntake.Client()
+
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		hosts, err := fakeintake.GetHosts()
+		if !assert.NoError(c, err, "failed to fetch hosts from fakeintake") {
+			return
+		}
+		if !assert.NotEmpty(c, hosts, "no hosts have sent host-tags payloads yet") {
+			return
+		}
+
+		for _, host := range hosts {
+			payloads, err := fakeintake.GetHostTags(host)
+			if !assert.NoError(c, err, "failed to fetch host-tags for host %s", host) {
+				continue
+			}
+			if !assert.NotEmpty(c, payloads, "no host-tags payloads for host %s", host) {
+				continue
+			}
+
+			// Latest payload — host_tags are eventually consistent.
+			tags := payloads[len(payloads)-1].HostTags
+
+			assert.Contains(c, tags, "infra_mode:basic",
+				"expected infra_mode marker on host %s; got %v", host, tags)
+		}
+	}, 5*time.Minute, 15*time.Second, "basic mode host tags did not appear in fakeintake host-tags payload")
+}
+
 // TestAdditionalCheckWorks verifies that checks can be added via infra_basic_additional_checks
 // and that the hardcoded custom_ prefix pattern works.
 func (s *basicSuite) TestAdditionalCheckWorks() {

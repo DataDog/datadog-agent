@@ -21,7 +21,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -495,7 +495,7 @@ func (s *senderImpl) sendPayloadBytes(ctx context.Context, reqBodyRaw []byte, re
 	reqBody := reqBodyRaw
 	compressed := false
 	if s.compress {
-		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
+		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, zstd.LevelFromInt(s.compressionLevel))
 		if errTemp == nil {
 			compressed = true
 			reqBody = reqBodyCompressed
