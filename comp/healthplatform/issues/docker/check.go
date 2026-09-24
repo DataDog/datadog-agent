@@ -5,7 +5,7 @@
 
 //go:build linux || windows
 
-package dockerpermissions
+package docker
 
 import (
 	"errors"
