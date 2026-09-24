@@ -102,7 +102,7 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContexts() (string, er
 }
 
 func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath string) (string, error) {
-	f, err := os.CreateTemp(demuxendpoint.runPath, ".dogstatsd_contexts-*.tmp")
+	f, err := os.CreateTemp(demuxendpoint.runPath, "dogstatsd_contexts-*.tmp")
 	if err != nil {
 		return "", err
 	}
