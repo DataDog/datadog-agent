@@ -25,7 +25,7 @@ const (
 type SeccompProfile struct {
 	Type             SeccompProfileType
 	LocalhostProfile string
-	// Filter is the effective seccomp filter extracted via ptrace, nil until resolved.
+	// Filter is the effective seccomp filter, nil until resolved.
 	Filter *SeccompFilterResult
 }
 
@@ -58,8 +58,8 @@ func (k Key) IsZero() bool { return k == Key{} }
 // It returns (Key{}, nil) when no data is available.
 type Resolver interface {
 	Resolve(id containerutils.ContainerID) (Key, *SecurityContext)
-	// ResolveSeccompFilter extracts the effective seccomp filter for a container
-	// by reading its BPF filter via ptrace.
-	ResolveSeccompFilter(id containerutils.ContainerID, arch string) (*SeccompFilterResult, error)
+	// ResolveSeccompFilter returns the effective seccomp filter for a declared
+	// profile, reading Localhost profiles from disk. Returns nil for other types.
+	ResolveSeccompFilter(profile *SeccompProfile) (*SeccompFilterResult, error)
 }
 

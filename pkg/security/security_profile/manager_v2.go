@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1214,8 +1215,8 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 }
 
 // resolveAndSaveSecurityContext resolves the container's declared SecurityContext
-// and saves it under its workload-template key. It also attempts to extract the
-// effective seccomp filter via ptrace when a seccomp profile is present.
+// and saves it under its workload-template key. For Localhost seccomp profiles it
+// also resolves the effective filter from the node's kubelet seccomp directory.
 func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id containerutils.ContainerID) {
 	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
 		return
@@ -1225,21 +1226,12 @@ func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id c
 		return
 	}
 
-	switch {
-	case sc.Seccomp == nil:
-		seclog.Warnf("no declared seccomp profile for container %s; skipping filter extraction", id)
-	case sc.Seccomp.Type == 0:
-		seclog.Warnf("unknown declared seccomp type for container %s; skipping filter extraction", id)
-	default:
-		filter, err := m.resolvers.SecurityContextResolver.ResolveSeccompFilter(id, utils.RuntimeArch())
-		switch {
-		case err != nil:
-			seclog.Warnf("seccomp filter extraction failed for container %s (declared seccomp type %d): %v", id, sc.Seccomp.Type, err)
-		case filter == nil:
-			seclog.Warnf("seccomp declared (type %d) but no BPF filter was extracted for container %s", sc.Seccomp.Type, id)
-		default:
+	if sc.Seccomp != nil && sc.Seccomp.Type == securitycontext.SeccompLocalhost {
+		filter, err := m.resolvers.SecurityContextResolver.ResolveSeccompFilter(sc.Seccomp)
+		if err != nil {
+			seclog.Warnf("seccomp filter resolution failed for container %s: %v", id, err)
+		} else if filter != nil {
 			sc.Seccomp.Filter = filter
-			seclog.Warnf("extracted seccomp filter for container %s: default action %s, %d syscall rules", id, filter.DefaultAction, len(filter.Syscalls))
 		}
 	}
 

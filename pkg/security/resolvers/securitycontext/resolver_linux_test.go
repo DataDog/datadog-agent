@@ -247,6 +247,100 @@ func TestWorkloadmetaResolver_SeccompLocalhostPathIgnoredForNonLocalhost(t *test
 	assert.Empty(t, sc.Seccomp.LocalhostProfile)
 }
 
+func TestWorkloadmetaResolver_SeccompDefaultRuntimeDefaultForUndeclared(t *testing.T) {
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {
+				EntityMeta:      workloadmeta.EntityMeta{Name: "nginx"},
+				SecurityContext: &workloadmeta.ContainerSecurityContext{Privileged: true},
+			},
+		},
+		pods: map[string]*workloadmeta.KubernetesPod{
+			"cid": newPod("web-abc", "frontend", nil),
+		},
+	}
+	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: true}
+	_, sc := r.Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Seccomp)
+	assert.Equal(t, SeccompRuntimeDefault, sc.Seccomp.Type)
+	assert.Empty(t, sc.Seccomp.LocalhostProfile)
+}
+
+func TestWorkloadmetaResolver_SeccompDefaultForPodWithoutSecurityContext(t *testing.T) {
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {EntityMeta: workloadmeta.EntityMeta{Name: "nginx"}},
+		},
+		pods: map[string]*workloadmeta.KubernetesPod{
+			"cid": newPod("web-abc", "frontend", nil),
+		},
+	}
+	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: true}
+	key, sc := r.Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Seccomp)
+	assert.Equal(t, SeccompRuntimeDefault, sc.Seccomp.Type)
+	assert.Equal(t, "nginx", key.ContainerName)
+}
+
+func TestWorkloadmetaResolver_SeccompDefaultDoesNotOverrideDeclared(t *testing.T) {
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {
+				EntityMeta: workloadmeta.EntityMeta{Name: "nginx"},
+				SecurityContext: &workloadmeta.ContainerSecurityContext{
+					SeccompProfile: &workloadmeta.SeccompProfile{
+						Type:             workloadmeta.SeccompProfileTypeLocalhost,
+						LocalhostProfile: "profiles/audit.json",
+					},
+				},
+			},
+		},
+		pods: map[string]*workloadmeta.KubernetesPod{
+			"cid": newPod("web-abc", "frontend", nil),
+		},
+	}
+	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: true}
+	_, sc := r.Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Seccomp)
+	assert.Equal(t, SeccompLocalhost, sc.Seccomp.Type)
+}
+
+func TestWorkloadmetaResolver_SeccompDefaultNotAppliedWithoutPod(t *testing.T) {
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {
+				EntityMeta:      workloadmeta.EntityMeta{Name: "nginx"},
+				SecurityContext: &workloadmeta.ContainerSecurityContext{Privileged: true},
+			},
+		},
+	}
+	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: true}
+	_, sc := r.Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, sc)
+	assert.Nil(t, sc.Seccomp)
+}
+
+func TestWorkloadmetaResolver_SeccompDefaultDisabledLeavesUndeclaredNil(t *testing.T) {
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {
+				EntityMeta:      workloadmeta.EntityMeta{Name: "nginx"},
+				SecurityContext: &workloadmeta.ContainerSecurityContext{Privileged: true},
+			},
+		},
+		pods: map[string]*workloadmeta.KubernetesPod{
+			"cid": newPod("web-abc", "frontend", nil),
+		},
+	}
+	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: false}
+	_, sc := r.Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, sc)
+	assert.Nil(t, sc.Seccomp)
+}
+
 func TestWorkloadmetaResolver_KeyFromDeploymentOwnedPod(t *testing.T) {
 	src := &fakeWmeta{
 		containers: map[string]*workloadmeta.Container{

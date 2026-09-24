@@ -8,7 +8,6 @@
 package securitycontext
 
 import (
-	"fmt"
 	"slices"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -27,14 +26,18 @@ type wmetaSource interface {
 // workloadmeta.
 type WorkloadmetaResolver struct {
 	wmeta wmetaSource
+	// seccompDefaultEnabled mirrors the node's kubelet --seccomp-default /
+	// seccompDefault setting, read once at construction.
+	seccompDefaultEnabled bool
 }
 
 // NewWorkloadmetaResolver returns a resolver backed by wmeta; nil is safe.
 func NewWorkloadmetaResolver(wmeta workloadmeta.Component) *WorkloadmetaResolver {
-	if wmeta == nil {
-		return &WorkloadmetaResolver{}
+	r := &WorkloadmetaResolver{seccompDefaultEnabled: kubeletSeccompDefaultEnabled()}
+	if wmeta != nil {
+		r.wmeta = wmeta
 	}
-	return &WorkloadmetaResolver{wmeta: wmeta}
+	return r
 }
 
 // Resolve implements Resolver.
@@ -51,17 +54,15 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) (Key, *Sec
 	// Pod lookup is best-effort so non-k8s containers still get keyed by name.
 	key := Key{ContainerName: container.Name}
 	var podSC *workloadmeta.PodSecurityContext
+	hasPod := false
 	if pod, err := r.wmeta.GetKubernetesPodForContainer(string(id)); err == nil && pod != nil {
+		hasPod = true
 		key.Namespace = pod.Namespace
 		key.OwnerKind, key.OwnerName = walkToTopLevelOwner(pod)
 		podSC = pod.SecurityContext
 	}
 
 	sc := container.SecurityContext
-	if sc == nil && podSC == nil {
-		return Key{}, nil
-	}
-
 	out := &SecurityContext{}
 	if sc != nil {
 		out.Privileged = sc.Privileged
@@ -91,6 +92,15 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) (Key, *Sec
 		}
 	}
 
+	// When neither the container nor the pod declares a seccomp profile, the
+	// kubelet applies RuntimeDefault if --seccomp-default is enabled on the node.
+	if hasPod && out.Seccomp == nil && r.seccompDefaultEnabled {
+		out.Seccomp = &SeccompProfile{Type: SeccompRuntimeDefault}
+	}
+
+	if sc == nil && podSC == nil && out.Seccomp == nil {
+		return Key{}, nil
+	}
 	return key, out
 }
 
@@ -125,17 +135,14 @@ func copyBoolPtr(src *bool) *bool {
 	return &v
 }
 
-// ResolveSeccompFilter extracts the effective seccomp filter for a container
-// by attaching to its init PID and reading the BPF filter.
-func (r *WorkloadmetaResolver) ResolveSeccompFilter(id containerutils.ContainerID, arch string) (*SeccompFilterResult, error) {
-	if r == nil || r.wmeta == nil || len(id) == 0 {
+// ResolveSeccompFilter returns the effective seccomp filter for a declared
+// profile. Localhost profiles are read from the kubelet seccomp directory on
+// the node; other types have no on-disk filter and return nil.
+func (r *WorkloadmetaResolver) ResolveSeccompFilter(profile *SeccompProfile) (*SeccompFilterResult, error) {
+	if profile == nil || profile.Type != SeccompLocalhost {
 		return nil, nil
 	}
-	container, err := r.wmeta.GetContainer(string(id))
-	if err != nil || container == nil || container.PID == 0 {
-		return nil, fmt.Errorf("no running container or PID for %s", id)
-	}
-	return ExtractSeccompFilter(container.PID, arch)
+	return readLocalhostSeccompProfile(profile.LocalhostProfile)
 }
 
 func seccompFromWmeta(sp *workloadmeta.SeccompProfile) *SeccompProfile {
