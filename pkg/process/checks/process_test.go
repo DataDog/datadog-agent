@@ -611,34 +611,33 @@ func TestProcessCheckObservationTimestamps(t *testing.T) {
 			}
 			const pid int32 = 100
 			check.lastPIDs = []int32{pid}
-			process := makeProcessWithCreateTime(pid, "parent", 1000)
-			procs := map[int32]*procutil.Process{pid: process}
-			stats := map[int32]*procutil.Stats{pid: process.Stats}
+			current := makeProcessWithCreateTime(pid, "parent", 1000)
 			var needsStandard, needsDedicatedRealtime bool
 			for _, options := range tc.runs {
 				needsStandard = needsStandard || options.RunStandard
 				needsDedicatedRealtime = needsDedicatedRealtime || !options.RunStandard && options.RunRealtime
 			}
 			if check.WLMProcessCollectionEnabled() {
-				wmeta.Set(procToWLMProc(process))
+				wmeta.Set(procToWLMProc(current))
 			} else if needsStandard {
-				probe.On("ProcessesByPID", mock.Anything, true).Return(procs, nil).Run(func(args mock.Arguments) {
-					collectionDelay(args.Get(0).(time.Time))
+				probe.On("ProcessesByPID", mock.Anything, true).Return(func(observed time.Time, _ bool) (map[int32]*procutil.Process, error) {
+					collectionDelay(observed)
+					return map[int32]*procutil.Process{pid: current}, nil
 				})
 			}
 			if check.WLMProcessCollectionEnabled() || needsDedicatedRealtime {
-				probe.On("StatsForPIDs", []int32{pid}, mock.Anything).Return(stats, nil).Run(func(args mock.Arguments) {
-					collectionDelay(args.Get(1).(time.Time))
+				probe.On("StatsForPIDs", []int32{pid}, mock.Anything).Return(func(_ []int32, observed time.Time) (map[int32]*procutil.Stats, error) {
+					collectionDelay(observed)
+					return map[int32]*procutil.Stats{pid: current.Stats}, nil
 				})
 			}
 
 			for i, options := range tc.runs {
 				observationTime = start.Add(time.Duration(i) * 10 * time.Second)
 				clk.Set(observationTime)
-				current := makeProcessWithCreateTime(pid, "parent", 1000)
+				current = makeProcessWithCreateTime(pid, "parent", 1000)
 				n := int64(i + 1)
 				current.Stats.IOStat = &procutil.IOCountersStat{ReadCount: 100 * n, WriteCount: 200 * n, ReadBytes: 1000 * n, WriteBytes: 2000 * n}
-				procs[pid], stats[pid] = current, current.Stats
 				result, err := check.Run(func() int32 { return 0 }, &options)
 				require.NoError(t, err)
 				assert.Equal(t, observationTime.Add(5*time.Second), clk.Now())
