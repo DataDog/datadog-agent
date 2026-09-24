@@ -91,6 +91,22 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.
 	return fh.resolvers.ProcessResolver.Resolve(pid, pid, 0, 0, true, nil)
 }
 
+// processEntrySource names a model.ProcessCacheEntry source for the diagnostic logs.
+func processEntrySource(source uint64) string {
+	switch source {
+	case model.ProcessCacheEntryFromPlaceholder:
+		return "placeholder"
+	case model.ProcessCacheEntryFromEvent:
+		return "event"
+	case model.ProcessCacheEntryFromProcFS:
+		return "procfs"
+	case model.ProcessCacheEntryFromSnapshot:
+		return "snapshot"
+	default:
+		return strconv.FormatUint(source, 10)
+	}
+}
+
 // pathErrorDiag renders who an event belongs to, for the path-resolution diagnostic logs
 // below. The failures we are chasing carry an all-zero file path_key, and therefore an
 // empty basename, so "pid N, inode 0, mountid 0" never identifies the process; comm, the
@@ -103,7 +119,8 @@ func (fh *EBPFFieldHandlers) pathErrorDiag(ev *model.Event) string {
 	fmt.Fprintf(&b, "pid %d tid %d", ev.PIDContext.Pid, ev.PIDContext.Tid)
 
 	if pc := ev.ProcessContext; pc != nil {
-		fmt.Fprintf(&b, " comm %q exe %q ppid %d", pc.Comm, pc.FileEvent.PathnameStr, pc.PPid)
+		fmt.Fprintf(&b, " comm %q exe %q ppid %d entry_source %s",
+			pc.Comm, pc.FileEvent.PathnameStr, pc.PPid, processEntrySource(pc.Source))
 		if pc.Parent != nil {
 			fmt.Fprintf(&b, " parent_comm %q", pc.Parent.Comm)
 		}

@@ -1366,6 +1366,12 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// For all other processes it is a genuine resolution error.
 			if !event.ProcessContext.IsKworker {
 				event.Error = model.ErrNoProcessContext
+				// GetPlaceholderProcessCacheEntry has substituted the shared zero entry,
+				// so event.Exec.Process now points at an all-zero FileEvent. That is what
+				// used to be reported as a path resolution error and counted as an
+				// abnormal_path; log the substitution so the population stays visible.
+				seclog.Warnf("placeholder process entry substituted for %s event, pid %d tid %d ppid %d: process resolution failed",
+					eventType, event.PIDContext.Pid, event.PIDContext.Tid, event.PIDContext.PPid)
 			}
 		} else {
 			// If the kernel reports a different ppid than the one in our
@@ -1432,7 +1438,8 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	// metadata, and the empty basename means nothing in the event itself identifies it.
 	// The kernel side records who populated the key (or that nobody did) in
 	// exec_zero_key_diag; read it here, where the manager is reachable.
-	if eventType == model.ExecEventType && event.ProcessCacheEntry != nil {
+	if eventType == model.ExecEventType && event.ProcessCacheEntry != nil &&
+		event.ProcessCacheEntry.Source != model.ProcessCacheEntryFromPlaceholder {
 		if f := &event.ProcessCacheEntry.FileEvent; f.Inode == 0 && f.MountID == 0 {
 			seclog.Errorf("zero exec path_key for pid %d (%s): %s",
 				event.ProcessCacheEntry.Pid, event.ProcessCacheEntry.Comm,
