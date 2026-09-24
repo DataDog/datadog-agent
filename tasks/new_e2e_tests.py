@@ -36,7 +36,6 @@ from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modifi
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import (
-    REPO_PATH,
     color_message,
     environ,
     gitlab_section,
@@ -93,7 +92,8 @@ def _check_e2e_local_config_or_exit(
     if cfg is None or aws is None or not aws.keyPairName:
         raise Exit(
             "Local E2E config is missing or incomplete. "
-            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
+            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow). "
+            "Pass `--team=<github-team>` to skip the interactive team prompt (AI agents should always do this).",
             1,
         )
 
@@ -202,7 +202,7 @@ def _build_single_binary(ctx, pkg, build_tags, output_path, print_lock):
         binary_path = output_path / binary_name
 
         # Build test binary
-        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s -X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_commit_sha(ctx, short=True)}' -o {binary_path} ./{pkg}"
+        cmd = f"orchestrion go test -c -tags '{build_tags}' -ldflags='-w -s' -o {binary_path} ./{pkg}"
 
         result = ctx.run(cmd, hide=True)
         if result.ok:
@@ -855,7 +855,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
 
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
@@ -872,8 +872,6 @@ def run(
         "timeout": "",
         "verbose": "-test.v" if verbose else "",
         "nocache": "-test.count=1" if not cache else "",
-        "REPO_PATH": REPO_PATH,
-        "commit": resolved_commit_sha,
         "run": '-test.run ' + '"{}"'.format('|'.join(clean_run)) if run else '',
         "skip": '-test.skip ' + '"{}"'.format('|'.join(clean_skip)) if skip else '',
         "test_run_arg": test_run_arg,
@@ -1577,16 +1575,17 @@ def _is_local_state(pulumi_about: dict) -> bool:
 
 
 def _get_agent_qa_ecr_password(ctx: Context) -> str:
+    from tasks.e2e_framework.setup.aws import DEFAULT_AWS_REGION, ECR_CACHE_PROFILE
+
     ecr_password_res = ctx.run(
-        "aws-vault exec sso-agent-qa-read-only -- aws ecr get-login-password", hide=True, warn=True
+        f"aws-vault exec {ECR_CACHE_PROFILE} -- aws ecr get-login-password --region {DEFAULT_AWS_REGION}",
+        hide=True,
+        warn=True,
     )
     if ecr_password_res.exited != 0:
-        ecr_password_res = ctx.run(
-            "aws-vault exec sso-agent-qa-account-admin-8h -- aws ecr get-login-password", hide=True, warn=True
-        )
-    if ecr_password_res.exited != 0:
         print(
-            "WARNING: Could not get ECR password for agent-qa account, if your test need to pull image from agent-qa ECR it is likely to fail"
+            f"WARNING: Could not get ECR password for agent-qa account from the '{ECR_CACHE_PROFILE}' profile. "
+            "Run `dda inv -- e2e.setup` to configure it. Tests pulling images from agent-qa ECR are likely to fail."
         )
         return ""
     return ecr_password_res.stdout.strip()

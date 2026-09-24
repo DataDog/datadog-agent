@@ -32,6 +32,7 @@ tests_flavor_*                          @DataDog/agent-runtimes
 tests_flavor_dogstatsd*                 @DataDog/agent-metric-pipelines
 tests_serverless-init*                  @DataDog/serverless-azure-and-gcp
 security_go_generate_check              @DataDog/agent-security
+new_e2e_scenario_imports_check          @DataDog/fleet-remediation
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 test_kmt_local_setup*                   @DataDog/ebpf-platform
@@ -88,7 +89,7 @@ iot_agent_deb*                       @DataDog/agent-build
 iot_agent_suse*                      @DataDog/agent-build
 dogstatsd_suse*                      @DataDog/agent-build
 agent_oci*                           @DataDog/agent-build
-agent_win_oci                        @DataDog/windows-products
+agent_win_oci*                       @DataDog/windows-products
 installer_oci*                       @DataDog/agent-build
 ddot_oci*                            @DataDog/agent-build
 ddot_deb*                            @DataDog/agent-build
@@ -220,6 +221,7 @@ new-e2e-remote-config                   @DataDog/remote-config
 # --- Containers / orchestration / SSI ---
 new-e2e-autoscaling*                    @DataDog/container-autoscaling
 new-e2e-containers*                     @DataDog/container-integrations @DataDog/container-platform
+new-e2e-ddi                             @DataDog/container-platform
 new-e2e-orchestrator*                   @DataDog/kubernetes-experiences
 new-e2e-language-detection              @DataDog/container-experiences
 new-e2e-process*                        @DataDog/container-experiences
@@ -240,6 +242,7 @@ new-e2e-apm*                            @DataDog/agent-apm
 new-e2e-cws*                            @DataDog/agent-security
 new-e2e-sbom*                           @DataDog/agent-security
 new-e2e-cspm                            @DataDog/agent-cspm @DataDog/agent-security
+new-e2e-data-security*                  @DataDog/sensitive-data-scanner
 # --- OpenTelemetry ---
 new-e2e-otel*                           @DataDog/opentelemetry-agent
 # --- Fleet / installer (non-Windows) ---
@@ -252,7 +255,7 @@ new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
 new-e2e-gpu*                            @DataDog/gpu-monitoring-agent
 # --- Action platform / discovery ---
-new-e2e-privateactionrunner             @DataDog/action-platform
+new-e2e-privateactionrunner*            @DataDog/action-platform
 new-e2e-discovery                       @DataDog/agent-discovery
 # --- Windows-only jobs (single owner: windows-products) ---
 new-e2e-windows-*                       @DataDog/windows-products
