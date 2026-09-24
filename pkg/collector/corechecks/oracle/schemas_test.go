@@ -476,6 +476,49 @@ func TestSnapshotChunking(t *testing.T) {
 		"the terminating payload must declare how many payloads the snapshot has")
 }
 
+func TestViewSnapshotChunkSize(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		override int
+		want     int
+	}{
+		{name: "default", want: defaultSchemaPayloadChunkSize},
+		{name: "negative override", override: -1, want: defaultSchemaPayloadChunkSize},
+		{name: "positive override", override: 2, want: 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _, _, closeDB := newSchemaCheck(t)
+			defer closeDB()
+			c.schemaPayloadChunkSize = tc.override
+			var events []schemaEvent
+			collector := newViewEventCollector(&c, func(event schemaEvent) {
+				events = append(events, event)
+			}, nil, nil, nil)
+
+			for i := 0; i <= tc.want; i++ {
+				collector.addView(schemaRowDB{ConID: 3, Owner: "APP", TableName: fmt.Sprintf("V%04d", i)})
+			}
+			collector.finish()
+
+			require.Len(t, events, 2)
+			for i, event := range events {
+				assert.Equal(t, "oracle_views", event.Kind)
+				require.Len(t, event.Metadata, 1)
+				require.Len(t, event.Metadata[0].Schemas, 1)
+				assert.Empty(t, event.Metadata[0].Schemas[0].Tables)
+				want := tc.want
+				if i == 1 {
+					want = 1
+				}
+				assert.Len(t, event.Metadata[0].Schemas[0].Views, want)
+			}
+			assert.Equal(t, events[0].CollectionStartedAt, events[1].CollectionStartedAt)
+			assert.Zero(t, events[0].CollectionPayloadsCount)
+			assert.Equal(t, 2, events[1].CollectionPayloadsCount)
+		})
+	}
+}
+
 func TestSnapshotPerContainer(t *testing.T) {
 	c, _, _, closeDB := newSchemaCheck(t)
 	defer closeDB()
@@ -535,35 +578,42 @@ func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
 	assert.Equal(t, 2, emitted[3].CollectionPayloadsCount)
 }
 
-func TestRowCountEstimateCombinesStatsAndDeltas(t *testing.T) {
-	c, _, _, closeDB := newSchemaCheck(t)
+func TestSchemaPayloadKeepsMaterializedViewFreshness(t *testing.T) {
+	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
 
-	details := map[tableKey]*tableDetails{
-		{conID: 1, owner: "APP", table: "T"}: {
-			Modifications: &modificationsDetail{Inserts: 30, Deletes: 5},
-		},
-	}
+	key := tableKey{conID: 3, owner: "APP", table: "MV_ORDERS"}
+	refreshedAt := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	dbMock.ExpectQuery("FROM cdb_mviews WHERE").WillReturnRows(sqlmock.NewRows(
+		[]string{"CON_ID", "OWNER", "MVIEW_NAME", "REFRESH_MODE", "REFRESH_METHOD", "STALENESS", "LAST_REFRESH_DATE"},
+	).AddRow(3, "APP", "MV_ORDERS", "DEMAND", "COMPLETE", "FRESH", refreshedAt))
+	details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
+	require.NoError(t, dbMock.ExpectationsWereMet())
 
 	var payloads []schemaEvent
-	collector := newSchemaCollector(&c, func(b []byte) {
-		var e schemaEvent
-		require.NoError(t, json.Unmarshal(b, &e))
-		payloads = append(payloads, e)
-	}, details, map[ownerKey]string{}, map[int64]string{})
-
-	collector.add(schemaRowDB{
-		ConID: 1, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
-		IotType: "-", ClusterName: "-", Partitioned: "NO",
-		NumRows:    sql.NullInt64{Int64: 100, Valid: true},
-		ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
-	})
+	collector := newSchemaCollector(&c, func(payload []byte) {
+		for _, name := range []string{"num_rows", "row_count_estimate", "last_analyzed", "modifications_details"} {
+			assert.NotContains(t, string(payload), `"`+name+`":`)
+		}
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		payloads = append(payloads, event)
+	}, details, nil, nil)
+	collector.add(schemaRowDB{ConID: 3, Owner: "APP", TableName: "MV_ORDERS"})
 	collector.finish()
 
 	require.Len(t, payloads, 1)
+	require.Len(t, payloads[0].Metadata, 1)
+	require.Len(t, payloads[0].Metadata[0].Schemas, 1)
+	require.Len(t, payloads[0].Metadata[0].Schemas[0].Tables, 1)
 	table := payloads[0].Metadata[0].Schemas[0].Tables[0]
-	require.NotNil(t, table.RowCount)
-	assert.Equal(t, int64(125), *table.RowCount, "NUM_ROWS plus inserts minus deletes")
+	assert.Equal(t, "materialized_view", table.TableType)
+	require.NotNil(t, table.Mview)
+	assert.Equal(t, "DEMAND", table.Mview.RefreshMode)
+	assert.Equal(t, "COMPLETE", table.Mview.RefreshMethod)
+	assert.Equal(t, "FRESH", table.Mview.Staleness)
+	assert.Equal(t, refreshedAt.Format(time.RFC3339), table.Mview.LastRefreshDate)
+
 }
 
 func TestObjectTableDetailIsSurfaced(t *testing.T) {
@@ -622,13 +672,13 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 
 	mainRows := sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
 		"OBJECT_TYPE_OWNER", "OBJECT_TYPE",
 		"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	}).AddRow(
-		3, "APP", "ORDERS", "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-",
+		3, "APP", "ORDERS", "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-",
 		"ORDER_ID", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil,
 	)
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(mainRows)
@@ -1182,13 +1232,13 @@ func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	// A NULL TABLE_NAME forces StructScan to fail.
 	mainRows := sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
 		"OBJECT_TYPE_OWNER", "OBJECT_TYPE",
 		"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	}).AddRow(
-		3, "APP", nil, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-",
+		3, "APP", nil, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-",
 		"ORDER_ID", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil,
 	)
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(mainRows)
@@ -1810,7 +1860,7 @@ func TestViewCollectionFilteredViewNotCountedAsTruncated(t *testing.T) {
 
 var viewRelationColumns = []string{
 	"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-	"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+	"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
 	"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES", "COLUMN_PRESENT",
 	"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 	"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
@@ -1819,14 +1869,14 @@ var viewRelationColumns = []string{
 
 func addViewRow(rows *sqlmock.Rows, conID int64, owner, viewName string, totalColumns int) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil,
+		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO",
 		"-", "-", nil, 1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil, totalColumns,
 	)
 }
 
 func addViewWithoutColumns(rows *sqlmock.Rows, conID int64, owner, viewName string) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil,
+		conID, owner, viewName, "N", "-", "NO", "-", "NO", "-", "NO", "NO",
 		"-", "-", nil, 0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil, nil,
 	)
 }
@@ -1958,14 +2008,14 @@ func TestSchemaCollectionContinuesAfterContainerIdentityFailure(t *testing.T) {
 
 func addTableRow(rows *sqlmock.Rows, conID int64, owner, table string, totalTables int) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", totalTables,
+		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-", totalTables,
 		1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "Y", nil,
 	)
 }
 
 func addTableWithoutColumns(rows *sqlmock.Rows, conID int64, owner, table string) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", nil,
+		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-", nil,
 		0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil,
 	)
 }
@@ -1973,7 +2023,7 @@ func addTableWithoutColumns(rows *sqlmock.Rows, conID int64, owner, table string
 func emptyTablesRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
 		"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES",
 		"COLUMN_PRESENT", "COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
