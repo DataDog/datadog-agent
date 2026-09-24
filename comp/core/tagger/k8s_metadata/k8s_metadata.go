@@ -43,8 +43,8 @@ var ustTags = map[string]struct{}{tags.Env: {}, tags.Service: {}, tags.Version: 
 
 // AddMetadataAsTags converts name and value into tags based on the metadata as tags configuration and patterns
 func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glob map[string]glob.Glob, tagList *taglist.TagList) {
+	n := strings.ToLower(name)
 	for pattern, tmplStr := range metadataAsTags {
-		n := strings.ToLower(name)
 		if g, ok := glob[pattern]; ok {
 			if !g.Match(n) {
 				continue

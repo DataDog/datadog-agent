@@ -175,7 +175,16 @@ func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider
 		})
 	}
 
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap(), k8s.WithImagePullSecrets(imagePullSecrets))
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(
+		namespace,
+		nginxPort,
+		k8s.WithRuntimeClass(runtimeClass),
+		k8s.WithServiceAccount(sa),
+		k8s.WithConfigMap(),
+		k8s.WithImagePullSecrets(imagePullSecrets),
+		// Mapped to `service` by test/new-e2e/tests/containers/values.yaml
+		k8s.WithAnnotations(map[string]string{"x-service-name": "nginx-from-annotation"}),
+	)
 	if err != nil {
 		return nil, err
 	}
