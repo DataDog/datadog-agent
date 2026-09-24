@@ -23,14 +23,12 @@ for qa_case in "${qa_cases[@]}"; do
   qa_replacement=$(docker image inspect "localhost/hidden-bytes/$qa_replacement_name:qa" | jq -er '.[0].RootFS.Layers[-1]')
   qa_name="localhost/hidden-bytes/$qa_case"
   qa_inspect=$(docker image inspect "$qa_name:qa")
-  # With Docker's containerd store, inspect .Id can be an index digest.
-  qa_id=$(docker image save "$qa_name:qa" | tar -xOf - manifest.json | jq -er '
-    if length != 1 then error("expected one platform image") else
-      .[0].Config | if startswith("blobs/sha256/") then
-        "sha256:" + ltrimstr("blobs/sha256/")
-      elif endswith(".json") then "sha256:" + rtrimstr(".json")
-      else error("unsupported config path") end
-    end')
+  # Inspect .Id can be an index digest. Independently read the saved config and
+  # regular layer tar headers for the immutable ID and full file-data total.
+  qa_oracle=$(docker image save "$qa_name:qa" |
+    python3 test/integration/container_image_hidden_bytes/image_file_bytes.py)
+  qa_id=$(jq -er '.image_id' <<<"$qa_oracle")
+  qa_uncompressed_size=$(jq -er '.uncompressed_size' <<<"$qa_oracle")
   qa_expected=$(jq -ce --arg scenario "$qa_case" --arg seed "$qa_seed" --arg replacement "$qa_replacement" '
     [.[0].RootFS.Layers[] | . as $id | {
       digest: $id,
@@ -48,9 +46,13 @@ for qa_case in "${qa_cases[@]}"; do
   qa_pass=false
   for ((qa_attempt = 1; qa_attempt <= 60; qa_attempt++)); do
     if qa_payloads=$("$qa_cli" --url "$qa_url" filter container-images --name "$qa_name") &&
-      jq -e --arg image_id "$qa_id" --arg mode "$qa_mode" --argjson expected "$qa_expected" '
+      jq -e --arg image_id "$qa_id" --arg mode "$qa_mode" --argjson expected "$qa_expected" \
+        --argjson uncompressed_size "$qa_uncompressed_size" '
         any(.[];
           .digest == $image_id and
+          (if $mode == "present" then
+            has("uncompressed_size") and .uncompressed_size == $uncompressed_size
+          else has("uncompressed_size") | not end) and
           ([.layers[] | select((.digest // "") != "")] as $layers |
             ($layers | map(.digest)) == ($expected | map(.digest)) and
             if $mode == "present" then
@@ -64,13 +66,13 @@ for qa_case in "${qa_cases[@]}"; do
     sleep 2
   done
   if [[ "$qa_pass" != true ]]; then
-    echo "FAIL $qa_case ($qa_id): expected $qa_mode values $qa_expected" >&2
+    echo "FAIL $qa_case ($qa_id): expected $qa_mode hidden values $qa_expected; uncompressed_size=$qa_uncompressed_size (absent in absent mode)" >&2
     echo "${qa_payloads:-No payload received}" >&2
     exit 1
   fi
   if [[ "$qa_mode" == present ]]; then
-    echo "PASS $qa_case ($qa_id): $qa_expected"
+    echo "PASS $qa_case ($qa_id): $qa_expected; uncompressed_size=$qa_uncompressed_size"
   else
-    echo "PASS $qa_case ($qa_id): hidden_bytes absent on every filesystem layer"
+    echo "PASS $qa_case ($qa_id): hidden_bytes absent on every filesystem layer; uncompressed_size absent"
   fi
 done

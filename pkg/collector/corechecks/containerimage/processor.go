@@ -191,15 +191,16 @@ func (p *processor) processImage(img *workloadmeta.ContainerImageMetadata) {
 		}
 
 		p.queue <- &model.ContainerImage{
-			Id:          id,
-			DdTags:      ddTags2,
-			Name:        repo,
-			Registry:    registry,
-			ShortName:   shortName,
-			RepoTags:    repoTags,
-			Digest:      img.ID,
-			Size:        img.SizeBytes,
-			RepoDigests: repoDigests,
+			Id:               id,
+			DdTags:           ddTags2,
+			Name:             repo,
+			Registry:         registry,
+			ShortName:        shortName,
+			RepoTags:         repoTags,
+			Digest:           img.ID,
+			Size:             img.SizeBytes,
+			UncompressedSize: img.UncompressedSizeBytes,
+			RepoDigests:      repoDigests,
 			Os: &model.ContainerImage_OperatingSystem{
 				Name:         img.OS,
 				Version:      img.OSVersion,

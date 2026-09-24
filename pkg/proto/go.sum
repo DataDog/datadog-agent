@@ -1,5 +1,5 @@
-github.com/DataDog/agent-payload/v5 v5.0.212-0.20260922205407-cd3c28f1da19 h1:TYZGMpqeVC+goumKwazL2W99bbp9qWwpQqkcABwSxM4=
-github.com/DataDog/agent-payload/v5 v5.0.212-0.20260922205407-cd3c28f1da19/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
+github.com/DataDog/agent-payload/v5 v5.0.212-0.20260923212649-451811d2b5dc h1:muYPqNQaKSf/TYVEbC2etYB22H7jf3rQU/jGHoowz+0=
+github.com/DataDog/agent-payload/v5 v5.0.212-0.20260923212649-451811d2b5dc/go.mod h1:z6tbYIJQWWQa3ozmZdit7jR3ROOKhgs/va4tNLu80mI=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/go-logr/logr v1.4.4 h1:tG4xh9yMsRCAiodLVTxyrkzSZ9+o0L1Kg/+cPVcbP/8=

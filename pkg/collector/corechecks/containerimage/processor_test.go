@@ -27,40 +27,55 @@ import (
 )
 
 func TestProcessImageHiddenBytes(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	received := make(chan []byte, 1)
-	sender := mocksender.NewMockSender(t, "")
-	sender.On("EventPlatformEvent", mock.Anything, eventplatform.EventTypeContainerImages).
-		Return().Run(func(args mock.Arguments) { received <- args.Get(0).([]byte) })
-	p := newProcessor(sender, 1, time.Second, fakeTagger)
-	t.Cleanup(p.stop)
-	p.processImage(&workloadmeta.ContainerImageMetadata{
-		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image"},
-		RepoTags: []string{"example/image:latest"},
-		Layers: []workloadmeta.ContainerImageLayer{
-			{DiffID: "unavailable"},
-			{DiffID: "zero", HiddenBytes: pointer.Ptr(uint64(0))},
-			{DiffID: "hidden", HiddenBytes: pointer.Ptr(uint64(42))},
-			{History: &v1.History{EmptyLayer: true}},
-		},
-	})
-	select {
-	case wire := <-received:
-		payload := new(model.ContainerImagePayload)
-		if err := proto.Unmarshal(wire, payload); err != nil {
-			t.Fatal(err)
-		}
-		if !assert.Len(t, payload.Images, 1) || !assert.Len(t, payload.Images[0].Layers, 4) {
-			return
-		}
-		layers := payload.Images[0].Layers
-		assert.Nil(t, layers[0].HiddenBytes)
-		assert.Equal(t, pointer.Ptr(uint64(0)), layers[1].HiddenBytes)
-		assert.Equal(t, pointer.Ptr(uint64(42)), layers[2].HiddenBytes)
-		assert.Nil(t, layers[3].HiddenBytes)
-		assert.Equal(t, "hidden", layers[2].Digest)
-	case <-time.After(5 * time.Second):
-		t.Fatal("container image payload was not sent")
+	for _, tc := range []struct {
+		name  string
+		total *uint64
+	}{
+		{name: "unavailable"},
+		{name: "zero", total: pointer.Ptr(uint64(0))},
+		{name: "nonzero", total: pointer.Ptr(uint64(100))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			received := make(chan []byte, 2)
+			sender := mocksender.NewMockSender(t, "")
+			sender.On("EventPlatformEvent", mock.Anything, eventplatform.EventTypeContainerImages).
+				Return().Run(func(args mock.Arguments) { received <- args.Get(0).([]byte) })
+			p := newProcessor(sender, 1, time.Second, fakeTagger)
+			t.Cleanup(p.stop)
+			p.processImage(&workloadmeta.ContainerImageMetadata{
+				EntityID:              workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image"},
+				RepoTags:              []string{"example/image:latest", "other/image:latest"},
+				UncompressedSizeBytes: tc.total,
+				Layers: []workloadmeta.ContainerImageLayer{
+					{DiffID: "unavailable"},
+					{DiffID: "zero", HiddenBytes: pointer.Ptr(uint64(0))},
+					{DiffID: "hidden", HiddenBytes: pointer.Ptr(uint64(42))},
+					{History: &v1.History{EmptyLayer: true}},
+				},
+			})
+			for range 2 {
+				select {
+				case wire := <-received:
+					payload := new(model.ContainerImagePayload)
+					if err := proto.Unmarshal(wire, payload); err != nil {
+						t.Fatal(err)
+					}
+					if !assert.Len(t, payload.Images, 1) || !assert.Len(t, payload.Images[0].Layers, 4) {
+						return
+					}
+					layers := payload.Images[0].Layers
+					assert.Equal(t, tc.total, payload.Images[0].UncompressedSize)
+					assert.Nil(t, layers[0].HiddenBytes)
+					assert.Equal(t, pointer.Ptr(uint64(0)), layers[1].HiddenBytes)
+					assert.Equal(t, pointer.Ptr(uint64(42)), layers[2].HiddenBytes)
+					assert.Nil(t, layers[3].HiddenBytes)
+					assert.Equal(t, "hidden", layers[2].Digest)
+				case <-time.After(5 * time.Second):
+					t.Fatal("container image payload was not sent")
+				}
+			}
+		})
 	}
 }
 

@@ -9,12 +9,14 @@ package containerd
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/opencontainers/go-digest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,17 +28,21 @@ func TestHiddenBytesCachePersistsAndCopies(t *testing.T) {
 	img := hiddenBytesTestImage("cached")
 	results := hiddenBytesTestResult(img)
 	require.NoError(t, cache.put(img.ID, results))
-	results[0].Bytes = 999
+	results.Layers[0].Bytes = 999
+	*results.UncompressedSize = 999
 	loaded := newHiddenBytesCache(path)
 	require.NoError(t, loaded.load())
 	got, ok := loaded.get(img.ID)
 	require.True(t, ok)
-	assert.Equal(t, uint64(10), got[0].Bytes)
-	assert.Zero(t, got[1].Bytes)
-	got[0].Bytes = 999
+	assert.Equal(t, uint64(10), got.Layers[0].Bytes)
+	assert.Zero(t, got.Layers[1].Bytes)
+	assert.Equal(t, pointer.Ptr(uint64(100)), got.UncompressedSize)
+	got.Layers[0].Bytes = 999
+	*got.UncompressedSize = 999
 	again, ok := loaded.get(img.ID)
 	require.True(t, ok)
-	assert.Equal(t, uint64(10), again[0].Bytes)
+	assert.Equal(t, uint64(10), again.Layers[0].Bytes)
+	assert.Equal(t, pointer.Ptr(uint64(100)), again.UncompressedSize)
 	stat, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0600), stat.Mode().Perm())
@@ -64,9 +70,9 @@ func TestHiddenBytesCacheLRUEviction(t *testing.T) {
 func TestHiddenBytesCacheByteBound(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cache.json")
 	cache := newHiddenBytesCache(path)
-	results := make([]hiddenLayerResult, hiddenBytesCacheMaxLayers)
-	for i := range results {
-		results[i] = hiddenLayerResult{DiffID: digest.FromString(strconv.Itoa(i)).String(), Bytes: 42}
+	results := &hiddenBytesResult{Layers: make([]hiddenLayerResult, hiddenBytesCacheMaxLayers), UncompressedSize: pointer.Ptr(uint64(42 * hiddenBytesCacheMaxLayers))}
+	for i := range results.Layers {
+		results.Layers[i] = hiddenLayerResult{DiffID: digest.FromString(strconv.Itoa(i)).String(), Bytes: 42}
 	}
 	for i := 0; i < 8; i++ {
 		require.NoError(t, cache.put(digest.FromString(strconv.Itoa(i)).String(), results))
@@ -82,18 +88,31 @@ func TestHiddenBytesCacheByteBound(t *testing.T) {
 
 func TestHiddenBytesCacheRejectsInvalidData(t *testing.T) {
 	img := hiddenBytesTestImage("invalid")
-	entry := hiddenBytesCacheEntry{ImageID: img.ID, Layers: hiddenBytesTestResult(img)}
+	entry := hiddenBytesCacheEntry{ImageID: img.ID, hiddenBytesResult: *hiddenBytesTestResult(img)}
 	invalidVersion, err := json.Marshal(hiddenBytesCacheFile{Version: hiddenBytesAlgorithmVersion - 1, Entries: []hiddenBytesCacheEntry{entry}})
 	require.NoError(t, err)
 	duplicate, err := json.Marshal(hiddenBytesCacheFile{Version: hiddenBytesAlgorithmVersion, Entries: []hiddenBytesCacheEntry{entry, entry}})
 	require.NoError(t, err)
+	invalidTotals := map[string][]byte{}
+	for name, result := range map[string]*hiddenBytesResult{
+		"missing-total":        {Layers: entry.Layers},
+		"hidden-exceeds-total": {Layers: entry.Layers, UncompressedSize: pointer.Ptr(uint64(9))},
+		"hidden-sum-overflow":  {Layers: []hiddenLayerResult{{DiffID: entry.Layers[0].DiffID, Bytes: math.MaxUint64}, {DiffID: entry.Layers[1].DiffID, Bytes: 1}}, UncompressedSize: pointer.Ptr(uint64(math.MaxUint64))},
+	} {
+		data, err := json.Marshal(hiddenBytesCacheFile{Version: hiddenBytesAlgorithmVersion, Entries: []hiddenBytesCacheEntry{{ImageID: img.ID, hiddenBytesResult: *result}}})
+		require.NoError(t, err)
+		invalidTotals[name] = data
+	}
 	for name, data := range map[string][]byte{
-		"truncated":          []byte(`{"version":1`),
-		"oversized":          []byte(strings.Repeat(" ", hiddenBytesCacheMaxBytes+1)),
-		"previous-algorithm": invalidVersion,
-		"duplicate-image":    duplicate,
-		"invalid-digest":     []byte(`{"version":` + strconv.Itoa(hiddenBytesAlgorithmVersion) + `,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":0}]}]}`),
-		"negative-bytes":     []byte(`{"version":` + strconv.Itoa(hiddenBytesAlgorithmVersion) + `,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":-1}]}]}`),
+		"truncated":            []byte(`{"version":1`),
+		"oversized":            []byte(strings.Repeat(" ", hiddenBytesCacheMaxBytes+1)),
+		"previous-algorithm":   invalidVersion,
+		"duplicate-image":      duplicate,
+		"invalid-digest":       []byte(`{"version":` + strconv.Itoa(hiddenBytesAlgorithmVersion) + `,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":0}]}]}`),
+		"negative-bytes":       []byte(`{"version":` + strconv.Itoa(hiddenBytesAlgorithmVersion) + `,"entries":[{"image_id":"bad","layers":[{"diff_id":"bad","bytes":-1}]}]}`),
+		"missing-total":        invalidTotals["missing-total"],
+		"hidden-exceeds-total": invalidTotals["hidden-exceeds-total"],
+		"hidden-sum-overflow":  invalidTotals["hidden-sum-overflow"],
 	} {
 		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "cache.json")

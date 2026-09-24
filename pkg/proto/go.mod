@@ -5,7 +5,7 @@ go 1.26.0
 retract v0.46.0-devel
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.212-0.20260922205407-cd3c28f1da19
+	github.com/DataDog/agent-payload/v5 v5.0.212-0.20260923212649-451811d2b5dc
 	github.com/google/gofuzz v1.2.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.12.1

@@ -53,7 +53,7 @@ type overlayMetadataReader func(string, bool) (overlayMetadata, error)
 // CalculateHiddenBytes counts logical regular-file bytes hidden by later layers.
 // It never opens image regular files and returns no partial results on failure.
 // Reading trusted overlay metadata requires SYS_ADMIN in the initial user namespace.
-func CalculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits HiddenBytesLimits) ([]uint64, error) {
+func CalculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits HiddenBytesLimits) (*HiddenBytesResult, error) {
 	if err := checkOverlayMetadataAccess(); err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func readOverlayMetadata(path string, userXAttr bool) (overlayMetadata, error) {
 	return result, nil
 }
 
-func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits HiddenBytesLimits, metadata overlayMetadataReader) ([]uint64, error) {
+func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits HiddenBytesLimits, metadata overlayMetadataReader) (*HiddenBytesResult, error) {
 	state, err := newHiddenBytesState(ctx, len(layers), limits)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,11 @@ func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits Hidde
 				id := hiddenFileID{device: uint64(stat.Dev), inode: stat.Ino}
 				object, exists := objects[id]
 				if !exists {
-					object = &hiddenFileLinks{data: &hiddenData{size: uint64(info.Size()), layer: layerIndex}, links: uint64(stat.Nlink)}
+					data, err := state.newData(uint64(info.Size()), layerIndex)
+					if err != nil {
+						return err
+					}
+					object = &hiddenFileLinks{data: data, links: uint64(stat.Nlink)}
 					objects[id] = object
 					layerObjects = append(layerObjects, object)
 				}
@@ -222,5 +226,5 @@ func calculateHiddenBytes(ctx context.Context, layers []ImageLayer, limits Hidde
 			return nil, err
 		}
 	}
-	return state.counts, nil
+	return state.result(), nil
 }

@@ -829,21 +829,22 @@ func (x *ContainerImageLayer) GetHiddenBytes() uint64 {
 }
 
 type ContainerImageMetadata struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	EntityId      *WorkloadmetaEntityId  `protobuf:"bytes,1,opt,name=entityId,proto3" json:"entityId,omitempty"`
-	EntityMeta    *EntityMeta            `protobuf:"bytes,2,opt,name=entityMeta,proto3" json:"entityMeta,omitempty"`
-	RepoTags      []string               `protobuf:"bytes,3,rep,name=repoTags,proto3" json:"repoTags,omitempty"`
-	RepoDigests   []string               `protobuf:"bytes,4,rep,name=repoDigests,proto3" json:"repoDigests,omitempty"`
-	MediaType     string                 `protobuf:"bytes,5,opt,name=mediaType,proto3" json:"mediaType,omitempty"`
-	SizeBytes     int64                  `protobuf:"varint,6,opt,name=sizeBytes,proto3" json:"sizeBytes,omitempty"`
-	Os            string                 `protobuf:"bytes,7,opt,name=os,proto3" json:"os,omitempty"`
-	OsVersion     string                 `protobuf:"bytes,8,opt,name=osVersion,proto3" json:"osVersion,omitempty"`
-	Architecture  string                 `protobuf:"bytes,9,opt,name=architecture,proto3" json:"architecture,omitempty"`
-	Variant       string                 `protobuf:"bytes,10,opt,name=variant,proto3" json:"variant,omitempty"`
-	Layers        []*ContainerImageLayer `protobuf:"bytes,11,rep,name=layers,proto3" json:"layers,omitempty"`
-	Sbom          *CompressedSBOM        `protobuf:"bytes,12,opt,name=sbom,proto3" json:"sbom,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	EntityId              *WorkloadmetaEntityId  `protobuf:"bytes,1,opt,name=entityId,proto3" json:"entityId,omitempty"`
+	EntityMeta            *EntityMeta            `protobuf:"bytes,2,opt,name=entityMeta,proto3" json:"entityMeta,omitempty"`
+	RepoTags              []string               `protobuf:"bytes,3,rep,name=repoTags,proto3" json:"repoTags,omitempty"`
+	RepoDigests           []string               `protobuf:"bytes,4,rep,name=repoDigests,proto3" json:"repoDigests,omitempty"`
+	MediaType             string                 `protobuf:"bytes,5,opt,name=mediaType,proto3" json:"mediaType,omitempty"`
+	SizeBytes             int64                  `protobuf:"varint,6,opt,name=sizeBytes,proto3" json:"sizeBytes,omitempty"`
+	Os                    string                 `protobuf:"bytes,7,opt,name=os,proto3" json:"os,omitempty"`
+	OsVersion             string                 `protobuf:"bytes,8,opt,name=osVersion,proto3" json:"osVersion,omitempty"`
+	Architecture          string                 `protobuf:"bytes,9,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	Variant               string                 `protobuf:"bytes,10,opt,name=variant,proto3" json:"variant,omitempty"`
+	Layers                []*ContainerImageLayer `protobuf:"bytes,11,rep,name=layers,proto3" json:"layers,omitempty"`
+	Sbom                  *CompressedSBOM        `protobuf:"bytes,12,opt,name=sbom,proto3" json:"sbom,omitempty"`
+	UncompressedSizeBytes *uint64                `protobuf:"varint,13,opt,name=uncompressedSizeBytes,proto3,oneof" json:"uncompressedSizeBytes,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *ContainerImageMetadata) Reset() {
@@ -958,6 +959,13 @@ func (x *ContainerImageMetadata) GetSbom() *CompressedSBOM {
 		return x.Sbom
 	}
 	return nil
+}
+
+func (x *ContainerImageMetadata) GetUncompressedSizeBytes() uint64 {
+	if x != nil && x.UncompressedSizeBytes != nil {
+		return *x.UncompressedSizeBytes
+	}
+	return 0
 }
 
 type ContainerPort struct {
@@ -2588,7 +2596,7 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\tsizeBytes\x18\x03 \x01(\x03R\tsizeBytes\x12\x12\n" +
 	"\x04urls\x18\x04 \x03(\tR\x04urls\x12%\n" +
 	"\vhiddenBytes\x18\x05 \x01(\x04H\x00R\vhiddenBytes\x88\x01\x01B\x0e\n" +
-	"\f_hiddenBytes\"\x85\x04\n" +
+	"\f_hiddenBytes\"\xda\x04\n" +
 	"\x16ContainerImageMetadata\x12F\n" +
 	"\bentityId\x18\x01 \x01(\v2*.datadog.workloadmeta.WorkloadmetaEntityIdR\bentityId\x12@\n" +
 	"\n" +
@@ -2604,7 +2612,9 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\avariant\x18\n" +
 	" \x01(\tR\avariant\x12A\n" +
 	"\x06layers\x18\v \x03(\v2).datadog.workloadmeta.ContainerImageLayerR\x06layers\x128\n" +
-	"\x04sbom\x18\f \x01(\v2$.datadog.workloadmeta.CompressedSBOMR\x04sbom\"S\n" +
+	"\x04sbom\x18\f \x01(\v2$.datadog.workloadmeta.CompressedSBOMR\x04sbom\x129\n" +
+	"\x15uncompressedSizeBytes\x18\r \x01(\x04H\x00R\x15uncompressedSizeBytes\x88\x01\x01B\x18\n" +
+	"\x16_uncompressedSizeBytes\"S\n" +
 	"\rContainerPort\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x05R\x04port\x12\x1a\n" +
@@ -2958,6 +2968,7 @@ func file_datadog_workloadmeta_workloadmeta_proto_init() {
 		return
 	}
 	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[5].OneofWrappers = []any{}
+	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[6].OneofWrappers = []any{}
 	file_datadog_workloadmeta_workloadmeta_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

@@ -428,7 +428,27 @@ func (c *collector) publishImageLocked(img *workloadmeta.ContainerImageMetadata)
 	})
 }
 
+func hasCompleteHiddenBytes(img *workloadmeta.ContainerImageMetadata) bool {
+	if img.UncompressedSizeBytes == nil {
+		return false
+	}
+	found := false
+	for _, layer := range img.Layers {
+		if layer.History != nil && layer.History.EmptyLayer {
+			continue
+		}
+		if layer.DiffID == "" || layer.HiddenBytes == nil {
+			return false
+		}
+		found = true
+	}
+	return found
+}
+
 func preserveHiddenBytes(dst, src *workloadmeta.ContainerImageMetadata) {
+	if dst.ID != src.ID || !hasCompleteHiddenBytes(src) {
+		return
+	}
 	var sourceLayers []workloadmeta.ContainerImageLayer
 	for _, layer := range src.Layers {
 		if layer.DiffID != "" {
@@ -437,10 +457,10 @@ func preserveHiddenBytes(dst, src *workloadmeta.ContainerImageMetadata) {
 	}
 	index := 0
 	for _, layer := range dst.Layers {
-		if layer.DiffID == "" {
+		if layer.History != nil && layer.History.EmptyLayer {
 			continue
 		}
-		if index >= len(sourceLayers) || sourceLayers[index].DiffID != layer.DiffID {
+		if layer.DiffID == "" || index >= len(sourceLayers) || sourceLayers[index].DiffID != layer.DiffID {
 			return
 		}
 		index++
@@ -448,6 +468,7 @@ func preserveHiddenBytes(dst, src *workloadmeta.ContainerImageMetadata) {
 	if index != len(sourceLayers) {
 		return
 	}
+	dst.UncompressedSizeBytes = src.UncompressedSizeBytes
 	index = 0
 	for i := range dst.Layers {
 		if dst.Layers[i].DiffID != "" {

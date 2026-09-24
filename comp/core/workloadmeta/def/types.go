@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -1766,16 +1767,19 @@ var _ Entity = &ECSTask{}
 type ContainerImageMetadata struct {
 	EntityID
 	EntityMeta
-	RepoTags     []string
-	RepoDigests  []string
-	MediaType    string
-	SizeBytes    int64
-	OS           string
-	OSVersion    string
-	Architecture string
-	Variant      string
-	Layers       []ContainerImageLayer
-	SBOM         *CompressedSBOM
+	RepoTags    []string
+	RepoDigests []string
+	MediaType   string
+	SizeBytes   int64
+	// UncompressedSizeBytes is logical regular-file data across all image layers,
+	// including hidden versions, counting same-layer hardlinks once. Nil means unavailable.
+	UncompressedSizeBytes *uint64
+	OS                    string
+	OSVersion             string
+	Architecture          string
+	Variant               string
+	Layers                []ContainerImageLayer
+	SBOM                  *CompressedSBOM
 }
 
 // ContainerImageLayer represents a layer of a container image
@@ -1831,13 +1835,24 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 	// produces an already-enriched SBOM that supersedes the raw Trivy SBOM.
 	dstSBOM := i.SBOM
 	srcSBOM := otherImage.SBOM
+	dstLayers, dstSize := i.Layers, i.UncompressedSizeBytes
 
 	// Shallow-copy src with SBOM cleared so the generic merge skips it.
 	otherImageCopy := *otherImage
 	otherImageCopy.SBOM = nil
+	otherImageCopy.UncompressedSizeBytes = nil
 	i.SBOM = nil
+	i.UncompressedSizeBytes = nil
 
 	err := merge(i, &otherImageCopy)
+	// A size belongs to one measured layer chain, never to concatenated layers
+	// from multiple sources. Do not let mergo overwrite a measured zero either.
+	if sameImageLayerMeasurements(i.Layers, dstLayers) {
+		i.UncompressedSizeBytes = dstSize
+	}
+	if i.UncompressedSizeBytes == nil && sameImageLayerMeasurements(i.Layers, otherImage.Layers) {
+		i.UncompressedSizeBytes = otherImage.UncompressedSizeBytes
+	}
 
 	// Restore SBOM: keep dst's enriched SBOM when available, else fall back to src.
 	if dstSBOM != nil {
@@ -1847,6 +1862,18 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 	}
 
 	return err
+}
+
+func sameImageLayerMeasurements(a, b []ContainerImageLayer) bool {
+	return len(a) > 0 && slices.EqualFunc(a, b, func(x, y ContainerImageLayer) bool {
+		if x.DiffID != y.DiffID {
+			return false
+		}
+		if x.HiddenBytes == nil || y.HiddenBytes == nil {
+			return x.HiddenBytes == y.HiddenBytes
+		}
+		return *x.HiddenBytes == *y.HiddenBytes
+	})
 }
 
 // DeepCopy implements Entity#DeepCopy.
@@ -1871,6 +1898,9 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Media Type:", i.MediaType)
 		_, _ = fmt.Fprintln(&sb, "Size in bytes:", i.SizeBytes)
+		if i.UncompressedSizeBytes != nil {
+			_, _ = fmt.Fprintln(&sb, "Uncompressed file bytes:", *i.UncompressedSizeBytes)
+		}
 		_, _ = fmt.Fprintln(&sb, "OS:", i.OS)
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)

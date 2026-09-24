@@ -10,6 +10,7 @@ package containerd
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -102,9 +103,29 @@ func TestHiddenBytesAttribution(t *testing.T) {
 			layers, attrs := makeHiddenLayers(t, tc.layers)
 			got, err := calculateHiddenBytes(t.Context(), layers, DefaultHiddenBytesLimits(), attrs)
 			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.want, got.Counts)
+			var total uint64
+			for _, fixture := range tc.layers {
+				for _, size := range fixture.files {
+					total += uint64(size)
+				}
+			}
+			require.Equal(t, total, got.UncompressedSize)
 		})
 	}
+}
+
+func TestUncompressedSizeOverflow(t *testing.T) {
+	state, err := newHiddenBytesState(t.Context(), 1, DefaultHiddenBytesLimits())
+	require.NoError(t, err)
+	_, err = state.newData(math.MaxUint64, 0)
+	require.NoError(t, err)
+	_, err = state.newData(0, 0)
+	require.NoError(t, err)
+	data, err := state.newData(1, 0)
+	require.ErrorContains(t, err, "overflow")
+	require.Nil(t, data)
+	require.Equal(t, uint64(math.MaxUint64), state.uncompressedSize)
 }
 
 func TestHiddenBytesFailureReturnsNoPartialCounts(t *testing.T) {
@@ -215,7 +236,7 @@ func TestHiddenBytesNativeWhiteout(t *testing.T) {
 	require.NoError(t, err)
 	got, err := calculateHiddenBytes(t.Context(), layers, DefaultHiddenBytesLimits(), attrs)
 	require.NoError(t, err)
-	require.Equal(t, []uint64{4096, 0}, got)
+	require.Equal(t, []uint64{4096, 0}, got.Counts)
 }
 
 func TestHiddenBytesReadsNativeUserXattrs(t *testing.T) {
@@ -233,13 +254,13 @@ func TestHiddenBytesReadsNativeUserXattrs(t *testing.T) {
 	got, err := calculateHiddenBytes(t.Context(), layers, DefaultHiddenBytesLimits(), readOverlayMetadata)
 	require.NoError(t, err)
 	// The ordinary zero-byte replacement of gone still hides its old 8192 bytes.
-	require.Equal(t, []uint64{8192, 0}, got)
+	require.Equal(t, []uint64{8192, 0}, got.Counts)
 	for i := range layers {
 		layers[i].UserXAttr = true
 	}
 	got, err = calculateHiddenBytes(t.Context(), layers, DefaultHiddenBytesLimits(), readOverlayMetadata)
 	require.NoError(t, err)
-	require.Equal(t, []uint64{12288, 0}, got)
+	require.Equal(t, []uint64{12288, 0}, got.Counts)
 }
 
 func TestHiddenBytesChecksMetadataPrivilege(t *testing.T) {

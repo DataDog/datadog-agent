@@ -22,6 +22,14 @@ type hiddenData struct {
 	refs  uint64
 }
 
+// HiddenBytesResult contains paired measurements from a complete image scan.
+type HiddenBytesResult struct {
+	Counts []uint64
+	// UncompressedSize counts logical regular-file bytes across all layers,
+	// including hidden versions, with same-layer hardlinks counted once.
+	UncompressedSize uint64
+}
+
 type hiddenEntry struct {
 	path     string
 	mode     fs.FileMode
@@ -36,10 +44,23 @@ type hiddenBytesState struct {
 	ctx              context.Context
 	limits           HiddenBytesLimits
 	counts           []uint64
+	uncompressedSize uint64
 	visible          map[string]hiddenEntry
 	entries          uint64
 	pathBytes        uint64
 	currentPathBytes uint64
+}
+
+func (s *hiddenBytesState) newData(size uint64, layer int) (*hiddenData, error) {
+	if size > math.MaxUint64-s.uncompressedSize {
+		return nil, errors.New("uncompressed image size overflow")
+	}
+	s.uncompressedSize += size
+	return &hiddenData{size: size, layer: layer}, nil
+}
+
+func (s *hiddenBytesState) result() *HiddenBytesResult {
+	return &HiddenBytesResult{Counts: s.counts, UncompressedSize: s.uncompressedSize}
 }
 
 func newHiddenBytesState(ctx context.Context, layers int, limits HiddenBytesLimits) (*hiddenBytesState, error) {

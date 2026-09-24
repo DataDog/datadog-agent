@@ -237,3 +237,26 @@ func TestContainerImageMetadataMergeSBOM(t *testing.T) {
 	// src mutation does not affect the original entity (shallow-copy safety).
 	assert.Equal(t, trivySBOM, src.SBOM, "src SBOM must not be modified by merge")
 }
+
+func TestContainerImageMetadataMergeUncompressedSize(t *testing.T) {
+	for _, srcMeasured := range []bool{false, true} {
+		for _, conflictingLayers := range []bool{false, true} {
+			measured := &ContainerImageMetadata{Layers: []ContainerImageLayer{{DiffID: "measured", HiddenBytes: pointer.Ptr(uint64(0))}}, UncompressedSizeBytes: pointer.Ptr(uint64(0))}
+			other := &ContainerImageMetadata{SBOM: &CompressedSBOM{Status: Success}}
+			if conflictingLayers {
+				other.Layers = []ContainerImageLayer{{DiffID: "different"}}
+				other.UncompressedSizeBytes = pointer.Ptr(uint64(123))
+			}
+			dst, src := measured, other
+			if srcMeasured {
+				dst, src = other, measured
+			}
+			require.NoError(t, dst.Merge(src))
+			if conflictingLayers {
+				assert.Nil(t, dst.UncompressedSizeBytes)
+			} else {
+				assert.Equal(t, pointer.Ptr(uint64(0)), dst.UncompressedSizeBytes)
+			}
+		}
+	}
+}

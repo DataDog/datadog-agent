@@ -25,7 +25,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 type hiddenBytesTestStore struct {
@@ -66,11 +68,11 @@ func hiddenBytesTestImage(name string) *workloadmeta.ContainerImageMetadata {
 	}
 }
 
-func hiddenBytesTestResult(img *workloadmeta.ContainerImageMetadata) []hiddenLayerResult {
-	return []hiddenLayerResult{
+func hiddenBytesTestResult(img *workloadmeta.ContainerImageMetadata) *hiddenBytesResult {
+	return &hiddenBytesResult{UncompressedSize: pointer.Ptr(uint64(100)), Layers: []hiddenLayerResult{
 		{DiffID: img.Layers[0].DiffID, Bytes: 10},
 		{DiffID: img.Layers[2].DiffID, Bytes: 0},
-	}
+	}}
 }
 
 func publishHiddenBytesTestImage(c *collector, img *workloadmeta.ContainerImageMetadata) {
@@ -81,7 +83,7 @@ func publishHiddenBytesTestImage(c *collector, img *workloadmeta.ContainerImageM
 
 func TestHiddenBytesCoalescingAndSaturatedWake(t *testing.T) {
 	scans := 0
-	c, store := newHiddenBytesTestCollector(func(_ context.Context, img *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+	c, store := newHiddenBytesTestCollector(func(_ context.Context, img *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 		scans++
 		return hiddenBytesTestResult(img), nil
 	})
@@ -97,6 +99,7 @@ func TestHiddenBytesCoalescingAndSaturatedWake(t *testing.T) {
 		require.NotNil(t, img)
 		c.collectHiddenBytes(t.Context(), img, job)
 		updated := c.latestImages[img.ID]
+		assert.Equal(t, pointer.Ptr(uint64(100)), updated.UncompressedSizeBytes)
 		require.NotNil(t, updated.Layers[0].HiddenBytes)
 		assert.Equal(t, uint64(10), *updated.Layers[0].HiddenBytes)
 		assert.Nil(t, updated.Layers[1].HiddenBytes)
@@ -112,7 +115,7 @@ func TestHiddenBytesCoalescingAndSaturatedWake(t *testing.T) {
 func TestHiddenBytesPreservesConcurrentMetadata(t *testing.T) {
 	img := hiddenBytesTestImage("updated")
 	var c *collector
-	c, _ = newHiddenBytesTestCollector(func(_ context.Context, _ *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+	c, _ = newHiddenBytesTestCollector(func(_ context.Context, _ *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 		updated := *img
 		updated.RepoTags = []string{"new-tag"}
 		updated.SBOM = &workloadmeta.CompressedSBOM{Status: workloadmeta.Success, GenerationMethod: "overlayfs"}
@@ -136,7 +139,7 @@ func TestHiddenBytesRecoversAfterMetadataLoss(t *testing.T) {
 			img := hiddenBytesTestImage("metadata-recovery")
 			var c *collector
 			scans := 0
-			c, _ = newHiddenBytesTestCollector(func(_ context.Context, _ *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+			c, _ = newHiddenBytesTestCollector(func(_ context.Context, _ *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 				scans++
 				if !afterCompletion && scans == 1 {
 					incomplete := *img
@@ -175,7 +178,7 @@ func TestHiddenBytesDeleteDuringScan(t *testing.T) {
 			img := hiddenBytesTestImage("deleted")
 			var c *collector
 			var store *hiddenBytesTestStore
-			c, store = newHiddenBytesTestCollector(func(_ context.Context, _ *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+			c, store = newHiddenBytesTestCollector(func(_ context.Context, _ *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 				c.handleImagesMut.Lock()
 				delete(c.latestImages, img.ID)
 				c.forgetHiddenBytesImageLocked(img.ID)
@@ -202,7 +205,7 @@ func TestHiddenBytesDeleteDuringScan(t *testing.T) {
 }
 
 func TestHiddenBytesRetryBounds(t *testing.T) {
-	c, store := newHiddenBytesTestCollector(func(context.Context, *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+	c, store := newHiddenBytesTestCollector(func(context.Context, *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 		return nil, errors.New("snapshots not available")
 	})
 	img := hiddenBytesTestImage("retry")
@@ -231,7 +234,7 @@ func TestHiddenBytesRetryBounds(t *testing.T) {
 }
 
 func TestHiddenBytesCacheAvoidsScan(t *testing.T) {
-	c, _ := newHiddenBytesTestCollector(func(context.Context, *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+	c, _ := newHiddenBytesTestCollector(func(context.Context, *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 		t.Fatal("cached image should not be scanned")
 		return nil, nil
 	})
@@ -249,7 +252,7 @@ func TestHiddenBytesOrderedResults(t *testing.T) {
 	img.Layers[2].DiffID = img.Layers[0].DiffID
 	results := hiddenBytesTestResult(img)
 	assert.True(t, hiddenResultsMatch(img, results))
-	c, _ := newHiddenBytesTestCollector(func(context.Context, *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+	c, _ := newHiddenBytesTestCollector(func(context.Context, *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 		return results, nil
 	})
 	publishHiddenBytesTestImage(c, img)
@@ -258,14 +261,16 @@ func TestHiddenBytesOrderedResults(t *testing.T) {
 	updated := c.latestImages[img.ID]
 	assert.Equal(t, uint64(10), *updated.Layers[0].HiddenBytes)
 	assert.Zero(t, *updated.Layers[2].HiddenBytes)
-	assert.False(t, hiddenResultsMatch(img, results[:1]))
+	incomplete := results.clone()
+	incomplete.Layers = incomplete.Layers[:1]
+	assert.False(t, hiddenResultsMatch(img, incomplete))
 	img.Layers[0].DiffID = ""
 	assert.False(t, hiddenResultsMatch(img, results))
 }
 
 func TestHiddenBytesShutdownCancelsScan(t *testing.T) {
 	started := make(chan struct{})
-	c, store := newHiddenBytesTestCollector(func(ctx context.Context, _ *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+	c, store := newHiddenBytesTestCollector(func(ctx context.Context, _ *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 		close(started)
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -322,14 +327,18 @@ func TestPreserveHiddenBytesRequiresMatchingOrderedLayers(t *testing.T) {
 	src := hiddenBytesTestImage("image")
 	value := uint64(42)
 	src.Layers[0].HiddenBytes = &value
+	src.Layers[2].HiddenBytes = pointer.Ptr(uint64(0))
+	src.UncompressedSizeBytes = pointer.Ptr(uint64(100))
 	dst := hiddenBytesTestImage("image")
 	preserveHiddenBytes(dst, src)
 	require.NotNil(t, dst.Layers[0].HiddenBytes)
 	assert.Equal(t, value, *dst.Layers[0].HiddenBytes)
+	assert.Equal(t, src.UncompressedSizeBytes, dst.UncompressedSizeBytes)
 	dst = hiddenBytesTestImage("image")
 	dst.Layers[2].DiffID = digest.FromString("different").String()
 	preserveHiddenBytes(dst, src)
 	assert.Nil(t, dst.Layers[0].HiddenBytes, "must not attach partial results to a mismatched stack")
+	assert.Nil(t, dst.UncompressedSizeBytes)
 }
 
 type hiddenBytesConfigImage struct {
@@ -382,10 +391,10 @@ func TestHiddenBytesScanFallback(t *testing.T) {
 		snapshotErr, archiveErr error
 		cancel                  bool
 		wantArchive             bool
-		want                    []uint64
+		want                    *cutil.HiddenBytesResult
 	}{
-		{name: "snapshot success", want: []uint64{1, 2}},
-		{name: "archive fallback", snapshotErr: errors.New("no snapshots"), wantArchive: true, want: []uint64{3, 4}},
+		{name: "snapshot success", want: &cutil.HiddenBytesResult{Counts: []uint64{1, 2}, UncompressedSize: 30}},
+		{name: "archive fallback", snapshotErr: errors.New("no snapshots"), wantArchive: true, want: &cutil.HiddenBytesResult{Counts: []uint64{3, 4}, UncompressedSize: 70}},
 		{name: "both fail", snapshotErr: errors.New("no snapshots"), archiveErr: errors.New("missing blob"), wantArchive: true},
 		{name: "cancelled snapshot", snapshotErr: context.Canceled, cancel: true},
 	} {
@@ -393,14 +402,14 @@ func TestHiddenBytesScanFallback(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			archiveCalled := false
-			got, err := scanHiddenBytesWithFallback(ctx, func(context.Context) ([]uint64, error) {
+			got, err := scanHiddenBytesWithFallback(ctx, func(context.Context) (*cutil.HiddenBytesResult, error) {
 				if tc.cancel {
 					cancel()
 				}
-				return []uint64{1, 2}, tc.snapshotErr
-			}, func(context.Context) ([]uint64, error) {
+				return &cutil.HiddenBytesResult{Counts: []uint64{1, 2}, UncompressedSize: 30}, tc.snapshotErr
+			}, func(context.Context) (*cutil.HiddenBytesResult, error) {
 				archiveCalled = true
-				return []uint64{3, 4}, tc.archiveErr
+				return &cutil.HiddenBytesResult{Counts: []uint64{3, 4}, UncompressedSize: 70}, tc.archiveErr
 			})
 			if tc.want == nil {
 				require.Error(t, err)

@@ -25,10 +25,14 @@ func TestContainerImageHiddenBytesDeepCopy(t *testing.T) {
 		{DiffID: "zero", HiddenBytes: &zero},
 		{DiffID: "hidden", HiddenBytes: &hidden},
 	}}
+	total := uint64(100)
+	image.UncompressedSizeBytes = &total
 	clone := image.DeepCopy().(*ContainerImageMetadata)
 	assert.Equal(t, image.Layers, clone.Layers)
 	*clone.Layers[2].HiddenBytes = 100
 	assert.Equal(t, uint64(42), *image.Layers[2].HiddenBytes)
+	*clone.UncompressedSizeBytes = 200
+	assert.Equal(t, uint64(100), *image.UncompressedSizeBytes)
 	assert.Contains(t, image.Layers[1].String(), "Hidden bytes: 0")
 	assert.NotContains(t, image.Layers[0].String(), "Hidden bytes:")
 }

@@ -8,5 +8,8 @@ features:
     Snapshot scanning requires read-only access to unpacked image layers and
     permission to read overlayfs metadata. Bytes hidden by later deletions or
     replacements are attributed to their original layer, with supported
-    hardlinks counted once. Unavailable results are omitted rather than
+    hardlinks counted once. Image payloads also include the total uncompressed
+    regular-file bytes across all layers, including hidden versions, excluding
+    archive and filesystem overhead. No percentage is calculated by the Agent.
+    Unavailable results are omitted rather than
     reported as zero; missing layer archives are never downloaded.

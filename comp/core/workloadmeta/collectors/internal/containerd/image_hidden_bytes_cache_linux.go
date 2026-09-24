@@ -19,15 +19,15 @@ import (
 )
 
 const (
-	hiddenBytesAlgorithmVersion = 2
+	hiddenBytesAlgorithmVersion = 3
 	hiddenBytesCacheEntries     = 128
 	hiddenBytesCacheMaxBytes    = 2 << 20
 	hiddenBytesCacheMaxLayers   = 4096
 )
 
 type hiddenBytesCacheEntry struct {
-	ImageID string              `json:"image_id"`
-	Layers  []hiddenLayerResult `json:"layers"`
+	ImageID string `json:"image_id"`
+	hiddenBytesResult
 }
 
 type hiddenBytesCacheFile struct {
@@ -78,29 +78,24 @@ func (c *hiddenBytesCache) load() error {
 }
 
 func validHiddenCacheEntry(entry hiddenBytesCacheEntry) bool {
-	if digest.Digest(entry.ImageID).Validate() != nil || len(entry.Layers) == 0 || len(entry.Layers) > hiddenBytesCacheMaxLayers {
-		return false
-	}
-	for _, layer := range entry.Layers {
-		if digest.Digest(layer.DiffID).Validate() != nil {
-			return false
-		}
-	}
-	return true
+	return digest.Digest(entry.ImageID).Validate() == nil && entry.hiddenBytesResult.valid()
 }
 
-func (c *hiddenBytesCache) get(id string) ([]hiddenLayerResult, bool) {
+func (c *hiddenBytesCache) get(id string) (*hiddenBytesResult, bool) {
 	for i, entry := range c.entries {
 		if entry.ImageID == id {
 			c.entries = append(slices.Delete(c.entries, i, i+1), entry)
-			return slices.Clone(entry.Layers), true
+			return entry.hiddenBytesResult.clone(), true
 		}
 	}
 	return nil, false
 }
 
-func (c *hiddenBytesCache) put(id string, results []hiddenLayerResult) error {
-	entry := hiddenBytesCacheEntry{ImageID: id, Layers: slices.Clone(results)}
+func (c *hiddenBytesCache) put(id string, results *hiddenBytesResult) error {
+	if !results.valid() {
+		return errors.New("invalid hidden-byte cache result")
+	}
+	entry := hiddenBytesCacheEntry{ImageID: id, hiddenBytesResult: *results.clone()}
 	if !validHiddenCacheEntry(entry) {
 		return errors.New("invalid hidden-byte cache result")
 	}

@@ -137,7 +137,8 @@ func TestHiddenBytesArchiveEncodingsAndSnapshotParity(t *testing.T) {
 	layers, attrs := makeHiddenLayers(t, fixtures)
 	want, err := calculateHiddenBytes(t.Context(), layers, DefaultHiddenBytesLimits(), attrs)
 	require.NoError(t, err)
-	require.Equal(t, []uint64{12288, 512, 0}, want)
+	require.Equal(t, []uint64{12288, 512, 0}, want.Counts)
+	require.Equal(t, uint64(12810), want.UncompressedSize)
 	for _, compression := range []string{"", "gzip", "zstd"} {
 		t.Run(compression, func(t *testing.T) {
 			store, image := hiddenArchiveImage(t, compression,
@@ -177,7 +178,16 @@ func TestHiddenBytesArchiveVisibility(t *testing.T) {
 			store, image := hiddenArchiveImage(t, "", tc.layers...)
 			got, err := CalculateHiddenBytesFromContent(t.Context(), store, image, DefaultHiddenBytesLimits())
 			require.NoError(t, err)
-			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.want, got.Counts)
+			var total uint64
+			for _, layer := range tc.layers {
+				for _, header := range layer {
+					if header.Typeflag == tar.TypeReg {
+						total += uint64(header.Size)
+					}
+				}
+			}
+			require.Equal(t, total, got.UncompressedSize)
 		})
 	}
 }
@@ -338,7 +348,7 @@ func TestHiddenBytesArchiveTrailingDataAndTruncation(t *testing.T) {
 			got, err := CalculateHiddenBytesFromContent(t.Context(), store, image, DefaultHiddenBytesLimits())
 			if tc.valid {
 				require.NoError(t, err)
-				require.Equal(t, []uint64{0}, got)
+				require.Equal(t, []uint64{0}, got.Counts)
 			} else {
 				require.Error(t, err)
 				require.Nil(t, got)
@@ -365,7 +375,7 @@ func TestHiddenBytesArchiveBoundAtEOF(t *testing.T) {
 	limits.MaxArchiveBytes = uint64(image.Manifest.Layers[0].Size)
 	got, err := CalculateHiddenBytesFromContent(t.Context(), store, image, limits)
 	require.NoError(t, err)
-	require.Equal(t, []uint64{0}, got)
+	require.Equal(t, []uint64{0}, got.Counts)
 	var used uint64
 	reader := &hiddenArchiveReader{ctx: t.Context(), input: bytes.NewReader([]byte("ab")), used: &used, limit: 1}
 	_, err = io.ReadAll(reader)

@@ -35,7 +35,38 @@ type hiddenLayerResult struct {
 	Bytes  uint64 `json:"bytes"`
 }
 
-type hiddenBytesScan func(context.Context, *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error)
+type hiddenBytesResult struct {
+	Layers           []hiddenLayerResult `json:"layers"`
+	UncompressedSize *uint64             `json:"uncompressed_size"`
+}
+
+func (r *hiddenBytesResult) clone() *hiddenBytesResult {
+	if r == nil {
+		return nil
+	}
+	copy := &hiddenBytesResult{Layers: slices.Clone(r.Layers)}
+	if r.UncompressedSize != nil {
+		value := *r.UncompressedSize
+		copy.UncompressedSize = &value
+	}
+	return copy
+}
+
+func (r *hiddenBytesResult) valid() bool {
+	if r == nil || r.UncompressedSize == nil || len(r.Layers) == 0 || len(r.Layers) > hiddenBytesCacheMaxLayers {
+		return false
+	}
+	remaining := *r.UncompressedSize
+	for _, layer := range r.Layers {
+		if digest.Digest(layer.DiffID).Validate() != nil || layer.Bytes > remaining {
+			return false
+		}
+		remaining -= layer.Bytes
+	}
+	return true
+}
+
+type hiddenBytesScan func(context.Context, *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error)
 
 type hiddenBytesJob struct {
 	sequence    uint64
@@ -61,7 +92,7 @@ func (c *collector) initHiddenBytesCollection() {
 	if !c.imageMetadataCollectionIsEnabled() || !c.cfg.GetBool("container_image.hidden_bytes.enabled") {
 		return
 	}
-	cache := newHiddenBytesCache(filepath.Join(c.cfg.GetString("run_path"), "container-image-hidden-bytes-v2.json"))
+	cache := newHiddenBytesCache(filepath.Join(c.cfg.GetString("run_path"), "container-image-hidden-bytes-v3.json"))
 	if err := cache.load(); err != nil {
 		log.Debugf("Ignoring unavailable container image hidden-bytes cache: %v", err)
 	}
@@ -108,20 +139,6 @@ func (c *collector) enqueueHiddenBytesImageLocked(img *workloadmeta.ContainerIma
 	case h.wake <- struct{}{}:
 	default:
 	}
-}
-
-func hasCompleteHiddenBytes(img *workloadmeta.ContainerImageMetadata) bool {
-	found := false
-	for _, layer := range img.Layers {
-		if layer.History != nil && layer.History.EmptyLayer {
-			continue
-		}
-		if layer.DiffID == "" || layer.HiddenBytes == nil {
-			return false
-		}
-		found = true
-	}
-	return found
 }
 
 func (c *collector) forgetHiddenBytesImageLocked(id string) {
@@ -235,12 +252,14 @@ func (c *collector) collectHiddenBytes(ctx context.Context, img *workloadmeta.Co
 	}
 	updated := *current
 	updated.Layers = slices.Clone(current.Layers)
+	total := *results.UncompressedSize
+	updated.UncompressedSizeBytes = &total
 	index := 0
 	for i := range updated.Layers {
 		if updated.Layers[i].History != nil && updated.Layers[i].History.EmptyLayer {
 			continue
 		}
-		value := results[index].Bytes
+		value := results.Layers[index].Bytes
 		updated.Layers[i].HiddenBytes = &value
 		index++
 	}
@@ -248,28 +267,31 @@ func (c *collector) collectHiddenBytes(ctx context.Context, img *workloadmeta.Co
 	c.publishImageLocked(&updated)
 	c.handleImagesMut.Unlock()
 	if !cached {
-		log.Debugf("Container image hidden-byte scan completed for %s (%d layers)", img.ID, len(results))
+		log.Debugf("Container image hidden-byte scan completed for %s (%d layers)", img.ID, len(results.Layers))
 		if err := h.cache.put(img.ID, results); err != nil {
 			log.Debugf("Unable to persist container image hidden-byte result: %v", err)
 		}
 	}
 }
 
-func hiddenResultsMatch(img *workloadmeta.ContainerImageMetadata, results []hiddenLayerResult) bool {
+func hiddenResultsMatch(img *workloadmeta.ContainerImageMetadata, results *hiddenBytesResult) bool {
+	if !results.valid() {
+		return false
+	}
 	index := 0
 	for _, layer := range img.Layers {
 		if layer.History != nil && layer.History.EmptyLayer {
 			continue
 		}
-		if layer.DiffID == "" || index >= len(results) || layer.DiffID != results[index].DiffID {
+		if layer.DiffID == "" || index >= len(results.Layers) || layer.DiffID != results.Layers[index].DiffID {
 			return false
 		}
 		index++
 	}
-	return index > 0 && index == len(results)
+	return index > 0 && index == len(results.Layers)
 }
 
-func (c *collector) scanImageHiddenBytes(ctx context.Context, meta *workloadmeta.ContainerImageMetadata) ([]hiddenLayerResult, error) {
+func (c *collector) scanImageHiddenBytes(ctx context.Context, meta *workloadmeta.ContainerImageMetadata) (*hiddenBytesResult, error) {
 	ctx = namespaces.WithNamespace(ctx, meta.Namespace)
 	img, err := c.containerdClient.Image(meta.Namespace, meta.Name)
 	if err != nil {
@@ -279,7 +301,7 @@ func (c *collector) scanImageHiddenBytes(ctx context.Context, meta *workloadmeta
 	if err != nil {
 		return nil, err
 	}
-	bytes, err := scanHiddenBytesWithFallback(ctx, func(ctx context.Context) ([]uint64, error) {
+	bytes, err := scanHiddenBytesWithFallback(ctx, func(ctx context.Context) (*cutil.HiddenBytesResult, error) {
 		layers, cleanup, err := cutil.AcquireImageLayers(ctx, c.containerdClient, meta.Namespace, resolved.Manifest, resolved.DiffIDs, hiddenBytesScanTimeout)
 		if err != nil {
 			return nil, err
@@ -290,23 +312,23 @@ func (c *collector) scanImageHiddenBytes(ctx context.Context, meta *workloadmeta
 			}
 		}()
 		return cutil.CalculateHiddenBytes(ctx, layers, cutil.DefaultHiddenBytesLimits())
-	}, func(ctx context.Context) ([]uint64, error) {
+	}, func(ctx context.Context) (*cutil.HiddenBytesResult, error) {
 		return cutil.CalculateHiddenBytesFromContent(ctx, img.ContentStore(), resolved, cutil.DefaultHiddenBytesLimits())
 	})
 	if err != nil {
 		return nil, err
 	}
-	if len(bytes) != len(resolved.DiffIDs) {
+	if bytes == nil || len(bytes.Counts) != len(resolved.DiffIDs) {
 		return nil, errors.New("hidden-byte result count does not match image layers")
 	}
 	results := make([]hiddenLayerResult, len(resolved.DiffIDs))
 	for i, diffID := range resolved.DiffIDs {
-		results[i] = hiddenLayerResult{DiffID: diffID.String(), Bytes: bytes[i]}
+		results[i] = hiddenLayerResult{DiffID: diffID.String(), Bytes: bytes.Counts[i]}
 	}
-	return results, nil
+	return &hiddenBytesResult{Layers: results, UncompressedSize: &bytes.UncompressedSize}, nil
 }
 
-func scanHiddenBytesWithFallback(ctx context.Context, snapshot, archive func(context.Context) ([]uint64, error)) ([]uint64, error) {
+func scanHiddenBytesWithFallback(ctx context.Context, snapshot, archive func(context.Context) (*cutil.HiddenBytesResult, error)) (*cutil.HiddenBytesResult, error) {
 	counts, snapshotErr := snapshot(ctx)
 	if snapshotErr == nil {
 		log.Debug("Collected container image hidden bytes from overlayfs snapshots")

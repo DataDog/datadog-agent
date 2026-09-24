@@ -428,17 +428,18 @@ func protoContainerImageMetadataFromWorkloadmetaContainerImageMetadata(container
 	}
 
 	containerImageMetadataProto := &pb.ContainerImageMetadata{
-		EntityId:     protoEntityID,
-		EntityMeta:   toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
-		RepoTags:     containerImageMetadata.RepoTags,
-		RepoDigests:  containerImageMetadata.RepoDigests,
-		MediaType:    containerImageMetadata.MediaType,
-		SizeBytes:    containerImageMetadata.SizeBytes,
-		Os:           containerImageMetadata.OS,
-		OsVersion:    containerImageMetadata.OSVersion,
-		Architecture: containerImageMetadata.Architecture,
-		Variant:      containerImageMetadata.Variant,
-		Layers:       protoLayers,
+		EntityId:              protoEntityID,
+		EntityMeta:            toProtoEntityMetaFromContainerImageMetadata(containerImageMetadata),
+		RepoTags:              containerImageMetadata.RepoTags,
+		RepoDigests:           containerImageMetadata.RepoDigests,
+		MediaType:             containerImageMetadata.MediaType,
+		SizeBytes:             containerImageMetadata.SizeBytes,
+		UncompressedSizeBytes: containerImageMetadata.UncompressedSizeBytes,
+		Os:                    containerImageMetadata.OS,
+		OsVersion:             containerImageMetadata.OSVersion,
+		Architecture:          containerImageMetadata.Architecture,
+		Variant:               containerImageMetadata.Variant,
+		Layers:                protoLayers,
 	}
 
 	if containerImageMetadata.SBOM != nil {
@@ -1278,17 +1279,18 @@ func toWorkloadmetaContainerImageMetadata(protoContainerImageMetadata *pb.Contai
 	}
 
 	containerImageMetadata := &workloadmeta.ContainerImageMetadata{
-		EntityID:     entityID,
-		EntityMeta:   toWorkloadmetaEntityMeta(protoContainerImageMetadata.EntityMeta),
-		RepoTags:     protoContainerImageMetadata.RepoTags,
-		RepoDigests:  protoContainerImageMetadata.RepoDigests,
-		MediaType:    protoContainerImageMetadata.MediaType,
-		SizeBytes:    protoContainerImageMetadata.SizeBytes,
-		OS:           protoContainerImageMetadata.Os,
-		OSVersion:    protoContainerImageMetadata.OsVersion,
-		Architecture: protoContainerImageMetadata.Architecture,
-		Variant:      protoContainerImageMetadata.Variant,
-		Layers:       layers,
+		EntityID:              entityID,
+		EntityMeta:            toWorkloadmetaEntityMeta(protoContainerImageMetadata.EntityMeta),
+		RepoTags:              protoContainerImageMetadata.RepoTags,
+		RepoDigests:           protoContainerImageMetadata.RepoDigests,
+		MediaType:             protoContainerImageMetadata.MediaType,
+		SizeBytes:             protoContainerImageMetadata.SizeBytes,
+		UncompressedSizeBytes: protoContainerImageMetadata.UncompressedSizeBytes,
+		OS:                    protoContainerImageMetadata.Os,
+		OSVersion:             protoContainerImageMetadata.OsVersion,
+		Architecture:          protoContainerImageMetadata.Architecture,
+		Variant:               protoContainerImageMetadata.Variant,
+		Layers:                layers,
 	}
 
 	if protoContainerImageMetadata.Sbom != nil {

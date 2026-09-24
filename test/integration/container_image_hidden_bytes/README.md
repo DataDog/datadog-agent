@@ -1,9 +1,14 @@
-# Container image hidden bytes: manual QA
+# Container image hidden bytes and uncompressed size: manual QA
 
 This validates the **Agent payload**, not a backend aggregate or UI. It checks
 exact values received at fakeintake's `/api/v2/contimage` endpoint, using overlayfs
 snapshots first and local layer archives when snapshots cannot be scanned.
 A missing field is not zero. The Agent does not download missing image layers.
+The image-level `uncompressed_size` counts regular-file data across all layers,
+including versions later hidden, with same-layer hardlink aliases counted once.
+It excludes tar headers/padding, symlink targets, directories, whiteouts, image
+config/manifest, and filesystem overhead. It is not the final visible filesystem
+size or the compressed download size. No percentage is sent.
 
 Hidden-byte collection is enabled by default when container-image collection is
 enabled. The QA manifest intentionally omits `container_image.hidden_bytes.enabled`
@@ -17,9 +22,10 @@ base and rebuild all binaries for that architecture. Allow roughly 6 GiB RAM,
 unrelated images or reset another cluster to make room.
 
 All commands below run from the repository root. Prerequisites: `dda`, Docker,
-minikube, `jq`, and the companion agent-payload revision providing `hidden_bytes`.
+minikube, `jq`, Python 3, and the companion agent-payload revision providing
+`hidden_bytes` and `uncompressed_size`.
 Build the Agent and fakeintake against that same revision; an older fakeintake
-client cannot display the new field. The assets deliberately avoid production
+client cannot display the new fields. The assets deliberately avoid production
 credentials, Helm, or an external intake. Fakeintake forwarding is explicitly off.
 
 ## 1. Build and start the isolated environment
@@ -118,11 +124,17 @@ route. Fakeintake's typed image parser expects protobuf, so a retained probe cau
 are correct. Avoid `agent diagnose` during assertions; if a probe appears, finish
 diagnostics, flush, and retry. Periodic refresh will send the image payloads again.
 
-The script resolves the immutable config ID from Docker's export manifest and uses
+The script resolves the immutable config ID from Docker's exported config and uses
 ordered RootFS DiffIDs to select
 the exact image, rather than confusing a tag or compressed layer digest with a
-DiffID. It verifies every filesystem layer, including explicit zero values, and
-waits up to two minutes per image for asynchronously collected results.
+DiffID. It verifies every filesystem layer, including explicit zero values, plus
+the exact image-level `uncompressed_size`. Its independent `image_file_bytes.py`
+oracle sums regular-file tar-header sizes across the layers from `docker image
+save`; hardlink aliases, symlinks and whiteouts add no data. Old file versions
+still count even when later layers delete or replace them. No Agent accounting
+code is used to produce the expected total. The export is temporarily spooled to
+disk and removed on exit, without extracting archive paths. The script waits up
+to two minutes per image for asynchronously collected results.
 On a cold archive-only run, large images ahead of a fixture in the single-worker
 queue can exceed that wait. Let the initial scans finish and rerun assertions;
 check scan-source/completion logs rather than treating a polling timeout as zero.
@@ -188,7 +200,8 @@ test/fakeintake/build/fakeintakectl --url http://127.0.0.1:18080 flush
 
 - **Warm Agent restart:** restart only `deployment/agent`, wait for rollout, flush,
   and rerun the script. The node-backed `/var/run/hidden-bytes-agent` cache survives.
-  Verify cache-hit evidence in debug logs as well as correct received values.
+  Verify cache-hit evidence in debug logs as well as correct received hidden-byte
+  values and image total. An older cache without the total requires a fresh scan.
 - **Cold cluster restart:** stop/start only profile `hidden-bytes-validation`.
   For a genuinely cold scan, set `DD_RUN_PATH` on this test Deployment to a fresh
   directory such as `/tmp/hidden-bytes-cold-1`; do not delete the node's runtime
@@ -209,8 +222,9 @@ test/fakeintake/build/fakeintakectl --url http://127.0.0.1:18080 flush
   `DD_CONTAINER_IMAGE_HIDDEN_BYTES_ENABLED=false` and check
   `assert_payloads.sh http://127.0.0.1:18080 absent`. Separately test both unreadable
   snapshots and missing blobs with a fresh cache: metadata must arrive without
-  `hidden_bytes`. Use focused provider tests if safely isolating missing runtime
-  blobs is impractical; do not delete shared runtime content to force this case.
+  `hidden_bytes` or `uncompressed_size`. Use focused provider tests if safely
+  isolating missing runtime blobs is impractical; do not delete shared runtime
+  content to force this case.
 - **Same tag, new image:** rebuild a fixture with different file sizes under the
   same tag, reload it and recreate its workload. Record the changed config ID and
   expected values manually; the stock assertion script intentionally only checks

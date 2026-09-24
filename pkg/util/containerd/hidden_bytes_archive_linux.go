@@ -27,7 +27,7 @@ import (
 // CalculateHiddenBytesFromContent reads only locally available layer archives.
 // Unlike snapshot scanning, it streams file bodies to verify layer integrity,
 // but never extracts files, reads registries, or returns partial results.
-func CalculateHiddenBytesFromContent(ctx context.Context, store content.InfoReaderProvider, image HiddenBytesImage, limits HiddenBytesLimits) ([]uint64, error) {
+func CalculateHiddenBytesFromContent(ctx context.Context, store content.InfoReaderProvider, image HiddenBytesImage, limits HiddenBytesLimits) (*HiddenBytesResult, error) {
 	if limits.MaxArchiveBytes == 0 {
 		return nil, errors.New("archive byte limit must be positive")
 	}
@@ -74,7 +74,7 @@ func CalculateHiddenBytesFromContent(ctx context.Context, store content.InfoRead
 			return nil, err
 		}
 	}
-	return state.counts, nil
+	return state.result(), nil
 }
 
 // Both byte counters span all layers. Check cancellation even while tar skips bodies.
@@ -260,7 +260,10 @@ func parseHiddenBytesArchive(stream io.Reader, layer int, state *hiddenBytesStat
 		entry := hiddenEntry{path: name}
 		switch header.Typeflag {
 		case tar.TypeReg:
-			entry.data = &hiddenData{size: uint64(header.Size), layer: layer}
+			entry.data, err = state.newData(uint64(header.Size), layer)
+			if err != nil {
+				return nil, err
+			}
 		case tar.TypeDir:
 			entry.mode = fs.ModeDir
 		case tar.TypeSymlink:

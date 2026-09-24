@@ -1,12 +1,60 @@
 # Local validation
 
-## Default-on follow-up
+## Image uncompressed size and default-on validation, 2026-09-23
 
-Hidden-byte collection now defaults to enabled. Configuration regression coverage
-verifies that an omitted setting enables collection, an explicit `false` disables
-it, and disabling container-image collection still disables it. The QA manifest
-now omits the setting. The minikube runs below used an explicit enable setting;
-the default-on change has not been redeployed to that retained cluster.
+The retained ARM64 minikube environment received both per-layer `hidden_bytes`
+and image-level `uncompressed_size`. The latter counts regular-file data across
+all layers, including hidden versions and counting same-layer hardlinks once.
+It excludes tar overhead, directories, symlinks, and whiteout markers. No
+percentage is sent; the existing image `size` remains unchanged.
+
+The independent oracle reads each fixture's Docker-exported layer tar headers,
+without using Agent accounting code. The assertions match the exported config
+ID, ordered DiffIDs, every hidden-byte value, and the exact image total:
+
+| Fixtures | Uncompressed file bytes |
+| --- | ---: |
+| same-step | 4036104 |
+| seeded, deleted | 4048392 |
+| replaced, combined, replaced-deleted | 4060680 |
+| hardlink-seeded, hardlink-one-deleted, hardlink-both-deleted | 4040200 |
+| hardlink-replaced, hardlink-old-deleted, hardlink-all-deleted, native-only | 4052488 |
+
+All 13 fixtures passed with a fresh cache and normal host access (12 overlayfs
+scans, native-only through archives), then with another fresh cache and
+`HOST_ROOT=/unavailable-host` (all through local archives). The initial archive
+assertion timed out while large images ahead in the scan queue were processed;
+rerunning after the queue drained passed. The existing etcd image, whose layer
+blob was already missing, omitted both measurements with the host inaccessible.
+No runtime blobs were deleted.
+
+A warm Agent restart with the archive cache retained both measurements on all
+13 fixtures, with cache-hit logs. Fakeintake was flushed after rollout so old
+payloads could not satisfy the checks. Collection used its default: neither
+the ConfigMap nor the Deployment explicitly enabled hidden-byte collection.
+Explicitly disabling collection with that populated cache omitted both fields
+on all 13 fixtures while normal image metadata continued arriving.
+
+These runs used Agent base `0a2f0e1d3942f187c08726b098c12fca999863ff` plus this
+change, with the payload schema published as
+`451811d2b5dc9b577c44e02af87063e3e844e5ad`. The initial QA image was
+`localhost/hidden-bytes/agent:uncompressed-qa`, binary SHA256
+`a96a674d3944a8f90a266e56bdafea2ac898099128b7ee532ce0e1ffdc3f7bf0`.
+
+Finally rebuilt against the published payload module (no local replacement),
+restored `HOST_ROOT=/host`, removed the explicit disable setting, and repeated
+all 13 assertions with a fresh cache. All passed. The retained image is
+`localhost/hidden-bytes/agent:uncompressed-final-qa`, config ID
+`sha256:0165580b37f29a16463dcc65fba579c3fd858a1ad05f7fa3cca9b8c06058c35d`.
+Its Agent binary SHA256 is
+`7691170279ac70e210a0a6e7e1940b3a56ea63c338b7bbaa2ff2c23723c25d1b`.
+The retained node-backed cache is
+`/var/run/hidden-bytes-agent/qa-uncompressed-final/container-image-hidden-bytes-v3.json`.
+Use the [README assertion commands](README.md#2-assert-actual-received-metrics) to
+validate the retained deployment; include `native-only` as an extra scenario.
+
+The older runs below document previous revisions. Cluster stop/start and
+same-tag replacement remain reviewer QA. User validation is still pending.
 
 ## Hardlinks and local archive fallback, 2026-09-23
 

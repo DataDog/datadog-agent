@@ -34,8 +34,9 @@ func TestContainerImageHiddenBytesRoundTrip(t *testing.T) {
 			input := workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.ContainerImageMetadata{
-					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image"},
-					Layers:   []workloadmeta.ContainerImageLayer{{DiffID: "layer", HiddenBytes: test.value}},
+					EntityID:              workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: "image"},
+					Layers:                []workloadmeta.ContainerImageLayer{{DiffID: "layer", HiddenBytes: test.value}},
+					UncompressedSizeBytes: test.value,
 				},
 			}
 			encoded, err := ProtobufEventFromWorkloadmetaEvent(input)
