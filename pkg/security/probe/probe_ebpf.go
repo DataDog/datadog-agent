@@ -1623,13 +1623,42 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	p.DispatchEvent(event, true)
 
-	if eventType == model.ExitEventType {
-		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
-	}
+	// applyPostDispatchProcessUpdates runs after the event has been dispatched,
+	// so a rule is evaluated against the process state that preceded the event.
+	p.applyPostDispatchProcessUpdates(event)
 
 	// flush pending actions
 	p.processKiller.FlushPendingReports()
 	p.fileHasher.FlushPendingReports()
+}
+
+func (p *EBPFProbe) applyPostDispatchProcessUpdates(event *model.Event) {
+	switch event.GetEventType() {
+	case model.SetuidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
+		}
+	case model.SetgidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
+		}
+	case model.CapsetEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
+		}
+	case model.LoginUIDWriteEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
+		}
+	case model.IMDSEventType:
+		p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
+	case model.ExitEventType:
+		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
+	}
 }
 
 // handleRegularEvent performs the standard unmarshaling process common to all events.
@@ -1793,7 +1822,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.SetUID, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1803,7 +1831,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.SetGID, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1813,7 +1840,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Capset, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
 	case model.LoginUIDWriteEventType:
 		if event.Error != nil {
 			break
@@ -1822,7 +1848,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.LoginUIDWrite, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if !p.regularUnmarshalEvent(&event.SELinux, eventType, offset, dataLen, data) {
 			return false
@@ -1975,7 +2000,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
 	case model.RawPacketFilterEventType:
 		if !p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data) {
 			return false

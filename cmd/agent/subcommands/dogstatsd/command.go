@@ -48,11 +48,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "top",
 		Short: "Display metrics with most contexts in the aggregator",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(topContexts,
+			return fxutil.OneShot(
+				topContexts,
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true),
+				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -69,10 +71,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dump-contexts",
 		Short: "Write currently tracked contexts as JSON",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(dumpContexts,
+			return fxutil.OneShot(
+				dumpContexts,
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true),
+				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
