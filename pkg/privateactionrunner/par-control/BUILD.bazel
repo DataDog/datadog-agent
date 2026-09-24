@@ -1,10 +1,17 @@
+load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
-load("//bazel/rules/variables:variables.bzl", "compute_version_variables")
+load("//bazel/rules:version_info.bzl", "agent_version_defines")
 
-_BUILD_VARIABLES = compute_version_variables()
+_VERSION_PARTS = agent_version_defines()
+
+_VERSION = (env_vars.PACKAGE_VERSION or "%s.%s.%s-localbuild" % (
+    _VERSION_PARTS["MAJ_VER"],
+    _VERSION_PARTS["MIN_VER"],
+    _VERSION_PARTS["PATCH_VER"],
+)).replace(".git.", "+git.", 1)
 
 _LINUX_OR_WINDOWS = select({
     "@platforms//os:linux": [],
@@ -42,7 +49,7 @@ rust_library(
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
-    rustc_env = {"DD_AGENT_VERSION": _BUILD_VARIABLES["agent_version"]},
+    rustc_env = {"DD_AGENT_VERSION": _VERSION},
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],
