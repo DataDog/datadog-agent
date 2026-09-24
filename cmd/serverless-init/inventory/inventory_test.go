@@ -8,6 +8,7 @@
 package inventory
 
 import (
+	"os"
 	"sync"
 	"testing"
 
@@ -34,6 +35,111 @@ func newFakeComponent() *fakeComponent {
 func (f *fakeComponent) Set(name string, value interface{}) { f.fields[name] = value }
 func (f *fakeComponent) Get() map[string]interface{}        { return f.fields }
 func (f *fakeComponent) Submit()                            { f.submits++ }
+
+type inventoryCloudService struct {
+	cloudservice.CloudService
+	data cloudservice.InventoryData
+}
+
+func (s inventoryCloudService) GetInventoryData() cloudservice.InventoryData { return s.data }
+
+func TestBuildFieldsMissingValues(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("site", "", model.SourceAgentRuntime)
+	service := inventoryCloudService{data: cloudservice.InventoryData{
+		ResourceID:   "test-resource",
+		ResourceName: "test-app",
+		WorkloadType: "azure_app_service",
+	}}
+
+	fields := buildFields(service, mode.Conf{SidecarMode: true}, conf, nil)
+
+	for _, key := range []string{
+		"parent_resource_id", "region", "gcp_project_id", "aws_account_id",
+		"azure_subscription_id", "azure_resource_group", "runtime",
+		"dd_env", "dd_site", "dd_version", "dd_service",
+	} {
+		assert.Contains(t, fields, key, "missing fields must still be passed to Set to clear cached values")
+		assert.Nil(t, fields[key], key)
+	}
+	assert.Equal(t, service.data.ResourceID, fields["resource_id"])
+	assert.Equal(t, service.data.ResourceName, fields["resource_name"])
+	assert.Equal(t, service.data.WorkloadType, fields["workload_type"])
+	assert.Equal(t, "sidecar", fields["deployment_model"])
+	assert.NotContains(t, fields, "wrapped_command")
+	assert.NotContains(t, fields, "deployment_id")
+	assert.NotContains(t, fields, "tags")
+}
+
+func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
+	conf := configmock.New(t)
+	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
+	service := inventoryCloudService{data: cloudservice.InventoryData{
+		ResourceID:          "test-resource",
+		ResourceName:        "test-app",
+		WorkloadType:        "azure_app_service",
+		ParentResourceID:    "test-parent",
+		Region:              "test-region",
+		GCPProjectID:        "test-project",
+		AWSAccountID:        "123456789012",
+		AzureSubscriptionID: "test-subscription",
+		AzureResourceGroup:  "test-group",
+		Runtime:             "python",
+	}}
+
+	fields := buildFields(service, mode.Conf{SidecarMode: true}, conf, map[string]string{
+		"env": "test-env", "service": "test-service", "version": "test-version",
+	})
+
+	for key, expected := range map[string]string{
+		"resource_id": "test-resource", "resource_name": "test-app", "workload_type": "azure_app_service",
+		"parent_resource_id": "test-parent", "region": "test-region", "gcp_project_id": "test-project",
+		"aws_account_id": "123456789012", "azure_subscription_id": "test-subscription", "azure_resource_group": "test-group",
+		"runtime": "python", "dd_env": "test-env", "dd_service": "test-service", "dd_version": "test-version", "dd_site": "datadoghq.eu",
+	} {
+		assert.Equal(t, expected, fields[key], key)
+	}
+}
+
+func TestBuildFieldsPreservesNonemptyStrings(t *testing.T) {
+	conf := configmock.New(t)
+	for _, value := range []string{"unknown", "null", " ", " python "} {
+		t.Run(value, func(t *testing.T) {
+			service := inventoryCloudService{data: cloudservice.InventoryData{Runtime: value}}
+			fields := buildFields(service, mode.Conf{SidecarMode: true}, conf, nil)
+			assert.Equal(t, value, fields["runtime"])
+		})
+	}
+}
+
+func TestBuildFieldsWrappedCommand(t *testing.T) {
+	originalArgs := os.Args
+	t.Cleanup(func() { os.Args = originalArgs })
+	conf := configmock.New(t)
+
+	for _, scenario := range []struct {
+		name    string
+		args    []string
+		sidecar bool
+	}{
+		{name: "no command", args: []string{"serverless-init"}},
+		{name: "sidecar", args: []string{"serverless-init", "python", "app.py"}, sidecar: true},
+		{name: "wrapped command", args: []string{"serverless-init", "python", "app.py", "--password=secret"}},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			os.Args = scenario.args
+			fields := buildFields(inventoryCloudService{}, mode.Conf{SidecarMode: scenario.sidecar}, conf, nil)
+			if scenario.sidecar || len(scenario.args) == 1 {
+				assert.NotContains(t, fields, "wrapped_command")
+				return
+			}
+			assert.Contains(t, fields["wrapped_command"], "python app.py")
+			assert.Contains(t, fields["wrapped_command"], "--password=")
+			assert.NotContains(t, fields["wrapped_command"], "secret")
+			assert.Equal(t, "in-container", fields["deployment_model"])
+		})
+	}
+}
 
 func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
 	conf := configmock.New(t)

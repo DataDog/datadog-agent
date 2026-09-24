@@ -196,6 +196,13 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(os.Args[1:], " "))
 	}
 
+	for key, value := range fields {
+		if text, ok := value.(string); ok && text == "" {
+			// Passing nil also clears a previously populated value in the component's cache.
+			fields[key] = nil
+		}
+	}
+
 	return fields
 }
 

@@ -28,8 +28,9 @@ const (
 // derives these from its own environment so the payload builder stays thin and
 // the derivation lives next to the existing tag logic.
 //
-// The zero value of every field is a valid "not applicable / unknown" value.
-// Nullable downstream columns map from empty strings here.
+// Empty strings represent unavailable values. The serverless-init payload builder
+// converts them to nil, allowing optional fields to be omitted or serialized as
+// JSON null. Missing required identity remains subject to CanCollectInventory.
 type InventoryData struct {
 	WorkloadType string
 

@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics/metricstest"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type inventoryRecordingSerializer struct {
@@ -61,12 +62,12 @@ func (s *inventoryRecordingSerializer) SendMetadata(payload marshaler.JSONMarsha
 
 type inventoryTestCloudService struct {
 	cloudservice.CloudService
-	resourceID string
+	data cloudservice.InventoryData
 }
 
-func (s inventoryTestCloudService) CanCollectInventory() bool { return s.resourceID != "" }
+func (s inventoryTestCloudService) CanCollectInventory() bool { return s.data.ResourceID != "" }
 func (s inventoryTestCloudService) GetInventoryData() cloudservice.InventoryData {
-	return cloudservice.InventoryData{ResourceID: s.resourceID}
+	return s.data
 }
 
 func TestInventoryIdentityGate(t *testing.T) {
@@ -81,9 +82,11 @@ func TestInventoryIdentityGate(t *testing.T) {
 			}
 			conf.Set("inventories_first_run_delay", 0, configmodel.SourceAgentRuntime)
 			conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
-			service := inventoryTestCloudService{resourceID: "test-resource"}
+			service := inventoryTestCloudService{data: cloudservice.InventoryData{
+				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service",
+			}}
 			if scenario == "missing" {
-				service.resourceID = ""
+				service.data.ResourceID = ""
 			} else if scenario != "valid" {
 				conf.Set(scenario, false, configmodel.SourceAgentRuntime)
 			}
@@ -111,7 +114,104 @@ func TestInventoryIdentityGate(t *testing.T) {
 					Metadata map[string]interface{} `json:"agent_metadata"`
 				}
 				require.NoError(t, json.Unmarshal(data, &payload))
-				assert.Equal(t, service.resourceID, payload.Metadata["resource_id"])
+				assert.Equal(t, service.data.ResourceID, payload.Metadata["resource_id"])
+			}
+		})
+	}
+}
+
+func TestInventorySerializesMissingValues(t *testing.T) {
+	originalCommit := version.Commit
+	t.Cleanup(func() { version.Commit = originalCommit })
+	conf := coreconfig.NewMock(t)
+	for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
+		conf.Set(key, true, configmodel.SourceAgentRuntime)
+	}
+	conf.Set("inventories_first_run_delay", 0, configmodel.SourceAgentRuntime)
+	conf.Set("inventories_configuration_enabled", false, configmodel.SourceAgentRuntime)
+	serial := &inventoryRecordingSerializer{}
+	hostname, _ := hostnamemock.NewMock("inventory-test")
+	provides := inventoryagentimpl.NewComponent(inventoryagentimpl.Requires{
+		Config: conf, Log: logmock.New(t), Hostname: hostname, Serializer: serial, Capabilities: serverlessInitInventory.NewCapabilities(),
+	})
+	require.NotNil(t, provides.Provider.Callback)
+	provides.Comp.Set("install_method_tool_version", "")
+
+	populatedValues := map[string]string{
+		"parent_resource_id": "test-parent", "region": "test-region", "gcp_project_id": "test-project",
+		"aws_account_id": "123456789012", "azure_subscription_id": "test-subscription", "azure_resource_group": "test-group",
+		"runtime": "python", "agent_commit": "abcdef1",
+		"dd_env": "test-env", "dd_service": "test-service", "dd_version": "test-version", "dd_site": "datadoghq.eu",
+	}
+	var previousTimestamp int64
+	for _, stage := range []struct {
+		name      string
+		populated bool
+	}{
+		{name: "initially missing"},
+		{name: "populated", populated: true},
+		{name: "cleared"},
+		{name: "repopulated", populated: true},
+	} {
+		t.Run(stage.name, func(t *testing.T) {
+			service := inventoryTestCloudService{data: cloudservice.InventoryData{
+				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service",
+			}}
+			var tags map[string]string
+			version.Commit = ""
+			conf.Set("site", "", configmodel.SourceAgentRuntime)
+			if stage.populated {
+				service.data.ParentResourceID = populatedValues["parent_resource_id"]
+				service.data.Region = populatedValues["region"]
+				service.data.GCPProjectID = populatedValues["gcp_project_id"]
+				service.data.AWSAccountID = populatedValues["aws_account_id"]
+				service.data.AzureSubscriptionID = populatedValues["azure_subscription_id"]
+				service.data.AzureResourceGroup = populatedValues["azure_resource_group"]
+				service.data.Runtime = populatedValues["runtime"]
+				version.Commit = populatedValues["agent_commit"]
+				conf.Set("site", populatedValues["dd_site"], configmodel.SourceAgentRuntime)
+				tags = map[string]string{
+					"env": populatedValues["dd_env"], "service": populatedValues["dd_service"], "version": populatedValues["dd_version"],
+				}
+			}
+			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, tags)
+
+			for _, reason := range []string{"startup", "periodic"} {
+				payloadCount := len(serial.payloads)
+				before := time.Now().UnixNano()
+				if reason == "startup" {
+					serverlessInitInventory.Submit(provides.Comp, conf)
+				} else {
+					provides.Provider.Callback(context.Background())
+				}
+				after := time.Now().UnixNano()
+				require.Len(t, serial.payloads, payloadCount+1)
+				var payload struct {
+					Timestamp int64                  `json:"timestamp"`
+					Metadata  map[string]interface{} `json:"agent_metadata"`
+				}
+				require.NoError(t, json.Unmarshal(serial.payloads[payloadCount], &payload))
+				assert.GreaterOrEqual(t, payload.Timestamp, before)
+				assert.LessOrEqual(t, payload.Timestamp, after)
+				assert.Greater(t, payload.Timestamp, previousTimestamp)
+				previousTimestamp = payload.Timestamp
+				for key, expected := range populatedValues {
+					if stage.populated {
+						assert.Equal(t, expected, payload.Metadata[key], key)
+					} else {
+						assert.Nil(t, payload.Metadata[key], "%s must be absent or JSON null", key)
+					}
+				}
+				assert.Equal(t, service.data.ResourceID, payload.Metadata["resource_id"])
+				assert.Equal(t, service.data.ResourceName, payload.Metadata["resource_name"])
+				assert.Equal(t, service.data.WorkloadType, payload.Metadata["workload_type"])
+				assert.Equal(t, reason, payload.Metadata["report_reason"])
+				assert.Equal(t, "sidecar", payload.Metadata["deployment_model"])
+				assert.Contains(t, payload.Metadata, "install_method_tool_version")
+				assert.Equal(t, "", payload.Metadata["install_method_tool_version"], "core metadata is not normalized")
+				assert.NotContains(t, payload.Metadata, "wrapped_command")
+				assert.NotContains(t, payload.Metadata, "deployment_id")
+				assert.NotContains(t, payload.Metadata, "tags")
 			}
 		})
 	}
