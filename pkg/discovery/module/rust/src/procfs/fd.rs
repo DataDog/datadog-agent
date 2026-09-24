@@ -22,8 +22,9 @@ const MAX_TRACER_MEMFDS: usize = 25;
 const MAX_LOG_FILES: usize = 100;
 
 // Bounds the readlink syscalls done per PID. /proc/<pid>/fd is listed in ascending fd order and
-// the kernel always allocates the lowest free fd, so listening sockets, log files and memfds,
-// which are opened early, are still found for processes having more open fds than this.
+// the kernel allocates the lowest free fd, so listening sockets, log files and memfds opened at
+// startup are usually below the limit. Files opened later, such as a log reopened after rotation,
+// can get a higher fd and be missed on processes with that many open fds.
 const MAX_FDS: usize = 100_000;
 
 #[derive(Debug, Default)]
