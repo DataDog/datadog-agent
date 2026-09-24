@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -456,10 +457,10 @@ func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
 // onConfigUpdateAdditionalEndpoints handles configuration change notification to update the internal API key of the
 // endpoint, when the endpoint is an additional endpoint
 func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64, _ model.Source) {
-		if key != e.configSettingPath {
-			return
-		}
+	var reconcileMu sync.Mutex
+	reconcile := func() {
+		reconcileMu.Lock()
+		defer reconcileMu.Unlock()
 
 		newAdditionalEndpoints, _ := l.getAdditionalEndpoints()
 		if len(newAdditionalEndpoints) != e.additionalEndpointsCount || e.additionalEndpointsIdx >= len(newAdditionalEndpoints) {
@@ -528,7 +529,19 @@ func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
 			scrubber.HideKeyExceptLastChars(oldAPIKey),
 			scrubber.HideKeyExceptLastChars(newAPIKey),
 		)
+	}
+
+	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64, _ model.Source) {
+		if key == e.configSettingPath {
+			reconcile()
+		}
 	})
+
+	// Reconcile pending credentials after subscribing so a write between the initial snapshot
+	// and callback registration cannot leave this endpoint permanently pending.
+	if e.IsWaitingForDelegatedAuth() {
+		reconcile()
+	}
 }
 
 // IsReliable returns true if the endpoint is reliable. Endpoints are reliable by default.

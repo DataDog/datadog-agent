@@ -163,6 +163,67 @@ func TestAdditionalEndpointsUpdateUsesConfiguredDomainAfterRequestDomainRewrite(
 	assertKeys(t, []string{"new-key"}, resolver)
 }
 
+func TestOnUpdateConfigReconcilesWritebackBeforeSubscription(t *testing.T) {
+	const domain = "https://resolving-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL: domain,
+		APIKeySet: []utils.APIKeys{
+			{ConfigSettingPath: "additional_endpoints", HasPendingDelegatedAuth: true},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, resolver.GetAPIKeys())
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{domain: {"resolved-key"}})
+	OnUpdateConfig(resolver, logmock.New(t), config)
+
+	assertKeys(t, []string{"resolved-key"}, resolver)
+	assert.False(t, resolver.hasPendingDelegatedAuth)
+	assert.True(t, resolver.IsUsable())
+}
+
+func TestOnUpdateConfigRemovesMissingPendingDomainBeforeSubscription(t *testing.T) {
+	const domain = "https://removed-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
+		BaseURL: domain,
+		APIKeySet: []utils.APIKeys{
+			{
+				ConfigSettingPath:       "additional_endpoints",
+				Keys:                    []string{"static-key"},
+				HasPendingDelegatedAuth: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resolver.IsUsable())
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{})
+	OnUpdateConfig(resolver, logmock.New(t), config)
+
+	assert.Empty(t, resolver.GetAPIKeys())
+	assert.False(t, resolver.hasPendingDelegatedAuth)
+	assert.False(t, resolver.IsUsable())
+}
+
+func TestOnUpdateConfigRemovesDomainAfterResolution(t *testing.T) {
+	const domain = "https://removed-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver(domain, []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "resolved-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{domain: {"resolved-key"}})
+	OnUpdateConfig(resolver, logmock.New(t), config)
+	config.Set("additional_endpoints", map[string][]string{}, configmodel.SourceSecret)
+
+	assert.Empty(t, resolver.GetAPIKeys())
+	assert.False(t, resolver.hasPendingDelegatedAuth)
+	assert.False(t, resolver.IsUsable())
+}
+
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),

@@ -688,6 +688,30 @@ func (suite *EndpointsTestSuite) TestHTTPAdditionalEndpointWaitsForDelegatedAuth
 	suite.True(endpoints[0].IsReliable())
 }
 
+func (suite *EndpointsTestSuite) TestHTTPAdditionalEndpointReconcilesWritebackBeforeSubscription() {
+	logsConfig := defaultLogsConfigKeys(suite.config)
+	suite.config.SetInTest("logs_config.additional_endpoints", `[{
+		"api_key": "DELA(some-org-uuid, aws)",
+		"host": "localhost1",
+		"port": 1234
+	}]`)
+
+	endpoints := loadHTTPAdditionalEndpoints(Endpoint{}, logsConfig, "", "", "", false)
+	suite.Require().Len(endpoints, 1)
+	suite.True(endpoints[0].IsWaitingForDelegatedAuth())
+
+	// Resolve the key after the endpoint snapshot but before callback registration.
+	suite.config.SetInTest("logs_config.additional_endpoints", `[{
+		"api_key": "resolved-real-key",
+		"host": "localhost1",
+		"port": 1234
+	}]`)
+	endpoints[0].onConfigUpdate(logsConfig)
+
+	suite.Equal("resolved-real-key", endpoints[0].GetAPIKey())
+	suite.False(endpoints[0].IsWaitingForDelegatedAuth())
+}
+
 func (suite *EndpointsTestSuite) TestInvalidAdditionalEndpointCredentialCannotBeRevived() {
 	endpoint := Endpoint{credential: newEndpointCredential("old-key", false)}
 	endpoint.credential.Store(&endpointCredential{pending: true, invalid: true})
