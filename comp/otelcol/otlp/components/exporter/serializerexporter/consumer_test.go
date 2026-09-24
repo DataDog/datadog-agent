@@ -220,9 +220,9 @@ func newTestSerializerConsumer(ipath ingestionPath, standalone bool) *serializer
 func TestAddRunningMetric_NotDDOTPath(t *testing.T) {
 	for _, ipath := range []ingestionPath{ossCollector, agentOTLPIngest} {
 		c := newTestSerializerConsumer(ipath, true)
-		c.ConsumeHost("my-hostname")
+		c.ConsumeHost("otel-host")
 
-		c.addRunningMetric()
+		c.addRunningMetric("agent-hostname")
 
 		assert.Empty(t, c.series)
 	}
@@ -230,18 +230,18 @@ func TestAddRunningMetric_NotDDOTPath(t *testing.T) {
 
 func TestAddRunningMetric_NotStandalone(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, false)
-	c.ConsumeHost("my-hostname")
+	c.ConsumeHost("otel-host")
 
-	c.addRunningMetric()
+	c.addRunningMetric("agent-hostname")
 
 	assert.Empty(t, c.series)
 }
 
 func TestAddRunningMetric_HostOnly(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, true)
-	c.ConsumeHost("my-hostname")
+	c.ConsumeHost("otel-host")
 
-	c.addRunningMetric()
+	c.addRunningMetric("agent-hostname")
 
 	require.Len(t, c.series, 2)
 	var hosts []string
@@ -249,13 +249,13 @@ func TestAddRunningMetric_HostOnly(t *testing.T) {
 		assert.Equal(t, "otel.ddot_collector.metrics.running", s.Name)
 		hosts = append(hosts, s.Host)
 	}
-	assert.ElementsMatch(t, []string{"my-hostname", ""}, hosts)
+	assert.ElementsMatch(t, []string{"agent-hostname", ""}, hosts)
 }
 
 func TestAddRunningMetric_NoSignals(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, true)
 
-	c.addRunningMetric()
+	c.addRunningMetric("agent-hostname")
 
 	assert.Empty(t, c.series)
 }

@@ -76,7 +76,7 @@ func (c *collectorConsumer) addTelemetryMetric(_ string, _ exporter.Settings, _ 
 
 // addRunningMetric is a no-op for the ossCollector path: collectorConsumer already
 // emits its own otel.datadog_exporter.metrics.running* series via addRuntimeTelemetryMetric.
-func (c *collectorConsumer) addRunningMetric() {
+func (c *collectorConsumer) addRunningMetric(_ string) {
 }
 
 // ConsumeHost implements the metrics.HostConsumer interface.

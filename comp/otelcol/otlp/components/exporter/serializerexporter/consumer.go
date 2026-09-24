@@ -91,7 +91,7 @@ type SerializerConsumer interface {
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
 	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge)
-	addRunningMetric()
+	addRunningMetric(hostname string)
 }
 
 type serializerConsumer struct {
@@ -354,17 +354,21 @@ func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
 // otel-agent is running standalone (DD_OTEL_STANDALONE=true). Connected-mode DDOT
 // and agentOTLPIngest never emit this, since the core/cluster Agent already
 // reports its own running state.
-func (c *serializerConsumer) addRunningMetric() {
+//
+// hostname is the Agent's own resolved hostname (from the hostname component),
+// not a host derived from OTel resource attributes: c.hosts is only used here
+// as a signal that some host-attributed metric was seen this cycle, never as
+// the tag value, so the billing host tag stays stable regardless of what
+// hostname OTel telemetry happens to report.
+func (c *serializerConsumer) addRunningMetric(hostname string) {
 	if c.ipath != ddot || !c.standalone {
 		return
 	}
 	timestamp := float64(time.Now().Unix())
 	buildTags := tagsFromBuildInfo(c.buildInfo)
 
-	for host := range c.hosts {
-		c.series = append(c.series, ddotRunningMetric(host, timestamp, buildTags))
-	}
 	if len(c.hosts) > 0 {
+		c.series = append(c.series, ddotRunningMetric(hostname, timestamp, buildTags))
 		c.series = append(c.series, ddotRunningMetric("", timestamp, buildTags))
 	}
 }
