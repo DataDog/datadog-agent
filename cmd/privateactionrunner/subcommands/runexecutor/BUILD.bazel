@@ -54,7 +54,13 @@ dd_agent_go_test(
     embed = [":runexecutor"],
     deps = [
         "//cmd/privateactionrunner/command",
+        "//comp/core/config",
+        "//comp/core/delegatedauth/fx-noop",
+        "//comp/core/secrets/fx-noop",
+        "//comp/privateactionrunner/def",
+        "//pkg/config/model",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )
