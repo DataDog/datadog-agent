@@ -11,8 +11,6 @@ import (
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/producer"
-
-	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -21,7 +19,6 @@ const (
 	ipfixFieldApplicationName        uint16 = 96
 )
 
-// Application holds the name/description reported by an exporter for an applicationId
 type Application struct {
 	applicationName        string
 	applicationDescription string
@@ -36,7 +33,6 @@ func NewApplicationMapper() *ApplicationMapper {
 	return &ApplicationMapper{apps: make(map[string]map[uint32]Application)}
 }
 
-// Lookup returns the application for the given exporterIP/appID, if known
 func (m *ApplicationMapper) Lookup(exporterIP string, appID uint32) (Application, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -49,12 +45,10 @@ func (m *ApplicationMapper) Lookup(exporterIP string, appID uint32) (Application
 }
 
 func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []netflow.OptionsDataFlowSet) {
-	ddlog.Debugf("DEBUGTMP addToCache exporterIP=%s optionsDataFlowSets=%d", exporterIP, len(optionsDataFlowSet))
 	for _, dataFlowSet := range optionsDataFlowSet {
 		for _, record := range dataFlowSet.Records {
 			appID, haveID := extractApplicationID(record.ScopesValues)
 			appName, appDescription, haveName := extractApplicationName(record.OptionsValues)
-			ddlog.Debugf("DEBUGTMP options record: appID=%d haveID=%v appName=%q appDescription=%q haveName=%v scopes=%+v options=%+v", appID, haveID, appName, appDescription, haveName, record.ScopesValues, record.OptionsValues)
 			if haveID && haveName {
 				m.set(exporterIP, appID, appName, appDescription)
 			}
@@ -65,11 +59,9 @@ func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []n
 func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte) (Application, bool) {
 	var id uint64
 	if err := producer.DecodeUNumber(rawAppID, &id); err != nil {
-		ddlog.Debugf("DEBUGTMP lookupApplication decode error exporterIP=%s rawAppID=%x err=%v", exporterIP, rawAppID, err)
 		return Application{}, false
 	}
 	app, found := m.Lookup(exporterIP, uint32(id))
-	ddlog.Debugf("DEBUGTMP lookupApplication exporterIP=%s appID=%d found=%v name=%q description=%q", exporterIP, uint32(id), found, app.applicationName, app.applicationDescription)
 	return app, found
 }
 
