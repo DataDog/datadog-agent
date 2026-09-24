@@ -139,7 +139,7 @@ func TestGetNetworkIDDetectedProviderIsUsedDirectly(t *testing.T) {
 	require.Equal(t, 0, gceCalls, "GCE should not be probed once EC2 is positively detected and resolves successfully")
 }
 
-func TestGetNetworkIDDetectedProviderFallsBackOnFailure(t *testing.T) {
+func TestGetNetworkIDDetectedProviderReturnsErrorOnFailure(t *testing.T) {
 	t.Cleanup(func() { cache.Cache.Delete(networkIDCacheKey) })
 	t.Cleanup(func() { cache.Cache.Delete(networkIDProviderCacheKey) })
 
@@ -157,13 +157,13 @@ func TestGetNetworkIDDetectedProviderFallsBackOnFailure(t *testing.T) {
 	getGCENetworkID = func(_ context.Context) (string, error) { gceCalls++; return "", errors.New("gce error") }
 	getEC2NetworkID = func(_ context.Context) (string, error) { ec2Calls++; return "", errors.New("ec2 error") }
 
-	// EC2 is positively detected via DMI, but its direct fetch fails: since EC2
-	// does support network ID resolution, GetNetworkID should fall back to
-	// racing all supported providers instead of giving up immediately
+	// EC2 is positively detected via DMI, but its direct fetch fails: GetNetworkID
+	// returns the error immediately rather than falling back to racing all
+	// supported providers.
 	_, err := GetNetworkID(context.Background())
 	require.ErrorContains(t, err, "could not detect network ID")
-	require.Equal(t, 1, gceCalls, "GCE should be probed as a fallback when the detected provider's direct fetch fails")
-	require.Equal(t, 2, ec2Calls, "EC2 should be probed both directly and as part of the fallback race")
+	require.Equal(t, 0, gceCalls, "GCE should not be probed once EC2 is positively detected via DMI")
+	require.Equal(t, 1, ec2Calls, "EC2 should only be probed directly")
 }
 
 func TestGetNetworkIDUnsupportedProviderShortCircuits(t *testing.T) {
