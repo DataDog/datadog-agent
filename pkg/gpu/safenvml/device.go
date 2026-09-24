@@ -394,8 +394,8 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 
 	if virtualizationMode, err := dev.GetVirtualizationMode(); err == nil {
 		d.VirtualizationMode = virtualizationMode
-	} else if logLimiter.ShouldLog() {
-		log.Warnf("cannot get virtualization mode: %v", err)
+	} else {
+		singleton.logDeviceWarning(d.UUID, "cannot get virtualization mode: %v", err)
 	}
 
 	d.fillNVLinkDataFromNVML(dev)
@@ -406,29 +406,21 @@ func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
 func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 	fields := []nvml.FieldValue{{FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT}}
 	if err := dev.GetFieldValues(fields); err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot get NVLink link count: %v", err)
-		}
+		singleton.logDeviceWarning(d.UUID, "cannot get NVLink link count: %v", err)
 		return
 	}
 	if ret := nvml.Return(fields[0].NvmlReturn); ret != nvml.SUCCESS {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot get NVLink link count: %s", nvml.ErrorString(ret))
-		}
+		singleton.logDeviceWarning(d.UUID, "cannot get NVLink link count: %s", nvml.ErrorString(ret))
 		return
 	}
 
 	linkCount, err := nvmlFieldValueToInt(fields[0])
 	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("cannot parse NVLink link count: %v", err)
-		}
+		singleton.logDeviceWarning(d.UUID, "cannot parse NVLink link count: %v", err)
 		return
 	}
 	if linkCount < 0 {
-		if logLimiter.ShouldLog() {
-			log.Warnf("NVLink link count %d is negative", linkCount)
-		}
+		singleton.logDeviceWarning(d.UUID, "NVLink link count %d is negative", linkCount)
 		return
 	}
 
@@ -436,16 +428,14 @@ func (d *DeviceInfo) fillNVLinkDataFromNVML(dev SafeDevice) {
 	for link := range d.NVLinkLinkCount {
 		version, err := dev.GetNvLinkVersion(link)
 		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("cannot get NVLink version for link %d: %v", link, err)
-			}
+			singleton.logDeviceWarning(d.UUID, "cannot get NVLink version for link %d: %v", link, err)
 			continue
 		}
 
 		if d.NVLinkVersion == "" {
 			d.NVLinkVersion = nvlinkVersionString(version)
-		} else if d.NVLinkVersion != nvlinkVersionString(version) && logLimiter.ShouldLog() {
-			log.Warnf("NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
+		} else if d.NVLinkVersion != nvlinkVersionString(version) {
+			singleton.logDeviceWarning(d.UUID, "NVLink version %s for link %d differs from version %s reported by another link", nvlinkVersionString(version), link, d.NVLinkVersion)
 		}
 	}
 }

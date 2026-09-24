@@ -46,6 +46,7 @@ func resetSingleton() {
 
 	singleton.lib = nil
 	singleton.capabilities = nil
+	singleton.deviceWarningsSeen = nil
 }
 
 // WithPartialMockNVML sets the singleton SafeNVML library for testing purposes.
