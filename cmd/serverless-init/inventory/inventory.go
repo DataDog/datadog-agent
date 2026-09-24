@@ -161,6 +161,10 @@ func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id stri
 // an unknown-key warning. site is not a tag, so it comes from the config.
 func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) map[string]interface{} {
 	inv := cs.GetInventoryData()
+	var wrappedCommand []string
+	if !modeConf.SidecarMode && len(os.Args) > 1 {
+		wrappedCommand = os.Args[1:]
+	}
 
 	fields := map[string]interface{}{
 		"serverless_init_version": serverlessTags.GetExtensionVersion(),
@@ -180,7 +184,7 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 		"azure_resource_group":  inv.AzureResourceGroup,
 
 		"deployment_model": deploymentModel(modeConf),
-		"runtime":          inv.Runtime,
+		"runtime":          resolveRuntime(inv.RuntimeCandidates, wrappedCommand),
 
 		"dd_env":     tags["env"],
 		"dd_site":    conf.GetString("site"),
@@ -192,8 +196,8 @@ func buildFields(cs cloudservice.CloudService, modeConf mode.Conf, conf configmo
 	// in init mode (os.Args[1:]); it is absent in sidecar mode, where
 	// serverless-init wraps nothing. Scrubbed before storage: command-line
 	// arguments can contain credentials (e.g. --password=secret, --token=…).
-	if !modeConf.SidecarMode && len(os.Args) > 1 {
-		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(os.Args[1:], " "))
+	if len(wrappedCommand) > 0 {
+		fields["wrapped_command"] = scrubber.ScrubLine(strings.Join(wrappedCommand, " "))
 	}
 
 	for key, value := range fields {

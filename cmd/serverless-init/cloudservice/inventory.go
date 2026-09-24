@@ -47,7 +47,10 @@ type InventoryData struct {
 	AWSAccountID        string
 	AzureSubscriptionID string
 	AzureResourceGroup  string
-	Runtime             string
+
+	// RuntimeCandidates are raw application-runtime values in priority order.
+	// The inventory resolver normalizes them and selects the first usable value.
+	RuntimeCandidates []string
 
 	// ParentResourceID is the CCRID of the immediate stable parent one level
 	// above ResourceID (e.g. the Cloud Run service behind a revision). Empty when

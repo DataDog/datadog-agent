@@ -66,7 +66,8 @@ func (a *AppService) CanCollectInventory() bool {
 
 // GetInventoryData derives the inventory metadata fields for Azure App Service,
 // reusing traceutil.GetAppServicesTags as the single source of truth for the
-// CCRID, subscription id, resource group, and runtime.
+// CCRID, subscription id, and resource group. Runtime is inventory-specific:
+// hosting-stack labels are not evidence of an application runtime.
 //
 // Function apps (FUNCTIONS_WORKER_RUNTIME set) report azure_function; plain web
 // apps report azure_app_service. App Service has no revision-style parent or
@@ -86,7 +87,30 @@ func (a *AppService) GetInventoryData() InventoryData {
 		Region:              os.Getenv(RegionName),
 		AzureSubscriptionID: aasTags[traceutil.AASSubscriptionID],
 		AzureResourceGroup:  aasTags[traceutil.AASResourceGroup],
-		Runtime:             aasTags[traceutil.AASRuntime],
+		RuntimeCandidates: []string{
+			os.Getenv("FUNCTIONS_WORKER_RUNTIME"),
+			appServiceStackRuntime(),
+		},
+	}
+}
+
+func appServiceStackRuntime() string {
+	// Do not infer a language from DOCKER, SITECONTAINERS, or the Agent's OS.
+	switch os.Getenv(WebsiteStack) {
+	case "NODE":
+		return "Node.js"
+	case "PYTHON":
+		return "Python"
+	case "JAVA", "TOMCAT":
+		return "Java"
+	case "DOTNETCORE":
+		return ".NET"
+	case "PHP":
+		return "PHP"
+	case "RUBY":
+		return "Ruby"
+	default:
+		return ""
 	}
 }
 

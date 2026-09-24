@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "inventory",
-    srcs = ["inventory.go"],
+    srcs = [
+        "inventory.go",
+        "runtime.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/inventory",
     visibility = ["//visibility:public"],
     deps = select({
@@ -178,7 +181,10 @@ go_library(
 
 dd_agent_go_test(
     name = "inventory_test",
-    srcs = ["inventory_test.go"],
+    srcs = [
+        "inventory_test.go",
+        "runtime_test.go",
+    ],
     embed = [":inventory"],
     deps = select({
         "@rules_go//go/platform:aix": [

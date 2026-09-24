@@ -122,7 +122,11 @@ func TestInventoryIdentityGate(t *testing.T) {
 
 func TestInventorySerializesMissingValues(t *testing.T) {
 	originalCommit := version.Commit
-	t.Cleanup(func() { version.Commit = originalCommit })
+	originalArgs := os.Args
+	t.Cleanup(func() {
+		version.Commit = originalCommit
+		os.Args = originalArgs
+	})
 	conf := coreconfig.NewMock(t)
 	for _, key := range []string{"serverless.inventory_enabled", "inventories_enabled", "enable_metadata_collection"} {
 		conf.Set(key, true, configmodel.SourceAgentRuntime)
@@ -140,22 +144,37 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 	populatedValues := map[string]string{
 		"parent_resource_id": "test-parent", "region": "test-region", "gcp_project_id": "test-project",
 		"aws_account_id": "123456789012", "azure_subscription_id": "test-subscription", "azure_resource_group": "test-group",
-		"runtime": "python", "agent_commit": "abcdef1",
-		"dd_env": "test-env", "dd_service": "test-service", "dd_version": "test-version", "dd_site": "datadoghq.eu",
+		"agent_commit": "abcdef1",
+		"dd_env":       "test-env", "dd_service": "test-service", "dd_version": "test-version", "dd_site": "datadoghq.eu",
 	}
 	var previousTimestamp int64
 	for _, stage := range []struct {
-		name      string
-		populated bool
+		name        string
+		populated   bool
+		sidecar     bool
+		override    string
+		metadata    []string
+		command     []string
+		wantRuntime interface{}
 	}{
-		{name: "initially missing"},
-		{name: "populated", populated: true},
-		{name: "cleared"},
-		{name: "repopulated", populated: true},
+		{name: "initially missing", sidecar: true},
+		{name: "populated", sidecar: true, populated: true, metadata: []string{"python"}, wantRuntime: "python"},
+		{name: "cleared", sidecar: true},
+		{name: "repopulated", sidecar: true, populated: true, metadata: []string{"python"}, wantRuntime: "python"},
+		{name: "sidecar override wins", sidecar: true, override: " MyCustomRuntime ", metadata: []string{"Java", "Python"}, command: []string{"ruby"}, wantRuntime: "MyCustomRuntime"},
+		{name: "sidecar ignores own command and clears override", sidecar: true, override: " UnKnOwN ", metadata: []string{"Container"}, command: []string{"ruby"}},
+		{name: "sidecar metadata beats command", sidecar: true, metadata: []string{"Ruby"}, command: []string{"node"}, wantRuntime: "Ruby"},
+		{name: "invalid worker falls back to stack", sidecar: true, metadata: []string{" UnKnOwN ", " Python "}, wantRuntime: "Python"},
+		{name: "missing candidates clear runtime", sidecar: true, metadata: []string{"container", "null"}},
+		{name: "invalid override falls back to command", override: " NuLl ", command: []string{"/usr/bin/python3.12", "app.py", "--password=secret"}, wantRuntime: "Python"},
+		{name: "ambiguous command clears detection", metadata: []string{"unknown"}, command: []string{"sh", "-c", "node app.js"}},
+		{name: "blank override and null metadata remain missing", override: " \t", metadata: []string{"null"}, command: []string{"./custom-app"}},
 	} {
 		t.Run(stage.name, func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", stage.override)
+			os.Args = append([]string{"serverless-init"}, stage.command...)
 			service := inventoryTestCloudService{data: cloudservice.InventoryData{
-				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service",
+				ResourceID: "test-resource", ResourceName: "test-app", WorkloadType: "azure_app_service", RuntimeCandidates: stage.metadata,
 			}}
 			var tags map[string]string
 			version.Commit = ""
@@ -167,14 +186,13 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 				service.data.AWSAccountID = populatedValues["aws_account_id"]
 				service.data.AzureSubscriptionID = populatedValues["azure_subscription_id"]
 				service.data.AzureResourceGroup = populatedValues["azure_resource_group"]
-				service.data.Runtime = populatedValues["runtime"]
 				version.Commit = populatedValues["agent_commit"]
 				conf.Set("site", populatedValues["dd_site"], configmodel.SourceAgentRuntime)
 				tags = map[string]string{
 					"env": populatedValues["dd_env"], "service": populatedValues["dd_service"], "version": populatedValues["dd_version"],
 				}
 			}
-			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{SidecarMode: true}, conf, tags)
+			serverlessInitInventory.Inject(provides.Comp, service, mode.Conf{SidecarMode: stage.sidecar}, conf, tags)
 
 			for _, reason := range []string{"startup", "periodic"} {
 				payloadCount := len(serial.payloads)
@@ -206,10 +224,18 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 				assert.Equal(t, service.data.ResourceName, payload.Metadata["resource_name"])
 				assert.Equal(t, service.data.WorkloadType, payload.Metadata["workload_type"])
 				assert.Equal(t, reason, payload.Metadata["report_reason"])
-				assert.Equal(t, "sidecar", payload.Metadata["deployment_model"])
+				assert.Equal(t, stage.wantRuntime, payload.Metadata["runtime"], "missing runtime must be absent or JSON null, including after clearing")
+				assert.NotContains(t, payload.Metadata, "runtime_candidates")
+				if stage.sidecar {
+					assert.Equal(t, "sidecar", payload.Metadata["deployment_model"])
+					assert.NotContains(t, payload.Metadata, "wrapped_command")
+				} else {
+					assert.Equal(t, "in-container", payload.Metadata["deployment_model"])
+					assert.Contains(t, payload.Metadata["wrapped_command"], stage.command[0])
+					assert.NotContains(t, payload.Metadata["wrapped_command"], "secret")
+				}
 				assert.Contains(t, payload.Metadata, "install_method_tool_version")
 				assert.Equal(t, "", payload.Metadata["install_method_tool_version"], "core metadata is not normalized")
-				assert.NotContains(t, payload.Metadata, "wrapped_command")
 				assert.NotContains(t, payload.Metadata, "deployment_id")
 				assert.NotContains(t, payload.Metadata, "tags")
 			}

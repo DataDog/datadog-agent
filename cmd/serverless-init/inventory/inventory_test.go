@@ -44,6 +44,7 @@ type inventoryCloudService struct {
 func (s inventoryCloudService) GetInventoryData() cloudservice.InventoryData { return s.data }
 
 func TestBuildFieldsMissingValues(t *testing.T) {
+	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "", model.SourceAgentRuntime)
 	service := inventoryCloudService{data: cloudservice.InventoryData{
@@ -72,6 +73,7 @@ func TestBuildFieldsMissingValues(t *testing.T) {
 }
 
 func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
+	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
 	conf := configmock.New(t)
 	conf.Set("site", "datadoghq.eu", model.SourceAgentRuntime)
 	service := inventoryCloudService{data: cloudservice.InventoryData{
@@ -84,7 +86,7 @@ func TestBuildFieldsPreservesPopulatedValues(t *testing.T) {
 		AWSAccountID:        "123456789012",
 		AzureSubscriptionID: "test-subscription",
 		AzureResourceGroup:  "test-group",
-		Runtime:             "python",
+		RuntimeCandidates:   []string{"python"},
 	}}
 
 	fields := buildFields(service, mode.Conf{SidecarMode: true}, conf, map[string]string{
@@ -105,9 +107,70 @@ func TestBuildFieldsPreservesNonemptyStrings(t *testing.T) {
 	conf := configmock.New(t)
 	for _, value := range []string{"unknown", "null", " ", " python "} {
 		t.Run(value, func(t *testing.T) {
-			service := inventoryCloudService{data: cloudservice.InventoryData{Runtime: value}}
+			// Generic F5 normalization only changes empty strings. Runtime has its
+			// own F4 semantics; unrelated fields must still preserve these values.
+			service := inventoryCloudService{data: cloudservice.InventoryData{Region: value}}
 			fields := buildFields(service, mode.Conf{SidecarMode: true}, conf, nil)
-			assert.Equal(t, value, fields["runtime"])
+			assert.Equal(t, value, fields["region"])
+		})
+	}
+}
+
+func TestBuildFieldsRuntime(t *testing.T) {
+	originalArgs := os.Args
+	t.Cleanup(func() { os.Args = originalArgs })
+	conf := configmock.New(t)
+
+	for _, tt := range []struct {
+		name     string
+		sidecar  bool
+		args     []string
+		override string
+		metadata string
+		want     interface{}
+	}{
+		{name: "wrapped command", args: []string{"serverless-init", "/usr/bin/python3.12", "app.py"}, want: "Python"},
+		{name: "no args"},
+		{name: "own executable is not workload", args: []string{"node"}},
+		{name: "sidecar ignores command", sidecar: true, args: []string{"serverless-init", "node", "app.js"}},
+		{name: "sidecar metadata", sidecar: true, args: []string{"serverless-init", "node"}, metadata: "Java", want: "Java"},
+		{name: "sidecar override", sidecar: true, args: []string{"serverless-init", "node"}, override: " MyRuntime ", metadata: "Java", want: "MyRuntime"},
+		{name: "sidecar placeholder", sidecar: true, args: []string{"serverless-init", "node"}, metadata: "Container"},
+		{name: "unknown missing", metadata: "unknown"},
+		{name: "null missing", metadata: " NuLl "},
+		{name: "blank missing", metadata: " \t"},
+		{name: "invalid override still detects", override: "null", args: []string{"serverless-init", "ruby"}, want: "Ruby"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", tt.override)
+			os.Args = tt.args
+			service := inventoryCloudService{data: cloudservice.InventoryData{RuntimeCandidates: []string{tt.metadata}}}
+			fields := buildFields(service, mode.Conf{SidecarMode: tt.sidecar}, conf, nil)
+			assert.Contains(t, fields, "runtime", "missing runtime must clear the cached value")
+			assert.Equal(t, tt.want, fields["runtime"])
+		})
+	}
+}
+
+func TestBuildFieldsAppServiceRuntime(t *testing.T) {
+	conf := configmock.New(t)
+	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+	t.Setenv(cloudservice.WebsiteStack, "RUBY")
+	for _, tt := range []struct {
+		worker string
+		want   string
+	}{
+		{worker: "", want: "Ruby"},
+		{worker: " \t", want: "Ruby"},
+		{worker: " UnKnOwN ", want: "Ruby"},
+		{worker: " CONTAINER ", want: "Ruby"},
+		{worker: " NuLl ", want: "Ruby"},
+		{worker: " MyWorker ", want: "MyWorker"},
+	} {
+		t.Run(tt.worker, func(t *testing.T) {
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", tt.worker)
+			fields := buildFields(&cloudservice.AppService{}, mode.Conf{SidecarMode: true}, conf, nil)
+			assert.Equal(t, tt.want, fields["runtime"])
 		})
 	}
 }
