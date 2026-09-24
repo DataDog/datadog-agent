@@ -664,6 +664,15 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 
 	factories = manageResourcesReplacement(c, factories, resources)
 
+	// hpav2Factory (registered above via manageResourcesReplacement) only
+	// runs when autoscaling/v2 isn't served by the cluster. On clusters that
+	// do serve it, the upstream KSM generator handles HPAs directly and
+	// never gets the ownerRef enrichment, so add it here as an always-on
+	// extended collector, mirroring NewExtendedPodFactory.
+	if apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler") {
+		factories = append(factories, customresources.NewExtendedHorizontalPodAutoscalerFactory(c))
+	}
+
 	clients := make(map[string]interface{}, len(factories))
 	for _, f := range factories {
 		client, _ := f.CreateClient(nil)
@@ -725,6 +734,22 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	}
 
 	return factories
+}
+
+// apiResourceAvailable reports whether the given kind is served under the
+// given group/version, per cluster discovery.
+func apiResourceAvailable(resources []*v1.APIResourceList, groupVersion, kind string) bool {
+	for _, resource := range resources {
+		if resource.GroupVersion != groupVersion {
+			continue
+		}
+		for _, apiResource := range resource.APIResources {
+			if apiResource.Kind == kind {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (k *KSMCheck) shouldDropForMetadata(name string) bool {
@@ -1552,6 +1577,13 @@ func labelsMapperOverride(metricName string) map[string]string {
 
 	if strings.HasPrefix(metricName, "kube_service") {
 		return serviceLabelsMapperOverride
+	}
+
+	if strings.HasPrefix(metricName, "kube_horizontalpodautoscaler") {
+		return map[string]string{
+			"ownerref_kind": tags.KubeOwnerRefKind,
+			"ownerref_name": tags.KubeOwnerRefName,
+		}
 	}
 	return nil
 }
