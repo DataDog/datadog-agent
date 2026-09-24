@@ -102,7 +102,7 @@ type serializerConsumer struct {
 	apmReceiverAddr string
 	ipath           ingestionPath
 	hosts           map[string]struct{}
-	tagSets         map[tagSetKey][]string
+	fargateTagSets  map[tagSetKey][]string
 	buildInfo       component.BuildInfo
 	// standalone reports whether otel-agent is running standalone (DD_OTEL_STANDALONE=true),
 	// as opposed to embedded/connected to the core Agent. Only used to gate addRunningMetric.
@@ -217,7 +217,7 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 		for host := range c.hosts {
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
-		for _, tags := range c.tagSets {
+		for _, tags := range c.fargateTagSets {
 			prefix := string(source.AWSECSFargateKind) + ":"
 			idx := slices.IndexFunc(tags, func(t string) bool { return strings.HasPrefix(t, prefix) })
 			if idx == -1 {
@@ -339,17 +339,20 @@ func (c *serializerConsumer) ConsumeHost(host string) {
 
 // ConsumeTagSet implements the metrics.TagSetConsumer interface.
 func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
+	if metricSuffix != "fargate" {
+		return
+	}
 	sorted := slices.Clone(tags)
 	slices.Sort(sorted)
 	dedupKey := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
-	c.tagSets[dedupKey] = sorted
+	c.fargateTagSets[dedupKey] = sorted
 }
 
-// addRunningMetric emits otel.ddot_collector.metrics.running* billing metrics,
-// mirroring otel.datadog_exporter.metrics.running* (emitted for the ossCollector
+// addRunningMetric emits the otel.ddot_collector.metrics.running billing metric,
+// mirroring otel.datadog_exporter.metrics.running (emitted for the ossCollector
 // path by collectorConsumer), but only for the ddot ingestion path while
 // otel-agent is running standalone (DD_OTEL_STANDALONE=true). Connected-mode DDOT
-// and agentOTLPIngest never emit these, since the core/cluster Agent already
+// and agentOTLPIngest never emit this, since the core/cluster Agent already
 // reports its own running state.
 func (c *serializerConsumer) addRunningMetric() {
 	if c.ipath != ddot || !c.standalone {
@@ -361,17 +364,8 @@ func (c *serializerConsumer) addRunningMetric() {
 	for host := range c.hosts {
 		c.series = append(c.series, ddotRunningMetric(host, timestamp, buildTags))
 	}
-
-	// Suppress the hostless fallback emission when every signal seen was already
-	// attributed to a specific workload type via tagSets, to avoid double-counting
-	// a single workload for billing.
-	if len(c.hosts) > 0 && len(c.tagSets) == 0 {
+	if len(c.hosts) > 0 {
 		c.series = append(c.series, ddotRunningMetric("", timestamp, buildTags))
-	}
-
-	for key, tags := range c.tagSets {
-		allTags := append(slices.Clone(buildTags), tags...)
-		c.series = append(c.series, ddotWorkloadRunningMetric(key.metricSuffix, timestamp, allTags))
 	}
 }
 
@@ -383,21 +377,6 @@ func ddotRunningMetric(hostname string, timestamp float64, tags []string) *metri
 		Name:   "otel.ddot_collector.metrics.running",
 		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
 		Host:   hostname,
-		MType:  metrics.APIGaugeType,
-		Tags:   tagset.CompositeTagsFromSlice(tags),
-		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
-	}
-}
-
-// ddotWorkloadRunningMetric creates a built-in metric to report that a
-// workload-specific DDOT collector (e.g. Fargate, Azure Container Apps, Azure
-// App Services) is running. The resulting metric name is
-// "otel.ddot_collector.metrics.running.<metricSuffix>".
-func ddotWorkloadRunningMetric(metricSuffix string, timestamp float64, tags []string) *metrics.Serie {
-	return &metrics.Serie{
-		Name:   "otel.ddot_collector.metrics.running." + metricSuffix,
-		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
-		Host:   "",
 		MType:  metrics.APIGaugeType,
 		Tags:   tagset.CompositeTagsFromSlice(tags),
 		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,

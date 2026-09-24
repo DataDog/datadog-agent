@@ -210,10 +210,10 @@ func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody,
 
 func newTestSerializerConsumer(ipath ingestionPath, standalone bool) *serializerConsumer {
 	return &serializerConsumer{
-		ipath:      ipath,
-		hosts:      make(map[string]struct{}),
-		tagSets:    make(map[tagSetKey][]string),
-		standalone: standalone,
+		ipath:          ipath,
+		hosts:          make(map[string]struct{}),
+		fargateTagSets: make(map[tagSetKey][]string),
+		standalone:     standalone,
 	}
 }
 
@@ -231,7 +231,6 @@ func TestAddRunningMetric_NotDDOTPath(t *testing.T) {
 func TestAddRunningMetric_NotStandalone(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, false)
 	c.ConsumeHost("my-hostname")
-	c.ConsumeTagSet("fargate", []string{"task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"})
 
 	c.addRunningMetric()
 
@@ -244,8 +243,6 @@ func TestAddRunningMetric_HostOnly(t *testing.T) {
 
 	c.addRunningMetric()
 
-	// Host-only case has no tagSets, so both the per-host metric and the
-	// hostless fallback are emitted.
 	require.Len(t, c.series, 2)
 	var hosts []string
 	for _, s := range c.series {
@@ -253,67 +250,6 @@ func TestAddRunningMetric_HostOnly(t *testing.T) {
 		hosts = append(hosts, s.Host)
 	}
 	assert.ElementsMatch(t, []string{"my-hostname", ""}, hosts)
-}
-
-func TestAddRunningMetric_HostAndTagSetSuppressesHostlessFallback(t *testing.T) {
-	c := newTestSerializerConsumer(ddot, true)
-	c.ConsumeHost("my-hostname")
-	c.ConsumeTagSet("fargate", []string{"task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"})
-
-	c.addRunningMetric()
-
-	var names []string
-	var hosts []string
-	for _, s := range c.series {
-		names = append(names, s.Name)
-		hosts = append(hosts, s.Host)
-	}
-	// Only the per-host metric and the per-workload metric should be emitted;
-	// the hostless "otel.ddot_collector.metrics.running" fallback must be suppressed.
-	assert.ElementsMatch(t, []string{"otel.ddot_collector.metrics.running", "otel.ddot_collector.metrics.running.fargate"}, names)
-	assert.Contains(t, hosts, "my-hostname")
-}
-
-func TestAddRunningMetric_WorkloadSuffixes(t *testing.T) {
-	tests := []struct {
-		name         string
-		metricSuffix string
-		tags         []string
-		wantName     string
-	}{
-		{
-			name:         "fargate",
-			metricSuffix: "fargate",
-			tags:         []string{"task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"},
-			wantName:     "otel.ddot_collector.metrics.running.fargate",
-		},
-		{
-			name:         "azurecontainerapps",
-			metricSuffix: "azurecontainerapps",
-			tags:         []string{"replica:replica-1"},
-			wantName:     "otel.ddot_collector.metrics.running.azurecontainerapps",
-		},
-		{
-			name:         "azureappservices",
-			metricSuffix: "azureappservices",
-			tags:         []string{"instance:instance-1"},
-			wantName:     "otel.ddot_collector.metrics.running.azureappservices",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := newTestSerializerConsumer(ddot, true)
-			c.ConsumeTagSet(tt.metricSuffix, tt.tags)
-
-			c.addRunningMetric()
-
-			require.Len(t, c.series, 1)
-			assert.Equal(t, tt.wantName, c.series[0].Name)
-			assert.Equal(t, "", c.series[0].Host)
-			assert.Subset(t, c.series[0].Tags.UnsafeToReadOnlySliceString(), tt.tags)
-		})
-	}
 }
 
 func TestAddRunningMetric_NoSignals(t *testing.T) {
