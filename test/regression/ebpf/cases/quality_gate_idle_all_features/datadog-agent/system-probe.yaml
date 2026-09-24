@@ -71,3 +71,9 @@ ping:
 
 traceroute:
   enabled: true
+
+ebpf:
+  force_no_prealloc_hash:
+    cnm: true
+    usm: true
+    misc: true

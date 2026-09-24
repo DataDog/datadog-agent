@@ -13,3 +13,9 @@ network_config:
 ebpf_check:
   enabled: true
   kernel_bpf_stats: true
+
+ebpf:
+  force_no_prealloc_hash:
+    cnm: true
+    usm: true
+    misc: true
