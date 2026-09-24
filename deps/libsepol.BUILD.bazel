@@ -84,18 +84,19 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = glob(["include/sepol/*.h", "cil/include/cil/*.h"]),
-    prefix = "include/sepol",
+    prefix = "embedded/include/sepol",
 )
 
 pkg_files(
     name = "policy_hdr_files",
     srcs = glob(["include/sepol/policydb/*.h"]),
-    prefix = "include/sepol/policydb",
+    prefix = "embedded/include/sepol/policydb",
 )
 
 dd_cc_packaged(
     name = "sepol_pkg",
     input = ":sepol",
+    dest_dir = "embedded/lib",
     installed_files = [
         ":hdr_files",
         ":policy_hdr_files",
@@ -109,6 +110,5 @@ pkg_filegroup(
         ":hdr_files",
         ":policy_hdr_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
