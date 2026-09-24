@@ -203,9 +203,12 @@ http_archive(
 )
 
 # Upstream Linux kernel syscall tables, used by
-# //pkg/security/utils:utils_syscall_table to (re)generate
-# pkg/security/utils/syscalls.go. Bumping the kernel version requires updating
-# the URLs and sha256 of both files together.
+# //pkg/security/utils:utils_syscall_table and
+# //pkg/security/secl/model:syscall_table to regenerate
+# pkg/security/utils/syscalls.go and
+# pkg/security/secl/model/syscalls_linux_{amd64,arm64}.go.
+# Bumping the kernel version requires updating the URLs and sha256 of both
+# files together.
 http_file(
     name = "linux_v6_13_syscall_64_tbl",
     sha256 = "a25d490b97e98fa2ad7912f229555e1c8f0e5ba70960f508ae4c324b2439aa04",

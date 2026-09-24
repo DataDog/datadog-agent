@@ -300,9 +300,11 @@ func generateStringer(stringerBin, inputPath, outputPath string) error {
 
 	var cmd *exec.Cmd
 	if stringerBin != "" {
-		cmd = exec.Command(stringerBin, "-type", "Syscall", "-tags", "linux", "-output", absOut, tmp)
+		// Use -output= so rules_go's patched stringer rewrites the header to a
+		// basename (it only special-cases the equals form).
+		cmd = exec.Command(stringerBin, "-type", "Syscall", "-tags", "linux", "-output="+absOut, tmp)
 	} else {
-		cmd = exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-tags", "linux", "-output", absOut, tmp)
+		cmd = exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-tags", "linux", "-output="+absOut, tmp)
 	}
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
