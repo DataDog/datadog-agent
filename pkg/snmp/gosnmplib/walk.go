@@ -55,20 +55,20 @@ RequestLoop:
 		}
 
 		response, err := session.GetNext([]string{oid})
-		if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) && (err != nil || response.Error != gosnmp.NoError) {
-			rootIndex++
-			session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
-			oid = rootOIDs[rootIndex]
-			continue
-		}
-		if err != nil {
-			return NewConnectionError(err)
-		}
-		if len(response.Variables) == 0 {
+		if err != nil || response.Error != gosnmp.NoError {
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				continue
+			}
+			if err != nil {
+				return NewConnectionError(err)
+			}
+			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
 			break RequestLoop
 		}
-		if response.Error != gosnmp.NoError {
-			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
+		if len(response.Variables) == 0 {
 			break RequestLoop
 		}
 
