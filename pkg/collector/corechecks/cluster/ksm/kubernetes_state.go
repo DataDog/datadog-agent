@@ -288,6 +288,11 @@ type KSMCheck struct {
 	rolloutTracker             *customresources.RolloutTracker
 	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
 	namespaceTagsErrorLogLimit *log.Limit
+
+	// autoscalerTagsCache holds the kube_autoscaler_kind tags of the workloads
+	// seen during the current run; see autoscalerTags.
+	autoscalerTagsCache         map[kubernetes.WorkloadTarget][]string
+	autoscalerTagsErrorLogLimit *log.Limit
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -808,6 +813,9 @@ func (k *KSMCheck) Run() error {
 
 	defer sender.Commit()
 
+	// Autoscalers change between runs: start each run with an empty cache.
+	k.autoscalerTagsCache = nil
+
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
 	for _, stores := range k.allStores {
 		for _, store := range stores {
@@ -1016,6 +1024,10 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 
 	if isArgoRollout && deploymentName != "" {
 		tagList = append(tagList, tags.KubeArgoRollout+":"+deploymentName)
+	}
+
+	if target, found := seriesWorkloadTarget(labels, resourceNamespace, ownerKind, ownerName, isArgoRollout); found {
+		tagList = append(tagList, k.autoscalerTags(target)...)
 	}
 
 	var namespaceTags []string
@@ -1347,18 +1359,19 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 
 func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Component, wmeta workloadmeta.Component) *KSMCheck {
 	k := &KSMCheck{
-		CheckBase:                  base,
-		agentConfig:                pkgconfigsetup.Datadog(),
-		instance:                   instance,
-		telemetry:                  newTelemetryCache(),
-		tagger:                     tagger,
-		isCLCRunner:                helper.IsCLCRunner(pkgconfigsetup.Datadog()),
-		isRunningOnNodeAgent:       flavor.GetFlavor() != flavor.ClusterAgent && !helper.IsCLCRunner(pkgconfigsetup.Datadog()),
-		metricNamesMapper:          defaultMetricNamesMapper(),
-		metricAggregators:          defaultMetricAggregators(),
-		workloadmetaStore:          wmeta,
-		rolloutTracker:             customresources.NewRolloutTracker(),
-		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
+		CheckBase:                   base,
+		agentConfig:                 pkgconfigsetup.Datadog(),
+		instance:                    instance,
+		telemetry:                   newTelemetryCache(),
+		tagger:                      tagger,
+		isCLCRunner:                 helper.IsCLCRunner(pkgconfigsetup.Datadog()),
+		isRunningOnNodeAgent:        flavor.GetFlavor() != flavor.ClusterAgent && !helper.IsCLCRunner(pkgconfigsetup.Datadog()),
+		metricNamesMapper:           defaultMetricNamesMapper(),
+		metricAggregators:           defaultMetricAggregators(),
+		workloadmetaStore:           wmeta,
+		rolloutTracker:              customresources.NewRolloutTracker(),
+		namespaceTagsErrorLogLimit:  log.NewLogLimit(10, 10*time.Minute),
+		autoscalerTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
 
 		// metadata metrics are useful for label joins
 		// but shouldn't be submitted to Datadog

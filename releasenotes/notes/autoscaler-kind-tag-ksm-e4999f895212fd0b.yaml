@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``kubernetes_state_core`` check now adds the ``kube_autoscaler_kind``
+    tag to its pod, container, Deployment and StatefulSet series, including
+    pods of Argo Rollouts, with the same values as on other metrics of the
+    workload (``hpa``, ``keda``, ``wpa``, ``dpa``, ``vpa``). The check reads them
+    from the Cluster Agent's tagger, so it applies when the check runs in the
+    Cluster Agent, or on cluster check runners with
+    ``clc_runner_remote_tagger_enabled`` (the default). It requires
+    ``cluster_agent.autoscaler_tags.enabled`` on the Cluster Agent.

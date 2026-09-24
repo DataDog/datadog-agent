@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "kubernetes_state.go",
         "kubernetes_state_aggregators.go",
+        "kubernetes_state_autoscalers.go",
         "kubernetes_state_defaults.go",
         "kubernetes_state_label_joins.go",
         "kubernetes_state_telemetry.go",
@@ -59,6 +60,7 @@ dd_agent_go_test(
     name = "ksm_test",
     srcs = [
         "kubernetes_state_aggregators_test.go",
+        "kubernetes_state_autoscalers_test.go",
         "kubernetes_state_label_joins_test.go",
         "kubernetes_state_telemetry_test.go",
         "kubernetes_state_test.go",
@@ -75,6 +77,9 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core/tagger/fx-mock",
+        "//comp/core/tagger/mock",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta/collectors/util",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
         "//pkg/collector/corechecks",
