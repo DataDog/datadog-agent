@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "environments",
@@ -10,6 +10,7 @@ go_library(
         "host.go",
         "host_win.go",
         "kubernetes.go",
+        "kubernetes_readiness.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments",
     visibility = ["//visibility:public"],
@@ -35,5 +36,23 @@ go_library(
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/fields",
+    ],
+)
+
+go_test(
+    name = "environments_test",
+    srcs = ["kubernetes_readiness_test.go"],
+    embed = [":environments"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agent",
+        "//test/e2e-framework/components/kubernetes",
+        "//test/e2e-framework/testing/components",
+        "//test/e2e-framework/testing/utils/e2e/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//kubernetes/fake",
     ],
 )

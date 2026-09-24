@@ -116,63 +116,26 @@ func (suite *k8sSuite) TestZZUpAndRunning() {
 }
 
 func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
-	ctx := suite.T().Context()
-
 	suite.Run("agent pods are ready and not restarting", func() {
-		suite.EventuallyWithTf(func(c *assert.CollectT) {
-			linuxNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.AndSelectors(
-					fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
-					fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
-				).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Linux nodes")
-
-			windowsNodes, err := suite.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Windows nodes")
-
-			linuxPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
-
-			windowsPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list Windows datadog agent pods")
-
-			clusterAgentPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list datadog cluster agent pods")
-
-			clusterChecksPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", suite.Env().Agent.LinuxClusterChecks.LabelSelectors["app"]).String(),
-			})
-			require.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods")
-
-			dogstatsdPods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
-				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
-			})
-			require.NoErrorf(c, err, "Failed to list dogstatsd standalone pods")
-
-			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
-			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
-			assert.NotEmpty(c, clusterAgentPods.Items)
-			assert.NotEmpty(c, clusterChecksPods.Items)
-			assert.Len(c, dogstatsdPods.Items, len(linuxNodes.Items))
-
-			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
-				for _, pod := range podList.Items {
-					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
-						assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
-					}
-				}
-			}
-		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
+		linuxNodeSelector := fields.AndSelectors(
+			fields.OneTermEqualSelector("kubernetes.io/os", "linux"),
+			fields.OneTermNotEqualSelector("eks.amazonaws.com/compute-type", "fargate"),
+		).String()
+		err := suite.Env().WaitForAgentReady(
+			suite.T().Context(),
+			environments.WithLinuxNodeAgentReady(),
+			environments.WithWindowsNodeAgentReady(),
+			environments.WithClusterAgentReady(),
+			environments.WithClusterChecksReady(),
+			environments.WithPodsReadyForNodes(
+				"dogstatsd standalone",
+				"dogstatsd-standalone",
+				fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
+				linuxNodeSelector,
+			),
+			environments.WithAgentReadinessTimeout(waitFor),
+		)
+		suite.Require().NoError(err, "Not all agents eventually became ready in time.")
 	})
 }
 
