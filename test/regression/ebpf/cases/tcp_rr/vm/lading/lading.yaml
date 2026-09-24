@@ -6,6 +6,32 @@ blackhole:
       addr: "0.0.0.0"
       threads: 16
       no_delay: true
+  - datadog:
+      v2:
+        binding_addr: "127.0.0.1:9091"
+      # lading defaults this policy to `disabled`: without it payloads are
+      # decoded and counted but no series reach the capture file. `all` would
+      # re-emit every agent series with every tag, inflating the capture, so the
+      # ebpf check's series are named explicitly. They land under
+      # `capture.target.ebpf.*`; the policy matches the unprefixed name.
+      record:
+        series_to_keep:
+          - ebpf.maps.entry_count
+          - ebpf.maps.max_entries
+          - ebpf.maps.memory_max
+          - ebpf.maps.memory_max_permodule_total
+          - ebpf.maps.memory_max_total
+          - ebpf.maps.memory_rss
+          - ebpf.maps.memory_rss_permodule_total
+          - ebpf.maps.memory_rss_total
+          - ebpf.programs.memory_rss
+          - ebpf.programs.memory_rss_permodule_total
+          - ebpf.programs.memory_rss_total
+          - ebpf.programs.recursion_misses
+          - ebpf.programs.run_count
+          - ebpf.programs.runtime_ns
+          - ebpf.programs.verified_instruction_count
+          - ebpf.programs.xlated_instruction_len
 
 target_metrics:
   - prometheus: # system-probe telemetry
