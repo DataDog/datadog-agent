@@ -652,7 +652,11 @@ func (c *collector) resolveCDIToGPUs(deviceCache ddnvml.DeviceCache, cdiName str
 			break
 		}
 	}
-	log.Debugf("DRA: claim %s device %s: %d device nodes (%s)", claimUID, deviceKey, len(nodes), mapCDIHint(migEntry))
+	deviceType := "whole-card"
+	if migEntry {
+		deviceType = "MIG"
+	}
+	log.Debugf("DRA: claim %s device %s: %d device nodes (%s)", claimUID, deviceKey, len(nodes), deviceType)
 
 	var uuids []string
 	var capMinors []int
@@ -717,15 +721,6 @@ func isMIGCapabilityDevice(path string) bool {
 	return strings.HasPrefix(path, "/dev/nvidia-caps/nvidia-cap")
 }
 
-// mapCDIHint is a one-word description of the CDI entry's device type,
-// used in the resolution trace log.
-func mapCDIHint(isMIG bool) string {
-	if isMIG {
-		return "MIG"
-	}
-	return "whole-card"
-}
-
 // cdiDeviceKey returns the part of a CDI device name after "claim=", which is
 // both the "<uid>-<device>" key the spec file uses for its device entries and
 // the string cdiClaimUID reads the UID out of.
@@ -759,36 +754,6 @@ func cdiClaimUID(deviceKey string) string {
 		return ""
 	}
 	return uid
-}
-
-// deviceEntryCount counts the number of device entries in a CDI spec by
-// tallying the top-level "containerEdits" keys: each device in the
-// "devices" list carries exactly one. It bounds the nameless fallback: a
-// multi-device spec whose names the scanner could not recognize must not
-// have all its nodes attributed to a single container.
-func deviceEntryCount(lines []string) int {
-	count := 0
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		// Device entries are indented under the "devices" list; the
-		// "containerEdits" key at the device level is also indented.
-		// Distinguishing device-level from top-level requires counting
-		// list-item markers ("- path:") that begin a device's node list.
-		if strings.HasPrefix(trimmed, "deviceNodes:") {
-			count++
-		}
-	}
-	return count
-}
-
-// exactKeyInSpec reports whether the device key appears as a standalone
-// entry in the raw CDI spec text — either as a mapping key ("<key>:"), or as
-// a value at end of line ("<key>\n"). A plain substring match is not enough:
-// "<uid>-gpu-1" would match inside "<uid>-gpu-10", returning the wrong
-// device's nodes for a stale allocation.
-func exactKeyInSpec(data []byte, deviceKey string) bool {
-	return strings.Contains(string(data), deviceKey+":") ||
-		strings.Contains(string(data), deviceKey+"\n")
 }
 
 // cdiDeviceNode is one device node pinned by a CDI spec.
@@ -839,13 +804,14 @@ func cdiDeviceNodes(claimUID, deviceKey string) ([]cdiDeviceNode, error) {
 		return nil, err
 	}
 
-	if nodes, ok := parseCDISpec(data, deviceKey); ok {
-		return nodes, nil
+	nodes, ok := parseCDISpec(data, deviceKey)
+	if !ok {
+		if logLimiter.ShouldLog() {
+			log.Warnf("DRA: could not read device %q out of the CDI spec for claim %s (unsupported format or entry not found); not attributing", deviceKey, claimUID)
+		}
+		return nil, nil
 	}
-	if logLimiter.ShouldLog() {
-		log.Debugf("DRA: could not read device %q out of the CDI spec for claim %s; falling back to scanning the file", deviceKey, claimUID)
-	}
-	return scanCDISpec(data, deviceKey), nil
+	return nodes, nil
 }
 
 // parseCDISpec returns the nvidia device nodes of one device entry. It reports
@@ -879,7 +845,6 @@ func parseCDISpec(data []byte, deviceKey string) ([]cdiDeviceNode, bool) {
 	return nil, false
 }
 
-// scanCDISpec is the fallback described on cdiDeviceNodes: it collects device
 // nodes by reading lines, attributing each to the most recent sequence entry
 // named "name".
 //
@@ -889,98 +854,6 @@ func parseCDISpec(data []byte, deviceKey string) ([]cdiDeviceNode, bool) {
 // back every device would tag this container with GPUs belonging to its
 // siblings, and a wrong pod tag is worse than a missing one -- it is invisible
 // downstream, where a missing one shows up as untagged.
-func scanCDISpec(data []byte, deviceKey string) []cdiDeviceNode {
-	lines := strings.Split(string(data), "\n")
-	byDevice := map[string][]cdiDeviceNode{}
-	var all []cdiDeviceNode
-	current := ""
-
-	for i, line := range lines {
-		key, value, isItem, ok := yamlKeyValue(line)
-		if !ok {
-			continue
-		}
-		// Device entries are sequence items ("- name: <uid>-gpu-0"); requiring
-		// the item marker keeps a "name" key nested elsewhere in the document
-		// from re-scoping the nodes that follow it.
-		if isItem && key == "name" {
-			current = value
-			continue
-		}
-		if key != "path" || !strings.Contains(value, "/dev/nvidia") {
-			continue
-		}
-
-		node := cdiDeviceNode{path: value, minor: -1}
-		// The minor belongs to this entry, so scan until the next entry starts
-		// rather than for a fixed number of lines: a device node carries an
-		// optional "type" field, and a fixed window silently loses the minor
-		// whenever the driver emits one more key than the window allows.
-		for j := i + 1; j < len(lines); j++ {
-			k, v, nextIsItem, ok := yamlKeyValue(lines[j])
-			if !ok {
-				continue
-			}
-			if nextIsItem || k == "path" {
-				break // next entry; this one has no minor
-			}
-			if k == "minor" {
-				if n, err := strconv.Atoi(v); err == nil {
-					node.minor = n
-				}
-				break
-			}
-		}
-
-		all = append(all, node)
-		if current != "" {
-			byDevice[current] = append(byDevice[current], node)
-		}
-	}
-
-	if nodes, found := byDevice[deviceKey]; found {
-		return nodes
-	}
-	// The scanner could not map device names to entries (a driver can place
-	// "name" after "containerEdits"). For a single-device spec, the fallback
-	// returns all nodes, but only when the requested key appears somewhere in
-	// the raw text: without that check, a stale allocation for device
-	// "<uid>-gpu-1" would read a spec written for "<uid>-gpu-0" and receive
-	// that device's nodes.
-	if len(byDevice) == 0 && len(all) > 0 && deviceEntryCount(lines) <= 1 {
-		if exactKeyInSpec(data, deviceKey) {
-			return all
-		}
-	}
-	// The spec either has explicit device names that did not match ours, or
-	// multiple devices we could not tell apart, or a single unnamed device
-	// whose key does not appear in the text. Fail closed: returning nodes
-	// the container did not request would tag it with another container's
-	// GPUs.
-	if len(byDevice) > 0 || deviceEntryCount(lines) > 1 || (len(byDevice) == 0 && len(all) > 0) {
-		log.Warnf("DRA: CDI spec describes %d devices but none matched %q; not attributing, because returning all of them would tag this container with another container's GPUs", max(len(byDevice), deviceEntryCount(lines)), deviceKey)
-	}
-	return nil
-}
-
-// yamlKeyValue splits one line of a CDI spec into its key and value, stripping
-// the list-item marker that prefixes the first key of a sequence entry
-// ("- path: /dev/nvidia0") and reporting whether it was present. Matching the
-// key exactly, rather than looking for "path:" anywhere in the line, is what
-// keeps "hostPath:" -- which every device node also carries -- from being read
-// as a second device.
-func yamlKeyValue(line string) (key, value string, isItem, ok bool) {
-	trimmed := strings.TrimSpace(line)
-	if after, found := strings.CutPrefix(trimmed, "- "); found {
-		isItem = true
-		trimmed = strings.TrimSpace(after)
-	}
-	key, value, found := strings.Cut(trimmed, ":")
-	if !found {
-		return "", "", false, false
-	}
-	return key, strings.Trim(strings.TrimSpace(value), `"'`), isItem, true
-}
 
 // physicalDeviceMinor returns the minor number for a /dev/nvidiaN device node
 // path -- N is the minor, not NVML's enumeration index. Capability devices

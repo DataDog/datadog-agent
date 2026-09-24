@@ -883,49 +883,6 @@ containerEdits:
 		}, nodes)
 	})
 
-	t.Run("a document the struct does not fit falls back to the scan", func(t *testing.T) {
-		// devices as a mapping rather than a sequence: unmarshalling fails, but
-		// the path/minor lines are still readable. The fallback exists so that
-		// a driver emitting an unexpected shape degrades to the behaviour
-		// verified on hardware instead of losing attribution outright.
-		writeCDISpec(t, uid, `cdiVersion: 0.5.0
-kind: k8s.gpu.nvidia.com/claim
-devices:
-  # A device mapping the struct does not fit; the device key still appears
-  # in the text (a real CDI spec always names its devices somewhere).
-  c8593c85-440d-4156-b199-aea592ff83df-gpu-0-mig-1g18gb-19-0:
-    containerEdits:
-      deviceNodes:
-      - path: /dev/nvidia-caps/nvidia-cap102
-        minor: 102
-`)
-
-		nodes, err := cdiDeviceNodes(uid, uid+"-gpu-0-mig-1g18gb-19-0")
-		require.NoError(t, err)
-		require.Equal(t, []cdiDeviceNode{
-			{path: "/dev/nvidia-caps/nvidia-cap102", minor: 102},
-		}, nodes)
-	})
-
-	t.Run("an entry with no nvidia device node falls back rather than reporting none", func(t *testing.T) {
-		// An empty result would silently drop the container's attribution, so
-		// it is treated as "this struct did not fit" instead.
-		writeCDISpec(t, uid, `cdiVersion: 0.5.0
-kind: k8s.gpu.nvidia.com/claim
-devices:
-- name: `+uid+`-gpu-0
-  containerEdits:
-    env:
-    - FOO=bar
-containerEdits:
-  deviceNodes:
-  - path: /dev/nvidia0
-`)
-
-		nodes, err := cdiDeviceNodes(uid, uid+"-gpu-0")
-		require.NoError(t, err)
-		require.Equal(t, []cdiDeviceNode{{path: "/dev/nvidia0", minor: -1}}, nodes)
-	})
 }
 
 func TestIsMIGCapabilityDevice(t *testing.T) {
