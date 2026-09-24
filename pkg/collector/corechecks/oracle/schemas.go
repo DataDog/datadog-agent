@@ -95,8 +95,6 @@ SELECT
 	NVL(t.cluster_name, '-') AS cluster_name,
 	NVL(t.clustering, 'NO') AS clustering,
 	NVL(t.read_only, 'NO') AS read_only,
-	t.num_rows,
-	t.last_analyzed,
 	'-' AS object_type_owner,
 	'-' AS object_type,
 	CAST(NULL AS NUMBER) AS total_tables,
@@ -139,8 +137,6 @@ SELECT
 	NVL(t.cluster_name, '-') AS cluster_name,
 	'NO' AS clustering,
 	'NO' AS read_only,
-	t.num_rows,
-	t.last_analyzed,
 	NVL(t.table_type_owner, '-') AS object_type_owner,
 	NVL(t.table_type, '-') AS object_type,
 	CAST(NULL AS NUMBER) AS total_tables,
@@ -175,9 +171,6 @@ FROM cdb_blockchain_tables WHERE /*RELATIONS*/`
 const immutableTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
 	table_inactivity_retention
 FROM cdb_immutable_tables WHERE /*RELATIONS*/`
-
-const tabModificationsQuery = `SELECT con_id, table_owner, table_name, inserts, updates, deletes, truncated, timestamp
-FROM cdb_tab_modifications WHERE partition_name IS NULL AND /*RELATIONS*/`
 
 const partTablesQuery = `SELECT pt.con_id, pt.owner, pt.table_name, pt.partitioning_type,
 	pt.subpartitioning_type, pt.partition_count, pkc.column_name
@@ -277,8 +270,6 @@ SELECT
 	'-' AS cluster_name,
 	'NO' AS clustering,
 	'NO' AS read_only,
-	CAST(NULL AS NUMBER) AS num_rows,
-	CAST(NULL AS DATE) AS last_analyzed,
 	c.column_name,
 	c.column_id,
 	c.virtual_column,
@@ -401,8 +392,6 @@ type schemaRowDB struct {
 	ClusterName      string         `db:"CLUSTER_NAME"`
 	Clustering       string         `db:"CLUSTERING"`
 	ReadOnly         string         `db:"READ_ONLY"`
-	NumRows          sql.NullInt64  `db:"NUM_ROWS"`
-	LastAnalyzed     sql.NullTime   `db:"LAST_ANALYZED"`
 	ObjectTypeOwner  string         `db:"OBJECT_TYPE_OWNER"`
 	ObjectType       string         `db:"OBJECT_TYPE"`
 	TotalTables      sql.NullInt64  `db:"TOTAL_TABLES"`
@@ -452,14 +441,6 @@ type retentionDetail struct {
 	InactivityRetentionDays *int64 `json:"inactivity_retention_days,omitempty"`
 	HashAlgorithm           string `json:"hash_algorithm,omitempty"`
 	TableVersion            string `json:"table_version,omitempty"`
-}
-
-type modificationsDetail struct {
-	Inserts      int64  `json:"inserts"`
-	Updates      int64  `json:"updates"`
-	Deletes      int64  `json:"deletes"`
-	Truncated    bool   `json:"truncated"`
-	LastModified string `json:"last_modified,omitempty"`
 }
 
 type indexKeyPart struct {
@@ -514,7 +495,6 @@ type tableDetails struct {
 	Constraints    []*constraintInfo
 	External       *externalDetail
 	Mview          *mviewDetail
-	Modifications  *modificationsDetail
 	Temporary      *temporaryDetail
 	Partitioned    *partitionDetail
 	Blockchain     *retentionDetail
@@ -522,26 +502,22 @@ type tableDetails struct {
 }
 
 type schemaTable struct {
-	ID            string               `json:"id,omitempty"`
-	Name          string               `json:"name"`
-	Owner         string               `json:"owner"`
-	TableType     string               `json:"table_type"`
-	Properties    []string             `json:"table_properties,omitempty"`
-	Temporary     *temporaryDetail     `json:"temporary_details,omitempty"`
-	Partitioned   *partitionDetail     `json:"partitioned_details,omitempty"`
-	Blockchain    *retentionDetail     `json:"blockchain_details,omitempty"`
-	Immutable     *retentionDetail     `json:"immutable_details,omitempty"`
-	Modifications *modificationsDetail `json:"modifications_details,omitempty"`
-	ObjectType    *objectTypeDetail    `json:"object_type_details,omitempty"`
-	RowCount      *int64               `json:"row_count_estimate,omitempty"`
-	NumRows       *int64               `json:"num_rows,omitempty"`
-	LastAnalyzed  string               `json:"last_analyzed,omitempty"`
-	Comment       string               `json:"comment,omitempty"`
-	External      *externalDetail      `json:"external_details,omitempty"`
-	Mview         *mviewDetail         `json:"materialized_view_details,omitempty"`
-	Indexes       []*indexInfo         `json:"indexes,omitempty"`
-	Constraints   []*constraintInfo    `json:"constraints,omitempty"`
-	Columns       []schemaColumn       `json:"columns"`
+	ID          string            `json:"id,omitempty"`
+	Name        string            `json:"name"`
+	Owner       string            `json:"owner"`
+	TableType   string            `json:"table_type"`
+	Properties  []string          `json:"table_properties,omitempty"`
+	Temporary   *temporaryDetail  `json:"temporary_details,omitempty"`
+	Partitioned *partitionDetail  `json:"partitioned_details,omitempty"`
+	Blockchain  *retentionDetail  `json:"blockchain_details,omitempty"`
+	Immutable   *retentionDetail  `json:"immutable_details,omitempty"`
+	ObjectType  *objectTypeDetail `json:"object_type_details,omitempty"`
+	Comment     string            `json:"comment,omitempty"`
+	External    *externalDetail   `json:"external_details,omitempty"`
+	Mview       *mviewDetail      `json:"materialized_view_details,omitempty"`
+	Indexes     []*indexInfo      `json:"indexes,omitempty"`
+	Constraints []*constraintInfo `json:"constraints,omitempty"`
+	Columns     []schemaColumn    `json:"columns"`
 }
 
 type schemaObject struct {
@@ -860,36 +836,10 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		if r.Temporary == "Y" {
 			t.Temporary = &temporaryDetail{Scope: r.Duration}
 		}
-		if r.NumRows.Valid {
-			n := r.NumRows.Int64
-			t.NumRows = &n
-		}
-		if r.LastAnalyzed.Valid {
-			t.LastAnalyzed = r.LastAnalyzed.Time.UTC().Format(time.RFC3339)
-		}
 		if r.ObjectType != "" && r.ObjectType != "-" {
 			t.ObjectType = &objectTypeDetail{TypeName: r.ObjectType}
 			if r.ObjectTypeOwner != "" && r.ObjectTypeOwner != "-" {
 				t.ObjectType.TypeOwner = r.ObjectTypeOwner
-			}
-		}
-		if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil || r.NumRows.Valid {
-			// Modification counters are deltas since the NUM_ROWS estimate was gathered.
-			var estimate int64
-			known := false
-			if r.NumRows.Valid {
-				estimate = r.NumRows.Int64
-				known = true
-			}
-			if d != nil && d.Modifications != nil {
-				estimate += d.Modifications.Inserts - d.Modifications.Deletes
-				known = true
-			}
-			if known {
-				if estimate < 0 {
-					estimate = 0
-				}
-				t.RowCount = &estimate
 			}
 		}
 		if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
@@ -909,7 +859,6 @@ func (s *schemaCollector) add(r schemaRowDB) {
 			t.Partitioned = d.Partitioned
 			t.Blockchain = d.Blockchain
 			t.Immutable = d.Immutable
-			t.Modifications = d.Modifications
 			if d.Blockchain != nil {
 				t.Properties = append(t.Properties, "blockchain")
 			}
@@ -1401,30 +1350,6 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 
 	c.queryDetails(ctx, "blockchain", blockchainTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
 	c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(false))
-
-	c.queryDetails(ctx, "modifications", tabModificationsQuery, allowed, relationColumnNames{conID: "con_id", owner: "table_owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
-		var (
-			conID                     int64
-			owner, table              string
-			inserts, updates, deletes sql.NullInt64
-			truncated                 sql.NullString
-			ts                        sql.NullTime
-		)
-		if err := rows.Scan(&conID, &owner, &table, &inserts, &updates, &deletes, &truncated, &ts); err != nil {
-			return err
-		}
-		d := &modificationsDetail{
-			Inserts:   inserts.Int64,
-			Updates:   updates.Int64,
-			Deletes:   deletes.Int64,
-			Truncated: truncated.String == "YES",
-		}
-		if ts.Valid {
-			d.LastModified = ts.Time.UTC().Format(time.RFC3339)
-		}
-		at(conID, owner, table).Modifications = d
-		return nil
-	})
 
 	c.queryDetails(ctx, "materialized views", mviewsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "mview_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
