@@ -573,8 +573,12 @@ func (k *KSMCheck) buildStores() error {
 
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 	// Equivalent to configuring --metric-annotations-allowlist.
+	// cr.collectors carries the resolved store keys: DRA names from the
+	// config (e.g. "devicetaintrules") are already expanded to their full
+	// GVR form there, while the local collectors slice still has the short
+	// names — the KSM builder validates these keys against store names.
 	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
+	for _, collector := range cr.collectors {
 		// Any annotation can be used for label joins.
 		allowedAnnotations[collector] = []string{"*"}
 	}
@@ -584,7 +588,7 @@ func (k *KSMCheck) buildStores() error {
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
 	allowedLabels := map[string][]string{}
-	for _, collector := range collectors {
+	for _, collector := range cr.collectors {
 		// Any label can be used for label joins.
 		allowedLabels[collector] = []string{"*"}
 	}
