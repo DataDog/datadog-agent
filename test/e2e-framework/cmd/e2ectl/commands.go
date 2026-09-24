@@ -186,7 +186,29 @@ func cmdInstall(args []string) error {
 	entry.Meta.AgentVersion = summary.Version
 	entry.Meta.AgentArtifactID = summary.ID
 	entry.Meta.AgentImage = summary.Image
-	return store.UpdateMeta(entry)
+	if err := store.UpdateMeta(entry); err != nil {
+		return err
+	}
+	// A success line worth reading after the tool noise: what is running,
+	// where it sends, and the next command.
+	fmt.Printf("agent installed in %q (", *name)
+	switch {
+	case summary.Image != "":
+		fmt.Printf("image %s", summary.Image)
+	case summary.Version != "":
+		fmt.Printf("version %s", summary.Version)
+	default:
+		fmt.Print("binary from checkout")
+	}
+	if cfg.Agent.Receiver != nil {
+		fmt.Printf(", receiver %s", cfg.Agent.Receiver.Type)
+	}
+	if entry.Meta.FakeIntakeURL != "" {
+		fmt.Printf(", fakeintake %s", entry.Meta.FakeIntakeURL)
+	}
+	fmt.Println(")")
+	fmt.Printf("verify with: e2ectl list %s | e2ectl fakeintake health -env %s\n", *name, *name)
+	return nil
 }
 
 func cmdUpdate(args []string) error {

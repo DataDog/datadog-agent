@@ -49,6 +49,19 @@ func TestE2ectlKubernetesSuiteOnLocalKind(t *testing.T) {
 	))
 }
 
+// TestE2ectlKubernetesSuiteOnEKS runs the SAME suite against an EKS base
+// environment — the demo of attach-mode portability: one test body,
+// any Kubernetes base (`e2ectl test -env <eks-env> --suite ./test/new-e2e/examples/`
+// selects this entry by default on an eks environment).
+func TestE2ectlKubernetesSuiteOnEKS(t *testing.T) {
+	envName := e2ectlenv.RequireEnv(t)
+	e2ectlenv.RequireSnapshot(t, envName)
+	t.Parallel()
+	e2e.Run(t, &e2ectlKubernetesSuite{}, e2e.WithProvisioner(
+		e2ectlenv.Attach[environments.Kubernetes](envName),
+	))
+}
+
 // TestAgentRunning is the minimal end-to-end signal: the agent installed in
 // the environment is alive and its metrics reach the receiver (fakeintake by
 // default). Everything beyond this — workload metrics, filtering, logs — is
