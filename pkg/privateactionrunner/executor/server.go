@@ -8,6 +8,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,10 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -42,8 +47,10 @@ type actionExecutor interface {
 type Server struct {
 	pb.UnimplementedExecutorServer
 
-	executor actionExecutor
-	version  string
+	executor      actionExecutor
+	version       string
+	controlConfig *pb.GetControlPlaneConfigResponse
+	controlCert   []byte
 
 	ready  atomic.Bool
 	active atomic.Int32
@@ -64,6 +71,30 @@ func NewServer(executor actionExecutor, version string) *Server {
 	return s
 }
 
+func (s *Server) SetControlPlaneConfig(config *pb.GetControlPlaneConfigResponse, certificate []byte) {
+	s.controlConfig = config
+	s.controlCert = bytes.Clone(certificate)
+}
+
+func (s *Server) GetControlPlaneConfig(ctx context.Context, _ *pb.GetControlPlaneConfigRequest) (*pb.GetControlPlaneConfigResponse, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "IPC client certificate required")
+	}
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok || len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.PeerCertificates) == 0 {
+		return nil, status.Error(codes.Unauthenticated, "verified IPC client certificate required")
+	}
+	if len(s.controlCert) == 0 || !bytes.Equal(tlsInfo.State.PeerCertificates[0].Raw, s.controlCert) {
+		return nil, status.Error(codes.PermissionDenied, "shared IPC certificate required")
+	}
+	if s.controlConfig == nil {
+		return nil, status.Error(codes.Unavailable, "control configuration is not ready")
+	}
+	s.touch()
+	return s.controlConfig, nil
+}
+
 func (s *Server) touch() {
 	s.lastActivity.Store(s.clock.Now().UnixNano())
 }
@@ -79,7 +110,7 @@ func (s *Server) finishActivity() {
 }
 
 func (s *Server) idleFor() time.Duration {
-	if !s.ready.Load() || s.busy.Load() > 0 {
+	if s.busy.Load() > 0 {
 		return 0
 	}
 	return s.clock.Since(time.Unix(0, s.lastActivity.Load()))

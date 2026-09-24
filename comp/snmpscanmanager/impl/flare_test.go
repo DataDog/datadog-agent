@@ -7,6 +7,7 @@ package snmpscanmanagerimpl
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -20,6 +21,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -102,6 +104,27 @@ func TestFillFlare(t *testing.T) {
 	flareBuilderMock.AssertFileExists(filePath)
 	flareBuilderMock.AssertFileContentMatch(
 		`{"device_ip":"10\.0\.0\.1","scan_status":"success","scan_end_ts":".+?","failures":0}`,
+		filePath)
+}
+
+func TestFillFlare_FailedScan(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("run_path", t.TempDir())
+
+	scanManager := &snmpScanManagerImpl{
+		log:         logmock.New(t),
+		deviceScans: make(deviceScansByIP),
+	}
+	scanManager.onDeviceScanFailure(
+		snmpscanmanager.ScanRequest{DeviceIP: "10.0.0.1"},
+		errors.New("scan failed: request timed out"), false)
+
+	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
+	require.NoError(t, scanManager.fillFlare(context.Background(), flareBuilderMock))
+
+	filePath := filepath.Join(flareDirName, flareFileName)
+	flareBuilderMock.AssertFileContentMatch(
+		`{"device_ip":"10\.0\.0\.1","scan_status":"failed","scan_end_ts":".+?","failures":-1,"error":"scan failed: request timed out"}`,
 		filePath)
 }
 

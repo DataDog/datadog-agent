@@ -57,7 +57,8 @@ pkg_filegroup(
         ":everything",
         ":license_files",
     ],
-    prefix = "/opt/datadog-agent",
+    package_variables = ":variables",
+    prefix = "$(install_dir)",
 )
 
 pkg_tar(

@@ -54,6 +54,8 @@ func TestSecurityProfile(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		// this exercises the v1 activity dump manager, which is inactive under security profile v2
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
@@ -69,7 +71,7 @@ func TestSecurityProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -232,6 +234,7 @@ func TestAnomalyDetection(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -252,7 +255,7 @@ func TestAnomalyDetection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -432,6 +435,7 @@ func TestAnomalyDetectionVariables(t *testing.T) {
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -452,7 +456,7 @@ func TestAnomalyDetectionVariables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -532,6 +536,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -553,7 +558,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	err = test.StopAllActivityDumps()
 	if err != nil {
@@ -694,6 +699,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -714,7 +720,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -879,6 +885,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -900,7 +907,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerInstance, dump, err := test.StartADockerGetDump()
 	if err != nil {
@@ -993,6 +1000,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1014,7 +1022,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1169,6 +1177,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1190,7 +1199,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1343,6 +1352,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	fakeManualResolver := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		enableActivityDump:                         true,
 		activityDumpRateLimiter:                    200,
 		activityDumpTracedCgroupsCount:             10,
@@ -1365,7 +1375,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1534,6 +1544,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1556,7 +1567,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1714,6 +1725,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1736,7 +1748,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -1894,6 +1906,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1916,7 +1929,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -2070,6 +2083,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -2090,7 +2104,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerInstance1, dump, err := test.StartADockerGetDump()
 	if err != nil {
@@ -2276,6 +2290,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		activityDumpSyscallMonitorPeriod:           3 * time.Second,
 		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
 		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
@@ -2288,7 +2303,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -2400,6 +2415,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		activityDumpSyscallMonitorPeriod:           3 * time.Second,
 		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
 		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
@@ -2412,7 +2428,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -2522,6 +2538,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		activityDumpSyscallMonitorPeriod:           3 * time.Second,
 		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
 		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
@@ -2534,7 +2551,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -2606,6 +2623,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      100,
@@ -2624,7 +2642,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -2735,6 +2753,7 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          100,
@@ -2758,7 +2777,7 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -2855,6 +2874,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          100,
@@ -2877,7 +2897,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -3012,6 +3032,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
@@ -3031,7 +3052,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

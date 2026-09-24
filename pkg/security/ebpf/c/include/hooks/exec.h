@@ -350,6 +350,9 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     // delete netns entry
     bpf_map_delete_elem(&netns_cache, &pid);
 
+    // every thread has its own capability context, not just the group leader
+    cleanup_capabilities_context(pid);
+
     u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread

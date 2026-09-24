@@ -266,6 +266,13 @@ type ContainerAllocatedResource struct {
 
 	// ID is the unique ID of that resource. The format will depend on the resource provider
 	ID string `json:"id,omitempty"`
+
+	// PoolName is the DRA pool the device was allocated from (DRA only).
+	PoolName string `json:"poolName,omitempty"`
+
+	// CdiDevices are the fully-qualified CDI device names for the allocated
+	// resource (DRA only), e.g. "k8s.gpu.nvidia.com/claim=<uid>-gpu-0".
+	CdiDevices []string `json:"cdiDevices,omitempty"`
 }
 
 // IsPending returns if the container doesn't have an ID

@@ -138,10 +138,8 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 //	anomaly_detection.detectors.<name>.enabled        (bool)
 //	anomaly_detection.detectors.<name>.<field>        (type-specific)
 //
-// Enabled keys must be registered in pkg/config/setup/config.go.
-// Component-specific keys are read via the AgentConfigurable interface —
-// config structs that implement it will have their fields populated
-// automatically.
+// Keys are declared in pkg/config/schema/yaml/. Component-specific fields
+// are populated by each catalog entry's readConfig callback.
 func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) ComponentSettings {
 	var settings ComponentSettings
 	if cfg == nil {
@@ -406,12 +404,14 @@ func NewComponent(deps Requires) (Provides, error) {
 		logsfilter.WarnInvalidMinSeverity("anomaly_detection.logs.internal.min_severity", minSeverity)
 		logsfilter.WarnRateLimitDiscrepancies("anomaly_detection.logs.internal", maxRateLow, maxRateMedium, maxRateHigh)
 		agentLogsHandle := obs.GetHandle("agent_logs")
-		installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
+		agentLogTap := installAgentLogTap(agentLogsHandle, minSeverity, maxRateHigh, maxRateMedium, maxRateLow, func(priority string) {
 			obsTelemetry.recordInputRateLimiterDropped("internal", priority)
+		}, func(count uint64) {
+			obsTelemetry.recordObservationsDropped("logs", "internal", count)
 		}, logsRules)
 		deps.Lifecycle.Append(compdef.Hook{
 			OnStop: func(_ context.Context) error {
-				pkglog.SetLogObserver(nil)
+				agentLogTap.stop()
 				return nil
 			},
 		})
