@@ -18,10 +18,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,23 +32,35 @@ import (
 
 // Server implements security agent API server
 type Server struct {
-	listener       net.Listener
-	agent          *agent.Agent
-	tlsConfig      *tls.Config
-	authMiddleware func(http.Handler) http.Handler
+	listener            net.Listener
+	agent               *agent.Agent
+	tlsConfig           *tls.Config
+	authMiddleware      func(http.Handler) http.Handler
+	telemetryMiddleware func(http.Handler) http.Handler
 }
 
 // NewServer creates a new Server instance
-func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component, secrets secrets.Component) (*Server, error) {
+func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component, secrets secrets.Component, telemetryComp telemetry.Component) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
+
+	// Instrument the API server with the same request telemetry as the core agent,
+	// tagging requests with the authentication mode (mTLS vs token) used by clients.
+	var telemetryMiddleware func(http.Handler) http.Handler
+	if authTagGetter, err := observability.AuthTagGetter(ipc.GetTLSServerConfig()); err != nil {
+		log.Warnf("Unable to build the API telemetry auth tag getter: %v", err)
+	} else {
+		telemetryMiddleware = observability.NewTelemetryMiddlewareFactory(telemetryComp, authTagGetter).Middleware("security_api")
+	}
+
 	return &Server{
-		listener:       listener,
-		agent:          agent.NewAgent(statusComponent, settings, wmeta, secrets),
-		tlsConfig:      ipc.GetTLSServerConfig(),
-		authMiddleware: ipc.HTTPMiddleware,
+		listener:            listener,
+		agent:               agent.NewAgent(statusComponent, settings, wmeta, secrets),
+		tlsConfig:           ipc.GetTLSServerConfig(),
+		authMiddleware:      ipc.HTTPMiddleware,
+		telemetryMiddleware: telemetryMiddleware,
 	}, nil
 }
 
@@ -62,6 +76,10 @@ func (s *Server) Start() error {
 
 	// Validate token for every request
 	r := s.authMiddleware(mux)
+	// Instrument requests with the telemetry middleware (mTLS vs token auth tag)
+	if s.telemetryMiddleware != nil {
+		r = s.telemetryMiddleware(r)
+	}
 
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := pkglogsetup.NewLogWriter(4, log.ErrorLvl)
