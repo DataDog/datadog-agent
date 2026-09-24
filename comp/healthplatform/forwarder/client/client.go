@@ -1,0 +1,99 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package client provides the stateless Agent Health HTTP sender.
+package client
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+const (
+	intakeEndpointPrefix = "https://agenthealth-intake."
+	intakeEndpointPath   = "/api/v2/agenthealth"
+	httpTimeout          = 30 * time.Second
+)
+
+// Client sends reports without owning a scheduler or lifecycle.
+type Client struct {
+	cfg        pkgconfigmodel.Reader
+	intakeURL  string
+	httpClient *http.Client
+}
+
+// New uses the Agent's endpoint, proxy and TLS settings.
+func New(cfg pkgconfigmodel.Reader) *Client {
+	return &Client{
+		cfg:        cfg,
+		intakeURL:  buildIntakeURL(cfg),
+		httpClient: buildHTTPClient(cfg),
+	}
+}
+
+// Send marshals report and POSTs it to the Datadog intake. It returns the
+// number of payload bytes sent on success, or 0 alongside a non-nil error.
+func (f *Client) Send(ctx context.Context, report *healthplatform.HealthReport) (int, error) {
+	apiKey := f.cfg.GetString("api_key")
+	if apiKey == "" {
+		return 0, errors.New("API key not configured")
+	}
+
+	payload, err := json.Marshal(report)
+	if err != nil {
+		return 0, fmt.Errorf("marshal report: %w", err)
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, f.intakeURL, bytes.NewReader(payload))
+	if err != nil {
+		return 0, fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("DD-API-KEY", apiKey)
+	req.Header.Set("DD-Agent-Version", version.AgentVersion)
+	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
+
+	resp, err := f.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return len(payload), nil
+}
+
+func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
+	baseURL := configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
+	return baseURL + intakeEndpointPath
+}
+
+func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {
+	return &http.Client{
+		Timeout:   httpTimeout,
+		Transport: httputils.CreateHTTPTransport(cfg),
+		// Go does not strip DD-API-KEY on redirects, including cross-host ones.
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
+}

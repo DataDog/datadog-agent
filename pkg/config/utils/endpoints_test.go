@@ -16,6 +16,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetMainEndpointUsesReaderFQDN(t *testing.T) {
+	for _, tc := range []struct {
+		global, private bool
+		site, want      string
+	}{
+		{true, false, "datadoghq.eu", "https://app.datadoghq.eu"},
+		{false, true, "datadoghq.eu", "https://app.datadoghq.eu."},
+		{true, false, "", "https://app.datadoghq.com"},
+		{false, true, "", "https://app.datadoghq.com."},
+	} {
+		t.Run(fmt.Sprintf("private=%t/site=%s", tc.private, tc.site), func(t *testing.T) {
+			global := mock.New(t)
+			global.Set("convert_dd_site_fqdn.enabled", tc.global, pkgconfigmodel.SourceAgentRuntime)
+			private := mock.NewSystemProbe(t) // Independent of the Datadog global configuration.
+			private.Set("convert_dd_site_fqdn.enabled", tc.private, pkgconfigmodel.SourceAgentRuntime)
+			private.Set("site", tc.site, pkgconfigmodel.SourceAgentRuntime)
+			private.Set("dd_url", "", pkgconfigmodel.SourceAgentRuntime)
+			require.Equal(t, tc.want, GetMainEndpoint(private, "https://app.", "dd_url"))
+		})
+	}
+}
+
 // TestSecretBackendWithMultipleEndpoints tests an edge case of the config's AllSettings() when a
 // config key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.

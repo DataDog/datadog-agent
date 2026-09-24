@@ -22,6 +22,7 @@ go_library(
         "dependent_services_windows.go",
         "metriclookback.go",
         "metriclookback_nopython.go",
+        "startup.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run",
     visibility = ["//visibility:public"],
@@ -31,6 +32,7 @@ go_library(
         "//cmd/agent/common/misconfig",
         "//cmd/agent/common/signals",
         "//cmd/agent/subcommands/run/internal/clcrunnerapi",
+        "//cmd/agent/subcommands/run/internal/lite",
         "//cmd/agent/subcommands/run/internal/settings",
         "//comp/agent",
         "//comp/agent/autoexit/def",
@@ -308,10 +310,12 @@ dd_agent_go_test(
     srcs = [
         "command_test.go",
         "command_windows_test.go",
+        "startup_test.go",
     ],
     embed = [":run"],
     deps = [
         "//cmd/agent/command",
+        "//cmd/agent/subcommands/run/internal/lite",
         "//comp/core",
         "//comp/core/pid/impl",
         "//pkg/util/fxutil",

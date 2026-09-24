@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    When the Agent fails before startup completes, Lite Mode makes a bounded,
+    best-effort attempt to report an Agent Startup Failure issue to Agent Health.
+    Reporting honors explicit disablement and uses recoverable credentials and
+    transport settings. The original startup error and exit behavior are preserved.
+    Lite Mode does not repair configuration, persist recovery state, or send
+    resolved reports.

@@ -1,5 +1,20 @@
 # Health Platform — Developer Guide
 
+## Lite Mode startup reporting
+
+Before startup succeeds, the run command can report one **Agent Startup Failure**
+issue using an independent reporting configuration and the shared Health HTTP
+client. Recovery is conservative: ambiguous credentials or transport settings
+stop reporting, and `health_platform.enabled: false` (including its environment
+override) disables it. The attempt has a ten-second budget and rejects redirects.
+
+Normal startup and the original error remain authoritative. Lite Mode does not
+repair configuration, keep recovery state, send resolved reports, or report
+shutdown errors after startup succeeds. Repeated failures use the same
+hostname/configuration-path issue ID. Backend expiry remains unverified until
+target-organization staging checks prove that the customer-visible issue expires;
+there is no Agent-side expiry or production timing guarantee.
+
 ## Issue identity fields
 
 Every health issue has four identity fields. Follow these rules when adding a new issue module.

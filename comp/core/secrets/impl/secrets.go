@@ -81,9 +81,11 @@ type secretContext struct {
 type handleToContext map[string][]secretContext
 
 type secretResolver struct {
-	lock  sync.Mutex
-	cache map[string]string
-	clk   clock.Clock
+	lock           sync.Mutex
+	cache          map[string]string
+	clk            clock.Clock
+	oneShotContext context.Context
+	quiet          bool
 
 	// list of handles and where they were found
 	origin handleToContext
@@ -166,6 +168,28 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 // metrics are not needed (e.g. for one-shot config resolution before FX starts).
 func NewEnabledResolver(t telemetry.Component) secrets.Component {
 	return newEnabledSecretResolver(t)
+}
+
+// NewOneShotResolver uses the real backend with a shared execution budget and
+// without logging backend input, output, errors or handles. Callers must leave
+// refresh settings disabled and discard the resolver after the attempt.
+func NewOneShotResolver(ctx context.Context, t telemetry.Component) secrets.Component {
+	r := newEnabledSecretResolver(t)
+	r.oneShotContext = ctx
+	r.quiet = true
+	return r
+}
+
+func (r *secretResolver) debugf(format string, args ...interface{}) {
+	if !r.quiet {
+		log.DebugfStackDepth(2, format, args...)
+	}
+}
+
+func (r *secretResolver) warnf(format string, args ...interface{}) {
+	if !r.quiet {
+		_ = log.WarnfStackDepth(2, format, args...)
+	}
 }
 
 // NewComponent returns the implementation for the secrets component
@@ -501,7 +525,7 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 		if r.scopeIntegrationToNamespace && kubeNamespace != secretNamespace {
 			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' from k8s namespace '%s' can't access secrets from other namespaces as per 'secret_scope_integration_to_their_k8s_namespace'",
 				handle, origin, imageName, kubeNamespace)
-			log.Warnf("secret not resolved: %s", msg)
+			r.warnf("secret not resolved: %s", msg)
 			r.unresolvedSecrets[msg] = struct{}{}
 			return false
 		}
@@ -509,7 +533,7 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 		if len(r.allowedNamespace) != 0 && !slices.Contains(r.allowedNamespace, secretNamespace) {
 			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' from k8s namespace '%s' can't access secrets from namespace '%s' as per 'secret_allowed_k8s_namespace'",
 				handle, origin, imageName, kubeNamespace, secretNamespace)
-			log.Warnf("secret not resolved: %s", msg)
+			r.warnf("secret not resolved: %s", msg)
 			r.unresolvedSecrets[msg] = struct{}{}
 			return false
 		}
@@ -519,7 +543,7 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 		if allowedSecrets, found := r.imageToHandle[imageName]; !found || !slices.Contains(allowedSecrets, handle) {
 			msg := fmt.Sprintf("'%s' from integration '%s': image '%s' can't access it as per 'secret_image_to_handle'",
 				handle, origin, imageName)
-			log.Warnf("secret not resolved: %s", msg)
+			r.warnf("secret not resolved: %s", msg)
 			r.unresolvedSecrets[msg] = struct{}{}
 			return false
 		}
@@ -529,6 +553,9 @@ func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imag
 }
 
 func (r *secretResolver) registerError(origin string, err error) {
+	if r.quiet {
+		return
+	}
 	// Unwrap per-handle errors from errors.Join so each appears as its own
 	// bullet in the 'agent secret' status output.
 	type multiErr interface{ Unwrap() []error }
@@ -583,7 +610,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 
 				// Check if we already know this secret
 				if secretValue, ok := r.cache[handle]; ok {
-					log.Debugf("Secret '%s' was retrieved from cache", handle)
+					r.debugf("Secret '%s' was retrieved from cache", handle)
 
 					if notify {
 						for _, sub := range r.subscriptions {
@@ -635,7 +662,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 				}
 
 				if secretValue, ok := secretResponse[handle]; ok {
-					log.Debugf("Secret '%s' was successfully resolved", handle)
+					r.debugf("Secret '%s' was successfully resolved", handle)
 					return secretValue, nil
 				}
 
@@ -742,7 +769,7 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 			continue
 		}
 
-		log.Debugf("Secret %s has changed", handle)
+		r.debugf("Secret %s has changed", handle)
 
 		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {
