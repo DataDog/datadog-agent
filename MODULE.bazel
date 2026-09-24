@@ -96,6 +96,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
+bazel_dep(name = "with_cfg.bzl", version = "1.0.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
