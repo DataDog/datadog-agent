@@ -65,18 +65,21 @@ func TestWriteDogstatsdContextsCoalescesConcurrentDumps(t *testing.T) {
 	}()
 	<-dumpStarted
 
-	finalPath := filepath.Join(endpoint.runPath, "dogstatsd_contexts.json.zstd")
-	secondResultCh := endpoint.dumpGroup.DoChan(finalPath, func() (any, error) {
-		return endpoint.writeDogstatsdContextsFile(finalPath)
-	})
+	secondCallStarted := make(chan struct{})
+	secondResultCh := make(chan result, 1)
+	go func() {
+		close(secondCallStarted)
+		path, err := endpoint.writeDogstatsdContexts()
+		secondResultCh <- result{path: path, err: err}
+	}()
+	<-secondCallStarted
 	close(releaseDump)
 
 	firstResult := <-firstResultCh
 	secondResult := <-secondResultCh
 	require.NoError(t, firstResult.err)
-	require.NoError(t, secondResult.Err)
-	require.True(t, secondResult.Shared)
-	require.Equal(t, firstResult.path, secondResult.Val)
+	require.NoError(t, secondResult.err)
+	require.Equal(t, firstResult.path, secondResult.path)
 	require.Equal(t, int32(1), dumpCalls.Load())
 }
 
@@ -131,7 +134,7 @@ func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 	decoder.Close()
 	require.JSONEq(t, `{"name":"new dump"}`, string(decompressed))
 
-	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, "dogstatsd_contexts-*.tmp"))
 	require.NoError(t, err)
 	require.Empty(t, tempFiles)
 }
@@ -158,7 +161,7 @@ func TestWriteDogstatsdContextsFailurePreservesExistingDump(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("previous dump"), contents)
 
-	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, "dogstatsd_contexts-*.tmp"))
 	require.NoError(t, err)
 	require.Empty(t, tempFiles)
 }
