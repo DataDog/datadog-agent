@@ -1,10 +1,34 @@
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
-package(default_visibility = ["//visibility:public"])
-
-# Wrapper used as the `tool` of a run_binary() that has to execute a
-# Windows-only generator from a non-Windows host. See //:wine.
+# Runs a Windows x86_64 executable under a pinned Wine: `wine_run <path/to/exe> [args...]`.
+# As the `tool` of a run_binary it resolves for the exec platform.
 sh_binary(
     name = "wine_run",
     srcs = ["wine_run.sh"],
+    data = select({
+        "//:linux_arm64": [
+            "@box64_linux_aarch64//:etc/box64.box64rc",
+            "@box64_linux_aarch64//:usr/bin/box64",
+            "@libgcc_s_linux_x86_64//:usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+            "@wine_linux_x86_64//:runtime",
+        ],
+        "//:linux_x86_64": ["@wine_linux_x86_64//:runtime"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = select({
+        "//:linux_arm64": [],
+        "//:linux_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    visibility = ["//visibility:public"],
+    deps = ["@rules_shell//shell/runfiles"],
+)
+
+sh_test(
+    name = "wine_run_test",
+    srcs = ["wine_run_test.sh"],
+    data = [":wine_run"],
+    env = {"WINE_RUN": "$(rlocationpath :wine_run)"},
+    deps = ["@rules_shell//shell/runfiles"],
 )
