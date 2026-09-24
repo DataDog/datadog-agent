@@ -33,7 +33,10 @@ nvlink_generations:
     supported_fields:
       - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
   6: # NVLink 4.0
-    supported_fields: []
+    supported_fields:
+      - FI_DEV_NVLINK_ERROR_DL_REPLAY
+      - FI_DEV_NVLINK_ERROR_DL_RECOVERY
+      - FI_DEV_NVLINK_ERROR_DL_CRC
   7: # NVLink 5.0
     supported_fields:
       - FI_DEV_NVLINK_GET_SPEED
@@ -177,7 +180,8 @@ architectures:
             - FI_DEV_GET_GPU_RECOVERY_ACTION
     support:
       - device_modes: [physical]
-        unsupported_fields: []
+        unsupported_fields:
+          - FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_TOTAL
       - device_modes: [mig]
         capabilities:
           nvlink: 0

@@ -64,6 +64,17 @@ properties:
     - DD_PROCESS_AGENT_CMD_PORT
     visibility: public
     description: Port for configuring runtime settings for the process Agent.
+  log_level:
+    node_type: setting
+    type: string
+    default: ''
+    env_vars:
+    - DD_PROCESS_CONFIG_LOG_LEVEL
+    - DD_PROCESS_AGENT_LOG_LEVEL
+    visibility: public
+    description: |-
+      Overrides the global `log_level` for the process Agent only.
+      Leave empty to use the global `log_level`.
   log_file:
     node_type: setting
     type: string

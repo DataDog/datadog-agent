@@ -16,6 +16,8 @@ import (
 const (
 	// CSMDummyInterface is the Dummy interface name used by the IMDS tests
 	CSMDummyInterface = "dummy_csm"
+	// CSMPodIdentityDummyInterface is the Dummy interface name used by the EKS Pod Identity tests
+	CSMPodIdentityDummyInterface = "dummy_csm_pi"
 )
 
 // CreateDummyInterface creates a dummy interface and attaches it to the provided IP

@@ -21,8 +21,12 @@ import (
 )
 
 const (
-	injectOCIPath = "/opt/datadog-packages/datadog-apm-inject"
-	injectDebPath = "/opt/datadog/apm"
+	injectOCIPath                 = "/opt/datadog-packages/datadog-apm-inject"
+	injectDebPath                 = "/opt/datadog/apm"
+	appArmorBaseProfile           = "/etc/apparmor.d/abstractions/base"
+	appArmorBaseDInjectorProfile  = "/etc/apparmor.d/abstractions/base.d/datadog"
+	appArmorLegacyInjectorProfile = "/etc/apparmor.d/abstractions/datadog.d/injector"
+	appArmorLegacyInclude         = "include if exists <abstractions/datadog.d>"
 	// injectTmpfsLauncher is the launcher entry written to /etc/ld.so.preload
 	// for OCI host instrumentation on systemd hosts: a symlink on tmpfs that
 	// auto-vanishes on reboot. See apminject.defaultTmpfsInjectDir.
@@ -79,8 +83,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
 	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
-		state.AssertDirExists("/etc/apparmor.d/abstractions/datadog.d", 0755, "root", "root")
-		state.AssertFileExists("/etc/apparmor.d/abstractions/datadog.d/injector", 0644, "root", "root")
+		s.assertAppArmorProfile()
 	}
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
@@ -107,7 +110,8 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	state := s.host.State()
 	state.AssertPathDoesNotExist("/usr/bin/dd-host-install")
 	state.AssertPathDoesNotExist("/usr/bin/dd-container-install")
-	state.AssertPathDoesNotExist("/etc/apparmor.d/abstractions/datadog.d/injector")
+	state.AssertPathDoesNotExist(appArmorLegacyInjectorProfile)
+	state.AssertPathDoesNotExist(appArmorBaseDInjectorProfile)
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
@@ -469,19 +473,40 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 
 func (s *packageApmInjectSuite) TestAppArmor() {
 	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 {
+		s.T().Skip("AppArmor abstraction test only applies to Debian-based hosts")
+	}
+	if output, err := s.Env().RemoteHost.Execute("sudo aa-enabled"); err != nil || !strings.Contains(output, "Yes") {
 		s.T().Skip("AppArmor not installed by default")
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	baseBefore, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	supportsBaseD := appArmorBaseSupportsDropIns(string(baseBefore))
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 	)
 	defer s.Purge()
 	s.assertAppArmorProfile()
+	baseAfter, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	if supportsBaseD {
+		assert.Equal(s.T(), baseBefore, baseAfter, "base.d hosts must leave the package-owned base profile unchanged")
+	} else {
+		assert.Equal(s.T(), string(baseBefore)+"\n"+appArmorLegacyInclude, string(baseAfter))
+	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
 	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
 	assert.Contains(s.T(), res, "not injecting")
+
+	s.Purge()
+	baseAfterPurge, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), baseBefore, baseAfterPurge)
+	state := s.host.State()
+	state.AssertPathDoesNotExist(appArmorLegacyInjectorProfile)
+	state.AssertPathDoesNotExist(appArmorBaseDInjectorProfile)
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
@@ -613,12 +638,29 @@ func (s *packageApmInjectSuite) assertDockerdNotInstrumented() {
 }
 
 func (s *packageApmInjectSuite) assertAppArmorProfile() {
-	content, err := s.host.ReadFile("/etc/apparmor.d/abstractions/datadog.d/injector")
+	base, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	profilePath := appArmorLegacyInjectorProfile
+	if appArmorBaseSupportsDropIns(string(base)) {
+		profilePath = appArmorBaseDInjectorProfile
+	}
+	content, err := s.host.ReadFile(profilePath)
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), string(content), `/opt/datadog-packages/** rix,
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`)
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+}
+
+func appArmorBaseSupportsDropIns(profile string) bool {
+	for _, line := range strings.Split(profile, "\n") {
+		switch strings.TrimSpace(line) {
+		case "#include <abstractions/base.d>", "include <abstractions/base.d>",
+			"include if exists <abstractions/base.d>":
+			return true
+		}
+	}
+	return false
 }
 
 // TestSystemdService verifies that on a host with systemd, the datadog-apm-inject.service

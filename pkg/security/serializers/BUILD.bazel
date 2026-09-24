@@ -142,7 +142,10 @@ go_library(
 # them via AddGoComments when running as a Bazel run_binary tool.
 filegroup(
     name = "serializers_sources",
-    srcs = glob(["*.go"]),
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ),
     visibility = [
         "//docs/cloud-workload-security:__pkg__",
         "//pkg/security/generators/backend_doc:__pkg__",

@@ -766,12 +766,13 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = [":gcrypt_h"],
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "gcrypt_pkg",
     input = ":gcrypt",
+    dest_dir = "embedded/lib",
     version = "20.7.2",
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
@@ -782,7 +783,6 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
     visibility = [
         "@@//deps/openscap:__pkg__",
         "@@//packages:__subpackages__",

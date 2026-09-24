@@ -53,6 +53,27 @@ Real examples to copy from:
 - `test/new-e2e/tests/installer/host/host.go` — the mirrored-with-upstream-fallback pair, for when you need both forms
 ///
 
+### The Agent's own image
+
+You do not have to do anything for the images the framework itself deploys — the Agent, the
+Cluster Agent, the DDOT collector, the Operator, standalone dogstatsd and the fakeintake.
+When a test targets a pipeline they come from `agent-qa`; otherwise they come from
+`e.DatadogPublicRegistry()`, which resolves per cloud:
+
+| Cloud | Resolves to | Leaves the account? |
+|---|---|---|
+| AWS | `669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog/…` | no, it is the pull-through cache |
+| GCP, Azure, local | `gcr.io/datadoghq/…` | yes — no cache exists there |
+
+Use that accessor rather than naming a registry, the same way you would use
+`InternalDockerhubMirror()` for a third-party image. Two exceptions are deliberate and
+commented in the code:
+
+- **Fargate** pins `public.ecr.aws`. The ECS control plane pulls the image as part of the
+  service definition, so there is no host to authenticate against the cache on.
+- **The unstable `agent-dev` images** behind the FIPS and OTel variants are only published
+  to DockerHub, so they resolve through `InternalDockerhubMirror()` instead.
+
 ### Kubernetes and Kind
 
 Two different pulls happen, with two different defaults:

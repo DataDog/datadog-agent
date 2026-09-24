@@ -4249,6 +4249,41 @@ func TestHandleContainerImage(t *testing.T) {
 	}
 }
 
+func TestExtractGPUMIGProfileTag(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		deviceType workloadmeta.GPUDeviceType
+		profile    string
+		want       string
+	}{
+		{name: "plain", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.35gb", want: "1g.35gb"},
+		{name: "media extension", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+me", want: "1g.24gb_me"},
+		// Must stay distinct from "+me": the two are different profiles on the
+		// same card.
+		{name: "media engines excluded", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb-me", want: "1g.24gb-me"},
+		{name: "all media engines", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+me.all", want: "1g.24gb_me.all"},
+		{name: "graphics", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1g.24gb+gfx", want: "1g.24gb_gfx"},
+		{name: "case normalization", deviceType: workloadmeta.GPUDeviceTypeMIG, profile: "1G.35GB+ME", want: "1g.35gb_me"},
+		{name: "MIG instance with unresolved profile", deviceType: workloadmeta.GPUDeviceTypeMIG, want: "unknown"},
+		// Physical cards, MIG parents included, still carry the tag so a
+		// group-by never has an untagged bucket.
+		{name: "physical device", deviceType: workloadmeta.GPUDeviceTypePhysical, want: "none"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tagList := taglist.NewTagList()
+			ExtractGPUTags(&workloadmeta.GPU{DeviceType: tt.deviceType, MIGProfile: tt.profile}, tagList)
+			low, _, _, _ := tagList.Compute()
+			var profileTags []string
+			for _, tag := range low {
+				if strings.HasPrefix(tag, tags.GPUMIGProfile+":") {
+					profileTags = append(profileTags, tag)
+				}
+			}
+			require.Equal(t, []string{tags.GPUMIGProfile + ":" + tt.want}, profileTags)
+		})
+	}
+}
+
 func TestHandleGPU(t *testing.T) {
 	entityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindGPU,
@@ -4289,6 +4324,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_nvlink_version:3.0",
@@ -4328,6 +4364,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_type:v100",
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
+						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
 						"gpu_nvlink_version:not_nvlink_capable",
@@ -4352,6 +4389,7 @@ func TestHandleGPU(t *testing.T) {
 				GPUType:            "a100",
 				DriverVersion:      "525.60.13",
 				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				MIGProfile:         "3g.20gb",
 				ParentGPUUUID:      "GPU-1234",
 				VirtualizationMode: "none",
 				Architecture:       "ampere",
@@ -4368,6 +4406,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_architecture:ampere",
 						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
 						"gpu_driver_version:525.60.13",
+						"gpu_mig_profile:3g.20gb",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig",
 						"gpu_type:a100",
@@ -4416,6 +4455,7 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_driver_version:525.60.13",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_slicing_mode:mig-parent",
+						"gpu_mig_profile:none",
 						"gpu_type:a100",
 						"gpu_uuid:gpu-1234",
 						"gpu_pci_bus_id:0000:00:1e.0",
@@ -5471,6 +5511,7 @@ func TestHandleProcess(t *testing.T) {
 					"gpu_virtualization_mode:" + gpuVirtMode,
 					"gpu_pci_bus_id:0000:00:1e.0",
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},
@@ -5515,6 +5556,7 @@ func TestHandleProcess(t *testing.T) {
 					"service:" + serviceNameFromDD,
 					"version:" + versionFromDD,
 					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_mig_profile:none",
 					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
 				},
 				OrchestratorCardTags: []string{},

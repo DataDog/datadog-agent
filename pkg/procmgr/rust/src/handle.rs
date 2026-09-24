@@ -11,11 +11,7 @@ use crate::platform::{
 use anyhow::Result;
 use std::process::ExitStatus;
 
-#[cfg(windows)]
-use anyhow::Context;
 #[cfg(not(windows))]
-use tokio::process::Child;
-#[cfg(windows)]
 use tokio::process::Child;
 
 #[cfg(windows)]
@@ -120,15 +116,6 @@ impl ProcessHandle {
     #[cfg(not(windows))]
     pub(crate) fn from_child(child: Child) -> Self {
         Self { child }
-    }
-
-    #[cfg(windows)]
-    pub(crate) fn from_tokio_child(child: Child) -> Result<Self> {
-        let pid = child.id().context("spawned child has no pid")?;
-        let raw = child
-            .raw_handle()
-            .context("spawned child has no process handle")? as HANDLE;
-        Self::from_borrowed(pid, raw)
     }
 
     #[cfg(windows)]

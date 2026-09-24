@@ -114,8 +114,11 @@ func (s *containerBenchmarksSuite) TestDeterminism() {
 // fakeintake provisioner redirects compliance_config.endpoints, and findings ride the logs
 // pipeline, so a --report run lands them in fakeintake.
 func (s *containerBenchmarksSuite) TestReporting() {
-	cmd := securityAgent + " compliance check --report 2>/dev/null"
-	s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName, "sh", "-c", cmd)
+	// Bound reporting when fakeintake is unreachable and preserve stderr for diagnosis.
+	output, err := s.Env().Docker.Client.ExecuteCommandWithErr(s.Env().Agent.ContainerName,
+		"timeout", "--kill-after=10s", "2m", securityAgent, "compliance", "check", "--report")
+	require.NoErrorf(s.T(), err,
+		"compliance reporting failed (2m deadline, forced kill after another 10s); check container-to-fakeintake connectivity; output: %s", output)
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		findings, err := s.Env().FakeIntake.Client().GetComplianceFindings()
 		require.NoError(c, err)

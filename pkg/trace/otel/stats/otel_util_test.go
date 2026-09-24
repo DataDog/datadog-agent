@@ -309,7 +309,7 @@ func TestProcessOTLPTraces(t *testing.T) {
 				agentEnv,
 				agentHost,
 				"span-service",
-				"span-op",
+				"span_op",
 				"span-type",
 				"server",
 				"span-res",

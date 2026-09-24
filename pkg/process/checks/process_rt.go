@@ -166,11 +166,30 @@ func calculateRate(cur, prev uint64, before time.Time) float32 {
 	return float32(cur-prev) / float32(diff)
 }
 
+func pidsForRealtimeSystemProbeStats(pids []int32, stats map[int32]*procutil.Stats) []int32 {
+	filtered := make([]int32, 0, len(pids))
+	for _, pid := range pids {
+		stat, ok := stats[pid]
+		if ok && stat != nil && !stat.IsZombie() {
+			filtered = append(filtered, pid)
+		}
+	}
+	return filtered
+}
+
 // mergeStatWithSysprobeStats takes a process by PID map and fill the stats from system probe into the processes in the map
 func mergeStatWithSysprobeStats(pids []int32, stats map[int32]*procutil.Stats, client *http.Client) {
+	pids = pidsForRealtimeSystemProbeStats(pids, stats)
+	if len(pids) == 0 {
+		return
+	}
+
 	pStats, err := net.GetProcStats(client, pids)
 	if err == nil {
 		for pid, stats := range stats {
+			if stats.IsZombie() {
+				continue
+			}
 			if s, ok := pStats.StatsByPID[pid]; ok {
 				stats.OpenFdCount = s.OpenFDCount
 				stats.IOStat.ReadCount = s.ReadCount

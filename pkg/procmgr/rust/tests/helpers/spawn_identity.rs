@@ -10,6 +10,16 @@ pub fn expected_agent_spawn_user() -> String {
     agent_spawn_user_oracle().unwrap_or_else(|| "unknown".to_string())
 }
 
+/// Intended spawn user for list/describe, keyed by process name and platform profile.
+pub fn expected_spawn_user_for_process(process_name: &str) -> String {
+    if cfg!(windows) && process_name == "datadog-agent-process" {
+        // Matches PRIVILEGED_INTENDED_USER in platform/windows/spawn/credential.rs.
+        r"NT AUTHORITY\SYSTEM".to_string()
+    } else {
+        expected_agent_spawn_user()
+    }
+}
+
 pub fn expected_runtime_user_for_pid(pid: u32) -> String {
     runtime_user_oracle(pid).unwrap_or_default()
 }
@@ -183,6 +193,7 @@ fn lookup_token_account(token: windows_sys::Win32::Foundation::HANDLE) -> Option
 #[cfg(windows)]
 fn lookup_account_display(sid: &mut [u8]) -> Option<String> {
     use std::ptr;
+    use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
     use windows_sys::Win32::Security::LookupAccountSidW;
 
     unsafe {
@@ -190,7 +201,8 @@ fn lookup_account_display(sid: &mut [u8]) -> Option<String> {
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
-        let _ = LookupAccountSidW(
+        // Call with empty name and domain to retrieve their sizes and allocate them once.
+        if LookupAccountSidW(
             ptr::null(),
             sid_ptr,
             ptr::null_mut(),
@@ -198,7 +210,13 @@ fn lookup_account_display(sid: &mut [u8]) -> Option<String> {
             ptr::null_mut(),
             &mut domain_size,
             &mut sid_type,
-        );
+        ) == 0
+        {
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                return None;
+            }
+        }
 
         let mut name = vec![0u16; name_size as usize];
         let mut domain = vec![0u16; domain_size as usize];

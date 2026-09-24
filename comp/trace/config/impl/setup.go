@@ -253,6 +253,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
 
+	// Traces/stats sibling of apm_config.profiling_send_to_main_endpoint: when
+	// false, the trace and stats writers skip the main endpoint and only send to
+	// additional_endpoints. Endpoints[0] is kept so APIKey() is unchanged.
+	// SkipMainEndpoint is the inverse of the config key so the Go zero value
+	// keeps sending to the main endpoint.
+	if !core.GetBool("apm_config.traces_send_to_main_endpoint") {
+		c.SkipMainEndpoint = true
+	}
+
 	if core.IsConfigured("proxy.no_proxy") {
 		proxyList := core.GetStringSlice("proxy.no_proxy")
 		noProxy := make(map[string]bool, len(proxyList))
@@ -899,6 +908,11 @@ func splitTagRegex(tag string) *config.TagRegex {
 func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 || c.Endpoints[0].APIKey == "" {
 		return config.ErrMissingAPIKey
+	}
+	// Fail closed: skipping the main endpoint must never leave the trace and
+	// stats writers without a destination.
+	if c.SkipMainEndpoint && !c.HasWriterDestination() {
+		return config.ErrNoWriterEndpoint
 	}
 	if c.DDAgentBin == "" {
 		return errors.New("agent binary path not set")

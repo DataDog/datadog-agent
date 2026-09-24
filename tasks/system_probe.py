@@ -962,8 +962,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
 
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
-    "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
-    "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
 _BAZEL_RUNTIME_FLAT_TARGETS = [
@@ -993,7 +993,7 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
 
 _NON_EBPF_TARGETS = frozenset(
     [
-        "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",
+        "//pkg/ebpf/kernelbugs:detect-seccomp-bug",
     ]
 )
 
@@ -1189,7 +1189,7 @@ def build_object_files(
 
     # Verify all committed cgo godefs files are up to date.
     # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel("test", *arch_flags, "//pkg/ebpf:verify_generated_files")
+    bazel("test", *arch_flags, "--build_tests_only", "//pkg/ebpf:verify_generated_files")
 
     validate_object_file_metadata(ctx, build_dir, verbose=False)
 
@@ -1277,7 +1277,7 @@ def build_cws_object_files(
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
     bazel_build_ebpf(ctx, arch_obj, str(build_dir), str(runtime_dir))
-    bazel("test", *arch_flags, "//pkg/ebpf:verify_generated_files")
+    bazel("test", *arch_flags, "--build_tests_only", "//pkg/ebpf:verify_generated_files")
 
     if with_unit_test:
         targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys())

@@ -15,10 +15,22 @@ import (
 
 // team: container-integrations
 
+const AnnotationActionID = "helmactions.datadoghq.com/helm-action-id"
+
 // Component is the component type.
 type Component interface {
 	// OnRollback is called when Job successfully scheduled
-	OnRollback(in *RollbackInputs, job *batchv1.Job)
+	OnRollback(in *RollbackInputs, meta TaskMeta, job *batchv1.Job)
+}
+
+// TaskMeta carries task-lifecycle metadata that is not part of a rollback's
+// wire-format inputs — the handler fills it in from task.Data.ID /
+// task.Data.Attributes.OrgId after ExtractInputs decodes the payload, so the
+// Job watcher can later report completion back to EVP against the
+// originating task, long after the handler's Run() has returned.
+type TaskMeta struct {
+	ActionID string
+	OrgID    int64
 }
 
 // RollbackInputs describes a single `helm rollback` invocation.
@@ -45,9 +57,12 @@ type RollbackInputs struct {
 	// Leave empty to inherit helm's default.
 	Driver string `json:"driver,omitempty"`
 	// BackoffLimit overrides the Job's spec.backoffLimit. When nil, defaults to
-	// 0 — a failed rollback is surfaced as a failed Job rather than retried,
+	// k8s default. A failed rollback is surfaced as a failed Job rather than retried,
 	// because retrying produces another helm revision instead of being a no-op.
 	BackoffLimit *int32 `json:"backoffLimit,omitempty"`
+	// ActiveDeadlineSeconds allows for control of how long the job will hang in a pending state
+	// not being able to move forward until considered as failed.
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
 	// TTLSecondsAfterFinished overrides the Job's spec.ttlSecondsAfterFinished.
 	// When nil, defaults to 1h so finished Jobs are garbage-collected by the
 	// TTL controller.
@@ -72,3 +87,5 @@ func (o RollbackInputs) Validate() error {
 	}
 	return nil
 }
+
+const HelmRollbackAction = "helm_rollback"

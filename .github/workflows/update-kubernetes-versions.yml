@@ -50,7 +50,7 @@ jobs:
         uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           install_only: true
-          version: v0.32.0 # TODO: remove this once the action defaults to v0.32.0
+          version: v0.33.0 # TODO: remove this once the action defaults to v0.32.0
 
       - name: Fetch latest Kubernetes version
         id: fetch-versions

@@ -28,6 +28,6 @@ dd_agent_go_binary(
         "//conditions:default": False,
     }),
     embed = [":secret-generic-connector_lib"],
-    extra_version_symbols = ["github.com/DataDog/datadog-agent/cmd/secret-generic-connector.appVersion"],
     visibility = ["//visibility:public"],
+    x_defs = {"github.com/DataDog/datadog-agent/cmd/secret-generic-connector.appVersion": "{agent_version}"},
 )

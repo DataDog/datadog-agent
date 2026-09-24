@@ -2,7 +2,7 @@
 .integration_tests_windows_base:
   stage: integration_test
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: ["go_deps", "go_tools_deps"]
   extends: [.windows_docker_default, .bazel:defs:cache:windows]

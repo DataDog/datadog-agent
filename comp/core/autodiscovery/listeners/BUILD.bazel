@@ -71,7 +71,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "@com_github_gosnmp_gosnmp//:gosnmp",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_api//discovery/v1:discovery",
         "@io_k8s_apimachinery//pkg/api/equality",

@@ -936,6 +936,53 @@ func TestContainerResourcesForStatus(t *testing.T) {
 	}
 }
 
+func TestContainerResourcesForStatus_WithRuntimeValues(t *testing.T) {
+	t.Run("runtime values are included in status output", func(t *testing.T) {
+		v := &VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+					Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+				},
+			},
+		}
+		got := v.ContainerResourcesForStatus()
+		require.Len(t, got, 1)
+		require.NotNil(t, got[0].Runtime)
+		assert.Equal(t, "256MiB", got[0].Runtime.Gomemlimit)
+	})
+
+	t.Run("container without runtime has no Runtime field in output", func(t *testing.T) {
+		v := &VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+					Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+				},
+				{Name: "sidecar", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")}},
+			},
+		}
+		got := v.ContainerResourcesForStatus()
+		require.Len(t, got, 2)
+		require.NotNil(t, got[0].Runtime, "app must have Runtime set")
+		assert.Equal(t, "256MiB", got[0].Runtime.Gomemlimit)
+		assert.Nil(t, got[1].Runtime, "sidecar must not have Runtime set")
+	})
+
+	t.Run("no Runtime field produces nil Runtime in output", func(t *testing.T) {
+		v := &VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+			},
+		}
+		got := v.ContainerResourcesForStatus()
+		require.Len(t, got, 1)
+		assert.Nil(t, got[0].Runtime)
+	})
+}
+
 func TestUpdateFromPodAutoscaler(t *testing.T) {
 	t.Run("annotation change", func(t *testing.T) {
 		dpa := &datadoghq.DatadogPodAutoscaler{

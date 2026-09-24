@@ -33,7 +33,7 @@ go_library(
             "//pkg/util/hostname",
             "//pkg/util/log",
             "//pkg/util/option",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -63,7 +63,7 @@ go_library(
             "//pkg/util/hostname",
             "//pkg/util/log",
             "//pkg/util/option",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_uber_go_atomic//:atomic",
         ],
         "@rules_go//go/platform:js": [

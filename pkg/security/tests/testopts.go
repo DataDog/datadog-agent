@@ -34,6 +34,7 @@ type testOpts struct {
 	activityDumpLocalStorageFormats            []string
 	activityDumpSyscallMonitorPeriod           time.Duration
 	enableSecurityProfile                      bool
+	disableSecurityProfileV2                   bool
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
@@ -74,6 +75,7 @@ type testOpts struct {
 	dnsPort                                    uint16
 	traceSystemdCgroups                        bool
 	capabilitiesMonitoringEnabled              bool
+	capabilitiesMonitoringPeriod               time.Duration
 	captureAllSyscallErrorsEnabled             bool
 }
 

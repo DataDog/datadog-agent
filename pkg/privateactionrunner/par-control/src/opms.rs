@@ -29,6 +29,19 @@ pub struct TlsConfig {
     pub min_tls_version: String,
 }
 
+/// The proxy decision for OPMS requests, resolved once against the Agent's proxy configuration.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ProxyDecision {
+    /// No proxy applies; connect directly.
+    #[default]
+    None,
+    /// Use this proxy unconditionally: `no_proxy` was already evaluated with an exact-match check.
+    Direct(String),
+    /// Use this proxy, but let reqwest apply cURL-style `no_proxy` matching (suffix/CIDR/wildcard)
+    /// per-request, per the Agent's `no_proxy_nonexact_match` setting.
+    NonExact { proxy_url: String, no_proxy: String },
+}
+
 /// A dequeued task.
 #[derive(Debug, Clone)]
 pub struct Task {
@@ -283,7 +296,7 @@ pub struct HttpOpmsConfig {
     pub runner_version: String,
     pub modes: Vec<String>,
     pub timeout: Duration,
-    pub proxy_url: Option<String>,
+    pub proxy: ProxyDecision,
     pub tls: TlsConfig,
     pub extra_headers: HashMap<String, String>,
 }
@@ -313,7 +326,6 @@ impl HttpOpms {
         builder: reqwest::ClientBuilder,
         root_cert_store: Option<rustls::RootCertStore>,
     ) -> Result<Self> {
-        crate::tls::initialize_crypto_provider()?;
         let base_url = parse_base_url(&base_url)?;
         let mut tls_builder = ClientTLSConfigBuilder::new()
             .with_min_tls_version(min_tls_version(&options.tls.min_tls_version));
@@ -338,11 +350,22 @@ impl HttpOpms {
             // We already merged the Agent's YAML and environment proxy settings;
             // do not let reqwest independently re-read process environment.
             .no_proxy();
-        if let Some(proxy_url) = options.proxy_url {
-            builder = builder.proxy(
-                reqwest::Proxy::all(proxy_url)
-                    .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?,
-            );
+        match options.proxy {
+            ProxyDecision::None => {}
+            ProxyDecision::Direct(proxy_url) => {
+                let proxy = reqwest::Proxy::all(proxy_url)
+                    .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?;
+                builder = builder.proxy(proxy);
+            }
+            ProxyDecision::NonExact {
+                proxy_url,
+                no_proxy,
+            } => {
+                let proxy = reqwest::Proxy::all(proxy_url)
+                    .map_err(|_| anyhow::anyhow!("invalid Agent proxy URL"))?
+                    .no_proxy(reqwest::NoProxy::from_string(&no_proxy));
+                builder = builder.proxy(proxy);
+            }
         }
         let client = builder.build().context("building the OPMS HTTP client")?;
         Ok(Self {
@@ -609,6 +632,7 @@ mod tests {
 
     #[test]
     fn extra_headers_override_standard_headers() {
+        crate::tls::initialize_crypto_provider().unwrap();
         let opms = HttpOpms::new(
             "http://localhost:8080".to_string(),
             Arc::new(crate::jwt::test_support::StaticSigner("jwt".into())),
@@ -616,7 +640,7 @@ mod tests {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy_url: None,
+                proxy: ProxyDecision::None,
                 tls: TlsConfig::default(),
                 extra_headers: HashMap::from([
                     (
@@ -702,6 +726,7 @@ mod tests {
     /// Health checks must preserve retry-after and server-time headers on non-200 responses.
     #[tokio::test]
     async fn health_check_is_a_signed_get_that_surfaces_server_pacing() {
+        crate::tls::initialize_crypto_provider().unwrap();
         for (status_line, expected_status) in [("200 OK", 200_u16), ("429 Too Many Requests", 429)]
         {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -735,7 +760,7 @@ mod tests {
                     runner_version: "7.83.0".into(),
                     modes: vec!["pull".into()],
                     timeout: Duration::from_secs(10),
-                    proxy_url: None,
+                    proxy: ProxyDecision::None,
                     tls: TlsConfig::default(),
                     extra_headers: HashMap::new(),
                 },
@@ -781,6 +806,7 @@ mod tests {
 
     #[tokio::test]
     async fn uses_configured_https_proxy() {
+        crate::tls::initialize_crypto_provider().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let proxy_port = listener.local_addr().unwrap().port();
         let server = tokio::spawn(async move {
@@ -807,7 +833,7 @@ mod tests {
                 runner_version: "7.83.0".into(),
                 modes: vec!["pull".into()],
                 timeout: Duration::from_secs(10),
-                proxy_url: Some(format!(
+                proxy: ProxyDecision::Direct(format!(
                     "http://proxy-user:proxy-pass@127.0.0.1:{proxy_port}"
                 )),
                 tls: TlsConfig::default(),

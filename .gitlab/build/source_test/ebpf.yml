@@ -50,7 +50,7 @@ tests_ebpf_arm64:
   extends: .bazel:defs:cache:progressive
   stage: source_test
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: ["go_deps"]
   variables:
@@ -90,7 +90,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
   extends: .bazel:defs:cache:progressive
   stage: source_test
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   needs: ["go_deps"]
   variables:

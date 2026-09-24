@@ -8,6 +8,7 @@
 package env
 
 import (
+	"errors"
 	"os"
 	"path"
 	"runtime"
@@ -104,18 +105,29 @@ func detectKubernetes(features FeatureMap, cfg model.Reader) {
 	}
 }
 
+// isReachable reports whether exists+err from socket.IsAvailable should count as a working endpoint, requiring a clean dial on Windows since it surfaces every dial error this way, not just permission ones.
+func isReachable(exists bool, err error) bool {
+	if !exists {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return err == nil
+	}
+	return !errors.Is(err, os.ErrPermission)
+}
+
 func detectDocker(features FeatureMap) {
 	if _, dockerHostSet := os.LookupEnv("DOCKER_HOST"); dockerHostSet {
 		features[Docker] = struct{}{}
 	} else {
 		for _, defaultDockerSocketPath := range getDefaultDockerPaths() {
 			exists, err := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
-			if exists && err != nil {
+			if exists && errors.Is(err, os.ErrPermission) {
 				log.Warnf("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
 				continue
 			}
 
-			if exists && err == nil {
+			if isReachable(exists, err) {
 				features[Docker] = struct{}{}
 
 				// Even though it does not modify configuration, using the OverrideFunc mechanism for uniformity
@@ -169,10 +181,10 @@ func detectCriRuntimes(features FeatureMap, cfg model.ReaderWriter) {
 func checkCriSocket(socketPath string) string {
 	// Check if the socket exists and is reachable
 	exists, err := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && err == nil {
+	if isReachable(exists, err) {
 		log.Infof("Agent found cri socket at: %s", socketPath)
 		return socketPath
-	} else if exists && err != nil {
+	} else if exists && errors.Is(err, os.ErrPermission) {
 		log.Warnf("Agent found cri socket at: %s but socket not reachable (permissions?)", socketPath)
 	}
 	return ""
@@ -284,10 +296,10 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	socketPath := cfg.GetString("kubernetes_kubelet_podresources_socket")
 
 	exists, err := socket.IsAvailable(socketPath, socketTimeout)
-	if exists && err == nil {
+	if isReachable(exists, err) {
 		log.Infof("Agent found PodResources socket at %s", socketPath)
 		features[PodResources] = struct{}{}
-	} else if exists && err != nil {
+	} else if exists && errors.Is(err, os.ErrPermission) {
 		log.Warnf("Agent found PodResources socket at %s but socket not reachable (permissions?)", socketPath)
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)

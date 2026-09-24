@@ -30,8 +30,6 @@ const (
 	ProductAgentTask Product = "AGENT_TASK"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
-	// ProductAgentIntegrations is to receive integrations to schedule
-	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 	// ProductContainerAutoscalingSettings receives definition of container autoscaling
 	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
 	// ProductContainerAutoscalingValues receives values for container autoscaling

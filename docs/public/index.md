@@ -15,7 +15,7 @@ First, you'll want to set up the [development requirements](setup/required.md).
 
 ## Agent development guidelines
 
-To know more about the general design of the Agent and how to add code and features read our section on [Components](components/overview.md).
+Read about the Agent's [component framework](architecture/components/index.md) and [configuration schema](architecture/agent-schema/index.md) in Architecture, with links to their tutorials, how-to guides, guidelines, and references.
 
 ## Navigation
 
@@ -26,3 +26,4 @@ Desktop readers can use keyboard shortcuts to navigate.
 | <ul><li><kbd>,</kbd> (comma)</li><li><kbd>p</kbd></li></ul> | Navigate to the "previous" page |
 | <ul><li><kbd>.</kbd> (period)</li><li><kbd>n</kbd></li></ul> | Navigate to the "next" page |
 | <ul><li><kbd>/</kbd></li><li><kbd>s</kbd></li></ul> | Display the search modal |
+| <kbd>b</kbd> | Return to the main docs from an independent navigation root like [Architecture](architecture/index.md) |

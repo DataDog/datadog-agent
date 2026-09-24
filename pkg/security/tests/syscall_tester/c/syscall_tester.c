@@ -359,6 +359,18 @@ int self_exec(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_exec(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Please pass an executable path\n");
+        return EXIT_FAILURE;
+    }
+
+    execv(argv[1], argv + 1);
+    fprintf(stderr, "execv failed: %s\n", argv[1]);
+
+    return EXIT_FAILURE;
+}
+
 void* connect_thread_ipv4(void *arg) {
     int s = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     connect(s, (struct sockaddr*)arg, sizeof(struct sockaddr));
@@ -2285,6 +2297,8 @@ int main(int argc, char **argv) {
             exit_code = test_open(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unlink") == 0) {
             exit_code = test_unlink(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "exec") == 0) {
+            exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {

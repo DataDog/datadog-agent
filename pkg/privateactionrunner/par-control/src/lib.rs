@@ -11,6 +11,7 @@ pub mod opms;
 pub mod orchestrator;
 pub mod procmgr;
 pub mod proto;
+pub mod remote_config;
 pub mod tls;
 pub mod transport;
 

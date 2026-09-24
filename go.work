@@ -190,6 +190,7 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+	pkg/zstd
 	test/e2e-framework
 	test/fakeintake
 	test/new-e2e

@@ -528,7 +528,11 @@ func (m *defaultMapper) exponentialHistogramToDDSketch(
 	positiveStore := toStore(p.Positive())
 	negativeStore := toStore(p.Negative())
 
-	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings
+	// Create the DDSketch mapping that corresponds to the ExponentialHistogram settings.
+	// gamma is left as the data point defines it, so it can overflow, and a bucket
+	// offset can push a boundary out of the float64 range on its own. Whoever reads
+	// this sketch has to cope with that: quantile.ConvertDDSketchIntoSketch, the only
+	// consumer today, rejects such boundaries instead of panicking on them.
 	gamma := math.Pow(2, math.Pow(2, float64(-p.Scale())))
 	mapping, err := mapping.NewLogarithmicMappingWithGamma(gamma, 0)
 	if err != nil {

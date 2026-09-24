@@ -68,6 +68,7 @@ const (
 	DDAgentDualShipping                  = "dualshipping"
 	DDAGentFakeintakeRetentionPeriod     = "fakeintakeRetentionPeriod"
 	DDAgentSite                          = "site"
+	DDAgentTags                          = "tags"
 	DDAgentMajorVersion                  = "majorVersion"
 	DDAgentExtraEnvVars                  = "extraEnvVars" // extraEnvVars is expected in the format: <key1>=<value1>,<key2>=<value2>,...
 	DDAgentJMX                           = "jmx"
@@ -165,6 +166,8 @@ type CloudEnv interface {
 	InternalDockerhubMirror() string
 	// InternalRegistry returns the internal registry.
 	InternalRegistry() string
+	// DatadogPublicRegistry returns the registry prefix for publicly released Datadog images.
+	DatadogPublicRegistry() string
 	// InternalRegistryImageTagExists returns true if the image tag exists in the internal registry.
 	InternalRegistryImageTagExists(image, tag string) (bool, error)
 	// InternalRegistryFullImagePathExists returns true if the image and tag exists in the internal registry.
@@ -393,6 +396,16 @@ func (e *CommonEnvironment) AgentFakeintakeRetentionPeriod() string {
 
 func (e *CommonEnvironment) Site() string {
 	return e.AgentConfig.Get(DDAgentSite)
+}
+
+// Tags returns the comma-separated agent tags configured via ddagent:tags, split into a slice.
+// Returns nil when the config key is absent.
+func (e *CommonEnvironment) Tags() []string {
+	csv := e.AgentConfig.Get(DDAgentTags)
+	if csv == "" {
+		return nil
+	}
+	return strings.Split(csv, ",")
 }
 
 func (e *CommonEnvironment) MajorVersion() string {

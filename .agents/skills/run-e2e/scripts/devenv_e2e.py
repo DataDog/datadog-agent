@@ -68,6 +68,7 @@ UNUSABLE_CHECKOUT = 3
 NO_AWS_SESSION = 4
 ALREADY_IN_DEVENV = 5
 STACK_STILL_LIVE = 6
+WORKSPACE_HOST = 7
 
 
 def fail(code: int, message: str) -> None:
@@ -537,6 +538,19 @@ def live_stacks(instance: str) -> list[str] | None:
 
 
 def command_up(args: argparse.Namespace) -> None:
+    # A Datadog workspace is already the environment this script would otherwise build inside
+    # a container: it has its own E2E config, Pulumi backend and AWS session, and its resources
+    # are named from WORKSPACE_NAME by the framework itself. Nesting a dev env there buys
+    # nothing and adds a container layer that cannot see what it needs, so the tests belong
+    # directly on the workspace host — the same path as --host, just selected automatically.
+    if os.getenv("WORKSPACE_NAME"):
+        fail(
+            WORKSPACE_HOST,
+            "WORKSPACE_NAME is set, so this is a Datadog workspace: run the tests directly on it\n"
+            "with `dda inv -- new-e2e-tests.run` — the workspace already provides the environment\n"
+            "this script builds inside a container, and nesting one there is not supported.",
+        )
+
     if in_devenv():
         fail(
             ALREADY_IN_DEVENV,

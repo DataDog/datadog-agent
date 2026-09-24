@@ -7,6 +7,7 @@ package syntheticstestschedulerimpl
 
 import (
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -525,6 +526,51 @@ func TestNetworkPathToTestResult(t *testing.T) {
 				require.Equal(t, "passed", got.Result.Status)
 				require.Nil(t, got.Result.Failure)
 			}
+		})
+	}
+}
+
+func TestNetworkPathToTestResult_PreservesEnrichment(t *testing.T) {
+	enrichment := json.RawMessage(`{"execution":{"origin":"network-ephemeral"},"future":{"large":9007199254740993}}`)
+	tests := []struct {
+		name            string
+		tracerouteError error
+	}{
+		{
+			name: "successful traceroute",
+		},
+		{
+			name:            "traceroute failure",
+			tracerouteError: errors.New("connection timeout"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			worker := workerResult{
+				tracerouteResult: payload.NetworkPath{},
+				tracerouteError:  tt.tracerouteError,
+				testCfg: SyntheticsTestCtx{
+					cfg: common.SyntheticsTestConfig{
+						PublicID:   "pub-ephemeral",
+						ResultID:   "result-ephemeral",
+						RunType:    common.RunTypeTriggered,
+						Type:       "network",
+						Enrichment: enrichment,
+						Config: struct {
+							Assertions []common.Assertion   `json:"assertions"`
+							Request    common.ConfigRequest `json:"request"`
+						}{
+							Request: common.ICMPConfigRequest{Host: "8.8.8.8"},
+						},
+					},
+				},
+				hostname: "agent-host",
+			}
+
+			result, err := (&syntheticsTestScheduler{}).networkPathToTestResult(&worker)
+			require.NoError(t, err)
+			require.Equal(t, enrichment, result.Enrichment)
 		})
 	}
 }

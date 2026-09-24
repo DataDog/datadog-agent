@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -46,8 +47,6 @@ const (
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
-
-var GitCommit string
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
@@ -213,6 +212,8 @@ func selectPodForExec(pods []corev1.Pod, containerName string) *corev1.Pod {
 func (suite *k8sSuite) TestVersion() {
 	ctx := suite.T().Context()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
+	gitCommit := os.Getenv("E2E_COMMIT_SHA")
+	suite.Require().NotEmpty(gitCommit, "E2E_COMMIT_SHA must be set")
 
 	for _, tt := range []struct {
 		podType     string
@@ -253,15 +254,15 @@ func (suite *k8sSuite) TestVersion() {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
 					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						if suite.Greaterf(len(GitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
+						if suite.Greaterf(len(gitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
 							suite.Greaterf(len(match[1]), 6, "Couldn’t find the version of the agent.") {
 
-							size2compare := len(GitCommit)
+							size2compare := len(gitCommit)
 							if len(match[1]) < size2compare {
 								size2compare = len(match[1])
 							}
 
-							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
+							suite.Equalf(gitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
 						}
 					}
 				}
