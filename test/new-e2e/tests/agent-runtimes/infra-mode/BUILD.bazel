@@ -31,6 +31,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/fakeintake/aggregator",
         "//test/fakeintake/client",
+        "//test/new-e2e/tests/windows/common",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
