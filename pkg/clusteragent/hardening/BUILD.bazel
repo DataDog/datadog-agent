@@ -3,18 +3,26 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "hardening",
-    srcs = ["request.go"],
+    srcs = [
+        "render.go",
+        "request.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/hardening",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_utils//ptr",
     ],
 )
 
 dd_agent_go_test(
     name = "hardening_test",
-    srcs = ["request_test.go"],
+    srcs = [
+        "render_test.go",
+        "request_test.go",
+    ],
     embed = [":hardening"],
     gotags_sets = [[
         "cel",
@@ -28,5 +36,7 @@ dd_agent_go_test(
         "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_utils//ptr",
     ],
 )
