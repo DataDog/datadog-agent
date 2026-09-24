@@ -9,6 +9,7 @@ package otelagent
 import (
 	_ "embed"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,6 +140,15 @@ func (s *minimalTestSuite) TestOTelAgentFlare() {
 // billing metric is only emitted when otel-agent runs standalone (DD_OTEL_STANDALONE=true).
 // See dogtelStandaloneTestSuite.TestDDOTCollectorRunningMetric for the standalone case.
 func (s *minimalTestSuite) TestNoDDOTCollectorRunningMetric() {
+	// Wait for proof that the metrics pipeline has flushed data at least once,
+	// so the absence check below can't pass vacuously because no export has
+	// happened yet.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		otelcolMetrics, err := s.Env().FakeIntake.Client().FilterMetrics("otelcol_process_uptime")
+		assert.NoError(c, err)
+		assert.NotEmpty(c, otelcolMetrics, "expected otelcol_process_uptime to confirm the metrics pipeline is flowing")
+	}, 2*time.Minute, 10*time.Second)
+
 	metrics, err := s.Env().FakeIntake.Client().FilterMetrics("otel.ddot_collector.metrics.running")
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), metrics, "otel.ddot_collector.metrics.running should not be emitted in connected mode")
