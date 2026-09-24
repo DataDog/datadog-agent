@@ -243,13 +243,9 @@ func TestAddRunningMetric_HostOnly(t *testing.T) {
 
 	c.addRunningMetric("agent-hostname")
 
-	require.Len(t, c.series, 2)
-	var hosts []string
-	for _, s := range c.series {
-		assert.Equal(t, "otel.ddot_collector.metrics.running", s.Name)
-		hosts = append(hosts, s.Host)
-	}
-	assert.ElementsMatch(t, []string{"agent-hostname", ""}, hosts)
+	require.Len(t, c.series, 1)
+	assert.Equal(t, "otel.ddot_collector.metrics.running", c.series[0].Name)
+	assert.Equal(t, "agent-hostname", c.series[0].Host)
 }
 
 func TestAddRunningMetric_NoSignals(t *testing.T) {

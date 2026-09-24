@@ -369,7 +369,6 @@ func (c *serializerConsumer) addRunningMetric(hostname string) {
 
 	if len(c.hosts) > 0 {
 		c.series = append(c.series, ddotRunningMetric(hostname, timestamp, buildTags))
-		c.series = append(c.series, ddotRunningMetric("", timestamp, buildTags))
 	}
 }
 

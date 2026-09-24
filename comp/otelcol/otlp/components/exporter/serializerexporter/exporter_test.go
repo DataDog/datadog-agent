@@ -531,6 +531,76 @@ func TestRunningMetricForPayloadContents(t *testing.T) {
 	}
 }
 
+func TestDDOTRunningMetricForPayloadContents(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(m pmetric.Metric)
+		wantRunning bool
+	}{
+		{
+			name: "apm stats only",
+			setup: func(m pmetric.Metric) {
+				m.SetName("dd.internal.stats.payload")
+				m.SetEmptySum()
+			},
+			wantRunning: false,
+		},
+		{
+			name: "real metric",
+			setup: func(m pmetric.Metric) {
+				m.SetName("my.metric")
+				m.SetEmptyGauge().DataPoints().AppendEmpty().SetDoubleValue(1)
+			},
+			wantRunning: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := newDefaultConfig().(*ExporterConfig)
+
+			set := exportertest.NewNopSettings(component.MustNewType("datadog"))
+			attributesTranslator, err := attributes.NewTranslator(set.TelemetrySettings)
+			require.NoError(t, err)
+			hostGetter := SourceProviderFunc(func(context.Context) (string, error) { return "test-hostname", nil })
+			tr, err := translatorFromConfig(set.TelemetrySettings, attributesTranslator, cfg.Metrics.Metrics, hostGetter, nil)
+			require.NoError(t, err)
+
+			createConsumer := func(extraTags []string, apmReceiverAddr string, buildInfo component.BuildInfo) SerializerConsumer {
+				return &serializerConsumer{
+					extraTags:       extraTags,
+					apmReceiverAddr: apmReceiverAddr,
+					ipath:           ddot,
+					hosts:           make(map[string]struct{}),
+					fargateTagSets:  make(map[tagSetKey][]string),
+					buildInfo:       buildInfo,
+					standalone:      true,
+				}
+			}
+
+			rec := &metricRecorder{}
+			exp, err := NewExporter(rec, cfg, hostGetter, createConsumer, tr, set, nil, otel.NewDisabledGatewayUsage(), nil, nil, ddot)
+			require.NoError(t, err)
+
+			md := pmetric.NewMetrics()
+			m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+			tt.setup(m)
+
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), md))
+
+			var names []string
+			for _, serie := range rec.series {
+				names = append(names, serie.Name)
+			}
+			if tt.wantRunning {
+				assert.Contains(t, names, "otel.ddot_collector.metrics.running")
+			} else {
+				assert.NotContains(t, names, "otel.ddot_collector.metrics.running")
+			}
+		})
+	}
+}
+
 func TestAzureAppServiceRunningMetric(t *testing.T) {
 	cfg := newDefaultConfig().(*ExporterConfig)
 	set := exportertest.NewNopSettings(component.MustNewType("datadog"))
