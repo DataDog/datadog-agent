@@ -41,13 +41,13 @@ func ConditionalWalk(
 	rootOIDs := RootOIDs
 	rootIndex := 0
 	oid := rootOIDs[rootIndex]
-	requests := 0
+	requestCount := 0
 
 RequestLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requests)
+			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requestCount)
 			return ctx.Err()
 		default:
 		}
@@ -56,8 +56,8 @@ RequestLoop:
 			time.Sleep(callInterval)
 		}
 
-		requests++
-		if maxCallCount > 0 && requests >= maxCallCount {
+		requestCount++
+		if maxCallCount > 0 && requestCount >= maxCallCount {
 			session.Logger.Printf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
 			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
 		}
@@ -74,6 +74,9 @@ RequestLoop:
 				return NewConnectionError(err)
 			}
 			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
+			if oid == rootOIDs[rootIndex] {
+				return fmt.Errorf("no OIDs collected after %d requests", requestCount)
+			}
 			break RequestLoop
 		}
 		if len(response.Variables) == 0 || IsEndOfMIB(response.Variables[0].Type) {
@@ -82,6 +85,9 @@ RequestLoop:
 				session.Logger.Printf("ConditionalWalk returned no OIDs at %s, retrying from %s", oid, rootOIDs[rootIndex])
 				oid = rootOIDs[rootIndex]
 				continue
+			}
+			if oid == rootOIDs[rootIndex] {
+				return fmt.Errorf("no OIDs collected after %d requests", requestCount)
 			}
 			break RequestLoop
 		}
@@ -133,10 +139,7 @@ RequestLoop:
 			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
-	if oid == rootOIDs[rootIndex] {
-		return fmt.Errorf("no OIDs collected after %d requests", requests)
-	}
-	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)
+	session.Logger.Printf("ConditionalWalk completed in %d requests", requestCount)
 	return nil
 }
 

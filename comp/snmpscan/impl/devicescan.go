@@ -311,7 +311,7 @@ type bulkGetter interface {
 // Trade-off: May be slower than gatherPDUs for devices with large tables (1000+ rows)
 // because it retrieves all rows before filtering.
 func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, emit func(*gosnmp.SnmpPDU) error, tick func() error, callInterval time.Duration, maxCallCount int, bulkMaxRep int) error {
-	emitted := 0
+	emittedOIDCount := 0
 	seenColumns := make(map[string]bool)
 
 	rootOIDs := gosnmplib.RootOIDs
@@ -325,7 +325,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 	if err != nil {
 		return err
 	}
-	requests := 0
+	requestCount := 0
 	// Name the optimizer after the device so its Debug logs are attributable
 	// when multiple devices are scanned concurrently.
 	maxRepOptimizer := batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
@@ -341,8 +341,8 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 			time.Sleep(callInterval)
 		}
 
-		requests++
-		if maxCallCount > 0 && requests >= maxCallCount {
+		requestCount++
+		if maxCallCount > 0 && requestCount >= maxCallCount {
 			return fmt.Errorf("exceeded maximum request limit (%d)", maxCallCount)
 		}
 
@@ -387,11 +387,11 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 				maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 				continue
 			}
-			if emitted == 0 {
-				return fmt.Errorf("no OIDs collected after %d requests", requests)
+			if emittedOIDCount == 0 {
+				return fmt.Errorf("no OIDs collected after %d requests", requestCount)
 			}
 			// No more data.
-			log.Debugf("SNMP scan for device %s completed after %d requests, %d OIDs collected", deviceID, requests, emitted)
+			log.Debugf("SNMP scan for device %s completed after %d requests, %d OIDs collected", deviceID, requestCount, emittedOIDCount)
 			break
 		}
 
@@ -400,7 +400,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 		for _, pdu := range response.Variables {
 			// End conditions.
 			if gosnmplib.IsEndOfMIB(pdu.Type) {
-				log.Debugf("SNMP scan for device %s reached end of MIB view at OID %s after %d requests, %d OIDs collected", deviceID, lastOID, requests, emitted)
+				log.Debugf("SNMP scan for device %s reached end of MIB view at OID %s after %d requests, %d OIDs collected", deviceID, lastOID, requestCount, emittedOIDCount)
 				return nil
 			}
 
@@ -412,7 +412,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 				return err
 			}
 			if !gosnmplib.CmpOIDs(cur, prevInts).IsAfter() {
-				log.Debugf("SNMP scan for device %s stopped: OID %s did not advance past %s (after %d requests, %d OIDs collected)", deviceID, pdu.Name, lastOID, requests, emitted)
+				log.Debugf("SNMP scan for device %s stopped: OID %s did not advance past %s (after %d requests, %d OIDs collected)", deviceID, pdu.Name, lastOID, requestCount, emittedOIDCount)
 				return fmt.Errorf("walk stuck: OID %s did not advance past %s", pdu.Name, lastOID)
 			}
 			prevInts = cur
@@ -426,7 +426,7 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 				if err := emit(&pduCopy); err != nil {
 					return err
 				}
-				emitted++
+				emittedOIDCount++
 			}
 		}
 
