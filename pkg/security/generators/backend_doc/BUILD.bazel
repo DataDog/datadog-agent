@@ -19,13 +19,24 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
+config_setting(
+    name = "race_enabled",
+    flag_values = {"@rules_go//go/config:race": "True"},
+)
+
 # The generator reflects over the serializer types compiled into it, so producing
 # backend_windows.schema.json requires a Windows build of this binary. Cross-built
 # here so that a Linux host can generate it by running the result under
 # //bazel/tools/wine:wine_run.
+# windows_amd64 has no cgo, so --config=gorace cannot build this. The Windows
+# non-Go test lane builds every target with that flag; it uses native backend_doc.
 go_cross_binary(
     name = "backend_doc_windows",
     platform = "@rules_go//go/toolchain:windows_amd64",
     target = ":backend_doc",
+    target_compatible_with = select({
+        ":race_enabled": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//docs/cloud-workload-security:__pkg__"],
 )
