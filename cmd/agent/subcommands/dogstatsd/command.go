@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -54,11 +54,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "top",
 		Short: "Display metrics with most contexts in the aggregator",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(topContexts,
+			return fxutil.OneShot(
+				topContexts,
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true),
+				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -75,10 +77,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dump-contexts",
 		Short: "Write currently tracked contexts as JSON",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(dumpContexts,
+			return fxutil.OneShot(
+				dumpContexts,
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true),
+				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -146,7 +150,7 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 		fmt.Printf("Wrote %s\n", path)
 	}
 
-	f, err := filesystem.OpenShared(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return err
 	}
