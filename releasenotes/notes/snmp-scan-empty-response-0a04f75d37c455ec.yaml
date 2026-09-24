@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix SNMP device scans that collect no OIDs by retrying from an alternative
+    root when the initial response contains no data. Scans that collect no
+    OIDs from any root now report an error instead of success.
