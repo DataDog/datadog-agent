@@ -130,17 +130,33 @@ func (s *registryDurabilitySuite) TestRegistrySurvivesAbruptPowerLoss() {
 }
 
 func (s *registryDurabilitySuite) prepareLogFile() {
+	// Retries reuse the host and fakeintake. Stop the Agent before resetting its
+	// saved offsets and source file so an old tailer cannot race with setup.
+	_, err := s.Env().RemoteHost.Execute(`Stop-Service -Force -Name ` + agentServiceName + ` -ErrorAction Stop`)
+	require.NoError(s.T(), err, "failed to stop the Agent before resetting test state")
+
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(
+		`if (Test-Path -LiteralPath '%s') { Remove-Item -LiteralPath '%s' -Force -ErrorAction Stop }`,
+		registryPath,
+		registryPath,
+	))
+	require.NoError(s.T(), err, "failed to remove the registry from the previous attempt")
+
 	command := fmt.Sprintf(
 		`New-Item -ItemType Directory -Path (Split-Path -Parent '%s') -Force | Out-Null; `+
-			`New-Item -ItemType File -Path '%s' -Force | Out-Null; `+
+			`New-Item -ItemType File -Path '%s' -Force -ErrorAction Stop | Out-Null; `+
 			`icacls '%s' /grant 'ddagentuser:(R)' | Out-Null; `+
 			`if ($LASTEXITCODE -ne 0) { throw "icacls failed with exit code $LASTEXITCODE" }`,
 		logFilePath,
 		logFilePath,
 		logFilePath,
 	)
-	_, err := s.Env().RemoteHost.Execute(command)
+	_, err = s.Env().RemoteHost.Execute(command)
 	require.NoError(s.T(), err, "failed to prepare the source log file")
+
+	// Flush after shutdown, which can send buffered payloads from the last attempt.
+	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	s.startAgent()
 
 	// Give the tailer one durable line so there is a real registry entry to enlarge.
 	s.appendDurableLogLine("registry-durability-initial")
