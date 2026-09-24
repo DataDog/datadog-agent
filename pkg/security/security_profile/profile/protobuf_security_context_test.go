@@ -87,6 +87,48 @@ func TestSecDumpSecurityContextRoundtrip(t *testing.T) {
 	assert.True(t, *sc.ReadOnlyRootFilesystem)
 }
 
+func TestSecDumpSeccompFilterRoundtrip(t *testing.T) {
+	in := newProfileWithSelector(t)
+	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{
+		Seccomp: &securitycontext.SeccompProfile{
+			Type:             securitycontext.SeccompLocalhost,
+			LocalhostProfile: "profiles/audit.json",
+			Filter: &securitycontext.SeccompFilterResult{
+				DefaultAction: securitycontext.ActionErrno,
+				Syscalls: map[string]securitycontext.SyscallRule{
+					"read": {Action: securitycontext.ActionAllow},
+					"clone": {
+						Action: securitycontext.ActionAllow,
+						ArgConditions: []securitycontext.ArgCondition{
+							{Index: 0, Op: "&", Value: 2114060288, Action: securitycontext.ActionAllow},
+						},
+					},
+				},
+			},
+		},
+	})
+
+	buf, err := in.EncodeSecDumpProtobuf()
+	require.NoError(t, err)
+
+	out := newProfileWithSelector(t)
+	require.NoError(t, out.DecodeSecDumpProtobuf(bytes.NewReader(buf.Bytes())))
+	sc := out.SecurityContexts[frontendWebKey()]
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Seccomp)
+	require.NotNil(t, sc.Seccomp.Filter)
+
+	f := sc.Seccomp.Filter
+	assert.Equal(t, securitycontext.ActionErrno, f.DefaultAction)
+	assert.Equal(t, securitycontext.SyscallRule{Action: securitycontext.ActionAllow}, f.Syscalls["read"])
+	assert.Equal(t, securitycontext.SyscallRule{
+		Action: securitycontext.ActionAllow,
+		ArgConditions: []securitycontext.ArgCondition{
+			{Index: 0, Op: "&", Value: 2114060288, Action: securitycontext.ActionAllow},
+		},
+	}, f.Syscalls["clone"])
+}
+
 func TestSecDumpSecurityContextTriStateAbsent(t *testing.T) {
 	in := newProfileWithSelector(t)
 	in.SaveSecurityContext(frontendWebKey(), &securitycontext.SecurityContext{})
