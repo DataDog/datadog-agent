@@ -153,7 +153,7 @@ func TestMicroVMGetInventoryData(t *testing.T) {
 	inv := m.GetInventoryData()
 
 	assert.Equal(t, InventoryData{
-		WorkloadType:     workloadTypeAWSMicroVM,
+		WorkloadType:     "aws_lambda_microvm",
 		ResourceID:       testImageARN,
 		ParentResourceID: testImageARN,
 		ResourceName:     "my-image",
@@ -170,7 +170,7 @@ func TestMicroVMGetInventoryDataMissingARN(t *testing.T) {
 
 	inv := m.GetInventoryData()
 
-	assert.Equal(t, workloadTypeAWSMicroVM, inv.WorkloadType)
+	assert.Equal(t, "aws_lambda_microvm", inv.WorkloadType)
 	assert.Empty(t, inv.ResourceID)
 	assert.Empty(t, inv.ParentResourceID)
 	assert.Empty(t, inv.ResourceName)

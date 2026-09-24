@@ -149,6 +149,7 @@ func TestInjectSetsFieldsWithoutSubmitting(t *testing.T) {
 	Inject(ia, &cloudservice.MicroVM{}, mode.Conf{}, conf, map[string]string{})
 
 	assert.Equal(t, serverlessInitFlavor, ia.fields["flavor"])
+	assert.Equal(t, "aws_lambda_microvm", ia.fields["workload_type"])
 	assert.Zero(t, ia.submits, "Inject must not enqueue a payload")
 }
 
