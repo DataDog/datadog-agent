@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2025-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
 // Package traceimpl implements the remoteagent component interface
 package traceimpl
@@ -14,6 +14,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -25,6 +26,7 @@ type Requires struct {
 	Log       log.Component
 	IPC       ipc.Component
 	Config    config.Component
+	Telemetry coretelemetry.Component
 }
 
 // Provides defines the output of the remoteagent component
@@ -54,6 +56,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		remoteAgentServer: remoteAgentServer,
 	}
 
+	// Expose the telemetry provider so the core agent can scrape this process's metrics
+	// (notably the api_server__request_duration_seconds auth tag, to track mTLS vs token
+	// adoption among this agent's IPC clients).
+	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(),
+		helper.NewTelemetryProviderServer(reqs.Telemetry, coretelemetry.StaticMetricFilter(helper.APIServerRequestDurationMetric)))
+
 	remoteAgentServer.Start()
 
 	provides := Provides{
@@ -68,5 +76,4 @@ type remoteagentImpl struct {
 	cfg config.Component
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
-	pbcore.UnimplementedTelemetryProviderServer
 }

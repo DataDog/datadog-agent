@@ -12,6 +12,7 @@ import (
 	"time"
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
@@ -29,6 +30,29 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
+
+// newTelemetryMiddlewareFactory builds the observability telemetry middleware used to
+// instrument the trace agent's IPC-authenticated HTTP endpoints. It returns nil when the
+// IPC certificate cannot be loaded, leaving the endpoints uninstrumented rather than
+// failing agent startup.
+func newTelemetryMiddlewareFactory(deps dependencies) observability.TelemetryMiddlewareFactory {
+	authTagGetter, err := observability.AuthTagGetter(deps.IPC.GetTLSServerConfig())
+	if err != nil {
+		log.Warnf("Unable to build the API telemetry auth tag getter: %v", err)
+		return nil
+	}
+	return observability.NewTelemetryMiddlewareFactory(deps.Telemetry, authTagGetter)
+}
+
+// telemetryMiddleware wraps an IPC-authenticated handler with the request telemetry
+// middleware (mTLS vs token auth tag). It is a no-op when the middleware factory could
+// not be built.
+func (ag component) telemetryMiddleware(serverName string) func(http.Handler) http.Handler {
+	if ag.telemetryMiddlewareFactory == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return ag.telemetryMiddlewareFactory.Middleware(serverName)
+}
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
 func runAgentSidekicks(ag component) error {
@@ -67,8 +91,8 @@ func runAgentSidekicks(ag component) error {
 	// the trace agent.
 	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
 	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
-	ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
-	ag.Agent.DebugServer.AddRoute("/config/set", ag.config.SetHandler())
+	ag.Agent.DebugServer.AddRoute("/config", ag.telemetryMiddleware("trace_debug")(ag.config.GetConfigHandler()))
+	ag.Agent.DebugServer.AddRoute("/config/set", ag.telemetryMiddleware("trace_debug")(ag.config.SetHandler()))
 	// The below endpoint is deprecated and has been replaced with /config/set on the debug server.
 	// It will be removed in a future version.
 	api.AttachEndpoint(api.Endpoint{
@@ -84,7 +108,7 @@ func runAgentSidekicks(ag component) error {
 	// used by the trace agent. This should be removed once the trace-agent is fully componentize.
 	ag.Agent.DebugServer.AddRoute("/secret/refresh",
 		// Adding IPC middleware to the secrets refresh endpoint to check validity of auth token Header.
-		ag.ipc.HTTPMiddleware(
+		ag.telemetryMiddleware("trace_debug")(ag.ipc.HTTPMiddleware(
 			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				res, err := ag.secrets.RefreshNow()
 				if err != nil {
@@ -96,6 +120,7 @@ func runAgentSidekicks(ag component) error {
 				}
 				w.Write([]byte(res))
 			}),
+		),
 		),
 	)
 
