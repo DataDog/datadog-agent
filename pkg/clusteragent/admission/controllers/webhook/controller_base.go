@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
+	admhardening "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/hardening"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/ncclprofiler"
 	admspot "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -45,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/validate/kubernetesadmissionevents"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/hardening"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	kubecommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -58,11 +60,11 @@ type Controller interface {
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingInformers admissionregistration.Interface, mutatingInformers admissionregistration.Interface, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, datadogConfig config.Component, rcClient *rcclient.Client, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher, ddiTargets autoinstrumentation.DDITargetProvider) Controller {
+func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, validatingInformers admissionregistration.Interface, mutatingInformers admissionregistration.Interface, isLeaderFunc func() bool, leadershipStateNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, hs *hardening.Store, datadogConfig config.Component, rcClient *rcclient.Client, demultiplexer demultiplexer.Component, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher, ddiTargets autoinstrumentation.DDITargetProvider) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, rcClient, demultiplexer, filterStore, handlers, informerFactory, csiDriverWatcher, ddiTargets)
+		return NewControllerV1(client, secretInformer, validatingInformers.V1().ValidatingWebhookConfigurations(), mutatingInformers.V1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, hs, datadogConfig, rcClient, demultiplexer, filterStore, handlers, informerFactory, csiDriverWatcher, ddiTargets)
 	}
-	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, datadogConfig, rcClient, demultiplexer, filterStore, handlers, informerFactory, csiDriverWatcher, ddiTargets)
+	return NewControllerV1beta1(client, secretInformer, validatingInformers.V1beta1().ValidatingWebhookConfigurations(), mutatingInformers.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, leadershipStateNotif, config, wmeta, pp, sh, hs, datadogConfig, rcClient, demultiplexer, filterStore, handlers, informerFactory, csiDriverWatcher, ddiTargets)
 }
 
 // Webhook represents an admission webhook
@@ -98,7 +100,7 @@ type Webhook interface {
 // The reason is that the volume mount for the APM socket added by the configWebhook webhook
 // doesn't always work on Fargate (one of the envs where we use an agent sidecar), and
 // the agent sidecar webhook needs to remove it.
-func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, rcClient *rcclient.Client, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher, ddiTargets autoinstrumentation.DDITargetProvider) []Webhook {
+func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta workloadmeta.Component, rcClient *rcclient.Client, demultiplexer demultiplexer.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, hs *hardening.Store, filterStore workloadfilter.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory, csiDriverWatcher libraryinjection.CSIDriverWatcher, ddiTargets autoinstrumentation.DDITargetProvider) []Webhook {
 	var webhooks []Webhook
 	var validatingWebhooks []Webhook
 
@@ -179,6 +181,10 @@ func (c *controllerBase) generateWebhooks(datadogConfig config.Component, wmeta 
 	// Setup NCCL profiler injection webhook.
 	ncclWebhook := ncclprofiler.NewWebhook(datadogConfig)
 	webhooks = append(webhooks, ncclWebhook)
+
+	// Setup workload hardening webhook. It only changes the container a trial
+	// names, so it runs last and sees the final container list.
+	webhooks = append(webhooks, admhardening.NewWebhook(datadogConfig, hs))
 
 	return webhooks
 }
