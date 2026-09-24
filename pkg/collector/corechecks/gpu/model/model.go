@@ -82,10 +82,29 @@ const (
 
 // DriverEvent is a GPU driver event observed by system-probe.
 type DriverEvent struct {
-	DeviceUUID string          `json:"device_uuid"`
-	Timestamp  time.Time       `json:"timestamp"`
-	Type       DriverEventType `json:"type"`
-	NvidiaXid  *NvidiaXid      `json:"nvidia_xid,omitempty"`
+	DeviceUUID string `json:"device_uuid"`
+
+	// PCIBusID is the PCI address the driver reported the event against. It is always
+	// populated, and is the only device identifier available when the GPU has left the
+	// PCIe bus (Xid 79) and can no longer be resolved to a UUID through NVML.
+	//
+	// It carries no event_tag: the tag walker only descends into NvidiaXid, so consumers
+	// that want this as a tag must emit it explicitly.
+	PCIBusID string `json:"pci_bus_id,omitempty"`
+
+	Timestamp time.Time       `json:"timestamp"`
+	Type      DriverEventType `json:"type"`
+	NvidiaXid *NvidiaXid      `json:"nvidia_xid,omitempty"`
+}
+
+// DeviceKey identifies the device an event belongs to, preferring the UUID and falling back
+// to the PCI bus ID. Grouping on this rather than on DeviceUUID keeps events from separate
+// unresolved devices in separate correlation groups instead of collapsing them into one.
+func (e DriverEvent) DeviceKey() string {
+	if e.DeviceUUID != "" {
+		return e.DeviceUUID
+	}
+	return e.PCIBusID
 }
 
 // NvidiaXid contains NVIDIA-specific details for an Xid driver event.
@@ -98,15 +117,68 @@ type NvidiaXid struct {
 	ProcessID   *uint64 `json:"process_id,omitempty" event_tag:"pid"`
 	ProcessName string  `json:"process_name,omitempty" event_tag:"process_name"`
 
+	// Channel is the GPU command channel named in the line preamble, alongside pid and
+	// name. It is not specific to MMU faults: Xid 13, 32, 43, 44 and 69 report it too.
+	Channel string `json:"channel,omitempty" event_tag:"channel"`
+
 	MMUFault       *NvidiaXidMMUFault       `json:"mmu_fault,omitempty"`
 	NVLinkFault    *NvidiaXidNVLinkFault    `json:"nvlink_fault,omitempty"`
 	MemoryFault    *NvidiaXidMemoryFault    `json:"memory_fault,omitempty"`
+	Repair         *NvidiaXidRepair         `json:"repair,omitempty"`
 	RecoveryAction *NvidiaXidRecoveryAction `json:"recovery_action,omitempty"`
 }
 
+// NvidiaXidRepair contains the resource retirement and repair details reported by NVIDIA
+// Xid 64, 156, 157, 160, 161 and 177.
+//
+// These are kept apart from NvidiaXidMemoryFault because they answer a different question:
+// a memory fault says where an error was observed, a repair says which spare resource was
+// spent and what is needed to activate it. Xid 156 and 157 retire a TPC, which is not a
+// memory resource at all.
+type NvidiaXidRepair struct {
+	// Target is the kind of resource retired or repaired: "channel", "lts", "tpc", "row"
+	// or "bank".
+	Target string `json:"target,omitempty" event_tag:"repair_target"`
+
+	// TargetIndex is the resource's index within its container.
+	TargetIndex *uint64 `json:"target_index,omitempty" event_tag:"repair_target_index"`
+
+	// Container and ContainerIndex name the enclosing unit: FBPA for a channel, FPB for an
+	// LTS, GPC for a TPC.
+	Container      string  `json:"container,omitempty" event_tag:"repair_container"`
+	ContainerIndex *uint64 `json:"container_index,omitempty" event_tag:"repair_container_index"`
+
+	// Address is the physical address the driver named, for the row and DRAM retirement
+	// paths that report one.
+	Address string `json:"address,omitempty"`
+
+	// Activation is the verb the driver says is needed to activate the repair, taken from
+	// "Perform <action> to activate repair". It resolves NVIDIA's unqualified "requires a
+	// reboot" to the actual scope.
+	Activation string `json:"activation,omitempty" event_tag:"repair_activation"`
+
+	// NodeRebootRequired is derived from Activation: a GPU reset will not pick the repair up.
+	NodeRebootRequired bool `json:"node_reboot_required,omitempty" event_tag:"node_reboot_required"`
+
+	// Failed distinguishes the failure codes (64, 157, 161) from the pending ones, and
+	// FailureReason carries the driver's stated cause.
+	Failed        bool   `json:"failed,omitempty" event_tag:"repair_failed"`
+	FailureReason string `json:"failure_reason,omitempty" event_tag:"repair_failure_reason"`
+
+	// SpareSource is set on Xid 156: "same_gpc" or "different_gpc". A spare drawn from a
+	// different GPC changes the shape of the surviving partition.
+	SpareSource string `json:"spare_source,omitempty" event_tag:"repair_spare_source"`
+
+	// MIGMode marks the Xid 157 variant that failed because MIG confines the search for a
+	// spare to the same GPC.
+	MIGMode bool `json:"mig_mode,omitempty" event_tag:"repair_mig_mode"`
+}
+
 // NvidiaXidMMUFault contains details from an NVIDIA Xid 31 MMU fault.
+//
+// The channel is not held here: it is a preamble field common to many codes and lives on
+// NvidiaXid.
 type NvidiaXidMMUFault struct {
-	Channel      string `json:"channel,omitempty" event_tag:"channel"`
 	Interrupt    string `json:"interrupt,omitempty" event_tag:"interrupt"`
 	Engine       string `json:"engine,omitempty" event_tag:"engine"`
 	EngineClient string `json:"engine_client,omitempty" event_tag:"engine_client"`
@@ -116,27 +188,63 @@ type NvidiaXidMMUFault struct {
 }
 
 // NvidiaXidNVLinkFault contains details from NVIDIA Xid 144–150 NVLink5 faults.
+//
+// The driver reports these as
+//
+//	Xid (PCI:<bus-id>): <code> <subcomponent> <fatal|nonfatal> <crosscontain> <injected> <link> (<intrInfo> <errorStatus> <errorDebugData[0..4]>)
+//
+// so each field below maps to one positional field of that line.
 type NvidiaXidNVLinkFault struct {
-	Subcode          string   `json:"subcode,omitempty" event_tag:"nvlink_subcode"`
-	Fatality         string   `json:"fatality,omitempty" event_tag:"nvlink_fatality"`
-	CrossContainment string   `json:"cross_containment,omitempty" event_tag:"nvlink_cross_containment"`
-	Instance         string   `json:"instance,omitempty" event_tag:"nvlink_instance"`
-	LinkID           *uint64  `json:"link_id,omitempty" event_tag:"nvlink_link_id"`
-	StatusWords      []string `json:"status_words,omitempty"`
+	Subcode string `json:"subcode,omitempty" event_tag:"nvlink_subcode"`
+
+	// Fatal reports whether the driver took the link down. Nonfatal subcodes do not by
+	// themselves justify a drain, so this gates escalation.
+	Fatal bool `json:"fatal,omitempty" event_tag:"nvlink_fatal"`
+
+	// CrossContainment is the XC flag: the fault crossed a containment boundary.
+	CrossContainment bool `json:"cross_containment,omitempty" event_tag:"nvlink_cross_containment"`
+
+	// Injected reports whether the error was deliberately injected for testing rather
+	// than observed. An injected event is not a real fault.
+	Injected bool `json:"injected,omitempty" event_tag:"nvlink_injected"`
+
+	LinkID *uint64 `json:"link_id,omitempty" event_tag:"nvlink_link_id"`
+
+	// IntrInfo and ErrorStatus are the two inputs NVIDIA's decode table needs to resolve
+	// an NVLink Xid to an action. They are named rather than positional because an export
+	// that cannot distinguish them cannot be decoded.
+	IntrInfo    string `json:"intr_info,omitempty"`
+	ErrorStatus string `json:"error_status,omitempty"`
+
+	// ErrorDebugData holds the remaining trailing words in the order the driver printed them.
+	ErrorDebugData []string `json:"error_debug_data,omitempty"`
 }
 
-// NvidiaXidMemoryFault contains location and repair details from NVIDIA memory Xid events.
+// NvidiaXidMemoryFault contains the location of a memory error reported by an NVIDIA memory
+// Xid event. Which spare resource was spent to repair it lives on NvidiaXidRepair instead.
 type NvidiaXidMemoryFault struct {
-	PhysicalAddress     string  `json:"physical_address,omitempty"`
-	RowAddress          string  `json:"row_address,omitempty"`
-	RowRemapperSite     string  `json:"row_remapper_site,omitempty" event_tag:"row_remapper_site"`
-	Partition           *uint64 `json:"partition,omitempty" event_tag:"memory_partition"`
-	Subpartition        *uint64 `json:"subpartition,omitempty" event_tag:"memory_subpartition"`
-	Location            string  `json:"location,omitempty" event_tag:"memory_location"`
-	RepairedTarget      string  `json:"repaired_target,omitempty" event_tag:"repaired_target"`
-	RepairedTargetIndex *uint64 `json:"repaired_target_index,omitempty" event_tag:"repaired_target_index"`
-	FBPA                *uint64 `json:"fbpa,omitempty" event_tag:"fbpa"`
-	NodeRebootRequired  bool    `json:"node_reboot_required,omitempty" event_tag:"node_reboot_required"`
+	PhysicalAddress string  `json:"physical_address,omitempty"`
+	RowAddress      string  `json:"row_address,omitempty"`
+	RowRemapperSite string  `json:"row_remapper_site,omitempty" event_tag:"row_remapper_site"`
+	Partition       *uint64 `json:"partition,omitempty" event_tag:"memory_partition"`
+	Subpartition    *uint64 `json:"subpartition,omitempty" event_tag:"memory_subpartition"`
+	Location        string  `json:"location,omitempty" event_tag:"memory_location"`
+	FBPA            *uint64 `json:"fbpa,omitempty" event_tag:"fbpa"`
+
+	// InterruptStormSource is set on Xid 92: "dram" when the driver disabled single-bit
+	// error interrupts for a framebuffer partition, "sm" for an SM SBE interrupt storm.
+	// Only the DRAM form names a partition, and only DRAM has row remapping to absorb the
+	// errors, so the two are not interchangeable.
+	InterruptStormSource string `json:"interrupt_storm_source,omitempty" event_tag:"interrupt_storm_source"`
+
+	// Residual* are the per-unit counts from Xid 140's "DRAM:%d, LTC:%d, MMU:%d, PCIE:%d",
+	// which say where an error the firmware could not handle was left outstanding. They
+	// are signed because the driver prints %d and a large negative value is a known
+	// counter-reporting artifact rather than a count.
+	ResidualDRAM *int64 `json:"residual_dram,omitempty" event_tag:"residual_dram"`
+	ResidualLTC  *int64 `json:"residual_ltc,omitempty" event_tag:"residual_ltc"`
+	ResidualMMU  *int64 `json:"residual_mmu,omitempty" event_tag:"residual_mmu"`
+	ResidualPCIE *int64 `json:"residual_pcie,omitempty" event_tag:"residual_pcie"`
 }
 
 // NvidiaXidRecoveryAction contains the transition reported by NVIDIA Xid 154.
