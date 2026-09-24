@@ -50,7 +50,7 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	tmpFile.Close()
 	defer os.Remove(tmpPath)
 
-	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", tmpPath)
+	cmd := exec.Command(getCompilePolicyBinaryPath(), c.compilePolicyCommandArgs(rawConfig, tmpPath)...)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
