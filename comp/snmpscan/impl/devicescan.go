@@ -387,7 +387,11 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 				maxRepOptimizer = batchsize.NewOptimizer(bulkMaxRep, "SNMP scan GetBulk for device "+deviceID)
 				continue
 			}
+			if emitted == 0 {
+				return fmt.Errorf("no OIDs collected after %d requests", requests)
+			}
 			// No more data.
+			log.Debugf("SNMP scan for device %s completed after %d requests, %d OIDs collected", deviceID, requests, emitted)
 			break
 		}
 
@@ -438,9 +442,5 @@ func gatherPDUsWithBulk(ctx context.Context, snmp bulkGetter, deviceID string, e
 		oid = lastOID
 	}
 
-	if emitted == 0 {
-		return fmt.Errorf("no OIDs collected after %d requests", requests)
-	}
-	log.Debugf("SNMP scan for device %s completed after %d requests, %d OIDs collected", deviceID, requests, emitted)
 	return nil
 }
