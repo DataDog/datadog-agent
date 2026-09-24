@@ -167,3 +167,13 @@ func TestParseProcessTags(t *testing.T) {
 		})
 	}
 }
+
+func TestIsHighCardinalityProcessTag(t *testing.T) {
+	assert.True(t, IsHighCardinalityProcessTag("entrypoint.workdir"))
+	assert.True(t, IsHighCardinalityProcessTag("entrypoint.basedir"))
+
+	assert.False(t, IsHighCardinalityProcessTag("entrypoint.name"))
+	assert.False(t, IsHighCardinalityProcessTag("entrypoint.type"))
+	assert.False(t, IsHighCardinalityProcessTag("svc.auto"))
+	assert.False(t, IsHighCardinalityProcessTag("tracer_service_name"))
+}

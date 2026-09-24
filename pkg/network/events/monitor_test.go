@@ -265,7 +265,7 @@ func TestEventHandleTracerTags(t *testing.T) {
 								ServiceName:    "my-service",
 								ServiceEnv:     "my-env",
 								ServiceVersion: "my-version",
-								ProcessTags:    "entrypoint.name:my-entrypoint",
+								ProcessTags:    "entrypoint.name:my-entrypoint,entrypoint.workdir:release-20260924,entrypoint.basedir:bin",
 							},
 						},
 					},
@@ -280,6 +280,9 @@ func TestEventHandleTracerTags(t *testing.T) {
 		require.Len(t, handler.events, 1, "should have received 1 process event")
 		receivedProc := handler.events[0]
 		assert.Equal(t, uint32(1234), receivedProc.Pid)
+		// high cardinality process tags should be dropped
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("entrypoint.workdir:release-20260924"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("entrypoint.basedir:bin"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:service-from-envp"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:env-from-envp"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("tracer_service_name:my-service"))

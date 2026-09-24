@@ -161,7 +161,7 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 			if tracermetadata.ShouldSkipServiceTagKV(key, value,
 				tagsFound["DD_SERVICE"],
 				tagsFound["DD_ENV"],
-				tagsFound["DD_VERSION"]) {
+				tagsFound["DD_VERSION"]) || tracermetadata.IsHighCardinalityProcessTag(key) {
 				continue
 			}
 			p.Tags = append(p.Tags, intern.GetByString(key+":"+value))
