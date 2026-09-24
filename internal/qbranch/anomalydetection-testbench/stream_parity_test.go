@@ -101,6 +101,31 @@ func TestHeadlessStreamParquetMatchesRetainedDetectorOutput(t *testing.T) {
 	require.Equal(t, retained, stream)
 }
 
+func TestHeadlessDetectorOutputIsEmptyArrayWithoutEmissions(t *testing.T) {
+	scenariosDir := t.TempDir()
+	parquetDir := filepath.Join(scenariosDir, "scenario", "parquet")
+	require.NoError(t, os.MkdirAll(parquetDir, 0o755))
+	writeParityMetricParquet(t, filepath.Join(parquetDir, "observer-metrics-000000.parquet"))
+
+	outputPath := filepath.Join(t.TempDir(), "output.json")
+	runFxApp(t, CLIParams{
+		ScenariosDir:             scenariosDir,
+		Headless:                 "scenario",
+		Output:                   outputPath,
+		IncludeDetectorAnomalies: true,
+		ComponentSettings: observerimpl.ComponentSettings{Enabled: map[string]bool{
+			"bocpd": false,
+			"rrcf":  false,
+		}},
+	})
+
+	output := readObserverOutput(t, outputPath)
+	require.NotNil(t, output.DetectorAnomalies)
+	require.Empty(t, *output.DetectorAnomalies)
+	require.NotNil(t, output.Metadata.TotalDetectorAnomalies)
+	require.Zero(t, *output.Metadata.TotalDetectorAnomalies)
+}
+
 func readObserverOutput(t *testing.T, path string) bench.ObserverOutput {
 	t.Helper()
 	data, err := os.ReadFile(path)

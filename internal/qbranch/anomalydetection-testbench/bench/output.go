@@ -118,6 +118,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	replayStats := tb.replayStats
 	var detectorAnomalies []DetectorOutputAnomaly
 	if tb.config.IncludeDetectorAnomalies {
+		detectorAnomalies = make([]DetectorOutputAnomaly, 0)
 		for _, anomaly := range sv.DetectorOutputAnomalies() {
 			detectorAnomalies = append(detectorAnomalies, DetectorOutputAnomaly{
 				Detector:  anomaly.DetectorName,
