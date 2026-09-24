@@ -9,9 +9,13 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -26,6 +30,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/tests/testutils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -614,4 +619,155 @@ func TestMountEvent(t *testing.T) {
 			t.Fatal(otherErr)
 		}
 	})
+}
+
+// mountSubdirEnv is a private tmpfs holding a sub directory, so that bind mounts of this sub directory have a mount
+// root different from "/"
+type mountSubdirEnv struct {
+	base   string
+	srcDir string
+	dstDir string
+}
+
+func newMountSubdirEnv(t *testing.T) *mountSubdirEnv {
+	base := t.TempDir()
+	if err := unix.Mount("tmpfs", base, "tmpfs", 0, "size=16M"); err != nil {
+		t.Fatalf("failed to mount tmpfs: %v", err)
+	}
+	t.Cleanup(func() { _ = unix.Unmount(base, unix.MNT_DETACH) })
+
+	if err := unix.Mount("", base, "", unix.MS_REC|unix.MS_PRIVATE, ""); err != nil {
+		t.Fatalf("failed to make tmpfs private: %v", err)
+	}
+
+	env := &mountSubdirEnv{
+		base:   base,
+		srcDir: filepath.Join(base, "src", "sub"),
+		dstDir: filepath.Join(base, "dst"),
+	}
+	for _, dir := range []string{env.srcDir, env.dstDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return env
+}
+
+func copyTrue(t *testing.T, dst string) {
+	if err := copyFile(which(t, "true"), dst, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMountOpenTreeSubdirMoveMount checks the path of a file under a clone of a sub directory, created by open_tree
+// and attached by move_mount, whose mount root is the sub directory
+func TestMountOpenTreeSubdirMoveMount(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if !openTreeIsSupported() || !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
+		t.Skip("open_tree/move_mount not supported")
+	}
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_open_tree_subdir_move_mount",
+		Expression: `exec.file.name == "mnt-open-tree-subdir"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	env := newMountSubdirEnv(t)
+	copyTrue(t, filepath.Join(env.srcDir, "mnt-open-tree-subdir"))
+
+	fd, err := unix.OpenTree(unix.AT_FDCWD, env.srcDir, unix.OPEN_TREE_CLONE|unix.OPEN_TREE_CLOEXEC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+
+	if err := unix.MoveMount(fd, "", unix.AT_FDCWD, env.dstDir, unix.MOVE_MOUNT_F_EMPTY_PATH); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(env.dstDir, unix.MNT_DETACH)
+
+	expected := filepath.Join(env.dstDir, "mnt-open-tree-subdir")
+	test.WaitSignalFromRule(t, func() error {
+		return exec.Command(expected).Run()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", expected)
+	}, "test_mount_open_tree_subdir_move_mount")
+}
+
+// TestMountBindSubdirPivotRoot checks the path of a file under the new root of a mount namespace, when this root is a
+// bind mount of a sub directory, like the rootfs of a container that is a plain directory
+func TestMountBindSubdirPivotRoot(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_bind_subdir_pivot_root",
+		Expression: `exec.file.name == "mnt-bind-subdir-pivot-root"`,
+	}}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	env := newMountSubdirEnv(t)
+	rootfs := env.srcDir
+
+	// the new root has no library, nor /dev/null
+	testerBin, err := syscallTesterFS.ReadFile("syscall_tester/bin/syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rootfs, "mnt-bind-subdir-pivot-root"), testerBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(rootfs, "old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		done := make(chan error, 1)
+		go func() {
+			// the thread is left in the pivoted mount namespace, the runtime terminates it when the goroutine exits
+			runtime.LockOSThread()
+
+			steps := []func() error{
+				func() error { return unix.Unshare(unix.CLONE_NEWNS | unix.CLONE_FS) },
+				func() error { return unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, "") },
+				func() error { return unix.Mount(rootfs, rootfs, "", unix.MS_BIND|unix.MS_REC, "") },
+				func() error { return unix.Chdir(rootfs) },
+				func() error { return unix.PivotRoot(".", "old") },
+				func() error { return unix.Chdir("/") },
+				func() error { return unix.Unmount("/old", unix.MNT_DETACH) },
+				func() error {
+					cmd := exec.Command("/mnt-bind-subdir-pivot-root")
+					cmd.Stdin = strings.NewReader("")
+					// syscall_tester exits with an error without argument
+					var exitErr *exec.ExitError
+					if _, err := cmd.CombinedOutput(); err != nil && !errors.As(err, &exitErr) {
+						return err
+					}
+					return nil
+				},
+			}
+			for _, step := range steps {
+				if err := step(); err != nil {
+					done <- err
+					return
+				}
+			}
+			done <- nil
+		}()
+		return <-done
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", "/mnt-bind-subdir-pivot-root")
+	}, "test_mount_bind_subdir_pivot_root")
 }
