@@ -47,60 +47,11 @@ message ClusterMetadataAnswer {
   repeated string tags = 2;
 }
 
-message ClusterMetadataNodeEvent {
-  string kind = 1;
-  string namespace = 2;
-  string name = 3;
-  bool deleted = 4;
-  repeated string tags = 5;
-}
-
-message ClusterMetadataSnapshotRequest {
-  string kind = 1;
-  string namespace = 2;
-  ClusterMetadataScope scope = 3;
-}
-
-message ClusterMetadataSnapshot {
-  repeated string nodes = 1;
-  repeated ClusterMetadataNodeEvent events = 2;
-}
-
-message ClusterMetadataRingMember {
-  string name = 1;
-  repeated string nodes = 2;
-  bool ready = 3;
-}
-
-message ClusterMetadataRingRequest {}
-
-message ClusterMetadataRing {
-  repeated ClusterMetadataRingMember members = 1;
-}
-
-message ClusterMetadataSubscribeRequest {
-  string node = 1;
-  ClusterMetadataScope scope = 2;
-}
-
 // ClusterMetadata is the peer-facing surface of the metadata ring: every
 // method answers from the serving replica's local cache only, never fanning
-// out to further peers.
+// out to further peers. Consumer-facing surfaces (the tagger gRPC) delegate
+// to the coordinator, which fans out through this service.
 service ClusterMetadata {
   rpc Query(ClusterMetadataQueryRequest) returns (ClusterMetadataAnswer);
   rpc QueryOrigin(ClusterMetadataOriginRequest) returns (ClusterMetadataAnswer);
-  rpc Snapshot(ClusterMetadataSnapshotRequest) returns (ClusterMetadataSnapshot);
-  rpc Ring(ClusterMetadataRingRequest) returns (ClusterMetadataRing);
-}
-
-// ClusterMetadataConsumer is the consumer-facing surface: every method has
-// coordinator semantics. A pod query asked of any replica fans out to the
-// peer replicas through the ClusterMetadata service and answers for the
-// whole ring. Subscribe streams one node's events from its owning replica.
-service ClusterMetadataConsumer {
-  rpc Query(ClusterMetadataQueryRequest) returns (ClusterMetadataAnswer);
-  rpc QueryOrigin(ClusterMetadataOriginRequest) returns (ClusterMetadataAnswer);
-  rpc Snapshot(ClusterMetadataSnapshotRequest) returns (ClusterMetadataSnapshot);
-  rpc Subscribe(ClusterMetadataSubscribeRequest) returns (stream ClusterMetadataNodeEvent);
-  rpc Ring(ClusterMetadataRingRequest) returns (ClusterMetadataRing);
 }
