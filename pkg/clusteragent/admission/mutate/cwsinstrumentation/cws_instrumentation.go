@@ -554,7 +554,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the namespace / container targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", exec.Container, "", workloadfilter.CreatePod("", "", ns, nil, nil))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", exec.Container, "", workloadfilter.CreatePod("", "", ns, nil, nil, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}
@@ -574,7 +574,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", "", pod.Annotations, nil))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", "", pod.Annotations, pod.Labels, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedByAnnotationReason)
 		return false, nil
 	}
@@ -729,7 +729,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", ns, pod.Annotations, nil))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", ns, pod.Annotations, pod.Labels, nil))) {
 		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}

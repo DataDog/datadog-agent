@@ -1,4 +1,7 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/ebpf:ebpf.bzl", "ebpf_prog")
 
 go_library(
     name = "kernelbugs",
@@ -9,9 +12,13 @@ go_library(
         "kernel_bugs_nobpf.go",
     ],
     embedsrcs = select({
+        "@rules_go//go/platform:android_amd64": [
+            "c/uprobe-trigger.o",
+            "c/detect-seccomp-bug",
+        ],
         "@rules_go//go/platform:linux_amd64": [
-            "//pkg/ebpf/kernelbugs/c:uprobe-trigger",  # keep
-            "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",  # keep
+            "c/uprobe-trigger.o",
+            "c/detect-seccomp-bug",
         ],
         "//conditions:default": [],
     }),
@@ -74,4 +81,45 @@ go_library(
         ],
         "//conditions:default": [],
     }),
+)
+
+# CO-RE program
+ebpf_prog(
+    name = "uprobe-trigger",
+    src = "c/uprobe-trigger.c",
+    core = True,
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/ebpf/c:ebpf_c_headers"],
+)
+
+# detect-seccomp-bug is a native binary (not eBPF), x86 only.
+cc_binary(
+    name = "detect-seccomp-bug",
+    srcs = ["c/detect-seccomp-bug.c"],
+    linkopts = [
+        "-static",
+        "-Wl,--gc-sections",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    visibility = ["//visibility:public"],
+    deps = ["@libseccomp"],
+)
+
+# gazelle relies on scanning `out / outs` attributes to infer generated files.
+# `copy_file` is a convenient way to adhere to that convention, preventing
+# gazelle from issuing warnings for unfound files that go sources want to embed
+# as well as the need for manual editing of the generated rules (with `# keep`)
+copy_file(
+    name = "c/uprobe-trigger",
+    src = "uprobe-trigger",
+    out = "c/uprobe-trigger.o",
+)
+
+copy_file(
+    name = "c/detect-seccomp-bug",
+    src = "detect-seccomp-bug",
+    out = "c/detect-seccomp-bug",
 )
