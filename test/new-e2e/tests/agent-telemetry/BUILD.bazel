@@ -3,6 +3,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 dd_agent_go_test(
     name = "agent-telemetry_test",
     srcs = [
+        "api_server_auth_telemetry_test.go",
         "errortracking_cluster_agent_test.go",
         "errortracking_otel_agent_test.go",
         "errortracking_test.go",

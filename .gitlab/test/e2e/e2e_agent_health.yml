@@ -28,7 +28,10 @@ new-e2e-agent-health:
   - changes:
       paths:
         - cmd/agent/subcommands/run/**/*
+        - comp/api/api/apiimpl/observability/**/*
         - comp/core/agenttelemetry/**/*
+        - comp/core/remoteagent/**/*
+        - comp/core/remoteagentregistry/**/*
         - pkg/util/log/setup/**/*
         - pkg/util/log/errortracking/**/*
         - test/new-e2e/tests/agent-telemetry/**/*
