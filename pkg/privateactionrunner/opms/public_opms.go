@@ -8,11 +8,15 @@ package opms
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/DataDog/jsonapi"
+	"github.com/go-jose/go-jose/v4"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
@@ -22,9 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/jsonapi"
-	"github.com/go-jose/go-jose/v4"
 )
+
+var ErrEnrollmentUnauthorized = errors.New("enrollment credentials rejected")
 
 const (
 	createPARPath           = "/api/unstable/on_prem_runners"
@@ -201,6 +205,9 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
 	}
 
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): check the API/application key and its required scopes, then restart the Private Action Runner", ErrEnrollmentUnauthorized, resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
 	}
