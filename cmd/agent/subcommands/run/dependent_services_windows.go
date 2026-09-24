@@ -214,10 +214,11 @@ func startDependentServices(coreConf model.Reader, sysprobeConf model.Reader) {
 	svcs := subservices(coreConf, sysprobeConf)
 
 	procmgrWait := make(chan bool, 1)
-	go func() {
-		procmgr, ok := findService(svcs, "procmgr")
-		procmgrWait <- startProcmgrIfEnabled(ctx, procmgr, ok)
-	}()
+	if procmgr, ok := findService(svcs, "procmgr"); ok {
+		go func() { procmgrWait <- startProcmgrIfEnabled(ctx, procmgr) }()
+	} else {
+		procmgrWait <- false
+	}
 
 	var independent, gated []Servicedef
 	for _, svc := range svcs {
@@ -263,10 +264,7 @@ func findService(svcs []Servicedef, name string) (Servicedef, bool) {
 	return Servicedef{}, false
 }
 
-func startProcmgrIfEnabled(ctx context.Context, procmgr Servicedef, ok bool) bool {
-	if !ok {
-		return false
-	}
+func startProcmgrIfEnabled(ctx context.Context, procmgr Servicedef) bool {
 	if !procmgr.isEnabledByConfig() {
 		log.Infof("Service %s is disabled, not starting", procmgr.name)
 		return false

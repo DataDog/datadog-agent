@@ -214,8 +214,7 @@ func TestFindService(t *testing.T) {
 }
 
 func TestStartProcmgrIfEnabled(t *testing.T) {
-	assert.False(t, startProcmgrIfEnabled(context.Background(), Servicedef{}, false))
-	assert.False(t, startProcmgrIfEnabled(context.Background(), Servicedef{name: "procmgr"}, true))
+	assert.False(t, startProcmgrIfEnabled(context.Background(), Servicedef{name: "procmgr"}))
 }
 
 func TestWaitForProcmgrInitialState(t *testing.T) {
