@@ -1935,27 +1935,34 @@ func TestUsesCustomResourceMetrics(t *testing.T) {
 	}
 }
 
-func TestAllowDeny(t *testing.T) {
-	deniedMetrics := buildDeniedMetricsSet(defaultCollectors())
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, deniedMetrics)
+func newKSMCheckWithLabelJoins(t *testing.T) *KSMCheck {
+	config := &KSMConfig{
+		LabelsMapper: defaultLabelsMapper(),
+		LabelJoins:   defaultLabelJoins(),
+	}
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
+	check.processLabelJoins()
+	return check
+}
+
+func TestAllowList(t *testing.T) {
+	check := newKSMCheckWithLabelJoins(t)
+	allowedMetrics := check.buildAllowedMetricsSet()
+	allowDenyList, err := allowdenylist.New(allowedMetrics, options.MetricSet{})
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
 	assert.NoError(t, err)
 
-	// Make sure denied metrics have been parsed and excluded
+	// Make sure allowed metrics have been parsed and included
 	assert.NotEqual(t, "", allowDenyList.Status())
-	for metric := range deniedMetrics {
-		isIncluded, err := allowDenyList.IsIncluded(metric)
-		assert.NoError(t, err)
-		assert.False(t, isIncluded)
-		isExcluded, err := allowDenyList.IsExcluded(metric)
-		assert.NoError(t, err)
-		assert.True(t, isExcluded)
-	}
+
+	included := map[string]struct{}{}
 
 	// Make sure we don't exclude metrics by mistake
 	for metric := range defaultMetricNamesMapper() {
+		included[metric] = struct{}{}
 		isIncluded, err := allowDenyList.IsIncluded(metric)
 		assert.NoError(t, err)
 		assert.True(t, isIncluded)
@@ -1966,6 +1973,7 @@ func TestAllowDeny(t *testing.T) {
 
 	// Make sure we don't exclude metric transformers
 	for metric := range defaultMetricTransformers(nil) {
+		included[metric] = struct{}{}
 		isIncluded, err := allowDenyList.IsIncluded(metric)
 		assert.NoError(t, err)
 		assert.True(t, isIncluded)
@@ -1974,19 +1982,46 @@ func TestAllowDeny(t *testing.T) {
 		assert.False(t, isExcluded)
 	}
 
-	// Make sure we don't exclude metadata metrics
-	for _, metric := range metadataMetrics {
+	// Make sure we don't exclude metric aggregators
+	for metric := range defaultMetricAggregators() {
+		included[metric] = struct{}{}
 		isIncluded, err := allowDenyList.IsIncluded(metric)
 		assert.NoError(t, err)
 		assert.True(t, isIncluded)
 		isExcluded, err := allowDenyList.IsExcluded(metric)
 		assert.NoError(t, err)
 		assert.False(t, isExcluded)
+	}
+
+	// Make sure we don't exclude metadata metrics that are actually used as
+	// label-join sources by the default configuration.
+	for metric := range defaultLabelJoins() {
+		included[metric] = struct{}{}
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isIncluded)
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded)
+	}
+
+	// Make sure we exclude other metadata metrics
+	for _, metric := range metadataMetrics {
+		if _, found := included[metric]; found {
+			continue
+		}
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.True(t, isExcluded)
+		isIncluded, err := allowDenyList.IsIncluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isIncluded)
 	}
 }
 
 func TestCreationMetricsFiltering(t *testing.T) {
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
+	check := newKSMCheckWithLabelJoins(t)
+	allowDenyList, err := allowdenylist.New(check.buildAllowedMetricsSet(), options.MetricSet{})
 	assert.NoError(t, err)
 
 	err = allowDenyList.Parse()
