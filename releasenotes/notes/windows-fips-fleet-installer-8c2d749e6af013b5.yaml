@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Windows FIPS Agent installation, upgrades, and rollback in the
+    Fleet installer.
