@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	lru "github.com/elastic/go-freelru"
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/reporter"
@@ -549,11 +549,14 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 
 	pipeR, pipeW := io.Pipe()
 
-	var compressed *zstd.Writer
+	var compressed io.WriteCloser
 	var mw *multipart.Writer
 	var contentEncoding string
 	if !d.compressDebugSections {
-		compressed = zstd.NewWriter(pipeW)
+		compressed, err = zstd.NewWriter(pipeW)
+		if err != nil {
+			return fmt.Errorf("failed to create zstd writer: %w", err)
+		}
 		mw = multipart.NewWriter(compressed)
 		contentEncoding = "zstd"
 	} else {
