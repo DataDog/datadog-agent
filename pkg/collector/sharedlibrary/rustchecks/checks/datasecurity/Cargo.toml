@@ -14,6 +14,7 @@ engine-postgres = [
     "dep:postgres",
     "dep:openssl",
     "dep:postgres-openssl",
+    "dep:postgres-protocol",
 ]
 
 [dependencies]
@@ -30,6 +31,7 @@ prost-types.workspace = true
 postgres = { version = "0.19", optional = true }
 openssl = { workspace = true, optional = true }
 postgres-openssl = { workspace = true, optional = true }
+postgres-protocol = { version = "0.6", optional = true }
 
 [build-dependencies]
 prost-build.workspace = true
