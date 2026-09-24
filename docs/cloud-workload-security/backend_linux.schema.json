@@ -265,6 +265,20 @@
           },
           "type": "array",
           "description": "Capabilities that the process successfully used since it started running"
+        },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process attempted to use in the initial user namespace since it started running"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Capabilities that the process successfully used in the initial user namespace since it started running"
         }
       },
       "additionalProperties": false,
@@ -1408,6 +1422,20 @@
           "type": "array",
           "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace"
+        },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",
           "description": "Context of the user session for this event"
@@ -1590,6 +1618,20 @@
           },
           "type": "array",
           "description": "CapsUsed lists the capabilities that this process effectively made use of"
+        },
+        "caps_attempted_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace"
+        },
+        "caps_used_host_userns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace"
         },
         "user_session": {
           "$ref": "#/$defs/UserSessionContext",

@@ -1670,14 +1670,16 @@ func (e *SetrlimitEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *CapabilitiesEvent) UnmarshalBinary(data []byte) (int, error) {
-	const size = 24
+	const size = 40
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Attempted = binary.NativeEndian.Uint64(data[0:8])
 	e.Used = binary.NativeEndian.Uint64(data[8:16])
-	e.Cookie = binary.NativeEndian.Uint64(data[16:24])
+	e.AttemptedHostUserNS = binary.NativeEndian.Uint64(data[16:24])
+	e.UsedHostUserNS = binary.NativeEndian.Uint64(data[24:32])
+	e.Cookie = binary.NativeEndian.Uint64(data[32:40])
 
 	return size, nil
 }

@@ -103,9 +103,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.ancestors.cgroup.created_at",
@@ -683,9 +693,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.cgroup.created_at",
@@ -1148,9 +1168,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.parent.cgroup.created_at",
@@ -1909,9 +1939,19 @@
           "property_doc_link": "capabilities-attempted-doc"
         },
         {
+          "name": "capabilities.attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace since it started running",
+          "property_doc_link": "capabilities-attempted_host_userns-doc"
+        },
+        {
           "name": "capabilities.used",
           "definition": "Bitmask of the capabilities that the process successfully used since it started running",
           "property_doc_link": "capabilities-used-doc"
+        },
+        {
+          "name": "capabilities.used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace since it started running",
+          "property_doc_link": "capabilities-used_host_userns-doc"
         }
       ]
     },
@@ -2846,9 +2886,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exec.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exec.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exec.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exec.cgroup.created_at",
@@ -3475,9 +3525,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exit.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exit.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exit.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exit.cause",
@@ -5503,9 +5563,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.created_at",
@@ -6083,9 +6153,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.created_at",
@@ -6548,9 +6628,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.created_at",
@@ -7907,9 +7997,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.ancestors.cgroup.created_at",
@@ -8487,9 +8587,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.cgroup.created_at",
@@ -8952,9 +9062,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.created_at",
@@ -9888,9 +10008,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.created_at",
@@ -10468,9 +10598,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.cgroup.created_at",
@@ -10933,9 +11073,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.parent.cgroup.created_at",
@@ -12437,10 +12587,60 @@
       "examples": []
     },
     {
+      "name": "*.caps_attempted_host_userns",
+      "link": "common-process-caps_attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.caps_used",
       "link": "common-process-caps_used-doc",
       "type": "int",
       "definition": "Bitmask of the capabilities that the process successfully used",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_used_host_userns",
+      "link": "common-process-caps_used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace",
       "prefixes": [
         "exec",
         "exit",
@@ -15609,10 +15809,34 @@
       "examples": []
     },
     {
+      "name": "capabilities.attempted_host_userns",
+      "link": "capabilities-attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use in the initial user namespace since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "capabilities.used",
       "link": "capabilities-used-doc",
       "type": "int",
       "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "capabilities.used_host_userns",
+      "link": "capabilities-used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used in the initial user namespace since it started running",
       "prefixes": [
         "capabilities"
       ],

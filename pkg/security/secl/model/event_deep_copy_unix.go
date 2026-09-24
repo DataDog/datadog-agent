@@ -232,7 +232,9 @@ func deepCopyProcessPtr(fieldToCopy *Process) *Process {
 	copied.ArgvScrubbed = deepCopystringArr(fieldToCopy.ArgvScrubbed)
 	copied.CGroup = deepCopyCGroupContext(fieldToCopy.CGroup)
 	copied.CapsAttempted = fieldToCopy.CapsAttempted
+	copied.CapsAttemptedHostUserNS = fieldToCopy.CapsAttemptedHostUserNS
 	copied.CapsUsed = fieldToCopy.CapsUsed
+	copied.CapsUsedHostUserNS = fieldToCopy.CapsUsedHostUserNS
 	copied.Comm = fieldToCopy.Comm
 	copied.ContainerContext = deepCopyContainerContext(fieldToCopy.ContainerContext)
 	copied.Cookie = fieldToCopy.Cookie
@@ -501,7 +503,9 @@ func deepCopyProcess(fieldToCopy Process) Process {
 	copied.ArgvScrubbed = deepCopystringArr(fieldToCopy.ArgvScrubbed)
 	copied.CGroup = deepCopyCGroupContext(fieldToCopy.CGroup)
 	copied.CapsAttempted = fieldToCopy.CapsAttempted
+	copied.CapsAttemptedHostUserNS = fieldToCopy.CapsAttemptedHostUserNS
 	copied.CapsUsed = fieldToCopy.CapsUsed
+	copied.CapsUsedHostUserNS = fieldToCopy.CapsUsedHostUserNS
 	copied.Comm = fieldToCopy.Comm
 	copied.ContainerContext = deepCopyContainerContext(fieldToCopy.ContainerContext)
 	copied.Cookie = fieldToCopy.Cookie
@@ -626,8 +630,10 @@ func deepCopyBindEvent(fieldToCopy BindEvent) BindEvent {
 func deepCopyCapabilitiesEvent(fieldToCopy CapabilitiesEvent) CapabilitiesEvent {
 	copied := CapabilitiesEvent{}
 	copied.Attempted = fieldToCopy.Attempted
+	copied.AttemptedHostUserNS = fieldToCopy.AttemptedHostUserNS
 	copied.Cookie = fieldToCopy.Cookie
 	copied.Used = fieldToCopy.Used
+	copied.UsedHostUserNS = fieldToCopy.UsedHostUserNS
 	return copied
 }
 func deepCopyCapsetEvent(fieldToCopy CapsetEvent) CapsetEvent {

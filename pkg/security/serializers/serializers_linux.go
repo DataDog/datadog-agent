@@ -298,6 +298,10 @@ type ProcessSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// CapsUsed lists the capabilities that this process effectively made use of
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -887,12 +891,18 @@ type CapabilitiesEventSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// Capabilities that the process successfully used since it started running
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// Capabilities that the process attempted to use in the initial user namespace since it started running
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// Capabilities that the process successfully used in the initial user namespace since it started running
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 }
 
 func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
 	return &CapabilitiesEventSerializer{
-		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
-		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttempted:           model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:                model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttemptedHostUserNS: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(e, ce)).StringArray(),
+		CapsUsedHostUserNS:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(e, ce)).StringArray(),
 	}
 }
 
@@ -1029,6 +1039,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Source:          model.ProcessSourceToString(ps.Source),
 			CapsAttempted:   model.KernelCapability(ps.CapsAttempted).StringArray(),
 			CapsUsed:        model.KernelCapability(ps.CapsUsed).StringArray(),
+
+			CapsAttemptedHostUserNS: model.KernelCapability(ps.CapsAttemptedHostUserNS).StringArray(),
+			CapsUsedHostUserNS:      model.KernelCapability(ps.CapsUsedHostUserNS).StringArray(),
 		}
 
 		if ps.HasInterpreter() {

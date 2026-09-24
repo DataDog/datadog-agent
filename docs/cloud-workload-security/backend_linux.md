@@ -276,6 +276,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "Capabilities that the process successfully used since it started running"
+                },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process attempted to use in the initial user namespace since it started running"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process successfully used in the initial user namespace since it started running"
                 }
             },
             "additionalProperties": false,
@@ -1419,6 +1433,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "array",
                     "description": "CapsUsed lists the capabilities that this process effectively made use of"
                 },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace"
+                },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
                     "description": "Context of the user session for this event"
@@ -1601,6 +1629,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "CapsUsed lists the capabilities that this process effectively made use of"
+                },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace"
                 },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
@@ -3073,6 +3115,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "array",
             "description": "Capabilities that the process successfully used since it started running"
+        },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process attempted to use in the initial user namespace since it started running"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process successfully used in the initial user namespace since it started running"
         }
     },
     "additionalProperties": false,
@@ -3086,6 +3142,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `caps_attempted` | Capabilities that the process attempted to use since it started running |
 | `caps_used` | Capabilities that the process successfully used since it started running |
+| `caps_attempted_host_userns` | Capabilities that the process attempted to use in the initial user namespace since it started running |
+| `caps_used_host_userns` | Capabilities that the process successfully used in the initial user namespace since it started running |
 
 
 ## `ConnectEvent`
@@ -4727,6 +4785,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "array",
             "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace"
+        },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
             "description": "Context of the user session for this event"
@@ -4850,6 +4922,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `credentials` | Credentials associated with the process |
 | `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
 | `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
+| `caps_attempted_host_userns` | CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace |
+| `caps_used_host_userns` | CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -4974,6 +5048,20 @@ ancestor lineage to find the same value. |
             },
             "type": "array",
             "description": "CapsUsed lists the capabilities that this process effectively made use of"
+        },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace"
         },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
@@ -5113,6 +5201,8 @@ ancestor lineage to find the same value. |
 | `credentials` | Credentials associated with the process |
 | `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
 | `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
+| `caps_attempted_host_userns` | CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace |
+| `caps_used_host_userns` | CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |

@@ -201,7 +201,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`process.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`process.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -317,7 +319,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`process.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`process.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -410,7 +414,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`process.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`process.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -585,7 +591,9 @@ A process used some capabilities
 | Property | Definition |
 | -------- | ------------- |
 | [`capabilities.attempted`](#capabilities-attempted-doc) | Bitmask of the capabilities that the process attempted to use since it started running |
+| [`capabilities.attempted_host_userns`](#capabilities-attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace since it started running |
 | [`capabilities.used`](#capabilities-used-doc) | Bitmask of the capabilities that the process successfully used since it started running |
+| [`capabilities.used_host_userns`](#capabilities-used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace since it started running |
 
 ### Event `capset`
 
@@ -816,7 +824,9 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exec.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`exec.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exec.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`exec.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -947,7 +957,9 @@ A process was terminated
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exit.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`exit.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exit.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | [`exit.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
@@ -1417,7 +1429,9 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`ptrace.tracee.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`ptrace.tracee.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1533,7 +1547,9 @@ A ptrace command was executed
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`ptrace.tracee.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`ptrace.tracee.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1626,7 +1642,9 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`ptrace.tracee.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`ptrace.tracee.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1929,7 +1947,9 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`setrlimit.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`setrlimit.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2045,7 +2065,9 @@ A setrlimit command was executed
 | [`setrlimit.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`setrlimit.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`setrlimit.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2138,7 +2160,9 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`setrlimit.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`setrlimit.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2346,7 +2370,9 @@ A signal was sent
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`signal.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`signal.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2462,7 +2488,9 @@ A signal was sent
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`signal.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`signal.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2555,7 +2583,9 @@ A signal was sent
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use in the initial user namespace |
 | [`signal.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used in the initial user namespace |
 | [`signal.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2990,12 +3020,36 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `*.caps_attempted_host_userns` {#common-process-caps_attempted_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use in the initial user namespace
+
+`*.caps_attempted_host_userns` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.caps_used` {#common-process-caps_used-doc}
 Type: int
 
 Definition: Bitmask of the capabilities that the process successfully used
 
 `*.caps_used` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.caps_used_host_userns` {#common-process-caps_used_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used in the initial user namespace
+
+`*.caps_used_host_userns` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
@@ -3962,10 +4016,30 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `capabilities.attempted_host_userns` {#capabilities-attempted_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use in the initial user namespace since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `capabilities.used` {#capabilities-used-doc}
 Type: int
 
 Definition: Bitmask of the capabilities that the process successfully used since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `capabilities.used_host_userns` {#capabilities-used_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used in the initial user namespace since it started running
 
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
