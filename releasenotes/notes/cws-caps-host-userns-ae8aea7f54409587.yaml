@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    Capabilities monitoring now reports which capabilities a process used
+    against the initial user namespace, through the
+    ``capabilities.attempted_host_userns`` and
+    ``capabilities.used_host_userns`` event fields and the matching
+    ``caps_attempted_host_userns`` and ``caps_used_host_userns`` process
+    fields. Those capabilities stop being granted once the workload runs in
+    its own user namespace, so they identify what would break when enabling
+    user namespaces for a Kubernetes pod. This requires
+    ``event_monitoring_config.capabilities_monitoring.enabled``.

@@ -84,6 +84,43 @@ int hook_revert_creds(ctx_t *ctx) {
     return 0;
 }
 
+// capable() is ns_capable(&init_user_ns, cap) and netlink_capable() reaches the same check through
+// a netlink wrapper: both ask for the capability in the initial user namespace whatever user
+// namespace the task lives in, so they are denied outright once it lives in a descendant one.
+// Nothing in the arguments of security_capable() tells these apart from a check aimed at a
+// namespace the task owns, because before entering a user namespace the two are the same
+// namespace. The capability is parked here instead, for the security_capable call it precedes.
+static __attribute__((always_inline)) int park_host_userns_cap(u64 cap) {
+    if (cap >= 64) { // a shift past the mask width would park a meaningless capability
+        return 0;
+    }
+
+    u64 tgid_tid = bpf_get_current_pid_tgid();
+    u32 tid = (u32)tgid_tid;
+
+    struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
+    if (cap_context) {
+        cap_context->host_userns_cap_as_mask = 1ULL << cap;
+    } else {
+        struct capabilities_context_t new_context = {
+            .host_userns_cap_as_mask = 1ULL << cap,
+        };
+        bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
+    }
+
+    return 0;
+}
+
+HOOK_ENTRY("capable")
+int hook_capable(ctx_t *ctx) {
+    return park_host_userns_cap(CTX_PARM1(ctx));
+}
+
+HOOK_ENTRY("netlink_capable")
+int hook_netlink_capable(ctx_t *ctx) {
+    return park_host_userns_cap(CTX_PARM2(ctx));
+}
+
 HOOK_ENTRY("security_capable")
 int hook_security_capable(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
@@ -130,25 +167,42 @@ int hook_security_capable(ctx_t *ctx) {
     // we can use a bitmask here because CAP_LAST_CAP is less than 64
     u64 cap_as_mask = 1ULL << cap;
 
+    // claim what one of the wrappers above parked for this call; anything parked for a different
+    // capability belongs to a call we never saw the entry of, so it is dropped rather than carried
+    u64 host_userns_cap_as_mask = 0;
+    if (cap_context) {
+        if (cap_context->host_userns_cap_as_mask == cap_as_mask) {
+            host_userns_cap_as_mask = cap_as_mask;
+        }
+        cap_context->host_userns_cap_as_mask = 0;
+    }
+
     // Look up the capabilities usage entry for this process
     struct capabilities_usage_entry_t *entry = bpf_map_lookup_elem(&capabilities_usage, &key);
     if (!entry) {
         struct capabilities_usage_entry_t new_entry = {0};
         new_entry.usage.attempted = cap_as_mask;
         new_entry.usage.used = 0;
+        new_entry.usage.attempted_host_userns = host_userns_cap_as_mask;
         update_dirty(&new_entry, 1); // Mark as dirty since we are creating a new entry
         bpf_map_update_elem(&capabilities_usage, &key, &new_entry, BPF_ANY);
     } else {
-        update_dirty(entry, (entry->usage.attempted & cap_as_mask) == 0); // Mark as dirty if this capability was not previously attempted
+        // a capability already attempted against a namespace the task owns is new information
+        // again the first time it is attempted against the initial one, so both sets mark dirty
+        int is_new = (entry->usage.attempted & cap_as_mask) == 0 || (host_userns_cap_as_mask && (entry->usage.attempted_host_userns & cap_as_mask) == 0);
+        update_dirty(entry, is_new);
         entry->usage.attempted |= cap_as_mask; // Mark the capability as checked
+        entry->usage.attempted_host_userns |= host_userns_cap_as_mask;
     }
 
     if (cap_context) {
         cap_context->cap_as_mask = cap_as_mask;
+        cap_context->host_userns_check = host_userns_cap_as_mask;
     } else {
         // If no context exists, we create a new one
         struct capabilities_context_t new_context = {
             .cap_as_mask = cap_as_mask,
+            .host_userns_check = host_userns_cap_as_mask,
         };
         bpf_map_update_elem(&capabilities_contexts, &tid, &new_context, BPF_ANY);
     }
@@ -168,12 +222,17 @@ int rethook_security_capable(ctx_t *ctx) {
 
     u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
     u64 override_creds_depth = cap_context->override_creds_depth;
+    u64 host_userns_check = cap_context->host_userns_check;
 
     // consume on every path, a leftover mask would be picked up by an untracked call's return
-    if (override_creds_depth == 0) {
+    if (override_creds_depth == 0 && cap_context->host_userns_cap_as_mask == 0) {
         bpf_map_delete_elem(&capabilities_contexts, &tid);
     } else {
+        // netlink_capable() asks about the socket opener's credentials before asking about the
+        // current task's, and that first call is untracked: dropping the context here would take
+        // the parked capability with it and leave the real check looking namespace-scoped
         cap_context->cap_as_mask = 0; // the depth counter has to outlive the call
+        cap_context->host_userns_check = 0;
     }
 
     if (!cap_as_mask || override_creds_depth != 0 || is_in_creds_override()) {
@@ -209,8 +268,12 @@ int rethook_security_capable(ctx_t *ctx) {
         return 0;
     }
 
-    update_dirty(entry, (entry->usage.used & cap_as_mask) == 0); // Mark as dirty if this capability was not previously used
+    int is_new = (entry->usage.used & cap_as_mask) == 0 || (host_userns_check && (entry->usage.used_host_userns & cap_as_mask) == 0);
+    update_dirty(entry, is_new);
     entry->usage.used |= cap_as_mask;
+    if (host_userns_check) {
+        entry->usage.used_host_userns |= cap_as_mask;
+    }
 
     return 0;
 }

@@ -67,6 +67,14 @@ func TestCapabilitiesEvent(t *testing.T) {
 			Expression: `capabilities.used == CAP_CHOWN && process.file.name == "syscall_tester"`,
 		},
 		{
+			ID:         "test_capabilities_host_userns_capable",
+			Expression: `capabilities.used_host_userns == CAP_MKNOD && process.file.name == "syscall_tester"`,
+		},
+		{
+			ID:         "test_capabilities_host_userns_netlink_capable",
+			Expression: `capabilities.used_host_userns == CAP_AUDIT_WRITE && process.file.name == "syscall_tester"`,
+		},
+		{
 			ID:         "test_capabilities_flush_within_period_first_report",
 			Expression: `capabilities.attempted == CAP_SETUID && process.file.name == "syscall_tester"`,
 		},
@@ -103,6 +111,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_SYS_CHROOT), "capabilities attempted should contain CAP_SYS_CHROOT")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_CHROOT), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_SYS_CHROOT), "capabilities used should contain CAP_SYS_CHROOT")
+			// chroot goes through ns_capable(current_user_ns()), which follows the process into a
+			// user namespace, so it must not show up as used in the initial one
+			assert.Zero(t, event.CapabilitiesUsage.UsedHostUserNS, "CAP_SYS_CHROOT is not checked against the initial user namespace")
+			assert.Zero(t, event.CapabilitiesUsage.AttemptedHostUserNS, "CAP_SYS_CHROOT is not checked against the initial user namespace")
 		}, "test_capabilities_used_exec_flush")
 	})
 
@@ -118,6 +130,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Attempted, "wrong capabilities attempted")
 			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "capabilities usage must be reported against the program that used them")
+			assert.Zero(t, event.CapabilitiesUsage.UsedHostUserNS, "CAP_SETGID is not checked against the initial user namespace")
 		}, "test_capabilities_used_exec_flush_other_binary")
 	})
 
@@ -133,6 +146,9 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(0), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_PACCT), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_SYS_PACCT), "capabilities attempted should contain CAP_SYS_PACCT")
 			assert.Equal(t, uint64(0), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_SYS_PACCT), "capabilities used shouldn't contain CAP_SYS_PACCT")
+			// acct goes through capable(), so the attempt is against the initial user namespace
+			assert.Equal(t, uint64(1<<unix.CAP_SYS_PACCT), event.CapabilitiesUsage.AttemptedHostUserNS, "wrong capabilities attempted in the initial user namespace")
+			assert.Zero(t, event.CapabilitiesUsage.UsedHostUserNS, "the capability was denied, so it was never used")
 		}, "test_capabilities_attempted_exit_flush")
 	})
 
@@ -158,7 +174,36 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_CHOWN), "capabilities attempted should contain CAP_CHOWN")
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_CHOWN), "capabilities used should contain CAP_CHOWN")
+			assert.Zero(t, event.CapabilitiesUsage.UsedHostUserNS, "CAP_CHOWN is not checked against the initial user namespace")
 		}, "test_capabilities_used_periodic_flush")
+	})
+
+	// vfs_mknod gates character devices on capable(CAP_MKNOD), the plain wrapper that always
+	// targets the initial user namespace; docker grants CAP_MKNOD so the check succeeds
+	t.Run("host-userns-capable", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			return dockerInstance.Command(syscallTester, []string{"mknod-chardev", "/tmp/cws-caps-mknod"}, []string{}).Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
+			assert.Equal(t, "test_capabilities_host_userns_capable", rule.ID, "wrong rule ID")
+			assert.Equal(t, uint64(1<<unix.CAP_MKNOD), event.CapabilitiesUsage.Used, "wrong capabilities used")
+			assert.Equal(t, uint64(1<<unix.CAP_MKNOD), event.CapabilitiesUsage.UsedHostUserNS, "wrong capabilities used in the initial user namespace")
+			assert.Equal(t, uint64(1<<unix.CAP_MKNOD), event.CapabilitiesUsage.AttemptedHostUserNS, "wrong capabilities attempted in the initial user namespace")
+			assert.Equal(t, uint64(1<<unix.CAP_MKNOD), event.ProcessCacheEntry.CapsUsedHostUserNS&(1<<unix.CAP_MKNOD), "capabilities used in the initial user namespace should contain CAP_MKNOD")
+		}, "test_capabilities_host_userns_capable")
+	})
+
+	// netlink_capable() reaches the same initial-namespace check without going through capable(),
+	// so it needs its own hook; an AUDIT_USER message is gated on CAP_AUDIT_WRITE, which docker grants
+	t.Run("host-userns-netlink-capable", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			return dockerInstance.Command(syscallTester, []string{"netlink-audit-user"}, []string{}).Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
+			assert.Equal(t, "test_capabilities_host_userns_netlink_capable", rule.ID, "wrong rule ID")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.CapabilitiesUsage.Used, "wrong capabilities used")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.CapabilitiesUsage.UsedHostUserNS, "wrong capabilities used in the initial user namespace")
+		}, "test_capabilities_host_userns_netlink_capable")
 	})
 
 	// the monitoring period rate-limits the periodic ticker only: once the ticker has reported an

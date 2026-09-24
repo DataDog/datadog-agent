@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <sys/fsuid.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -23,6 +24,8 @@
 #include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
+#include <linux/audit.h>
+#include <linux/netlink.h>
 #include <linux/prctl.h>
 #include <linux/sched.h>
 #include <err.h>
@@ -1814,6 +1817,54 @@ int test_acct(int argc, char **argv) {
     return err;
 }
 
+// vfs_mknod gates character devices on capable(CAP_MKNOD), which targets the initial user
+// namespace; the device cgroup may still refuse the node afterwards, the check has already run
+int test_mknod_chardev(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a path for the character device\n");
+        return EXIT_FAILURE;
+    }
+
+    unlink(argv[1]);
+    if (mknod(argv[1], S_IFCHR | 0600, makedev(1, 3))) {
+        perror("mknod");
+    }
+    unlink(argv[1]);
+
+    return EXIT_SUCCESS;
+}
+
+// an AUDIT_USER message reaches netlink_capable(CAP_AUDIT_WRITE), which also targets the initial
+// user namespace. AUDIT_GET would be rejected before that check because it additionally demands
+// the initial pid namespace, which a container does not have.
+int test_netlink_audit_user(int argc, char **argv) {
+    int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_AUDIT);
+    if (sock < 0) {
+        perror("socket(NETLINK_AUDIT)");
+        return EXIT_FAILURE;
+    }
+
+    struct {
+        struct nlmsghdr hdr;
+        char payload[8];
+    } request = {0};
+    request.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(request.payload));
+    request.hdr.nlmsg_type = AUDIT_USER;
+    request.hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+    request.hdr.nlmsg_seq = 1;
+
+    struct sockaddr_nl dest = {0};
+    dest.nl_family = AF_NETLINK;
+
+    if (sendto(sock, &request, request.hdr.nlmsg_len, 0, (struct sockaddr *)&dest, sizeof(dest)) < 0) {
+        perror("sendto(AUDIT_USER)");
+    }
+
+    close(sock);
+
+    return EXIT_SUCCESS;
+}
+
 int test_pause(int argc, char **argv) {
     if (argc != 1) {
         fprintf(stderr, "Usage: %s\n", argv[0]);
@@ -2337,6 +2388,10 @@ int main(int argc, char **argv) {
             exit_code = test_connect_and_send(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chroot") == 0) {
             exit_code = test_chroot(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "mknod-chardev") == 0) {
+            exit_code = test_mknod_chardev(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "netlink-audit-user") == 0) {
+            exit_code = test_netlink_audit_user(sub_argc, sub_argv);
         } else if (strcmp(cmd, "acct") == 0) {
             exit_code = test_acct(sub_argc, sub_argv);
         } else if (strcmp(cmd, "pause") == 0) {
