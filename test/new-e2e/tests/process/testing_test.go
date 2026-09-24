@@ -14,8 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// marshalCheckOutput renders a payload the way `agent processchecks <check> --json` does, see
-// printResultsJSON in pkg/cli/subcommands/processchecks
+// Match printResultsJSON, which uses encoding/json rather than protobuf JSON encoding.
 func marshalCheckOutput(t *testing.T, payload agentmodel.MessageBody) string {
 	t.Helper()
 
@@ -38,8 +37,6 @@ func collectorProcWithServiceDiscovery() *agentmodel.CollectorProc {
 				ServiceDiscovery: &agentmodel.ServiceDiscovery{
 					GeneratedServiceName: &agentmodel.ServiceName{Name: "stress"},
 					ApmInstrumentation:   true,
-					// Populated since the service discovery data is collected on agent startup,
-					// which is what made the check output undecodable, see incident #61151
 					Resources: []*agentmodel.Resource{
 						{Resource: &agentmodel.Resource_Logs{Logs: &agentmodel.LogResource{Path: "/var/log/stress.log"}}},
 					},
@@ -52,17 +49,12 @@ func collectorProcWithServiceDiscovery() *agentmodel.CollectorProc {
 	}
 }
 
-// TestAssertManualProcessCheckWithServiceDiscovery asserts that a check output carrying service
-// discovery resources, whose protobuf oneof encoding/json cannot unmarshal on its own, is decoded
-// and asserted on successfully
 func TestAssertManualProcessCheckWithServiceDiscovery(t *testing.T) {
 	check := marshalCheckOutput(t, collectorProcWithServiceDiscovery())
 
 	assertManualProcessCheck(t, check, true, "stress", "stress-container")
 }
 
-// TestUnmarshalManualProcessCheck asserts that decoding the check output preserves the payload,
-// including the service discovery resources behind the oneof
 func TestUnmarshalManualProcessCheck(t *testing.T) {
 	payload := collectorProcWithServiceDiscovery()
 
@@ -72,8 +64,6 @@ func TestUnmarshalManualProcessCheck(t *testing.T) {
 	assert.Equal(t, payload.Processes, procs)
 }
 
-// TestUnmarshalManualProcessCheckWithoutServiceDiscovery asserts that processes reported without
-// service discovery data, as on the platforms where it does not run, are decoded unchanged
 func TestUnmarshalManualProcessCheckWithoutServiceDiscovery(t *testing.T) {
 	payload := collectorProcWithServiceDiscovery()
 	payload.Processes[0].ServiceDiscovery = nil

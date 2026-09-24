@@ -317,31 +317,21 @@ func matchContainerName(container *agentmodel.Container, name string) bool {
 	return false
 }
 
-// The manual check output is produced by running encoding/json over the protobuf payload structs
-// (see pkg/cli/subcommands/processchecks). encoding/json marshals a protobuf oneof as the generated
-// wrapper struct, nested under the Go name of the oneof field, but it cannot unmarshal it back: the
-// field is typed as an unexported interface (e.g. process.isResource_Resource). Decoding a payload
-// straight into agentmodel.Process therefore fails as soon as a oneof in it is populated, so the
-// types below mirror the payload with the oneofs spelled out, and rebuild the wrappers afterwards.
-
-// processJSON decodes an agentmodel.Process. The embedded value covers every field except
-// serviceDiscovery, which the shallower field shadows so that it decodes into the mirror type.
+// encoding/json cannot decode protobuf oneofs because their generated fields are unexported
+// interfaces. These types replace the oneof-containing fields and rebuild their wrappers after
+// decoding the manual check output.
 type processJSON struct {
 	agentmodel.Process
 	ServiceDiscovery *serviceDiscoveryJSON `json:"serviceDiscovery"`
 }
 
-// serviceDiscoveryJSON decodes an agentmodel.ServiceDiscovery, shadowing the resources which hold
-// the oneof.
 type serviceDiscoveryJSON struct {
 	agentmodel.ServiceDiscovery
 	Resources []*resourceJSON `json:"resources"`
 }
 
-// resourceJSON decodes an agentmodel.Resource. The oneof field carries no json tag, so it is
-// written under its Go name, with the wrapper struct of whichever variant is set as its value.
-// Logs is the only variant today; a variant added later decodes to an empty resource, which is
-// harmless as the assertions do not read service discovery resources.
+// Resource has no JSON tag, so encoding/json uses the capitalized Go field name. Unknown oneof
+// variants decode as empty resources because these assertions do not inspect resource contents.
 type resourceJSON struct {
 	Resource struct {
 		Logs *agentmodel.LogResource `json:"logs"`
@@ -371,7 +361,6 @@ func (r *resourceJSON) toResource() *agentmodel.Resource {
 	return &agentmodel.Resource{Resource: &agentmodel.Resource_Logs{Logs: r.Resource.Logs}}
 }
 
-// unmarshalManualProcessCheck decodes the processes reported by the manual process check
 func unmarshalManualProcessCheck(check string) ([]*agentmodel.Process, error) {
 	var checkOutput struct {
 		Processes []*processJSON `json:"processes"`
