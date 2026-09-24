@@ -134,7 +134,6 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
-    "com_github_datadog_orchestrion",
     "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
@@ -148,7 +147,6 @@ use_repo(
     "com_github_elastic_go_libaudit_v2",
     "com_github_elastic_go_seccomp_bpf",
     "com_github_envoyproxy_gateway",
-    "com_github_envoyproxy_go_control_plane_envoy",
     "com_github_evanphx_json_patch_v5",
     "com_github_fatih_color",
     "com_github_fatih_structtag",
@@ -364,12 +362,11 @@ use_repo(
     "com_github_xi2_xz",
     "com_github_xor_gate_ar",
     "com_github_yusufpapurcu_wmi",
-    "com_gitlab_gitlab_org_api_client_go_v2",
+    "com_gitlab_gitlab_org_api_client_go_v3",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
     "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
-    "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",
@@ -571,6 +568,10 @@ go_deps.module_override(
 )
 
 inject_repo(go_deps, "systemd")
+
+register_toolchains("@go_civisibility_sdk//:go_civisibility_linux_amd64")
+
+use_repo_rule("//bazel/rules/go_civisibility_sdk:repo.bzl", "go_civisibility_sdk")(name = "go_civisibility_sdk")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 

@@ -26,10 +26,9 @@ import (
 )
 
 const (
-	// minHelmChartVersion is the earliest Datadog chart release that includes PAR split mode
-	// (helm-charts PR #2904). Drop this override once the e2e framework's global HelmVersion
-	// default is bumped to at least this value.
-	minHelmChartVersion = "3.243.0"
+	// minHelmChartVersion is the earliest Datadog chart release that configures both the
+	// Core Agent and PAR sidecar for split mode (helm-charts PRs #2904 and #2918).
+	minHelmChartVersion = "3.245.1"
 
 	systemServiceOverlap        = "par-e2e.service"
 	systemServiceBackendOnly    = "par-e2e-backend-only.service"
@@ -56,6 +55,9 @@ datadog:
 agents:
   useHostNetwork: true
   containers:
+    agent:
+      envDict:
+        DD_PRIVATE_ACTION_RUNNER_URN: "urn:dd:apps:on-prem-runner:us1:42:core-only-runner"
     privateActionRunner:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
