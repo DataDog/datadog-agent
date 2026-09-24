@@ -31,11 +31,11 @@ func waitForTCPEstablishedConnections(t *testing.T, host *components.RemoteHost,
 	// connection state code (01 = ESTABLISHED).
 	pattern := fmt.Sprintf(":%04X 01 ", dstPort)
 	cmd := fmt.Sprintf(
-		`timeout %s bash -c 'until [ "$(docker exec %s grep -c %q /proc/net/tcp 2>/dev/null || true)" -ge %d ]; do sleep 0.25; done'`,
+		`timeout %s bash -c 'until [ "$(docker exec %s grep -c '\''%s'\'' /proc/net/tcp 2>/dev/null || true)" -ge %d ]; do sleep 0.25; done'`,
 		timeout.String(), container, pattern, count,
 	)
 	if _, err := host.Execute(cmd); err != nil {
-		t.Fatalf("timed out waiting for %d established connection(s) to port %d in container %s", count, dstPort, container)
+		t.Fatalf("timed out waiting for %d established connection(s) to port %d in container %s: %v", count, dstPort, container, err)
 	}
 }
 

@@ -108,7 +108,9 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 	// as a zombie that pgrep still reports), start a fresh listener, and wait
 	// until it accepts connections again.
 	host.MustExecute("docker exec tcp-congestion-server pkill -9 -x iperf3 2>/dev/null; true")
-	host.MustExecute("timeout 15 bash -c 'while docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'")
+	if _, err := host.Execute("timeout 15 bash -c 'while docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'"); err != nil {
+		v.T().Fatalf("iperf3 server port 5201 still in use 15s after killing it, cannot restart listener: %v", err)
+	}
 	host.MustExecute("docker exec -d tcp-congestion-server iperf3 -s -p 5201")
 	host.MustExecute("timeout 30 bash -c 'until docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'")
 	if !v.BaseSuite.IsDevMode() {
