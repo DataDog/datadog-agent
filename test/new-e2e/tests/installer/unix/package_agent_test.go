@@ -435,7 +435,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 
 	// Install libnss-extrausers
 	if s.host.GetPkgManager() == "apt" {
-		s.host.Run("sudo apt-get update && sudo apt-get install -y libnss-extrausers")
+		// Already baked into the Debian/Ubuntu e2e AMI (ami-builder provision-e2e-apt.sh).
 	} else if s.host.GetPkgManager() == "yum" {
 		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
 		if err != nil {

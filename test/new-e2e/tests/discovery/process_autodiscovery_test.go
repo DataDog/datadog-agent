@@ -58,17 +58,13 @@ func (s *processAutodiscoverySuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	defer s.CleanupOnSetupFailure()
 
-	// Install Redis - it starts automatically and binds to localhost:6379 by default
-	_, err := s.Env().RemoteHost.Execute("sudo apt-get update && sudo apt-get install -y redis-server")
-	require.NoError(s.T(), err, "failed to install redis-server")
+	// Redis and nginx are baked into the Debian/Ubuntu e2e AMI (ami-builder
+	// provision-e2e-apt.sh); redis starts automatically and binds to
+	// localhost:6379 by default.
 
 	// Verify Redis is running
 	output := s.Env().RemoteHost.MustExecute("redis-cli ping")
 	require.Contains(s.T(), output, "PONG", "Redis server should be running")
-
-	// Install nginx
-	_, err = s.Env().RemoteHost.Execute("sudo apt-get install -y nginx")
-	require.NoError(s.T(), err, "failed to install nginx")
 
 	// Configure nginx with multiple workers and stub_status on port 81
 	nginxConf := `worker_processes 4;
