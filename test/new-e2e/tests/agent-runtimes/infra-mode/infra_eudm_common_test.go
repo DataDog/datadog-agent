@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -19,6 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 // ============================================================================
@@ -93,6 +96,15 @@ func (s *eudmSuite) TestEUDMChecks() {
 // mode. The marker tag is emitted on every supported OS; OS/hardware tag
 // keys are emitted on macOS and Windows.
 func (s *eudmSuite) TestEUDMHostTags() {
+	// Restart the agent to reset the host metadata backoff: a fresh agent sends a
+	// host-tags payload immediately on start, so the test doesn't depend on the
+	// 5/15/30min resend cadence or on WMI having been ready at first boot.
+	if s.descriptor.Family() == e2eos.WindowsFamily {
+		require.NoError(s.T(), windowsCommon.RestartService(s.Env().RemoteHost, "datadog-agent"))
+	} else {
+		s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
+	}
+
 	fakeintake := s.Env().FakeIntake.Client()
 
 	// Hardware tag keys are populated by the agent on macOS and Windows only
