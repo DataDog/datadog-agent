@@ -184,7 +184,7 @@ func (c *SSHConnector) Connect() (Connection, error) {
 	}, nil
 }
 
-func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*types.PushResult, types.RollbackError) {
+func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*types.PushResult, types.TypedError) {
 
 	if c.prof == nil {
 		return nil, types.WrapErrorf(types.ErrNoProfile, "no device type provided for %q", c.device.IPAddress)
@@ -262,6 +262,12 @@ func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*types.Comma
 
 func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) (*types.CommandResult, error) {
 	return ExecuteCommand(ctx, c.client, cmd)
+}
+
+// ExecuteCommand runs an arbitrary command on the device and returns its output.
+func (c *SSHConnection) ExecuteCommand(ctx context.Context, command string) (*types.CommandResult, types.TypedError) {
+	result, err := c.execute(ctx, &profile.PlainCommand{Command: command})
+	return result, types.AsTypedError(err)
 }
 
 // Close closes the SSH client connection
