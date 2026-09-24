@@ -97,7 +97,19 @@ namespace Datadog.CustomActions
         /// </summary>
         internal void ConfigureUserGroups()
         {
-            if (_nativeMethods.IsDomainController() && _nativeMethods.IsReadOnlyDomainController())
+            var isDomainController = false;
+            try
+            {
+                isDomainController = _nativeMethods.IsDomainController();
+            }
+            catch (Exception e)
+            {
+                // The underlying NetGetServerInfo call can fail if the Server service is not running or not available.
+                // Since the Server service must be running on a DC, assume this host is not a DC.
+                _session.Log($"Error determining if host is a domain controller, continuing assuming it is not: {e}");
+            }
+
+            if (isDomainController && _nativeMethods.IsReadOnlyDomainController())
             {
                 _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
                              " Install will continue, agent may not function properly if user has not been added to these groups.");

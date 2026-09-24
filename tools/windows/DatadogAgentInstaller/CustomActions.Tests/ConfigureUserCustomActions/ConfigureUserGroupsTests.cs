@@ -92,15 +92,14 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
         }
 
         [ElevatedFact]
-        public void DomainControllerCheckFailurePropagatesWithoutGroupWrites()
+        public void DomainControllerCheckFailureRetainsNonDomainControllerBehavior()
         {
             Test.NativeMethods.Setup(n => n.IsDomainController()).Throws(new InvalidOperationException("role unavailable"));
 
-            Action act = () => Test.Create().ConfigureUserGroups();
+            Test.Create().ConfigureUserGroups();
 
-            act.Should().Throw<InvalidOperationException>().WithMessage("role unavailable");
             Test.NativeMethods.Verify(n => n.IsReadOnlyDomainController(), Times.Never());
-            VerifyAllGroupWrites(Times.Never());
+            VerifyAllGroupWrites(Times.Once());
         }
     }
 }
