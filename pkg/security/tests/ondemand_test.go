@@ -38,7 +38,7 @@ func TestOnDemandOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	fileMode := 0o447
 	expectedMode := uint64(applyUmask(fileMode))
@@ -83,7 +83,7 @@ func TestOnDemandChdir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFolder, _, err := test.Path("test-chdir")
 	if err != nil {
@@ -119,7 +119,7 @@ func TestOnDemandMprotect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.WaitSignalFromRule(t, func() error {
 		var data []byte
@@ -156,7 +156,7 @@ func TestOnDemandCopyFileRange(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	f, err := os.CreateTemp("", "test-copy_file_range")
 	if err != nil {

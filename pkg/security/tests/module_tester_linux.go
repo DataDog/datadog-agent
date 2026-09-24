@@ -113,6 +113,7 @@ event_monitoring_config:
     enabled: true
   capabilities_monitoring:
     enabled: {{ .CapabilitiesMonitoringEnabled }}
+    period: {{ .CapabilitiesMonitoringPeriod }}
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
@@ -615,7 +616,7 @@ func (tm *testModule) sendStats() {
 func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (_ *testModule, err error) {
 	defer func() {
 		if err != nil && testMod != nil {
-			testMod.cleanup()
+			testMod.CloseTestAndMonitor()
 			testMod = nil
 		}
 	}()
@@ -702,6 +703,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 		testMod.opts.staticOpts = opts.staticOpts
+		testMod.proFile = proFile
 		testMod.statsdClient.Flush()
 
 		if opts.staticOpts.preStartCallback != nil {
@@ -720,6 +722,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
 		testMod.opts.dynamicOpts = opts.dynamicOpts
+		testMod.proFile = proFile
 		testMod.statsdClient.Flush()
 
 		if !disableTracePipe && !ebpfLessEnabled {
@@ -743,7 +746,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 		return testMod, nil
 	} else if testMod != nil {
-		testMod.cleanup()
+		testMod.CloseTestAndMonitor()
 	}
 
 	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
@@ -1012,12 +1015,6 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 	return logger, nil
 }
 
-func (tm *testModule) cleanup() {
-	if tm.eventMonitor != nil {
-		tm.eventMonitor.Close()
-	}
-}
-
 func (tm *testModule) validateAbnormalPaths() {
 	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
 }
@@ -1029,11 +1026,8 @@ func (tm *testModule) validateSyscallsInFlight() {
 	}
 }
 
-func (tm *testModule) Close() {
-	tm.CloseWithOptions(true)
-}
-
-func (tm *testModule) CloseWithOptions(zombieCheck bool) {
+// ValidateEndOfTest performs the checks and flushes that must happen at the end of a test.
+func (tm *testModule) ValidateEndOfTest(zombieCheck bool) {
 	if !tm.opts.staticOpts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
 	}
@@ -1045,18 +1039,11 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 	// make sure we don't leak syscalls
 	tm.validateSyscallsInFlight()
 
-	if tm.tracePipe != nil {
-		tm.tracePipe.Stop()
-		tm.tracePipe = nil
-	}
-
 	tm.statsdClient.Flush()
 
 	if tm.msgSender != nil {
 		tm.msgSender.flush()
 	}
-
-	tm.grpcServer.Stop()
 
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
@@ -1067,10 +1054,42 @@ func (tm *testModule) CloseWithOptions(zombieCheck bool) {
 			tm.t.Errorf("failed checking for zombie processes: %v", err)
 		}
 	}
+}
 
-	if withProfile {
-		pprof.StopCPUProfile()
+// Close closes resources associated with the current test while keeping the test module reusable.
+// It is safe to call multiple times.
+func (tm *testModule) Close() {
+	if tm.tracePipe != nil {
+		tm.tracePipe.Stop()
+		tm.tracePipe = nil
 	}
+
+	if tm.grpcServer != nil {
+		tm.grpcServer.Stop()
+		tm.grpcServer = nil
+	}
+
+	if tm.proFile != nil {
+		pprof.StopCPUProfile()
+		_ = tm.proFile.Close()
+		tm.proFile = nil
+	}
+}
+
+// CloseTestAndMonitor completely closes the test module. It is safe to call multiple times.
+func (tm *testModule) CloseTestAndMonitor() {
+	tm.Close()
+
+	if tm.eventMonitor != nil {
+		tm.eventMonitor.Close()
+		tm.eventMonitor = nil
+	}
+}
+
+// CloseTest validates a completed test and releases its per-test resources.
+func (tm *testModule) CloseTest() {
+	tm.ValidateEndOfTest(true)
+	tm.Close()
 }
 
 var logInitilialized bool

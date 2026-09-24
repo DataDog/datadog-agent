@@ -75,6 +75,7 @@ type testOpts struct {
 	dnsPort                                    uint16
 	traceSystemdCgroups                        bool
 	capabilitiesMonitoringEnabled              bool
+	capabilitiesMonitoringPeriod               time.Duration
 	captureAllSyscallErrorsEnabled             bool
 }
 
