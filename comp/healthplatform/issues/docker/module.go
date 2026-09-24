@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package dockerpermissions provides a complete issue module for Docker permission problems.
-// It includes both detection (built-in health check) and remediation (issue template with fix scripts).
-package dockerpermissions
+// Package docker provides issue modules for Docker socket reachability problems
+// (permission-denied and other dial failures). It includes both detection (built-in health
+// check) and remediation (issue templates with fix scripts).
+package docker
 
 import (
 	"context"
