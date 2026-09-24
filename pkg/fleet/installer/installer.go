@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
@@ -263,7 +264,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not create temporary directory: %w", err)
 		}
 		defer os.RemoveAll(tmpDir)
-		msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+		msiName := msi.AgentMSIName(version.AgentPackageVersion, i.env.FIPSMode)
 		err = paths.CopyFile(path, filepath.Join(tmpDir, msiName))
 		if err != nil {
 			return fmt.Errorf("could not copy installer: %w", err)

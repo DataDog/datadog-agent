@@ -522,7 +522,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
-		msi.WithMsiFromPackagePath(target, agentPackage),
+		msi.WithMsiFromPackagePath(target, agentPackage, env.FIPSMode),
 		msi.WithLogFile(logFile),
 	}
 	// msi.Cmd() places typed properties after raw args on the command line regardless of
@@ -601,7 +601,7 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to stop all Agent services: %w", err)
 	}
-	return removeProductIfInstalled(ctx, "Datadog Agent")
+	return removeProductIfInstalled(ctx, msi.AgentProductName(getenv().FIPSMode))
 }
 
 func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context) (err error) {
@@ -977,10 +977,11 @@ func postPromoteConfigExperimentDatadogAgentBackground(ctx context.Context) erro
 // This helps ensure the MSI is available even when the original path is a temp dir, which is common
 // with remote deployment scripts, or the Windows installer cache was removed for some reason.
 func updateRegistryInstallSource() error {
-	msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+	fipsMode := getenv().FIPSMode
+	msiName := msi.AgentMSIName(version.AgentPackageVersion, fipsMode)
 
 	stablePath := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
-	err := msi.SetSourceList("Datadog Agent", stablePath, msiName)
+	err := msi.SetSourceList(msi.AgentProductName(fipsMode), stablePath, msiName)
 	if err != nil {
 		return fmt.Errorf("failed to update MSI source list: %w", err)
 	}

@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "msi",
     srcs = [
+        "agent.go",
         "cmd_interface.go",
         "msiexec.go",
         "msilog.go",
@@ -11,7 +12,6 @@ go_library(
         "sourcelist.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/msi",
-    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
@@ -30,6 +30,7 @@ go_library(
 dd_agent_go_test(
     name = "msi_test",
     srcs = [
+        "agent_test.go",
         "msiexec_test.go",
         "msilog_test.go",
     ],
@@ -46,13 +47,14 @@ dd_agent_go_test(
         ],
         "//conditions:default": [],
     }),
-    target_compatible_with = ["@platforms//os:windows"],
-    deps = select({
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "@com_github_cenkalti_backoff_v7//:backoff",
-            "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
-            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
             "@org_golang_x_text//encoding/unicode",
         ],

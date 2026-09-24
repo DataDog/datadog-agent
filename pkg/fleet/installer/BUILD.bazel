@@ -14,6 +14,7 @@ go_library(
         "//pkg/fleet/installer/db",
         "//pkg/fleet/installer/env",
         "//pkg/fleet/installer/errors",
+        "//pkg/fleet/installer/msi",
         "//pkg/fleet/installer/oci",
         "//pkg/fleet/installer/packages",
         "//pkg/fleet/installer/packages/extensions",
@@ -30,6 +31,7 @@ dd_agent_go_test(
     srcs = [
         "default_packages_test.go",
         "installer_test.go",
+        "installer_windows_test.go",
     ],
     embed = [":installer"],
     deps = [
@@ -43,5 +45,13 @@ dd_agent_go_test(
         "//pkg/fleet/installer/repository",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
+            "//pkg/version",
+            "@com_github_microsoft_go_winio//:go-winio",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -21,7 +21,30 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 	"golang.org/x/text/encoding/unicode"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
+
+func TestWithMsiFromPackagePath(t *testing.T) {
+	paths.SetupTestPaths(t)
+	dir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+	require.NoError(t, os.MkdirAll(dir, 0700))
+	for _, tt := range []struct {
+		name     string
+		fipsMode bool
+	}{
+		{name: "datadog-agent-7.85.0-1-x86_64.msi"},
+		{name: "datadog-fips-agent-7.85.0-1-x86_64.msi", fipsMode: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			msiPath := filepath.Join(dir, tt.name)
+			require.NoError(t, os.WriteFile(msiPath, nil, 0600))
+			args := &msiexecArgs{}
+			require.NoError(t, WithMsiFromPackagePath("stable", "datadog-agent", tt.fipsMode)(args))
+			assert.Equal(t, msiPath, args.target)
+		})
+	}
+}
 
 // mockCmdRunner for testing using testify/mock
 type mockCmdRunner struct {

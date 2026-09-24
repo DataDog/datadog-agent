@@ -5,11 +5,6 @@
 
 //go:build windows
 
-// Package msi contains helper functions to work with msi packages.
-//
-// The package provides automatic retry functionality for MSI operations using exponential backoff
-// to handle transient errors, particularly exit code 1618 (ERROR_INSTALL_ALREADY_RUNNING)
-// which occurs when another MSI installation is in progress.
 package msi
 
 import (
@@ -128,20 +123,15 @@ func WithMsi(target string) MsiexecOption {
 	}
 }
 
-// WithMsiFromPackagePath finds an MSI from the packages folder
-func WithMsiFromPackagePath(target, product string) MsiexecOption {
+// WithMsiFromPackagePath finds the Agent MSI from the packages folder.
+func WithMsiFromPackagePath(target, product string, fipsMode bool) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		updaterPath := filepath.Join(paths.PackagesPath, product, target)
-		msis, err := filepath.Glob(filepath.Join(updaterPath, product+"-*-1-x86_64.msi"))
+		msiPath, err := FindAgentMSI(updaterPath, fipsMode)
 		if err != nil {
 			return err
 		}
-		if len(msis) > 1 {
-			return errors.New("too many MSIs in package")
-		} else if len(msis) == 0 {
-			return errors.New("no MSIs in package")
-		}
-		a.target = msis[0]
+		a.target = msiPath
 		return nil
 	}
 }
