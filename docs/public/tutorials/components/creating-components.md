@@ -1,31 +1,20 @@
 # Create a component
 
-This tutorial builds a compression component with two implementations. Read the [component framework overview](../../architecture/components/index.md) and follow the [component guidelines](../../guidelines/components.md) as you work through it.
+Build a component that compresses and decompresses bytes with ZSTD, register it with Fx, and run a test that restores the original bytes. Along the way, you will create separate packages for the interface, implementation, Fx wrapper, and mock. The component is designed for multiple compression algorithms; this exercise builds its ZSTD variant.
 
-The component compresses a payload before sending it to the Datadog backend.
+## Before you start
 
-Since there are multiple ways to compress data, this component provides two implementations of the same interface:
+Start at the root of an Agent checkout with the [development tooling](../../setup/required.md#tooling) configured. The examples use the illustrative path `comp/compression`; create the files at the paths shown below and replace `<your team>` with the owning team's name. All Go files shown in this tutorial are complete files.
 
-* The [ZSTD](https://en.wikipedia.org/wiki/Zstd) data compression algorithm
-* The [ZIP](https://en.wikipedia.org/wiki/ZIP_(file_format)) data compression algorithm
+The [component framework overview](../../architecture/components/index.md) explains the package boundaries. Keep the [component guidelines](../../guidelines/components.md) available for the repository's conventions.
 
-The component separates its interface, implementations, Fx wrappers, and mock into packages. See the [file hierarchy](../../guidelines/components.md#file-hierarchy) for the conventions and [package separation](../../architecture/components/index.md#package-separation) for the rationale.
+## Define the interface
 
-## Bootstrapping components
-
-You can use the [command](../../setup/required.md#tooling) `dda inv components.new-component comp/<COMPONENT_NAME>` to generate a scaffold for your new component.
-
-Document the public API according to the [documentation guidelines](../../guidelines/components.md#documentation).
-
-### The def folder
-
-The `def` folder contains your interface and ALL public types needed by the users of your component.
-
-In the example of a compression component, the def folder looks like this:
+Create `comp/compression/def/component.go` with the two operations consumers will use:
 
 /// tab | :octicons-file-code-16: comp/compression/def/component.go
 ```go
-// Package compression contains all public type and interfaces for the compression component
+// Package compression defines the interface shared by compression implementations.
 package compression
 
 // team: <your team>
@@ -41,198 +30,128 @@ type Component interface {
 ```
 ///
 
-Keep the interface small and follow the [interface guidelines](../../guidelines/components.md#ownership-and-interfaces) when choosing public types.
+Consumers can now name the compression interface without importing a compression algorithm.
 
-### The impl folders
+## Implement ZSTD compression
 
-The `impl` folder is where the component implementation is written. The details of component implementation are up to the developer. The only requirements are that the package name follows the pattern `<COMPONENT_NAME>impl` for the regular implementation or `<IMPL_NAME>impl` for the alternative implementation, and that there is a public instantiation function called `NewComponent`.
+Create `comp/compression/impl-zstd/compressor.go`. Its `Requires` struct asks for configuration and logging, and its `Provides` struct exposes the compression interface. Both structs are plain Go types with exported fields.
 
-/// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
-```go
-package zstdimpl
-
-// NewComponent returns a new ZSTD implementation for the compression component
-func NewComponent(reqs Requires) Provides {
-    ....
-}
-```
-///
-
-To require input arguments to the `NewComponent` instantiation function, use a special struct named `Requires`. The instantiation function returns a special stuct named `Provides`. This internal nomenclature is used to handle the different component dependencies using Fx groups.
-
-In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name of the fields is irrelevant, but the type must be the concrete type of interface that you require.
+The implementation uses the repository's pure-Go ZSTD library and `serializer_zstd_compressor_level` setting. For this exercise, each call creates and closes its encoder or decoder to keep cleanup local, at the cost of repeated initialization. `EncodeAll` and `DecodeAll` also support concurrent reuse; the <<<repo("pkg/util/compression/impl-zstd-nocgo/zstd_nocgo_strategy.go", "production ZSTD strategy")>>> reuses its encoder to avoid this cost.
 
 /// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
 ```go
+// Package zstdimpl compresses and decompresses buffers using ZSTD.
 package zstdimpl
 
 import (
-    "fmt"
+    "github.com/klauspost/compress/zstd"
 
-    config "github.com/DataDog/datadog-agent/comp/core/config/def"
+    compression "github.com/DataDog/datadog-agent/comp/compression/def"
+    config "github.com/DataDog/datadog-agent/comp/core/config"
     log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
-// Here, list all components and other types known by Fx that you need.
-// To be used in `fx` folders, type and field need to be public.
-//
-// In this example, you need config and log components.
-type Requires struct {
-    Conf config.Component
-    Log  log.Component
-}
-```
-///
-
-/// info | Using other components
-If you want to use another component within your own, add it to the `Requires` struct, and `Fx` will give it to you at initialization. Be careful of circular dependencies.
-///
-
-For the output of the component, populate the `Provides` struct with the return values.
-
-/// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
-```go
-package zstdimpl
-
-import (
-    // Always import the component def folder, so that you can return a 'compression.Component' type.
-    compression "github.com/DataDog/datadog-agent/comp/compression/def"
-)
-
-// Here, list all the types your component is going to return. You can return as many types as you want; all of them are available through Fx in other components.
-// To be used in `fx` folders, type and field need to be public.
-//
-// In this example, only the compression component is returned.
-type Provides struct {
-    Comp compression.Component
-}
-```
-///
-
-All together, the component code looks like the following:
-
-/// tab | :octicons-file-code-16: comp/compression/impl-zstd/compressor.go
-```go
-package zstdimpl
-
-import (
-    "fmt"
-
-    compression "github.com/DataDog/datadog-agent/comp/compression/def"
-    config "github.com/DataDog/datadog-agent/comp/core/config/def"
-    log "github.com/DataDog/datadog-agent/comp/core/log/def"
-)
-
+// Requires supplies the compression settings and logger.
 type Requires struct {
     Conf config.Component
     Log  log.Component
 }
 
+// Provides exposes the compression interface to consumers.
 type Provides struct {
     Comp compression.Component
 }
 
-// The actual type implementing the 'Component' interface. This type MUST be private, you need the guarantee that
-// components can only be used through their respective interfaces.
 type compressor struct {
-    // Keep a ref on the config and log components, so that you can use them in the 'compressor' methods
     conf config.Component
     log  log.Component
-
-    // any other field you might need
 }
 
-// NewComponent returns a new ZSTD implementation for the compression component
+// NewComponent returns a ZSTD implementation of the compression interface.
 func NewComponent(reqs Requires) Provides {
-    // Here, do whatever is needed to build a ZSTD compression comp.
-
-    // And create your component
     comp := &compressor{
         conf: reqs.Conf,
         log:  reqs.Log,
     }
-
     return Provides{
-        comp: comp,
+        Comp: comp,
     }
 }
 
-//
-// You then need to implement all methods from your 'compression.Component' interface
-//
-
-// Compress compresses the input data using ZSTD
+// Compress compresses the input data using ZSTD.
 func (c *compressor) Compress(data []byte) ([]byte, error) {
     c.log.Debug("compressing a buffer with ZSTD")
-
-    // [...]
-    return compressData, nil
+    encoder, err := zstd.NewWriter(nil,
+        zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(c.conf.GetInt("serializer_zstd_compressor_level"))),
+        // Empty input must still produce a valid ZSTD frame.
+        zstd.WithZeroFrames(true),
+    )
+    if err != nil {
+        return nil, err
+    }
+    defer encoder.Close()
+    return encoder.EncodeAll(data, nil), nil
 }
 
 // Decompress decompresses the input data using ZSTD.
 func (c *compressor) Decompress(data []byte) ([]byte, error) {
     c.log.Debug("decompressing a buffer with ZSTD")
-
-    // [...]
-    return compressData, nil
+    decoder, err := zstd.NewReader(nil)
+    if err != nil {
+        return nil, err
+    }
+    defer decoder.Close()
+    return decoder.DecodeAll(data, nil)
 }
 ```
 ///
 
-The constructor can return either a `Provides`, if it is infallible, or `(Provides, error)`, if it could fail. In the latter case, a non-nil error results in the Agent crashing at startup with a message containing the error.
+The constructor now returns a value implementing the interface. Compression and decompression report errors through their method results. The implementation contains no Fx imports; the next file adapts its constructor for Fx.
 
-Each implementation follows the same pattern.
+## Register the component with Fx
 
-### The fx folders
-
-The `fx` folder must be the only folder importing and referencing Fx. It's meant to be a simple wrapper. Its only goal is to allow dependency injection with Fx for your component.
-
-All `fx.go` files must define a `func Module() fxutil.Module` function. The helpers contained in `fxutil` handle all the logic. Most `fx/fx.go` file should look the same as this:
+Create `comp/compression/fx-zstd/fx.go` to register the constructor and an optional conversion:
 
 /// tab | :octicons-file-code-16: comp/compression/fx-zstd/fx.go
 ```go
+// Package fx registers ZSTD compression with Fx.
 package fx
 
 import (
-    "github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-    // You must import the implementation you are exposing through FX
+    compression "github.com/DataDog/datadog-agent/comp/compression/def"
     compressionimpl "github.com/DataDog/datadog-agent/comp/compression/impl-zstd"
+    "github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module specifies the compression module.
+// Module registers ZSTD compression and its optional conversion.
 func Module() fxutil.Module {
     return fxutil.Component(
-        // ProvideComponentConstructor will automatically detect the 'Requires' and 'Provides' structs
-        // of your constructor function and map them to FX.
         fxutil.ProvideComponentConstructor(
             compressionimpl.NewComponent,
-        )
+        ),
+        fxutil.ProvideOptional[compression.Component](),
     )
 }
 ```
 ///
 
-/// info | Optional dependencies
-To create an optional wrapper type for your component, you can use the helper function `fxutil.ProvideOptional`. This generic function requires the type of the component interface, and will automatically make a conversion function `optional.Option` for that component.
+This wrapper makes both `compression.Component` and `option.Option[compression.Component]` available to an application. The application also needs providers for configuration and logging; the completion test below supplies mocks for them.
 
-See [optional dependencies](../../how-to/components/optional-dependencies.md#optional-component) for how to consume the wrapper.
+/// info | Optional dependencies
+`fxutil.ProvideOptional[T]()` registers a conversion from a provided `T` to `option.Option[T]`, using `github.com/DataDog/datadog-agent/pkg/util/option`. The component scaffold includes this registration by default. When writing a wrapper yourself, include it if the component has optional consumers. The conversion still requires a provider for `T`; it does not create an empty option when that provider is missing.
+
+See [optional dependencies](../../how-to/components/optional-dependencies.md#declare-the-optional-dependency) for a consumer and a wrapper that explicitly supplies an absent value.
 ///
 
-For the ZIP implementation, create the same file in `fx-zip` folder. In most cases, your component has a single implementation. If so, you have only one `impl` and `fx` folder.
+## Add a mock for consumers
 
-For components that can be absent from a binary, see [optional dependencies](../../how-to/components/optional-dependencies.md).
-
-### The mock folder
-
-Add a mock that implements the compression interface and follows the [mock conventions](../../guidelines/components.md#mocks).
-
-In the following example, your mock has no dependencies and returns the same string every time.
+Create `comp/compression/mock/mock.go` following the [mock conventions](../../guidelines/components.md#mocks), so consumer tests can substitute fixed responses for compression. Its methods return fixed byte strings, and its `test` build tag makes it available in the repository's unit-test workflow. The completion test will use the real ZSTD implementation to check a round trip.
 
 /// tab | :octicons-file-code-16: comp/compression/mock/mock.go
 ```go
 //go:build test
 
+// Package mock provides fixed compression responses for consumer tests.
 package mock
 
 import (
@@ -241,73 +160,113 @@ import (
     compression "github.com/DataDog/datadog-agent/comp/compression/def"
 )
 
+// Provides exposes the mock through the compression interface.
 type Provides struct {
     Comp compression.Component
 }
 
-type mock struct {}
+type mock struct{}
 
-// New returns a mock compressor
+// New returns a mock compressor with fixed responses.
 func New(*testing.T) Provides {
     return Provides{
-        comp: &mock{},
+        Comp: &mock{},
     }
 }
 
-// Compress compresses the input data using ZSTD
-func (c *mock) Compress(data []byte) ([]byte, error) {
+// Compress returns a fixed response regardless of the input.
+func (c *mock) Compress(_ []byte) ([]byte, error) {
     return []byte("compressed"), nil
 }
 
-// Decompress decompresses the input data using ZSTD.
-func (c *compressor) Decompress(data []byte) ([]byte, error) {
+// Decompress returns a fixed response regardless of the input.
+func (c *mock) Decompress(_ []byte) ([]byte, error) {
     return []byte("decompressed"), nil
 }
 ```
 ///
 
-### Go modules
+In a consumer test, import `github.com/DataDog/datadog-agent/comp/compression/mock` as `compressionmock` and pass `compressionmock.New(t).Comp` as the compression dependency. The [optional-dependency guide](../../how-to/components/optional-dependencies.md#register-and-verify-the-selected-provider) shows how to use this mock for the present case and check the absent case separately.
 
-If this component will be used outside the Agent repository, follow the [module boundaries](../../guidelines/components.md#go-modules) and the [nested module how-to](../../how-to/go/modules.md) to export the required packages.
+## Assemble and exercise the component
+
+Create `comp/compression/fx-zstd/fx_test.go`. This test assembles the wrapper with configuration and logging mocks, requests the compression interface and its optional conversion, and checks that decompressing a compressed payload restores the original bytes.
+
+/// tab | :octicons-file-code-16: comp/compression/fx-zstd/fx_test.go
+```go
+//go:build test
+
+package fx_test
+
+import (
+    "testing"
+
+    "github.com/stretchr/testify/require"
+    "go.uber.org/fx"
+    "go.uber.org/fx/fxtest"
+
+    compression "github.com/DataDog/datadog-agent/comp/compression/def"
+    compressionfx "github.com/DataDog/datadog-agent/comp/compression/fx-zstd"
+    config "github.com/DataDog/datadog-agent/comp/core/config"
+    log "github.com/DataDog/datadog-agent/comp/core/log/def"
+    logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+    "github.com/DataDog/datadog-agent/pkg/util/option"
+)
+
+func TestCompressionRoundTrip(t *testing.T) {
+    var compressor compression.Component
+    var optionalCompressor option.Option[compression.Component]
+    app := fxtest.New(t,
+        compressionfx.Module(),
+        fx.Provide(func() config.Component { return config.NewMock(t) }),
+        fx.Provide(func() log.Component { return logmock.New(t) }),
+        fx.Populate(&compressor, &optionalCompressor),
+    )
+    app.RequireStart()
+    t.Cleanup(func() { app.RequireStop() })
+
+    present, found := optionalCompressor.Get()
+    require.True(t, found)
+    require.Same(t, compressor, present)
+
+    input := []byte("Hello from a component")
+    compressed, err := compressor.Compress(input)
+    require.NoError(t, err)
+    restored, err := compressor.Decompress(compressed)
+    require.NoError(t, err)
+    require.Equal(t, input, restored)
+    t.Logf("Round trip restored %q", restored)
+}
+```
+///
+
+Run the test from the repository root:
+
+```shell
+dda inv test --targets "./comp/compression/..." --test-run-name TestCompressionRoundTrip --verbose
+```
+
+The command supplies the repository's build tags, including `test`. Expect `TestCompressionRoundTrip` to pass and its output to include `Round trip restored "Hello from a component"`. You have now constructed the real implementation through Fx and called it through its public interface.
 
 ## Final state
 
-In the end, a classic component folder should look like:
+Your completed component has these files:
 
-```
-comp/<COMPONENT_NAME>/
+```text
+comp/compression/
 ├── def
 │   └── component.go
-├── fx
-│   └── fx.go
-├── impl
-│   └── component.go
-└── mock
-    └── mock.go
-
-4 directories, 4 files
-```
-
-The example compression component, which has two implementations, looks like:
-
-```
-comp/core/compression/
-├── def
-│   └── component.go
-├── fx-zip
-│   └── fx.go
 ├── fx-zstd
+│   ├── fx_test.go
 │   └── fx.go
-├── impl-zip
-│   └── component.go
 ├── impl-zstd
-│   └── component.go
+│   └── compressor.go
 └── mock
     └── mock.go
-
-6 directories, 6 files
 ```
 
 ## Next steps
 
-Continue with [testing this component](testing.md), then see how to [use components in a binary](../../how-to/components/using-components.md). Check the [component guidelines](../../guidelines/components.md) when reviewing the completed implementation.
+For future components, `dda inv components.new-component comp/<COMPONENT_NAME>` creates the default `def`, `impl`, `fx`, and `mock` layout. The [package guidelines](../../guidelines/components.md#file-hierarchy) describe how to add alternate implementations such as ZIP.
+
+Continue with [component testing](testing.md), [using components in a binary](../../how-to/components/using-components.md), or [adding an optional dependency](../../how-to/components/optional-dependencies.md). If the component needs to be imported outside the repository, consult the [module boundaries](../../guidelines/components.md#go-modules) and [nested module guide](../../how-to/go/modules.md).

@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.211
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
-	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.78.0
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/proto v0.82.1
@@ -25,6 +25,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
 	github.com/DataDog/dd-trace-go/v2 v2.10.1
 	github.com/DataDog/orchestrion v1.13.0
+	github.com/DataDog/rshell v0.0.29
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.98.0
@@ -44,7 +45,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1
-	github.com/pulumi/pulumi/sdk/v3 v3.262.0
+	github.com/pulumi/pulumi/sdk/v3 v3.263.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -589,6 +590,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
