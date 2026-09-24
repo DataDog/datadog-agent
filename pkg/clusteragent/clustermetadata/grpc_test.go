@@ -16,40 +16,52 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	kubernetes "k8s.io/client-go/kubernetes"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 )
 
-// newBufconnConsumer spins up a replica's serving surfaces over a bufconn
-// (consumer surface fronting the coordinator, with optional peers for the
-// fanout) and returns a ConsumerClient wired to it, plus a cleanup func.
-func newBufconnConsumer(t *testing.T, store *LocalStore, peers ...*PeerClient) (*ConsumerClient, func()) {
+const testTimeout = 5 * time.Second
+
+// fanoutFixture returns a store owning node-a (synced) holding one pod,
+// plus a setter to force node-list changes.
+func fanoutFixture(t *testing.T) (*LocalStore, func([]string)) {
 	t.Helper()
-	listener := bufconn.Listen(1024 * 1024)
-	server := grpc.NewServer()
-	NewPeerServer(store).Register(server)
-	go server.Serve(listener)
+	client := k8sfake.NewSimpleClientset()
+	manager := NewLeaseManager(func() (kubernetes.Interface, error) { return client, nil },
+		func() (string, error) { return "10.0.0.1", nil },
+		"datadog", "dca-0", 40*time.Second, 2*time.Hour)
 
-	conn, err := grpc.NewClient("passthrough:///bufnet",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	require.NoError(t, err)
-
-	// Wire the given peers into the store's fanout, pointing at their
-	// serving surfaces.
-	peerStores := make([]cm.Store, 0, len(peers))
-	for _, peer := range peers {
-		peerStores = append(peerStores, peer)
+	nodes := []string{"node-a"}
+	controller := NewRingController(manager, MemberID("datadog", "dca-0"), time.Second,
+		func(ctx context.Context) ([]string, error) {
+			return nodes, nil
+		})
+	require.NoError(t, controller.Reconcile(context.Background()))
+	for _, node := range controller.State().MyNodes {
+		controller.SetNodeSynced(node, true)
 	}
-	store.peerSource = func() []cm.Store { return peerStores }
 
-	return NewConsumerClient(conn), func() {
-		conn.Close()
-		server.Stop()
+	podEntity := taggertypes.NewEntityID(taggertypes.KubernetesPodUID, "uid-1")
+	wmeta := &fakeWmeta{
+		pods: map[string]*workloadmeta.KubernetesPod{
+			"uid-1": {
+				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "uid-1"},
+				EntityMeta: workloadmeta.EntityMeta{Name: "web-1", Namespace: "default"},
+				NodeName:   "node-a",
+			},
+		},
+		deployments: map[string]*workloadmeta.KubernetesDeployment{},
+		nodes:       map[string]*workloadmeta.KubernetesNode{},
 	}
+	tagger := &fakeTagger{tags: map[taggertypes.EntityID][]string{
+		podEntity: {"kube_namespace:default", "pod_name:web-1"},
+	}}
+
+	return NewLocalStore(wmeta, tagger, controller, nil), func(next []string) { nodes = next }
 }
 
 // newBufconnPeer spins up the peer server over a bufconn and returns a
@@ -81,7 +93,7 @@ func newBufconnPeer(t *testing.T, store *LocalStore) (*PeerClient, func()) {
 // - snapshot: pods of the shard
 // - ring: members with readiness
 func TestPeerClientRoundtrip(t *testing.T) {
-	store, _ := streamFixture(t)
+	store, _ := fanoutFixture(t)
 	ctx := context.Background()
 
 	peer, cleanup := newBufconnPeer(t, store)
@@ -124,18 +136,6 @@ func TestPeerClientRoundtrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, cm.AnswerNotMine, originMiss.Kind)
-
-	snapshot, err := peer.Snapshot(ctx, KindPod, "", cm.Scope{Consumer: "peer"})
-	require.NoError(t, err)
-	assert.Equal(t, []string{"node-a"}, snapshot.Nodes)
-	require.Len(t, snapshot.Events, 1)
-	assert.Equal(t, "web-1", snapshot.Events[0].Name)
-
-	ring, err := peer.Ring(ctx)
-	require.NoError(t, err)
-	require.Len(t, ring.Members, 1)
-	assert.Equal(t, MemberID("datadog", "dca-0"), ring.Members[0].Name)
-	assert.True(t, ring.Members[0].Ready)
 }
 
 // TestPeerFanoutThroughTransport tests the coordinator path with a real
@@ -146,13 +146,13 @@ func TestPeerFanoutThroughTransport(t *testing.T) {
 	ctx := context.Background()
 
 	// Replica B: owns node-b, holds the pod.
-	storeB, _ := streamFixture(t)
+	storeB, _ := fanoutFixture(t)
 	storeB.ring.SetNodeSynced("node-a", true)
 	peerB, cleanup := newBufconnPeer(t, storeB)
 	defer cleanup()
 
 	// Replica A: same fixture, misses locally, fans out to B.
-	storeA, _ := streamFixture(t)
+	storeA, _ := fanoutFixture(t)
 	fanout := NewLocalStore(storeA.wmeta, storeA.tagger, storeA.ring, func() []cm.Store { return []cm.Store{peerB} })
 
 	fromPeer, err := fanout.Lookup(ctx, cm.LookupRequest{
@@ -178,88 +178,4 @@ func TestPeerFanoutThroughTransport(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, cm.AnswerAbsent, nowhere.Kind, "NotMine from both replicas reduces to Absent")
-}
-
-// TestConsumerRoundtrip tests the consumer surface: any replica can serve
-// a query, pods resolve through the fanout, misses reduce for the ring.
-// Test partitions:
-// - pod location: other replica (fanout through transport) | nowhere (both NotMine)
-// - kind: pod (coordinator path) | deployment (local, replicated)
-func TestConsumerRoundtrip(t *testing.T) {
-	ctx := context.Background()
-
-	// Replica B owns node-a and holds the pod.
-	storeB, _ := streamFixture(t)
-	storeB.ring.SetNodeSynced("node-a", true)
-	peerB, cleanupB := newBufconnPeer(t, storeB)
-	defer cleanupB()
-
-	// Replica A: same ownership, but an empty cache — its answer must come
-	// from the fanout to B.
-	storeA, _ := streamFixture(t)
-	storeA.wmeta.(*fakeWmeta).pods = map[string]*workloadmeta.KubernetesPod{}
-	consumerA, cleanupA := newBufconnConsumer(t, storeA, peerB)
-	defer cleanupA()
-
-	fromPeer, err := consumerA.Lookup(ctx, cm.LookupRequest{
-		Key:   cm.EntityKey{Kind: KindPod, Namespace: "default", Name: "web-1"},
-		Scope: cm.Scope{Consumer: "consumer", Cardinality: taggertypes.LowCardinality},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, cm.LookupAnswer{
-		Kind: cm.AnswerFound,
-		Tags: []string{"kube_namespace:default", "pod_name:web-1"},
-	}, fromPeer, "a pod held by replica B resolves through A's fanout")
-
-	storeB.wmeta.(*fakeWmeta).pods = map[string]*workloadmeta.KubernetesPod{}
-	nowhere, err := consumerA.Lookup(ctx, cm.LookupRequest{
-		Key:   cm.EntityKey{Kind: KindPod, Namespace: "default", Name: "web-1"},
-		Scope: cm.Scope{Consumer: "consumer"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, cm.AnswerAbsent, nowhere.Kind, "NotMine from both replicas reduces to Absent")
-
-	absent, err := consumerA.Lookup(ctx, cm.LookupRequest{
-		Key:   cm.EntityKey{Kind: KindDeployment, Namespace: "default", Name: "missing"},
-		Scope: cm.Scope{Consumer: "consumer"},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, cm.AnswerAbsent, absent.Kind, "replicated kinds answer locally on the consumer surface")
-}
-
-// TestConsumerSubscribe tests the consumer stream over gRPC.
-// Test partitions:
-// - node: owned (stream opens, burst arrives) | not owned (refused)
-// - end: ownership loss closes the channel
-func TestConsumerSubscribe(t *testing.T) {
-	ctx := context.Background()
-	storeA, setNodesA := streamFixture(t)
-	consumerA, cleanupA := newBufconnConsumer(t, storeA, nil)
-	defer cleanupA()
-
-	// A node this replica does not own is refused: the consumer re-resolves
-	// through Ring.
-	_, _, err := consumerA.Subscribe(ctx, "node-b", cm.Scope{Consumer: "consumer"})
-	assert.Error(t, err, "a non-owner refuses the stream")
-
-	events, cancel, err := consumerA.Subscribe(ctx, "node-a", cm.Scope{Consumer: "consumer"})
-	require.NoError(t, err)
-	defer cancel()
-
-	select {
-	case event := <-events:
-		assert.Equal(t, "web-1", event.Name, "the burst delivers the node's pods")
-	case <-time.After(testTimeout):
-		t.Fatal("no burst event")
-	}
-
-	// Ownership loss ends the stream: the channel closes.
-	setNodesA(nil)
-	require.NoError(t, storeA.ring.Reconcile(ctx))
-	select {
-	case _, ok := <-events:
-		assert.False(t, ok, "the stream closes when this replica loses the node")
-	case <-time.After(testTimeout):
-		t.Fatal("stream did not close on ownership loss")
-	}
 }

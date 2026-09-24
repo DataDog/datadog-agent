@@ -9,8 +9,6 @@ import (
 	"context"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -33,12 +31,9 @@ func NewPeerServer(store *LocalStore) *PeerServer {
 	return &PeerServer{store: store}
 }
 
-// Register wires the ring's two serving surfaces into a gRPC server: the
-// peer service (local answers only) and the consumer service (coordinator
-// semantics, any replica can serve it).
+// Register wires the peer service into a gRPC server.
 func (s *PeerServer) Register(server *grpc.Server) {
 	pb.RegisterClusterMetadataServer(server, s)
-	pb.RegisterClusterMetadataConsumerServer(server, NewConsumerServer(s.store))
 }
 
 // Query answers a named-entity lookup from the local cache.
@@ -57,103 +52,6 @@ func (s *PeerServer) QueryOrigin(ctx context.Context, req *pb.ClusterMetadataOri
 		return nil, err
 	}
 	return answerToProto(answer), nil
-}
-
-// Snapshot returns this replica's shard of an enumeration.
-func (s *PeerServer) Snapshot(ctx context.Context, req *pb.ClusterMetadataSnapshotRequest) (*pb.ClusterMetadataSnapshot, error) {
-	snapshot, err := s.store.Snapshot(ctx, req.GetKind(), req.GetNamespace(), scopeFromProto(req.GetScope()))
-	if err != nil {
-		return nil, err
-	}
-	return snapshotToProto(snapshot), nil
-}
-
-// Ring returns this replica's view of the ring.
-func (s *PeerServer) Ring(ctx context.Context, _ *pb.ClusterMetadataRingRequest) (*pb.ClusterMetadataRing, error) {
-	ring, err := s.store.Ring(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return ringToProto(ring), nil
-}
-
-// ConsumerServer implements the generated ClusterMetadataConsumer gRPC
-// service: the consumer-facing surface. Every method has coordinator
-// semantics — a pod query fans out to the peer replicas and answers for the
-// whole ring, so a consumer can ask any replica; a node stream is served by
-// its owner.
-type ConsumerServer struct {
-	store *LocalStore
-	pb.UnimplementedClusterMetadataConsumerServer
-}
-
-// NewConsumerServer returns the consumer-facing gRPC server for the store.
-func NewConsumerServer(store *LocalStore) *ConsumerServer {
-	return &ConsumerServer{store: store}
-}
-
-// Query answers from the coordinator: any replica can serve it.
-func (s *ConsumerServer) Query(ctx context.Context, req *pb.ClusterMetadataQueryRequest) (*pb.ClusterMetadataAnswer, error) {
-	answer, err := s.store.Lookup(ctx, cmLookupRequest(req))
-	if err != nil {
-		return nil, err
-	}
-	return answerToProto(answer), nil
-}
-
-// QueryOrigin answers from the coordinator: any replica can serve it.
-func (s *ConsumerServer) QueryOrigin(ctx context.Context, req *pb.ClusterMetadataOriginRequest) (*pb.ClusterMetadataAnswer, error) {
-	answer, err := s.store.LookupOrigin(ctx, cmOriginRequest(req))
-	if err != nil {
-		return nil, err
-	}
-	return answerToProto(answer), nil
-}
-
-// Snapshot returns this replica's shard of an enumeration.
-func (s *ConsumerServer) Snapshot(ctx context.Context, req *pb.ClusterMetadataSnapshotRequest) (*pb.ClusterMetadataSnapshot, error) {
-	snapshot, err := s.store.Snapshot(ctx, req.GetKind(), req.GetNamespace(), scopeFromProto(req.GetScope()))
-	if err != nil {
-		return nil, err
-	}
-	return snapshotToProto(snapshot), nil
-}
-
-// Ring returns this replica's view of the ring.
-func (s *ConsumerServer) Ring(ctx context.Context, _ *pb.ClusterMetadataRingRequest) (*pb.ClusterMetadataRing, error) {
-	ring, err := s.store.Ring(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return ringToProto(ring), nil
-}
-
-// Subscribe streams one node's events from its owning replica. The stream
-// ends with an error when ownership of the node moves: the consumer
-// re-resolves the owner through Ring and resubscribes.
-func (s *ConsumerServer) Subscribe(req *pb.ClusterMetadataSubscribeRequest, stream pb.ClusterMetadataConsumer_SubscribeServer) error {
-	events, cancel, err := s.store.Subscribe(stream.Context(), req.GetNode(), scopeFromProto(req.GetScope()))
-	if err != nil {
-		// The replica does not own the node or the node is not synced yet:
-		// the consumer re-resolves the owner through Ring and retries.
-		return status.Error(codes.Unavailable, err.Error())
-	}
-	defer cancel()
-
-	for {
-		select {
-		case <-stream.Context().Done():
-			return nil
-		case event, ok := <-events:
-			if !ok {
-				// Ownership of the node moved: resubscribe to the new owner.
-				return status.Error(codes.Unavailable, "ownership of node "+req.GetNode()+" moved")
-			}
-			if err := stream.Send(eventToProto(event)); err != nil {
-				return err
-			}
-		}
-	}
 }
 
 func cmLookupRequest(req *pb.ClusterMetadataQueryRequest) cm.LookupRequest {

@@ -89,54 +89,6 @@ func (s *LocalStore) LookupOrigin(ctx context.Context, req cm.OriginLookupReques
 	return cm.ReducePeerAnswers(answers), nil
 }
 
-// Snapshot implements cm.Store.Snapshot(). v1 enumerates pods only; the workloadmeta
-// store has no list method for the other supported kinds yet.
-func (s *LocalStore) Snapshot(ctx context.Context, kind string, namespace string, scope cm.Scope) (cm.ShardSnapshot, error) {
-	if kind != KindPod {
-		return cm.ShardSnapshot{}, fmt.Errorf("enumeration of kind %q is not supported yet", kind)
-	}
-
-	nodes := s.ring.State().MyNodes
-
-	pods := s.wmeta.ListKubernetesPods()
-	events := make([]cm.NodeEvent, 0, len(pods))
-	for _, pod := range pods {
-		if namespace != "" && pod.Namespace != namespace {
-			continue
-		}
-		answer, err := s.tagAnswer(taggertypes.NewEntityID(taggertypes.KubernetesPodUID, pod.EntityID.ID), scope.Cardinality)
-		if err != nil {
-			return cm.ShardSnapshot{}, err
-		}
-		events = append(events, cm.NodeEvent{
-			Kind:      KindPod,
-			Namespace: pod.Namespace,
-			Name:      pod.Name,
-			Tags:      answer.Tags,
-		})
-	}
-
-	return cm.ShardSnapshot{Nodes: nodes, Events: events}, nil
-}
-
-// Ring implements cm.Store.Ring().
-func (s *LocalStore) Ring(ctx context.Context) (cm.RingInfo, error) {
-	state := s.ring.State()
-	members := make([]cm.RingMember, 0, len(state.MemberInfos))
-	for _, info := range state.MemberInfos {
-		ready := true
-		if info.Name == s.ring.selfID {
-			ready = state.Ready()
-		}
-		members = append(members, cm.RingMember{
-			Name:  info.Name,
-			Nodes: state.Owned[info.Name],
-			Ready: ready,
-		})
-	}
-	return cm.RingInfo{Members: members}, nil
-}
-
 func (s *LocalStore) localLookup(ctx context.Context, req cm.LookupRequest) (cm.LookupAnswer, error) {
 	// look in our own cache first
 	entityID, found, err := s.resolveNamed(req.Key)

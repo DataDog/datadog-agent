@@ -31,7 +31,6 @@ type fakeWmeta struct {
 	pods        map[string]*workloadmeta.KubernetesPod // by UID
 	deployments map[string]*workloadmeta.KubernetesDeployment
 	nodes       map[string]*workloadmeta.KubernetesNode
-	subCh       chan workloadmeta.EventBundle
 }
 
 func (f *fakeWmeta) GetKubernetesPodByName(podName, podNamespace string) (*workloadmeta.KubernetesPod, error) {
@@ -85,24 +84,6 @@ func (f *fakeWmeta) ListKubernetesNodes() []*workloadmeta.KubernetesNode {
 		nodes = append(nodes, node)
 	}
 	return nodes
-}
-
-func (f *fakeWmeta) Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
-	f.subCh = make(chan workloadmeta.EventBundle, 1)
-	return f.subCh
-}
-
-func (f *fakeWmeta) Unsubscribe(ch chan workloadmeta.EventBundle) {
-	if ch == f.subCh {
-		close(f.subCh)
-		f.subCh = nil
-	}
-}
-
-func (f *fakeWmeta) notifyBundle(events ...workloadmeta.Event) {
-	if f.subCh != nil {
-		f.subCh <- workloadmeta.EventBundle{Events: events, Ch: make(chan struct{})}
-	}
 }
 
 // fakeTagger implements only Tag.
@@ -268,33 +249,6 @@ func TestLookupOrigin(t *testing.T) {
 	assert.Error(t, err, "empty origin key is a caller error")
 }
 
-// TestSnapshot tests enumeration.
-// Test partitions:
-// - kind: pod | unsupported (boundary)
-// - namespace filter: all namespaces | one namespace with a match and one without
-func TestSnapshot(t *testing.T) {
-	store := newTestStore(t)
-	ctx := context.Background()
-
-	snapshot, err := store.Snapshot(ctx, KindPod, "", cm.Scope{Consumer: "test"})
-	require.NoError(t, err)
-	assert.Equal(t, []string{"node-a"}, snapshot.Nodes)
-	require.Len(t, snapshot.Events, 1)
-	assert.Equal(t, cm.NodeEvent{
-		Kind:      KindPod,
-		Namespace: "default",
-		Name:      "web-1",
-		Tags:      []string{"kube_namespace:default", "pod_name:web-1"},
-	}, snapshot.Events[0])
-
-	filtered, err := store.Snapshot(ctx, KindPod, "kube-system", cm.Scope{Consumer: "test"})
-	require.NoError(t, err)
-	assert.Empty(t, filtered.Events, "namespace with no pods yields an empty snapshot")
-
-	_, err = store.Snapshot(ctx, KindDeployment, "", cm.Scope{Consumer: "test"})
-	assert.Error(t, err, "non-pod enumeration is not implemented in v1")
-}
-
 // TestLookupFanout tests the coordinator path for pod queries.
 // Test partitions:
 // - pod location: local | peer | nowhere
@@ -384,24 +338,4 @@ func TestLookupOriginFanout(t *testing.T) {
 	peer.lookupErr = errors.New("peer unreachable")
 	_, err = store.LookupOrigin(ctx, missReq)
 	assert.Error(t, err)
-}
-
-// TestRingAndSubscribe tests the topology methods.
-// Test partitions:
-// - Ring: single-member v1 shape
-// - Subscribe: not implemented (boundary)
-func TestRingAndSubscribe(t *testing.T) {
-	store := newTestStore(t)
-	ctx := context.Background()
-
-	ring, err := store.Ring(ctx)
-	require.NoError(t, err)
-	require.Len(t, ring.Members, 1)
-	assert.Equal(t, MemberID("datadog", "dca-0"), ring.Members[0].Name)
-	assert.Equal(t, []string{"node-a"}, ring.Members[0].Nodes)
-	assert.True(t, ring.Members[0].Ready, "all owned nodes are synced in the test fixture")
-
-	_, cancel, err := store.Subscribe(ctx, "node-a", cm.Scope{Consumer: "test"})
-	require.NoError(t, err, "owned and synced nodes are accepted")
-	cancel()
 }
