@@ -151,11 +151,25 @@ func FindAgentMSI(dir string, fipsMode bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Older installers saved the FIPS rollback MSI as datadog-agent-*.msi.
+	if fipsMode && len(msis) == 0 {
+		msis, err = filepath.Glob(filepath.Join(dir, AgentMSIName("*", false)))
+		if err != nil {
+			return "", err
+		}
+	}
 	if len(msis) > 1 {
 		return "", errors.New("too many MSIs in package")
 	}
 	if len(msis) == 0 {
 		return "", errors.New("no MSIs in package")
+	}
+	product, err := readMSIProductName(msis[0])
+	if err != nil {
+		return "", fmt.Errorf("read MSI product: %w", err)
+	}
+	if product != AgentProductName(fipsMode) {
+		return "", fmt.Errorf("unexpected MSI product %q, expected %q", product, AgentProductName(fipsMode))
 	}
 	return msis[0], nil
 }
