@@ -75,9 +75,9 @@ bazel:test:linux-amd64:
 bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
-# Deliberately manual and limited to Linux amd64 to validate whether the
-# Agent can build libdd-rc's native dependencies from source. Keep native
-# outputs on failures so the first CI runs provide enough evidence to refine
+# Deliberately manual and limited to Linux amd64 to validate the pinned
+# libdd-rc source through both its native build and public Go client lifecycle.
+# Keep native outputs on failures so CI runs provide enough evidence to refine
 bazel:rc-x509-ffi:linux-amd64:
   extends: .bazel:runner:linux-amd64
   stage: source_test
@@ -97,6 +97,7 @@ bazel:rc-x509-ffi:linux-amd64:
     - command -v perl && perl --version
     - bazel cquery -c opt --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
     - bazel build -c opt --jobs=$KUBERNETES_CPU_REQUEST --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
+    - bazel test -c opt --jobs=$KUBERNETES_CPU_REQUEST --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test
   after_script:
     - mkdir -p "$RC_X509_ARTIFACTS_DIR"
     - mv rc-x509-declared-outputs.txt "$RC_X509_ARTIFACTS_DIR/" 2>/dev/null || true

@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+genrule(
+    name = "client_lifecycle_test_src",
+    srcs = ["client_lifecycle_test.go.in"],
+    outs = ["client_lifecycle_generated_test.go"],
+    cmd = "cp $(location client_lifecycle_test.go.in) $@",
+)
+
+go_test(
+    name = "client_lifecycle_test",
+    srcs = [":client_lifecycle_test_src"],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
+    deps = ["@libdd_rc_source//:rcx509"],
+)

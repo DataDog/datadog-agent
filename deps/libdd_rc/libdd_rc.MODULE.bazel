@@ -30,10 +30,10 @@ crate.annotation(
 )
 crate.annotation(
     crate = "tracing-core",
+    rustc_flags = ["--cfg=tracing_unstable"],
     # Cargo declares this edge under cfg(tracing_unstable), which
     # crate_universe cannot infer from a custom rustc cfg.
     deps = ["@libdd_rc_crates//:valuable-0.1.1"],
-    rustc_flags = ["--cfg=tracing_unstable"],
 )
 
 # TODO: update as needed

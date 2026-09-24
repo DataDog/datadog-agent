@@ -15,6 +15,15 @@ inject_repo(
 )
 
 go_deps.from_file(go_work = "//:go.work")
+
+# rcx509 is modeled by the libdd-rc source overlay rather than the ordinary Go
+# module graph. Declare its only third-party Go dependency here so `go mod tidy`
+# does not try to resolve libdd-rc's intentionally uncommitted generated code.
+go_deps.module(
+    path = "github.com/coder/websocket",
+    sum = "h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNUA=",
+    version = "v1.8.15",
+)
 go_deps.gazelle_default_attributes(
     # Using default attributes causes build_file_generation to change to `on`,
     # potentially overwriting existing BUILD files. We prefer the default `auto` behaviour
@@ -107,6 +116,7 @@ use_repo(
     "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
     "com_github_cloudfoundry_community_go_cfclient_v2",
+    "com_github_coder_websocket",
     "com_github_containerd_cgroups_v3",
     "com_github_containerd_containerd_api",
     "com_github_containerd_containerd_v2",

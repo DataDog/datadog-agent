@@ -1,5 +1,52 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
 load("@rules_rust//rust:defs.bzl", "rust_static_library")
+
+proto_library(
+    name = "signature_proto",
+    srcs = ["lib/rc-x509-proto/protos/signature.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+)
+
+proto_library(
+    name = "magic_tunnel_proto",
+    srcs = ["lib/rc-x509-proto/protos/magic_tunnel/protocol.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+)
+
+proto_library(
+    name = "protocol_proto",
+    srcs = glob(["lib/rc-x509-proto/protos/protocol/*.proto"]),
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+    deps = [
+        ":magic_tunnel_proto",
+        ":signature_proto",
+    ],
+)
+
+go_proto_library(
+    name = "signature_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/signature",
+    proto = ":signature_proto",
+)
+
+go_proto_library(
+    name = "magic_tunnel_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel",
+    proto = ":magic_tunnel_proto",
+)
+
+go_proto_library(
+    name = "protocol_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/protocol",
+    proto = ":protocol_proto",
+    deps = [
+        ":magic_tunnel_go_proto",
+        ":signature_go_proto",
+    ],
+)
 
 rust_static_library(
     name = "rc_x509_ffi",
@@ -29,6 +76,51 @@ cc_library(
     name = "rc_x509_ffi_cc",
     hdrs = ["include/libdd_rc.h"],
     includes = ["include"],
+    linkopts = select({
+        "@rules_go//go/platform:linux": [
+            "-lpthread",
+            "-ldl",
+            "-lm",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [":rc_x509_ffi"],
+)
+
+# bridge.go is intentionally omitted: it contains Cargo-relative #cgo paths
+# and links AWS-LC as a separate shared object. Bazel supplies both the header
+# and the fully linked Rust static library through rc_x509_ffi_cc.
+go_library(
+    name = "libddrcffi",
+    srcs = [
+        "ffi-hosts/go/internal/libddrcffi/callbacks.go",
+        "ffi-hosts/go/internal/libddrcffi/connection.go",
+        "ffi-hosts/go/internal/libddrcffi/context.go",
+        "ffi-hosts/go/internal/libddrcffi/dispatcher.go",
+        "ffi-hosts/go/internal/libddrcffi/doc.go",
+    ],
+    cdeps = [":rc_x509_ffi_cc"],
+    cgo = True,
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/internal/libddrcffi",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":magic_tunnel_go_proto",
+        ":protocol_go_proto",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_library(
+    name = "rcx509",
+    srcs = [
+        "ffi-hosts/go/rcx509/client.go",
+        "ffi-hosts/go/rcx509/session.go",
+    ],
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcx509",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":libddrcffi",
+        "@com_github_coder_websocket//:websocket",
+    ],
 )
