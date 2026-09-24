@@ -21,6 +21,7 @@ var validProducts = map[string]struct{}{
 	ProductCWSCustom:                    {},
 	ProductCWSRemediation:               {},
 	ProductCWSProfiles:                  {},
+	ProductCWSWorkloadHardening:         {},
 	ProductCSMSideScanning:              {},
 	ProductASM:                          {},
 	ProductASMFeatures:                  {},
@@ -85,6 +86,8 @@ const (
 	ProductCWSRemediation = "CWS_REMEDIATION"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
+	// ProductCWSWorkloadHardening delivers workload hardening trial requests to the Cluster Agent
+	ProductCWSWorkloadHardening = "CWS_WORKLOAD_HARDENING"
 	// ProductCSMSideScanning is the side scanning product
 	ProductCSMSideScanning = "CSM_SIDE_SCANNING"
 	// ProductASM is the ASM product used by customers to issue rules configurations
