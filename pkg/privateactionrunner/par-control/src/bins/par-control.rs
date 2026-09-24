@@ -6,23 +6,23 @@
 use anyhow::Result;
 use clap::Parser;
 use par_control::bootstrap;
+use par_control::config::EXECUTOR_PROCESS_NAME;
 use par_control::executor::ExecutorDispatcher;
 use par_control::jwt::{Es256Signer, JwtSigner};
 use par_control::opms::{HttpOpms, HttpOpmsConfig};
 use par_control::orchestrator::{Orchestrator, Params};
 use par_control::procmgr::ProcmgrLifecycle;
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "par-control", about = "Private Action Runner control plane")]
 struct Cli {
-    #[arg(
-        long = "bootstrap-command",
-        num_args = 1..,
-        allow_hyphen_values = true
-    )]
-    bootstrap_command: Vec<String>,
+    #[arg(long)]
+    executor_socket: PathBuf,
+    #[arg(long)]
+    ipc_cert_file: PathBuf,
 }
 
 #[tokio::main]
@@ -51,15 +51,26 @@ async fn run() -> Result<()> {
     }
     log::set_max_level(log::LevelFilter::Info);
 
-    let bootstrapped = bootstrap::run_bootstrap(&cli.bootstrap_command)?;
+    par_control::tls::initialize_crypto_provider()?;
+    let lifecycle = Arc::new(ProcmgrLifecycle::new(
+        &dd_procmgr_client::ipc_path(),
+        EXECUTOR_PROCESS_NAME.to_string(),
+    ));
+    let dispatcher = ExecutorDispatcher::new(&cli.executor_socket, Some(&cli.ipc_cert_file));
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
+    let bootstrapped = tokio::select! {
+        _ = &mut shutdown => return Ok(()),
+        result = bootstrap::run_bootstrap(lifecycle.as_ref(), &dispatcher) => result?,
+    };
     log::set_max_level(bootstrapped.log_level());
 
-    if !bootstrapped.split_mode {
+    if !bootstrapped.split_mode() {
         log::info!("private_action_runner split mode is disabled; exiting");
         return Ok(());
     }
 
-    let config = bootstrapped.into_config()?;
+    let config = bootstrapped.into_config(cli.executor_socket, cli.ipc_cert_file)?;
 
     let signer: Arc<dyn JwtSigner> = Arc::new(Es256Signer::new(
         config.identity.org_id,
@@ -74,19 +85,12 @@ async fn run() -> Result<()> {
             runner_version: config.runner_version.clone(),
             modes: config.modes.clone(),
             timeout: config.opms_request_timeout,
-            proxy_url: config.opms_proxy_url.clone(),
+            proxy: config.opms_proxy.clone(),
             tls: config.tls.clone(),
             extra_headers: config.opms_extra_headers.clone(),
         },
     )?);
-    let lifecycle = Arc::new(ProcmgrLifecycle::new(
-        &config.procmgr_socket,
-        config.executor_process_name.clone(),
-    ));
-    let dispatcher = Arc::new(ExecutorDispatcher::new(
-        &config.executor_socket,
-        Some(&config.ipc_cert_file),
-    ));
+    let dispatcher = Arc::new(dispatcher);
 
     let params = Params::from_config(&config);
     let orchestrator = Orchestrator::new(opms, lifecycle, dispatcher, params);
@@ -101,7 +105,7 @@ async fn run() -> Result<()> {
         config.ipc_cert_file.display(),
     );
 
-    orchestrator.run(shutdown_signal()).await;
+    orchestrator.run(shutdown).await;
     log::info!("par-control stopped");
     log::logger().flush();
     Ok(())
@@ -137,5 +141,33 @@ async fn shutdown_signal() {
             log::warn!("could not listen for CTRL_BREAK, falling back to CTRL_C: {error}");
             let _ = tokio::signal::ctrl_c().await;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launch_paths_are_the_only_local_configuration() {
+        let cli = Cli::try_parse_from([
+            "par-control",
+            "--executor-socket",
+            "/launch.sock",
+            "--ipc-cert-file",
+            "/auth/ipc_cert.pem",
+        ])
+        .unwrap();
+        assert_eq!(cli.executor_socket, PathBuf::from("/launch.sock"));
+        assert_eq!(cli.ipc_cert_file, PathBuf::from("/auth/ipc_cert.pem"));
+    }
+
+    #[test]
+    fn requires_both_launch_paths() {
+        assert!(Cli::try_parse_from(["par-control"]).is_err());
+        assert!(Cli::try_parse_from(["par-control", "--executor-socket", "/launch.sock"]).is_err());
+        assert!(
+            Cli::try_parse_from(["par-control", "--ipc-cert-file", "/auth/ipc_cert.pem"]).is_err()
+        );
     }
 }

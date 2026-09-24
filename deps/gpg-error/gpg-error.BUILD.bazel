@@ -280,12 +280,13 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = [":gpg-error_h"],
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "gpg-error_pkg",
     input = ":gpg-error",
+    dest_dir = "embedded/lib",
     version = "0.34.0",
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
@@ -296,5 +297,4 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
 )

@@ -1,0 +1,17 @@
+description: Datadog Private Action Runner - Control Plane
+command: '{{.InstallDir}}/bin/agent/par-control.exe'
+args:
+  - --executor-socket
+  - '\\.\pipe\dd-par-executor'
+  - --ipc-cert-file
+  - '{{.EtcDir}}/ipc_cert.pem'
+auto_start: true
+# par-control drains for at most 170 seconds, including terminal publication.
+stop_timeout: 180
+condition_path_exists: '{{.InstallDir}}/bin/agent/par-control.exe'
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+stdout: '{{.EtcDir}}/logs/par-control.log'
+stderr: '{{.EtcDir}}/logs/par-control.log'

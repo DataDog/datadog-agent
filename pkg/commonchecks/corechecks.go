@@ -65,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/powershell"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/thermal"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
@@ -73,6 +74,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/vdi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -135,6 +137,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	}
 	corecheckLoader.RegisterCheck(wincrashdetect.CheckName, wincrashdetect.Factory())
 	corecheckLoader.RegisterCheck(windowscertificate.CheckName, windowscertificate.Factory())
+	corecheckLoader.RegisterCheck(powershell.CheckName, powershell.Factory())
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
@@ -152,6 +155,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg, ncmComp))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
+	corecheckLoader.RegisterCheck(vdi.CheckName, vdi.Factory())
 
 	registerSystemProbeChecks(tagger)
 }
