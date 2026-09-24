@@ -8,6 +8,14 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+  # No application sends OTLP data in this e2e scenario. hostmetrics keeps
+  # metrics continuously flowing through the pipeline so the datadog exporter's
+  # source detection (and the otel.ddot_collector.metrics.running.fargate
+  # billing metric it drives) has data to classify.
+  hostmetrics:
+    collection_interval: 10s
+    scrapers:
+      cpu:
 
 exporters:
   datadog:
@@ -18,6 +26,12 @@ exporters:
     sending_queue:
       batch:
 
+processors:
+  # Stamps aws.ecs.launchtype / aws.ecs.task.arn onto the hostmetrics data so
+  # the datadog exporter classifies its source as AWS ECS Fargate.
+  resourcedetection/ecs:
+    detectors: [ecs]
+
 service:
   extensions: [health_check]
   pipelines:
@@ -25,5 +39,6 @@ service:
       receivers: [otlp]
       exporters: [datadog]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, hostmetrics]
+      processors: [resourcedetection/ecs]
       exporters: [datadog]
