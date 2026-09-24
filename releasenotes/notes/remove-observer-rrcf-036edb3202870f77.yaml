@@ -1,6 +1,0 @@
----
-upgrade:
-  - |
-    Observer anomaly detection no longer supports the RRCF detector.
-    If your configuration contains ``anomaly_detection.detectors.rrcf``,
-    remove that section. BOCPD remains the default metric anomaly detector.
