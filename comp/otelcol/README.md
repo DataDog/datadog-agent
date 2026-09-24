@@ -156,7 +156,7 @@ Of course, feel free to provide and tweak the provided configurations as require
 
 We welcome and appreciate contributions to this project!
 
-If you're interested in improving the Datadog Distribution of the OpenTelemetry Collector, please review our [CONTRIBUTING.md](https://github.com/DataDog/datadog-agent/blob/main/docs/public/guidelines/contributing.md) guide.
+If you're interested in improving the Datadog Distribution of the OpenTelemetry Collector, please review our [contribution guidelines](https://datadoghq.dev/datadog-agent/guidelines/contributing/).
 
 Of course, contributions can also be made upstream in both the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector) and [OpenTelemetry Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib) if changes are required to the underlying framework.
 

@@ -305,6 +305,6 @@ DD_OTEL_STANDALONE=true ./bin/otel-agent/otel-agent \
 ## References
 
 - [OTel Collector Extension Development](https://opentelemetry.io/docs/collector/building/extension/)
-- [Datadog Agent Architecture](../../docs/dev/README.md)
+- [Datadog Agent Architecture](https://datadoghq.dev/datadog-agent/architecture/)
 - [Tagger Component](../../comp/core/tagger/README.md)
 - [Workload Metadata](../../comp/core/workloadmeta/README.md)
