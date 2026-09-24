@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,69 @@ func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T)
 	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
 	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
 }
+
+func TestConfigureDelegatedAuthSharesStartupBudgetAndAllowsEndpointRecovery(t *testing.T) {
+	startupCtx := &expiringDeadlineContext{done: make(chan struct{})}
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	var sharedCtx context.Context
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
+		if sharedCtx == nil {
+			sharedCtx = ctx
+			startupCtx.expire()
+		} else {
+			assert.Same(t, sharedCtx, ctx)
+		}
+		paramsByKey[params.APIKeyConfigKey] = params
+		return ctx.Err()
+	}}
+	config := confFromYAML(t, `
+delegated_auth:
+  org_uuid: flat-org
+  startup_timeout_secs: 5
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA(map-org, aws)
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA(list-org, aws)
+`)
+	startedAt := time.Now()
+	require.ErrorIs(t, configureDelegatedAuth(startupCtx, config, comp), context.DeadlineExceeded)
+	require.NotNil(t, sharedCtx)
+	assert.NotSame(t, startupCtx, sharedCtx)
+	deadline, ok := sharedCtx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, startedAt.Add(5*time.Second), deadline, time.Second)
+
+	for _, key := range []string{
+		"api_key",
+		"additional_endpoints[https://metrics.datadoghq.com][0][map-org]",
+		"logs_config.additional_endpoints[0][list-org]",
+	} {
+		require.Contains(t, paramsByKey, key)
+		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
+}
+
+type expiringDeadlineContext struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func (c *expiringDeadlineContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c *expiringDeadlineContext) Done() <-chan struct{}       { return c.done }
+func (c *expiringDeadlineContext) Value(any) any               { return nil }
+func (c *expiringDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+func (c *expiringDeadlineContext) expire() { c.once.Do(func() { close(c.done) }) }
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)

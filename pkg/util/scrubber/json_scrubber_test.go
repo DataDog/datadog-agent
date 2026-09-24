@@ -79,6 +79,15 @@ func TestScrubJSON(t *testing.T) {
 	})
 }
 
+func TestScrubJSONDelaFallback(t *testing.T) {
+	input := `{"logs_config":{"additional_endpoints":[{"api_key":"DELA(org-uuid, aws, fallback=supersecretXYZ)","host":"logs.datadoghq.com"}]}}`
+
+	scrubbed, err := ScrubJSONString(input)
+	require.NoError(t, err)
+	assert.NotContains(t, scrubbed, "supersecretXYZ")
+	assert.NotContains(t, scrubbed, "XYZ")
+}
+
 func TestConfigScrubbedJson(t *testing.T) {
 	wd, _ := os.Getwd()
 

@@ -14,7 +14,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
@@ -246,7 +245,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.SetInTest("logs_config.use_v2_api", false)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -264,7 +263,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -282,7 +281,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKey:                 atomic.NewString("789"),
+		credential:             newEndpointCredential("789", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
@@ -317,7 +316,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	suite.config.SetInTest("logs_config.dev_mode_use_proto", true)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -330,7 +329,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -376,7 +375,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	suite.config.SetInTest("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -393,7 +392,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -410,7 +409,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKey:                 atomic.NewString("789"),
+		credential:             newEndpointCredential("789", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
@@ -460,7 +459,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	suite.config.SetInTest("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -480,7 +479,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint1 := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -497,7 +496,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint2 := Endpoint{
-		apiKey:                 atomic.NewString("789"),
+		credential:             newEndpointCredential("789", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 1,
@@ -540,7 +539,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	suite.config.SetInTest("logs_config.additional_endpoints", endpointsInConfig)
 
 	expectedMainEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -553,7 +552,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		isReliable:             true,
 	}
 	expectedAdditionalEndpoint := Endpoint{
-		apiKey:                 atomic.NewString("456"),
+		credential:             newEndpointCredential("456", false),
 		configSettingPath:      "logs_config.additional_endpoints",
 		isAdditionalEndpoint:   true,
 		additionalEndpointsIdx: 0,
@@ -661,7 +660,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -701,7 +700,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.config.SetInTest("logs_config.batch_wait", 1)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -1071,7 +1070,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                  atomic.NewString("123"),
+		credential:              newEndpointCredential("123", false),
 		configSettingPath:       "api_key",
 		isAdditionalEndpoint:    false,
 		additionalEndpointsIdx:  0,
@@ -1118,7 +1117,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,
@@ -1163,7 +1162,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 	suite.Nil(err)
 
 	main := Endpoint{
-		apiKey:                 atomic.NewString("123"),
+		credential:             newEndpointCredential("123", false),
 		configSettingPath:      "api_key",
 		isAdditionalEndpoint:   false,
 		additionalEndpointsIdx: 0,

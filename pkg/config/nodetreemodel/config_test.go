@@ -1687,6 +1687,22 @@ func TestSequenceID(t *testing.T) {
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
 
+func TestSetIfUnchanged(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.False(t, config.SetIfUnchanged("a", 0, 2, model.SourceAgentRuntime))
+	assert.Equal(t, 1, config.GetInt("a"))
+
+	assert.True(t, config.SetIfUnchanged("a", 1, 2, model.SourceAgentRuntime))
+	assert.Equal(t, 2, config.GetInt("a"))
+
+	assert.True(t, config.SetIfUnchanged("A", 2, 3, model.SourceAgentRuntime))
+	assert.Equal(t, 3, config.GetInt("a"))
+}
+
 func TestParseEnvSplitComma(t *testing.T) {
 	t.Setenv("TEST_MY_LIST", "a,b,c")
 	t.Setenv("TEST_MY_LIST_2", "")

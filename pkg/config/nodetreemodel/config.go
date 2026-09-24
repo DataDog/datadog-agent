@@ -227,6 +227,16 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	c.set(key, newValue, source, nil)
+}
+
+// SetIfUnchanged atomically updates source when key still resolves to oldValue. A true result means
+// the comparison matched; a higher-priority source may still determine the resolved value.
+func (c *ntmConfig) SetIfUnchanged(key string, oldValue, newValue interface{}, source model.Source) bool {
+	return c.set(key, newValue, source, &oldValue)
+}
+
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, expectedValue *interface{}) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
@@ -240,14 +250,19 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 		} else {
 			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
 			c.Unlock()
-			return
+			return false
 		}
 	}
 	declaredNode := c.nodeAtPathFromNode(key, c.defaults)
 	if declaredNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
-		return
+		return false
+	}
+	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
+	if expectedValue != nil && !reflect.DeepEqual(previousValue, *expectedValue) {
+		c.Unlock()
+		return false
 	}
 
 	// convert the value to the type of the default
@@ -273,13 +288,11 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
-
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
 		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
 		c.Unlock()
-		return
+		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
 		c.root, _ = c.root.Merge(newTree)
@@ -296,7 +309,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, resolvedValue) {
 		c.Unlock()
-		return
+		return true
 	}
 
 	c.sequenceID++
@@ -309,6 +322,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	for _, receiver := range receivers {
 		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
+	return true
 }
 
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {

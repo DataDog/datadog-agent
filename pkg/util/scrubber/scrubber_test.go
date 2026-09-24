@@ -107,6 +107,52 @@ func TestScrubLine(t *testing.T) {
 	require.Equal(t, "https://foo:********@example.com", res)
 }
 
+func TestScrubLineDelaFallback(t *testing.T) {
+	tests := map[string]struct {
+		input string
+		want  string
+	}{
+		"basic": {
+			input: "DELA(org-uuid, aws, fallback=supersecret)",
+			want:  "DELA(org-uuid, aws, fallback=********)",
+		},
+		"case and spacing": {
+			input: "DELA(org-uuid, aws, FALLBACK = supersecret )",
+			want:  "DELA(org-uuid, aws, FALLBACK = ********)",
+		},
+		"before region": {
+			input: "DELA(org-uuid, aws, fallback=supersecret, region=us-east-1)",
+			want:  "DELA(org-uuid, aws, fallback=********, region=us-east-1)",
+		},
+		"malformed": {
+			input: "DELA(org-uuid, aws, fallback=supersecret",
+			want:  "DELA(org-uuid, aws, fallback=********",
+		},
+		"punctuation": {
+			input: "DELA(org-uuid, aws, fallback=s3cr.et/with:punctuation)",
+			want:  "DELA(org-uuid, aws, fallback=********)",
+		},
+		"duplicate fallback": {
+			input: "DELA(org-uuid, aws, fallback=firstsecret, fallback=secondsecret)",
+			want:  "DELA(org-uuid, aws, fallback=********, fallback=********)",
+		},
+		"padded fallback": {
+			input: "DELA(org-uuid, aws, fallback=c2VjcmV0==)",
+			want:  "DELA(org-uuid, aws, fallback=********)",
+		},
+		"unrelated fallback": {
+			input: "fallback=not-a-dela-secret",
+			want:  "fallback=not-a-dela-secret",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.want, ScrubLine(test.input))
+		})
+	}
+}
+
 func TestScrubBig(t *testing.T) {
 	scrubber := New()
 	content := bytes.Repeat([]byte("a"), 1000000)

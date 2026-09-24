@@ -73,6 +73,13 @@ type domainResolver struct {
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
+	var reconcileMu sync.Mutex
+	reconcileAdditionalEndpoints := func(setting string) {
+		reconcileMu.Lock()
+		defer reconcileMu.Unlock()
+		updateAdditionalEndpoints(resolver, setting, config, log)
+	}
+
 	config.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		found := false
 
@@ -90,7 +97,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 
 		if strings.Contains(setting, "additional_endpoints") {
 			// Updating additional endpoints don't give us the exact key that has been updated so we reload the whole config section.
-			updateAdditionalEndpoints(resolver, setting, config, log)
+			reconcileAdditionalEndpoints(setting)
 			return
 		}
 
@@ -120,6 +127,19 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 			log.Errorf("new and old API key for '%s' is invalid (not a string) ignoring new value", setting)
 		}
 	})
+
+	// Reconcile pending credentials after subscribing so an update between the initial endpoint
+	// snapshot and callback registration cannot be missed.
+	additionalSettings := make(map[string]struct{})
+	apiKeys, _ := resolver.GetAPIKeysInfo()
+	for _, endpoint := range apiKeys {
+		if endpoint.HasPendingDelegatedAuth && strings.Contains(endpoint.ConfigSettingPath, "additional_endpoints") {
+			additionalSettings[endpoint.ConfigSettingPath] = struct{}{}
+		}
+	}
+	for setting := range additionalSettings {
+		reconcileAdditionalEndpoints(setting)
+	}
 }
 
 // updateAdditionalEndpoints handles updating an API key that is a part of additional endpoints.
@@ -128,9 +148,15 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 // into our list before deduping.
 func updateAdditionalEndpoints(resolver DomainResolver, setting string, config config.Component, log log.Component) {
 	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
-	endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
+	endpoints, ok := additionalEndpoints[resolver.GetConfigName()]
 	if !ok {
-		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetBaseDomain())
+		oldKeys := resolver.GetAPIKeys()
+		resolver.UpdateAPIKeys(setting, nil)
+		removed := missing(oldKeys, resolver.GetAPIKeys())
+		if health := resolver.GetForwarderHealth(); health != nil {
+			health.UpdateAPIKeys(resolver.GetConfigName(), removed, nil)
+		}
+		log.Errorf("the domain in additional_endpoints changed at runtime for '%s'; keys from '%s' were removed", resolver.GetConfigName(), setting)
 		return
 	}
 
