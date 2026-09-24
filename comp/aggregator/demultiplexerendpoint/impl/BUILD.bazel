@@ -20,10 +20,7 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = [
-        "dump_endpoint_test.go",
-        "endpoint_test.go",
-    ],
+    srcs = ["endpoint_test.go"],
     embed = [":impl"],
     deps = [
         "@com_github_datadog_zstd//:zstd",
