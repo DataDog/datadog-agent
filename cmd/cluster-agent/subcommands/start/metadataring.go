@@ -107,10 +107,14 @@ func metadataRingScope(lc fx.Lifecycle, cfg config.Component) (workloadmeta.PodW
 
 // startMetadataRing builds the serving side of the ring in the start
 // function, where workloadmeta and the tagger are available: the LocalStore,
-// the peer pool, and the peer gRPC server. Returns nil when the ring is off.
-func startMetadataRing(cfg config.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, ipc ipc.Component, controller *clustermetadata.RingController) *clustermetadata.PeerServer {
+// the peer pool, the peer gRPC server, and the ring-wrapped tagger (the
+// local tagger with pod misses delegated to the ring coordinator, so the
+// existing tagger gRPC answers complete pod tags from sharded caches).
+// The server is nil and the tagger passes through unchanged when the ring
+// is off.
+func startMetadataRing(cfg config.Component, wmeta workloadmeta.Component, taggerComp tagger.Component, ipc ipc.Component, controller *clustermetadata.RingController) (*clustermetadata.PeerServer, tagger.Component) {
 	if controller == nil {
-		return nil
+		return nil, taggerComp
 	}
 
 	// Peers dial each other by pod IP, but the DCA serving certificate only
@@ -130,7 +134,7 @@ func startMetadataRing(cfg config.Component, wmeta workloadmeta.Component, tagge
 	}
 
 	store := clustermetadata.NewLocalStore(wmeta, taggerComp, controller, pool.peers)
-	return clustermetadata.NewPeerServer(store)
+	return clustermetadata.NewPeerServer(store), clustermetadata.NewRingTagger(taggerComp, store)
 }
 
 // nodeListSource returns the cluster's node names from the API server
