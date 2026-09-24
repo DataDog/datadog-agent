@@ -134,3 +134,9 @@ func IPCCertFilepath() string {
 func Config() pkgconfigmodel.Config {
 	return pkgconfigsetup.Datadog()
 }
+
+// SystemProbeConfig returns the system-probe config object. The stream never writes to it: it holds
+// the system-probe schema, which the core Agent does not know.
+func SystemProbeConfig() pkgconfigmodel.Config {
+	return pkgconfigsetup.SystemProbe()
+}
