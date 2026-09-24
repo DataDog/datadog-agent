@@ -78,6 +78,9 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 	_, err = s.Env().RemoteHost.Execute(`[Environment]::SetEnvironmentVariable('DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS', 'true', 'Machine')`)
 	s.Require().NoError(err)
 	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
+	s.waitForProcessState(parControlProcess, "Stopped", 30*time.Second)
+	_ = s.runProcmgr("stop", parExecutorProcess)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited", "Failed"}, 30*time.Second)
 	s.Require().NoError(s.runProcmgr("start", parControlProcess))
 }
 
@@ -91,7 +94,8 @@ func (s *windowsPARSplitLifecycleSuite) TestExecutorStartsForSignedWork() {
 	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))
 
 	s.waitForProcessState(parControlProcess, "Running", 2*time.Minute)
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Exited"}, 2*time.Minute)
+	// Go starts for configuration, then must idle out before signed work arrives.
+	s.waitForProcessState(parExecutorProcess, "Exited", 3*time.Minute)
 
 	setPARTaskSigningKey(s.T(), client, s.signingKey)
 	taskID := uuid.New().String()
@@ -120,8 +124,8 @@ func (s *windowsPARSplitLifecycleSuite) TestMonolithStandsDown() {
 
 // TestControlStopsWithoutReenteringSupervisor proves par-control handles the
 // CTRL_BREAK that dd-procmgrd sends for a graceful stop, instead of ignoring it
-// and being force-killed once the 180s stop_timeout expires. The executor remains
-// a cold sibling rather than being coupled to control-plane shutdown.
+// and being force-killed once the 180s stop_timeout expires. The executor owns
+// its idle shutdown independently of the control plane.
 func (s *windowsPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervisor() {
 	defer func() {
 		s.Require().NoError(s.runProcmgr("start", parControlProcess))
@@ -133,7 +137,7 @@ func (s *windowsPARSplitLifecycleSuite) TestControlStopsWithoutReenteringSupervi
 	s.Require().Less(time.Since(started), 15*time.Second, "par-control stop should not hit its 180s timeout")
 
 	s.waitForProcessState(parControlProcess, "Stopped", 10*time.Second)
-	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Exited"}, 10*time.Second)
+	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Stopped", "Exited"}, 3*time.Minute)
 }
 
 func (s *windowsPARSplitLifecycleSuite) clearSigningKeys() {
