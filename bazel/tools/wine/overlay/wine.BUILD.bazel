@@ -9,7 +9,13 @@ filegroup(
             "share/wine/**",
         ],
         # Static import libraries are only needed to build against Wine.
-        exclude = ["**/*.a"],
+        # Display drivers link host GUI libraries the sandbox does not have.
+        # box64 fails closed loading them, and nothing here opens a window.
+        exclude = [
+            "**/*.a",
+            "lib/wine/x86_64-unix/winewayland.so",
+            "lib/wine/x86_64-unix/winex11.so",
+        ],
     ),
     visibility = ["@//bazel/tools/wine:__pkg__"],
 )
