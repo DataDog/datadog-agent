@@ -107,6 +107,20 @@ func processEntrySource(source uint64) string {
 	}
 }
 
+// isPlaceholderProcessFile reports whether f is the synthetic, all-zero FileEvent of the
+// placeholder entry that setProcessContext substitutes when process resolution fails
+// (GetPlaceholderProcessCacheEntry). The comparison is by pointer, so it cannot match any
+// real file. Nothing about that FileEvent can resolve: its path_key is 0/0, which is
+// neither a valid key nor the fileless heuristic (Inode != 0 && MountID == 0), so the
+// mount resolver is asked for mount id 0 and fails. Reporting that as a path resolution
+// error invents an abnormal_path for what is really a missing process context, which the
+// event already carries as ErrNoProcessContext.
+func isPlaceholderProcessFile(ev *model.Event, f *model.FileEvent) bool {
+	return ev.ProcessContext != nil &&
+		ev.ProcessContext.Source == model.ProcessCacheEntryFromPlaceholder &&
+		f == &ev.ProcessContext.FileEvent
+}
+
 // pathErrorDiag renders who an event belongs to, for the path-resolution diagnostic logs
 // below. The failures we are chasing carry an all-zero file path_key, and therefore an
 // empty basename, so "pid N, inode 0, mountid 0" never identifies the process; comm, the
@@ -186,7 +200,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 			f.Filesystem = model.TmpFS
 		} else {
 			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
-			if err != nil {
+			if err != nil && !isPlaceholderProcessFile(ev, f) {
 				seclog.Errorf("failed to resolve filesystem for %s, inode %d, mountid %d, basename %q: %s", fh.pathErrorDiag(ev), f.Inode, f.MountID, f.BasenameStr, err)
 				ev.SetPathResolutionError(f, err)
 			}
@@ -652,7 +666,9 @@ func (fh *EBPFFieldHandlers) ResolveFileMetadata(event *model.Event) *model.File
 		metadata, err := fh.resolvers.FileMetadataResolver.ResolveFileMetadata(event, &event.Exec.Process.FileEvent)
 		if err != nil || metadata == nil {
 			f := &event.Exec.Process.FileEvent
-			seclog.Errorf("failed to resolve exec binary metadata for %s, inode %d, mountid %d, basename %q: %s", fh.pathErrorDiag(event), f.Inode, f.MountID, f.BasenameStr, err)
+			if !isPlaceholderProcessFile(event, f) {
+				seclog.Errorf("failed to resolve exec binary metadata for %s, inode %d, mountid %d, basename %q: %s", fh.pathErrorDiag(event), f.Inode, f.MountID, f.BasenameStr, err)
+			}
 			return nil
 		}
 		event.Exec.FileMetadata = *metadata
