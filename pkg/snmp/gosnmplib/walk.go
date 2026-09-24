@@ -15,13 +15,21 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-// RootOIDs lists scan roots in the order they are tried when initial requests fail.
+// RootOIDs lists scan roots in the order they are tried when no OIDs are collected.
 // Start below gosnmp's default .1.3.6.1.2.1 to include lower prefixes such as LLDP.
 var RootOIDs = []string{".0.0", ".1.0"}
 
+// IsEndOfMIB reports whether a PDU type terminates an SNMP walk.
+func IsEndOfMIB(pduType gosnmp.Asn1BER) bool {
+	return pduType == gosnmp.EndOfMibView ||
+		pduType == gosnmp.NoSuchObject ||
+		pduType == gosnmp.NoSuchInstance
+}
+
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
 // a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
-// Failed initial requests try RootOIDs in order.
+// Requests that fail or end the walk before collecting any OIDs try RootOIDs in order.
+// The walk fails if no root yields any OIDs.
 // This code is adapated directly from gosnmp's walk function.
 func ConditionalWalk(
 	ctx context.Context,
@@ -33,13 +41,13 @@ func ConditionalWalk(
 	rootOIDs := RootOIDs
 	rootIndex := 0
 	oid := rootOIDs[rootIndex]
-	requests := 0
+	requestCount := 0
 
 RequestLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requests)
+			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requestCount)
 			return ctx.Err()
 		default:
 		}
@@ -48,8 +56,8 @@ RequestLoop:
 			time.Sleep(callInterval)
 		}
 
-		requests++
-		if maxCallCount > 0 && requests >= maxCallCount {
+		requestCount++
+		if maxCallCount > 0 && requestCount >= maxCallCount {
 			session.Logger.Printf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
 			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
 		}
@@ -66,16 +74,28 @@ RequestLoop:
 				return NewConnectionError(err)
 			}
 			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
+			if oid == rootOIDs[rootIndex] {
+				return fmt.Errorf("no OIDs collected after %d requests", requestCount)
+			}
 			break RequestLoop
 		}
-		if len(response.Variables) == 0 {
+		if len(response.Variables) == 0 || IsEndOfMIB(response.Variables[0].Type) {
+			if oid == rootOIDs[rootIndex] && rootIndex+1 < len(rootOIDs) {
+				rootIndex++
+				session.Logger.Printf("ConditionalWalk returned no OIDs at %s, retrying from %s", oid, rootOIDs[rootIndex])
+				oid = rootOIDs[rootIndex]
+				continue
+			}
+			if oid == rootOIDs[rootIndex] {
+				return fmt.Errorf("no OIDs collected after %d requests", requestCount)
+			}
 			break RequestLoop
 		}
 
 		lastOid := oid
 
 		for i, pdu := range response.Variables {
-			if pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchObject || pdu.Type == gosnmp.NoSuchInstance {
+			if IsEndOfMIB(pdu.Type) {
 				session.Logger.Printf("ConditionalWalk terminated with type 0x%x", pdu.Type)
 				break RequestLoop
 			}
@@ -119,7 +139,7 @@ RequestLoop:
 			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
-	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)
+	session.Logger.Printf("ConditionalWalk completed in %d requests", requestCount)
 	return nil
 }
 

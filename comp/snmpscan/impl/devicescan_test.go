@@ -128,24 +128,23 @@ func endOfMibPacket() *gosnmp.SnmpPacket {
 }
 
 func TestGatherPDUsWithBulk_AdaptsMaxRepOnFailure(t *testing.T) {
-	// First call at max-rep=10 times out; optimizer halves to 5; second call
-	// succeeds. Verify the OID didn't advance and the second call used a
-	// smaller max-rep.
+	// An end-of-MIB response is not a successful scan if no OIDs were collected.
 	fake := &fakeBulkGetter{
 		responses: []bulkResponse{
 			{err: errors.New("request timeout")},
+			{packet: endOfMibPacket()},
 			{packet: endOfMibPacket()},
 		},
 	}
 
 	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 10)
-	require.NoError(t, err)
+	require.EqualError(t, err, "no OIDs collected after 3 requests")
 
-	require.Len(t, fake.calls, 2)
-	assert.Equal(t, ".0.0", fake.calls[0].oid)
-	assert.Equal(t, ".0.0", fake.calls[1].oid, "OID should not advance on retry")
-	assert.Equal(t, uint32(10), fake.calls[0].maxRep)
-	assert.Equal(t, uint32(5), fake.calls[1].maxRep, "max-rep should halve on failure")
+	assert.Equal(t, []bulkCall{
+		{oid: ".0.0", maxRep: 10},
+		{oid: ".0.0", maxRep: 5},
+		{oid: ".1.0", maxRep: 10},
+	}, fake.calls)
 }
 
 func TestGatherPDUsWithBulk_GivesUpWhenMaxRepCannotShrink(t *testing.T) {
@@ -330,18 +329,23 @@ func TestGatherPDUsWithBulk_TicksOncePerRoundTrip(t *testing.T) {
 }
 
 func TestGatherPDUsWithBulk_TreatsSNMPErrorAsFailure(t *testing.T) {
-	// A packet with a non-NoError status must back the batch size off just
-	// like a transport error, then a clean packet lets the walk finish.
+	// An SNMP error reduces the batch size; an empty response before any OIDs
+	// switches roots instead of completing the scan.
 	fake := &fakeBulkGetter{
 		responses: []bulkResponse{
 			{packet: &gosnmp.SnmpPacket{Error: gosnmp.TooBig}},
-			{packet: endOfMibPacket()},
+			{packet: &gosnmp.SnmpPacket{}},
+			{packet: dataPacket("1.3.6.1.2.1.1.1.0")},
+			{packet: &gosnmp.SnmpPacket{}},
 		},
 	}
 
 	err := gatherPDUsWithBulk(context.Background(), fake, "test-device", discardPDU, noopTick, 0, 0, 10)
 	require.NoError(t, err)
-	require.Len(t, fake.calls, 2)
-	assert.Equal(t, uint32(10), fake.calls[0].maxRep)
-	assert.Equal(t, uint32(5), fake.calls[1].maxRep, "max-rep should halve after an SNMP error")
+	assert.Equal(t, []bulkCall{
+		{oid: ".0.0", maxRep: 10},
+		{oid: ".0.0", maxRep: 5},
+		{oid: ".1.0", maxRep: 10},
+		{oid: "1.3.6.1.2.1.1.1.0", maxRep: 10},
+	}, fake.calls)
 }
