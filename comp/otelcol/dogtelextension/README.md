@@ -56,7 +56,7 @@ Supports secrets resolution when running in standalone mode (`DD_OTEL_STANDALONE
 ### 5. Host Metadata Submission
 **Status:** ✅ Implemented via FX modules in otel-agent.
 
-Host metadata collection is enabled through FX modules added to otel-agent startup in [cmd/otel-agent/subcommands/run/command.go](../../cmd/otel-agent/subcommands/run/command.go):
+Host metadata collection is enabled through FX modules added to otel-agent startup in [cmd/otel-agent/subcommands/run/command.go](../../../cmd/otel-agent/subcommands/run/command.go):
 
 ```go
 runnerimpl.Module(),      // Metadata scheduler and submission
@@ -304,7 +304,7 @@ DD_OTEL_STANDALONE=true ./bin/otel-agent/otel-agent \
 
 ## References
 
-- [OTel Collector Extension Development](https://opentelemetry.io/docs/collector/building/extension/)
+- [OTel Collector Extension Development](https://opentelemetry.io/docs/collector/extend/custom-component/extension/)
 - [Datadog Agent Architecture](https://datadoghq.dev/datadog-agent/architecture/)
-- [Tagger Component](../../comp/core/tagger/README.md)
-- [Workload Metadata](../../comp/core/workloadmeta/README.md)
+- [Tagger Component](../../core/tagger/README.md)
+- [Workload Metadata](../../core/workloadmeta/README.md)

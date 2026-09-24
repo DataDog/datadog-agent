@@ -130,7 +130,7 @@ To learn more about how to build the DDOT Collector with support for your custom
 
 ### Development
 
-For developers, building and running the DDOT Collector locally is straightforward once you have the Datadog Agent development environment set up. You can use our [development documentation](https://datadoghq.dev/datadog-agent/) to learn some more about the development guidelines, and instructions on the environment and tooling setup are available in this [guide](https://datadoghq.dev/datadog-agent/setup/).
+For developers, building and running the DDOT Collector locally is straightforward once you have the Datadog Agent development environment set up. You can use our [development documentation](https://datadoghq.dev/datadog-agent/) to learn some more about the development guidelines, and instructions on the environment and tooling setup are available in this [guide](https://datadoghq.dev/datadog-agent/setup/required/).
 
 Once your development environment is set up, you can build your DDOT Collector as follows:
 ```
