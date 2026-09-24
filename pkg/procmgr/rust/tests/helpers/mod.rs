@@ -199,6 +199,7 @@ pub struct DescribeExpect {
     pub working_dir: Option<String>,
     pub restart_policy: Option<String>,
     pub auto_start: Option<bool>,
+    pub condition_path_exists: Option<String>,
     pub restart_count: Option<u64>,
     pub restart_count_at_least: Option<u64>,
     pub last_exit_code: Option<Option<i32>>,
@@ -240,6 +241,12 @@ impl DescribeSnapshot {
             self,
         );
         assert_describe_field("auto_start", &self.auto_start, &expected.auto_start, self);
+        assert_describe_field(
+            "condition_path_exists",
+            &self.condition_path_exists,
+            &expected.condition_path_exists,
+            self,
+        );
         assert_describe_field(
             "restart_count",
             &self.restart_count,
@@ -1525,6 +1532,12 @@ impl TestEnv {
 
     pub fn assert_condition_path_not_met_logged(&self, name: &str, path: &str) {
         let prefix = format!("[{name}] condition_path_exists not met");
+        self.assert_daemon_log_line_contains(&[&prefix, path]);
+    }
+
+    /// `path` is matched against the rendered condition summary, which lists `path:key`.
+    pub fn assert_config_gate_not_met_logged(&self, name: &str, path: &str) {
+        let prefix = format!("[{name}] condition_config_any not met");
         self.assert_daemon_log_line_contains(&[&prefix, path]);
     }
 
