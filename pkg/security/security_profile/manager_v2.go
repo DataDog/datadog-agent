@@ -110,6 +110,8 @@ type ManagerV2 struct {
 
 	hostname string
 
+	startTimeMono int64
+
 	profiles     map[cgroupModel.WorkloadSelector]*profile.Profile
 	profilesLock sync.Mutex
 	pathsReducer *activity_tree.PathsReducer
@@ -162,7 +164,13 @@ type ManagerV2 struct {
 	imageExcluder    *imageExcluder
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, filterStore workloadfilter.Component) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
+
+	if cfg.RuntimeSecurity.SecurityProfileV2ClearLocalProfilesOnStart {
+		if err := storage.ClearLocalProfilesOnStart(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory); err != nil {
+			return nil, fmt.Errorf("couldn't clear local security profiles: %w", err)
+		}
+	}
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -220,6 +228,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		remoteStorage:               remoteStorage,
 		configuredStorageRequests:   perFormatStorageRequests(configuredStorageRequests),
 		hostname:                    hostname,
+		startTimeMono:               resolvers.TimeResolver.ComputeMonotonicTimestamp(startTime),
 		sendAnomalyDetection:        sendAnomalyDetection,
 		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:             make(map[insertionErrorKey]*atomic.Uint64),
@@ -553,7 +562,19 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 	pm.persistedProfiles.Inc()
 }
 
+func (m *ManagerV2) withinProfilingStartupDelay(nowMono uint64) bool {
+	delay := m.config.RuntimeSecurity.SecurityProfileV2ProfilingStartupDelay
+	if delay == 0 {
+		return false
+	}
+	return int64(nowMono)-m.startTimeMono < delay.Nanoseconds()
+}
+
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
+	if m.withinProfilingStartupDelay(event.TimestampRaw) {
+		return
+	}
+
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
 		return
@@ -694,10 +715,18 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, em *perEventT
 	m.queueSize.Inc()
 }
 
+func (m *ManagerV2) shouldSendAnomalyDetection(p *profile.Profile, now time.Time) bool {
+	if !m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayTimeBased {
+		return p.HasAlreadyBeenSent()
+	}
+
+	return now.Sub(p.Metadata.Start) >= m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayDuration
+}
+
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
 func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	profile, inserted := m.insertEventIntoProfile(event)
-	if !inserted || profile == nil || !profile.HasAlreadyBeenSent() {
+	if !inserted || profile == nil || !m.shouldSendAnomalyDetection(profile, event.ResolveEventTime()) {
 		return
 	}
 
@@ -718,6 +747,8 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	if workloadID != nil {
 		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
 	}
+
+	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
 
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
 		m.sendAnomalyDetection(event)
@@ -1088,7 +1119,7 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 	}
 
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(event.ProcessContext.Process.ContainerContext.Tags)
-	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil))) {
+	if m.containerFilters != nil && m.containerFilters.IsExcluded(workloadfilter.CreateContainer("", containerName, imageName, workloadfilter.CreatePod("", "", podNamespace, nil, nil, nil))) {
 		seclog.Debugf("workload %s excluded by container filter (container=%s image=%s namespace=%s)", selector.String(), containerName, imageName, podNamespace)
 		return nil, errors.New("workload excluded")
 	}

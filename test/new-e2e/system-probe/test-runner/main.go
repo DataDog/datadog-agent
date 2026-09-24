@@ -307,6 +307,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 				fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
 			}
 
+			// gotestsum reruns failed tests via -rerun-fails, so mark retried testcases for CI Visibility.
+			if err := markRetriedTestCases(xmlpath); err != nil {
+				return fmt.Errorf("xml mark retries: %s", err)
+			}
+
 			if err := addProperties(xmlpath, props); err != nil {
 				return fmt.Errorf("xml add props: %s", err)
 			}
