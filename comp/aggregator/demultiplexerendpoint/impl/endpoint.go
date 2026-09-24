@@ -109,18 +109,6 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath
 	tempPath := f.Name()
 	defer os.Remove(tempPath)
 
-	mode := os.FileMode(0o644)
-	if info, statErr := os.Stat(finalPath); statErr == nil {
-		mode = info.Mode().Perm()
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		_ = f.Close()
-		return "", statErr
-	}
-	if err := f.Chmod(mode); err != nil {
-		_ = f.Close()
-		return "", err
-	}
-
 	c := zstd.NewWriter(f)
 	w := bufio.NewWriter(c)
 
