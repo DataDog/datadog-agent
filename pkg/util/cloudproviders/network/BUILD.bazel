@@ -13,9 +13,8 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/cache",
-        "//pkg/util/cloudproviders/azure",
+        "//pkg/util/cloudproviders",
         "//pkg/util/cloudproviders/gce",
-        "//pkg/util/cloudproviders/oracle",
         "//pkg/util/ec2",
         "//pkg/util/log",
     ],
@@ -28,6 +27,8 @@ dd_agent_go_test(
     deps = [
         "//pkg/config/mock",
         "//pkg/util/cache",
+        "//pkg/util/cloudproviders/azure",
+        "//pkg/util/ec2",
         "@com_github_stretchr_testify//require",
     ],
 )

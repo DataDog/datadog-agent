@@ -16,9 +16,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,10 +33,7 @@ var (
 	getGCENetworkID = gce.GetNetworkID
 	getEC2NetworkID = ec2.GetNetworkID
 
-	isRunningOnEC2    = ec2.IsRunningOn
-	isRunningOnGCE    = gce.IsRunningOn
-	isRunningOnAzure  = azure.IsRunningOn
-	isRunningOnOracle = oracle.IsRunningOn
+	detectCloudProviderDMI = cloudproviders.DetectCloudProviderDMI
 )
 
 // networkIDResult carries the outcome of a single provider's network ID lookup.
@@ -45,12 +41,6 @@ type networkIDResult struct {
 	provider  string
 	networkID string
 	err       error
-}
-
-// providerCheckResult carries the outcome of a single provider's IsRunningOn check.
-type providerCheckResult struct {
-	provider string
-	ok       bool
 }
 
 // GetConfiguredNetworkID returns the network ID from configuration, if set.
@@ -65,66 +55,46 @@ func GetConfiguredNetworkID() (string, bool) {
 // connection resolution. The result is cached, so repeated calls (e.g. across
 // retries by a caller) are cheap. Resolution order:
 //   - configuration
-//   - if the host's cloud provider can be positively identified (EC2, GCE,
-//     Azure, or Oracle), only that provider's metadata endpoint is queried,
-//     to avoid wasting calls on endpoints known not to apply to this host
-//   - otherwise, GCE and EC2 are queried concurrently, and the first one to
-//     succeed wins
+//   - if the host's cloud provider can be positively identified from DMI
+//     information (EC2, GCE, or Azure), only that provider's metadata
+//     endpoint is queried first, to avoid wasting calls on endpoints known
+//     not to apply to this host
+//   - if that direct attempt fails (and the detected provider is one that
+//     supports network ID resolution), or if DMI was inconclusive, GCE and
+//     EC2 are queried concurrently, and the first one to succeed wins
 func GetNetworkID(ctx context.Context) (string, error) {
 	return cache.Get[string](networkIDCacheKey, func() (string, error) {
 		if networkID, ok := GetConfiguredNetworkID(); ok {
 			log.Debugf("GetNetworkID: using configured network ID: %s", networkID)
 			return networkID, nil
 		}
-		// TODO: If detectCloudProvider fails, can we expect getNetworkIDForProvider
-		// to succeed? If not, we could return early and ensure non AWS, GCP, OCI hosts
-		// can start faster.
-		if provider, err := detectCloudProvider(ctx); err == nil {
-			return getNetworkIDForProvider(ctx, provider)
+		if provider, err := detectCloudProvider(); err == nil {
+			networkID, err := getNetworkIDForProvider(ctx, provider)
+			if err == nil {
+				return networkID, nil
+			}
+			if provider != gce.CloudProviderName && provider != ec2.CloudProviderName {
+				// the DMI-detected provider doesn't support network ID resolution at
+				// all, so racing GCE/EC2 wouldn't help
+				return "", errors.New("cloud provider does not support network ID resolution")
+			}
+			log.Debugf("GetNetworkID: could not retrieve network ID from DMI-detected provider %s, falling back to probing all providers: %s", provider, err)
+			return "", err
 		}
 		return raceNetworkIDProviders(ctx)
 	})
 }
 
-// detectCloudProvider checks, in parallel, whether the host is running on
-// EC2, GCE, or Oracle, and returns the name of the one that matched.
-// EC2 and GCE are the only two providers this package knows how to resolve a
-// network ID for; Oracle is included so hosts running on them can
-// be identified and short-circuited instead of wastefully probing EC2 and GCE
-// metadata endpoints. Azure, IBM, Alibaba, and Tencent are deliberately left out:
-// unlike EC2/GCE/Azure/Oracle, their negative-case timeouts are large
-// (notably IBM's), which would slow down the common case of a host that
-// isn't on any of these clouds.
+// detectCloudProvider identifies the host's cloud provider using only DMI
+// information (EC2, GCE, or Azure), without making any network call.
 //
 // A positive result is cached indefinitely, since a host's cloud provider
 // doesn't change. An inconclusive result is not cached, so retrying callers
-// try again in case IsRunningOn failed for a transient reason (e.g. IMDS not
-// up yet at boot).
-func detectCloudProvider(ctx context.Context) (string, error) {
+// try again (e.g. in case DMI isn't populated yet at boot).
+func detectCloudProvider() (string, error) {
 	return cache.Get[string](networkIDProviderCacheKey, func() (string, error) {
-		// if possible, cancel any still-in-flight check as soon as we have an answer
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		providers := []struct {
-			name     string
-			callback func(context.Context) bool
-		}{
-			{ec2.CloudProviderName, isRunningOnEC2},
-			{gce.CloudProviderName, isRunningOnGCE},
-			// {azure.CloudProviderName, isRunningOnAzure}, // Azure endpoint times out adding additional latency
-			{oracle.CloudProviderName, isRunningOnOracle},
-		}
-
-		results := make(chan providerCheckResult, len(providers))
-		for _, p := range providers {
-			p := p
-			go func() { results <- providerCheckResult{p.name, p.callback(ctx)} }()
-		}
-		for i := 0; i < len(providers); i++ {
-			if res := <-results; res.ok {
-				return res.provider, nil
-			}
+		if provider := detectCloudProviderDMI(); provider != "" {
+			return provider, nil
 		}
 		return "", errors.New("could not detect cloud provider")
 	})
