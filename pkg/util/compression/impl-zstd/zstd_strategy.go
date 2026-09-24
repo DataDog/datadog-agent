@@ -9,9 +9,8 @@ package zstdimpl
 import (
 	"bytes"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 // Requires contains the compression level for zstd compression
@@ -21,13 +20,13 @@ type Requires struct {
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
-	level int
+	level zstd.Level
 }
 
 // New returns a new ZstdStrategy
 func New(reqs Requires) compression.Compressor {
 	return &ZstdStrategy{
-		level: int(reqs.Level),
+		level: zstd.LevelFromInt(int(reqs.Level)),
 	}
 }
 
@@ -53,5 +52,6 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return zstd.NewWriterLevel(output, s.level)
+	w, _ := zstd.NewWriterLevel(output, s.level)
+	return w
 }
