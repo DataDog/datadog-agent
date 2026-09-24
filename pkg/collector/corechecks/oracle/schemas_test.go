@@ -501,13 +501,13 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 
 	mainRows := sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
 		"OBJECT_TYPE_OWNER", "OBJECT_TYPE",
 		"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	}).AddRow(
-		3, "APP", "ORDERS", "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-",
+		3, "APP", "ORDERS", "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-",
 		"ORDER_ID", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil,
 	)
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(mainRows)
@@ -626,13 +626,13 @@ func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	// A NULL TABLE_NAME forces StructScan to fail.
 	mainRows := sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
 		"OBJECT_TYPE_OWNER", "OBJECT_TYPE",
 		"COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	}).AddRow(
-		3, "APP", nil, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-",
+		3, "APP", nil, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-",
 		"ORDER_ID", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "N", nil,
 	)
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(mainRows)
@@ -1095,14 +1095,14 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 
 func addTableRow(rows *sqlmock.Rows, conID int64, owner, table string, totalTables int) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", totalTables,
+		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-", totalTables,
 		1, "C1", 1, 1, "NO", "NO", "NUMBER", nil, nil, 22, nil, 12, 0, "-", "Y", nil,
 	)
 }
 
 func addTableWithoutColumns(rows *sqlmock.Rows, conID int64, owner, table string) *sqlmock.Rows {
 	return rows.AddRow(
-		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", nil, nil, "-", "-", nil,
+		conID, owner, table, "N", "-", "NO", "-", "NO", "-", "NO", "NO", "-", "-", nil,
 		0, "-", nil, nil, "-", "-", nil, nil, nil, nil, nil, nil, nil, "-", "-", nil,
 	)
 }
@@ -1110,7 +1110,7 @@ func addTableWithoutColumns(rows *sqlmock.Rows, conID int64, owner, table string
 func emptyTablesRows() *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"CON_ID", "OWNER", "TABLE_NAME", "TEMPORARY", "DURATION", "EXTERNAL", "IOT_TYPE",
-		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY", "NUM_ROWS", "LAST_ANALYZED",
+		"PARTITIONED", "CLUSTER_NAME", "CLUSTERING", "READ_ONLY",
 		"OBJECT_TYPE_OWNER", "OBJECT_TYPE", "TOTAL_TABLES",
 		"COLUMN_PRESENT", "COLUMN_NAME", "COLUMN_ID", "INTERNAL_COLUMN_ID", "VIRTUAL_COLUMN", "HIDDEN_COLUMN", "DATA_TYPE",
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
