@@ -2047,3 +2047,29 @@ func TestOnRCUpdate_SQLServer_DisableRestoresOriginalConfig(t *testing.T) {
 	assert.Equal(t, sqlserverCfg, changes.Schedule[0])
 	assert.Equal(t, "sqlserver", changes.Schedule[0].Name)
 }
+
+func TestBuildCheckConfig_MetricTargets(t *testing.T) {
+	c := &component{log: logmock.New(t)}
+	var payload DOQueryPayload
+	require.NoError(t, json.Unmarshal([]byte(`{"config_id":"test-config","queries":[{"query":"SELECT COUNT(1) AS dd_a_42 FROM t","dbname":"db","interval_seconds":60,"timeout_seconds":10,"metric_targets":[{"metric_config_id":42,"entity_id":"a"},{"metric_config_id":43,"entity_id":"b"}]}]}`), &payload))
+	cfg, err := c.buildCheckConfig(&payload, &integration.Config{Name: "mysql"}, map[string]any{"host": "localhost"}, "rc-id")
+	require.NoError(t, err)
+	var instance struct {
+		DO struct {
+			Queries []struct {
+				Targets []struct {
+					MetricID int64  `yaml:"metric_config_id"`
+					EntityID string `yaml:"entity_id"`
+				} `yaml:"metric_targets"`
+			} `yaml:"queries"`
+		} `yaml:"data_observability"`
+	}
+	require.NoError(t, yaml.Unmarshal(cfg.Instances[0], &instance))
+	require.Len(t, instance.DO.Queries, 1)
+	targets := instance.DO.Queries[0].Targets
+	require.Len(t, targets, 2)
+	assert.Equal(t, int64(42), targets[0].MetricID)
+	assert.Equal(t, "a", targets[0].EntityID)
+	assert.Equal(t, int64(43), targets[1].MetricID)
+	assert.Equal(t, "b", targets[1].EntityID)
+}

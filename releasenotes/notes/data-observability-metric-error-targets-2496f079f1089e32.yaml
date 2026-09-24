@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    Data Observability remote configuration now passes affected metric
+    configuration and entity IDs to database checks, so failed queries can
+    be associated with metrics even when no result columns are returned.

@@ -817,6 +817,16 @@ func (c *component) buildCheckConfig(payload *DOQueryPayload, baseCfg *integrati
 				"entity_id":        q.CustomSQLSelectFields.EntityID,
 			}
 		}
+		if len(q.MetricTargets) > 0 {
+			targets := make([]map[string]any, 0, len(q.MetricTargets))
+			for _, target := range q.MetricTargets {
+				targets = append(targets, map[string]any{
+					"metric_config_id": target.MetricConfigID,
+					"entity_id":        target.EntityID,
+				})
+			}
+			qm["metric_targets"] = targets
+		}
 		if q.IntervalSeconds > 0 {
 			qm["interval_seconds"] = q.IntervalSeconds
 		}

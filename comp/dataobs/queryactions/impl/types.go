@@ -27,15 +27,16 @@ type DBIdentifier struct {
 
 // QuerySpec defines a single monitor query to schedule.
 type QuerySpec struct {
-	DBName                string                 `json:"dbname,omitempty"`
-	MonitorID             int64                  `json:"monitor_id,omitempty"`
-	Type                  string                 `json:"type"`
-	Query                 string                 `json:"query"`
-	IntervalSeconds       int                    `json:"interval_seconds"`
-	Schedule              string                 `json:"schedule,omitempty"`
-	TimeoutSeconds        int                    `json:"timeout_seconds"`
-	Entity                EntityMetadata         `json:"entity"`
-	CustomSQLSelectFields *CustomSQLSelectFields `json:"custom_sql_select_fields,omitempty"`
+	MetricTargets         []CustomSQLSelectFields `json:"metric_targets,omitempty"`
+	DBName                string                  `json:"dbname,omitempty"`
+	MonitorID             int64                   `json:"monitor_id,omitempty"`
+	Type                  string                  `json:"type"`
+	Query                 string                  `json:"query"`
+	IntervalSeconds       int                     `json:"interval_seconds"`
+	Schedule              string                  `json:"schedule,omitempty"`
+	TimeoutSeconds        int                     `json:"timeout_seconds"`
+	Entity                EntityMetadata          `json:"entity"`
+	CustomSQLSelectFields *CustomSQLSelectFields  `json:"custom_sql_select_fields,omitempty"`
 }
 
 // CustomSQLSelectFields identifies the metric config and entity for custom SQL queries,
