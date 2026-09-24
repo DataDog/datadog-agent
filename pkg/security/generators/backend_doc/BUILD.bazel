@@ -21,8 +21,8 @@ go_binary(
 
 # The generator reflects over the serializer types compiled into it, so producing
 # backend_windows.schema.json requires a Windows build of this binary. Cross-built
-# here so that a Linux or macOS host can generate it by running the result under
-# Wine. See //:wine.
+# here so that a Linux host can generate it by running the result under
+# //bazel/tools/wine:wine_run.
 go_cross_binary(
     name = "backend_doc_windows",
     platform = "@rules_go//go/toolchain:windows_amd64",

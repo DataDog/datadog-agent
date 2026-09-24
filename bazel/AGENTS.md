@@ -732,31 +732,21 @@ A named target that is `target_compatible_with` an incompatible platform reports
 `ERROR: No targets found to run`. That is the expected outcome, not a bug — check
 the target's constraints before assuming the rule is broken.
 
-### Running Windows-only generators from Linux or macOS
+### Running Windows-only generators from Linux
 
 Some code generators reflect over the Go types compiled *into* the generator
 binary (e.g. `//pkg/security/generators/backend_doc`, which produces
 `backend_<os>.schema.json` from the `serializers` types). Their per-platform
 output therefore cannot be cross-compiled: it needs a binary built *for* that
-platform and then actually executed. Such targets are normally
-`target_compatible_with = ["@platforms//os:windows"]`.
+platform and then actually executed.
 
-To run one from a non-Windows host, pass `--//:wine=true`:
-
-```sh
-bazel run //docs/cloud-workload-security:backend_windows_schema --//:wine=true
-```
-
-The flag swaps the `run_binary` `tool` for `//bazel/tools/wine:wine_run` and adds
-a `go_cross_binary` build of the generator for `windows_amd64` as an input. Only
-the `wine` package is required — `wine_run` invokes the executable explicitly, so
-the `binfmt_misc` registration from `wine-binfmt` / `binfmt-support` is *not*
-needed.
-
-Keep the flag off by default: the action reads `wine` from the host `PATH`, so it
-is not hermetic and CI must not depend on it. When adding another such generator,
-follow the `backend_windows_schema_gen` pattern — `select()` on `//:is_wine` for
-`srcs`, `args`, `tool` and `target_compatible_with`.
+For Windows, such a generator runs on Linux under `//bazel/tools/wine:wine_run`,
+which uses a pinned Wine (under box64 on aarch64) from its runfiles, never the
+host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
+the generator for `windows_amd64`, and a `select()` on `@platforms//os:windows`
+for the `run_binary`'s `srcs`, `args` and `tool`. `wine_run` only supports Linux
+x86_64 and aarch64 (4K pages), so on macOS such targets are skipped as
+incompatible.
 
 ## Depsets and rule performance
 
