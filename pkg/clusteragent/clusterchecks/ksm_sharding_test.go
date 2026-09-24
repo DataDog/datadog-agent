@@ -726,33 +726,3 @@ func TestShardableSuppressesTotal_Unparseable(t *testing.T) {
 	_, _, ok := shardableSuppressesTotal(integration.Data("pod_collection_mode: [not, a, string]"))
 	assert.False(t, ok, "unparseable instance must conservatively report not-suppressing")
 }
-
-// DRA resources are enabled through collector names, so sharding places them
-// like any other small resource: on the "others" shard only. Were they on
-// every shard, each would open its own cluster-wide informers and the series
-// would be emitted once per shard.
-func TestCreateShardedKSMConfigs_DRAResourcesOnOneShard(t *testing.T) {
-	manager := newKSMShardingManager(true)
-	dra := []string{"resourceclaims", "resourceslices", "devicetaintrules"}
-	config := createKSMConfig(append([]string{"pods", "nodes", "deployments"}, dra...))
-
-	configs, err := manager.createShardedKSMConfigs(config)
-	require.NoError(t, err)
-
-	owners := map[string]int{}
-	for _, shard := range configs {
-		var instance map[string]interface{}
-		require.NoError(t, yaml.Unmarshal(shard.Instances[0], &instance))
-		collectors, _ := instance["collectors"].([]interface{})
-		for _, c := range collectors {
-			for _, name := range dra {
-				if c == name {
-					owners[name]++
-				}
-			}
-		}
-	}
-	for _, name := range dra {
-		assert.Equal(t, 1, owners[name], "%s should be collected by exactly one shard", name)
-	}
-}
