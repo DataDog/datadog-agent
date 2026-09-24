@@ -33,8 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 )
 
-var GitCommit string
-
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
 	newProvisioner func(helmValues string) provisioners.Provisioner
