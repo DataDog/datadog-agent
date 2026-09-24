@@ -47,7 +47,7 @@ build_dogstatsd-binary_x64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
-    - dda inv -- -e dogstatsd.build
+    - dda inv -- -e dogstatsd.build --strip-binary
     - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
 build_dogstatsd-binary_arm64:
@@ -66,7 +66,7 @@ build_dogstatsd-binary_arm64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
-    - dda inv -- -e dogstatsd.build
+    - dda inv -- -e dogstatsd.build --strip-binary
     - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
 
 # IoT Agent builds to make sure the build is not broken because of build flags
