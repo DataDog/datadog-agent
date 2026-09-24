@@ -83,30 +83,6 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}}, nil
 }
 
-// Skip type errors for placeholders, but validate ENC-looking values returned by the secret backend.
-func (c *checker) isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
-	if violation.ActualType != "string" {
-		return false
-	}
-	pointer, err := jsonpointer.Parse(violation.Path)
-	if err != nil {
-		return false
-	}
-	value, err := pointer.Eval(normalized)
-	text, ok := value.(string)
-	if err != nil || !ok || !scrubber.IsEnc(text) {
-		return false
-	}
-	// A compound setting carries the source on its enclosing map or list.
-	for i := len(pointer); i > 0; i-- {
-		key := strings.Join(pointer[:i], ".")
-		if c.cfg.IsSetting(key) {
-			return c.cfg.GetSource(key) != model.SourceSecret
-		}
-	}
-	return false
-}
-
 // BuildContext builds issue details from scrubbed paths, types, and registered defaults.
 func BuildContext(cfg model.Reader, configPath string, violations []schema.Violation) map[string]string {
 	ctx := map[string]string{
@@ -138,6 +114,30 @@ func BuildContext(cfg model.Reader, configPath string, violations []schema.Viola
 		}
 	}
 	return ctx
+}
+
+// Skip type errors for placeholders, but validate ENC-looking values returned by the secret backend.
+func (c *checker) isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
+	if violation.ActualType != "string" {
+		return false
+	}
+	pointer, err := jsonpointer.Parse(violation.Path)
+	if err != nil {
+		return false
+	}
+	value, err := pointer.Eval(normalized)
+	text, ok := value.(string)
+	if err != nil || !ok || !scrubber.IsEnc(text) {
+		return false
+	}
+	// A compound setting carries the source on its enclosing map or list.
+	for i := len(pointer); i > 0; i-- {
+		key := strings.Join(pointer[:i], ".")
+		if c.cfg.IsSetting(key) {
+			return c.cfg.GetSource(key) != model.SourceSecret
+		}
+	}
+	return false
 }
 
 func scrubViolationPath(path string) string {

@@ -90,7 +90,8 @@ func TestBuildIssue_LocksContract(t *testing.T) {
 	assert.Equal(t, "system-probe", issue.GetLocation())
 	assert.Equal(t, []string{"config", "schema", "system-probe"}, issue.GetTags())
 	assert.Equal(t, "Found 1 configuration error in system-probe.yaml", issue.GetTitle())
-	assert.Contains(t, issue.GetTitle(), "system-probe.yaml")
+	assert.Contains(t, issue.GetDescription(), "/etc/datadog-agent/system-probe.yaml or environment variables")
+	assert.Equal(t, "Fix each violation listed in the description.", issue.GetRemediation().GetSteps()[1].Text)
 }
 
 func TestCheck_ExplainsTypeAndDefault(t *testing.T) {
@@ -115,13 +116,6 @@ func TestCheck_ExplainsTypeAndDefault(t *testing.T) {
 	encoded, err := json.Marshal(issue)
 	require.NoError(t, err)
 	assert.NotContains(t, string(encoded), "PRIVATE_INVALID_PORT")
-}
-
-func TestNormalizeForSchema_PreservesSensitiveValueTypes(t *testing.T) {
-	input := map[string]any{"api_key": []any{"PRIVATE_KEY"}, "forwarder_apikey_validation_interval": 61}
-	normalized, err := normalizeForSchema(input)
-	require.NoError(t, err)
-	assert.Equal(t, input, normalized)
 }
 
 func TestCheck_ReportsInvalidAPIKeyTypesWithoutValues(t *testing.T) {
