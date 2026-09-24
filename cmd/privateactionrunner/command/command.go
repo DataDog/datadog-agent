@@ -7,12 +7,18 @@
 package command
 
 import (
+	"os"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-// LoggerName defines the logger name for the private action runner
-const LoggerName = "PRIV-ACTION"
+const (
+	// LoggerName defines the logger name for the private action runner
+	LoggerName = "PRIV-ACTION"
+	// ExtraConfigPathEnvVar supplies an extra config file to split-mode children.
+	ExtraConfigPathEnvVar = "DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH"
+)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //
@@ -46,7 +52,11 @@ Datadog Private Action Runner enables execution of private actions.`,
 	}
 
 	privateActionRunnerCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
-	privateActionRunnerCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
+	var extraConfigPaths []string
+	if path := os.Getenv(ExtraConfigPathEnvVar); path != "" {
+		extraConfigPaths = []string{path}
+	}
+	privateActionRunnerCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", extraConfigPaths, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
 	privateActionRunnerCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
 
 	privateActionRunnerCmd.PersistentPreRun = func(*cobra.Command, []string) {

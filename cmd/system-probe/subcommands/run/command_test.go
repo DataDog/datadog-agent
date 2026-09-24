@@ -23,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestRunCommand(t *testing.T) {
+func prepareRunCommandTest(t *testing.T) (string, *configstreamtestutil.FakeCoreAgent) {
+	t.Helper()
+
 	// Because fx.Invoke builds the ipc component, we need to ensure we
 	// have a valid auth token before building the app for real.
 	testDir := t.TempDir()
@@ -42,6 +44,12 @@ func TestRunCommand(t *testing.T) {
 		ipcfx.ModuleReadWrite(),
 		core.MockBundle(),
 	)
+
+	return configPath, fakeCore
+}
+
+func TestRunCommand(t *testing.T) {
+	configPath, fakeCore := prepareRunCommandTest(t)
 
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{

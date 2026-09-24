@@ -382,10 +382,10 @@ func TestSpanConcentratorAdditionalMetricTagsCardinalityLimitResetsPerBucket(t *
 	secondBlocked := newAdditionalMetricTagStatSpan("second-blocked")
 	secondBlocked.start = bsize + 2
 
-	sc.addSpan(firstAdmitted, aggKey, infraTags{}, "", 1)
-	sc.addSpan(firstBlocked, aggKey, infraTags{}, "", 1)
-	sc.addSpan(secondAdmitted, aggKey, infraTags{}, "", 1)
-	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1)
+	sc.addSpan(firstAdmitted, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	sc.addSpan(firstBlocked, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	sc.addSpan(secondAdmitted, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
+	sc.addSpan(secondBlocked, aggKey, infraTags{}, "", 1, time.Now().UnixNano())
 
 	assert.Equal(t, []string{"customer_id:first-admitted"}, firstAdmitted.matchingAdditionalMetricTags)
 	assert.Equal(t, []string{"customer_id:first-blocked"}, firstBlocked.matchingAdditionalMetricTags)

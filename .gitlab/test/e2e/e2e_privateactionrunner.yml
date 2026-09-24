@@ -8,8 +8,27 @@
       paths:
         - cmd/privateactionrunner/**/*
         - comp/privateactionrunner/**/*
+        - Dockerfiles/agent/Dockerfile
+        - Dockerfiles/agent/entrypoint.d/privateactionrunner
+        - Dockerfiles/agent/par-probe.sh
+        - Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml
+        - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
+        - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
+        # The runner's control plane and executor are dd-procmgrd processes: procmgr
+        # spawns them, and par-control drives the executor over the procmgr socket.
+        - pkg/procmgr/**/*
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor*.yaml.tmpl
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control*.yaml.tmpl
+        - pkg/fleet/installer/packages/processmanager/par_procmgr_config_windows.go
         - pkg/config/setup/privateactionrunner.go
+        - pkg/fleet/installer/packages/datadog_agent_linux.go
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.service.tmpl
+        - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.socket.tmpl
+        - pkg/fleet/installer/packages/embedded/tmpl/gen/**/datadog-agent-rshell-privileged*.service
+        - pkg/fleet/installer/packages/embedded/tmpl/gen/**/datadog-agent-rshell-privileged*.socket
+        - omnibus/config/software/datadog-agent.rb
+        - packages/agent/product/BUILD.bazel
         - pkg/proto/datadog/privateactionrunner/**/*
         - pkg/proto/pbgo/privateactionrunner/**/*
         - test/new-e2e/tests/privateactionrunner/**/*
@@ -25,7 +44,7 @@ new-e2e-privateactionrunner:
     - qa_dca
   rules:
     - !reference [.except_disable_e2e_tests]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.on_privateactionrunner_or_e2e_changes]
     - !reference [.manual]
   variables:

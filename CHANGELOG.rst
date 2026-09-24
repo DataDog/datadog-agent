@@ -2,6 +2,122 @@
 Release Notes
 =============
 
+.. _Release Notes_7.83.3:
+
+7.83.3
+======
+
+.. _Release Notes_7.83.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-24
+
+- Please refer to the `7.83.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7833>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.83.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix missing log source configuration fields in public inventory metadata, including Windows Event Log queries, processing options, auto-multiline settings, and maximum message size.
+
+
+.. _Release Notes_7.83.2:
+
+7.83.2
+======
+
+.. _Release Notes_7.83.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-16
+
+- Please refer to the `7.83.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7832>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.83.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- gpu: Constant metrics (``gpu.device.total``, ``gpu.memory.limit``,
+  ``gpu.core.limit``, and ``gpu.memory.bar1.total``) are reported on the cadence
+  set by the new ``gpu.static_metrics_reporting_interval`` (15 seconds by default) to
+  ensure accuracy when using weighted sums.
+
+- Single Step Instrumentation's tracer config mechanisms (the ``ddTraceConfigs``
+  ``Targets`` field, remote-config policies, and the
+  ``admission.datadoghq.com/apm-inject.tracer-configs`` pod annotation) now also
+  accept ``OTEL_`` prefixed environment variable names, in addition to the
+  existing ``DD_`` prefix. This allows configuring a tracer's native OpenTelemetry
+  mode (e.g. ``OTEL_TRACES_EXPORTER``, ``OTEL_EXPORTER_OTLP_ENDPOINT``) through
+  SSI.
+
+
+.. _Release Notes_7.83.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fixed the Agent Data Plane pre-flight sending its metrics and API key to
+  ``datadoghq.com`` instead of the configured ``site``. The generated
+  pre-flight configuration was built from the fully resolved Agent
+  configuration, so ``dd_url``'s default value appeared in it as though it
+  had been set explicitly, and an explicit ``dd_url`` takes precedence over
+  ``site``. The pre-flight configuration is now built from the settings the
+  operator actually supplied, matching what a normally-supervised Agent Data
+  Plane reads from ``datadog.yaml``.
+
+- Fix ``DD_NETWORK_PATH_COLLECTOR_FILTERS`` so JSON-encoded Network Path
+  collector filters are parsed and applied correctly.
+
+
+.. _Release Notes_7.83.1:
+
+7.83.1
+======
+
+.. _Release Notes_7.83.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-09
+
+- Please refer to the `7.83.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7831>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.83.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix bug which made fast network path test billed to customer
+
+- Release the containerd view snapshot and lease taken for a container image
+  SBOM scan even when the scan is cancelled or times out. The release ran on
+  the scan's own context, so a scan that hit its deadline left the snapshot
+  behind, and on a lazy snapshotter that snapshot holds the layer it
+  materialised.
+
+
+.. _Release Notes_7.83.1_Other Notes:
+
+Other Notes
+-----------
+
+- The fleet installer daemon now reports the DDOT (OpenTelemetry Collector) process state
+  as part of the agent state sent to Datadog, so DDOT version and configuration updates
+  can be monitored. The state is read from the process manager when it supervises DDOT,
+  and from systemd or the Windows service manager otherwise. It is also visible in the
+  output of ``datadog-installer status``.
+
+
 .. _Release Notes_7.83.0:
 
 7.83.0

@@ -12,7 +12,6 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/ipc/def",
         "//comp/core/log/def",
-        "//comp/core/secrets/def",
         "//comp/core/tagger/def",
         "//comp/def",
         "//comp/dogstatsd/statsd/def",
@@ -48,9 +47,17 @@ go_library(
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["privateactionrunner_test.go"],
+    srcs = [
+        "executor_config_test.go",
+        "privateactionrunner_test.go",
+    ],
     embed = [":impl"],
     deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/mock",
+        "//pkg/privateactionrunner/enrollment",
+        "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/util",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
