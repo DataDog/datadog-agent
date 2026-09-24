@@ -812,3 +812,57 @@ func TestMountSubmountOfBindSubdir(t *testing.T) {
 		assertFieldEqual(t, event, "exec.file.path", expected)
 	}, "test_mount_submount_of_bind_subdir")
 }
+
+var _ = declareInlineConfig(TestMountSnapshotSubmountOfMovedBindSubdir)
+
+// TestMountSnapshotSubmountOfMovedBindSubdir checks the path of a file under a mount known from the snapshot, once its
+// parent, a bind mount of a sub directory also known from the snapshot, is moved
+func TestMountSnapshotSubmountOfMovedBindSubdir(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	env := newMountSubdirEnv(t)
+	parent := filepath.Join(env.base, "a")
+	if err := os.Mkdir(parent, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount(env.srcDir, parent, "", unix.MS_BIND, ""); err != nil {
+		t.Fatal(err)
+	}
+	inner := filepath.Join(parent, "inner")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount("tmpfs", inner, "tmpfs", 0, "size=8M"); err != nil {
+		t.Fatal(err)
+	}
+	copyTrue(t, filepath.Join(inner, "mnt-snapshot-moved-parent"))
+
+	ruleDefs := []*rules.RuleDefinition{{
+		ID:         "test_mount_snapshot_submount_of_moved_bind_subdir",
+		Expression: `exec.file.name == "mnt-snapshot-moved-parent"`,
+	}}
+
+	// forces a new snapshot including the mounts above
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	moved := filepath.Join(env.base, "b")
+	if err := os.Mkdir(moved, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Mount(parent, moved, "", unix.MS_MOVE, ""); err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Unmount(moved, unix.MNT_DETACH)
+	defer unix.Unmount(filepath.Join(moved, "inner"), unix.MNT_DETACH)
+
+	expected := filepath.Join(moved, "inner", "mnt-snapshot-moved-parent")
+	test.WaitSignalFromRule(t, func() error {
+		return exec.Command(expected).Run()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assertFieldEqual(t, event, "exec.file.path", expected)
+	}, "test_mount_snapshot_submount_of_moved_bind_subdir")
+}
