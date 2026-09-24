@@ -5,6 +5,12 @@
 
 package main
 
+import (
+	"context"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+)
+
 // This file contains test functions designed to produce events that exceed
 // the 32KiB BPF scratch buffer, exercising the continuation (multi-fragment)
 // event path.
@@ -110,7 +116,10 @@ func makePaddedData(id int) *paddedData {
 }
 
 //nolint:all
-func executeContinuationFuncs() {
+func executeContinuationFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.continuation")
+	defer span.Finish()
+
 	m := manyPointers{
 		p00: makePaddedData(0),
 		p01: makePaddedData(1),

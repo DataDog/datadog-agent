@@ -438,6 +438,46 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	assert.Contains(t, container.CollectorTags, "container_name:active-container-app")
 }
 
+// TestPullDCAConnectionFailureDoesNotPanic is a regression test for a nil
+// pointer dereference that happened when the cluster agent connection failed.
+//
+// getDCAClient() calls clusteragent.GetClusterAgentClient(), which returns
+// (*DCAClient, error). On failure that nil *DCAClient must not be stored into
+// the c.dcaClient interface field: doing so produces a non-nil "typed nil"
+// interface that passes the `c.dcaClient != nil` cache check on the next Pull
+// and panics when GetCFAppsMetadataForNode is called on the nil receiver.
+//
+// dcaClient is intentionally left unset so getDCAClient() goes through the
+// GetClusterAgentClient() path, which errors here since no cluster agent
+// endpoint is configured.
+func TestPullDCAConnectionFailureDoesNotPanic(t *testing.T) {
+	containers := []garden.Container{
+		&activeContainerWithoutProperties,
+	}
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      workloadmetaStore,
+		seen:       make(map[workloadmeta.EntityID]struct{}),
+		dcaEnabled: true, // enabled, but the connection will fail
+	}
+
+	// The first Pull triggers a failed cluster agent connection. A second Pull
+	// must not panic: before the fix, the failed connection poisoned the cached
+	// dcaClient field with a typed nil.
+	require.NoError(t, c.Pull(context.TODO()))
+	require.NotPanics(t, func() {
+		require.NoError(t, c.Pull(context.TODO()))
+	})
+}
+
 func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	containers := []garden.Container{
 		&activeContainerWithoutProperties,

@@ -16,6 +16,7 @@
 package attributes
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -24,6 +25,7 @@ import (
 	semconv1_12 "go.opentelemetry.io/otel/semconv/v1.12.0"
 	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv1_27 "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv1_43 "go.opentelemetry.io/otel/semconv/v1.43.0"
 	semconv1_6_1 "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -59,6 +61,7 @@ var (
 		string(semconv1_27.ContainerNameKey):      "container_name",
 		string(semconv1_27.ContainerImageNameKey): "image_name",
 		string(semconv1_6_1.ContainerImageTagKey): "image_tag",
+		string(semconv1_27.ContainerImageTagsKey): "image_tag",
 		string(semconv1_27.ContainerRuntimeKey):   "runtime",
 
 		// Cloud conventions
@@ -87,6 +90,17 @@ var (
 		string(semconv1_27.K8SCronJobNameKey):     "kube_cronjob",
 		string(semconv1_27.K8SNamespaceNameKey):   "kube_namespace",
 		string(semconv1_27.K8SPodNameKey):         "pod_name",
+		string(semconv1_27.K8SNodeNameKey):        "kube_node",
+	}
+
+	// AzureContainerAppsMappings is intentionally separate from ContainerMappings
+	// to avoid adding these broad attributes (e.g. service.name -> name) as
+	// tags on non-ACA workloads.
+	AzureContainerAppsMappings = map[string]string{
+		AttributeAzureContainerAppInstanceID:          "replica",
+		string(semconv1_27.ServiceNameKey):            "name",
+		string(semconv1_27.CloudAccountIDKey):         "subscription_id",
+		string(semconv1_43.AzureResourceGroupNameKey): "resource_group",
 	}
 
 	containerDDTags = (func() map[string]struct{} {
@@ -263,6 +277,15 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 		tags = append(tags, fmt.Sprintf("%s:%s", key, val))
 	}
 
+	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
+		tags = append(tags,
+			"name:"+appService.name,
+			"subscription_id:"+appService.subscriptionID,
+			"resource_group:"+appService.resourceGroup,
+			"instance:"+appService.instanceID,
+		)
+	}
+
 	tags = append(tags, processAttributes.extractTags()...)
 	tags = append(tags, systemAttributes.extractTags()...)
 
@@ -294,8 +317,14 @@ func ContainerTagsFromResourceAttributes(attrs pcommon.Map) map[string]string {
 	ddtags := make(map[string]string)
 	attrs.Range(func(key string, value pcommon.Value) bool {
 		// Semantic Conventions
-		if datadogKey, found := ContainerMappings[key]; found && value.Str() != "" {
-			ddtags[datadogKey] = value.Str()
+		if datadogKey, found := ContainerMappings[key]; found {
+			// Special case for container.image.tags: extract first image tag from slice
+			if slice := value.Slice(); key == string(semconv1_27.ContainerImageTagsKey) && value.Type() == pcommon.ValueTypeSlice && slice.Len() > 0 {
+				value = slice.At(0)
+			}
+			if str := value.Str(); str != "" {
+				ddtags[datadogKey] = str
+			}
 		}
 		// Custom (datadog.container.tag namespace)
 		if after, ok := strings.CutPrefix(key, CustomContainerTagPrefix); ok {
@@ -328,7 +357,9 @@ const (
 // 2. Custom container tags prefixed by datadog.container.tag;
 // 3. Datadog semantic conventions (pre-mapped tags, usually from the infraattributes processor).
 //
-// Only string-type resource attributes will be extracted as container tags.
+// Only string-type resource attributes will be extracted as container tags,
+// with the exception of the array-valued `container.image.tags` attribute,
+// from which we extract the first element when present.
 // In the case of duplicates between the three sources, OTel conventions take priority over custom tags,
 // which take priority over pre-mapped tags.
 //
@@ -343,6 +374,11 @@ func ConsumeContainerTagsFromResource(res pcommon.Resource) (map[string]string, 
 
 	filteredRes.Attributes().RemoveIf(func(key string, value pcommon.Value) bool {
 		valueStr := value.Str()
+		// Special case for container.image.tags: extract first image tag from slice
+		// TODO: Consider emitting an image_tag tag for each element in the slice
+		if slice := value.Slice(); key == string(semconv1_27.ContainerImageTagsKey) && value.Type() == pcommon.ValueTypeSlice && slice.Len() > 0 {
+			valueStr = slice.At(0).Str()
+		}
 		if valueStr == "" {
 			return false
 		}
@@ -727,18 +763,60 @@ func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
 	src, srcok := SourceFromAttrs(resourceAttrs, nil)
 	if !srcok {
 		if v := GetOTelAttrVal(resourceAttrs, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier
+			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""
 		}
 	}
 	return fallbackHost
+}
+
+// azureResourceID holds the fields extracted from an Azure ARM resource ID.
+type azureResourceID struct {
+	SubscriptionID string
+	ResourceGroup  string
+	ResourceName   string
+}
+
+// parseAzureResourceID parses the cloud.resource_id string for Azure resources
+// that match: /subscriptions/{sub}/resourceGroups/{rg}/providers/{provider}/{type}/{name}
+// (e.g. Azure Container Apps: .../containerApps/{name}).
+func parseAzureResourceID(resourceID string) (azureResourceID, error) {
+	if resourceID == "" {
+		return azureResourceID{}, errors.New("empty resource ID")
+	}
+
+	parts := strings.Split(resourceID, "/")
+	// Example: /subscriptions/11111111.../resourceGroups/rg-name/providers/Microsoft.Web/sites/site-name
+	// parts[0] = ""
+	// parts[1] = "subscriptions"
+	// parts[2] = "11111111..."
+	// parts[3] = "resourceGroups"
+	// parts[4] = "rg-name"
+	// parts[5] = "providers"
+	// parts[6] = "Microsoft.App" (or Microsoft.Web)
+	// parts[7] = "containerApps" (or sites)
+	// parts[8] = "site-name"
+
+	if len(parts) < 9 {
+		return azureResourceID{}, errors.New("invalid Azure resource ID format: " + resourceID)
+	}
+
+	return azureResourceID{
+		SubscriptionID: parts[2],
+		ResourceGroup:  parts[4],
+		ResourceName:   parts[8],
+	}, nil
 }

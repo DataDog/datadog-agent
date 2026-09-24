@@ -16,13 +16,16 @@ Run with::
 
 The schema is split across:
 - ``core_schema.yaml`` — top-level core settings; some sections are split into
-  their own sibling files (e.g. ``apm_config.yaml``).
-- ``system-probe_schema.yaml`` — system-probe settings.
+  their own sibling files, referenced with ``$ref: "<name>.yaml"`` (e.g.
+  ``apm_config.yaml``).
+- ``system-probe_schema.yaml`` — system-probe settings (also split, e.g.
+  ``system-probe-usm.yaml``).
 
-When you specify a setting path whose first component is a split section
-(e.g. ``apm_config.enabled``), this task edits the split sub-file directly.
-Otherwise it edits ``core_schema.yaml``.  Use ``--schema=system-probe`` to
-target the system-probe schema instead.
+Starting from the top file, the dotted setting path is walked down the schema
+tree and every ``$ref`` crossed on the way is followed, however deeply the
+splits nest — so ``apm_config.enabled`` is written to ``apm_config.yaml``
+directly. Use ``--schema=system-probe`` to start from the system-probe schema
+instead of the core one.
 """
 
 import os
@@ -31,7 +34,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.schema.generate import CORE_SPLIT_SECTIONS, SCHEMA_DIR
+from tasks.schema.generate import SCHEMA_DIR
 
 # ---------------------------------------------------------------------------
 # File layout constants
@@ -135,32 +138,110 @@ def _parse_default(value_str, type_name):
 # ---------------------------------------------------------------------------
 
 
+def _ref_target(node):
+    """If *node* is a single-key ``{$ref: <file>}`` mapping, return ``<file>``; else None.
+
+    Mirrors ``tasks.schema.merge_schema``: only a lone ``$ref`` is a split
+    section: a mapping with siblings is not inlined by the merge step either.
+    """
+    if isinstance(node, dict) and len(node) == 1 and isinstance(node.get("$ref"), str):
+        return node["$ref"]
+    return None
+
+
 def _resolve_target(parts, schema_label):
-    """Return ``(file_path, path_within_file)`` for a dotted setting path.
+    """Return ``(file_path, path_within_file, outer_sections)`` for a dotted setting path.
 
     *parts* is the list of dot-split components of the setting name.
     *schema_label* is ``"core"`` or ``"system-probe"``.
 
-    For split sections (e.g. ``apm_config``), the sub-file is targeted and the
-    section name is stripped from *path_within_file* because the sub-file root
-    *is* that section.
+    Starts at the top file for *schema_label* and walks the dotted path down
+    the ``properties`` tree. Whenever a path component is a split section
+    (``{$ref: "<name>.yaml"}``), the walk crosses into the referenced file and
+    continues there — so arbitrarily nested splits (a top file referencing a
+    sub-file that itself references another) are followed naturally. The
+    consumed components are stripped from *path_within_file*, because the root
+    of the referenced file *is* the section they name.
+
+    *outer_sections* locates every enclosing section of the setting that lies
+    *outside* *path_within_file*, outermost first, as
+    ``(dotted_path, file_path, path_in_that_file)`` triples where
+    *path_in_that_file* is the list of property names leading from that file's
+    root node to the section (empty for the root itself). Two kinds of section
+    end up here:
+
+    - the root of each file crossed into, e.g. ``apm_config.yaml`` for
+      ``apm_config.enabled``;
+    - the ordinary sections walked in a file before crossing a ``$ref`` out of
+      it, e.g. ``network_devices`` in ``core_schema.yaml`` when
+      ``network_devices.snmp_traps`` is a split section. Those stay behind in
+      the file being left, so the caller must write it back if it changes them.
+
+    Sections *inside* the target file's *path_within_file* are deliberately
+    absent: ``_insert`` walks (and possibly creates) them and reports them
+    itself. *outer_sections* is empty when the setting lands in the top file.
     """
-    if schema_label == "system-probe":
-        return SYSPROBE_SCHEMA, parts
+    file_path = SYSPROBE_SCHEMA if schema_label == "system-probe" else CORE_SCHEMA
+    remaining = list(parts)
+    outer_sections = []
+    visited = {file_path}
 
-    # Core schema
-    first = parts[0]
-    if first in CORE_SPLIT_SECTIONS:
-        sub_file = os.path.join(SCHEMA_DIR, f"{first}.yaml")
-        inner = parts[1:]
-        if not inner:
-            raise Exit(
-                f"'{first}' is a section, not a leaf setting. " "Add at least one more path component after it.",
-                code=1,
-            )
-        return sub_file, inner
+    while True:
+        document = _load(file_path)
+        crossed = False
+        # Ordinary sections walked in this file; they only become enclosing
+        # sections to report if the walk crosses a $ref out of this file.
+        walked = []
 
-    return CORE_SCHEMA, parts
+        for depth, part in enumerate(remaining, start=1):
+            props = document.get("properties") if isinstance(document, dict) else None
+            child = props.get(part) if isinstance(props, dict) else None
+            if child is None:
+                # The path diverges from what exists: the remaining components
+                # are created in this file.
+                break
+
+            ref = _ref_target(child)
+            if ref is None:
+                walked.append(part)
+                document = child
+                continue
+
+            consumed = parts[: len(parts) - len(remaining)]
+            dotted = ".".join([*consumed, *remaining[:depth]])
+            if depth == len(remaining):
+                raise Exit(
+                    f"'{dotted}' is a section, not a leaf setting. " "Add at least one more path component after it.",
+                    code=1,
+                )
+            ref_path = os.path.join(os.path.dirname(file_path), ref)
+            if not os.path.isfile(ref_path):
+                raise Exit(f"Split section '{dotted}' points at a missing file: {ref_path}", code=1)
+            if ref_path in visited:
+                # Would loop forever otherwise; the schema itself is broken.
+                raise Exit(f"Split section '{dotted}' forms a $ref cycle back to {ref_path}", code=1)
+            for count in range(1, len(walked) + 1):
+                outer_sections.append((".".join([*consumed, *walked[:count]]), file_path, walked[:count]))
+            outer_sections.append((dotted, ref_path, []))
+            file_path = ref_path
+            visited.add(file_path)
+            remaining = remaining[depth:]
+            crossed = True
+            break
+
+        if not crossed:
+            return file_path, remaining, outer_sections
+
+
+def _node_at(document, path_in_file):
+    """Return the node at *path_in_file* within *document*, or None if absent."""
+    node = document
+    for part in path_in_file:
+        props = node.get("properties") if isinstance(node, dict) else None
+        node = props.get(part) if isinstance(props, dict) else None
+        if node is None:
+            return None
+    return node
 
 
 # ---------------------------------------------------------------------------
@@ -201,11 +282,14 @@ def _insert(schema, path_parts, setting_node):
             }
         child = props[part]
         # Guard: refuse to tunnel through a $ref that wasn't resolved.
+        # _resolve_target follows well-formed split sections, so reaching this
+        # means a lone $ref is expected but the node carries sibling keys —
+        # which the merge step would not inline either.
         if "$ref" in child:
             raise Exit(
-                f"Path component '{part}' is a split section ($ref). "
-                "Specify the full dotted path — the task will route to the "
-                "correct sub-file automatically.",
+                f"Path component '{part}' has a '$ref' alongside other keys, so it is "
+                "neither a split section nor a plain section. Fix the schema file "
+                "so the split section is a lone '$ref'.",
                 code=1,
             )
         if child.get("node_type") == "setting":
@@ -257,9 +341,13 @@ def _ensure_public_ancestors(ancestors):
     description, this flips it to public and interactively prompts the user for
     the (mandatory) description.
 
-    *ancestors* is a list of ``(dotted_path, section_node)`` pairs, root-first.
+    *ancestors* is a list of ``(dotted_path, section_node, file_path)`` triples,
+    root-first. Ancestors can live in several files (see *outer_sections* in
+    ``_resolve_target``), so the set of *file_path* values whose nodes were
+    modified is returned: the caller must write those files back.
     """
-    for anc_path, anc_node in ancestors:
+    modified = set()
+    for anc_path, anc_node, anc_file in ancestors:
         needs_public = anc_node.get("visibility") != "public"
         desc = anc_node.get("description", "")
         needs_desc = not desc or not str(desc).strip()
@@ -281,6 +369,8 @@ def _ensure_public_ancestors(ancestors):
                     break
                 print("  A non-empty description is required.")
         _reorder_section(anc_node)
+        modified.add(anc_file)
+    return modified
 
 
 # ---------------------------------------------------------------------------
@@ -368,22 +458,39 @@ def add_setting(ctx, schema="core"):
         setting_node["description"] = description
 
     # --- Resolve target file ---
-    file_path, path_within_file = _resolve_target(parts, schema)
+    file_path, path_within_file, outer_sections = _resolve_target(parts, schema)
 
     if not os.path.exists(file_path):
         raise Exit(f"Schema file not found: {file_path}", code=1)
 
     # --- Load, modify, write ---
     loaded = _load(file_path)
-    ancestors = _insert(loaded, path_within_file, setting_node)
+    # The path components consumed by crossing into split sub-files; ancestor
+    # paths within the target file are relative to them.
+    prefix = parts[: len(parts) - len(path_within_file)]
+    ancestors = [
+        (".".join([*prefix, rel]), node, file_path) for rel, node in _insert(loaded, path_within_file, setting_node)
+    ]
 
     # A public setting requires all of its ancestor sections to be public and
-    # described. For a split sub-file, the file root itself is the enclosing
-    # section (e.g. 'apm_config') and counts as an ancestor.
+    # described. Some of those ancestors live outside the target file — the root
+    # of every split sub-file crossed on the way here (e.g. 'apm_config'), plus
+    # the ordinary sections walked before crossing a '$ref' out of a file (e.g.
+    # 'network_devices' when 'network_devices.snmp_traps' is split). Files other
+    # than the target one need writing back when their nodes are updated.
     if visibility == "public":
-        if loaded.get("node_type") == "section":
-            ancestors = [(parts[0], loaded), *ancestors]
-        _ensure_public_ancestors(ancestors)
+        documents = {file_path: loaded}
+        outer_ancestors = []
+        for dotted, anc_file, path_in_file in outer_sections:
+            doc = documents.setdefault(anc_file, _load(anc_file))
+            node = _node_at(doc, path_in_file)
+            if isinstance(node, dict) and node.get("node_type") == "section":
+                outer_ancestors.append((dotted, node, anc_file))
+        modified = _ensure_public_ancestors([*outer_ancestors, *ancestors])
+        for anc_file in modified:
+            # file_path is always dumped below, once.
+            if anc_file != file_path:
+                _dump(documents[anc_file], anc_file)
 
     _dump(loaded, file_path)
 

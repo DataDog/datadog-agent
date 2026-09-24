@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
@@ -59,6 +60,17 @@ var inputs = []testInput{
 
 	// A case where the timestamp has a non-matching token in the midddle of it.
 	{startGroup, "acb def 10:10:10 foo 2024-05-15 hijk lmop"},
+
+	// IIS W3C extended log format. Every record is a complete single-line
+	// entry prefixed with a timestamp, so each one must start its own group.
+	// Client addresses like 10.1.48.10 used to tokenize as digit/period runs
+	// that the timestamp detector scored as part of the timestamp. Collapsing
+	// a dotted quad to a single IPv4 token keeps the address out of that
+	// window. 192.168.1.1 and the IPv6 record are controls that already matched.
+	{startGroup, "2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET /ZenIT/Service/v13/core/Consent land=DE 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 19571 1051"},
+	{startGroup, "2026-08-11 10:34:50 W3SVC1 10.1.48.10 POST /ZenIT/Service/v13/core/Logger - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 204 0 0 504 6"},
+	{startGroup, "2026-08-11 10:34:49 W3SVC1 fe80::b045:52da:3136:3f1c%3 GET /ZenIT/Service/v13/colibriApi/api/Auftrag/Reklamation 443 NDL\\SVC-Zenit-NDL0167 - 200 0 0 945 7"},
+	{startGroup, "2026-08-11 10:34:51 W3SVC1 192.168.1.1 GET /ZenIT/Service/v13/core/Consent - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 1586 51"},
 
 	// Likely do not contain timestamps for aggreagtion
 	{aggregate, "12:30:2017 - info App started successfully"},
@@ -126,6 +138,91 @@ func TestCorrectLabelIsAssigned(t *testing.T) {
 		// To assist with debugging and tuning - this prints the probability and an underline of where the input was matched
 		printMatchUnderline(t, context, testInput.input, match)
 	}
+}
+
+// IIS W3C fixtures. iisW3CFailingShape is a record whose client IP
+// 10.1.48.10 tokenizes as DD.D.DD.DD; Kadane used to treat that as a
+// timestamp fragment and pull the match average to 0.5.
+const (
+	iisW3CFailingShape = "2026-08-11 10:34:49 W3SVC1 10.1.48.10 GET /ZenIT/Service/v13/core/Consent land=DE 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 200 0 0 19571 1051"
+	iisW3CPostLine     = "2026-08-11 10:34:50 W3SVC1 10.1.48.10 POST /ZenIT/Service/v13/core/Logger - 443 ndl\\SVC-Zenit-NDL0167 10.1.48.122 Mozilla/5.0 204 0 0 504 6"
+	iisW3CDateHeader   = "#Date: 2026-08-11 10:34:49"
+)
+
+func defaultTimestampDetectorSettings(t *testing.T) (threshold float64, labelerMaxBytes int) {
+	t.Helper()
+	mockConfig := configmock.New(t)
+	threshold = mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold")
+	labelerMaxBytes = mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes")
+	require.Equal(t, 0.5, threshold, "this test pins the production default threshold")
+	require.Equal(t, 60, labelerMaxBytes, "the client IP must fall inside the default labeler window")
+	return threshold, labelerMaxBytes
+}
+
+// The token sequence for the first tokenizer_max_input_bytes of
+// iisW3CFailingShape, split around the client IP so the same fixture expresses
+// both the pre- and post-collapse shapes:
+//
+//	DDDD-DD-DD DD:DD:DD CDCCCD <ip> CCC /CCCCC/CCCCCCC/CDD
+//
+// Before the fix the IP was seven separate run tokens, which is what let Kadane
+// extend the timestamp match across it; now it is one IPv4 token.
+var (
+	iisW3CTokenPrefix = []Token{
+		D4, Dash, D2, Dash, D2, Space, // 2026-08-11
+		D2, Colon, D2, Colon, D2, Space, // 10:34:49
+		C1, D1, C3, D1, Space, // W3SVC1
+	}
+	iisW3CClientIPRuns = []Token{D2, Period, D1, Period, D2, Period, D2} // 10.1.48.10
+	iisW3CTokenSuffix  = []Token{
+		Space, C3, Space, // GET
+		Fslash, C5, Fslash, C7, Fslash, C1, D2, // /ZenIT/Service/v13
+	}
+)
+
+// iisW3CTokens builds the fixture with the client IP rendered as the given
+// tokens: the seven run tokens for the pre-collapse shape, or a single IPv4.
+func iisW3CTokens(clientIP ...Token) []Token {
+	out := make([]Token, 0, len(iisW3CTokenPrefix)+len(clientIP)+len(iisW3CTokenSuffix))
+	out = append(out, iisW3CTokenPrefix...)
+	out = append(out, clientIP...)
+	return append(out, iisW3CTokenSuffix...)
+}
+
+// TestIISW3CDottedQuadDoesNotDiluteTimestampScore is the unit-level proof
+// that at the default threshold of 0.5, a strict `>` check rejects a 0.5
+// Kadane average. Without IPv4 collapse the IIS client IP dilutes the
+// timestamp to exactly 0.5, so the line stays aggregate. With collapse
+// the score is 1.0 and the line is startGroup.
+func TestIISW3CDottedQuadDoesNotDiluteTimestampScore(t *testing.T) {
+	threshold, labelerMaxBytes := defaultTimestampDetectorSettings(t)
+	require.Less(t, strings.Index(iisW3CFailingShape, "10.1.48.10")+len("10.1.48.10"), labelerMaxBytes,
+		"client IP must sit inside the default tokenizer_max_input_bytes window")
+
+	tok := NewTokenizer(labelerMaxBytes)
+	detector := NewTimestampDetector(threshold)
+	raw := []byte(iisW3CFailingShape)
+
+	without := iisW3CTokens(iisW3CClientIPRuns...)
+	matchWithout := staticTokenGraph.MatchProbability(without)
+	assert.Equal(t, 0.5, matchWithout.probability, "pre-fix Kadane average over timestamp+IP must be 0.5")
+
+	ctxWithout := &messageContext{rawMessage: raw, tokens: newBorrowedTokens(without, nil), label: aggregate}
+	require.True(t, detector.ProcessAndContinue(ctxWithout))
+	assert.Equal(t, aggregate, ctxWithout.label, "without IPv4 collapse the IIS line must stay aggregate at threshold 0.5")
+
+	with, _ := tok.Tokenize(raw)
+	// Pins the fixture above to what the tokenizer actually emits, so the
+	// pre-collapse baseline cannot drift away from the real token sequence.
+	require.Equal(t, iisW3CTokens(IPv4), with,
+		"fixture must match the tokenizer output apart from the collapsed client IP")
+
+	matchWith := staticTokenGraph.MatchProbability(with)
+	assert.Equal(t, 1.0, matchWith.probability, "after collapse Kadane must stay on the timestamp-only run")
+
+	ctxWith := &messageContext{rawMessage: raw, tokens: newBorrowedTokens(with, nil), label: aggregate}
+	require.True(t, detector.ProcessAndContinue(ctxWith))
+	assert.Equal(t, startGroup, ctxWith.label)
 }
 
 func printMatchUnderline(t *testing.T, context *messageContext, input string, match MatchContext) {

@@ -2,96 +2,18 @@ from __future__ import annotations
 
 import json
 import os
-import platform
-import re
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
-from datetime import datetime
 from pathlib import Path
 from typing import TypedDict
 
 from invoke import task
 
-from tasks.build_tags import compute_build_tags_for_flavor
-from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
 
-# Top-level Test* declarations in Go source files — Go side of the parity comparison.
-_TEST_FUNC_RE = re.compile(r'^func (Test\w*)\(', re.MULTILINE)
-# Matches json.decoder.WHITESPACE, an undocumented/unstubbed cpython internal.
-_JSON_WHITESPACE_RE = re.compile(r"[ \t\n\r]*")
 _IMPORT_PREFIX = AGENT_MODULE_PATH_PREFIX.rstrip("/")
-# Tag the dd_agent_go_test macro stamps on every variant it emits
-# (bazel/rules/go/dd_agent_go_test.bzl). Used to distinguish its generated
-# go_test rules from other custom wrappers (rtloader_go_test, ...).
-_DD_AGENT_GO_TEST_TAG = "dd_agent_go_test"
-
-
-# cmd.exe on Windows caps command lines at 8191 chars; stay safely under that
-# per 'go list' invocation so the command line doesn't grow unbounded with
-# the tracked package set.
-_MAX_CMDLINE_CHARS = 6000
-
-
-def _chunk_import_paths(import_paths: list[str]) -> list[list[str]]:
-    """Split import paths into batches that keep each 'go list' command line
-    under the Windows cmd.exe length limit."""
-    chunks: list[list[str]] = []
-    current: list[str] = []
-    current_len = 0
-    for path in import_paths:
-        if current and current_len + len(path) + 1 > _MAX_CMDLINE_CHARS:
-            chunks.append(current)
-            current, current_len = [], 0
-        current.append(path)
-        current_len += len(path) + 1
-    if current:
-        chunks.append(current)
-    return chunks
-
-
-def _go_test_packages(ctx, tags: list[str], import_paths: set[str]) -> dict[str, set[str]]:
-    """Return {import_path: {Test* func names}} for the given import paths
-    compiled under the given build tags."""
-    if not import_paths:
-        return {}
-    pkgs: dict[str, set[str]] = {}
-    decoder = json.JSONDecoder()
-    for chunk in _chunk_import_paths(sorted(import_paths)):
-        text = bazel(
-            ctx,
-            "run",
-            "--@rules_go//go/config:race",  # avoid thrashing the analysis cache right after `bazel test`
-            "//:go",
-            "--",
-            "list",
-            "-json",
-            "-e",
-            f"-tags={','.join(sorted(tags))}",
-            *chunk,
-            capture_output=True,
-        )
-        pos = 0
-        while pos < len(text):
-            pos = _JSON_WHITESPACE_RE.match(text, pos).end()
-            if pos >= len(text):
-                break
-            obj, pos = decoder.raw_decode(text, pos)
-            import_path = obj["ImportPath"]
-            if import_path not in import_paths:
-                continue
-            pkg_dir = Path(obj["Dir"])
-            test_files = obj.get("TestGoFiles", []) + obj.get("XTestGoFiles", [])
-            funcs: set[str] = set()
-            for f in test_files:
-                funcs.update(_TEST_FUNC_RE.findall((pkg_dir / f).read_text()))
-            # TestMain is Go's test harness entry point, never dispatched as a test case.
-            funcs.discard("TestMain")
-            if funcs:
-                pkgs[import_path] = funcs
-    return pkgs
 
 
 def _label_to_import_path(label: str) -> str:
@@ -126,29 +48,6 @@ def _test_output_candidates(
     return paths
 
 
-def _test_xml_funcs(paths: list[Path]) -> set[str]:
-    """Return top-level Test* functions from the first readable test.xml.
-
-    Subtests appear as name="TestFoo/Sub"; filtering to names without '/'
-    gives top-level functions. Requires --test_arg=-test.v (or
-    --test_env=GO_TEST_WRAP_TESTV=1) for a complete XML.
-    """
-    for path in paths:
-        try:
-            content = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if not content.strip():
-            continue
-        root = ET.fromstring(content)
-        return {
-            tc.attrib["name"]
-            for tc in root.iter("testcase")
-            if tc.attrib["name"].startswith("Test") and "/" not in tc.attrib["name"]
-        }
-    raise FileNotFoundError(f"no readable test.xml found among candidates: {paths}")
-
-
 class _BepContext:
     """Tracks the workspace/configuration state needed to resolve BEP test.xml paths.
 
@@ -178,145 +77,6 @@ class _BepContext:
                 return False
 
 
-def _bazel_test_funcs_from_bep(bep_path: Path) -> dict[str, set[str]]:
-    """Parse a Build Event Protocol JSON stream into {import_path: {Test* funcs}}.
-
-    Selects dd_agent_go_test targets that had a testResult event and whose
-    test.xml records at least one Test* function. Plain go_test rules (no
-    `dd_agent_go_test` tag) are ignored.
-    """
-    dd_agent_labels: set[str] = set()
-    test_action: dict[str, tuple[str, str]] = {}
-    ctx = _BepContext()
-
-    with open(bep_path) as fh:
-        for line in fh:
-            if not line.strip():
-                continue
-            event = json.loads(line)
-            eid = event.get("id", {})
-            if ctx.observe(eid, event):
-                continue
-            if "targetConfigured" in eid:
-                label = eid["targetConfigured"].get("label", "")
-                cfg = event.get("configured", {})
-                if cfg.get("targetKind") != "go_test rule":
-                    continue
-                tags = set(cfg.get("tag") or [])
-                if _DD_AGENT_GO_TEST_TAG in tags:
-                    dd_agent_labels.add(label)
-            elif "testResult" in eid:
-                label = eid["testResult"].get("label", "")
-                cfg_id = eid["testResult"].get("configuration", {}).get("id", "")
-                for out in event["testResult"].get("testActionOutput") or []:
-                    if out.get("name") == "test.xml":
-                        test_action[label] = (out.get("uri", ""), cfg_id)
-                        break
-
-    covered: dict[str, set[str]] = {}
-    for label in dd_agent_labels:
-        if label not in test_action:
-            continue
-        uri, cfg_id = test_action[label]
-        funcs = _test_xml_funcs(
-            _test_output_candidates(label, uri, cfg_id, ctx.local_exec_root, ctx.config_testlogs, "test.xml")
-        )
-        covered.setdefault(_label_to_import_path(label), set()).update(funcs)
-
-    return covered
-
-
-def _emit_test_count_metric(flavor: str, count: int) -> None:
-    """Send a datadog.agent.bazel_tests.executed gauge for one flavor job."""
-    from tasks.libs.common.datadog_api import create_gauge
-    from tasks.libs.common.datadog_api import send_metrics as _send_metrics
-
-    if not os.environ.get("DD_API_KEY"):
-        print("DD_API_KEY not set, skipping test count metric", file=sys.stderr)
-        return
-
-    tags = [
-        f"flavor:{flavor}",
-        f"platform:{platform.system().lower()}",
-        f"pipeline_id:{os.environ.get('CI_PIPELINE_ID', 'unknown')}",
-        "repository:datadog-agent",
-    ]
-    timestamp = int(datetime.now().timestamp())
-    try:
-        _send_metrics([create_gauge("datadog.agent.bazel_tests.executed", timestamp, count, tags)])
-    except Exception as e:
-        print(f"Failed to send test count metric: {e}", file=sys.stderr)
-        return
-    print(f"Sent metric: datadog.agent.bazel_tests.executed={count} (flavor={flavor})")
-
-
-@task(
-    help={
-        "flavor_name": f"Agent flavor to check ({', '.join(f.name for f in AgentFlavor)}).",
-        "bep": "Path to the build_event_json_file produced by the preceding "
-        "'bazel test --config=<flavor> ...' invocation.",
-        "verbose": "Print passing packages.",
-        "emit_metrics": "Send a datadog.agent.bazel_tests.executed gauge to Datadog (requires DD_API_KEY).",
-    },
-)
-def ensure_test_parity(ctx, bep, flavor_name, verbose=False, emit_metrics=False):
-    """
-    Verify every Go test visible to 'dda inv test --flavor=<f>' is also
-    present and executed in the matching Bazel per-flavor run.
-
-    Reads test execution from a Bazel Build Event Protocol JSON stream
-    (--build_event_json_file). The BEP determines scope (dd_agent_go_test
-    packages that produced test results); 'go list' is then queried for just
-    those packages to obtain the expected Test* function set. A package
-    compiled with wrong build tags (running a different set of functions) is
-    also reported as a failure.
-
-    Exits 1 if any gap is found.
-    """
-    bep_path = Path(bep)
-    if not bep_path.is_file():
-        print(f"error: BEP file not found: {bep}", file=sys.stderr)
-        sys.exit(2)
-
-    try:
-        flavor = AgentFlavor[flavor_name]
-    except KeyError:
-        print(f"Unknown flavor '{flavor_name}'. Options: {[f.name for f in AgentFlavor]}", file=sys.stderr)
-        sys.exit(1)
-
-    # bazel test runs systematically pass the "race" build tag, so files guarded
-    # by `!race` must be excluded from the expected test set too.
-    tags = [*compute_build_tags_for_flavor("unit-tests", None, None, flavor), "race"]
-    coverage = _bazel_test_funcs_from_bep(bep_path)
-    test_pkgs = _go_test_packages(ctx, tags, set(coverage))
-
-    go_pkgs = set(test_pkgs)
-    extra_in_bazel = {p for p, funcs in coverage.items() if funcs} - go_pkgs
-
-    failed = False
-    test_count = 0
-    for import_path in sorted(go_pkgs):
-        go_funcs = test_pkgs[import_path]
-        bazel_funcs = coverage[import_path]
-        missing_funcs = go_funcs - bazel_funcs
-        test_count += len(bazel_funcs)
-        if missing_funcs:
-            sample = ", ".join(sorted(missing_funcs)[:3]) + (", ..." if len(missing_funcs) > 3 else "")
-            print(f"[FAIL] {import_path} [{flavor_name}] -- tests missing from Bazel: {sample}")
-            failed = True
-        elif verbose:
-            print(f"[PASS] {import_path} [{flavor_name}] ({len(bazel_funcs)} tests)")
-    for import_path in sorted(extra_in_bazel):
-        print(f"[FAIL] {import_path} [{flavor_name}] -- Bazel target exists but not in dda inv test")
-    if extra_in_bazel:
-        failed = True
-
-    if emit_metrics:
-        _emit_test_count_metric(flavor_name, test_count)
-    if failed:
-        sys.exit(1)
-
-
 class BepTestArtifacts(TypedDict):
     cached: bool
     xml_paths: list[Path]  # noqa: F841 - TypedDict field, not a local variable
@@ -343,8 +103,11 @@ def _resolve_test_output_path(
 def _parse_bep(bep_path: Path) -> dict[str, BepTestArtifacts]:
     """Parse a BEP JSON file in one pass.
 
-    Returns a mapping keyed by Go import path. Each value contains the cache
+    Returns a mapping keyed by Bazel test label. Each value contains the cache
     status and the test.xml/test.log files produced by this invocation.
+
+    The label key preserves distinct dd_agent_go_test variants for the same Go
+    package, such as //pkg/foo:foo_test and //pkg/foo:foo_test_containerd.
     """
     ctx = _BepContext()
     test_actions: list[tuple[str, str, str, str, bool]] = []
@@ -381,8 +144,10 @@ def _parse_bep(bep_path: Path) -> dict[str, BepTestArtifacts]:
 
     results: dict[str, BepTestArtifacts] = {}
     for label, cfg_id, xml_uri, log_uri, cached in test_actions:
-        import_path = _label_to_import_path(label)
-        artifacts = results.setdefault(import_path, {"cached": cached, "xml_paths": [], "log_paths": []})
+        artifacts = results.setdefault(
+            label,
+            {"cached": cached, "xml_paths": [], "log_paths": []},
+        )
         artifacts["cached"] = cached
         artifacts["xml_paths"].append(_resolve_test_output_path(label, xml_uri, cfg_id, ctx, "test.xml"))
         artifacts["log_paths"].append(_resolve_test_output_path(label, log_uri, cfg_id, ctx, "test.log"))
@@ -438,7 +203,7 @@ def _collect_junit(test_artifacts, output_tgz):
     from tasks.libs.common.junit_upload_core import produce_junit_tar
 
     xml_files = [p for artifacts in test_artifacts.values() for p in artifacts["xml_paths"]]
-    cache_status = {import_path: artifacts["cached"] for import_path, artifacts in test_artifacts.items()}
+    cache_status = {_label_to_import_path(label): artifacts["cached"] for label, artifacts in test_artifacts.items()}
     if not xml_files:
         print("error: no test.xml files found in BEP output", file=sys.stderr)
         sys.exit(1)
@@ -488,14 +253,17 @@ def _collect_test2json(ctx, test_artifacts, output_path):
     with tempfile.TemporaryDirectory() as tmpdir:
         manifest_path = os.path.join(tmpdir, "manifest.tsv")
         with open(manifest_path, "w") as manifest:
-            for import_path in sorted(test_artifacts.keys()):
-                manifest.writelines(
-                    f'{import_path}\t{log_path}\n' for log_path in test_artifacts[import_path]["log_paths"]
-                )
+            for label in sorted(test_artifacts.keys()):
+                # Use the Bazel label, not the Go import path, as the test2json package
+                # identity. dd_agent_go_test emits multiple configured go_test targets
+                # for different build-tag sets in the same Go package; collapsing them
+                # to one import path would make UTOF report those distinct runs as
+                # retries.
+                manifest.writelines(f'{label}\t{log_path}\n' for log_path in test_artifacts[label]["log_paths"])
 
         bazel(
-            ctx,
             "run",
+            "--config=gorace",  # to use same analysis cache across test & run commands
             "//bazel/tools/testlogs_to_json",
             "--",
             "-manifest",

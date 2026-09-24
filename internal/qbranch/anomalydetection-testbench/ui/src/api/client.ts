@@ -92,10 +92,11 @@ export interface ComponentInfo {
 }
 
 export interface SeriesInfo {
-  id: SeriesID;
-  namespace: string;
-  name: string;
-  tags: string[];
+	id: SeriesID;
+	namespace: string;
+	name: string;
+	host?: string;
+	tags: string[];
   pointCount: number;
   /** True when the series lives in an extractor storage namespace (log-derived metrics). */
   virtual?: boolean;
@@ -117,10 +118,11 @@ export interface AnomalyMarker {
 }
 
 export interface SeriesData {
-  id: SeriesID;
-  namespace: string;
-  name: string;
-  tags: string[];
+	id: SeriesID;
+	namespace: string;
+	name: string;
+	host?: string;
+	tags: string[];
   points: Point[];
   anomalies: AnomalyMarker[];
 }
@@ -133,10 +135,8 @@ export interface AnomalyDebugInfo {
   baselineStddev?: number;
   baselineMAD?: number;
   threshold: number;
-  slackParam?: number;
   currentValue: number;
   deviationSigma: number;
-  cusumValues?: number[];
 }
 
 export interface Anomaly {
@@ -145,8 +145,9 @@ export interface Anomaly {
   detectorName: string;
   detectorComponent?: string;
   title: string;
-  description: string;
-  tags: string[];
+	description: string;
+	host?: string;
+	tags: string[];
   timestamp: number;
   debugInfo?: AnomalyDebugInfo;
 }
@@ -208,6 +209,7 @@ export interface Correlation {
     title: string;
     description: string;
     timestamp: number;
+    host?: string;
     tags: string[];
   }[];
   firstSeen: number;

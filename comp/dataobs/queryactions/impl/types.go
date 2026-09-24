@@ -15,10 +15,10 @@ type DOQueryPayload struct {
 }
 
 // DBIdentifier identifies the integration host to target.
-// PostgreSQL compares Host with its rendered database identifier. SQL Server compares Host with
-// its configured endpoint, and Azure SQL Database additionally compares every query's DBName with
-// the top-level integration database. Type describes the producer's hosting kind and is
-// informational.
+// MySQL and PostgreSQL compare Host with their rendered database identifiers. SQL Server compares
+// Host with its configured endpoint, and Azure SQL Database additionally compares every query's
+// DBName with the top-level integration database. Type describes the producer's hosting kind and
+// is informational.
 type DBIdentifier struct {
 	Type          string `json:"type"`
 	Host          string `json:"host"`

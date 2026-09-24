@@ -28,8 +28,15 @@ import (
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite
 
 type packageTestsWithSkippedFlavors struct {
-	t                          packageTests
-	skippedFlavors             []e2eos.Descriptor
+	t              packageTests
+	skippedFlavors []e2eos.Descriptor
+	// onlyFlavors, when non-empty, restricts the suite to these descriptors and
+	// skips every other one. Unlike skippedFlavors it also matches the
+	// architecture, so a suite that is only meaningful on one arch does not
+	// provision a VM for the other. Prefer it over listing every flavor to skip:
+	// a suite pinned to a couple of representative hosts should not silently
+	// spread to new flavors added to the matrix.
+	onlyFlavors                []e2eos.Descriptor
 	skippedInstallationMethods []InstallMethodOption
 }
 
@@ -39,7 +46,6 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		// e2eos.FedoraDefault, // Skipped instead of marked as flaky to avoid useless logs
 		e2eos.CentOS7,
 		e2eos.Suse15,
 	}
@@ -48,17 +54,51 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
+	// apmInjectMultilibFlavors are the hosts the multilib launcher suite runs on:
+	// one per glibc $LIB convention. Debian/Ubuntu resolve $LIB to the multiarch
+	// lib/<triplet> pair, RHEL and friends to lib64 (64-bit) and lib (32-bit), so
+	// a launcher layout that works on Ubuntu can still be unreachable on RHEL.
+	// amd64 only — $LIB has a single expansion on arm64 and there is no 32-bit
+	// injector for it. RedHat9 is deliberately absent from testApmInjectAgent's
+	// matrix (the rest of that suite needs Docker, which RHEL 9 does not ship),
+	// hence a dedicated suite rather than un-skipping the flavor there.
+	apmInjectMultilibFlavors = []e2eos.Descriptor{
+		withArch(e2eos.Ubuntu2404, e2eos.AMD64Arch),
+		withArch(e2eos.RedHat9, e2eos.AMD64Arch),
+	}
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.AmazonLinux2}},
+		{t: testApmInjectMultilib, onlyFlavors: apmInjectMultilibFlavors, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
 		{t: testUpgradeScenario},
 	}
 )
 
+// withArch returns a copy of d pinned to arch.
+func withArch(d e2eos.Descriptor, arch e2eos.Architecture) e2eos.Descriptor {
+	d.Architecture = arch
+	return d
+}
+
 func shouldSkipFlavor(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
 	for _, f := range flavors {
 		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldRunFlavor reports whether flavor passes an onlyFlavors restriction. An
+// empty list means "no restriction". Comparison is on the whole descriptor, so
+// the architecture set by the caller is part of the match.
+func shouldRunFlavor(onlyFlavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
+	if len(onlyFlavors) == 0 {
+		return true
+	}
+	for _, f := range onlyFlavors {
+		if f == flavor {
 			return true
 		}
 	}
@@ -94,6 +134,9 @@ func TestPackages(t *testing.T) {
 		for _, test := range packagesTestsWithSkippedFlavors {
 			flavor := f // capture range variable for parallel tests closure
 			if shouldSkipFlavor(test.skippedFlavors, flavor) {
+				continue
+			}
+			if !shouldRunFlavor(test.onlyFlavors, flavor) {
 				continue
 			}
 			if shouldSkipInstallMethod(test.skippedInstallationMethods, method) {
@@ -169,6 +212,7 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.setupFakeIntake()
 	s.host = host.New(s.T, s.Env().RemoteHost, s.os, s.arch)
 	s.host.ConfigureAptMirrors()
+	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()
@@ -274,7 +318,7 @@ func envForceVersion(pkg, version string) string {
 
 func (s *packageBaseSuite) Purge() {
 	// Reset the systemctl failed counter, best effort as they may not be loaded
-	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP} {
+	for _, service := range []string{agentUnit, agentUnitXP, traceUnit, traceUnitXP, processUnit, processUnitXP, probeUnit, probeUnitXP, securityUnit, securityUnitXP, ddotUnit, ddotUnitXP, dataPlaneUnit, dataPlaneUnitXP, procmgrUnit, procmgrUnitXP} {
 		s.Env().RemoteHost.Execute("sudo systemctl reset-failed " + service)
 	}
 
@@ -282,7 +326,9 @@ func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
-	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent datadog-fips-agent || sudo yum remove -y datadog-installer datadog-agent datadog-fips-agent || sudo zypper remove -y datadog-installer datadog-agent datadog-fips-agent")
+	for _, pkg := range []string{"datadog-installer", "datadog-agent", "datadog-fips-agent", "datadog-apm-inject", "datadog-apm-library-python"} {
+		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge " + pkg + " || sudo yum remove -y " + pkg + " || sudo zypper remove -y " + pkg)
+	}
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 
@@ -313,7 +359,7 @@ func (s *packageBaseSuite) setupFakeIntake() {
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent.service.d")
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
-	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
+	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent.service.d/fake-intake.conf`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
 }
 
@@ -330,7 +376,9 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
 		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
 		pathPrefix = "/home/centos/.local/bin/"
-	case e2eos.AmazonLinux, e2eos.RedHat:
+	// AmazonLinux is deliberately absent here: RunInstallScript skips InstallMethodAnsible
+	// for AmazonLinux2 before this is ever called, and no flavor list uses AmazonLinux2023.
+	case e2eos.RedHat:
 		s.Env().RemoteHost.MustExecute("sudo yum install -y python3.14 python3.14-pip && yes | pip3.14 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:

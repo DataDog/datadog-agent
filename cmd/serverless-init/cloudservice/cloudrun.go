@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -199,6 +201,11 @@ func (c *CloudRun) GetSource() metrics.MetricSource {
 // Init is empty for CloudRun
 func (c *CloudRun) Init(_ *TracingContext) error {
 	return nil
+}
+
+// Run uses the default run behaviour for CloudRun.
+func (c *CloudRun) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
 }
 
 // Shutdown emits the shutdown metric for CloudRun

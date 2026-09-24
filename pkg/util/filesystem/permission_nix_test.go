@@ -43,6 +43,20 @@ func TestRemoveAccessToOtherUsers(t *testing.T) {
 	stat, err = os.Stat(testDir)
 	require.NoError(t, err)
 	assert.Equal(t, int(stat.Mode().Perm()), 0700)
+
+	// Trailing separators must not change which entry is restricted.
+	testFileTrailing := testFile + string(filepath.Separator)
+	err = os.WriteFile(testFile, []byte("test"), 0777)
+	require.NoError(t, err)
+	err = p.RemoveAccessToOtherUsers(testFileTrailing)
+	require.NoError(t, err)
+	stat, err = os.Stat(testFile)
+	require.NoError(t, err)
+	assert.Equal(t, int(stat.Mode().Perm()), 0700)
+
+	// An empty path must error and not touch the current working directory.
+	err = p.RemoveAccessToOtherUsers("")
+	require.Error(t, err)
 }
 
 func TestGetDatadogUserUID(t *testing.T) {

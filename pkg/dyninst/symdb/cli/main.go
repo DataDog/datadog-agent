@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // CLI for generating SymDB data from binaries.
 package main
@@ -375,10 +375,7 @@ func run() (retErr error) {
 
 	start := time.Now()
 
-	it, err := symdb.PackagesIterator(localBinPath, objectLoader, extractOpts)
-	if err != nil {
-		return err
-	}
+	it := symdb.PackagesIterator(localBinPath, objectLoader, extractOpts)
 
 	// Build the per-yield encoder. Three modes:
 	//  - -upload: real BatchEncoder shipping to a SymDB intake.

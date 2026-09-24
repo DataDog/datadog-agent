@@ -1,0 +1,4 @@
+---
+security:
+  - |
+    The Cluster Agent's admission controller webhook now enforces a size limit on incoming request bodies and validates the request content type before reading the body.

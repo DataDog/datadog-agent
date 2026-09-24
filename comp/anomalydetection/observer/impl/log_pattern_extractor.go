@@ -26,6 +26,9 @@ const defaultGarbageCollectionInterval = 1 * time.Hour
 
 // LogPatternExtractorConfig holds hyperparameters for the log pattern extractor.
 type LogPatternExtractorConfig struct {
+	// MaxPatterns caps live patterns across all tag groups, including patterns
+	// below the emission threshold. Non-positive values use the default.
+	MaxPatterns int `json:"max_patterns,omitempty"`
 	// This will disable all optimizations like MinClusterSizeBeforeEmit, ClusterTimeToLiveSec, etc.
 	DisableOptimizations bool `json:"disable_optimizations,omitempty"`
 	// MinClusterSizeBeforeEmit is the minimum number of logs matching a pattern
@@ -65,6 +68,7 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 	parseHexDump := true
 
 	return LogPatternExtractorConfig{
+		MaxPatterns:                  3000,
 		MinClusterSizeBeforeEmit:     5,
 		ClusterTimeToLiveSec:         int64(defaultClusterTimeToLive.Seconds()),
 		GarbageCollectionIntervalSec: int64(defaultGarbageCollectionInterval.Seconds()),
@@ -106,8 +110,9 @@ type LogPatternExtractor struct {
 	registry                  *TagGroupByKeyRegistry
 	NextGarbageCollectionTime int64
 	// config is the resolved hyperparameters (MinClusterSizeBeforeEmit is never zero after init).
-	config    LogPatternExtractorConfig
-	telemetry *observerTelemetry
+	config             LogPatternExtractorConfig
+	telemetry          *observerTelemetry
+	activePatternCount int
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
@@ -119,6 +124,9 @@ var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
 func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor {
 	// Apply defaults first and then refresh config to finalize it
 	defaults := DefaultLogPatternExtractorConfig()
+	if cfg.MaxPatterns <= 0 {
+		cfg.MaxPatterns = defaults.MaxPatterns
+	}
 	if cfg.MinClusterSizeBeforeEmit <= 0 {
 		cfg.MinClusterSizeBeforeEmit = defaults.MinClusterSizeBeforeEmit
 	}
@@ -144,6 +152,7 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
 	}
 	tc := NewTaggedPatternClustererWithFactory(registry, newSub)
+	tc.MaxPatterns = cfg.MaxPatterns
 	if cfg.MaxPatternsPerGroup > 0 {
 		tc.MaxClustersPerGroup = cfg.MaxPatternsPerGroup
 	}
@@ -163,21 +172,32 @@ func (e *LogPatternExtractor) Name() string {
 }
 
 // Reset clears clustering state so reanalysis starts from the currently
-// observed logs. The registry is kept so that previously registered hashes
-// remain resolvable.
+// observed logs.
 func (e *LogPatternExtractor) Reset() {
 	e.taggedClusterer.Reset()
 	e.NextGarbageCollectionTime = 0
+	e.activePatternCount = 0
+	if e.telemetry != nil {
+		e.telemetry.setLogPatternCount(0)
+	}
 }
 
 // SetObserverTelemetry allows wiring direct telemetry emission without
 // transporting telemetry through extractor outputs.
 func (e *LogPatternExtractor) SetObserverTelemetry(t *observerTelemetry) {
 	e.telemetry = t
+	if t != nil {
+		e.activePatternCount = len(e.taggedClusterer.GetAllClusters())
+		t.setLogPatternCount(e.activePatternCount)
+	}
 }
 
 // ProcessLog clusters the log message and emits a count metric for its pattern.
 func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
+	if e.telemetry != nil {
+		defer func() { e.telemetry.setLogPatternCount(e.activePatternCount) }()
+	}
+
 	logUnixSec := log.GetTimestampUnixMilli() / 1000
 	if logUnixSec == 0 {
 		logUnixSec = time.Now().Unix()
@@ -186,15 +206,15 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	result := observerdef.LogMetricsExtractorOutput{
 		EvictedMetricNames: gc.metricNames,
 	}
-	if gc.clustersEvicted > 0 && e.telemetry != nil {
-		e.telemetry.recordLogPatternCountDelta(e.Name(), -float64(gc.clustersEvicted))
+	if gc.clustersEvicted > 0 {
+		e.activePatternCount -= gc.clustersEvicted
 	}
 	message := log.GetContent()
 	groupTags := tagsForPatternGrouping(log.Tags(), log.GetHostname())
 	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
 	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups
-	// caps. Treated identically to GC evictions: drop engine context, decrement
-	// pattern_count telemetry. Done unconditionally so that whole-group evictions
+	// caps. Treated identically to GC evictions: drop engine context and decrement
+	// the active-pattern count. Done unconditionally so that whole-group evictions
 	// caused by the new sub-clusterer creation aren't lost when Process returns
 	// !ok (defensive; current Process only returns !ok for empty messages, after
 	// which no eviction can have occurred, but keep this path honest).
@@ -203,18 +223,17 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 			name := "log." + e.Name() + "." + globalClusterHash(ev.GroupHash, ev.ClusterID) + ".count"
 			result.EvictedMetricNames = append(result.EvictedMetricNames, name)
 		}
-		if e.telemetry != nil {
-			e.telemetry.recordLogPatternCountDelta(e.Name(), -float64(len(evicted)))
-		}
+		e.activePatternCount -= len(evicted)
 	}
 	if !ok {
 		return result
 	}
+	if cluster.Count == 1 {
+		e.activePatternCount++
+	}
 	// Not enough patterns yet, don't emit metric
-	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
-	if cluster.Count == e.config.MinClusterSizeBeforeEmit && e.telemetry != nil {
-		e.telemetry.recordLogPatternCountDelta(e.Name(), 1)
-	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
+	// The active-pattern gauge includes patterns below this emission threshold.
+	if cluster.Count < e.config.MinClusterSizeBeforeEmit {
 		return result
 	}
 

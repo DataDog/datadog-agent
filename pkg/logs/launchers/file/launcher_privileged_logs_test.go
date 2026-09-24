@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Built with linux_bpf since the tests need to run as root for testing the privileged access.
-//go:build linux && linux_bpf
+// Built with bpf since the tests need to run as root for testing the privileged access.
+//go:build linux && bpf
 
 package file
 

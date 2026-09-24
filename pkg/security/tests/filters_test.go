@@ -349,6 +349,8 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 
 // This test is basically the same as TestFilterOpenLeafDiscarder but activity dumps are enabled.
 // This means that the event is actually forwarded to user space, but the rule should not be evaluated
+var _ = declareInlineConfig(TestFilterOpenLeafDiscarderActivityDump)
+
 func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -375,9 +377,11 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	expectedFormats := []string{"json", "protobuf"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
+		// this exercises the v1 activity dump manager, which is inactive under security profile v2
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpTracedCgroupsCount:      model.MaxTracedCgroupsCount,
 		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
@@ -1398,6 +1402,8 @@ func TestFilterBpfCmd(t *testing.T) {
 	}
 }
 
+var _ = declare(TestFilterRuntimeDiscarded, testOpts{discardRuntime: true})
+
 func TestFilterRuntimeDiscarded(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1412,7 +1418,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{discardRuntime: true}))
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,7 +38,8 @@ type Attributes struct {
 	SpanId                uint64                                          `json:"span_id,omitempty"`
 	// SystemInputs carries backend-resolved policy and other backend-provided
 	// inputs, separate from user-provided action inputs.
-	SystemInputs *privateactionspb.SystemInputs `json:"system_inputs,omitempty"`
+	SystemInputs    *privateactionspb.SystemInputs `json:"system_inputs,omitempty"`
+	VerificationKey *TaskVerificationKey           `json:"-"`
 }
 
 // TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32

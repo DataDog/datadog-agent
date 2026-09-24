@@ -256,10 +256,26 @@ properties:
         node_type: setting
         type: string
         default: localhost:5678
+  eks_pod_identity_ipv4:
+    node_type: setting
+    type: string
+    default: 169.254.170.23
+  eks_pod_identity_ipv6:
+    node_type: setting
+    type: string
+    default: fd00:ec2::23
   enforcement:
     node_type: section
     type: object
     properties:
+      cgroup_kill:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: true
       disarmer:
         node_type: section
         type: object
@@ -346,22 +362,6 @@ properties:
     node_type: section
     type: object
     properties:
-      bind:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-          rate:
-            node_type: setting
-            type: integer
-            default: 500
-          threshold:
-            node_type: setting
-            type: integer
-            default: 60
       connect:
         node_type: section
         type: object
@@ -378,22 +378,6 @@ properties:
             node_type: setting
             type: integer
             default: 40
-      dns:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-          rate:
-            node_type: setting
-            type: integer
-            default: 500
-          threshold:
-            node_type: setting
-            type: integer
-            default: 60
       dynamic:
         node_type: section
         type: object
@@ -723,16 +707,15 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           event_types:
             node_type: setting
             type: array
             default:
             - exec
+            - open
             - dns
             - bind
-            - connect
-            - open
             items:
               type: string
           excluded_images:
@@ -744,7 +727,7 @@ properties:
           max_dump_size:
             node_type: setting
             type: integer
-            default: 5120
+            default: 2560
           sample_refresh_period:
             node_type: setting
             type: string

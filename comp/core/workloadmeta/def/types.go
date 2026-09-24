@@ -2323,6 +2323,9 @@ type GPU struct {
 	// It is meaningful only when FabricClusterUUID is set.
 	FabricCliqueID uint32
 
+	// NVLinkVersion is the version reported by the GPU's NVLink links.
+	NVLinkVersion string
+
 	// DeviceType identifies if this is a physical or virtual device (e.g. MIG)
 	DeviceType GPUDeviceType
 
@@ -2337,6 +2340,11 @@ type GPU struct {
 
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
 	ChildrenGPUUUIDs []string
+
+	// MIGProfile is the canonical MIG profile name of the device (e.g. "1g.35gb"),
+	// as reported by the driver for the device's GPU instance. Empty for physical
+	// devices and for MIG devices on drivers that do not expose the profile name.
+	MIGProfile string
 }
 
 var _ Entity = &GPU{}

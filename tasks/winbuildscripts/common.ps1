@@ -30,7 +30,11 @@ function Enter-BuildRoot() {
     # copy the repository into the container filesystem
     Write-Host "Switching to buildroot $buildroot\datadog-agent"
     Push-Location "$buildroot\datadog-agent" -ErrorAction Stop -StackName AgentBuildRoot
-    xcopy /e/s/h/q c:\mnt\*.*
+    robocopy c:\mnt . /e /ndl /nfl /njh /njs /np /r:3 /w:5 /xd .cache
+    # https://ss64.com/nt/robocopy-exit.html
+    if ($LASTEXITCODE -ge 8) {
+        exit $LASTEXITCODE
+    }
 }
 
 <#
@@ -200,7 +204,7 @@ The name of the secret to fetch
 The field of the secret to fetch. Only used with vault secrets.
 
 .EXAMPLE
-$Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV" -parameterField token)
+$Env:DD_API_KEY=$(Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token)
 
 Fetch a secret and store it in an environment variable
 

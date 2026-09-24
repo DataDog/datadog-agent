@@ -250,6 +250,8 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				Family:            conn.Family,
 				IntraHost:         conn.IntraHost,
 				SystemProbeConn:   conn.SystemProbeConn,
+				SentBytes:         conn.LastBytesSent,
+				RecvBytes:         conn.LastBytesReceived,
 			}
 			if !yield(npc) {
 				return

@@ -7,6 +7,7 @@ go_library(
         "file.go",
         "fingerprint.go",
         "fingerprint_mock.go",
+        "missed_bytes.go",
         "rotate.go",
         "rotate_nix.go",
         "rotate_windows.go",
@@ -19,6 +20,7 @@ go_library(
     deps = [
         "//comp/core/tagger/types",
         "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
         "//comp/logs/auditor/def",
         "//pkg/config/setup",
         "//pkg/logs/internal/decoder",
@@ -41,6 +43,7 @@ dd_agent_go_test(
     srcs = [
         "fingerprint_test.go",
         "tailer_integration_test.go",
+        "tailer_nix_test.go",
         "tailer_test.go",
         "tailer_windows_test.go",
     ],
@@ -57,6 +60,7 @@ dd_agent_go_test(
         "//pkg/logs/status/utils",
         "//pkg/logs/types",
         "//pkg/logs/util/opener",
+        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
         "@org_uber_go_goleak//:goleak",
     ] + select({

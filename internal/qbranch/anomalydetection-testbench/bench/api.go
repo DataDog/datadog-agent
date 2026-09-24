@@ -419,6 +419,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 		ID         string   `json:"id"`
 		Namespace  string   `json:"namespace"`
 		Name       string   `json:"name"`
+		Host       string   `json:"host,omitempty"`
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
 		Virtual    bool     `json:"virtual"`
@@ -458,6 +459,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
+					Host:       m.Host,
 					Tags:       m.Tags,
 					PointCount: pointCount,
 					Virtual:    virtual,
@@ -492,12 +494,12 @@ func (api *BenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	namespace, nameWithAgg, tags, ok := parseSeriesKey(seriesID)
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(seriesID)
 	if !ok {
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
 	}
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, host, tags, seriesID)
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
@@ -510,10 +512,6 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		agg = observerdef.AggregateCount
 	case "sum":
 		agg = observerdef.AggregateSum
-	case "min":
-		agg = observerdef.AggregateMin
-	case "max":
-		agg = observerdef.AggregateMax
 	default:
 		api.writeError(w, http.StatusBadRequest, "invalid aggregation suffix")
 		return
@@ -543,6 +541,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 	sd := observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      series.Name,
+		Host:      meta.Host,
 		Tags:      series.Tags,
 		Aggregate: agg,
 	}
@@ -580,6 +579,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -589,6 +589,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID:        originalID,
 		Namespace: meta.Namespace,
 		Name:      nameWithAgg,
+		Host:      meta.Host,
 		Tags:      series.Tags,
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
@@ -617,17 +618,16 @@ func (api *BenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request) {
 
 	namespace := parts[0]
 	nameWithAgg := parts[1]
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, "", nil, "")
 }
 
-func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
+func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg, host string, tags []string, requestedID string) {
 	seriesID := requestedID
 
 	name := nameWithAgg
 	agg := observerdef.AggregateAverage
 	if idx := strings.LastIndex(nameWithAgg, ":"); idx != -1 {
 		suffix := nameWithAgg[idx+1:]
-		name = nameWithAgg[:idx]
 		switch suffix {
 		case "avg":
 			agg = observerdef.AggregateAverage
@@ -635,10 +635,13 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 			agg = observerdef.AggregateCount
 		case "sum":
 			agg = observerdef.AggregateSum
-		case "min":
-			agg = observerdef.AggregateMin
-		case "max":
-			agg = observerdef.AggregateMax
+		default:
+			// The colon may be part of the metric name rather than an aggregate
+			// suffix. Keep the full name and the default Average aggregate.
+			idx = -1
+		}
+		if idx != -1 {
+			name = nameWithAgg[:idx]
 		}
 	}
 
@@ -657,7 +660,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		if m.Name != name {
 			continue
 		}
-		if tags == nil || tagsMatch(m.Tags, tags) {
+		if (requestedID == "" || m.Host == host) && (tags == nil || tagsMatch(m.Tags, tags)) {
 			foundMeta = m
 			break
 		}
@@ -690,6 +693,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 	sd := observerdef.SeriesDescriptor{
 		Namespace: namespace,
 		Name:      name,
+		Host:      foundMeta.Host,
 		Tags:      foundMeta.Tags,
 		Aggregate: agg,
 	}
@@ -719,6 +723,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -728,6 +733,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID:        seriesID,
 		Namespace: namespace,
 		Name:      nameWithAgg,
+		Host:      foundMeta.Host,
 		Tags:      foundMeta.Tags,
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
@@ -749,17 +755,15 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	detectorFilter := r.URL.Query().Get("detector")
 
 	type debugInfoResponse struct {
-		BaselineStart  int64     `json:"baselineStart"`
-		BaselineEnd    int64     `json:"baselineEnd"`
-		BaselineMean   float64   `json:"baselineMean,omitempty"`
-		BaselineMedian float64   `json:"baselineMedian,omitempty"`
-		BaselineStddev float64   `json:"baselineStddev,omitempty"`
-		BaselineMAD    float64   `json:"baselineMAD,omitempty"`
-		Threshold      float64   `json:"threshold"`
-		SlackParam     float64   `json:"slackParam,omitempty"`
-		CurrentValue   float64   `json:"currentValue"`
-		DeviationSigma float64   `json:"deviationSigma"`
-		CUSUMValues    []float64 `json:"cusumValues,omitempty"`
+		BaselineStart  int64   `json:"baselineStart"`
+		BaselineEnd    int64   `json:"baselineEnd"`
+		BaselineMean   float64 `json:"baselineMean,omitempty"`
+		BaselineMedian float64 `json:"baselineMedian,omitempty"`
+		BaselineStddev float64 `json:"baselineStddev,omitempty"`
+		BaselineMAD    float64 `json:"baselineMAD,omitempty"`
+		Threshold      float64 `json:"threshold"`
+		CurrentValue   float64 `json:"currentValue"`
+		DeviationSigma float64 `json:"deviationSigma"`
 	}
 
 	type anomalyResponse struct {
@@ -769,6 +773,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 		DetectorComponent string             `json:"detectorComponent"`
 		Title             string             `json:"title"`
 		Description       string             `json:"description"`
+		Host              string             `json:"host,omitempty"`
 		Tags              []string           `json:"tags"`
 		Timestamp         int64              `json:"timestamp"`
 		DebugInfo         *debugInfoResponse `json:"debugInfo,omitempty"`
@@ -784,7 +789,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 		if sv != nil && a.DetectorName != "" && a.Source.Name != "" {
 			storage := &stateViewStorage{sv: sv}
 			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			key := seriesKey("telemetry", telemetryName+":avg", nil)
+			key := seriesKey("telemetry", telemetryName+":avg", "", nil)
 			if compactID := storage.compactSeriesID(key); compactID != key {
 				return compactID
 			}
@@ -800,6 +805,7 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
 			Description:       a.Description,
+			Host:              a.Source.Host,
 			Tags:              a.Source.Tags,
 			Timestamp:         a.Timestamp,
 		}
@@ -812,10 +818,8 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 				BaselineStddev: a.DebugInfo.BaselineStddev,
 				BaselineMAD:    a.DebugInfo.BaselineMAD,
 				Threshold:      a.DebugInfo.Threshold,
-				SlackParam:     a.DebugInfo.SlackParam,
 				CurrentValue:   a.DebugInfo.CurrentValue,
 				DeviationSigma: a.DebugInfo.DeviationSigma,
-				CUSUMValues:    a.DebugInfo.CUSUMValues,
 			}
 		}
 		return resp
@@ -1025,6 +1029,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		Description string   `json:"description"`
 		Timestamp   int64    `json:"timestamp"`
 		Score       *float64 `json:"score,omitempty"`
+		Host        string   `json:"host,omitempty"`
 		Tags        []string `json:"tags"`
 	}
 
@@ -1052,6 +1057,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
+				Host:        a.Source.Host,
 				Tags:        tgs,
 			}
 		}
@@ -1370,27 +1376,41 @@ func scorerReportContributorName(meta *observerdef.SeriesMeta, context *observer
 		switch meta.Namespace {
 		case "log_metrics_extractor":
 			if example := strings.TrimSpace(context.Example); example != "" {
-				return logReportContributorName(example, meta.Tags)
+				return logReportContributorName(example, meta.Host, meta.Tags)
 			}
 			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Tags)
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
 			}
 		case "log_pattern_extractor":
 			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Tags)
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
 			}
 		}
 	}
 	return observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      meta.Name,
+		Host:      meta.Host,
 		Tags:      meta.Tags,
 		Aggregate: aggregate,
 	}.DisplayName()
 }
 
-func logReportContributorName(name string, tags []string) string {
+func logReportContributorName(name, host string, tags []string) string {
 	name = "log: " + name
+	if host != "" {
+		hostTag := "host:" + host
+		hasHost := false
+		for _, tag := range tags {
+			if tag == hostTag {
+				hasHost = true
+				break
+			}
+		}
+		if !hasHost {
+			tags = append([]string{hostTag}, tags...)
+		}
+	}
 	if len(tags) == 0 {
 		return name
 	}

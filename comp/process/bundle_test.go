@@ -114,7 +114,7 @@ func TestBundleOneShot(t *testing.T) {
 		),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, map[string]interface{}{"hostname": "testhost"})
+			return config.NewMockWithOverrides(t, map[string]interface{}{"hostname": "testhost", "cloud_provider_metadata": []string{}})
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),

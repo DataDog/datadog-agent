@@ -776,6 +776,18 @@ done:
     return klass;
 }
 
+// Append a Python str as UTF-8. Uses a non-strict encoder so lone surrogates cannot
+// crash the Agent via std::string::operator+=(NULL). No-ops if conversion fails.
+static void appendPythonStr(std::string &out, PyObject *obj)
+{
+    char *item = as_string_lossy(obj);
+    if (item == NULL) {
+        return;
+    }
+    out += item;
+    ::_free(item);
+}
+
 std::string Three::_fetchPythonError() const
 {
     std::string ret_val = "";
@@ -827,11 +839,9 @@ std::string Three::_fetchPythonError() const
                             ret_val = "";
                             goto done;
                         }
-                        char *item = as_string(s);
                         // traceback.format_exception returns a list of strings, each ending in a *newline*
                         // and some containing internal newlines. No need to add any CRLF/newlines.
-                        ret_val += item;
-                        ::_free(item);
+                        appendPythonStr(ret_val, s);
                     }
                 }
             }
@@ -846,18 +856,14 @@ std::string Three::_fetchPythonError() const
         PyObject *pvalue_obj = PyObject_Str(pvalue);
         if (pvalue_obj != NULL) {
             // we know pvalue_obj is a string (we just casted it), no need to PyUnicode_Check()
-            char *ret = as_string(pvalue_obj);
-            ret_val += ret;
-            ::_free(ret);
+            appendPythonStr(ret_val, pvalue_obj);
             Py_XDECREF(pvalue_obj);
         }
     } else if (ptype != NULL) {
         PyObject *ptype_obj = PyObject_Str(ptype);
         if (ptype_obj != NULL) {
             // we know ptype_obj is a string (we just casted it), no need to PyUnicode_Check()
-            char *ret = as_string(ptype_obj);
-            ret_val += ret;
-            ::_free(ret);
+            appendPythonStr(ret_val, ptype_obj);
             Py_XDECREF(ptype_obj);
         }
     }

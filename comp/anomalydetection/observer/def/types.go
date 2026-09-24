@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Handle is the lightweight observation interface passed to other components.
@@ -38,7 +39,10 @@ type HandleFunc func(name string) Handle
 type MetricView interface {
 	GetName() string
 	GetValue() float64
-	GetRawTags() []string
+	// GetTags returns the final tags used by the metrics pipeline for this sample.
+	GetTags() tagset.CompositeTags
+	// GetHost returns the host dimension carried separately from metric tags.
+	GetHost() string
 	// GetTimestampUnix returns the sample timestamp in Unix seconds.
 	GetTimestampUnix() int64
 	GetSampleRate() float64
@@ -79,11 +83,12 @@ type LogObserver interface {
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
-// The storage keeps full summaries (min/max/sum/count) so aggregation
-// is specified at read time, not write time.
+// The storage keeps sum/count summaries so aggregation is specified at read
+// time, not write time.
 type MetricOutput struct {
 	Name    string
 	Value   float64
+	Host    string
 	Tags    []string
 	Context *MetricContext // optional; stored on the series for anomaly enrichment
 }
@@ -106,6 +111,8 @@ type SeriesDescriptor struct {
 	Namespace string
 	// Name is the base metric name (e.g. "log.pattern.<hash>.count", "cpu.user").
 	Name string
+	// Host is the host dimension carried separately from Tags.
+	Host string
 	// Tags are the series-level tags (e.g. ["host:web-1", "env:prod"]).
 	Tags []string
 	// Aggregate is the aggregation applied when reading the series.
@@ -127,14 +134,18 @@ func (sd SeriesDescriptor) String() string {
 // DisplayName returns a display string with tags (e.g. "cpu.user:avg{host:web-1}").
 func (sd SeriesDescriptor) DisplayName() string {
 	base := sd.String()
-	if len(sd.Tags) == 0 {
+	tags := sd.Tags
+	if sd.Host != "" && !containsTag(tags, "host:"+sd.Host) {
+		tags = append([]string{"host:" + sd.Host}, tags...)
+	}
+	if len(tags) == 0 {
 		return base
 	}
-	return base + "{" + strings.Join(sd.Tags, ",") + "}"
+	return base + "{" + strings.Join(tags, ",") + "}"
 }
 
 // Key returns a stable string suitable for use as a map key.
-// Format: "namespace|name:agg|tag1,tag2,..."
+// Format: "namespace|name:agg|host|tag1,tag2,...".
 func (sd SeriesDescriptor) Key() string {
 	aggStr := AggregateString(sd.Aggregate)
 	var tagStr string
@@ -144,12 +155,22 @@ func (sd SeriesDescriptor) Key() string {
 		sort.Strings(sorted)
 		tagStr = strings.Join(sorted, ",")
 	}
-	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + tagStr
+	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + tagStr
+}
+
+func containsTag(tags []string, tag string) bool {
+	for _, candidate := range tags {
+		if candidate == tag {
+			return true
+		}
+	}
+	return false
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
-// Storage assigns a SeriesRef when a series key is first created;
-// the ref remains stable for the lifetime of the storage instance.
+// Storage assigns a unique SeriesRef when a series key is first created. The
+// ref remains stable while the series is live and is never reused; after
+// eviction it is invalid for the remainder of the storage instance lifetime.
 type SeriesRef int
 
 // QueryHandle pairs a storage series ref with its aggregate, providing
@@ -222,19 +243,15 @@ type AnomalyDebugInfo struct {
 	// Baseline statistics
 	BaselineStart  int64   // timestamp of baseline period start
 	BaselineEnd    int64   // timestamp of baseline period end
-	BaselineMean   float64 // mean of baseline (for CUSUM)
+	BaselineMean   float64 // mean of baseline
 	BaselineMedian float64 // median of baseline
-	BaselineStddev float64 // stddev of baseline (for CUSUM)
+	BaselineStddev float64 // stddev of baseline
 	BaselineMAD    float64 // MAD of baseline
 
 	// Detection parameters
 	Threshold      float64 // threshold that was crossed
-	SlackParam     float64 // k parameter (CUSUM only)
 	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
-
-	// For CUSUM: the cumulative sum values leading up to detection
-	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
 // ReportOutput is the output model passed to reporters after each advance cycle.
@@ -253,6 +270,7 @@ type ReportOutput struct {
 type Series struct {
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 	Points    []Point
 }
@@ -439,7 +457,8 @@ type ActiveCorrelation struct {
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
 // Used by test bench reporters to display individual detector outputs.
 type RawAnomalyState interface {
-	// RawAnomalies returns all anomalies detected by detector implementations.
+	// RawAnomalies returns retained detector output when replay/debug history is enabled.
+	// Live production observers deliberately retain no full anomaly history.
 	RawAnomalies() []Anomaly
 }
 
@@ -454,6 +473,7 @@ const AgentNamespace = "agent"
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
 	Namespace   string            // exact match (empty = any)
+	Host        string            // exact match (empty = any)
 	NamePattern string            // prefix match (empty = any)
 	TagMatchers map[string]string // required tag key=value pairs
 	// ExcludeNamespaces skips series whose namespace is in this list. It is only
@@ -474,6 +494,7 @@ type SeriesMeta struct {
 	Ref       SeriesRef
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 }
 
@@ -485,8 +506,6 @@ const (
 	AggregateAverage
 	AggregateSum
 	AggregateCount
-	AggregateMin
-	AggregateMax
 )
 
 // AggregateString returns a short string label for the aggregation type.
@@ -500,10 +519,6 @@ func AggregateString(agg Aggregate) string {
 		return "sum"
 	case AggregateCount:
 		return "count"
-	case AggregateMin:
-		return "min"
-	case AggregateMax:
-		return "max"
 	default:
 		return "unknown"
 	}
@@ -608,6 +623,23 @@ type Detector interface {
 	Detect(storage StorageReader, dataTime int64) DetectionResult
 }
 
+// DetectorPointWindow bounds a detector's raw-observation history.
+type DetectorPointWindow struct {
+	// MinPoints is the visible-history threshold for a cold series. On first
+	// activation, the detector replays retained points, including earlier ones.
+	// Active state continues even if visible history later drops below it.
+	MinPoints int
+	// MaxPoints limits raw history, not detector-state lifetime. It must be at
+	// least MinPoints; storage keeps an additional scheduler pending bucket.
+	MaxPoints int
+}
+
+// DetectorPointWindowRequirement is an optional Detector capability. The
+// observer derives retention from the maximum MaxPoints of enabled detectors.
+type DetectorPointWindowRequirement interface {
+	DetectorPointWindow() DetectorPointWindow
+}
+
 // SeriesRemover is an optional interface that Detector implementations can
 // satisfy to receive notifications when storage drops series.
 //
@@ -615,11 +647,11 @@ type Detector interface {
 // segment buffers, ScanWelch posterior, the seriesDetectorAdapter visible
 // point count map, etc.) keyed by SeriesRef. Storage frees the series
 // payload itself when extractors evict their LRU contexts and the engine
-// calls RemoveSeriesByKeys, but without this hook the detector-side maps
+// calls its series-removal methods, but without this hook the detector-side maps
 // keep growing unbounded with the cumulative number of series ever
 // observed. The engine fans the freed refs out to every detector that
-// implements this interface immediately after RemoveSeriesByKeys returns
-// them, keeping detector state symmetric with storage state.
+// implements this interface immediately after storage returns them, keeping
+// detector state symmetric with storage state.
 //
 // Implementations should be cheap (a handful of map deletes) and tolerant
 // of refs they have never seen — adapters routinely receive refs for

@@ -21,20 +21,29 @@ All of the following must hold:
 
 | Condition | Why |
 |---|---|
-| `data_plane.preflight_mode` is `true` (the default) | The off switch, and the only knob preflight mode exposes. |
+| `data_plane.preflight_mode` is `true` (the default) | The off switch, and the only knob operators need. |
 | `data_plane.enabled` has not been set **at all** | An explicit `true` means ADP is already running for real and two instances would contend for the API, secure API and telemetry ports plus the DogStatsD socket. An explicit `false` means the operator does not want ADP running. Either way the operator has an opinion and preflight mode stays out of the way. Note the platform gate in `sanitizeDataPlaneConfig` sets this to `false` on unsupported platforms, which also disables preflight mode. |
 | The Agent flavor is the default Agent | Heroku and IoT share the same `run` command with fewer build tags and neither ships ADP. |
 | No secrets are in play | The pre-flight writes the resolved configuration to a file, so a secret the resolver only ever held in memory would be materialized in plaintext on disk. Skipped when `secret_backend_command`, `secret_backend_type` or `multi_secret_backends` is set, or when anything at all is sitting in the config's `secret` source layer. See `secretsInUse`. |
 | The ADP binary is on disk | Absent on Heroku packages and slim container images. Silently skipped — not reported. |
 
-It runs **once** per Agent start, not on a schedule, for a fixed 90 seconds.
+It runs **once** per Agent start, not on a schedule, for 90 seconds.
 
-The window is deliberately **not** configurable (`preflightModeDuration` in
-`comp/dataplane/preflightmode/impl`). There is no operational reason to tune it — the switch
-operators need is `data_plane.preflight_mode` — and a documented duration setting would be public
-API to support and later deprecate for a mechanism that only exists until ADP goes GA. Fixing
-it also makes the agent telemetry `start_after` a provable relationship instead of one an
-operator could silently break.
+`data_plane.preflight_mode_duration` can extend that window but not shrink it: anything below
+`minPreflightModeDuration` (90s, in `comp/dataplane/preflightmode/impl`) is raised to it. The
+floor is the contract — a shorter window stops ADP while its startup is still in progress and
+turns a healthy host into a finding, and the clamp is also what absorbs a value that is not a
+duration at all, since `GetDuration` reads a bare `90` as 90 nanoseconds.
+
+Extending it is not something to do on a real host; the switch operators need is
+`data_plane.preflight_mode`. It exists for benchmarking harnesses that need ADP resident for the
+whole of a fixed-length run, where the pre-flight otherwise stops halfway through and the step
+down in RSS reads as an oscillation in the target's footprint. The SMP quality gates in
+`test/regression/cases/quality_gate_*` set it for exactly that reason.
+
+Extending the window past the agent telemetry `start_after` does not strand the outcome: the
+`data-plane-preflight-mode` schedule is recurring, so a flush landing mid-run finds nothing and a
+later one ships the result.
 
 ### What makes the run inert
 
@@ -132,9 +141,10 @@ pre-flight is trying to exercise. SIGINT produces the full
 `Agent Data Plane stopped.` sequence and exit status 0.
 
 If ADP does not exit within `data_plane.stop_timeout`, it is killed and `stop_timeout` is
-reported. A process that died from the signal we sent is never reported as `nonzero_exit`:
-that distinction is the difference between "ADP failed" and "we stopped ADP", and getting it
-wrong would flag every single run as a failure.
+reported. The exit status itself is deliberately not interpreted at all: we asked the process
+to stop, so whether it exited 0 or died from the signal says nothing about its health. That
+distinction is the difference between "ADP failed" and "we stopped ADP", and getting it wrong
+would flag every single run as a failure.
 
 **On Windows the process is terminated outright**, because there is no signal a console-less
 child reliably observes. The graceful-shutdown path is therefore not exercised there, and the
@@ -177,7 +187,7 @@ profile:
 | Metric | Meaning |
 |---|---|
 | `data_plane.preflight_mode_result{result}` | One value per run: `clean`, or the first finding. |
-| `data_plane.preflight_mode_finding{finding}` | One increment per distinct finding. |
+| `data_plane.preflight_mode_finding{finding,source_file,source_line}` | One increment per distinct finding, and for the two findings that come from ADP's log, one per distinct log site it was reported from. |
 | `data_plane.preflight_mode_duration_seconds` | Wall-clock length of the run. |
 
 The profile's schedule is **recurring**, not one-shot, so that changing the run window cannot
@@ -185,20 +195,48 @@ strand the outcome: a flush landing mid-run finds nothing, and with `iterations:
 be no later collection. Safe because counters are delta-converted — the increment ships on
 whichever flush first observes it, and later flushes send zero, which `zero_metric` drops.
 
-Findings: `spawn_failed`, `no_listener`, `probe_send_failed`, `exited_early`,
-`nonzero_exit`, `stop_timeout`, `errors_in_log`, `warnings_in_log`, `output_truncated`,
-`unstructured_output`, `interrupted`.
+Findings: `spawn_failed`, `probe_failed`, `exited_early`, `stop_timeout`, `errors_in_log`,
+`warnings_in_log`, `output_dropped`, `interrupted`.
 
-Only these bounded enums are shipped. ADP's actual error text is **not** yet sent
-anywhere — see the `reportErrorMessages` stub in `comp/dataplane/preflightmode/impl/report.go`.
-The agent telemetry error-tracking pipeline deliberately ships PC-only telemetry with no
-message field, so shipping log text needs a new event type plus a backend schema, agreed
-with the team that owns that pipeline.
+`errors_in_log` and `warnings_in_log` are additionally tagged with the ADP source location
+that logged the record — `source_file:lib/saluki-components/src/common/datadog/validation.rs`,
+`source_line:286` — so the same failure can be counted across the fleet by the log site that
+produced it. Those values come from ADP's own `file!()`/`line!()`, making them compile-time
+constants of its build rather than anything derived from a log message. Separators are folded to
+`/` before anything else, because `file!()` reports the path form of the machine ADP was built
+on: a Windows build logs `bin\agent-data-plane\src\main.rs`, and without the fold it would tag a
+second log site rather than the one a Linux build reports. The folded value is then validated
+against a path-shaped character set, and a value that fails validation (or a record that has
+none, such as a panic that bypassed the logger) reports `<unknown>`. Every other finding carries
+both tags empty, since a finding the pre-flight observed about the *process* has no source
+location. A finding logged from more than `maxReportedLocations` distinct sites reports the
+surplus under `<other>`, which bounds the cardinality one run can contribute.
+
+**A source location is only meaningful alongside an ADP version, because ADP's line numbers move
+between releases**: the standalone-mode warning is `env/mod.rs:59` in 1.4.0 and `env/mod.rs:63` in
+1.6.1, and the invalid-key warning moved from `validation.rs:286` to `:299`. No version tag is
+emitted for this, and deliberately so: the ADP version is pinned per Agent version (see `VERSION`
+in `deps/agent_data_plane/agent_data_plane.MODULE.bazel`), and agent telemetry already stamps every
+payload with the Agent version as the `DD-Telemetry-Product-Version` header — so the correlation is
+already available without paying for another label on every timeseries. A monitor grouped on
+`source_line` will still churn across Agent releases, which is worth knowing when writing one.
+`expectedWarnings` deliberately matches on target plus a message substring rather than a location,
+so that this churn cannot silently un-suppress it.
+
+Note that this makes the finding counter count *log sites*, not runs: a run that logged errors
+from three places ships three points. The count of runs that hit a finding at all comes from
+`preflight_mode_result`, or from grouping the finding metric by location.
+
+Apart from the log site, only the bounded enums above are shipped. ADP's actual error text is
+**not** yet sent anywhere — see the `TODO` on `report` in
+`comp/dataplane/preflightmode/impl/report.go`. The agent telemetry error-tracking pipeline
+deliberately ships PC-only telemetry with no message field, so shipping log text needs a new
+event type plus a backend schema, agreed with the team that owns that pipeline.
 
 ### Reading the output
 
-Preflight mode forces `log_format_json`, and the scanner in
-`comp/dataplane/preflightmode/impl/logscan.go` parses **only** JSON. That is a deliberate
+Preflight mode forces `log_format_json`, and the capture in
+`comp/dataplane/preflightmode/impl/capture.go` parses **only** JSON. That is a deliberate
 simplification with a specific justification: ADP renders a whole `anyhow` error chain into
 the `message` field, so a plain-text log spreads one event over many physical lines and
 needs heuristics to reassemble. In JSON the newlines are escaped inside the string, so a
@@ -210,9 +248,21 @@ record is always exactly one line and no heuristics are needed.
  "target":"agent_data_plane","filename":"bin/agent-data-plane/src/main.rs","line_number":195}
 ```
 
+ADP's startup record identifies the build it is running, and is emitted before ADP even loads its
+configuration — so it is available even on a run that dies on a bad config, should the version
+ever be worth reading:
+
+```json
+{"level":"INFO","message":"Agent Data Plane starting...","version":"1.6.1",
+ "git_hash":"b5cfc9794d49ff5636ff503180a56b276ad09f7e","target_arch":"aarch64-unknown-linux-gnu",
+ "target":"agent_data_plane::cli::run","filename":"bin/agent-data-plane/src/cli/run.rs","line_number":95}
+```
+
 `ERROR`/`FATAL`/`CRITICAL` records drive `errors_in_log`. Records are grouped by
-`(level, target, normalized message)` — `target` is the Rust module path, entirely
-code-determined, so it is safe to keep and useful for grouping.
+`(level, target, normalized message, filename, line_number)` — all of which are
+code-determined (`target` is the Rust module path, and the other two come from ADP's logger),
+so they are safe to keep and useful for grouping. The filename and line are also what the
+finding telemetry is tagged with.
 
 **`WARN` records get their own finding, `warnings_in_log`, and that is not a nicety.** ADP
 reports some hard blockers at WARN rather than ERROR — a rejected API key among them:
@@ -228,7 +278,7 @@ key does not work, which is close to the worst possible failure for a pre-flight
 
 Warnings that preflight mode provokes itself are excluded, or the finding would fire on every
 run and drown the ones that matter. Today that is just the `standalone mode` warning caused
-by `data_plane.standalone_mode`; the list is `expectedWarnings` in `logscan.go`, matched on
+by `data_plane.standalone_mode`; the list is `expectedWarnings` in `capture.go`, matched on
 target plus a message substring so that an unrelated component cannot suppress a real
 warning by wording.
 

@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Adds ``data_plane.preflight_mode_duration``, which sets how long the Agent Data Plane (ADP)
+    pre-flight leaves ADP running. It defaults to ``90s`` and is clamped to that as a minimum, so
+    it can only extend the window: a shorter one stops ADP while its startup is still in progress
+    and reports a healthy host as a failure. It is intended for benchmarking harnesses that need
+    ADP resident for the whole of a fixed-length run; on a real host the setting to reach for
+    remains ``data_plane.preflight_mode``.

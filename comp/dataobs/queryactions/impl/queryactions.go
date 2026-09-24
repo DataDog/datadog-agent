@@ -21,7 +21,7 @@ import (
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Requires defines the dependencies for the Data Observability query actions component
@@ -156,7 +156,7 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 		}()
 
 		// Check immediately: the file config provider runs before this one in LoadAndRun,
-		// so postgres is typically already available when Stream() is called.
+		// so a supported integration is typically already available when Stream() is called.
 		if c.hasSupportedIntegration() {
 			subscribeAndWait()
 			return

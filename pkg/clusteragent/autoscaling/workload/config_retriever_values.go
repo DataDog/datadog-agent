@@ -116,8 +116,8 @@ func (p *autoscalingValuesProcessor) postProcess() {
 }
 
 func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
-	// We only reconcile if we are the leader and we have a state
-	if !isLeader || p.state == nil {
+	// We only reconcile if we are the leader
+	if !isLeader {
 		return
 	}
 
@@ -127,6 +127,11 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 		return
 	}
 	defer p.updateLock.Unlock()
+
+	// Check state under the lock to avoid racing with postProcess which writes p.state
+	if p.state == nil {
+		return
+	}
 
 	// Update PodAutoscalers with buffered values
 	for paID, item := range p.state {
@@ -288,6 +293,15 @@ func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.Wor
 			for resourceName, requestQty := range convertedResources.Requests {
 				if limitQty, found := convertedResources.Limits[resourceName]; found && limitQty.Cmp(requestQty) < 0 {
 					return nil, fmt.Errorf("resource: %s, request %s is greater than limit %s", resourceName, requestQty.String(), limitQty.String())
+				}
+			}
+
+			if containerResources.Runtime != nil && containerResources.Runtime.Gomemlimit != "" {
+				if err := model.ValidateGoMemLimit(containerResources.Runtime.Gomemlimit); err != nil {
+					return nil, fmt.Errorf("container %s: %w", containerResources.ContainerName, err)
+				}
+				convertedResources.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+					Gomemlimit: containerResources.Runtime.Gomemlimit,
 				}
 			}
 

@@ -4,12 +4,13 @@ from typing import TYPE_CHECKING
 
 import click
 from dda.cli.base import dynamic_command, pass_app
+from utils.docs.deps import COMMAND_DEPENDENCIES
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
 
 
-@dynamic_command(short_help="Build documentation")
+@dynamic_command(short_help="Build documentation", dependencies=COMMAND_DEPENDENCIES)
 @click.option("--check", is_flag=True, help="Ensure links are valid")
 @pass_app
 def cmd(app: Application, *, check: bool) -> None:

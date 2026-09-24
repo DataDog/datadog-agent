@@ -39,7 +39,7 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import running_in_ci, set_gitconfig_in_ci
+from tasks.libs.common.utils import join_command, running_in_ci, set_gitconfig_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
@@ -80,9 +80,20 @@ from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 QUALIFICATION_TAG = "qualification"
 
 
+def _get_module_pseudo_version(ctx, module, commit):
+    """Resolve the canonical pseudo-version for a module at a commit."""
+    command = join_command(["go", "list", "-m", "-mod=mod", "-f={{.Version}}", f"{module.import_path}@{commit}"])
+    version = ctx.run(command, hide=True).stdout.strip()
+    if not version:
+        raise Exit(f"Could not resolve a pseudo-version for {module.import_path} at {commit}")
+    return version
+
+
 @task
 def update_modules(ctx, release_branch=None, version=None, trust=False):
     """Update internal dependencies between the different Agent modules.
+
+    Agent 6 release candidates use pseudo-versions because their nested modules are not tagged.
 
     Args:
         verify: Checks for correctness on the Agent Version (on by default).
@@ -95,8 +106,12 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
+    agent6_rc = RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6
+
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
+        commit = ctx.run("git rev-parse HEAD", hide=True).stdout.strip() if agent6_rc else None
+        pseudo_versions = {}
         for module in modules.values():
             for dependency in module.dependencies(ctx):
                 dependency_mod = modules[dependency]
@@ -107,7 +122,13 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
                 ):
                     # Skip this dependency update in new-e2e for Agent 6, as it's incompatible.
                     continue
-                ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+                if agent6_rc:
+                    if dependency not in pseudo_versions:
+                        pseudo_versions[dependency] = _get_module_pseudo_version(ctx, dependency_mod, commit)
+                    dependency_path = f"{dependency_mod.import_path}@{pseudo_versions[dependency]}"
+                else:
+                    dependency_path = dependency_mod.dependency_path(agent_version)
+                ctx.run(f"go mod edit -require={dependency_path} {module.go_mod_path()}")
 
 
 def __get_force_option(force: bool) -> str:
@@ -159,6 +180,8 @@ def tag_modules(
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
+    Agent 6 release candidates are skipped; their modules should use pseudo-versions.
+
     Args:
         commit: Will tag `commit` with the tags (default HEAD).
         verify: Checks for correctness on the Agent version (on by default).
@@ -176,6 +199,12 @@ def tag_modules(
     assert release_branch or version
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
+
+    # Agent 6 consumers can use the global RC tag to find the commit for a pseudo-version.
+    # Final release module tags remain unaffected.
+    if RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6:
+        print(f"Skipping module tags for Agent 6 release candidate {agent_version}")
+        return
 
     def _tag_modules():
         tags = []
@@ -412,7 +441,8 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
-        Updates internal module dependencies with the new RC.
+        Updates internal module dependencies with the new RC. Agent 6 RCs use
+        pseudo-versions because RC module tags are not created.
 
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 

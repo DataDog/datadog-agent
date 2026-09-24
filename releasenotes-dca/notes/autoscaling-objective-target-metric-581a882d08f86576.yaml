@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Added the ``datadog.cluster_agent.autoscaling.workload.objective.target``
+    gauge, which exposes the target value configured in a
+    ``DatadogPodAutoscaler`` ``spec.objectives``. The metric is tagged with
+    ``objective_type`` (``pod_resource``, ``container_resource`` or
+    ``custom_query``), ``value_type`` (``utilization`` or ``absolute_value``),
+    ``objective_index`` (the 0-based position in ``spec.objectives`` that keeps
+    each objective a distinct timeseries), and, for resource objectives,
+    ``resource_name`` and ``kube_container_name``.

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "host",
@@ -35,6 +36,16 @@ go_library(
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
         "//test/e2e-framework/testing/utils/e2e/client",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+dd_agent_go_test(
+    name = "host_test",
+    srcs = ["host_test.go"],
+    embed = [":host"],
+    deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

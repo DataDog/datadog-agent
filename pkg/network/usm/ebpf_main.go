@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package usm
 
@@ -324,6 +324,15 @@ func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protoc
 	// Populate sets with existing elements
 	for _, m := range e.Maps {
 		existingMaps[m.Name] = struct{}{}
+	}
+	// Maps, PerfMaps and RingBuffers share one namespace that the manager
+	// requires to be disjoint, so a map already registered as a perf map or a
+	// ring buffer must not be re-added to e.Maps on a subsequent load attempt.
+	for _, pm := range e.PerfMaps {
+		existingMaps[pm.Name] = struct{}{}
+	}
+	for _, rb := range e.RingBuffers {
+		existingMaps[rb.Name] = struct{}{}
 	}
 	for _, p := range e.Probes {
 		existingProbes[p.EBPFFuncName] = struct{}{}

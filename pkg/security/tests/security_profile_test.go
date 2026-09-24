@@ -31,6 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
+var _ = declareInlineConfig(TestSecurityProfile)
+
 func TestSecurityProfile(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -52,6 +54,8 @@ func TestSecurityProfile(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		// this exercises the v1 activity dump manager, which is inactive under security profile v2
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
@@ -207,6 +211,8 @@ func TestSecurityProfile(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestAnomalyDetection)
+
 func TestAnomalyDetection(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -228,6 +234,7 @@ func TestAnomalyDetection(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -385,6 +392,8 @@ func TestAnomalyDetection(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestAnomalyDetectionVariables)
+
 func TestAnomalyDetectionVariables(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -426,6 +435,7 @@ func TestAnomalyDetectionVariables(t *testing.T) {
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -503,6 +513,8 @@ func TestAnomalyDetectionVariables(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestAnomalyDetectionWarmup)
+
 func TestAnomalyDetectionWarmup(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -524,6 +536,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -662,6 +675,8 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileReinsertionPeriod)
+
 func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -684,6 +699,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -846,6 +862,8 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 
 }
 
+var _ = declareInlineConfig(TestSecurityProfileDifferentiateArgs)
+
 func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -867,6 +885,7 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -955,6 +974,8 @@ func TestSecurityProfileDifferentiateArgs(t *testing.T) {
 	}
 }
 
+var _ = declareInlineConfig(TestSecurityProfileLifeCycleExecs)
+
 func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -979,6 +1000,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1129,6 +1151,8 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileLifeCycleDNS)
+
 func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1153,6 +1177,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1301,6 +1326,8 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileLifeCycleSyscall)
+
 func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1325,6 +1352,7 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	fakeManualResolver := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		enableActivityDump:                         true,
 		activityDumpRateLimiter:                    200,
 		activityDumpTracedCgroupsCount:             10,
@@ -1490,6 +1518,8 @@ func TestSecurityProfileLifeCycleSyscall(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileLifeCycleEvictionProcess)
+
 func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1514,6 +1544,7 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1668,6 +1699,8 @@ func TestSecurityProfileLifeCycleEvictionProcess(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileLifeCycleEvictionDNS)
+
 func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1692,6 +1725,7 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -1846,6 +1880,8 @@ func TestSecurityProfileLifeCycleEvictionDNS(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileLifeCycleEvictionProcessUnstable)
+
 func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1870,6 +1906,7 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          10,
@@ -2020,6 +2057,8 @@ func TestSecurityProfileLifeCycleEvictionProcessUnstable(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfilePersistence)
+
 func TestSecurityProfilePersistence(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2044,6 +2083,7 @@ func TestSecurityProfilePersistence(t *testing.T) {
 	fakeManualTagger := NewFakeManualTagger()
 
 	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -2226,6 +2266,8 @@ func checkExpectedSyscalls(t *testing.T, got []model.Syscall, expectedSyscalls [
 	return testOutput[model.ExecveReason] && testOutput[model.ExitReason] && testOutput[model.SyscallMonitorPeriodReason]
 }
 
+var _ = declareInlineConfig(TestSecurityProfileSyscallDrift)
+
 func TestSecurityProfileSyscallDrift(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2248,6 +2290,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		activityDumpSyscallMonitorPeriod:           3 * time.Second,
 		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
 		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
@@ -2348,6 +2391,8 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileSyscallDriftExecExitInProfile)
+
 func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2370,6 +2415,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		activityDumpSyscallMonitorPeriod:           3 * time.Second,
 		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
 		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
@@ -2468,6 +2514,8 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileSyscallDriftNoNewSyscall)
+
 func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2490,6 +2538,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	outputDir := t.TempDir()
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                   true,
 		activityDumpSyscallMonitorPeriod:           3 * time.Second,
 		anomalyDetectionDefaultMinimumStablePeriod: 1 * time.Second,
 		anomalyDetectionEventTypes:                 []string{"exec", "syscalls"},
@@ -2553,6 +2602,8 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 // TestSecurityProfileSystemd tests the security profile functionality for systemd services.
 // It verifies that security profiles are correctly generated for systemd-managed services,
 // including proper metadata extraction and process tree capture.
+var _ = declareInlineConfig(TestSecurityProfileSystemd)
+
 func TestSecurityProfileSystemd(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2572,6 +2623,7 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      100,
@@ -2680,6 +2732,8 @@ func TestSecurityProfileSystemd(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestAnomalyDetectionSystemd)
+
 func TestAnomalyDetectionSystemd(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2699,6 +2753,7 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          100,
@@ -2798,6 +2853,8 @@ func TestAnomalyDetectionSystemd(t *testing.T) {
 // TestSecurityProfileSystemdLifeCycle tests the lifecycle management of security profiles for systemd services.
 // It verifies that profiles transition correctly between learning and stable states, and that
 // multiple versions of the same service are handled properly with appropriate anomaly detection behavior.
+var _ = declareInlineConfig(TestSecurityProfileSystemdLifeCycle)
+
 func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2817,6 +2874,7 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:                true,
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          100,
@@ -2950,6 +3008,8 @@ func TestSecurityProfileSystemdLifeCycle(t *testing.T) {
 	})
 }
 
+var _ = declareInlineConfig(TestSecurityProfileNodeEviction)
+
 func TestSecurityProfileNodeEviction(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -2972,6 +3032,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,

@@ -8,6 +8,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"os"
 	"time"
 
@@ -36,31 +37,31 @@ func main() {
 		// Wait for input before executing functions to allow time for uprobe attachment
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
-		runAll()
+		runAll(context.Background())
 		return
 	}
 
-	// Long-running mode used by the debugger demo deployment.
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for range ticker.C {
-		span := tracer.StartSpan("demo-round")
-		runAll()
+		span, ctx := tracer.StartSpanFromContext(context.Background(), "demo-round")
+		runAll(ctx)
 		span.Finish()
 	}
 }
 
-func runAll() {
-	executeOther()
-	executeBasicFuncs()
-	executeMultiParamFuncs()
-	executeStringFuncs()
-	executeArrayFuncs()
-	executeSliceFuncs()
-	executeStructFuncs()
-	executeStack()
-	executeInlined()
-	executePointerFuncs()
-	executeComplexFuncs()
+func runAll(ctx context.Context) {
+	executeOther(ctx)
+	executeBasicFuncs(ctx)
+	executeMultiParamFuncs(ctx)
+	executeStringFuncs(ctx)
+	executeArrayFuncs(ctx)
+	executeSliceFuncs(ctx)
+	executeStructFuncs(ctx)
+	executeServerFuncs(ctx)
+	executeStack(ctx)
+	executeInlined(ctx)
+	executePointerFuncs(ctx)
+	executeComplexFuncs(ctx)
 	lib.Foo()
 	lib_v2.FooV2()
 	var t lib_v2.V2Type
@@ -71,9 +72,9 @@ func runAll() {
 	lib.InlinedFunc()
 	lib2.UseGenericsWithFloat64()
 
-	executeContinuationFuncs()
-	executeContinuationStringFuncs()
-	executeTimeFuncs()
+	executeContinuationFuncs(ctx)
+	executeContinuationStringFuncs(ctx)
+	executeTimeFuncs(ctx)
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()

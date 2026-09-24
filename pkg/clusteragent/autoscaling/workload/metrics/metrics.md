@@ -44,6 +44,24 @@ Every metric carries the following base tags.
 
 ---
 
+### Apply mode
+
+#### `datadog.cluster_agent.autoscaling.workload.apply_mode`
+- **Type:** Gauge
+- **Tags:** base tags + `dpa_mode` + `dpa_dimension`
+- **Description:** Info-style metric that exposes the DPA apply mode and the enabled autoscaling
+  dimensions. Value is always `1`. The `dpa_mode` tag is `apply` when
+  `spec.applyPolicy.mode` is unset, empty, or `Apply`; it is `preview` when the mode is
+  `Preview`. A single point (one timeseries) is emitted per DPA, carrying one `dpa_dimension`
+  tag value per enabled dimension: a multi-dimensional DPA is tagged with both
+  `dpa_dimension:horizontal` and `dpa_dimension:vertical`, while disabled dimensions are not
+  tagged. Nothing is emitted when both dimensions are disabled. Because each DPA maps to exactly
+  one timeseries, a `count` over this metric yields the number of DPAs, and filtering on
+  `dpa_dimension:horizontal` still matches multi-dimensional DPAs. Use this metric when you need
+  to count or filter DPAs by preview/apply mode.
+
+---
+
 ### Horizontal scaling — received recommendations
 
 #### `datadog.cluster_agent.autoscaling.workload.horizontal_scaling_received_replicas`
@@ -177,6 +195,58 @@ memory values are in **bytes**.
 - **Description:** Maximum memory request (in bytes) allowed for the container, as configured
   in `spec.constraints.containers[*].maxAllowed` (or the deprecated
   `spec.constraints.containers[*].requests.maxAllowed`).
+
+#### `datadog.cluster_agent.autoscaling.workload.vertical_scaling.controlled_resources`
+- **Type:** Gauge
+- **Tags:** base tags + `kube_container_name` + `resource_name`
+- **Description:** Info-style metric that exposes which container resources are controlled by
+  vertical autoscaling. Value is always `1`. A single point (one timeseries) is emitted per
+  container constraint, carrying one `resource_name` tag value per controlled resource, such as
+  both `resource_name:cpu` and `resource_name:memory`. Because each container maps to exactly one
+  timeseries, filtering on `resource_name:cpu` still matches containers that also control memory.
+  Emitted only when vertical autoscaling is enabled for the DPA.
+  If `spec.constraints` is omitted, or `spec.constraints.containers` is empty, the metric emits
+  `kube_container_name:all` with both `resource_name:cpu` and `resource_name:memory`, matching the
+  controller default. If `spec.constraints.containers[*].controlledResources` is omitted, the metric
+  emits both `resource_name:cpu` and `resource_name:memory` for that container constraint. If
+  `controlledResources` is an empty list or the container constraint has `enabled: false`, no point
+  is emitted for that container constraint. A wildcard container constraint named `*` is emitted as
+  `kube_container_name:all`.
+
+---
+
+### Autoscaling objectives (target values)
+
+One metric point is emitted per objective configured in `spec.objectives[*]` that has a value
+set. The objective's kind and value semantics are differentiated entirely by tags — see the
+value-unit table below.
+
+#### `datadog.cluster_agent.autoscaling.workload.objective.target`
+- **Type:** Gauge
+- **Tags:** base tags + `objective_type` + `value_type` + `objective_index` + `resource_name`
+  *(only for resource objectives)* + `kube_container_name` *(only for container-resource
+  objectives)*
+- **Description:** Target value the autoscaler aims to reach and maintain for the workload, as
+  configured in `spec.objectives`. One point is emitted per objective. Objectives whose value
+  pointer is unset are skipped.
+
+| Tag | Values | Meaning |
+|-----|--------|---------|
+| `objective_type` | `pod_resource`, `container_resource`, `custom_query` | The objective kind (from `spec.objectives[*].type`). |
+| `value_type` | `utilization`, `absolute_value` | How the target is expressed (from `spec.objectives[*].*.value.type`). |
+| `objective_index` | `0`, `1`, … | 0-based position of the objective in `spec.objectives[]`. Guarantees a unique tag-set per objective so multiple objectives never collapse into one timeseries — this is the only distinguishing tag for multiple `custom_query` objectives, or for two objectives that share the same resource/container. Note it is **positional**: reordering or inserting an objective shifts the indices of those after it. |
+| `resource_name` | `cpu`, `memory` | The resource being targeted. Present for `pod_resource` and `container_resource` objectives; **omitted** for `custom_query`. |
+| `kube_container_name` | container name | The targeted container. Present **only** for `container_resource` objectives. |
+
+**Value units** (the metric value is unitless in the timeseries, so the meaning depends on the
+tags — filter by `value_type` before graphing so utilization and absolute values are not mixed):
+
+| `value_type` | `resource_name` | Value unit |
+|--------------|-----------------|------------|
+| `utilization` | `cpu` / `memory` | Percentage, `0`–`100` (e.g. `70` for a 70% target). |
+| `absolute_value` | `cpu` | Millicores (e.g. `500m` → `500`). |
+| `absolute_value` | `memory` | Bytes (e.g. `256Mi` → `268435456`). |
+| `absolute_value` | *(none — `custom_query`)* | The query's native unit as a floating-point number (e.g. `500M` → `5e8`); no CPU/memory conversion is applied. |
 
 ---
 

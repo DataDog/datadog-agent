@@ -277,7 +277,7 @@ func runJmxCommandConsole(config config.Component,
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
-	config.Set("language_detection.enabled", "false", model.SourceAgentRuntime)
+	config.Set("language_detection.enabled", false, model.SourceAgentRuntime)
 
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.

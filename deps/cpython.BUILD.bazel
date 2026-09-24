@@ -7,10 +7,13 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@cpython_versions//:constants.bzl", "PYTHON_MAJOR_MINOR", "PYTHON_MAJOR_MINOR_FLAT")
+load("@pythons_hub//:versions.bzl", "DEFAULT_PYTHON_VERSION")
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+DEFAULT_PYTHON = "@python_{}//:python3".format(DEFAULT_PYTHON_VERSION.replace(".", "_"))
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -71,7 +74,7 @@ run_binary(
             "libffi_win_dir",
             "openssl-bin_win_dir",
             "tcltk_win_dir",
-            "@python_3_12//:python3",
+            DEFAULT_PYTHON,
             # Hermetic compiler, SDK and MSBuild; nothing is taken from a host
             # Visual Studio installation.
             "@msvc_toolchains//msvc/tree:toolchain_tree",
@@ -99,7 +102,7 @@ run_binary(
         "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
         "MSBUILD": "$(location @msvc_toolchains//msbuild:msbuild)",
-        "PYTHON_FOR_BUILD": "$(location @python_3_12//:python3)",
+        "PYTHON_FOR_BUILD": "$(location {})".format(DEFAULT_PYTHON),
         # Marker files; build_python.bat derives each toolchain root from them.
         "VCTOOLS_VERSION_FILE": "$(location @msvc_toolchains//msvc/tree:version_marker)",
         "WINSDK_MARKER": "$(location @msvc_toolchains//winsdk/tree:root_marker)",
@@ -274,7 +277,7 @@ configure_make(
     build_data = [
         ":redacted_compat.h",
         "@@//deps/cpython:fix_sysconfigdata.py",
-        "@python_3_12//:python3",
+        DEFAULT_PYTHON,
     ] + select({
         "@platforms//os:macos": [
             "@llvm_toolchain_llvm//:ar",
@@ -346,13 +349,14 @@ configure_make(
     # basename so they can be found on PATH), clears build flags that are Bazel-specific, and replaces
     # sandbox paths with their install-prefix-relative equivalents.
     postfix_script = """
-    $(execpath @python_3_12//:python3) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
+    $(execpath {DEFAULT_PYTHON}) $(execpath @@//deps/cpython:fix_sysconfigdata.py) \
       --install-prefix "$(INSTALL_DIR)/embedded" \
       --sandbox-prefix "$$BUILD_TMPDIR/$$INSTALL_PREFIX" \
       $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py
     rm -f $$INSTALLDIR/lib/python{version}/config-*/Makefile
     find $$INSTALLDIR/lib/python{version} -name '*.exe' -delete
     """.format(
+        DEFAULT_PYTHON = DEFAULT_PYTHON,
         version = PYTHON_MAJOR_MINOR,
     ),
 )
@@ -394,13 +398,14 @@ dd_collect_dependencies(
 pkg_filegroup(
     name = "runtime_deps",
     srcs = [":_runtime_deps"],
-    prefix = "embedded",
     visibility = ["//visibility:public"],
 )
 
 pkg_files(
     name = "install_files_win",
     srcs = [":python_win"],
+    prefix = "embedded3",
+    strip_prefix = "build",
 )
 
 # On Windows, python_win is built via MSBuild (not cc_shared_library), so there are no
@@ -436,14 +441,14 @@ select_file(
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
-    link_name = "lib/libpython{}.so".format(PYTHON_MAJOR_MINOR),
+    link_name = "embedded/lib/libpython{}.so".format(PYTHON_MAJOR_MINOR),
     target = LINUX_SO,
     attributes = pkg_attributes("0644"),
 )
 
 BIN_SYMLINKS = {
-    "bin/python3": "python{}".format(PYTHON_MAJOR_MINOR),
-    "bin/python": "python3",
+    "embedded/bin/python3": "python{}".format(PYTHON_MAJOR_MINOR),
+    "embedded/bin/python": "python3",
 }
 
 [
@@ -487,6 +492,7 @@ select_file(
 pkg_files(
     name = "install_headers_unix",
     srcs = [":headers_unix"],
+    prefix = "embedded",
 )
 
 # Grouped helper for python_pkg installed_files: installed_files is non-configurable,
@@ -504,12 +510,13 @@ pkg_filegroup(
 dd_cc_packaged(
     name = "python_pkg",
     input = ":python_unix_shared",
+    dest_dir = "embedded/lib",
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {
-        ":python3_bin": "bin",
-        ":python_lib_dir_group_unix": "lib",
+        ":python3_bin": "embedded/bin",
+        ":python_lib_dir_group_unix": "embedded/lib",
     } | select({
-        "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
+        "@platforms//os:linux": {":python_stable_lib_linux": "embedded/lib"},
         "//conditions:default": {},
     }),
     visibility = ["//visibility:public"],
@@ -528,10 +535,6 @@ pkg_filegroup(
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
-    }),
-    prefix = select({
-        "@platforms//os:windows": "embedded3",
-        "//conditions:default": "embedded",
     }),
     visibility = ["//visibility:public"],
 )

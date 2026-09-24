@@ -14,6 +14,7 @@ upload_dependencies_sysprobe_x64:
 upload_dependencies_sysprobe_arm64:
   extends:
     - .package_dependencies
+  timeout: 1h 05m
   needs:
     - !reference [.kmt_setup_needs]
     - pull_test_dockers_arm64
@@ -106,6 +107,7 @@ upload_minimized_btfs_sysprobe_x64:
 upload_minimized_btfs_sysprobe_arm64:
   extends:
     - .upload_minimized_btfs
+  timeout: 1h 00m
   needs:
     - !reference [.kmt_setup_needs]
     - generate_minimized_btfs_arm64
@@ -119,6 +121,7 @@ upload_minimized_btfs_sysprobe_arm64:
 kmt_setup_env_sysprobe_arm64:
   extends:
     - .kmt_setup_env
+  timeout: 1h 10m
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   variables:
     INSTANCE_TYPE: "r6gd.metal"
@@ -193,6 +196,7 @@ upload_sysprobe_tests_x64:
 upload_sysprobe_tests_arm64:
   extends:
     - .upload_sysprobe_tests
+  timeout: 55m
   needs:
     - !reference [.kmt_setup_needs]
     - prepare_sysprobe_ebpf_functional_tests_arm64

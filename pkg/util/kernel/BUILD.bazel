@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:exclude kmsg_integration_test.go
+
 go_library(
     name = "kernel",
     srcs = [
@@ -11,11 +13,14 @@ go_library(
         "fs_nolinux.go",
         "ip.go",
         "ip_unsupported.go",
+        "kmsg.go",
         "lockdown.go",
         "platform.go",
+        "platform_windows.go",
         "proc.go",
         "testutil.go",
         "uname.go",
+        "uname_windows.go",
         "vdso.go",
         "version.go",
     ],
@@ -26,6 +31,7 @@ go_library(
             "//pkg/util/funcs",
         ],
         "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
             "//pkg/config/env",
             "//pkg/util/funcs",
             "//pkg/util/safeelf",
@@ -53,6 +59,7 @@ go_library(
             "//pkg/util/funcs",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
             "//pkg/config/env",
             "//pkg/util/funcs",
             "//pkg/util/safeelf",
@@ -81,6 +88,9 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/funcs",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],
     }),
@@ -91,6 +101,7 @@ dd_agent_go_test(
     srcs = [
         "auxv_test.go",
         "cpu_test.go",
+        "kmsg_test.go",
         "lockdown_test.go",
         "platform_test.go",
         "proc_linux_test.go",
@@ -101,15 +112,34 @@ dd_agent_go_test(
     embed = [":kernel"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/mock",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/def",
+            "//comp/core/telemetry/mock",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
+)
+
+dd_agent_go_test(
+    name = "kernel_kmsg_test",
+    srcs = ["kmsg_integration_test.go"],
+    embed = [":kernel"],
+    gotags_sets = [["bpf"]],
+    include_default = False,
+    tags = ["requires_ebpf"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//comp/core/telemetry/mock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_sys//unix",
+    ],
 )

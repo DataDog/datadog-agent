@@ -4,6 +4,7 @@ was_canceled = False
 discover_config_return = "[]"
 discover_config_exception = None
 discover_config_service_json = None
+run_exception = None
 
 
 # Fake check for testing purposes
@@ -15,6 +16,11 @@ class FakeCheck(AgentCheck):
         if discover_config_exception is not None:
             raise Exception(discover_config_exception)
         return discover_config_return
+
+    def run(self):
+        if run_exception is not None:
+            raise Exception(run_exception)
+        return ""
 
     def cancel(self):
         global was_canceled

@@ -21,7 +21,6 @@ go_library(
         "//pkg/clusteragent/admission/mutate/tagsfromlabels",
         "//pkg/clusteragent/appsec",
         "//pkg/clusteragent/appsec/config",
-        "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/log",
         "@io_k8s_api//admission/v1:admission",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",

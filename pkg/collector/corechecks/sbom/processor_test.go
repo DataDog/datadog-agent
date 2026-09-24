@@ -1063,6 +1063,64 @@ func TestInUseFlagAccuracy(t *testing.T) {
 	})
 }
 
+// TestCorruptedSBOM checks that an image whose stored SBOM cannot be
+// uncompressed is skipped. Uncompressing returns no SBOM alongside its error,
+// so reading the SBOM anyway panicked, and the check runs on a goroutine that
+// nothing recovers.
+func TestCorruptedSBOM(t *testing.T) {
+	imageEntity := &workloadmeta.ContainerImageMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainerImageMetadata,
+			ID:   "sha256:9634b84c45c6ad220c3d0d2305aaa5523e47d6d43649c9bbeda46ff010b4aacd",
+		},
+		RepoTags:    []string{"datadog/agent:7-rc"},
+		RepoDigests: []string{"datadog/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409"},
+		SBOM: &workloadmeta.CompressedSBOM{
+			Bom:    []byte("not a gzip stream"),
+			Status: workloadmeta.Success,
+		},
+	}
+
+	cacheDir := t.TempDir()
+	cfg := configcomp.NewMockWithOverrides(t, map[string]interface{}{
+		"sbom.cache_directory":         cacheDir,
+		"sbom.container_image.enabled": true,
+	})
+	if sbomscanner.GetGlobalScanner() == nil {
+		wmeta := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
+			core.MockBundle(),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
+		assert.Nil(t, err)
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configcomp.Component { return configcomp.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	sent := atomic.NewInt32(0)
+	sender := mocksender.NewMockSender(t, "")
+	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Run(func(_ mock.Arguments) {
+		sent.Inc()
+	})
+
+	p, err := newProcessor(store, workloadfilterfxmock.SetupMockFilter(t), sender, taggerfxmock.SetupFakeTagger(t), cfg, 1, 50*time.Millisecond, time.Second)
+	assert.Nil(t, err)
+
+	store.Set(imageEntity)
+	p.processContainerImagesEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: imageEntity}},
+		Ch:     make(chan struct{}),
+	})
+	p.stop()
+
+	assert.Never(t, func() bool { return sent.Load() > 0 }, 100*time.Millisecond, 5*time.Millisecond)
+}
+
 func mustCompressSBOM(t *testing.T, sbom *workloadmeta.SBOM) *workloadmeta.CompressedSBOM {
 	t.Helper()
 

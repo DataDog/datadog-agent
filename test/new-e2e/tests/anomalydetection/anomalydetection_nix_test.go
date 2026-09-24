@@ -6,7 +6,7 @@
 // Package anomalydetection contains E2E tests for the anomaly detection observer.
 // Each file in this package covers one concern:
 //
-//   - anomalydetection_nix_test.go — reporter tests: DSD-spike (CUSUM) and file-log-spike (BOCPD)
+//   - anomalydetection_nix_test.go — reporter tests: DSD-spike and file-log-spike (BOCPD)
 //   - defaults_nix_test.go        — observer disabled by default (no observer telemetry metrics)
 //   - config_matrix_nix_test.go   — sub-gate independence (metrics/logs/internal gates)
 //   - shutdown_nix_test.go        — graceful shutdown under DSD load (no panic/crash)
@@ -27,23 +27,15 @@ import (
 
 // metricsTriggeredSuite exercises the DSD-metrics path of the observer. It sends a
 // stable gauge baseline followed by a large spike to trip the BOCPD detector, then
-// asserts the canonical "[observer] report: pattern=" marker appears in the agent's
+// asserts the canonical "[anomalydetection] reporter anomaly detection report:" marker appears in the agent's
 // systemd journal (stdout → journald by default).
 type metricsTriggeredSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 // TestAnomalyDetectionMetricsTriggered provisions a Linux VM with the observer
-// enabled using the CUSUM detector.
-//
-// CUSUM is preferred over BOCPD here because:
-//   - It fires deterministically after min_points=5 data points (default).
-//   - It does not require a long warmup phase (BOCPD default: 120 points).
-//   - With a constant baseline the stddev≈0 path sets threshold=10%×mean,
-//     so even a small spike fires immediately.
-//
-// The test sends one gauge per second to produce distinct one-second storage
-// points in the observer; CUSUM fires after min_points=5 baseline points.
+// enabled using BOCPD with a short test-only warmup. The test sends one gauge per
+// second to produce distinct one-second storage points before a sustained step.
 func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	t.Parallel()
 	// language=yaml
@@ -54,7 +46,7 @@ anomaly_detection:
     events:
       enabled: true
   anomaly_scorer:
-    # CUSUM produces a single anomalous series in this test. Keep the scorer
+    # BOCPD produces a single anomalous series in this test. Keep the scorer
     # thresholds below its first EWMA update so the report path sees High.
     low_threshold: 0.000001
     high_threshold: 0.00001
@@ -67,9 +59,10 @@ anomaly_detection:
     internal:
       enabled: false
   detectors:
-    cusum:
-      enabled: true
     bocpd:
+      enabled: true
+      warmup_points: 5
+    rrcf:
       enabled: false
   baseline_analysis:
     enabled: false
@@ -82,16 +75,15 @@ anomaly_detection:
 }
 
 // TestMetricsTriggeredEmitsOnDSDSpike sends a stable gauge baseline then a large
-// spike, expecting CUSUM to fire and the scorer to open an episode.
+// spike, expecting BOCPD to fire and the scorer to open an episode.
 //
-// Point counts: 15 baseline (well above the 5-point CUSUM minimum) followed by
-// 10 spike points — total ~25 seconds of data. The spike is 5000× the baseline
-// so CUSUM's stddev-based threshold fires on the very first spike point.
+// Point counts: 15 baseline (well above the test's 5-point warmup) followed by
+// 10 spike points — total ~25 seconds of data.
 func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 	const (
 		metricName     = "e2e.anomalydetection.test.gauge"
-		baseline       = 1.0
-		spike          = 5000.0
+		baseline       = 100.0
+		spike          = 140.0
 		baselinePoints = 15
 		spikePoints    = 10
 	)

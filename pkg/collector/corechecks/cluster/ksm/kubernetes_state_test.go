@@ -886,6 +886,29 @@ func TestProcessTelemetry(t *testing.T) {
 			},
 		},
 		{
+			name:   "customresource metric is not treated as a metadata metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_customresource_foo_info": {
+					{
+						Type: "*v1.DatadogAgent",
+						Name: "kube_customresource_foo_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"foo": "bar"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             0,
+				unknownMetricsCount:    1,
+				metricsCountByResource: map[string]int{},
+			},
+		},
+		{
 			name:   "pod, deployment and unknown metrics",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
@@ -1591,6 +1614,27 @@ func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
 			expectedJoins: map[string]*joinsConfig{
 				"kube_pod_annotations": {
 					labelsToMatch:    []string{"pod", "namespace"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
+					wildcardTemplate: "%%annotation%%",
+				},
+			},
+		},
+		{
+			// Regression test: a wildcard on the "namespace" kind must not
+			// duplicate the "namespace" entry in labelsToMatch, or insertMetric panics
+			// (`makeslice: cap out of range`) on any un-annotated namespace.
+			name: "With wildcard template on namespace kind",
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				AnnotationsAsTags: map[string]map[string]string{
+					"namespace": {"*": "%%annotation%%"},
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_namespace_annotations": {
+					labelsToMatch:    []string{"namespace"},
 					labelsToGet:      map[string]string{},
 					getAllLabels:     true,
 					wildcardTemplate: "%%annotation%%",

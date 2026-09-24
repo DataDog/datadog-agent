@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procscan
 
@@ -26,4 +26,9 @@ type ticks uint64
 // durationToTicks converts a duration to USER_HZ ticks, truncating.
 func durationToTicks(d time.Duration) ticks {
 	return ticks((d.Nanoseconds() * clkTck) / time.Second.Nanoseconds())
+}
+
+// ticksToDuration converts USER_HZ ticks to a duration.
+func ticksToDuration(t ticks) time.Duration {
+	return time.Duration(t) * time.Second / clkTck
 }

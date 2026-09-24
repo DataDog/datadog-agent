@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	gpu "github.com/DataDog/datadog-agent/pkg/gpu/tags"
@@ -66,7 +67,11 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 	}
 
 	if env.IsFeaturePresent(env.Kubernetes) {
-		providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
+		// Cluster Checks Runners have no reachable local Kubelet, so node-label-based
+		// tags can never be retrieved and would otherwise retry (and log WARNs) forever.
+		if !helper.IsCLCRunner(conf) {
+			providers["kubernetes"] = &providerDef{10, k8s.NewKubeNodeTagsProvider(conf).GetTags}
+		}
 		providers["kubernetes_cluster_agent_tags"] = &providerDef{10, clusterinfo.GetClusterAgentStaticTags}
 	}
 
@@ -74,6 +79,22 @@ func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 		providers["docker"] = &providerDef{1, docker.GetTags}
 	}
 	return providers
+}
+
+// getInfraTags returns the host tags specific to the configured infrastructure_mode,
+// or nil if the active mode does not contribute any host tags.
+func getInfraTags(conf model.Reader) []string {
+	// EUDM mode has a custom logic for its infra tags
+	if conf.GetString("infrastructure_mode") == infrastructureModeEndUserDevice {
+		return getEUDMTags()
+	}
+
+	// infra mode "full" is not included in the host tags to keep the same tag set if the config doesn't include the infrastructure mode key
+	if conf.GetString("infrastructure_mode") != "full" {
+		return []string{"infra_mode:" + conf.GetString("infrastructure_mode")}
+	}
+
+	return nil
 }
 
 // this is a "low-tech" version of tagger/utils/taglist.go but host tags are handled separately here for now
@@ -151,9 +172,7 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{tags.KubeDistribution + ":" + kubeDistro})
 	}
 
-	if conf.GetString("infrastructure_mode") == infrastructureModeEndUserDevice {
-		hostTags = appendToHostTags(hostTags, getEUDMTags())
-	}
+	hostTags = appendToHostTags(hostTags, getInfraTags(conf))
 
 	gceTags := []string{}
 	providers := getProvidersDefinitionsFunc(conf)

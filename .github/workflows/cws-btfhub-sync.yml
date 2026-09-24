@@ -47,13 +47,13 @@ jobs:
           df -h
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.base_branch || 'main' }}
           persist-credentials: false
 
       - name: Checkout btfhub-archive repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
@@ -66,7 +66,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: '.go-version'
 
@@ -99,7 +99,7 @@ jobs:
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.base_branch || 'main' }}
 
@@ -109,7 +109,7 @@ jobs:
           features: legacy-tasks
 
       - name: Install go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: '.go-version'
 
@@ -130,7 +130,7 @@ jobs:
           dda inv -- -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
           dda inv -- -e security-agent.split-btfhub-constants
 
-      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
         id: octo-sts
         with:
           scope: DataDog/datadog-agent

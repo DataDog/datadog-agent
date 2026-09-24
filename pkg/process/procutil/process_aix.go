@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // prTimestruc64 mirrors AIX timestruc64_t: { tv_sec int64; tv_nsec int32; _pad uint32 }
@@ -106,6 +108,22 @@ func nullTermBytes(b []byte) string {
 	return string(b)
 }
 
+// isPrintableText reports whether s is non-empty, valid UTF-8, and free of
+// control characters. Readable argv may contain valid non-ASCII text (e.g.
+// "café"), while junk bytes from an unreadable address space are typically
+// invalid UTF-8 or control characters.
+func isPrintableText(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r == utf8.RuneError || !unicode.IsPrint(r) {
+			return false
+		}
+	}
+	return true
+}
+
 func listPIDs() ([]int32, error) {
 	dir, err := os.Open("/proc")
 	if err != nil {
@@ -133,9 +151,15 @@ func psinfoToProcess(psi *psinfo, pid int32) *Process {
 	name := nullTermBytes(psi.Fname[:])
 	args := nullTermBytes(psi.Psargs[:])
 
+	// pr_psargs is copied from the process's address space and holds arbitrary
+	// binary bytes when the kernel cannot read its argv (kernel processes,
+	// daemons, exec in flight...). AIX ps shows those as a bracketed name; do
+	// the same instead of shipping junk bytes.
 	var cmdline []string
-	if args != "" {
+	if isPrintableText(args) {
 		cmdline = strings.Fields(args)
+	} else if name != "" {
+		cmdline = []string{"[" + name + "]"}
 	}
 
 	cpuSecs := float64(psi.Time.Sec) + float64(psi.Time.Nsec)/1e9
@@ -144,6 +168,7 @@ func psinfoToProcess(psi *psinfo, pid int32) *Process {
 		Pid:     pid,
 		Ppid:    int32(psi.Ppid),
 		Name:    name,
+		Comm:    name,
 		Cmdline: cmdline,
 		Uids:    []int32{int32(psi.UID), int32(psi.Euid), int32(psi.UID), int32(psi.Euid)},
 		Gids:    []int32{int32(psi.Gid), int32(psi.Egid), int32(psi.Gid), int32(psi.Egid)},
@@ -178,6 +203,15 @@ func NewProcessProbe(options ...Option) Probe {
 type probe struct{}
 
 func (p *probe) Close() {}
+
+func (p *probe) ProcessFromPID(pid int32) (*Process, error) {
+	psi, err := readPsinfo(pid)
+	if err != nil {
+		return nil, err
+	}
+	proc := psinfoToProcess(psi, pid)
+	return proc, nil
+}
 
 func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) {
 	pids, err := listPIDs()

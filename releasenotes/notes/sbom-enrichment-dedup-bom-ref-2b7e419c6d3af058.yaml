@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment keeps container image SBOM components that share a
+    name and a version. Trivy reports one component per install location, so a
+    library version pinned by two lockfiles appears twice, and the merge kept only
+    the first, leaving the dependency graph referencing a component the payload
+    had lost. Components are deduplicated by their CycloneDX bom-ref, which is
+    what identifies one.
