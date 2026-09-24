@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package invalidconfig reports configuration errors through the Agent Health Platform.
+// Package invalidconfig reports datadog.yaml schema violations through the Agent Health Platform.
 package invalidconfig
 
 import (
@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	secretsutils "github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -33,10 +32,9 @@ import (
 
 type violationPayload struct {
 	Path          string   `json:"path"`
-	Reason        string   `json:"reason,omitempty"`
-	ActualType    string   `json:"actual_type,omitempty"`
-	ExpectedTypes []string `json:"expected_types,omitempty"`
-	DefaultStatus string   `json:"default_status,omitempty"`
+	ActualType    string   `json:"actual_type"`
+	ExpectedTypes []string `json:"expected_types"`
+	DefaultStatus string   `json:"default_status"`
 	DefaultValue  any      `json:"default_value,omitempty"`
 }
 
@@ -70,20 +68,9 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
-	unresolved, err := c.unresolvedSecrets(normalized)
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[string]bool, len(violations))
-	for _, violation := range violations {
-		seen[violation.Path] = true
-	}
-	for path := range unresolved {
-		if !seen[path] {
-			violations = append(violations, schema.Violation{Path: path})
-		}
-	}
-	sort.Slice(violations, func(i, j int) bool { return violations[i].Path < violations[j].Path })
+	violations = slices.DeleteFunc(violations, func(violation schema.Violation) bool {
+		return c.isUnresolvedSecret(normalized, violation)
+	})
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -94,11 +81,6 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	payloads := make([]violationPayload, 0, len(violations))
 	for i, violation := range violations {
 		path := scrubViolationPath(violation.Path)
-		if unresolved[violation.Path] {
-			ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': secret backend is not configured", path)
-			payloads = append(payloads, violationPayload{Path: path, Reason: reasonSecretBackendNotConfigured})
-			continue
-		}
 		// Raw validator messages can expose configured values or credentials in paths.
 		// Build messages from scrubbed paths and type names instead.
 		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': configuration does not match schema", path)
@@ -128,31 +110,28 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	}}, nil
 }
 
-// Diagnose references in known settings when no backend is configured, without exposing handles.
-func (c *checker) unresolvedSecrets(normalized map[string]any) (map[string]bool, error) {
-	if c.cfg.GetString("secret_backend_command") != "" || c.cfg.GetString("secret_backend_type") != "" || len(c.cfg.GetStringMap("multi_secret_backends")) > 0 {
-		return nil, nil
+// Skip type errors for placeholders, but validate ENC-looking values returned by the secret backend.
+func (c *checker) isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
+	if violation.ActualType != "string" {
+		return false
 	}
-	paths := make(map[string]bool)
-	walker := secretsutils.Walker{Resolver: func(path []string, value string) (string, error) {
-		if !scrubber.IsEnc(value) {
-			return value, nil
+	pointer, err := jsonpointer.Parse(violation.Path)
+	if err != nil {
+		return false
+	}
+	value, err := pointer.Eval(normalized)
+	text, ok := value.(string)
+	if err != nil || !ok || !scrubber.IsEnc(text) {
+		return false
+	}
+	// A compound setting carries the source on its enclosing map or list.
+	for i := len(pointer); i > 0; i-- {
+		key := strings.Join(pointer[:i], ".")
+		if c.cfg.IsSetting(key) {
+			return c.cfg.GetSource(key) != model.SourceSecret
 		}
-		// A compound setting carries the source on its enclosing map or list.
-		for i := len(path); i > 0; i-- {
-			key := strings.Join(path[:i], ".")
-			if c.cfg.IsSetting(key) {
-				if c.cfg.IsKnown(key) && c.cfg.GetSource(key) != model.SourceSecret {
-					paths[jsonpointer.Pointer(path).String()] = true
-				}
-				break
-			}
-		}
-		return value, nil
-	}}
-	var data any = normalized
-	err := walker.Walk(&data)
-	return paths, err
+	}
+	return false
 }
 
 func scrubViolationPath(path string) string {

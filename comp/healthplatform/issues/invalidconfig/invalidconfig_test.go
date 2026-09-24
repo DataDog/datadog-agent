@@ -215,9 +215,12 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		{"api_key: [secret]\n", "got array, want string"},
 		{"api_key: {value: secret}\n", "got object, want string"},
 		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
-		{"agent_ipc:\n  port: ENC[ipc_port]\n", "secret backend is not configured"},
-		{"unknown_setting: ENC[unused]\n", ""},
-		{"agent_ipc: {unknown_setting: 'ENC[unused]'}\n", ""},
+		{"agent_ipc:\n  port: ENC[ipc_port]\n", ""},
+		{"logs_enabled: ENC[enabled]\n", ""},
+		{"agent_ipc: ENC[ipc]\n", ""},
+		{"additional_endpoints: {'https://example.test': 'ENC[endpoints]'}\n", ""},
+		{"api_key: ['ENC[key]']\n", "got array, want string"},
+		{"logs_enabled: {value: 'ENC[enabled]'}\n", "got object, want boolean"},
 	} {
 		t.Run(testCase.yaml, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, testCase.yaml)
@@ -240,34 +243,7 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 	}
 }
 
-func TestCheck_MissingSecretBackend(t *testing.T) {
-	requireSchema(t)
-	for _, tc := range []struct{ name, yaml, path string }{
-		{"integer", "agent_ipc: {port: 'ENC[PRIVATE_HANDLE]'}", "/agent_ipc/port"},
-		{"string", "api_key: ENC[PRIVATE_HANDLE]", "/api_key"},
-		{"nested_list", "additional_endpoints: {'https://qa:PRIVATE_PASSWORD@example.test': ['ENC[PRIVATE_HANDLE]']}", "/additional_endpoints/https:~1~1qa:********@example.test/0"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.NewMockFromYAML(t, tc.yaml)
-			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
-			require.NoError(t, err)
-			require.Len(t, reports, 1)
-			assert.Equal(t, "1", reports[0].Context[contextKeyErrorCount])
-			issue, err := InvalidConfigIssue{}.BuildIssue(reports[0].Context)
-			require.NoError(t, err)
-			assert.Contains(t, issue.Description, "contains an unresolved secret reference. The secret backend may not be configured.")
-			assert.Equal(t, "Configure a secret backend to resolve `"+tc.path+"`. Run `datadog-agent secret` to check its configuration.", issue.Remediation.Steps[1].Text)
-			assert.Equal(t, []any{map[string]any{"path": tc.path, "reason": "secret_backend_not_configured"}}, issue.Extra.Fields[contextKeyViolations].GetListValue().AsSlice())
-			encoded, err := json.Marshal(issue)
-			require.NoError(t, err)
-			assert.NotContains(t, string(encoded), "PRIVATE_")
-			assert.NotContains(t, string(encoded), "ENC[")
-			assert.NotContains(t, issue.Remediation.Steps[1].Text, "default")
-		})
-	}
-}
-
-func TestCheck_ConfiguredSecretBackend(t *testing.T) {
+func TestCheck_UnresolvedSecretWithConfiguredBackend(t *testing.T) {
 	requireSchema(t)
 	for _, backend := range []string{
 		"secret_backend_command: /test/backend",
@@ -278,8 +254,7 @@ func TestCheck_ConfiguredSecretBackend(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, backend+"\nagent_ipc: {port: 'ENC[value]'}")
 			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
 			require.NoError(t, err)
-			require.Len(t, reports, 1)
-			assert.Equal(t, "at '/agent_ipc/port': got string, want integer", reports[0].Context[contextErrorKey(0)])
+			assert.Empty(t, reports)
 		})
 	}
 }
@@ -310,6 +285,16 @@ func TestCheck_ResolvedSecrets(t *testing.T) {
 			assert.NotContains(t, string(encoded), tc.value)
 		})
 	}
+}
+
+func TestCheck_ResolvedSecretInMap(t *testing.T) {
+	requireSchema(t)
+	cfg := config.NewMockFromYAML(t, "additional_endpoints: {'https://example.test': 'ENC[PRIVATE_HANDLE]'}")
+	cfg.Set("additional_endpoints", cfg.Get("additional_endpoints"), model.SourceSecret)
+	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, "at '/additional_endpoints/https:~1~1example.test': got string, want array", reports[0].Context[contextErrorKey(0)])
 }
 
 func TestResolveDefault(t *testing.T) {
