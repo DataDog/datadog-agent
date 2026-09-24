@@ -9,14 +9,13 @@ package run
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows/svc"
@@ -217,98 +216,35 @@ func TestStartProcmgrIfEnabled(t *testing.T) {
 	assert.False(t, startProcmgrIfEnabled(context.Background(), Servicedef{name: "procmgr"}))
 }
 
-func TestWaitForProcmgrInitialState(t *testing.T) {
-	stubServiceState(t)
-
-	t.Run("returns immediately on stopped", func(t *testing.T) {
-		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			return svc.Stopped, nil
-		}
-		running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
-		assert.False(t, running)
-		assert.True(t, done)
-	})
-
-	t.Run("returns immediately on running", func(t *testing.T) {
-		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			return svc.Running, nil
-		}
-		running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
-		assert.True(t, running)
-		assert.True(t, done)
-	})
-
-	t.Run("waits through start pending until stopped", func(t *testing.T) {
-		clk := useMockStartupClock(t)
-		var calls atomic.Int64
-		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			if calls.Add(1) < 3 {
-				return svc.StartPending, nil
-			}
-			return svc.Stopped, nil
-		}
-
-		type outcome struct{ running, done bool }
-		res := make(chan outcome, 1)
-		go func() {
-			running, done := waitForProcmgrInitialState(context.Background(), "dd-procmgr-service")
-			res <- outcome{running, done}
-		}()
-
-		// Each Add fires at most one tick, and the first Adds may land before the
-		// ticker is registered, so drive the clock until the wait reports back.
-		var got outcome
-		require.Eventually(t, func() bool {
-			clk.Add(procmgrStartupPollInterval)
-			select {
-			case r := <-res:
-				got = r
-				return true
-			default:
-				return false
-			}
-		}, 5*time.Second, time.Millisecond)
-
-		assert.False(t, got.running)
-		assert.True(t, got.done)
-		assert.GreaterOrEqual(t, calls.Load(), int64(3))
-	})
-
-	t.Run("gives up when the agent is shutting down", func(t *testing.T) {
-		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			return svc.StartPending, nil
-		}
-		running, done := waitForProcmgrInitialState(cancelledContext(), "dd-procmgr-service")
-		assert.False(t, running)
-		assert.False(t, done)
-	})
-}
-
 func TestWaitForProcmgrStartupOutcome(t *testing.T) {
-	stubServiceState(t)
-
-	t.Run("suppresses when procmgr is running", func(t *testing.T) {
-		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			return svc.Running, nil
-		}
-		assert.True(t, waitForProcmgrStartupOutcome(context.Background(), "dd-procmgr-service"))
-	})
-
-	t.Run("falls back when procmgr is stopped", func(t *testing.T) {
-		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			return svc.Stopped, nil
-		}
-		assert.False(t, waitForProcmgrStartupOutcome(context.Background(), "dd-procmgr-service"))
-	})
-
-	// Shutdown stops dd-procmgr-service, so a wait that outlived the agent would see
-	// Stopped and tell the caller to start the legacy service the stop pass just stopped.
-	t.Run("suppresses when the agent is shutting down", func(t *testing.T) {
-		getServiceStateForStartupWait = func(string) (svc.State, error) {
-			return svc.StartPending, nil
-		}
-		assert.True(t, waitForProcmgrStartupOutcome(cancelledContext(), "dd-procmgr-service"))
-	})
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		state    svc.State
+		err      error
+		suppress bool
+	}{
+		{name: "suppresses when procmgr is running", ctx: context.Background(), state: svc.Running, suppress: true},
+		{name: "falls back when procmgr is stopped", ctx: context.Background(), state: svc.Stopped, suppress: false},
+		{name: "falls back when procmgr stops pending", ctx: context.Background(), state: svc.StopPending, suppress: false},
+		{name: "suppresses when still start pending at timeout", ctx: context.Background(), state: svc.StartPending, err: context.DeadlineExceeded, suppress: true},
+		{name: "suppresses when the state query fails", ctx: context.Background(), err: errors.New("access denied"), suppress: true},
+		// Shutdown stops dd-procmgr-service, so a wait that outlived the agent would see
+		// Stopped and tell the caller to start the legacy service the stop pass just stopped.
+		{name: "suppresses when the agent is shutting down", ctx: cancelledContext(), state: svc.Stopped, suppress: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stubStartPendingExit(t, func(ctx context.Context, serviceName string, currentState svc.State) (svc.State, error) {
+				assert.Equal(t, "dd-procmgr-service", serviceName)
+				assert.Equal(t, svc.StartPending, currentState)
+				_, hasDeadline := ctx.Deadline()
+				assert.True(t, hasDeadline, "the wait must be bounded")
+				return tt.state, tt.err
+			})
+			assert.Equal(t, tt.suppress, waitForProcmgrStartupOutcome(tt.ctx, "dd-procmgr-service"))
+		})
+	}
 }
 
 func TestServicedefNeedsProcmgrStartupGate(t *testing.T) {
@@ -343,23 +279,13 @@ func TestServicedefNeedsProcmgrStartupGate(t *testing.T) {
 	})
 }
 
-func stubServiceState(t *testing.T) {
+func stubStartPendingExit(t *testing.T, fn func(context.Context, string, svc.State) (svc.State, error)) {
 	t.Helper()
-	prev := getServiceStateForStartupWait
+	prev := waitForServiceStartPendingExit
+	waitForServiceStartPendingExit = fn
 	t.Cleanup(func() {
-		getServiceStateForStartupWait = prev
+		waitForServiceStartPendingExit = prev
 	})
-}
-
-func useMockStartupClock(t *testing.T) *clock.Mock {
-	t.Helper()
-	prev := procmgrStartupClock
-	mock := clock.NewMock()
-	procmgrStartupClock = mock
-	t.Cleanup(func() {
-		procmgrStartupClock = prev
-	})
-	return mock
 }
 
 func cancelledContext() context.Context {
