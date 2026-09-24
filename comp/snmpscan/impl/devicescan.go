@@ -358,8 +358,11 @@ RequestLoop:
 				continue
 			}
 		}
-		emptyResponse := err == nil && len(response.Variables) == 0
-		endOfMIB := err == nil && !emptyResponse && gosnmplib.IsEndOfMIB(response.Variables[0].Type)
+		var emptyResponse, endOfMIB bool
+		if err == nil {
+			emptyResponse = len(response.Variables) == 0
+			endOfMIB = !emptyResponse && gosnmplib.IsEndOfMIB(response.Variables[0].Type)
+		}
 		if emitted == 0 && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
 			rootIndex++
 			log.Infof("SNMP scan for device %s failed at %s, retrying from %s", deviceID, oid, rootOIDs[rootIndex])

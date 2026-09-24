@@ -65,8 +65,11 @@ RequestLoop:
 
 		response, err := session.GetNext([]string{oid})
 		requestFailed := err != nil || response.Error != gosnmp.NoError
-		emptyResponse := err == nil && len(response.Variables) == 0
-		endOfMIB := err == nil && !emptyResponse && IsEndOfMIB(response.Variables[0].Type)
+		var emptyResponse, endOfMIB bool
+		if err == nil {
+			emptyResponse = len(response.Variables) == 0
+			endOfMIB = !emptyResponse && IsEndOfMIB(response.Variables[0].Type)
+		}
 		if !hasOIDs && rootIndex+1 < len(rootOIDs) && (requestFailed || emptyResponse || endOfMIB) {
 			rootIndex++
 			session.Logger.Printf("ConditionalWalk failed at %s, retrying from %s", oid, rootOIDs[rootIndex])
