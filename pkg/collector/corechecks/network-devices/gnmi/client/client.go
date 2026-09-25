@@ -19,11 +19,11 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/admission"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/gnmipb"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 )
 
@@ -35,6 +35,12 @@ const (
 	// Config.SampleInterval is unset. It matches the default check interval.
 	DefaultSampleInterval = time.Duration(config.DefaultMinCollectionInterval) * time.Second
 )
+
+var subscribeStreamDesc = grpc.StreamDesc{
+	StreamName:    "Subscribe",
+	ServerStreams: true,
+	ClientStreams: true,
+}
 
 // Config holds the connection and subscription settings for a gNMI client.
 type Config struct {
@@ -50,7 +56,7 @@ type Config struct {
 	// A zero value selects DefaultSampleInterval. It is never sent as 0:
 	// targets may reject a zero sample_interval with Unimplemented.
 	SampleInterval time.Duration
-	Encoding       gnmipb.Encoding
+	Encoding       config.Encoding
 }
 
 // Option configures optional client behavior, primarily for tests.
@@ -398,11 +404,11 @@ func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
 		_ = conn.Close()
 	}()
 
-	gnmiClient := gnmipb.NewGNMIClient(conn)
-	stream, err := gnmiClient.Subscribe(ctx)
+	clientStream, err := conn.NewStream(ctx, &subscribeStreamDesc, "/gnmi.gNMI/Subscribe", grpc.StaticMethod())
 	if err != nil {
 		return false, fmt.Errorf("open subscribe stream: %w", err)
 	}
+	stream := &grpc.GenericClientStream[gnmipb.SubscribeRequest, gnmipb.SubscribeResponse]{ClientStream: clientStream}
 
 	subscribeReq, err := c.buildSubscribeRequest()
 	if err != nil {
@@ -490,7 +496,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 		Request: &gnmipb.SubscribeRequest_Subscribe{
 			Subscribe: &gnmipb.SubscriptionList{
 				Mode:         gnmipb.SubscriptionList_STREAM,
-				Encoding:     c.cfg.Encoding,
+				Encoding:     gnmipb.Encoding(c.cfg.Encoding),
 				Subscription: subscriptions,
 			},
 		},

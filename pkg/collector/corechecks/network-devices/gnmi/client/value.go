@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/gnmipb"
 )
 
 func decodeTypedValue(value *gnmipb.TypedValue) (any, error) {

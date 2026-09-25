@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	gnmi "github.com/openconfig/gnmi/proto/gnmi"
 )
 
 const (
@@ -116,7 +115,7 @@ func validateInstanceConfig(instance *InstanceConfig) error {
 }
 
 // ResolvedEncoding returns the configured gNMI subscribe encoding.
-func (c *InstanceConfig) ResolvedEncoding() (gnmi.Encoding, error) {
+func (c *InstanceConfig) ResolvedEncoding() (Encoding, error) {
 	return ParseEncoding(c.Encoding)
 }
 
