@@ -37,23 +37,7 @@ type e2ectlKubernetesSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
 }
 
-// TestE2ectlKubernetesSuiteOnLocalKind attaches the suite to a live e2ectl
-// kind environment. It skips (not fails) when no environment is selected —
-// RequireEnv reads E2ECTL_ENV, which `e2ectl test` sets.
-func TestE2ectlKubernetesSuiteOnLocalKind(t *testing.T) {
-	envName := e2ectlenv.RequireEnv(t)
-	e2ectlenv.RequireSnapshot(t, envName)
-	t.Parallel()
-	e2e.Run(t, &e2ectlKubernetesSuite{}, e2e.WithProvisioner(
-		e2ectlenv.Attach[environments.Kubernetes](envName),
-	))
-}
-
-// TestE2ectlKubernetesSuiteOnEKS runs the SAME suite against an EKS base
-// environment — the demo of attach-mode portability: one test body,
-// any Kubernetes base (`e2ectl test -env <eks-env> --suite ./test/new-e2e/examples/`
-// selects this entry by default on an eks environment).
-func TestE2ectlKubernetesSuiteOnEKS(t *testing.T) {
+func TestE2ectlKubernetesSuite(t *testing.T) {
 	envName := e2ectlenv.RequireEnv(t)
 	e2ectlenv.RequireSnapshot(t, envName)
 	t.Parallel()

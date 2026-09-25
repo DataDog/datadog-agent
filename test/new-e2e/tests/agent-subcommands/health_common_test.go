@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	e2ectlenv "github.com/DataDog/datadog-agent/test/new-e2e/utils/e2ectlenv"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -48,6 +49,14 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 }
 
 func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
+	// Attach-mode boundary: this test re-provisions the host with a new agent
+	// config (UpdateEnv with a Pulumi provisioner), which cannot apply to an
+	// environment attached by e2ectl test — an attached environment is not
+	// re-provisioned. Skip explicitly instead of failing on the provisioner
+	// mismatch; the EC2 Pulumi entries (E2ECTL_ENV unset) run it unchanged.
+	if e2ectlenv.Attached() {
+		v.T().Skip("UpdateEnv re-provisioning is not available in attach mode; run TestLinuxHealthSuite (EC2, Pulumi) for the unhealthy path")
+	}
 	// restart the agent, which validates the key using the fakeintake at startup
 	v.UpdateEnv(awshost.Provisioner(
 		awshost.WithRunOptions(

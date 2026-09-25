@@ -9,8 +9,10 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/new-e2e/utils/e2ectlenv"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
@@ -22,4 +24,13 @@ func TestLinuxHealthSuite(t *testing.T) {
 	t.Parallel()
 	suite := &linuxHealthSuite{baseHealthSuite{descriptor: os.UbuntuDefault}}
 	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner()))
+}
+
+func TestLinuxHealthSuiteOnLocal(t *testing.T) {
+	envName := e2ectlenv.RequireEnv(t)
+	e2ectlenv.RequireSnapshot(t, envName)
+	t.Parallel()
+	e2e.Run(t, &linuxHealthSuite{}, e2e.WithProvisioner(
+		e2ectlenv.Attach[environments.Host](envName),
+	))
 }
