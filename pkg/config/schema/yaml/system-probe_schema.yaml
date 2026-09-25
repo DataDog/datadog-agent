@@ -1662,6 +1662,37 @@ properties:
         default: true
         env_vars:
         - DD_SYMBOL_DATABASE_UPLOAD_ENABLED
+  ebpf:
+    node_type: section
+    type: object
+    comment: Common eBPF tuning knobs shared by all system-probe eBPF subsystems.
+    properties:
+      force_no_prealloc_hash:
+        node_type: section
+        type: object
+        comment: |-
+          Forces the BPF_F_NO_PREALLOC flag on the eBPF hash maps of the selected subsystem.
+        properties:
+          usm:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Forces no-prealloc hash maps for Universal Service Monitoring.
+          cnm:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Forces no-prealloc hash maps for Cloud Network Monitoring.
+          security:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Forces no-prealloc hash maps for Cloud Workload Security.
+          misc:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Forces no-prealloc hash maps for the remaining eBPF subsystems.
   ebpf_check:
     node_type: section
     type: object
