@@ -1125,6 +1125,9 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
+	if contextKey != 0 && filter.isMutedWithKey(normalizedSource, storageKeyForContextKey(normalizedSource, contextKey)) {
+		return metricIngestDecision{source: normalizedSource}
+	}
 	return prepareMetricAfterPrecheck(
 		normalizedSource,
 		name,

@@ -42,7 +42,7 @@ type MetricView interface {
 	GetName() string
 	GetValue() float64
 	// GetTags returns the final tags used by the metrics pipeline for this sample.
-// Its backing slices must remain immutable and valid after ObserveMetric returns.
+	// Its backing slices must remain immutable and valid after ObserveMetric returns.
 	GetTags() tagset.CompositeTags
 	// GetHost returns the host dimension carried separately from metric tags.
 	GetHost() string
