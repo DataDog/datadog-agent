@@ -61,7 +61,7 @@ var DemoScenarios = map[string]Scenario{
 				Message: "dd-agent removed from the docker group — agent can no longer connect to the Docker socket.",
 			},
 			"remediate": {
-				// Mirrors comp/healthplatform/issues/dockerpermissions/fix-docker-socket-permissions.sh (#55880):
+				// Mirrors comp/healthplatform/issues/docker/fix-docker-socket-permissions.sh (#55880):
 				// grant dd-agent access by adding it to the docker group, then restart.
 				Commands: []string{
 					"sudo usermod -aG docker dd-agent",

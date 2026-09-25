@@ -370,6 +370,10 @@ def _bazel_tidy(ctx, verbose: bool):
     bazel("run", "//:gazelle")
     # 6. regenerate agent payload version file from go.mod
     bazel("run", "//tasks:write_agent_payload_version")
+    # 7. regenerate test/new-e2e/tests/test_binaries.bzl
+    from tasks.new_e2e_tests import write_test_binaries_bzl
+
+    write_test_binaries_bzl(ctx)
 
 
 @task(autoprint=True)
@@ -441,7 +445,7 @@ def add_replaces(ctx, path, replaces: Iterable[str]):
 @task
 def create_module(ctx, path: str, no_verify: bool = False):
     """
-    Create new go module following steps within <docs/dev/modules.md>
+    Create a new Go module following the steps at https://datadoghq.dev/datadog-agent/how-to/go/modules/.
     - packages: Comma separated list of packages the will use the new module
     """
 

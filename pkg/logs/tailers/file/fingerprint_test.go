@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
@@ -49,6 +50,41 @@ func (suite *FingerprintTestSuite) TearDownTest() {
 
 func TestFingerprintTestSuite(t *testing.T) {
 	suite.Run(t, new(FingerprintTestSuite))
+}
+
+func TestComputeFingerprintUsesCurrentSourceOpenPolicy(t *testing.T) {
+	makeSource := func(noFollow bool) *sources.LogSource {
+		return sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     "fingerprint.log",
+			NoFollow: noFollow,
+		})
+	}
+
+	fileOpener := opener.NewMockFileOpener()
+	fileOpener.AddMockFile(opener.NewMockFile("fingerprint.log", [][]byte{[]byte("line\n")}))
+	fingerprinter := NewFingerprinter(types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		MaxBytes:            1024,
+	}, fileOpener)
+	file := NewFile("fingerprint.log", makeSource(false), false)
+
+	_, err := fingerprinter.ComputeFingerprint(file)
+	require.NoError(t, err)
+
+	file.Source.Replace(makeSource(true))
+	_, err = fingerprinter.ComputeFingerprint(file)
+	require.NoError(t, err)
+
+	file.Source.Replace(makeSource(false))
+	_, err = fingerprinter.ComputeFingerprint(file)
+	require.NoError(t, err)
+	require.Equal(t, []opener.LogFileOpen{
+		{Path: "fingerprint.log"},
+		{Path: "fingerprint.log", NoFollow: true},
+		{Path: "fingerprint.log"},
+	}, fileOpener.Opens())
 }
 
 func (suite *FingerprintTestSuite) createTailer() *Tailer {

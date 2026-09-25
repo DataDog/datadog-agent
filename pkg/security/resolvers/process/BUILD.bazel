@@ -1,6 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-load(":go_labels_test.bzl", "go_labels_fixture")
+load("//bazel/rules/go:go_binary.bzl", "unstripped_go_binary")
 
 go_library(
     name = "process",
@@ -184,7 +184,7 @@ go_library(
     }),
 )
 
-go_labels_fixture(
+unstripped_go_binary(
     name = "go_labels_nocgo_plain",
     srcs = ["testdata/main.go"],
     linkmode = "normal",
@@ -193,7 +193,7 @@ go_labels_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_labels_fixture(
+unstripped_go_binary(
     name = "go_labels_nocgo_stripped",
     srcs = ["testdata/main.go"],
     gc_linkopts = [
@@ -206,7 +206,7 @@ go_labels_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_labels_fixture(
+unstripped_go_binary(
     name = "go_labels_cgo_plain",
     srcs = ["testdata/main.go"],
     linkmode = "normal",
@@ -215,7 +215,7 @@ go_labels_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_labels_fixture(
+unstripped_go_binary(
     name = "go_labels_cgo_stripped",
     srcs = ["testdata/main.go"],
     gc_linkopts = [
@@ -234,7 +234,7 @@ go_labels_fixture(
 # g offset.
 # Using linkmode="normal" and adding `-buildmode=pie` via explicit linker flags instead uses the internal
 # go linker instead.
-go_labels_fixture(
+unstripped_go_binary(
     name = "go_labels_cgo_pie_plain",
     srcs = ["testdata/main.go"],
     gc_linkopts = ["-buildmode=pie"],
@@ -244,7 +244,7 @@ go_labels_fixture(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-go_labels_fixture(
+unstripped_go_binary(
     name = "go_labels_cgo_pie_stripped",
     srcs = ["testdata/main.go"],
     gc_linkopts = [

@@ -154,7 +154,7 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 
 func requireSeriesCountTelemetry(t *testing.T, telemetryComp telemetry.Component, want float64) {
 	t.Helper()
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	for _, family := range metricFamilies {
 		if family.GetName() != "observer__"+telemetrySeriesCount {
