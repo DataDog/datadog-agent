@@ -1,5 +1,4 @@
 ---
-fixes:
+features:
   - |
-    Fix Windows FIPS Agent installation, upgrades, and rollback in the
-    Fleet installer.
+    Add Fleet-managed upgrades and rollback for Windows FIPS Agents.
