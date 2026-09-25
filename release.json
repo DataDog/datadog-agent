@@ -2,7 +2,7 @@
     "base_branch": "main",
     "current_milestone": "7.85.0",
     "dependencies": {
-        "INTEGRATIONS_CORE_VERSION": "cd216b386aba22d0e5817d2f3aea1b4542bccbaa",
+        "INTEGRATIONS_CORE_VERSION": "59d232ad53af7ce553c89f37970bd074c56de054",
         "INTEGRATIONS_WHEELS_STORAGE": "stable",
         "JMXFETCH_HASH": "3eb735171a3e41518c4101a6aee06fee8b93092d015769c2e470eecadb4bd11b",
         "JMXFETCH_VERSION": "0.52.0",
