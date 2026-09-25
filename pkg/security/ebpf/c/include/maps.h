@@ -82,6 +82,10 @@ BPF_LRU_MAP(exec_dentry_open_stamp, u32, struct exec_open_stamp_t, 1024)
 // send_exec_event can tell whether the entry it popped is the one that execve created
 BPF_LRU_MAP(exec_entry_stamp, u64, u32, 4096)
 BPF_LRU_MAP(exec_zero_key_diag, u32, struct exec_zero_key_diag_t, 1024)
+// counts the execs whose path_key send_exec_event had to recover from the open stamp.
+// Standalone because the recovery makes the key non-zero, so nothing on the zero-key
+// path would ever read a flag recorded there.
+BPF_ARRAY_MAP(exec_key_repaired, u64, 1)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)

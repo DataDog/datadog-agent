@@ -887,6 +887,12 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             bpf_map_update_elem(&pid_path_keys, &tgid, &on_stack_exec_path_key, BPF_ANY);
 
             diag.flags |= EXEC_DIAG_KEY_REPAIRED;
+
+            u32 repaired_key = 0;
+            u64 *repaired = bpf_map_lookup_elem(&exec_key_repaired, &repaired_key);
+            if (repaired != NULL) {
+                __sync_fetch_and_add(repaired, 1);
+            }
         }
     }
     bpf_map_update_elem(&exec_zero_key_diag, &tgid, &diag, BPF_ANY);

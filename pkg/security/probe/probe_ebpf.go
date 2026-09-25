@@ -215,6 +215,10 @@ type EBPFProbe struct {
 	// is read on the event hot path.
 	kernelTracksCGroupID bool
 
+	// lastExecKeyRepairs is the last value read from the exec_key_repaired counter, so the
+	// stats tick can log only the delta. Debug aid, see logExecKeyRepairs.
+	lastExecKeyRepairs atomic.Uint64
+
 	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
 	// container, so the debug log below reports only transitions instead of one line
 	// per exec. Debug aid, see setProcessContext.
@@ -1202,6 +1206,13 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 func (p *EBPFProbe) SendStats() error {
 	p.Resolvers.TCResolver.SendTCProgramsStats(p.statsdClient)
 
+	// The path_key recovery in send_exec_event makes the key non-zero, so the zero-key log
+	// never runs for a repaired exec and the flag recorded in exec_zero_key_diag is never
+	// read. Report the standalone counter here instead, on the stats tick, so the repair
+	// rate is observable at all -- without it a clean run cannot be told apart from a run
+	// with no exposure.
+	p.logExecKeyRepairs()
+
 	p.processKiller.SendStats(p.statsdClient)
 
 	if p.profileManager != nil {
@@ -1551,6 +1562,24 @@ func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
 		d.EntryIno, d.EntryMountID, d.Flags&execDiagHasDentry != 0,
 		uint32(d.OpenPIDTGID>>32), uint32(d.OpenPIDTGID), d.OpenCtxID,
 		d.Flags&execDiagHasOpenStamp != 0, route, verdict)
+}
+
+// logExecKeyRepairs reports how many exec events needed their path_key recovered from the
+// open stamp, cumulatively. Logged only when it changes, so a quiet system stays quiet.
+func (p *EBPFProbe) logExecKeyRepairs() {
+	m, _, err := p.Manager.Get().GetMap("exec_key_repaired")
+	if err != nil || m == nil {
+		return
+	}
+
+	var count uint64
+	if err := m.Lookup(uint32(0), &count); err != nil {
+		return
+	}
+
+	if prev := p.lastExecKeyRepairs.Swap(count); prev != count {
+		seclog.Warnf("exec path_key recovered from the open stamp %d time(s) so far (+%d): send_exec_event popped an entry belonging to another execve", count, count-prev)
+	}
 }
 
 func (p *EBPFProbe) zeroEvent() *model.Event {
