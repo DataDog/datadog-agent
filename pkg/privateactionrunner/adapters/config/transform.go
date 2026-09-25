@@ -104,16 +104,15 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
 		RShellAllowedCommandsConfigured:    config.IsConfigured(setup.PARRestrictedShellAllowedCommands),
 		RShellAllowedPathsConfigured:       config.IsConfigured(setup.PARRestrictedShellAllowedPaths),
-		RShellPrivilegedElevatableCommandsConfigured: config.IsConfigured(setup.PARRestrictedShellPrivilegedElevatableCommands),
-		OpmsExtraHeaders: config.GetStringMapString(setup.PAROpmsExtraHeaders),
-		DDHost:           ddHost,
-		DDApiHost:        "api." + ddSite,
-		Modes:            []modes.Mode{modes.ModePull},
-		OrgId:            orgID,
-		PrivateKey:       privateKey,
-		RunnerId:         runnerID,
-		Urn:              urn,
-		DatadogSite:      ddSite,
+		OpmsExtraHeaders:                   config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                             ddHost,
+		DDApiHost:                          "api." + ddSite,
+		Modes:                              []modes.Mode{modes.ModePull},
+		OrgId:                              orgID,
+		PrivateKey:                         privateKey,
+		RunnerId:                           runnerID,
+		Urn:                                urn,
+		DatadogSite:                        ddSite,
 	}, nil
 }
 
@@ -178,10 +177,10 @@ func rshellAllowedSystemServices(config config.Component) map[string][]string {
 	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
 }
 
-// rshellElevatableCommands returns the operator-configured commands allowed
-// to sudo-elevate inside the privileged helper. The configured flag preserves
-// the distinction between an unset setting and an explicit empty kill switch.
 func rshellElevatableCommands(config config.Component) []string {
+	if !config.IsConfigured(setup.PARRestrictedShellPrivilegedElevatableCommands) {
+		return nil
+	}
 	commands := config.GetStringSlice(setup.PARRestrictedShellPrivilegedElevatableCommands)
 	warnUnnamespacedCommands(setup.PARRestrictedShellPrivilegedElevatableCommands, commands)
 	return commands

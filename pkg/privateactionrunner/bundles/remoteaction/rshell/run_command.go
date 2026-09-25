@@ -54,21 +54,15 @@ var statFn = os.Stat
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
-	OperatorAllowedPaths          []string
-	OperatorAllowedCommands       []string
-	OperatorAllowedSystemServices map[string][]string
-	DisableDetailedTelemetry      bool
-	PrivilegedEnabled             bool
-	PrivilegedSocket              string
-	// OperatorElevatableCommands lists rshell:-namespaced commands allowed to
-	// temporarily regain root inside the privileged helper.
-	OperatorElevatableCommands []string
-	// The configured flags record whether the operator explicitly set the
-	// corresponding datadog.yaml setting. Privileged execution uses them to
-	// decide whether to narrow that axis at all: see buildAgentPolicy.
-	OperatorAllowedCommandsConfigured    bool
-	OperatorAllowedPathsConfigured       bool
-	OperatorElevatableCommandsConfigured bool
+	OperatorAllowedPaths              []string
+	OperatorAllowedCommands           []string
+	OperatorAllowedSystemServices     map[string][]string
+	DisableDetailedTelemetry          bool
+	PrivilegedEnabled                 bool
+	PrivilegedSocket                  string
+	OperatorElevatableCommands        []string
+	OperatorAllowedCommandsConfigured bool
+	OperatorAllowedPathsConfigured    bool
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -97,18 +91,16 @@ type RunCommandHandlerConfig struct {
 // An explicitly configured empty operator list or service map is the
 // kill-switch for that axis.
 type RunCommandHandler struct {
-	operatorAllowedPaths          []string
-	operatorAllowedCommands       []string
-	operatorAllowedSystemServices map[string][]string
-	disableCommandTelemetry       bool
-	mode                          interp.Mode
-	privilegedEnabled             bool
-	privilegedSocket              string
-	// Used only to construct the privileged path's AgentPolicy; see buildAgentPolicy.
-	operatorElevatableCommands           []string
-	operatorAllowedCommandsConfigured    bool
-	operatorAllowedPathsConfigured       bool
-	operatorElevatableCommandsConfigured bool
+	operatorAllowedPaths              []string
+	operatorAllowedCommands           []string
+	operatorAllowedSystemServices     map[string][]string
+	disableCommandTelemetry           bool
+	mode                              interp.Mode
+	privilegedEnabled                 bool
+	privilegedSocket                  string
+	operatorElevatableCommands        []string
+	operatorAllowedCommandsConfigured bool
+	operatorAllowedPathsConfigured    bool
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -131,17 +123,16 @@ func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCom
 
 	services := cloneSystemServiceAllowlist(cfg.OperatorAllowedSystemServices)
 	return &RunCommandHandler{
-		operatorAllowedPaths:                 reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
-		operatorAllowedCommands:              commands,
-		operatorAllowedSystemServices:        services,
-		disableCommandTelemetry:              cfg.DisableDetailedTelemetry,
-		mode:                                 mode,
-		privilegedEnabled:                    cfg.PrivilegedEnabled,
-		privilegedSocket:                     cfg.PrivilegedSocket,
-		operatorElevatableCommands:           elevatableCommands,
-		operatorAllowedCommandsConfigured:    cfg.OperatorAllowedCommandsConfigured,
-		operatorAllowedPathsConfigured:       cfg.OperatorAllowedPathsConfigured,
-		operatorElevatableCommandsConfigured: cfg.OperatorElevatableCommandsConfigured,
+		operatorAllowedPaths:              reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
+		operatorAllowedCommands:           commands,
+		operatorAllowedSystemServices:     services,
+		disableCommandTelemetry:           cfg.DisableDetailedTelemetry,
+		mode:                              mode,
+		privilegedEnabled:                 cfg.PrivilegedEnabled,
+		privilegedSocket:                  cfg.PrivilegedSocket,
+		operatorElevatableCommands:        elevatableCommands,
+		operatorAllowedCommandsConfigured: cfg.OperatorAllowedCommandsConfigured,
+		operatorAllowedPathsConfigured:    cfg.OperatorAllowedPathsConfigured,
 	}
 }
 
@@ -456,12 +447,7 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
 }
 
-// buildAgentPolicy narrows privileged execution with the operator's
-// datadog.yaml restricted_shell settings, the same way they already narrow
-// the non-privileged path. A field is populated only when its setting is
-// explicitly configured; otherwise it stays nil and imposes no narrowing on
-// that axis. Returns nil (no AgentPolicy at all) when nothing is configured,
-// matching privileged execution's behavior before this field existed.
+// buildAgentPolicy forwards configured local restrictions.
 func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
 	policy := &privilegedhelper.AgentPolicy{}
 	configured := false
@@ -478,7 +464,7 @@ func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
 		policy.AllowedSystemServices = h.operatorAllowedSystemServices
 		configured = true
 	}
-	if h.operatorElevatableCommandsConfigured {
+	if h.operatorElevatableCommands != nil {
 		policy.ElevatableCommands = h.operatorElevatableCommands
 		configured = true
 	}
@@ -490,8 +476,6 @@ func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
 }
 
 func backendAllowlistsFromTask(task *types.Task) ([]string, []string, map[string]*structpb.ListValue, error) {
-	// The signed system inputs are authoritative for new tasks. A present but
-	// empty remote_action allowlist intentionally blocks that axis.
 	if remoteAction := task.Data.Attributes.SystemInputs.GetRemoteAction(); remoteAction != nil {
 		return remoteAction.AllowedCommands, remoteAction.AllowedPaths, remoteAction.SystemServices, nil
 	}

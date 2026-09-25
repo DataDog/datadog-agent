@@ -38,9 +38,7 @@ const (
 	PARRestrictedShellDisableDetailedTelemetry = "private_action_runner.restricted_shell.disable_detailed_telemetry"
 	PARRestrictedShellPrivilegedEnabled        = "private_action_runner.restricted_shell.privileged.enabled"
 	PARRestrictedShellPrivilegedSocket         = "private_action_runner.restricted_shell.privileged.socket"
-	// PARRestrictedShellPrivilegedElevatableCommands lists commands allowed to
-	// sudo-elevate inside the privileged helper. An unset setting does not
-	// narrow signed elevation grants; an explicit empty list denies all.
+	// Unset does not narrow elevation; an explicit empty list denies it.
 	PARRestrictedShellPrivilegedElevatableCommands = "private_action_runner.restricted_shell.privileged.elevatable_commands"
 	RShellCommandNamespacePrefix                   = "rshell:"
 	RShellCommandAllowAllWildcard                  = RShellCommandNamespacePrefix + "*"
