@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -571,15 +572,29 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 	httpHeader := req.Header
 	connectionType := GetConnectionType(req.Context())
 	return r.Stats.GetTagStats(info.Tags{
-		Lang:            httpHeader.Get(header.Lang),
-		LangVersion:     httpHeader.Get(header.LangVersion),
-		Interpreter:     httpHeader.Get(header.LangInterpreter),
-		LangVendor:      httpHeader.Get(header.LangInterpreterVendor),
-		TracerVersion:   httpHeader.Get(header.TracerVersion),
+		Lang:            truncateMetaValue(httpHeader.Get(header.Lang)),
+		LangVersion:     truncateMetaValue(httpHeader.Get(header.LangVersion)),
+		Interpreter:     truncateMetaValue(httpHeader.Get(header.LangInterpreter)),
+		LangVendor:      truncateMetaValue(httpHeader.Get(header.LangInterpreterVendor)),
+		TracerVersion:   truncateMetaValue(httpHeader.Get(header.TracerVersion)),
 		EndpointVersion: string(v),
 		ConnectionType:  string(connectionType),
-		Service:         service,
+		// The service is normalized further down the pipeline, which truncates
+		// it to the same length; doing it here too keeps the service reported
+		// by the receiver's own metrics in agreement with the rest.
+		Service: normalizeutil.TruncateUTF8(service, normalizeutil.MaxServiceLen),
 	})
+}
+
+// maxMetaValueLen bounds the length of a Datadog-Meta-* header value used as
+// part of a stats map key. Real values are short ("go", "1.22.3", "v2.1.0");
+// the limit only exists because the values are otherwise bounded by the size
+// of the request headers, which would let a single request hold a megabyte of
+// them in the map and in every metric tag derived from it.
+const maxMetaValueLen = 200
+
+func truncateMetaValue(v string) string {
+	return normalizeutil.TruncateUTF8(v, maxMetaValueLen)
 }
 
 // decodeTracerPayload decodes the payload in http request `req`, it handles non v1.0 requests.
@@ -1250,19 +1265,25 @@ func (r *HTTPReceiver) loop() {
 			r.Stats.PublishAndReset(r.statsd)
 
 			if now.Sub(lastLog) >= time.Minute {
-				// We expose the stats accumulated to expvar
-				info.UpdateReceiverStats(accStats)
-
-				// We reset the stats accumulated during the last minute
-				accStats.LogAndResetStats()
+				r.logAndResetPeriodicStats(accStats)
 				lastLog = now
-
-				// Also publish rates by service (they are updated by receiver)
-				rates := r.dynConf.RateByService.GetNewState("").Rates
-				info.UpdateRateByService(rates)
 			}
 		}
 	}
+}
+
+// logAndResetPeriodicStats exposes the stats accumulated over the last minute
+// to expvar and resets them.
+func (r *HTTPReceiver) logAndResetPeriodicStats(accStats *info.ReceiverStats) {
+	// We expose the stats accumulated to expvar
+	info.UpdateReceiverStats(accStats)
+
+	// We reset the stats accumulated during the last minute
+	accStats.LogAndResetStats()
+
+	// Also publish rates by service (they are updated by receiver)
+	rates := r.dynConf.RateByService.GetNewState("").Rates
+	info.UpdateRateByService(rates)
 }
 
 // killProcess exits the process with the given msg; replaced in tests.
