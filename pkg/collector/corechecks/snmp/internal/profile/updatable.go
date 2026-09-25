@@ -29,6 +29,9 @@ func (up *UpdatableProvider) Update(userProfiles, defaultProfiles ProfileConfigM
 	up.userProfiles = userProfiles
 	up.defaultProfiles = defaultProfiles
 	up.resolvedProfiles = resolveProfiles(up.userProfiles, up.defaultProfiles)
+	for name := range up.resolvedProfiles {
+		profileExpVar.Delete(name)
+	}
 	up.lastUpdated = now
 }
 
