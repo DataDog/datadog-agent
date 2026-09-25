@@ -29,6 +29,7 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -565,6 +566,8 @@ type observerImpl struct {
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
+	// One generator per dispatch goroutine; its scratch space is not thread-safe.
+	keyGenerator := ckey.NewSliceKeyGenerator()
 	for obs := range o.obsCh {
 		if obs.flush != nil {
 			close(obs.flush)
@@ -572,7 +575,7 @@ func (o *observerImpl) run() {
 		}
 		var metric *metricObs
 		if obs.hasMetric {
-			decision := prepareMetricHandoff(obs.source, obs.metric, o.metricFilter)
+			decision := prepareMetricHandoff(obs.source, obs.metric, o.metricFilter, keyGenerator)
 			if decision.metric == nil {
 				if o.telemetry != nil && decision.source != "" {
 					o.telemetry.recordFilteredMetric(decision.source)
@@ -1131,11 +1134,12 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 		sample.GetTimestampUnix(),
 		precheck,
 		contextKey,
+		nil, // Synchronous replay supplies its own context key.
 		filter,
 	)
 }
 
-func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter *metricsFilterRules) metricIngestDecision {
+func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter *metricsFilterRules, keyGenerator *ckey.SliceKeyGenerator) metricIngestDecision {
 	return prepareMetricAfterPrecheck(
 		normalizedSource,
 		sample.name,
@@ -1145,6 +1149,7 @@ func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter 
 		sample.timestamp,
 		sample.precheck,
 		sample.contextKey,
+		keyGenerator,
 		filter,
 	)
 }
@@ -1158,6 +1163,7 @@ func prepareMetricAfterPrecheck(
 	timestamp int64,
 	precheck metricFilterPrecheck,
 	contextKey uint64,
+	keyGenerator *ckey.SliceKeyGenerator,
 	filter *metricsFilterRules,
 ) metricIngestDecision {
 	// Canonicalize once for tag-aware filtering and downstream storage's sorted
@@ -1165,6 +1171,10 @@ func prepareMetricAfterPrecheck(
 	tags := canonicalizeTags(resolvedTags.UnsafeToReadOnlySliceString())
 	if precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, source, host, tags, precheck.firstCandidate) {
 		return metricIngestDecision{source: source}
+	}
+	if contextKey == 0 {
+		// No pipeline key: derive it from the resolved metric identity.
+		contextKey = uint64(keyGenerator.Generate(name, host, tags))
 	}
 	seriesKey := storageKeyForContextKey(source, contextKey)
 	if filter.isMutedWithKey(source, seriesKey) {
@@ -1230,7 +1240,8 @@ type handle struct {
 	filteredMetric       telemetry.SimpleCounter
 }
 
-// ObserveMetric observes a metric with its metrics-pipeline context key.
+// ObserveMetric observes a metric with its metrics-pipeline context key, or
+// requests key derivation on the preprocessing goroutine when contextKey is zero.
 func (h *handle) ObserveMetric(sample observerdef.MetricView, contextKey uint64) {
 	_ = h.observeMetricAndReportDrop(sample, contextKey)
 }
