@@ -35,46 +35,27 @@ impl From<postgres::Error> for PostgresError {
 }
 
 fn describe(state: &SqlState) -> &'static str {
-    const KNOWN: &[(SqlState, &str)] = &[
-        (
-            SqlState::INSUFFICIENT_PRIVILEGE,
-            "permission denied, the user lacks the required privileges",
-        ),
-        (SqlState::INVALID_CATALOG_NAME, "database does not exist"),
-        (SqlState::INVALID_SCHEMA_NAME, "schema does not exist"),
-        (SqlState::UNDEFINED_TABLE, "table does not exist"),
-        (SqlState::UNDEFINED_COLUMN, "column does not exist"),
-        (
-            SqlState::QUERY_CANCELED,
-            "query canceled (statement timeout)",
-        ),
-        (
-            SqlState::READ_ONLY_SQL_TRANSACTION,
-            "write attempted in a read-only transaction",
-        ),
-        (
-            SqlState::ADMIN_SHUTDOWN,
-            "server is not accepting connections",
-        ),
-        (
-            SqlState::CRASH_SHUTDOWN,
-            "server is not accepting connections",
-        ),
-        (
-            SqlState::CANNOT_CONNECT_NOW,
-            "server is not accepting connections",
-        ),
-    ];
-    if let Some((_, label)) = KNOWN.iter().find(|(known, _)| known == state) {
-        return label;
-    }
-    // SQLSTATE class: https://www.postgresql.org/docs/current/errcodes-appendix.html
-    match state.code().get(..2) {
-        Some("28") => "authentication failed (check username, password and pg_hba)",
-        Some("08") => "connection failure",
-        Some("42") => "invalid query",
-        Some("53") => "insufficient resources (e.g. too many connections)",
-        _ => "",
+    match *state {
+        SqlState::INSUFFICIENT_PRIVILEGE => {
+            "permission denied, the user lacks the required privileges"
+        }
+        SqlState::INVALID_CATALOG_NAME => "database does not exist",
+        SqlState::INVALID_SCHEMA_NAME => "schema does not exist",
+        SqlState::UNDEFINED_TABLE => "table does not exist",
+        SqlState::UNDEFINED_COLUMN => "column does not exist",
+        SqlState::QUERY_CANCELED => "query canceled (statement timeout)",
+        SqlState::READ_ONLY_SQL_TRANSACTION => "write attempted in a read-only transaction",
+        SqlState::ADMIN_SHUTDOWN | SqlState::CRASH_SHUTDOWN | SqlState::CANNOT_CONNECT_NOW => {
+            "server is not accepting connections"
+        }
+        // SQLSTATE class: https://www.postgresql.org/docs/current/errcodes-appendix.html
+        _ => match state.code().get(..2) {
+            Some("28") => "authentication failed (check username, password and pg_hba)",
+            Some("08") => "connection failure",
+            Some("42") => "invalid query",
+            Some("53") => "insufficient resources (e.g. too many connections)",
+            _ => "",
+        },
     }
 }
 
