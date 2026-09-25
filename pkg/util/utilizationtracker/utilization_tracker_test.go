@@ -20,7 +20,7 @@ import (
 
 func newTracker(_ *testing.T) (*UtilizationTracker, *clock.Mock) {
 	clk := clock.NewMock()
-	ut := newUtilizationTrackerWithClock(
+	ut := NewUtilizationTrackerWithClock(
 		100*time.Millisecond,
 		clk,
 		0.25,
@@ -42,33 +42,33 @@ func TestUtilizationTracker(t *testing.T) {
 	// should be a constant zero value
 	clk.Add(300 * time.Millisecond)
 	ut.Tick()
-	old, newValue = newValue, <-ut.Output
+	old, newValue = newValue, (<-ut.Output).Utilization
 	require.Equal(t, old, newValue)
 
 	clk.Add(300 * time.Millisecond)
 	// Ramp up the expected utilization
-	ut.Started()
-	old, newValue = newValue, <-ut.Output
+	ut.Started(false)
+	old, newValue = newValue, (<-ut.Output).Utilization
 	require.Equal(t, old, newValue)
 
 	clk.Add(250 * time.Millisecond)
 	ut.Tick()
-	old, newValue = newValue, <-ut.Output
+	old, newValue = newValue, (<-ut.Output).Utilization
 	require.Greater(t, newValue, old)
 
 	clk.Add(550 * time.Millisecond)
 	ut.Tick()
-	old, newValue = newValue, <-ut.Output
+	old, newValue = newValue, (<-ut.Output).Utilization
 	require.Greater(t, newValue, old)
 
 	// Ramp down the expected utilization
 	ut.Finished()
-	old, newValue = newValue, <-ut.Output
+	old, newValue = newValue, (<-ut.Output).Utilization
 	require.Equal(t, old, newValue) //no time have passed
 
 	clk.Add(250 * time.Millisecond)
 	ut.Tick()
-	old, newValue = newValue, <-ut.Output
+	old, newValue = newValue, (<-ut.Output).Utilization
 	require.Less(t, newValue, old)
 
 	clk.Add(550 * time.Millisecond)
@@ -85,38 +85,38 @@ func TestUtilizationTrackerCheckLifecycle(t *testing.T) {
 	// No tasks should equal no utilization
 	clk.Add(250 * time.Millisecond)
 	ut.Tick()
-	old, newValue = newValue, <-ut.Output
+	old, newValue = newValue, (<-ut.Output).Utilization
 	assert.Equal(t, old, newValue)
 
 	for idx := 0; idx < 3; idx++ {
 		// Ramp up utilization
-		ut.Started()
-		old, newValue = newValue, <-ut.Output
+		ut.Started(false)
+		old, newValue = newValue, (<-ut.Output).Utilization
 		assert.Equal(t, old, newValue)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, newValue = newValue, <-ut.Output
+		old, newValue = newValue, (<-ut.Output).Utilization
 		assert.Greater(t, newValue, old)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, newValue = newValue, <-ut.Output
+		old, newValue = newValue, (<-ut.Output).Utilization
 		assert.Greater(t, newValue, old)
 
 		// Ramp down utilization
 		ut.Finished()
-		old, newValue = newValue, <-ut.Output
+		old, newValue = newValue, (<-ut.Output).Utilization
 		assert.Equal(t, newValue, old)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, newValue = newValue, <-ut.Output
+		old, newValue = newValue, (<-ut.Output).Utilization
 		assert.Less(t, newValue, old)
 
 		clk.Add(250 * time.Millisecond)
 		ut.Tick()
-		old, newValue = newValue, <-ut.Output
+		old, newValue = newValue, (<-ut.Output).Utilization
 		assert.Less(t, newValue, old)
 	}
 }
@@ -136,14 +136,14 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 		totalMs := r.Int31n(100) + 100
 		runtimeMs := (totalMs * 30) / 100
 
-		ut.Started()
+		ut.Started(false)
 		<-ut.Output
 
 		runtimeDuration := time.Duration(runtimeMs) * time.Millisecond
 		clk.Add(runtimeDuration)
 
 		ut.Finished()
-		val = <-ut.Output
+		val = (<-ut.Output).Utilization
 
 		idleDuration := time.Duration(totalMs-runtimeMs) * time.Millisecond
 		clk.Add(idleDuration)
@@ -154,4 +154,39 @@ func TestUtilizationTrackerAccuracy(t *testing.T) {
 	}
 
 	require.InDelta(t, 0.3, val, 0.07)
+}
+
+func TestUtilizationTrackerExcluded(t *testing.T) {
+	ut, clk := newTracker(t)
+	defer ut.Stop()
+
+	// Not excluded before anything starts.
+	clk.Add(100 * time.Millisecond)
+	ut.Tick()
+	require.False(t, (<-ut.Output).Excluded)
+
+	// The reading emitted by Started itself still reflects the state from
+	// before it started.
+	ut.Started(true)
+	require.False(t, (<-ut.Output).Excluded)
+
+	// Subsequent readings, while the excluded work is in progress, are
+	// marked excluded.
+	clk.Add(100 * time.Millisecond)
+	ut.Tick()
+	require.True(t, (<-ut.Output).Excluded)
+
+	clk.Add(100 * time.Millisecond)
+	ut.Tick()
+	require.True(t, (<-ut.Output).Excluded)
+
+	// Likewise, the reading emitted by Finished itself still reflects the
+	// excluded state from just before it finished.
+	ut.Finished()
+	require.True(t, (<-ut.Output).Excluded)
+
+	// Finished() clears the excluded flag for subsequent readings.
+	clk.Add(100 * time.Millisecond)
+	ut.Tick()
+	require.False(t, (<-ut.Output).Excluded)
 }

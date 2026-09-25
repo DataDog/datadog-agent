@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -317,6 +319,9 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 	blockingCheck.Lock()
 	longRunningCheck.Lock()
 
+	const tickInterval = 100 * time.Millisecond
+	clk := clock.NewMock()
+
 	worker, err := newWorkerWithOptions(
 		1,
 		2,
@@ -325,11 +330,12 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		mockShouldAddStatsFunc,
 		func() (sender.Sender, error) { return nil, nil },
 		haagentmock.NewMockHaAgent(),
-		100*time.Millisecond,
+		tickInterval,
 		10*time.Second,
 		false,
 	)
 	require.Nil(t, err)
+	worker.clock = clk
 
 	wg.Add(1)
 	go func() {
@@ -343,6 +349,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		wg.Wait()
 
 		AssertAsyncWorkerCount(t, 0)
+		assertWorkerUtilizationGaugeAbsent(t, "worker_2")
 	}()
 
 	// No tasks should equal no utilization
@@ -350,23 +357,46 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 0, 0)
 	}, 500*time.Millisecond, 100*time.Millisecond)
 
-	// High util checks should be reflected in expvars
+	// High util checks should be reflected in expvars, but a regular blocking
+	// check should not exclude the worker from the aggregate utilization stats.
 
 	pendingChecksChan <- blockingCheck
 
+	// Wait for the worker to have picked up the check (and so, called
+	// utilizationTracker.Started) before advancing the clock, so that every
+	// tick we feed the tracker counts towards busy time.
+	require.Eventually(t, func() bool { return blockingCheck.RunCount() == 1 }, time.Second, time.Millisecond)
+	advanceUtilizationTicks(clk, tickInterval, 40) // alpha=0.25 converges to 99.98% in 30 iterations
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
-	}, 2*time.Second, 200*time.Millisecond)
+		assert.False(c, getWorkerExcludedExpvar(c, "worker_2"))
+	}, time.Second, 10*time.Millisecond)
+
+	monitor := NewUtilizationMonitor(0.8)
+	utilizations, err := monitor.GetAllWorkerUtilizations()
+	require.NoError(t, err)
+	assert.Contains(t, utilizations, "worker_2")
 
 	blockingCheck.Unlock()
 
-	// Long running checks should also be counted as high utilization
+	// Long running checks should also be counted as high utilization in the
+	// per-worker expvars, but the worker should now be excluded from the
+	// aggregate utilization stats since it's now dedicated to that check.
 
 	pendingChecksChan <- longRunningCheck
 
+	require.Eventually(t, func() bool { return longRunningCheck.RunCount() == 1 }, time.Second, time.Millisecond)
+	advanceUtilizationTicks(clk, tickInterval, 40)
+
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.InDelta(c, getWorkerUtilizationExpvar(c, "worker_2"), 1, 0.05)
-	}, 2*time.Second, 200*time.Millisecond)
+		assert.True(c, getWorkerExcludedExpvar(c, "worker_2"))
+	}, time.Second, 10*time.Millisecond)
+
+	utilizations, err = monitor.GetAllWorkerUtilizations()
+	require.NoError(t, err)
+	assert.NotContains(t, utilizations, "worker_2")
 
 	longRunningCheck.Unlock()
 }
@@ -648,6 +678,71 @@ func TestShadowWorkerDoesNotSendServiceCheck(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 0)
 }
 
+func TestShadowWorkerExcludedFromUtilizationAggregate(t *testing.T) {
+	expvars.Reset()
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("hostname", "myhost")
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	blockingCheck := newCheck(t, "testing:123", false, nil)
+	blockingCheck.Lock()
+
+	const tickInterval = 100 * time.Millisecond
+	clk := clock.NewMock()
+
+	worker, err := newWorkerWithOptions(
+		1,
+		2,
+		pendingChecksChan,
+		checksTracker,
+		mockShouldAddStatsFunc,
+		func() (sender.Sender, error) { return nil, nil },
+		haagentmock.NewMockHaAgent(),
+		tickInterval,
+		10*time.Second,
+		true, // isShadowWorker
+	)
+	require.NoError(t, err)
+	worker.clock = clk
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(context.Background())
+	}()
+
+	defer func() {
+		close(pendingChecksChan)
+		wg.Wait()
+
+		assertWorkerUtilizationGaugeAbsent(t, worker.Name)
+	}()
+
+	pendingChecksChan <- blockingCheck
+
+	// Wait for the worker to have picked up the check (and so, called
+	// utilizationTracker.Started) before advancing the clock, so that every
+	// tick we feed the tracker counts towards busy time.
+	require.Eventually(t, func() bool { return blockingCheck.RunCount() == 1 }, time.Second, time.Millisecond)
+	advanceUtilizationTicks(clk, tickInterval, 40) // alpha=0.25 converges to 99.98% in 30 iterations
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.InDelta(c, getWorkerUtilizationExpvar(c, worker.Name), 1, 0.05)
+		assert.True(c, getWorkerExcludedExpvar(c, worker.Name))
+	}, time.Second, 10*time.Millisecond)
+
+	monitor := NewUtilizationMonitor(0.8)
+	utilizations, err := monitor.GetAllWorkerUtilizations()
+	require.NoError(t, err)
+	assert.NotContains(t, utilizations, worker.Name)
+
+	blockingCheck.Unlock()
+}
+
 func TestWorkerSenderNil(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
@@ -838,6 +933,60 @@ func getWorkerUtilizationExpvar(c *assert.CollectT, name string) float64 {
 	require.NotNil(c, workerStats)
 
 	return workerStats.Utilization
+}
+
+// getWorkerExcludedExpvar returns the Excluded flag as presented by expvars
+// for a named worker.
+func getWorkerExcludedExpvar(c *assert.CollectT, name string) bool {
+	instancesExpvar := expvars.GetWorkerInstances()
+	require.NotNil(c, instancesExpvar)
+
+	workerStatsExpvar := instancesExpvar.Get(name)
+	require.NotNil(c, workerStatsExpvar)
+
+	workerStats := workerStatsExpvar.(*expvars.WorkerStats)
+	require.NotNil(c, workerStats)
+
+	return workerStats.Excluded
+}
+
+// workerUtilizationGaugeMetricName is the fully-qualified prometheus name for
+// the workerUtilization gauge defined in worker.go (subsystem "collector",
+// name "worker_utilization").
+const workerUtilizationGaugeMetricName = "collector__worker_utilization"
+
+// assertWorkerUtilizationGaugeAbsent fails the test if the workerUtilization
+// telemetry gauge still has a series for the given worker name, which would
+// mean startUtilizationUpdater's cleanup goroutine leaked it past the
+// worker's shutdown.
+func assertWorkerUtilizationGaugeAbsent(t *testing.T, workerName string) {
+	t.Helper()
+
+	families, err := telemetryimpl.GetCompatComponent().Gather(false)
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != workerUtilizationGaugeMetricName {
+			continue
+		}
+
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "worker_name" && label.GetValue() == workerName {
+					require.Fail(t, "worker utilization gauge was not deleted on worker shutdown", "worker: %s", workerName)
+				}
+			}
+		}
+	}
+}
+
+// advanceUtilizationTicks feeds n ticks of the given interval to a mock clock,
+// one at a time, so that the utilization tracker's ticker goroutine has a
+// chance to drain each one before the next is generated.
+func advanceUtilizationTicks(clk *clock.Mock, interval time.Duration, n int) {
+	for i := 0; i < n; i++ {
+		clk.Add(interval)
+	}
 }
 
 func TestWorkerWatchdogWarningLog(t *testing.T) {
