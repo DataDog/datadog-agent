@@ -91,10 +91,7 @@ func accountsCheck(distro) probe {
 		"sudo sed -i -E 's/^#?PASS_WARN_AGE.*/PASS_WARN_AGE 7/' " + f}
 }
 
-// sysctlCheck exercises the sysctl probe. cis-rhel8 and cis-rhel10 evaluate
-// kernel.dmesg_restrict, the other benchmarks net.ipv4.ip_forward (note the opposite
-// compliant values). Host-only: a Docker host forces ip_forward=1, which the
-// containerized variant could never satisfy.
+// sysctlCheck exercises host-only kernel settings without changing Docker's IP forwarding.
 func sysctlCheck(d distro) probe {
 	if d.name == "rhel8" || d.name == "rhel10" {
 		const f = "/etc/sysctl.d/90-dmesg.conf"
@@ -102,10 +99,10 @@ func sysctlCheck(d distro) probe {
 			"sudo sysctl -w kernel.dmesg_restrict=0 && sudo rm -f " + f,
 			"sudo sysctl -w kernel.dmesg_restrict=1 && echo 'kernel.dmesg_restrict = 1' | sudo tee " + f}
 	}
-	const f = "/etc/sysctl.d/60-netipv4_sysctl.conf"
-	return probe{"sysctl", rulePrefix + "sysctl_net_ipv4_ip_forward",
-		"sudo sysctl -w net.ipv4.ip_forward=1 && sudo rm -f " + f,
-		"sudo sysctl -w net.ipv4.ip_forward=0 && echo 'net.ipv4.ip_forward = 0' | sudo tee " + f}
+	const f = "/etc/sysctl.d/90-aslr.conf"
+	return probe{"sysctl", rulePrefix + "sysctl_kernel_randomize_va_space",
+		"sudo sysctl -w kernel.randomize_va_space=0 && sudo rm -f " + f,
+		"sudo sysctl -w kernel.randomize_va_space=2 && echo 'kernel.randomize_va_space = 2' | sudo tee " + f}
 }
 
 // serviceCheck exercises the systemdunitproperty probe via the cron service. Host-only:
