@@ -23,10 +23,13 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidsysprobeconfig"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
@@ -63,10 +66,11 @@ func requireSchema(t *testing.T) {
 // TestInvalidConfigExtraErrorsSurviveFullPipeline exercises the complete
 // pipeline: schema violation in config → startup check → runner.BuildIssue →
 // store → forwarder → fakeintake. Asserts that the legacy and structured
-// violations reach the intake without the resolved secret value.
+// violations from both config checks reach intake without configured values.
 func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	requireSchema(t)
 	const rawInvalidLogsEnabled = "RAW_LOGS_ENABLED_MUST_NOT_APPEAR_83d4d1"
+	const rawInvalidHealthPort = "RAW_HEALTH_PORT_MUST_NOT_APPEAR_42fa6e"
 
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(
@@ -99,6 +103,12 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
+		fx.Provide(func(t testing.TB) sysprobeconfig.Component {
+			cfg := sysprobeconfigmock.NewMock(t)
+			cfg.Set("system_probe_config.health_port", rawInvalidHealthPort, model.SourceFile)
+			cfg.Set("system_probe_config.health_port", 0, model.SourceAgentRuntime)
+			return cfg
+		}),
 		hostnameinterface.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
@@ -109,6 +119,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	)
 
 	var receivedIssue *healthplatformpayload.Issue
+	var receivedSysprobeIssue *healthplatformpayload.Issue
 	require.Eventually(t, func() bool {
 		payloads, err := fiClient.GetAgentHealth()
 		if err != nil || len(payloads) == 0 {
@@ -117,12 +128,17 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		for _, p := range payloads {
 			if iss := findInvalidConfigIssue(p.Issues); iss != nil {
 				receivedIssue = iss
-				return true
+			}
+			for _, iss := range p.Issues {
+				if iss.GetIssueType() == invalidsysprobeconfig.IssueType {
+					receivedSysprobeIssue = iss
+				}
 			}
 		}
-		return false
-	}, waitTimeout, waitInterval, "invalid-config issue never reached fakeintake")
+		return receivedIssue != nil && receivedSysprobeIssue != nil
+	}, waitTimeout, waitInterval, "configuration issues never reached fakeintake")
 	require.NotNil(t, receivedIssue)
+	require.NotNil(t, receivedSysprobeIssue)
 
 	errorsStruct := receivedIssue.GetExtra().GetFields()["errors"].GetStructValue()
 	require.NotNil(t, errorsStruct, "extra.errors must reach fakeintake as a path-keyed struct")
@@ -155,29 +171,50 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		assert.Equal(t, expected.defaultValue, violation["default_value"])
 	}
 
-	receivedJSON, err := json.Marshal(receivedIssue)
-	require.NoError(t, err)
-	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
-	const explanation = "`/logs_enabled` expects true or false, but received a string."
-	const correction = "Set `/logs_enabled` to true or false. The default value for this setting is `false`."
-	assert.Contains(t, receivedIssue.GetDescription(), explanation)
-	assert.Contains(t, receivedIssue.GetRemediation().GetSteps()[1].Text, correction)
-	for _, verbose := range []bool{false, true} {
-		found := false
-		for _, result := range Diagnose(store, diagnose.Config{Verbose: verbose}) {
-			if result.Category != receivedIssue.Id {
-				continue
+	sysprobeFields := receivedSysprobeIssue.GetExtra().GetFields()
+	assert.NotContains(t, sysprobeFields, "violations_version")
+	sysprobeViolations := sysprobeFields["violations"].GetListValue().GetValues()
+	require.Len(t, sysprobeViolations, 1)
+	assert.Equal(t, map[string]any{
+		"path": "/system_probe_config/health_port", "actual_type": "string",
+		"expected_types": []any{"integer"}, "default_status": "known", "default_value": float64(0),
+	}, sysprobeViolations[0].GetStructValue().AsMap())
+	assert.Equal(t, map[string]any{"/system_probe_config/health_port": []any{"got string, want integer"}}, sysprobeFields["errors"].GetStructValue().AsMap())
+
+	for _, tc := range []struct {
+		issue                          *healthplatformpayload.Issue
+		value, explanation, correction string
+	}{
+		{receivedIssue, rawInvalidLogsEnabled,
+			"`/logs_enabled` expects true or false, but received a string.",
+			"Set `/logs_enabled` to true or false. The default value for this setting is `false`."},
+		{receivedSysprobeIssue, rawInvalidHealthPort,
+			"`/system_probe_config/health_port` expects a whole number, but received a string.",
+			"Set `/system_probe_config/health_port` to a whole number. The default value for this setting is `0`."},
+	} {
+		receivedJSON, err := json.Marshal(tc.issue)
+		require.NoError(t, err)
+		assert.NotContains(t, string(receivedJSON), tc.value)
+		assert.Contains(t, tc.issue.GetDescription(), tc.explanation)
+		require.Len(t, tc.issue.GetRemediation().GetSteps(), 4)
+		assert.Contains(t, tc.issue.GetRemediation().GetSteps()[1].Text, tc.correction)
+		for _, verbose := range []bool{false, true} {
+			found := false
+			for _, result := range Diagnose(store, diagnose.Config{Verbose: verbose}) {
+				if result.Category != tc.issue.Id {
+					continue
+				}
+				found = true
+				assert.Contains(t, result.Diagnosis, tc.explanation)
+				assert.NotContains(t, result.Diagnosis+result.Remediation, tc.value)
+				if verbose {
+					assert.Contains(t, result.Remediation, tc.correction)
+				} else {
+					assert.Empty(t, result.Remediation)
+				}
 			}
-			found = true
-			assert.Contains(t, result.Diagnosis, explanation)
-			assert.NotContains(t, result.Diagnosis+result.Remediation, rawInvalidLogsEnabled)
-			if verbose {
-				assert.Contains(t, result.Remediation, correction)
-			} else {
-				assert.Empty(t, result.Remediation)
-			}
+			assert.True(t, found, "%s issue missing from diagnostics", tc.issue.IssueName)
 		}
-		assert.True(t, found, "invalid-config issue missing from diagnostics")
+		t.Logf("received configuration issue: %s", receivedJSON)
 	}
-	t.Logf("received invalid-config issue: %s", receivedJSON)
 }

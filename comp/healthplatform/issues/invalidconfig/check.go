@@ -70,8 +70,19 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	if len(violations) == 0 {
 		return nil, nil
 	}
+	ctx := BuildContext(c.cfg, c.cfg.ConfigFileUsed(), violations)
+	return []runnerdef.IssueReport{{
+		IssueID:   c.instanceIssueID(),
+		IssueName: IssueName,
+		Source:    "agent",
+		Context:   ctx,
+	}}, nil
+}
+
+// BuildContext builds issue details from scrubbed paths, types, and registered defaults.
+func BuildContext(cfg model.Reader, configPath string, violations []schema.Violation) map[string]string {
 	ctx := map[string]string{
-		contextKeyConfigPath: c.cfg.ConfigFileUsed(),
+		contextKeyConfigPath: configPath,
 		contextKeyErrorCount: strconv.Itoa(len(violations)),
 	}
 	payloads := make([]violationPayload, 0, len(violations))
@@ -84,7 +95,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			continue
 		}
 		ctx[contextErrorKey(i)] = fmt.Sprintf("at '%s': got %s, want %s", path, violation.ActualType, strings.Join(violation.ExpectedTypes, " or "))
-		defaultStatus, defaultValue := resolveDefault(c.cfg, violation.Path)
+		defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
 		payloads = append(payloads, violationPayload{
 			Path:          path,
 			ActualType:    violation.ActualType,
@@ -98,12 +109,7 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 			ctx[contextKeyViolations] = string(encoded)
 		}
 	}
-	return []runnerdef.IssueReport{{
-		IssueID:   c.instanceIssueID(),
-		IssueName: IssueName,
-		Source:    "agent",
-		Context:   ctx,
-	}}, nil
+	return ctx
 }
 
 func scrubViolationPath(path string) string {
@@ -120,7 +126,7 @@ func scrubViolationPath(path string) string {
 	return pointer.String()
 }
 
-func resolveDefault(cfg config.Component, pointerPath string) (string, any) {
+func resolveDefault(cfg model.Reader, pointerPath string) (string, any) {
 	pointer, err := jsonpointer.Parse(pointerPath)
 	if err != nil || pointer.IsEmpty() {
 		return "unknown", nil
