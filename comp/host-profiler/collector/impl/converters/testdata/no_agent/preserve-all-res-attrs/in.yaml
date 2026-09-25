@@ -4,7 +4,11 @@ receivers:
       enabled: false
 processors:
   resourcedetection:
-    detectors: [system]
+    detectors: [gcp, system, env]
+    gcp:
+      resource_attributes:
+        cloud.provider:
+          enabled: true
     system:
       resource_attributes:
         host.arch:
