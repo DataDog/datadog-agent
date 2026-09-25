@@ -16,12 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-
-	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
+	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 )
 
 // ============================================================================
@@ -96,14 +94,15 @@ func (s *eudmSuite) TestEUDMChecks() {
 // mode. The marker tag is emitted on every supported OS; OS/hardware tag
 // keys are emitted on macOS and Windows.
 func (s *eudmSuite) TestEUDMHostTags() {
-	// Restart the agent to reset the host metadata backoff: a fresh agent sends a
-	// host-tags payload immediately on start, so the test doesn't depend on the
-	// 5/15/30min resend cadence or on WMI having been ready at first boot.
+	// Restart the agent to reset the host metadata backoff
+	var service svcmanager.ServiceManager
 	if s.descriptor.Family() == e2eos.WindowsFamily {
-		require.NoError(s.T(), windowsCommon.RestartService(s.Env().RemoteHost, "datadog-agent"))
+		service = svcmanager.NewWindows(s.Env().RemoteHost)
 	} else {
-		s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
+		service = svcmanager.NewSystemctl(s.Env().RemoteHost)
 	}
+	_, err := service.Restart("datadog-agent")
+	require.NoError(s.T(), err, "failed to restart datadog-agent service")
 
 	fakeintake := s.Env().FakeIntake.Client()
 
