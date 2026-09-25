@@ -1,0 +1,35 @@
+description: Datadog System Probe
+command: '__SYSPROBE_INSTALL_ROOT__/bin/agent/system-probe.exe'
+# No args, matching the ImagePath the MSI registers for datadog-system-probe. The binary
+# takes the CLI path here because its parent is dd-procmgrd rather than services.exe, so
+# it prepends `run` itself and resolves system-probe.yaml from the default location.
+#
+# The core Agent still starts datadog-system-probe through the SCM. Until that service is
+# suppressed, auto_start here would run two system-probes over one named pipe and one set
+# of kernel drivers.
+auto_start: false
+condition_path_exists: '__SYSPROBE_INSTALL_ROOT__/bin/agent/system-probe.exe'
+# Transcribes the legacy SCM decision in cmd/agent/subcommands/run/dependent_services_windows.go:
+# any-of over these keys, the first four from system-probe.yaml and the last from datadog.yaml.
+#
+# An external system-probe (system_probe_config.external) opens this gate like it opens the
+# SCM service, and the binary exits at once. Closing it needs a veto scoped to this entry:
+# the process-agent gate reads the same system-probe keys and has to stay open.
+condition_config_any:
+  - path: '__SYSPROBE_ETC_ROOT__/system-probe.yaml'
+    keys:
+      - network_config.enabled
+      - system_probe_config.enabled
+      - windows_crash_detection.enabled
+      - runtime_security_config.enabled
+  - path: '__SYSPROBE_ETC_ROOT__/datadog.yaml'
+    keys:
+      - software_inventory.enabled
+# on-failure is load-bearing, not a default. A system-probe that decides it is not enabled
+# sleeps 5 seconds and exits 0; under `always` that would be a permanent respawn loop.
+restart: on-failure
+restart_sec: 2
+start_limit_interval_sec: 10
+start_limit_burst: 5
+stdout: inherit
+stderr: inherit
