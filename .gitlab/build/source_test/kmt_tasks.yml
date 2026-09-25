@@ -22,7 +22,7 @@
 
 test_kmt_local_setup_linux:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   extends: .test_kmt_local_setup
   variables:
     # Some requirements cannot be tested in the CI yet:

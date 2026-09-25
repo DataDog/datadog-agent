@@ -47,7 +47,41 @@ const (
 var (
 	cloudPlatformAzureAppService       = semconv143.CloudPlatformAzureAppService.Value.AsString()
 	cloudPlatformAzureAppServiceLegacy = conventions.CloudPlatformAzureAppService.Value.AsString()
+	cloudPlatformAzureFunctions        = semconv143.CloudPlatformAzureFunctions.Value.AsString()
+	cloudPlatformAzureFunctionsLegacy  = conventions.CloudPlatformAzureFunctions.Value.AsString()
 )
+
+type azureFunctionsResource struct {
+	name           string
+	subscriptionID string
+	resourceGroup  string
+	instanceID     string
+}
+
+func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsResource, bool) {
+	platform, ok := attrs.Get(string(conventions.CloudPlatformKey))
+	if !ok || (platform.Str() != cloudPlatformAzureFunctions && platform.Str() != cloudPlatformAzureFunctionsLegacy) {
+		return azureFunctionsResource{}, false
+	}
+
+	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
+	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
+	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
+	instanceID, instanceIDOK := attrs.Get(string(semconv143.FaaSInstanceKey))
+	if !nameOK || name.Str() == "" ||
+		!subscriptionIDOK || subscriptionID.Str() == "" ||
+		!resourceGroupOK || resourceGroup.Str() == "" ||
+		!instanceIDOK || instanceID.Str() == "" {
+		return azureFunctionsResource{}, false
+	}
+
+	return azureFunctionsResource{
+		name:           name.Str(),
+		subscriptionID: subscriptionID.Str(),
+		resourceGroup:  resourceGroup.Str(),
+		instanceID:     instanceID.Str(),
+	}, true
+}
 
 type azureAppServiceResource struct {
 	name           string
@@ -81,6 +115,63 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 		subscriptionID: subscriptionID.Str(),
 		resourceGroup:  resourceGroup.Str(),
 		instanceID:     instanceID.Str(),
+	}, true
+}
+
+// IsGCPServerless reports whether the resource declares a Cloud Run or Cloud
+// Functions platform, including incomplete identities and out-of-scope jobs.
+// Such resources must not fall back to the Collector's host identity.
+func IsGCPServerless(attrs pcommon.Map) bool {
+	platform, _ := attrs.Get(string(conventions.CloudPlatformKey))
+	return platform.Str() == conventions.CloudPlatformGCPCloudFunctions.Value.AsString() ||
+		platform.Str() == conventions.CloudPlatformGCPCloudRun.Value.AsString()
+}
+
+func gcpServerlessSourceFromAttributes(attrs pcommon.Map) (source.Source, bool) {
+	platform, _ := attrs.Get(string(conventions.CloudPlatformKey))
+	var kind source.Kind
+	switch platform.Str() {
+	case conventions.CloudPlatformGCPCloudFunctions.Value.AsString():
+		// Functions take precedence over their underlying Cloud Run service.
+		kind = source.GCPCloudFunctionsKind
+	case conventions.CloudPlatformGCPCloudRun.Value.AsString():
+		kind = source.GCPCloudRunKind
+	default:
+		return source.Source{}, false
+	}
+
+	// A job must not inherit service running-metric attribution, even when its
+	// job attributes are empty or a revision was added manually. Worker pools have the
+	// same resource shape as services and cannot be distinguished here.
+	for _, key := range []string{"gcp.cloud_run.job.execution", "gcp.cloud_run.job.task_index"} {
+		if _, ok := attrs.Get(key); ok {
+			return source.Source{}, false
+		}
+	}
+
+	dims := make(map[string]string, 5)
+	for otelKey, ddKey := range map[string]string{
+		string(conventions.CloudAccountIDKey): "project_id",
+		string(conventions.CloudRegionKey):    "location",
+		string(conventions.FaaSNameKey):       "service_name",
+		string(conventions.FaaSInstanceKey):   "instance",
+	} {
+		value, ok := attrs.Get(otelKey)
+		if !ok || value.Type() != pcommon.ValueTypeStr || value.Str() == "" {
+			return source.Source{}, false
+		}
+		dims[ddKey] = value.Str()
+	}
+	if revision, ok := attrs.Get(string(conventions.FaaSVersionKey)); ok && revision.Str() != "" {
+		dims["revision_name"] = revision.Str()
+	}
+	return source.Source{
+		Kind:       kind,
+		Identifier: dims["instance"], //nolint:staticcheck // Populate the legacy field during the SourceIdentifier migration.
+		SourceIdentifier: source.SourceIdentifier{
+			Primary:    dims["instance"],
+			Dimensions: dims,
+		},
 	}, true
 }
 
@@ -201,6 +292,26 @@ type HostFromAttributesHandler interface {
 // SourceFromAttrs gets a telemetry signal source from its attributes.
 // Deprecated: Use Translator.ResourceToSource or Translator.AttributesToSource instead.
 func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
+	if function, ok := azureFunctionsResourceFromAttributes(attrs); ok {
+		return source.Source{
+			Kind:       source.AzureFunctionsKind,
+			Identifier: function.instanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			SourceIdentifier: source.SourceIdentifier{
+				Primary: function.instanceID,
+				Dimensions: map[string]string{
+					"name":            function.name,
+					"subscription_id": function.subscriptionID,
+					"resource_group":  function.resourceGroup,
+					"instance":        function.instanceID,
+				},
+			},
+		}, true
+	}
+
+	if IsGCPServerless(attrs) {
+		return gcpServerlessSourceFromAttributes(attrs)
+	}
+
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
 		return source.Source{
 			Kind:       source.AzureAppServiceKind,

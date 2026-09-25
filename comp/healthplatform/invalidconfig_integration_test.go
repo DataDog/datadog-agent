@@ -19,6 +19,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -26,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigschema "github.com/DataDog/datadog-agent/pkg/config/schema"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -60,8 +62,8 @@ func requireSchema(t *testing.T) {
 
 // TestInvalidConfigExtraErrorsSurviveFullPipeline exercises the complete
 // pipeline: schema violation in config → startup check → runner.BuildIssue →
-// store → forwarder → fakeintake. Asserts that extra.errors reaches the intake
-// without exposing a locally resolved secret value.
+// store → forwarder → fakeintake. Asserts that the legacy and structured
+// violations reach the intake without the resolved secret value.
 func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	requireSchema(t)
 	const rawInvalidLogsEnabled = "RAW_LOGS_ENABLED_MUST_NOT_APPEAR_83d4d1"
@@ -79,11 +81,11 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 
 	const tickInterval = 50 * time.Millisecond
 
-	fxutil.Test[fxutil.NoDependencies](t,
+	store := fxutil.Test[storedef.Component](t,
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
-			cfg := config.NewMockFromYAML(t, "logs_enabled: ENC[logs_enabled]\n")
+			cfg := config.NewMockFromYAML(t, "logs_enabled: ENC[logs_enabled]\ndogstatsd_port: ENC[PRIVATE_UNRESOLVED_HANDLE]\n")
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", fi.URL())
 			cfg.SetInTest("health_platform.enabled", true)
@@ -92,6 +94,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
 			cfg.SetInTest("run_path", t.TempDir())
 			cfg.SetInTest("agent_ipc.port", "not-a-number")
+			cfg.SetInTest("forwarder_apikey_validation_interval", []int{61})
 			cfg.Set("logs_enabled", rawInvalidLogsEnabled, model.SourceSecret)
 			return cfg
 		}),
@@ -128,11 +131,60 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 	vals := portErrors.GetListValue().GetValues()
 	require.NotEmpty(t, vals)
 	assert.Contains(t, vals[0].GetStringValue(), "want integer")
-	logsEnabledErrors := errorsStruct.GetFields()["/logs_enabled"]
-	require.NotNil(t, logsEnabledErrors, "/logs_enabled must be present in extra.errors")
-	assert.Contains(t, logsEnabledErrors.GetListValue().GetValues()[0].GetStringValue(), "want boolean")
+
+	fields := receivedIssue.GetExtra().GetFields()
+	assert.NotContains(t, fields, "violations_version")
+	violations := fields["violations"].GetListValue().GetValues()
+	byPath := make(map[string]map[string]any)
+	for _, value := range violations {
+		violation := value.GetStructValue()
+		byPath[violation.GetFields()["path"].GetStringValue()] = violation.AsMap()
+	}
+	for _, expected := range []struct {
+		path, actualType, expectedType string
+		defaultValue                   any
+	}{
+		{"/logs_enabled", "string", "boolean", false},
+		{"/forwarder_apikey_validation_interval", "array", "integer", float64(60)},
+	} {
+		require.Contains(t, byPath, expected.path)
+		violation := byPath[expected.path]
+		assert.Equal(t, expected.actualType, violation["actual_type"])
+		assert.Equal(t, []any{expected.expectedType}, violation["expected_types"])
+		assert.Equal(t, "known", violation["default_status"])
+		assert.Equal(t, expected.defaultValue, violation["default_value"])
+	}
+	assert.Len(t, byPath, 3)
+	assert.NotContains(t, errorsStruct.GetFields(), "/dogstatsd_port")
+	assert.NotContains(t, byPath, "/dogstatsd_port")
 
 	receivedJSON, err := json.Marshal(receivedIssue)
 	require.NoError(t, err)
 	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
+	assert.NotContains(t, string(receivedJSON), "PRIVATE_UNRESOLVED_HANDLE")
+	const explanation = "`/logs_enabled` expects true or false, but received a string."
+	const correction = "Set `/logs_enabled` to true or false. The default value for this setting is `false`."
+	assert.Contains(t, receivedIssue.GetDescription(), explanation)
+	assert.NotContains(t, receivedIssue.GetDescription(), "/dogstatsd_port")
+	assert.Contains(t, receivedIssue.GetRemediation().GetSteps()[1].Text, correction)
+	for _, verbose := range []bool{false, true} {
+		found := false
+		for _, result := range Diagnose(store, diagnose.Config{Verbose: verbose}) {
+			if result.Category != receivedIssue.Id {
+				continue
+			}
+			found = true
+			assert.Contains(t, result.Diagnosis, explanation)
+			assert.NotContains(t, result.Diagnosis+result.Remediation, "/dogstatsd_port")
+			assert.NotContains(t, result.Diagnosis+result.Remediation, rawInvalidLogsEnabled)
+			assert.NotContains(t, result.Diagnosis+result.Remediation, "PRIVATE_UNRESOLVED_HANDLE")
+			if verbose {
+				assert.Contains(t, result.Remediation, correction)
+			} else {
+				assert.Empty(t, result.Remediation)
+			}
+		}
+		assert.True(t, found, "invalid-config issue missing from diagnostics")
+	}
+	t.Logf("received invalid-config issue: %s", receivedJSON)
 }

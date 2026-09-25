@@ -3,9 +3,10 @@ command: '{{.InstallDir}}/bin/agent/process-agent.exe'
 args:
   - --cfgpath
   - '{{.EtcDir}}/datadog.yaml'
-# The core Agent still starts datadog-process-agent through the SCM. Until that service is
-# suppressed, auto_start here would run two process-agents.
-auto_start: false
+# dd-procmgr is the only supervisor for process-agent on Windows: whenever this file exists
+# and process_manager.enabled is set, the core Agent skips the legacy datadog-process-agent
+# service. Setting this back to false would leave process-agent unsupervised entirely.
+auto_start: true
 condition_path_exists: '{{.InstallDir}}/bin/agent/process-agent.exe'
 # Transcribes the legacy SCM decision in cmd/agent/subcommands/run/dependent_services_windows.go:
 # any-of over these keys, the first four from datadog.yaml and the last two from system-probe.yaml.

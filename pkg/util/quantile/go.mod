@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.70.0
 	github.com/DataDog/sketches-go v1.4.8
-	github.com/dustin/go-humanize v1.0.1
+	github.com/dustin/go-humanize v1.1.0
 	github.com/stretchr/testify v1.12.1
 )
 

@@ -8,7 +8,7 @@ require (
 )
 
 require (
-	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/compute/metadata v0.9.1 // indirect
 	github.com/docker/cli v29.8.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect

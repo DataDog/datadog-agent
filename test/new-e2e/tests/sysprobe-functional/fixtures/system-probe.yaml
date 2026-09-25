@@ -1,6 +1,7 @@
 # enable NPM
 network_config:
   enabled: true
+  direct_send: false
 
 # enableUSM
 service_monitoring_config:

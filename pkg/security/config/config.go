@@ -524,6 +524,26 @@ type RuntimeSecurityConfig struct {
 	// default_value: 5120
 	SecurityProfileV2MaxDumpSize func() int
 
+	// description: SecurityProfileV2ProfileReportingDelayTimeBased, when true, delays a v2 profile's reporting of out-of-profile events by SecurityProfileV2ProfileReportingDelayDuration after the profile is created instead of waiting for the first persistence.
+	// visibility: private
+	// default_value: false
+	SecurityProfileV2ProfileReportingDelayTimeBased bool
+
+	// description: SecurityProfileV2ProfileReportingDelayDuration is the delay after a profile is created before it starts reporting out-of-profile events, used only when SecurityProfileV2ProfileReportingDelayTimeBased is true.
+	// visibility: private
+	// default_value: 0s
+	SecurityProfileV2ProfileReportingDelayDuration time.Duration
+
+	// description: SecurityProfileV2ProfilingStartupDelay is the delay after system-probe starts during which v2 workload profiling ignores events, so profiles don't capture noisy activity while system-probe is still stabilizing (OS resync, rule loading, programming approvers and discarders into the kernel). A zero value disables the delay.
+	// visibility: private
+	// default_value: 0s
+	SecurityProfileV2ProfilingStartupDelay time.Duration
+
+	// description: SecurityProfileV2ClearLocalProfilesOnStart, when true, deletes every locally stored security profile on startup. Testing aid.
+	// visibility: private
+	// default_value: false
+	SecurityProfileV2ClearLocalProfilesOnStart bool
+
 	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
 	// visibility: private
 	// default_value: ["exec"]
@@ -1026,6 +1046,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.max_dump_size"), ADMinMaxDumSize)
 			return mds * (1 << 10)
 		},
+		SecurityProfileV2ProfileReportingDelayTimeBased: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.profile_reporting_delay.time_based"),
+		SecurityProfileV2ProfileReportingDelayDuration:  pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"),
+		SecurityProfileV2ProfilingStartupDelay:          pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"),
+		SecurityProfileV2ClearLocalProfilesOnStart:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.clear_local_profiles_on_start"),
 
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
@@ -1229,6 +1253,14 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)
 		}
+	}
+
+	if c.SecurityProfileV2ProfileReportingDelayDuration < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profile_reporting_delay.duration: %s, must not be negative", c.SecurityProfileV2ProfileReportingDelayDuration)
+	}
+
+	if c.SecurityProfileV2ProfilingStartupDelay < 0 {
+		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.profiling_startup_delay: %s, must not be negative", c.SecurityProfileV2ProfilingStartupDelay)
 	}
 
 	c.sanitizePlatform()

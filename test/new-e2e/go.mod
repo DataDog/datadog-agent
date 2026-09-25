@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/agent-payload/v5 v5.0.211
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
-	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.77.0-devel.0.20260211235139-a5361978c2b6
+	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.78.0
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/proto v0.82.1
@@ -23,8 +23,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20260911191259-12a4825893c4
-	github.com/DataDog/dd-trace-go/v2 v2.10.1
-	github.com/DataDog/orchestrion v1.13.0
+	github.com/DataDog/rshell v0.0.29
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.98.0
@@ -41,10 +40,10 @@ require (
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/kr/pretty v0.3.1
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.47.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1
-	github.com/pulumi/pulumi/sdk/v3 v3.262.0
+	github.com/pulumi/pulumi/sdk/v3 v3.264.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -63,11 +62,16 @@ require (
 )
 
 require (
+	github.com/DataDog/dd-trace-go/v2 v2.10.1 // indirect
+	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
+)
+
+require (
 	al.essio.dev/pkg/shellescape v1.6.1 // indirect
 	cloud.google.com/go/auth v0.21.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.68.0 // indirect
-	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/compute v1.69.0 // indirect
+	cloud.google.com/go/compute/metadata v0.9.1 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
@@ -118,7 +122,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/antithesishq/antithesis-sdk-go v0.7.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
@@ -143,7 +146,6 @@ require (
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
@@ -166,10 +168,8 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.2 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
-	github.com/dave/dst v0.27.4 // indirect
 	github.com/deckarep/golang-set/v2 v2.5.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
@@ -177,7 +177,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/ebitengine/purego v0.10.2 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
@@ -211,7 +211,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.28.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
-	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -257,7 +256,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.28 // indirect
 	github.com/mdlayher/socket v0.7.0 // indirect
 	github.com/mdlayher/vsock v1.3.0 // indirect
-	github.com/minio/highwayhash v1.0.4 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
@@ -277,11 +275,6 @@ require (
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
-	github.com/nats-io/jwt/v2 v2.8.2 // indirect
-	github.com/nats-io/nats-server/v2 v2.14.5 // indirect
-	github.com/nats-io/nats.go v1.53.1 // indirect
-	github.com/nats-io/nkeys v0.4.16 // indirect
-	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
@@ -291,7 +284,6 @@ require (
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/petermattis/goid v0.0.0-20260816044145-ed329add6b1b // indirect
 	github.com/pgavlin/fx v0.1.6 // indirect
-	github.com/pgavlin/fx/v2 v2.0.12 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
@@ -299,7 +291,6 @@ require (
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/polyfloyd/go-errorlint v1.8.1-0.20250906200200-9b25878c4dea // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
@@ -316,13 +307,12 @@ require (
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v9 v9.37.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
-	github.com/pulumi/pulumi-random/sdk/v4 v4.21.1 // indirect
-	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.0 // indirect
+	github.com/pulumi/pulumi-random/sdk/v4 v4.21.2 // indirect
+	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
-	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/rubenv/sql-migrate v1.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
@@ -344,13 +334,11 @@ require (
 	github.com/twinj/uuid v0.0.0-20151029044442-89173bcdda19 // indirect
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
-	github.com/urfave/cli/v2 v2.27.7 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
-	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zalando/go-keyring v0.2.8 // indirect
 	github.com/zclconf/go-cty v1.16.3 // indirect
@@ -371,7 +359,7 @@ require (
 	go.opentelemetry.io/otel/sdk/log v0.21.0 // indirect
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
@@ -386,7 +374,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/grpc v1.83.2 // indirect
+	google.golang.org/grpc v1.84.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect

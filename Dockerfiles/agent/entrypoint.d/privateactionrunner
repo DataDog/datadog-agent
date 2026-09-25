@@ -17,6 +17,7 @@ case "${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED:-false}" in
         exec "${par}" run --cfgpath="${config_file}"
         ;;
     true)
+        export DD_IPC_CERT_FILE_PATH="${DD_IPC_CERT_FILE_PATH:-$(dirname "${DD_AUTH_TOKEN_FILE_PATH:-${config_file}}")/ipc_cert.pem}"
         export DD_PM_CONFIG_DIR="${processes_dir}"
         export DD_PM_INHERIT_ENV_PREFIXES="DD_${DD_PM_INHERIT_ENV_PREFIXES:+,${DD_PM_INHERIT_ENV_PREFIXES}}"
         export DD_PM_INHERIT_ENV_NAMES="${inherited_env_names}${DD_PM_INHERIT_ENV_NAMES:+,${DD_PM_INHERIT_ENV_NAMES}}"

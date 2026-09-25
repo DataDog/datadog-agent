@@ -29,13 +29,22 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"google.golang.org/protobuf/proto"
 )
 
-const collectorID = "sbom-collector"
+const (
+	collectorID = "sbom-collector"
+
+	// Runtime property names, aliased from pkg/sbom so that the producer of
+	// the enriched SBOM and this merger agree on them.
+	LastAccessProperty    = sbompkg.LastAccessProperty
+	HasSetSuidBitProperty = sbompkg.HasSetSuidBitProperty
+	RunningAsRootProperty = sbompkg.RunningAsRootProperty
+)
 
 type client struct {
 	cl sbompb.SBOMCollectorClient

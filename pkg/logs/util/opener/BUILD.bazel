@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "opener",
@@ -6,12 +7,25 @@ go_library(
         "file_mock.go",
         "open.go",
         "open_mock.go",
+        "source.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/util/opener",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/internal/util/opener",
+        "//pkg/logs/sources",
         "//pkg/util/filesystem",
         "@com_github_spf13_afero//:afero",
+    ],
+)
+
+dd_agent_go_test(
+    name = "opener_test",
+    srcs = ["open_test.go"],
+    embed = [":opener"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//require",
     ],
 )

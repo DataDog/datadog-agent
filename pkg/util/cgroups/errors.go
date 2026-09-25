@@ -7,7 +7,13 @@
 
 package cgroups
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrNoCgroupMount indicates that no cgroup or cgroup2 filesystem is mounted.
+var ErrNoCgroupMount = errors.New("no cgroup filesystem mounted")
 
 // InvalidInputError is returned when an input parameter has an invalid value (typically, passing a nil pointer)
 type InvalidInputError struct {

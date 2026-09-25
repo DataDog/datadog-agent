@@ -207,10 +207,6 @@ func TestCanonicalMetricHelp(t *testing.T) {
 	_, found := tel.CanonicalMetricHelp("missing_metric")
 	assert.False(t, found)
 
-	tel.NewSimpleGaugeWithOpts("default", "metric", "default metric help", telemetry.Options{DefaultMetric: true})
-	_, found = tel.CanonicalMetricHelp("default__metric")
-	assert.False(t, found)
-
 	tel.Reset()
 	_, found = tel.CanonicalMetricHelp("dogstatsd_client__bytes_sent")
 	assert.False(t, found)
@@ -269,7 +265,7 @@ func TestGatherText(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output, err := tel.GatherText(false, tt.filter)
+			output, err := tel.GatherText(tt.filter)
 			require.NoError(t, err)
 
 			if tt.expectEmpty {
@@ -288,4 +284,34 @@ func TestGatherText(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGatherFilters(t *testing.T) {
+	tel := fxutil.Test[telemetry.Mock](t, MockModule())
+
+	counter := tel.NewSimpleCounter("test_subsystem", "test_counter", "test counter help")
+	counter.Inc()
+
+	gauge := tel.NewSimpleGauge("test_subsystem", "test_gauge", "test gauge help")
+	gauge.Set(42.0)
+
+	names := func(mfs []*telemetry.MetricFamily) []string {
+		out := make([]string, 0, len(mfs))
+		for _, mf := range mfs {
+			out = append(out, mf.GetName())
+		}
+		return out
+	}
+
+	mfs, err := tel.Gather(telemetry.StaticMetricFilter("test_subsystem__test_counter"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"test_subsystem__test_counter"}, names(mfs))
+
+	mfs, err = tel.Gather(telemetry.StaticMetricFilter("nonexistent_metric"))
+	require.NoError(t, err)
+	assert.Empty(t, mfs)
+
+	mfs, err = tel.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	assert.Subset(t, names(mfs), []string{"test_subsystem__test_counter", "test_subsystem__test_gauge"})
 }

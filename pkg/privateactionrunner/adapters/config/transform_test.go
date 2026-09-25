@@ -288,6 +288,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPodLogs"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
 		// common actions should also be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))

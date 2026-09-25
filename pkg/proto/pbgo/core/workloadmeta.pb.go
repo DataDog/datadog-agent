@@ -1192,6 +1192,8 @@ type ContainerAllocatedResource struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
 	ID            string                 `protobuf:"bytes,2,opt,name=ID,proto3" json:"ID,omitempty"`
+	PoolName      string                 `protobuf:"bytes,3,opt,name=PoolName,proto3" json:"PoolName,omitempty"`
+	CdiDevices    []string               `protobuf:"bytes,4,rep,name=CdiDevices,proto3" json:"CdiDevices,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1238,6 +1240,20 @@ func (x *ContainerAllocatedResource) GetID() string {
 		return x.ID
 	}
 	return ""
+}
+
+func (x *ContainerAllocatedResource) GetPoolName() string {
+	if x != nil {
+		return x.PoolName
+	}
+	return ""
+}
+
+func (x *ContainerAllocatedResource) GetCdiDevices() []string {
+	if x != nil {
+		return x.CdiDevices
+	}
+	return nil
 }
 
 type ContainerResources struct {
@@ -2615,10 +2631,14 @@ const file_datadog_workloadmeta_workloadmeta_proto_rawDesc = "" +
 	"\n" +
 	"finishedAt\x18\x06 \x01(\x03R\n" +
 	"finishedAt\x12\x1a\n" +
-	"\bexitCode\x18\a \x01(\x03R\bexitCode\"@\n" +
+	"\bexitCode\x18\a \x01(\x03R\bexitCode\"|\n" +
 	"\x1aContainerAllocatedResource\x12\x12\n" +
 	"\x04Name\x18\x01 \x01(\tR\x04Name\x12\x0e\n" +
-	"\x02ID\x18\x02 \x01(\tR\x02ID\"\xea\x01\n" +
+	"\x02ID\x18\x02 \x01(\tR\x02ID\x12\x1a\n" +
+	"\bPoolName\x18\x03 \x01(\tR\bPoolName\x12\x1e\n" +
+	"\n" +
+	"CdiDevices\x18\x04 \x03(\tR\n" +
+	"CdiDevices\"\xea\x01\n" +
 	"\x12ContainerResources\x12#\n" +
 	"\n" +
 	"cpuRequest\x18\x01 \x01(\x01H\x00R\n" +
