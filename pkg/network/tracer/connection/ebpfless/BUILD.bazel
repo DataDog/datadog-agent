@@ -73,6 +73,7 @@ dd_agent_go_test(
     srcs = [
         "map_utils_test.go",
         "ports_darwin_test.go",
+        "tcp_processor_failure_test.go",
         "tcp_processor_retransmit_test.go",
         "tcp_processor_rtt_test.go",
         "tcp_processor_test.go",
@@ -93,6 +94,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:darwin": [
             "//pkg/network",
             "//pkg/network/config",
+            "@com_github_google_gopacket//layers",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
@@ -100,6 +102,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:ios": [
             "//pkg/network",
             "//pkg/network/config",
+            "@com_github_google_gopacket//layers",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",

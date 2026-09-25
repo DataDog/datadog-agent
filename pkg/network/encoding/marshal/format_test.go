@@ -102,6 +102,17 @@ func BenchmarkConnectionReset(b *testing.B) {
 	runtime.KeepAlive(c)
 }
 
+func TestFormatTagsIncludesTCPErrorsIncomplete(t *testing.T) {
+	tagSet := indexedset.New[string](0)
+	var conn network.ConnectionStats
+	conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+
+	indexes, checksum := formatTags(conn, tagSet, nil)
+	require.NotZero(t, checksum)
+	require.Len(t, indexes, 1)
+	require.Equal(t, []string{network.ConnTagTCPErrorsIncomplete}, tagSet.Subset([]int32{int32(indexes[0])}))
+}
+
 func BenchmarkFormatTags(b *testing.B) {
 	tagSet := indexedset.New[string](0)
 	var c network.ConnectionStats
