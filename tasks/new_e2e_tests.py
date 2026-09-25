@@ -364,6 +364,9 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool 
     target_prefixes = [target.lstrip("./") for target in targets]
 
     bazel_args = ["--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk"]
+    # Limit concurrent actions to 6 (the e2e jobs' KUBERNETES_CPU_LIMIT), to bound peak memory during builds.
+    # Note: --local_cpu_resources no longer exists in Bazel 9, --jobs is the replacement.
+    bazel_args = ["--jobs=6", *bazel_args]
     if no_cache:
         print(
             color_message(
@@ -373,7 +376,11 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool 
         )
         # Passed after any wrapper-injected cache flags so they take precedence (last flag wins):
         # --config=no-remote-cache sets --remote_cache= (see .bazelrc), --disk_cache= disables the disk cache.
-        bazel_args = ["--local_cpu_resources=6", "--config=no-remote-cache", "--disk_cache=", *bazel_args]
+        bazel_args = ["--config=no-remote-cache", "--disk_cache=", *bazel_args]
+
+    # Show the resources Bazel detects (what the "auto"/HOST_CPUS expressions resolve against; cgroup-aware in CI)
+    detected_resources = bazel("info", "local_resources", capture_output=True).strip()
+    print(f"Bazel detected resources: {detected_resources}")
 
     output_path = Path("test-binaries").absolute()
     manifest_binaries = []
