@@ -1729,6 +1729,7 @@ func TestSchemaCollectionGatedByDbmOrDataObservability(t *testing.T) {
 			}
 
 			err := c.Run()
+			waitForSchemaWorker(t, &c)
 
 			if tc.wantGateOpen {
 				require.NoError(t, err)

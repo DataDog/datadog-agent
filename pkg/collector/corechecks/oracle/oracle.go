@@ -75,6 +75,7 @@ type pgaOverAllocationCount struct {
 //nolint:revive // TODO(DBM) Fix revive linter
 type Check struct {
 	core.CheckBase
+	*schemaWorkerState
 	config                                  *config.CheckConfig
 	db                                      *sqlx.DB
 	dbCustomQueries                         *sqlx.DB
@@ -102,6 +103,9 @@ type Check struct {
 	schemaPayloadChunkSize                  int
 	schemasLastRun                          time.Time
 	lastSnapshotID                          int64
+	schemaQueryer                           schemaQueryer
+	schemaEmitter                           payloadEmitter
+	schemaQueryError                        error
 	filePath                                string
 	sqlTraceRunsCount                       int
 	sqlSubstringLength                      int
@@ -286,12 +290,8 @@ func (c *Check) Run() error {
 		}
 	}
 
-	if c.config.Schemas.Enabled && (c.dbmEnabled || c.config.DataObservability.Enabled) &&
-		checkIntervalExpired(&c.schemasLastRun, c.config.Schemas.CollectionInterval) {
-		err := c.SchemaCollection()
-		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect schemas %w", c.logPrompt, err))
-		}
+	if err := c.collectSchemasIfDue(); err != nil {
+		allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect schemas %w", c.logPrompt, err))
 	}
 
 	if c.dbmEnabled {
@@ -376,6 +376,7 @@ func assertBool(val bool) bool {
 
 // Teardown cleans up resources used throughout the check.
 func (c *Check) Teardown() {
+	c.stopSchemaWorker(false)
 	log.Infof("%s Teardown", c.logPrompt)
 	closeDatabase(c, c.db)
 	closeDatabase(c, c.dbCustomQueries)
@@ -384,6 +385,9 @@ func (c *Check) Teardown() {
 
 // Configure configures the Oracle check.
 func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string, provider string) error {
+	if c.schemaWorkerState == nil {
+		c.schemaWorkerState = &schemaWorkerState{}
+	}
 	var err error
 	c.config, err = config.NewCheckConfig(rawInstance, rawInitConfig)
 	if err != nil {
@@ -451,7 +455,7 @@ func Factory() option.Option[func() check.Check] {
 }
 
 func newCheck() check.Check {
-	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second)}
+	return &Check{CheckBase: core.NewCheckBaseWithInterval(common.IntegrationNameScheduler, 10*time.Second), schemaWorkerState: &schemaWorkerState{}}
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter

@@ -13,12 +13,56 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const schemaTestUser = "c##dd_schema_test"
+
+func TestSchemaWorkerAgainstDatabase(t *testing.T) {
+	setupSchemaFixtures(t)
+	c, sender := newDefaultCheck(t, "collect_schemas:\n  enabled: true\n  collection_interval: 1", "")
+	defer c.Teardown()
+	require.NoError(t, c.init())
+	c.dbmEnabled = true
+	c.config.AgentSQLTrace.Enabled = false
+	clk := clock.NewMock()
+	c.clock = clk
+	var previousSnapshotID int64
+	for range 2 {
+		callsBefore := len(sender.Calls)
+		require.NoError(t, c.collectSchemasIfDue())
+		c.schemaWorkerMu.Lock()
+		done := c.schemaWorkerDone
+		c.schemaWorkerMu.Unlock()
+		require.NotNil(t, done)
+		select {
+		case <-done:
+		case <-time.After(2 * time.Minute):
+			t.Fatal("background schema collection did not finish")
+		}
+		var events []schemaEvent
+		for _, call := range sender.Calls[callsBefore:] {
+			require.NotEqual(t, "Commit", call.Method, "schema worker must not commit the main check sender")
+			if call.Method != "EventPlatformEvent" {
+				continue
+			}
+			var event schemaEvent
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+			events = append(events, event)
+		}
+		require.NotNil(t, findTable(tableEvents(events), schemaTestUser, "dd_orders"))
+		require.NotNil(t, findView(viewEvents(events), schemaTestUser, "dd_orders_view"))
+		require.Greater(t, c.lastSnapshotID, previousSnapshotID)
+		previousSnapshotID = c.lastSnapshotID
+		require.False(t, c.schemaWorkerRunning)
+		require.Zero(t, c.db.Stats().InUse)
+		clk.Add(2 * time.Second)
+	}
+}
 
 func setupSchemaFixtures(t *testing.T) string {
 	sysCheck, _ := newSysCheck(t, "", "")

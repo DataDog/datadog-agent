@@ -1193,21 +1193,43 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 }
 
 func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx.Rows) error) error {
+	if err := c.schemaContextError(ctx); err != nil {
+		return err
+	}
 	queryCtx, cancel := context.WithTimeout(ctx, c.config.Schemas.MaxQueryDurationDuration())
 	defer cancel()
+	defer func() {
+		if err := queryCtx.Err(); err != nil {
+			c.schemaQueryError = err
+		}
+	}()
 
-	rows, err := c.db.QueryxContext(queryCtx, query)
+	queryer := c.schemaQueryer
+	if queryer == nil {
+		queryer = c.db
+	}
+	rows, err := queryer.QueryxContext(queryCtx, query)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			c.schemaQueryError = err
+		}
 		return err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
+		if err := queryCtx.Err(); err != nil {
+			return err
+		}
 		if err := scan(rows); err != nil {
 			return err
 		}
 	}
-	return rows.Err()
+	err = rows.Err()
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		c.schemaQueryError = err
+	}
+	return err
 }
 
 // Missing or version-incompatible optional detail views do not fail collection.
@@ -1954,14 +1976,26 @@ func (c *Check) SchemaCollection() error {
 }
 
 func (c *Check) schemaCollection(ctx context.Context) error {
+	c.schemaQueryError = nil
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if !schemaCollectionVersionSupported(c.dbVersion) {
 		log.Warnf("%s schema collection requires Oracle %sc or later", c.logPrompt, minMultitenantVersion)
 		return nil
 	}
 
-	sender, err := c.GetSender()
-	if err != nil {
-		return fmt.Errorf("failed to initialize sender: %w", err)
+	emit := c.schemaEmitter
+	commit := func() {}
+	if emit == nil {
+		sender, err := c.GetSender()
+		if err != nil {
+			return fmt.Errorf("failed to initialize sender: %w", err)
+		}
+		emit = func(payload []byte) {
+			sender.EventPlatformEvent(payload, "dbm-metadata")
+		}
+		commit = sender.Commit
 	}
 
 	containers := filterContainers(c.containerNames(ctx), c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases, c.logPrompt)
@@ -1971,10 +2005,14 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		return err
 	}
 
-	emit := func(payload []byte) {
-		sender.EventPlatformEvent(payload, "dbm-metadata")
+	if err := c.schemaContextError(ctx); err != nil {
+		return err
 	}
-	coordinator := newSchemaSnapshotCoordinator(emit)
+	coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
+		if c.schemaContextError(ctx) == nil {
+			emit(payload)
+		}
+	})
 
 	if len(names) == 0 {
 		log.Debugf("%s no user schemas to collect, sending empty snapshot", c.logPrompt)
@@ -1982,8 +2020,8 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		if err := coordinator.complete(); err != nil {
 			return err
 		}
-		sender.Commit()
-		return nil
+		commit()
+		return c.schemaContextError(ctx)
 	}
 
 	tableFilters := regexSQLClauses("t.table_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables)
@@ -2005,6 +2043,10 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	tablesTotal, viewsTotal := 0, 0
 	var collectionErr error
 	for _, conID := range containerIDs {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(collectionErr, err)
+		}
+		c.schemaQueryError = nil
 		containerName, ok := containers[conID]
 		if !ok {
 			containerName = strconv.FormatInt(conID, 10)
@@ -2039,6 +2081,9 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			pageTables := tableKeysFromRows(rows)
 			collector := newSchemaEventCollector(c, coordinator.add,
 				c.tableDetailsForPage(ctx, pageTables, columnKeysFromRows(rows), selectedTables), owners, container)
+			if err := c.schemaContextError(ctx); err != nil {
+				return err
+			}
 			collector.truncatedContainers = containerCappedTables
 			for _, row := range rows {
 				collector.add(row)
@@ -2070,6 +2115,9 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 				}
 				pageViews := tableKeysFromRows(rows)
 				collector := newViewEventCollector(c, coordinator.add, c.viewDetailsForPage(ctx, pageViews), owners, container)
+				if err := c.schemaContextError(ctx); err != nil {
+					return err
+				}
 				collector.truncatedContainers = cappedViews
 				for _, row := range rows {
 					collector.addView(row)
@@ -2084,6 +2132,9 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			}
 		}
 
+		if err := c.schemaContextError(ctx); err != nil {
+			return errors.Join(collectionErr, err)
+		}
 		if !coordinator.hasContainer(conID) {
 			newSchemaEventCollector(c, coordinator.add, nil, owners, container).emitEmptyContainers(container)
 		}
@@ -2102,6 +2153,6 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	}
 	log.Debugf("%s schema collection sent %d tables", c.logPrompt, tablesTotal)
 	log.Debugf("%s schema collection sent %d views", c.logPrompt, viewsTotal)
-	sender.Commit()
-	return collectionErr
+	commit()
+	return errors.Join(collectionErr, c.schemaContextError(ctx))
 }
