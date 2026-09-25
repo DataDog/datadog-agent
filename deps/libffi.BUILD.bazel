@@ -1,11 +1,27 @@
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
-    default_applicable_licenses = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "3.4.8"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz",
+        package = "libffi",
+        version = VERSION,
+    ),
 )
 
 license(
@@ -14,8 +30,6 @@ license(
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
 )
-
-VERSION = "3.4.8"
 
 # Base configuration shared by all platforms
 _FFICONFIG_BASE = {
@@ -136,7 +150,7 @@ _WINDOWS_X86_64_OVERRIDES = {
 
 expand_template(
     name = "ffi_h",
-    template = "include/ffi.h.in",
+    out = "ffi.h",
     substitutions = select({
         "@//:linux_arm64": {
             # TODO(team:agent-build): Use a constant instead of hardcoding the version
@@ -162,12 +176,12 @@ expand_template(
             "@HAVE_LONG_DOUBLE@": "0",
         },
     }),
-    out = "ffi.h",
+    template = "include/ffi.h.in",
 )
 
 expand_template(
     name = "fficonfig_h",
-    template = "fficonfig.h.in",
+    out = "include/fficonfig.h",
     substitutions = select({
         "@//:linux_arm64": _FFICONFIG_BASE | _LINUX_ARM64_OVERRIDES,
         "@//:linux_x86_64": _FFICONFIG_BASE | _LINUX_X86_64_OVERRIDES,
@@ -175,7 +189,7 @@ expand_template(
         "@//:macos_x86_64": _FFICONFIG_BASE | _MACOS_X86_64_OVERRIDES,
         "@platforms//os:windows": _FFICONFIG_BASE | _WINDOWS_X86_64_OVERRIDES,
     }),
-    out = "include/fficonfig.h",
+    template = "fficonfig.h.in",
 )
 
 copy_file(
@@ -212,11 +226,6 @@ cc_library(
 # ffi will be prepended by lib automatically
 cc_library(
     name = "ffi",
-    hdrs = [
-        ":ffi_h",
-        ":fficonfig_h",
-        ":ffitarget_h",
-    ],
     srcs = [
         "src/closures.c",
         "src/debug.c",
@@ -251,7 +260,11 @@ cc_library(
         ],
         "//conditions:default": [],
     }),
-    includes = ["."],
+    hdrs = [
+        ":ffi_h",
+        ":fficonfig_h",
+        ":ffitarget_h",
+    ],
     copts = ["-O3"] +
             select({
                 # Even though -nostdinc is already set on the toolchain level
@@ -264,7 +277,11 @@ cc_library(
                 ],
                 "//conditions:default": [],
             }),
-    implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
-    visibility = ["//visibility:public"],
+    implementation_deps = [
+        ":dlmalloc_header",
+        ":libffi_include_headers",
+    ],
+    includes = ["."],
     linkstatic = True,
+    visibility = ["//visibility:public"],
 )

@@ -1,14 +1,16 @@
 """Agent specific BUILD file for xz-utils / liblzma."""
 
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_package_metadata = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["@@//packages:__subpackages__"],
 )
 
@@ -19,12 +21,24 @@ alias(
 
 VERSION = "5.4.2"
 
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://tukaani.org/xz/xz-{version}.tar.gz",
+        package = "xz",
+        version = VERSION,
+    ),
+)
+
 # Warning: starting from 5.5.2, the license switches to BSD-0
 license(
     name = "license",
+    copyright_notice = "Copyright (C) The XZ Utils authors and contributors",
     license_kinds = ["@rules_license//licenses/spdx:0BSD"],
     license_text = "COPYING.0BSD",
-    copyright_notice = "Copyright (C) The XZ Utils authors and contributors",
     visibility = ["//visibility:public"],
 )
 
@@ -57,8 +71,8 @@ cc_library(
     name = "liblzma",
     srcs = [
         "src/common/tuklib_cpucores.c",
-        "src/common/tuklib_physmem.c",
         "src/common/tuklib_exit.c",
+        "src/common/tuklib_physmem.c",
         "src/common/tuklib_progname.c",
     ] + glob(
         [
@@ -73,16 +87,28 @@ cc_library(
     hdrs = _MAIN_HEADER + _API_HEADERS,
     copts = select({
         "@platforms//os:windows": [],
-        "//conditions:default": ["-std=c99", "-O2"],
+        "//conditions:default": [
+            "-std=c99",
+            "-O2",
+        ],
     }),
     defines = select({
         "@platforms//os:windows": ["LZMA_API_STATIC"],
         "//conditions:default": [],
     }),
-    local_defines = [
-        "TUKLIB_SYMBOL_PREFIX=lzma_",
-        "TUKLIB_GETTEXT=0",
-        "HAVE_CONFIG_H",
+    implementation_deps = [
+        ":xz_config",
+    ],
+    includes = [
+        ".",
+        "src/common",
+        "src/liblzma/check",
+        "src/liblzma/common",
+        "src/liblzma/delta",
+        "src/liblzma/lz",
+        "src/liblzma/lzma",
+        "src/liblzma/rangecoder",
+        "src/liblzma/simple",
     ],
     linkopts = select({
         "@platforms//os:android": [],
@@ -92,28 +118,19 @@ cc_library(
         "@platforms//os:windows": True,
         "//conditions:default": False,
     }),
+    local_defines = [
+        "TUKLIB_SYMBOL_PREFIX=lzma_",
+        "TUKLIB_GETTEXT=0",
+        "HAVE_CONFIG_H",
+    ],
     strip_include_prefix = "src/liblzma/api",  # Allows public header without the path and without COPTS -I or includes = []
     visibility = ["//visibility:public"],
-    includes = [
-        ".",
-        "src/common",
-        "src/liblzma/common",
-        "src/liblzma/check",
-        "src/liblzma/lzma",
-        "src/liblzma/lz",
-        "src/liblzma/simple",
-        "src/liblzma/delta",
-        "src/liblzma/rangecoder",
-    ],
-    implementation_deps = [
-        ":xz_config",
-    ],
 )
 
 cc_shared_library(
     name = "lzma",
-    deps = [":liblzma"],
     visibility = ["//visibility:public"],
+    deps = [":liblzma"],
 )
 
 pkg_files(
@@ -130,21 +147,21 @@ pkg_files(
 
 dd_cc_packaged(
     name = "lzma_pkg",
-    input = ":lzma",
     dest_dir = "embedded/lib",
-    version = VERSION,
+    input = ":lzma",
     installed_files = [
         ":main_header",
         ":api_headers",
     ],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":main_header",
         ":api_headers",
+        ":main_header",
     ],
     visibility = ["//visibility:public"],
 )

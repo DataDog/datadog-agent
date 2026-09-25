@@ -1,20 +1,39 @@
 """BUILD file for libyaml."""
 
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
 VERSION = "0.2.5"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://pyyaml.org/download/libyaml/yaml-{version}.tar.gz",
+        package = "libyaml",
+        version = VERSION,
+    ),
+)
 
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/spdx:MIT"],
-    license_text = "LICENSE",
     copyright_notice = """
     Copyright (c) 2017-2020 Ingy döt Net
     Copyright (c) 2006-2016 Kirill Simonov
     """,
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "LICENSE",
     visibility = ["//visibility:public"],
 )
 
@@ -45,8 +64,8 @@ cc_library(
 
 cc_shared_library(
     name = "yaml",
-    deps = [":libyaml"],
     visibility = ["//visibility:public"],
+    deps = [":libyaml"],
 )
 
 pkg_files(
@@ -57,10 +76,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "yaml_pkg",
-    input = ":yaml",
     dest_dir = "embedded/lib",
-    version = VERSION,
+    input = ":yaml",
     installed_files = [":headers"],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 
@@ -69,5 +88,8 @@ pkg_filegroup(
     srcs = [
         ":headers",
     ],
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )

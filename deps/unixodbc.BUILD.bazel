@@ -1,12 +1,28 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_package_metadata = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "2.3.9"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://www.unixodbc.org/unixODBC-{version}.tar.gz",
+        package = "unixodbc",
+        version = VERSION,
+    ),
 )
 
 license(
@@ -17,13 +33,14 @@ license(
 )
 
 COMMON_COPTS = ["-O3"]
-COMMON_INCLUDES = [".", "include"]
 
-# Version info from unixODBC 2.3.9
+COMMON_INCLUDES = [
+    ".",
+    "include",
+]
+
 # The actual SONAME version would be determined by LIB_VERSION in the autotools build
 # For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
-VERSION = "2.3.9"
-
 # For some reason version of .so in the final package is 2.0.0, not 2.3.9.
 # To ensure the same behavior as the autotools build, we use 2.0.0 here.
 SOVERSION = "2.0.0"
@@ -80,7 +97,13 @@ cc_library(
     # :config_h cannot be inside of the glob() because
     # actions are executed during execution phase, not during analysis phase
     # and glob is evaluated during analysis phase.
-    srcs = glob(["extras/**/*.c", "include/*.h"], exclude = ["extras/vms.c"]) + [":config_h"],
+    srcs = glob(
+        [
+            "extras/**/*.c",
+            "include/*.h",
+        ],
+        exclude = ["extras/vms.c"],
+    ) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
 )
@@ -88,7 +111,10 @@ cc_library(
 # Logging library
 cc_library(
     name = "log",
-    srcs = glob(["log/**/*.c", "include/*.h"]) + [":config_h"],
+    srcs = glob([
+        "log/**/*.c",
+        "include/*.h",
+    ]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
 )
@@ -96,7 +122,10 @@ cc_library(
 # List management library
 cc_library(
     name = "lst",
-    srcs = glob(["lst/**/*.c", "include/*.h"]) + [":config_h"],
+    srcs = glob([
+        "lst/**/*.c",
+        "include/*.h",
+    ]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
 )
@@ -104,7 +133,10 @@ cc_library(
 # INI file parsing library
 cc_library(
     name = "ini",
-    srcs = glob(["ini/**/*.c", "include/*.h"]) + [":config_h"],
+    srcs = glob([
+        "ini/**/*.c",
+        "include/*.h",
+    ]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
     deps = [":extras"],
@@ -113,7 +145,10 @@ cc_library(
 # ODBC installer library (internal version)
 cc_library(
     name = "odbcinstlc",
-    srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
+    srcs = glob([
+        "odbcinst/**/*.c",
+        "include/*.h",
+    ]) + [":config_h"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
     deps = [
@@ -127,14 +162,17 @@ cc_library(
 # ODBC installer library (public version with exports)
 cc_library(
     name = "libodbcinst",
-    srcs = glob(["odbcinst/**/*.c", "include/*.h"]) + [":config_h"],
+    srcs = glob([
+        "odbcinst/**/*.c",
+        "include/*.h",
+    ]) + [":config_h"],
     hdrs = [
         "include/odbcinst.h",
         "include/odbcinstext.h",
     ],
-    visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES,
+    visibility = ["//visibility:public"],
     deps = [
         ":ini",
         ":log",
@@ -146,24 +184,28 @@ cc_library(
 # Main ODBC Driver Manager library
 cc_library(
     name = "libodbc",
-    srcs = glob(["DriverManager/**/*.c", "DriverManager/**/*.h", "include/*.h"]) + [":config_h"],
+    srcs = glob([
+        "DriverManager/**/*.c",
+        "DriverManager/**/*.h",
+        "include/*.h",
+    ]) + [":config_h"],
     hdrs = [
         "include/sql.h",
         "include/sqlext.h",
+        "include/sqlspi.h",
         "include/sqltypes.h",
         "include/sqlucode.h",
-        "include/sqlspi.h",
         "include/unixodbc_conf.h",
     ],
-    visibility = ["//visibility:public"],
     copts = COMMON_COPTS,
     includes = COMMON_INCLUDES + ["DriverManager"],
+    visibility = ["//visibility:public"],
     deps = [
-        ":lst",
-        ":log",
         ":ini",
-        ":odbcinstlc",
+        ":log",
+        ":lst",
         ":ltdl_hdr",
+        ":odbcinstlc",
     ],
 )
 
@@ -173,10 +215,17 @@ cc_library(
     # :config_h cannot be inside of the glob() because
     # actions are executed during execution phase, not during analysis phase
     # and glob is evaluated during analysis phase.
-    srcs = glob(["cur/**/*.c", "cur/**/*.h", "include/*.h"]) + [":config_h"],
-    visibility = ["//visibility:public"],
+    srcs = glob([
+        "cur/**/*.c",
+        "cur/**/*.h",
+        "include/*.h",
+    ]) + [":config_h"],
     copts = COMMON_COPTS,
-    includes = COMMON_INCLUDES + ["DriverManager", "cur"],
+    includes = COMMON_INCLUDES + [
+        "DriverManager",
+        "cur",
+    ],
+    visibility = ["//visibility:public"],
     deps = [":libodbc"],
 )
 
@@ -187,22 +236,22 @@ cc_library(
 # libodbcinst.so - ODBC Installer/Configuration library
 cc_shared_library(
     name = "odbcinst",
-    deps = [":libodbcinst"],
     visibility = ["//visibility:public"],
+    deps = [":libodbcinst"],
 )
 
 # libodbc.so - Main ODBC Driver Manager library
 cc_shared_library(
     name = "odbc",
-    deps = [":libodbc"],
     visibility = ["//visibility:public"],
+    deps = [":libodbc"],
 )
 
 # libodbccr.so - Cursor library
 cc_shared_library(
     name = "odbccr",
-    deps = [":libodbccr"],
     visibility = ["//visibility:public"],
+    deps = [":libodbccr"],
 )
 
 # ============================================================================
@@ -226,29 +275,29 @@ pkg_files(
 
 dd_cc_packaged(
     name = "odbcinst_pkg",
-    input = ":odbcinst",
     dest_dir = "embedded/lib",
+    input = ":odbcinst",
     version = SOVERSION,
     visibility = ["//visibility:public"],
 )
 
 dd_cc_packaged(
     name = "odbc_pkg",
-    input = ":odbc",
     dest_dir = "embedded/lib",
-    version = SOVERSION,
+    input = ":odbc",
     installed_files = [
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
         ":odbccr_pkg_packaged",
     ],
+    version = SOVERSION,
     visibility = ["//visibility:public"],
 )
 
 dd_cc_packaged(
     name = "odbccr_pkg",
-    input = ":odbccr",
     dest_dir = "embedded/lib",
+    input = ":odbccr",
     version = SOVERSION,
     visibility = ["//visibility:public"],
 )
@@ -256,7 +305,7 @@ dd_cc_packaged(
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
+        ":unixodbc_hdr_files",
     ],
 )
