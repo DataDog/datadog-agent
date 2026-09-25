@@ -9,9 +9,6 @@ import %workspace%/.adms/adms.bazelrc
 # will be easier to understand.
 common:adms --config=dd-internal
 
-# Startup options ------------------------------------------------------------------------------------------------------
-startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of inactivity
-
 # Common options -------------------------------------------------------------------------------------------------------
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
 #TODO(regis): uncomment once https://github.com/bazel-contrib/rules_python/pull/4079 is released:
