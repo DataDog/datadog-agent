@@ -149,7 +149,6 @@
     optional: true
 
 .needs_new_e2e_template:
-  - go_e2e_deps
   - job: new-e2e-base-coverage
     optional: true
   - !reference [.needs_fakeintake_publish]
