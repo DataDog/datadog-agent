@@ -382,6 +382,89 @@ func (suite *ConfigTestSuite) TestNilDDAPISection() {
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
 }
 
+func (suite *ConfigTestSuite) TestNilDDAPISectionWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_nil_api.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestDDAPIBlockAbsentWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_no_api_block.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestExplicitSiteWithEmptyDDSite() {
+	t := suite.T()
+	// Verify that explicit api.site in OTel config works even with empty DD_SITE
+	t.Setenv("DD_SITE", "")
+	fileName := "testdata/config.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	// Should NOT return an error - explicit api.site takes precedence
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	// config.yaml has custom endpoint, so dd_url uses that instead of deriving from site
+	assert.Equal(t, "test.metrics.com", c.Get("dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestSiteWithWhitespace() {
+	t := suite.T()
+	// Verify that api.site with whitespace is properly trimmed
+	fileName := "testdata/config_site_with_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	// Site should be trimmed
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestSiteWithOnlyWhitespace() {
+	t := suite.T()
+	// Site with only whitespace should fall back to pkgconfig default
+	fileName := "testdata/config_site_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	// Should use pkgconfig default (datadoghq.com)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+}
+func (suite *ConfigTestSuite) TestNilDatadogExporter() {
+	t := suite.T()
+	fileName := "testdata/config_nil_datadog_exporter.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDatadogExporterWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_nil_datadog_exporter.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
 func (suite *ConfigTestSuite) TestMalformedDDAPISection() {
 	t := suite.T()
 	fileName := "testdata/config_malformed_api.yaml"
