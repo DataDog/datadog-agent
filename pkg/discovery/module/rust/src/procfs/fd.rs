@@ -7,7 +7,8 @@
 //! in /proc/<pid>/fd
 
 use std::collections::HashSet;
-use std::fs::{read_dir, read_link};
+use std::fs::{Metadata, read_dir, read_link};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use crate::procfs::root_path;
@@ -58,14 +59,22 @@ fn get_open_files_info_with_limit(
         .filter_map(|entry| {
             let path = entry.path();
             let link = read_link(&path).ok()?;
-            Some((path, link))
+            Some((entry, path, link))
         })
-        .for_each(|(entry, link)| process_fd(pid, entry, link, &mut result));
+        .for_each(|(entry, path, link)| {
+            process_fd(pid, path, link, || entry.metadata(), &mut result);
+        });
 
     Ok(result)
 }
 
-fn process_fd(pid: i32, entry: PathBuf, link: PathBuf, result: &mut OpenFilesInfo) {
+fn process_fd(
+    pid: i32,
+    entry: PathBuf,
+    link: PathBuf,
+    link_metadata: impl FnOnce() -> std::io::Result<Metadata>,
+    result: &mut OpenFilesInfo,
+) {
     if is_gpu_device(link.as_path()) {
         result.has_gpu_device = true;
         return;
@@ -79,6 +88,13 @@ fn process_fd(pid: i32, entry: PathBuf, link: PathBuf, result: &mut OpenFilesInf
         }
 
         if result.logs.contains(&link) {
+            return;
+        }
+
+        let Ok(metadata) = link_metadata() else {
+            return;
+        };
+        if !should_read_fdinfo(metadata.permissions().mode()) {
             return;
         }
 
@@ -97,6 +113,19 @@ fn process_fd(pid: i32, entry: PathBuf, link: PathBuf, result: &mut OpenFilesInf
     } else if is_language_memfd(link.as_path()) {
         result.memfd_path = Some(entry);
     }
+}
+
+// Linux sets the owner read and write bits of the /proc/<pid>/fd/<n> symlink from the fd's access
+// mode (FMODE_READ and FMODE_WRITE) and never sets group or other bits, so stat-ing the symlink
+// tells whether the fd is write-only without opening /proc/<pid>/fdinfo/<n>. O_APPEND is not
+// encoded and still needs fdinfo. Other procfs implementations do not encode the access mode
+// (gVisor uses 0777), so any group or other bit means it is unknown.
+fn should_read_fdinfo(link_mode: u32) -> bool {
+    let access_mode_unknown = link_mode & 0o077 != 0;
+    let owner_can_read = link_mode & 0o400 != 0;
+    let owner_can_write = link_mode & 0o200 != 0;
+
+    access_mode_unknown || (owner_can_write && !owner_can_read)
 }
 
 fn is_write_append_mode(flags: u32) -> bool {
@@ -433,17 +462,18 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[allow(clippy::expect_used)]
     mod log_collection {
-        use std::fs::{File, OpenOptions, read_link};
+        use std::fs::{File, OpenOptions, read_link, symlink_metadata};
         use std::io::Write;
         use std::net::TcpListener;
         use std::os::fd::AsRawFd;
+        use std::os::unix::fs::{PermissionsExt, symlink};
         use std::path::{Path, PathBuf};
 
         use tempfile::TempDir;
 
         use super::super::{
             MAX_FDS, MAX_LOG_FILES, OpenFilesInfo, get_open_files_info,
-            get_open_files_info_with_limit, is_socket, process_fd,
+            get_open_files_info_with_limit, is_socket, process_fd, should_read_fdinfo,
         };
         use crate::procfs::root_path;
 
@@ -454,13 +484,23 @@ mod tests {
                 .join(fd.as_raw_fd().to_string())
         }
 
+        fn process_path(pid: i32, entry: PathBuf, link: PathBuf, result: &mut OpenFilesInfo) {
+            let metadata_path = entry.clone();
+            process_fd(pid, entry, link, || symlink_metadata(metadata_path), result);
+        }
+
         fn process_file(file: &File, path: &Path, result: &mut OpenFilesInfo) {
-            process_fd(
+            process_path(
                 std::process::id().cast_signed(),
                 fd_path(file),
                 path.to_path_buf(),
                 result,
             );
+        }
+
+        fn should_read_fdinfo_for(entry: &Path) -> bool {
+            symlink_metadata(entry)
+                .is_ok_and(|metadata| should_read_fdinfo(metadata.permissions().mode()))
         }
 
         fn append_file(path: &Path) -> File {
@@ -556,7 +596,7 @@ mod tests {
             let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
             let listener_fd = fd_path(&listener);
             let listener_link = read_link(&listener_fd).expect("Failed to read listener link");
-            process_fd(
+            process_path(
                 std::process::id().cast_signed(),
                 listener_fd,
                 listener_link,
@@ -601,7 +641,7 @@ mod tests {
             let mut result = OpenFilesInfo::default();
 
             process_file(&read_only, &path, &mut result);
-            process_fd(
+            process_path(
                 i32::MAX,
                 PathBuf::from("invalid"),
                 path.clone(),
@@ -609,6 +649,91 @@ mod tests {
             );
             process_file(&append, &path, &mut result);
 
+            assert_eq!(result.logs.len(), 1);
+            assert!(result.logs.contains(&path));
+        }
+
+        #[test]
+        fn fd_symlink_mode_reflects_access_mode() {
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let path = temp_dir.path().join("application.log");
+            let append = append_file(&path);
+            let write_only = OpenOptions::new()
+                .write(true)
+                .open(&path)
+                .expect("Failed to open write-only log");
+            let read_write = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&path)
+                .expect("Failed to open read-write log");
+            let read_only = File::open(&path).expect("Failed to open read-only log");
+
+            assert!(should_read_fdinfo_for(&fd_path(&append)));
+            assert!(should_read_fdinfo_for(&fd_path(&write_only)));
+            assert!(!should_read_fdinfo_for(&fd_path(&read_write)));
+            assert!(!should_read_fdinfo_for(&fd_path(&read_only)));
+            assert!(!should_read_fdinfo_for(Path::new("invalid")));
+        }
+
+        #[test]
+        fn unknown_fd_symlink_mode_falls_back_to_fdinfo() {
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let path = temp_dir.path().join("application.log");
+            let read_only_path = temp_dir.path().join("read.log");
+            let append = append_file(&path);
+            File::create(&read_only_path).expect("Failed to create read-only log");
+            let read_only = File::open(&read_only_path).expect("Failed to open read-only log");
+
+            // Regular symlinks are 0777 on Linux, like fd symlinks under gVisor. Name them after
+            // the real fd so that the fdinfo fallback reads the real flags.
+            let links = temp_dir.path().join("fd");
+            std::fs::create_dir(&links).expect("Failed to create fd dir");
+            let gvisor_fd = |file: &File, target: &Path| {
+                let link = links.join(file.as_raw_fd().to_string());
+                symlink(target, &link).expect("Failed to create symlink");
+                link
+            };
+            let append_link = gvisor_fd(&append, &path);
+            let read_only_link = gvisor_fd(&read_only, &read_only_path);
+            assert!(should_read_fdinfo_for(&append_link));
+
+            let mut result = OpenFilesInfo::default();
+            let pid = std::process::id().cast_signed();
+            process_path(pid, read_only_link, read_only_path, &mut result);
+            process_path(pid, append_link, path.clone(), &mut result);
+            assert_eq!(result.logs.len(), 1);
+            assert!(result.logs.contains(&path));
+
+            assert!(should_read_fdinfo(0o777));
+            assert!(should_read_fdinfo(0o300));
+            assert!(!should_read_fdinfo(0o700));
+            assert!(!should_read_fdinfo(0o500));
+        }
+
+        #[test]
+        fn only_write_append_descriptors_are_logs() {
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let path = temp_dir.path().join("application.log");
+            let append = append_file(&path);
+            let write_only = OpenOptions::new()
+                .write(true)
+                .open(&path)
+                .expect("Failed to open write-only log");
+            let read_write_append = OpenOptions::new()
+                .read(true)
+                .append(true)
+                .open(&path)
+                .expect("Failed to open read-write append log");
+            let read_only = File::open(&path).expect("Failed to open read-only log");
+
+            let mut result = OpenFilesInfo::default();
+            for file in [&write_only, &read_write_append, &read_only] {
+                process_file(file, &path, &mut result);
+            }
+            assert!(result.logs.is_empty());
+
+            process_file(&append, &path, &mut result);
             assert_eq!(result.logs.len(), 1);
             assert!(result.logs.contains(&path));
         }
