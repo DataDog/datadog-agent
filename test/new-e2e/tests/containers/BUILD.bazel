@@ -82,6 +82,5 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/fields",
         "@io_k8s_apimachinery//pkg/types",
-        "@io_k8s_apimachinery//pkg/util/version",
     ],
 )
