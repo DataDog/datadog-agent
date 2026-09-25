@@ -66,7 +66,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -294,7 +294,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, "root", "root")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 
 	traceID := rand.Uint64()
@@ -590,8 +590,17 @@ func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]in
 	assert.Equal(s.T(), expectedConfigs, actualStableConfig["apm_configuration_default"])
 }
 
+func (s *packageApmInjectSuite) injectionPython() string {
+	if s.os.Flavor == e2eos.Suse {
+		// Python 3.11 is pre-baked into the AMI. Keep the system Python 3.6
+		// unchanged: zypper's susecloud plugin depends on its cloudregister module.
+		return "/usr/bin/python3.11"
+	}
+	return "python3"
+}
+
 func (s *packageApmInjectSuite) assertSocketPath() {
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.Contains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'") // this is an env var set by the injector
 }
 
@@ -609,7 +618,7 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		// prints a "cannot be preloaded ... ignored" warning for it on every exec.
 		assert.NotContains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 	}
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
 }
 
