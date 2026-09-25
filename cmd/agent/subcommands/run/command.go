@@ -768,9 +768,9 @@ func startAgent(
 	})
 
 	// start dependent services
-	// must run in background go command because the agent might be in service start pending
+	// runs in the background because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
-	go startDependentServices(cfg, sysprobeConf)
+	startDependentServicesAsync(cfg, sysprobeConf)
 
 	return nil
 }

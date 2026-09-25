@@ -138,6 +138,42 @@ func TestStateView_Anomalies(t *testing.T) {
 	}
 }
 
+func TestStateView_DetectorOutputAnomaliesRetainsPrePipelineResults(t *testing.T) {
+	anomaly := observerdef.Anomaly{
+		Source:    observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+		Timestamp: 100,
+		Title:     "cpu changed",
+	}
+	detector := &outputDetector{name: "detector_a", anomalies: []observerdef.Anomaly{anomaly}}
+	e := newEngine(engineConfig{
+		storage:                    newTimeSeriesStorage(),
+		detectors:                  []observerdef.Detector{detector},
+		trackAnomalyHistory:        true,
+		trackDetectorOutputHistory: true,
+	})
+
+	e.runDetectorsAndCorrelatorsSnapshot(100, e.detectors, nil)
+	e.runDetectorsAndCorrelatorsSnapshot(100, e.detectors, nil)
+
+	outputs := e.StateView().DetectorOutputAnomalies()
+	if len(outputs) != 2 {
+		t.Fatalf("expected both detector outputs to be retained, got %d", len(outputs))
+	}
+	for _, output := range outputs {
+		if output.DetectorName != detector.Name() {
+			t.Fatalf("expected normalized detector name %q, got %q", detector.Name(), output.DetectorName)
+		}
+	}
+	if got := len(e.StateView().Anomalies()); got != 1 {
+		t.Fatalf("expected duplicate detector output to be deduplicated downstream, got %d accepted anomalies", got)
+	}
+
+	e.resetAnalysisState()
+	if got := len(e.StateView().DetectorOutputAnomalies()); got != 0 {
+		t.Fatalf("expected reset to clear detector outputs, got %d", got)
+	}
+}
+
 func TestLiveAnomalyTrackingIsBoundedAndDoesNotRetainHistory(t *testing.T) {
 	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
 	e.anomalyDeduper = newAnomalyDeduper(2)
@@ -342,6 +378,17 @@ func TestStateView_SchedulingState(t *testing.T) {
 // mockDetector is a minimal Detector for testing.
 type mockDetector struct {
 	name string
+}
+
+type outputDetector struct {
+	name      string
+	anomalies []observerdef.Anomaly
+}
+
+func (d *outputDetector) Name() string { return d.name }
+func (*outputDetector) Ready() bool    { return true }
+func (d *outputDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+	return observerdef.DetectionResult{Anomalies: d.anomalies}
 }
 
 func (d *mockDetector) Name() string { return d.name }

@@ -65,6 +65,12 @@ type StorageConfig struct {
 	// cache because reporters consume advance-local anomalies directly. The
 	// testbench enables this to display every anomaly from a finite replay.
 	TrackAnomalyHistory bool
+
+	// TrackDetectorOutputHistory retains every anomaly returned by every
+	// detector invocation before baseline gating, muting, or deduplication.
+	// It is intended for finite replay comparisons and is disabled in live
+	// production because its size is unbounded.
+	TrackDetectorOutputHistory bool
 }
 
 // DefaultStorageConfig returns the hard-coded production defaults.

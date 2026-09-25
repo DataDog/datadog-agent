@@ -70,7 +70,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 func observerMetric(t *testing.T, telemetryComp telemetry.Component, metricName string, wantLabels map[string]string) *dto.Metric {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	fullMetricName := "observer__" + metricName
