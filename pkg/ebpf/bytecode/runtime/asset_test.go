@@ -26,7 +26,7 @@ func TestSecureRuntimeDirRejectsNonRootOwned(t *testing.T) {
 	}
 
 	dir := filepath.Join(t.TempDir(), "build")
-	err := secureRuntimeDir(dir)
+	err := secureDir(compilerOutputDirPurpose, dir)
 	require.Error(t, err, "a non-root-owned cache directory must be rejected")
 }
 
@@ -41,7 +41,7 @@ func TestSecureRuntimeDirRejectsSymlinkComponent(t *testing.T) {
 	link := filepath.Join(base, "link")
 	require.NoError(t, os.Symlink(realDir, link))
 
-	err := secureRuntimeDir(filepath.Join(link, "build"))
+	err := secureDir(compilerOutputDirPurpose, filepath.Join(link, "build"))
 	require.Error(t, err, "a cache directory reached through a symlink must be rejected")
 }
 
@@ -66,7 +66,7 @@ func TestSecureRuntimeDirReclaimsNonRootComponent(t *testing.T) {
 	require.NoError(t, syscall.Chown(preexisting, 1, 1))
 
 	build := filepath.Join(preexisting, "system-probe", "build")
-	require.NoError(t, secureRuntimeDir(build), "secureRuntimeDir should repair the non-root component and succeed")
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build), "secureRuntimeDir should repair the non-root component and succeed")
 
 	// The repaired component must now be a root-owned directory.
 	info, err := os.Lstat(preexisting)
@@ -129,7 +129,7 @@ func TestSecureRuntimeDirCreatesRootOwnedWhenAbsent(t *testing.T) {
 	}
 	_, build := stickyParent(t)
 
-	require.NoError(t, secureRuntimeDir(build))
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
 	require.Equal(t, uint32(0), dirUID(t, build), "created dir must be root-owned")
 	info, err := os.Lstat(build)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestSecureRuntimeDirAcceptsPreexistingRootDir(t *testing.T) {
 	require.NoError(t, os.Chmod(da, 0755))
 	before := dirIno(t, da)
 
-	require.NoError(t, secureRuntimeDir(build))
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
 	// A valid root-owned dir must be left untouched: same inode and same mode
 	// (a reclaim would recreate it 0700).
 	require.Equal(t, before, dirIno(t, da))
@@ -169,7 +169,7 @@ func TestSecureRuntimeDirRepairsDeepNonRootComponent(t *testing.T) {
 	require.NoError(t, os.MkdirAll(sp, 0755))
 	require.NoError(t, syscall.Chown(sp, 1, 1))
 
-	require.NoError(t, secureRuntimeDir(build))
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
 	require.Equal(t, uint32(0), dirUID(t, sp), "deep non-root component must be repaired to root")
 	require.False(t, hasReclaimedLeftover(t, sticky))
 }
@@ -185,7 +185,7 @@ func TestSecureRuntimeDirRepairsWritableNonStickyDir(t *testing.T) {
 	require.NoError(t, os.Mkdir(da, 0700))
 	require.NoError(t, os.Chmod(da, 0777)) // explicit chmod bypasses umask: root-owned, world-writable, no sticky
 
-	require.NoError(t, secureRuntimeDir(build))
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
 	require.Equal(t, uint32(0), dirUID(t, da))
 	// A reclaim recreates the component 0700; if it were wrongly accepted as-is
 	// it would still be 0777. (Inode numbers are unreliable here: ext4 recycles
@@ -206,9 +206,9 @@ func TestSecureRuntimeDirIdempotent(t *testing.T) {
 	require.NoError(t, os.Mkdir(da, 0777))
 	require.NoError(t, syscall.Chown(da, 1, 1))
 
-	require.NoError(t, secureRuntimeDir(build)) // repairs
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build)) // repairs
 	inoAfterFirst := dirIno(t, da)
-	require.NoError(t, secureRuntimeDir(build)) // no-op
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build)) // no-op
 	require.Equal(t, inoAfterFirst, dirIno(t, da), "second run must not reclaim again")
 	require.False(t, hasReclaimedLeftover(t, sticky), "no moved-aside dirs may remain")
 }
@@ -227,7 +227,7 @@ func TestSecureRuntimeDirRefusesNonRootWithoutStickyAncestor(t *testing.T) {
 	require.NoError(t, os.Mkdir(parent, 0755))
 	require.NoError(t, syscall.Chown(parent, 1, 1))
 
-	err = secureRuntimeDir(filepath.Join(parent, "build"))
+	err = secureDir(compilerOutputDirPurpose, filepath.Join(parent, "build"))
 	require.Error(t, err, "a non-root component with no sticky ancestor must be refused, not repaired")
 	require.Equal(t, uint32(1), dirUID(t, parent), "the component must be left untouched, not reclaimed")
 }
@@ -255,7 +255,7 @@ func TestSecureRuntimeDirRefusesSharedNonDedicatedAncestor(t *testing.T) {
 	bystander := filepath.Join(shared, "unrelated.txt")
 	require.NoError(t, os.WriteFile(bystander, []byte("keep me"), 0644))
 
-	err := secureRuntimeDir(filepath.Join(shared, "datadog", "build"))
+	err := secureDir(compilerOutputDirPurpose, filepath.Join(shared, "datadog", "build"))
 	require.Error(t, err, "a non-dedicated shared ancestor must be refused, not reclaimed")
 	require.FileExists(t, bystander, "unrelated contents must be preserved")
 	require.Equal(t, uint32(1), dirUID(t, shared), "the shared dir must be left untouched, not reclaimed")
@@ -275,7 +275,7 @@ func TestSecureRuntimeDirRepairsWritableStickyLeaf(t *testing.T) {
 	// Pre-existing leaf that is root-owned but sticky + world-writable.
 	require.NoError(t, os.Chmod(build, 0777|os.ModeSticky))
 
-	require.NoError(t, secureRuntimeDir(build))
+	require.NoError(t, secureDir(compilerOutputDirPurpose, build))
 	require.Equal(t, uint32(0), dirUID(t, build), "leaf must be root-owned")
 	info, err := os.Lstat(build)
 	require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestSecureRuntimeDirRefusesWritableLeafOutsideSubtree(t *testing.T) {
 	require.NoError(t, os.Mkdir(leaf, 0700))
 	require.NoError(t, os.Chmod(leaf, 0777|os.ModeSticky)) // root-owned, sticky, world-writable
 
-	err := secureRuntimeDir(leaf)
+	err := secureDir(compilerOutputDirPurpose, leaf)
 	require.Error(t, err, "a writable leaf outside the dedicated subtree must be refused")
 	info, lerr := os.Lstat(leaf)
 	require.NoError(t, lerr)
@@ -341,7 +341,7 @@ func TestVerifyDirComponent(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := verifyDirComponent("/some/path", tc.mode, tc.uid, tc.isLeaf)
+			err := verifyDirComponent(compilerOutputDirPurpose, "/some/path", tc.mode, tc.uid, tc.isLeaf)
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {

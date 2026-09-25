@@ -196,6 +196,7 @@ go_library(
         "//pkg/process/util",
         "//pkg/system-probe/config",
         "//pkg/util/kernel",
+        "//pkg/util/log",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/telemetry/def",
@@ -208,7 +209,6 @@ go_library(
             "//pkg/remoteconfig/state",
             "//pkg/util/archive",
             "//pkg/util/funcs",
-            "//pkg/util/log",
             "//pkg/util/sync",
             "//pkg/version",
             "@com_github_cilium_ebpf//:ebpf",
@@ -233,7 +233,6 @@ go_library(
             "//pkg/remoteconfig/state",
             "//pkg/util/archive",
             "//pkg/util/funcs",
-            "//pkg/util/log",
             "//pkg/util/sync",
             "//pkg/version",
             "@com_github_cilium_ebpf//:ebpf",

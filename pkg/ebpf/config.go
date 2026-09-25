@@ -6,16 +6,42 @@
 package ebpf
 
 import (
+	"sync"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	spNS = "system_probe_config"
+)
+
+const (
+	// AgentTmpDir is the agent's dedicated temporary directory. Every runtime path
+	// system-probe writes to lives underneath it so that a single validation of this
+	// one directory covers them all: it is verified to be a real, root-owned
+	// directory with no non-root write access (and repaired if it is not) before any
+	// of its contents are read, written or deleted.
+	//
+	// It is deliberately a constant. The path must stay inside the agent's own
+	// subtree for that validation to be applicable, so it is not derived from
+	// configuration. Keep the "datadog-agent" component in sync with
+	// dedicatedDirName in pkg/ebpf/bytecode/runtime/asset.go.
+	AgentTmpDir = "/var/tmp/datadog-agent"
+
+	// KernelHeaderDownloadDir is where system-probe downloads kernel headers for
+	// runtime compilation.
+	//
+	// This is NOT configurable. system-probe runs as root and both reuses and
+	// recursively deletes the contents of this directory, so an unprivileged user
+	// who can create or redirect any component of the path gains a root-write
+	// primitive. Pinning it under AgentTmpDir is what guarantees the path is
+	// covered by that directory's validation.
+	KernelHeaderDownloadDir = AgentTmpDir + "/system-probe/kernel-headers"
 )
 
 // Config stores all common flags used by system-probe
@@ -53,7 +79,9 @@ type Config struct {
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
 
-	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
+	// KernelHeadersDownloadDir is the directory where system-probe downloads kernel
+	// headers, if necessary. It is always KernelHeaderDownloadDir; the deprecated
+	// system_probe_config.kernel_header_download_dir setting is ignored.
 	KernelHeadersDownloadDir string
 
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs.
@@ -98,10 +126,25 @@ type Config struct {
 	RemoteConfigBTFDownloadHost string
 }
 
+// headerDownloadDirDeprecationOnce keeps the kernel_header_download_dir
+// deprecation warning to a single line per process.
+var headerDownloadDirDeprecationOnce sync.Once
+
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
 	cfg := pkgconfigsetup.SystemProbe()
 	sysconfig.Adjust(cfg)
+
+	// kernel_header_download_dir is no longer honored; see KernelHeaderDownloadDir.
+	// Warn instead of failing so that an existing configuration still starts, and
+	// only when the user actually set it to something other than the pinned path.
+	// NewConfig is called once per module, so warn only once.
+	if key := sysconfig.FullKeyPath(spNS, "kernel_header_download_dir"); cfg.IsConfigured(key) &&
+		cfg.GetString(key) != KernelHeaderDownloadDir {
+		headerDownloadDirDeprecationOnce.Do(func() {
+			log.Warnf("%s is deprecated and ignored: kernel headers are always downloaded to %s", key, KernelHeaderDownloadDir)
+		})
+	}
 
 	c := &Config{
 		BPFDebug:                 cfg.GetBool(sysconfig.FullKeyPath(spNS, "bpf_debug")),
@@ -122,7 +165,7 @@ func NewConfig() *Config {
 		RuntimeCompilerOutputDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "runtime_compiler_output_dir")),
 		EnableKernelHeaderDownload:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_kernel_header_download")),
 		KernelHeadersDirs:            cfg.GetStringSlice(sysconfig.FullKeyPath(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "kernel_header_download_dir")),
+		KernelHeadersDownloadDir:     KernelHeaderDownloadDir,
 		AptConfigDir:                 cfg.GetString(sysconfig.FullKeyPath(spNS, "apt_config_dir")),
 		YumReposDir:                  cfg.GetString(sysconfig.FullKeyPath(spNS, "yum_repos_dir")),
 		ZypperReposDir:               cfg.GetString(sysconfig.FullKeyPath(spNS, "zypper_repos_dir")),
