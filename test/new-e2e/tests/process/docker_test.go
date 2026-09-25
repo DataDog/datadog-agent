@@ -6,11 +6,13 @@
 package process
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 
@@ -102,6 +104,53 @@ func (s *dockerTestSuite) TestProcessDiscoveryCheck() {
 	}, 2*time.Minute, 10*time.Second)
 
 	assertProcessDiscoveryCollected(t, payloads, "dd")
+}
+
+func (s *dockerTestSuite) TestProcessCheckHostPasswdUsername() {
+	t := s.T()
+	t.Cleanup(func() {
+		require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	})
+	const hostUsername = "e2e-host-root"
+	passwdPath := strings.TrimSpace(s.Env().RemoteHost.MustExecute("mktemp /tmp/e2e-process-passwd.XXXXXX"))
+	t.Cleanup(func() {
+		require.NoError(t, s.Env().RemoteHost.Remove(passwdPath))
+	})
+	_, err := s.Env().RemoteHost.WriteFile(passwdPath, []byte(hostUsername+":x:0:0::/root:/bin/sh\n"))
+	require.NoError(t, err)
+
+	agentOpts := []dockeragentparams.Option{
+		dockeragentparams.WithAgentServiceEnvVariable("HOST_ETC", pulumi.String("/host/etc")),
+		dockeragentparams.WithExtraVolumes(passwdPath + ":/host/etc/passwd:ro"),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.Bool(true)),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_DISCOVERY_ENABLED", pulumi.Bool(false)),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", pulumi.Bool(false)),
+		dockeragentparams.WithAgentServiceEnvVariable("DD_DISCOVERY_ENABLED", pulumi.Bool(false)),
+		dockeragentparams.WithExtraComposeManifest("fakeProcess", pulumi.String(fakeProcessCompose)),
+	}
+	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(scendocker.WithAgentOptions(agentOpts...))))
+
+	// The host mount must not replace the image's local passwd database.
+	rootEntry, err := s.Env().Docker.Client.ExecuteCommandWithErr(s.Env().Agent.ContainerName, "getent", "passwd", "0")
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(rootEntry, "root:"), "image root account changed: %s", rootEntry)
+	agentEntry, err := s.Env().Docker.Client.ExecuteCommandWithErr(s.Env().Agent.ContainerName, "getent", "passwd", "dd-agent")
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(agentEntry, "dd-agent:"), "image dd-agent account missing: %s", agentEntry)
+
+	// Discard payloads buffered before the Agent was recreated with HOST_ETC.
+	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		require.NoError(c, err)
+		procs := FilterProcessPayloadsByName(payloads, "dd")
+		require.NotEmpty(c, procs, "no dd process received")
+		for _, proc := range procs {
+			require.NotNil(c, proc.User)
+			assert.Equal(c, int32(0), proc.User.Uid, "workload UID must be preserved")
+			assert.Equal(c, hostUsername, proc.User.Name, "host passwd must win over the image's root account")
+		}
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *dockerTestSuite) TestProcessCheckWithIO() {

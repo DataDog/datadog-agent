@@ -17,12 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LookupIDProbe wraps user.LookupId with an optional cache.
+// LookupIDProbe prefers host passwd entries and optionally caches fallback user.LookupId calls.
 type LookupIDProbe struct {
 	config pkgconfigmodel.Reader
 
 	lookupIDCache *cache.Cache
 	lookupID      func(uid string) (*user.User, error)
+	hostPasswd    *hostPasswdCache
 }
 
 // NewLookupIDProbe returns a new LookupIDProbe from the config
@@ -36,6 +37,7 @@ func NewLookupIDProbe(coreConfig pkgconfigmodel.Reader) *LookupIDProbe {
 
 		lookupIDCache: cache.New(time.Hour, time.Hour), // Used by lookupIDWithCache
 		lookupID:      user.LookupId,
+		hostPasswd:    newHostPasswdCache(),
 	}
 }
 
@@ -62,8 +64,12 @@ func (p *LookupIDProbe) lookupIDWithCache(uid string) (*user.User, error) {
 	}
 }
 
-// LookupID returns the user.User for the given uid, using a cache if configured.
+// LookupID returns the user.User for the given uid, preferring HOST_ETC/passwd
+// and using the configured cache only for the local user database fallback.
 func (p *LookupIDProbe) LookupID(uid string) (*user.User, error) {
+	if u, found := p.hostPasswd.lookup(uid); found {
+		return u, nil
+	}
 	if p.config.GetBool("process_config.cache_lookupid") {
 		return p.lookupIDWithCache(uid)
 	}
