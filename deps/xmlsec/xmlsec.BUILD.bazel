@@ -16,9 +16,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/lsh123/xmlsec/releases/download/{version}/xmlsec1-{version}.tar.gz",
         package = "xmlsec",
         version = VERSION,
-        download_url = "https://github.com/lsh123/xmlsec/releases/download/{version}/xmlsec1-{version}.tar.gz",
     ),
 )
 
@@ -87,39 +87,39 @@ cc_library(
         "src/xslt.c",
     ] + glob(["src/*.h"]),
     hdrs = PUBLIC_HEADERS,
-    strip_include_prefix = "include",
     copts = ["-O2"],
     defines = [
         "XMLSEC_CRYPTO_OPENSSL=1",
+    ],
+    implementation_deps = [
+        ":config_h",
+    ],
+    includes = [
+        "src",
     ],
     local_defines = [
         'PACKAGE=\\"xmlsec1\\"',
         'XMLSEC_DEFAULT_CRYPTO=\\"openssl\\"',
         "HAVE_CONFIG_H",
     ],
-    implementation_deps = [
-        ":config_h",
-    ],
-    deps = [
-        "@libxslt//:libxslt",
-        "@libxml2//:libxml2",
-    ],
-    includes = [
-        "src",
-    ],
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
+    deps = [
+        "@libxml2",
+        "@libxslt",
+    ],
 )
 
 cc_shared_library(
     name = "xmlsec1",
-    deps = [
-        ":libxmlsec1",
-    ],
     dynamic_deps = [
         "@libxslt//:xslt_pkg",
         "@libxml2//:xml2_pkg",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        ":libxmlsec1",
+    ],
 )
 
 cc_library(
@@ -130,33 +130,24 @@ cc_library(
         "src/openssl/crypto.c",
         "src/openssl/digests.c",
         "src/openssl/evp.c",
+        "src/openssl/globals.h",
+        "src/openssl/hmac.c",
         "src/openssl/kdf.c",
         "src/openssl/key_agrmnt.c",
         "src/openssl/keysstore.c",
-        "src/openssl/hmac.c",
+        "src/openssl/kt_rsa.c",
         "src/openssl/kw_aes.c",
         "src/openssl/kw_des.c",
-        "src/openssl/kt_rsa.c",
+        "src/openssl/openssl_compat.h",
+        "src/openssl/private.h",
         "src/openssl/signatures.c",
         "src/openssl/signatures_legacy.c",
         "src/openssl/symkeys.c",
         "src/openssl/x509.c",
         "src/openssl/x509vfy.c",
-        "src/openssl/globals.h",
-        "src/openssl/private.h",
-        "src/openssl/openssl_compat.h",
     ],
     hdrs = PUBLIC_OPENSSL_HEADERS,
-    implementation_deps = [
-        ":config_h",
-    ],
     copts = ["-O2"],
-    deps = [
-        "@libxslt//:libxslt",
-        "@libxml2//:libxml2",
-        "@openssl",
-        ":libxmlsec1",
-    ],
     defines = [
         "XMLSEC_NO_FTP=1",
         "XMLSEC_NO_HTTP=1",
@@ -165,22 +156,28 @@ cc_library(
         "XMLSEC_NO_GOST=1",
         "XMLSEC_NO_GOST2012=1",
     ],
-    strip_include_prefix = "include",
-    local_defines = [
-        'PACKAGE=\\"xmlsec1\\"',
-        "HAVE_CONFIG_H",
+    implementation_deps = [
+        ":config_h",
     ],
     includes = [
         "src",
     ],
+    local_defines = [
+        'PACKAGE=\\"xmlsec1\\"',
+        "HAVE_CONFIG_H",
+    ],
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
+    deps = [
+        ":libxmlsec1",
+        "@libxml2",
+        "@libxslt",
+        "@openssl",
+    ],
 )
 
 cc_shared_library(
     name = "xmlsec1-openssl",
-    deps = [
-        ":libxmlsec1-openssl",
-    ],
     dynamic_deps = [
         "@libxslt//:xslt_pkg",
         "@libxml2//:xml2_pkg",
@@ -194,6 +191,9 @@ cc_shared_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+    deps = [
+        ":libxmlsec1-openssl",
+    ],
 )
 
 pkg_files(
@@ -211,16 +211,16 @@ pkg_files(
 dd_cc_packaged(
     name = "xmlsec1_pkg",
     input = ":xmlsec1",
-    version = VERSION,
     installed_files = [":headers_files"],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 
 dd_cc_packaged(
     name = "xmlsec1-openssl_pkg",
     input = ":xmlsec1-openssl",
-    version = VERSION,
     installed_files = [":openssl_headers_files"],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 
@@ -231,5 +231,8 @@ pkg_filegroup(
         ":openssl_headers_files",
     ],
     prefix = "embedded",
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )
