@@ -178,6 +178,7 @@ const (
 	createTimeout          = 60 * time.Minute
 	deleteTimeout          = 30 * time.Minute
 	provisionerGracePeriod = 2 * time.Second
+	defaultTeardownBudget  = 5 * time.Minute
 )
 
 // Suite is a generic inteface used internally, only implemented by BaseSuite
@@ -535,6 +536,21 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 
 func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResources, fields []reflect.StructField, values []reflect.Value) error {
 	return environments.BuildEnvFromResources(bs, resources, fields, values)
+}
+
+// parseTeardownBudget parses a teardown budget from its parameter value (the
+// E2E_TEARDOWN_BUDGET runner parameter, a Go duration string). An empty value
+// returns the default; an invalid or non-positive value returns the default
+// and an error for the caller to log.
+func parseTeardownBudget(value string) (time.Duration, error) {
+	if value == "" {
+		return defaultTeardownBudget, nil
+	}
+	budget, err := time.ParseDuration(value)
+	if err != nil || budget <= 0 {
+		return defaultTeardownBudget, fmt.Errorf("invalid teardown budget %q", value)
+	}
+	return budget, nil
 }
 
 func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Context, context.CancelFunc) {

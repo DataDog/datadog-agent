@@ -53,6 +53,9 @@ const (
 	PulumiPassword StoreKey = "pulumi_password"
 	// SkipDeleteOnFailure keep the stack on test failure
 	SkipDeleteOnFailure StoreKey = "skip_delete_on_failure"
+	// TeardownBudget reserves time before the go test deadline for suite
+	// teardown, when the deadline watchdog is armed (Go duration string)
+	TeardownBudget StoreKey = "teardown_budget"
 	// StackNameSuffix suffix to add to the stack name
 	StackNameSuffix StoreKey = "stack_name_suffix"
 	// StackParameters configuration map for the stack, in a json formatted string

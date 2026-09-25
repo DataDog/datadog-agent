@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/stretchr/testify/mock"
@@ -235,4 +236,28 @@ func TestTCleanupHookIsNoOpAfterNormalTeardown(t *testing.T) {
 	// The t.Cleanup hook fired after the sub-test completed. If it had erroneously
 	// re-run cleanup, Destroy would have been called twice.
 	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+func TestParseTeardownBudget(t *testing.T) {
+	for value, expected := range map[string]struct {
+		budget time.Duration
+		err    bool
+	}{
+		"":      {defaultTeardownBudget, false},
+		"90s":   {90 * time.Second, false},
+		"5m":    {5 * time.Minute, false},
+		"1h30m": {90 * time.Minute, false},
+		"nope":  {defaultTeardownBudget, true},
+		"0":     {defaultTeardownBudget, true},
+		"0s":    {defaultTeardownBudget, true},
+		"-5m":   {defaultTeardownBudget, true},
+	} {
+		budget, err := parseTeardownBudget(value)
+		require.Equal(t, expected.budget, budget, "value %q", value)
+		if expected.err {
+			require.Error(t, err, "value %q", value)
+		} else {
+			require.NoError(t, err, "value %q", value)
+		}
+	}
 }
