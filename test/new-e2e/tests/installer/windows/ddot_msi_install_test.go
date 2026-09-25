@@ -59,7 +59,7 @@ func (s *testDDOTExtensionMSI) TestInstallAndUninstallDDOTExtension() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	s.assertManagedByProcmgr(ddotProcmgrProcess)
 
 	// Act: uninstall the Agent MSI (purges OCI packages including extensions)
 	s.Require().NoError(s.Installer().Uninstall(
@@ -96,7 +96,7 @@ func (s *testDDOTExtensionMSI) TestUpgradeEnablesDDOTExtension() {
 	// Extension DDOT runs under dd-procmgr-service (OCI processes.d); legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	s.assertManagedByProcmgr(ddotProcmgrProcess)
 }
 
 func (s *testDDOTExtensionMSI) installPreviousAgentVersion(opts ...MsiOption) {
@@ -189,5 +189,5 @@ func (s *testDDOTExtensionMSIUpgrade) TestUpgradePreservesDDOTExtension() {
 	// After upgrade to current OCI layout, DDOT is supervised by dd-procmgr-service; legacy SCM datadog-otel-agent must stay stopped.
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
+	s.assertManagedByProcmgr(ddotProcmgrProcess)
 }

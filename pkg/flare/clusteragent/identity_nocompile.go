@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build tools
+//go:build !kubeapiserver
 
-package orchestrion
+package clusteragent
 
-import (
-	_ "github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting" // integration
-	_ "github.com/DataDog/orchestrion"
-)
+func getClusterAgentIdentity() (string, string, string, error) {
+	return "", "", "", ErrNotCompiled
+}

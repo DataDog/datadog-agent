@@ -46,6 +46,12 @@ func (sv *stateView) Anomalies() []observerdef.Anomaly {
 	return sv.engine.RawAnomalies()
 }
 
+// DetectorOutputAnomalies returns every detector result before downstream
+// filtering when replay tracking is enabled.
+func (sv *stateView) DetectorOutputAnomalies() []observerdef.Anomaly {
+	return sv.engine.DetectorOutputAnomalies()
+}
+
 // ScoreState returns a snapshot of the scorer's accumulated state.
 // Returns an empty AnomalyScoreState if no scorer is configured.
 func (sv *stateView) ScoreState() observerdef.AnomalyScoreState {

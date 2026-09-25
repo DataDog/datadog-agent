@@ -70,6 +70,9 @@ type StateView interface {
 
 	// Anomalies (full history is available only when replay/debug tracking is enabled)
 	Anomalies() []observerdef.Anomaly
+	// DetectorOutputAnomalies returns every detector result before downstream
+	// filtering when replay tracking is enabled.
+	DetectorOutputAnomalies() []observerdef.Anomaly
 	TotalAnomalyCount() int
 
 	// Scoring
