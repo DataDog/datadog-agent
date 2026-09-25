@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -24,6 +25,12 @@ var errLogsAgentNotRunning = errors.New("missedbytes: logs agent not running")
 
 // maxBreakdownSources caps the tuples listed individually; totals cover them all.
 const maxBreakdownSources = 10
+
+// maxBackpressureComponents caps the components listed individually.
+const maxBackpressureComponents = 10
+
+// ratioScale rounds ratios to 3 decimals so an unchanged pipeline encodes identically.
+const ratioScale = 1000
 
 type checker struct {
 	hostname hostnameinterface.Component
@@ -50,6 +57,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 
 	var totalBytes, totalRotations int64
 	var lastLossAt time.Time
+	bottleneckCounts := make(map[string]int64)
 	// Counted here, not in BuildIssue, which only receives the capped breakdown.
 	distinctSources := make(map[string]struct{}, len(summaries))
 	for _, s := range summaries {
@@ -59,6 +67,11 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 		if s.LastLossAt.After(lastLossAt) {
 			lastLossAt = s.LastLossAt
 		}
+		for component, count := range s.Bottlenecks {
+			// The tracker bounds tuples, buckets and labels. Keep all recorded counts
+			// here so report-size caps cannot hide the host-wide winner.
+			bottleneckCounts[component] += count
+		}
 	}
 
 	top, omitted := rankSources(summaries)
@@ -67,20 +80,100 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 		return nil, fmt.Errorf("missedbytes: encode breakdown: %w", err)
 	}
 
+	issueContext := map[string]string{
+		contextKeyBytes:        strconv.FormatInt(totalBytes, 10),
+		contextKeyRotations:    strconv.FormatInt(totalRotations, 10),
+		contextKeySourceCount:  strconv.Itoa(len(distinctSources)),
+		contextKeyPairsOmitted: strconv.Itoa(omitted),
+		contextKeyLastLossAt:   lastLossAt.UTC().Format(time.RFC3339),
+		contextKeySources:      string(encoded),
+	}
+	if bottleneck, rotations := dominantBottleneck(bottleneckCounts); bottleneck != "" {
+		issueContext[contextKeyLossBottleneck] = bottleneck
+		issueContext[contextKeyLossBottleneckRotations] = strconv.FormatInt(rotations, 10)
+	}
+
+	// Enrichment only: an unreadable pipeline drops the key rather than failing the check.
+	if encodedBP, ok := encodeBackpressure(logsmetrics.BackpressureSnapshot()); ok {
+		issueContext[contextKeyBackpressure] = encodedBP
+	}
+
 	hostname := c.hostname.GetSafe(context.Background())
 	return []runnerdef.IssueReport{{
 		IssueID:   hostIssueID(hostname),
 		IssueName: IssueName,
 		Source:    issueSource,
-		Context: map[string]string{
-			contextKeyBytes:        strconv.FormatInt(totalBytes, 10),
-			contextKeyRotations:    strconv.FormatInt(totalRotations, 10),
-			contextKeySourceCount:  strconv.Itoa(len(distinctSources)),
-			contextKeyPairsOmitted: strconv.Itoa(omitted),
-			contextKeyLastLossAt:   lastLossAt.UTC().Format(time.RFC3339),
-			contextKeySources:      string(encoded),
-		},
+		Context:   issueContext,
 	}}, nil
+}
+
+// encodeBackpressure ranks, caps and rounds the snapshot for the wire. Reports false when no
+// monitor answered, which is not the same as a healthy pipeline.
+func encodeBackpressure(summary logsmetrics.BackpressureSummary) (string, bool) {
+	if summary.State == "" {
+		return "", false
+	}
+
+	// DeriveBackpressure puts the bottleneck first, so truncating keeps it.
+	components := summary.Components
+	omitted := 0
+	if len(components) > maxBackpressureComponents {
+		omitted = len(components) - maxBackpressureComponents
+		components = components[:maxBackpressureComponents]
+	}
+
+	wire := backpressureWire{
+		State:             summary.State,
+		Components:        make([]logsmetrics.ComponentBackpressure, 0, len(components)),
+		ComponentsOmitted: omitted,
+	}
+	for _, c := range components {
+		wire.Components = append(wire.Components, roundComponent(c))
+	}
+	if summary.Bottleneck != nil {
+		rounded := roundComponent(*summary.Bottleneck)
+		wire.Bottleneck = &rounded
+	}
+
+	encoded, err := json.Marshal(wire)
+	if err != nil {
+		return "", false
+	}
+	return string(encoded), true
+}
+
+func roundComponent(c logsmetrics.ComponentBackpressure) logsmetrics.ComponentBackpressure {
+	c.AvgRatio = roundRatio(c.AvgRatio)
+	c.Max5m = roundRatio(c.Max5m)
+	c.Max30m = roundRatio(c.Max30m)
+	c.Max2h = roundRatio(c.Max2h)
+	c.Max5h = roundRatio(c.Max5h)
+	c.Max10h = roundRatio(c.Max10h)
+	return c
+}
+
+func roundRatio(v float64) float64 {
+	return math.Round(v*ratioScale) / ratioScale
+}
+
+// dominantBottleneck names the stage blamed for most of a tuple's rotations, and how many.
+func dominantBottleneck(counts map[string]int64) (string, int64) {
+	var name string
+	var top int64
+	for component, count := range counts {
+		if count > top || (count == top && outranksStage(component, name)) {
+			name, top = component, count
+		}
+	}
+	return name, top
+}
+
+// outranksStage breaks a tie toward a stage the reader can act on, then on name.
+func outranksStage(candidate, incumbent string) bool {
+	if (candidate == logsmetrics.NoBottleneck) != (incumbent == logsmetrics.NoBottleneck) {
+		return incumbent == logsmetrics.NoBottleneck
+	}
+	return candidate < incumbent
 }
 
 // rankSources keeps the maxBreakdownSources largest tuples and returns how many it
@@ -88,11 +181,14 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 func rankSources(summaries []logsmetrics.MissedBytesSummary) ([]sourceLoss, int) {
 	ranked := make([]sourceLoss, 0, len(summaries))
 	for _, s := range summaries {
+		bottleneck, bottleneckRotations := dominantBottleneck(s.Bottlenecks)
 		ranked = append(ranked, sourceLoss{
-			Source:    s.Source,
-			Service:   s.Service,
-			Bytes:     s.Bytes,
-			Rotations: s.Rotations,
+			Source:              s.Source,
+			Service:             s.Service,
+			Bytes:               s.Bytes,
+			Rotations:           s.Rotations,
+			Bottleneck:          bottleneck,
+			BottleneckRotations: bottleneckRotations,
 		})
 	}
 
