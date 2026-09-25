@@ -51,6 +51,7 @@ var bpfMapNames = []string{
 	"events_stats",
 	"exec_dentry_ope",
 	"exec_entry_stam",
+	"exec_key_repair",
 	"exec_pid_transf",
 	"exec_zero_key_d",
 	"fb_approver_sta",
