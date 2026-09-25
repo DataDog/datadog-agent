@@ -17,7 +17,7 @@ import "encoding/json"
 type Range struct {
 	ID                 string
 	Namespace          string
-	CIDR               string
+	NetworkAddress     string
 	IntervalSec        int
 	IgnoredIPAddresses []string
 	Tags               []string
