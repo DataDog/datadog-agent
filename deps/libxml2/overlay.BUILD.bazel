@@ -1,13 +1,29 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 VERSION = "2.15.3"
 
+package(default_package_metadata = [":package_metadata"])
+
 PUBLIC_HEADERS = glob(["include/libxml/*.h"]) + [":xmlversion_h"]
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "libxml2",
+        version = VERSION,
+        download_url = "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz",
+    ),
+)
 
 license(
     name = "license",

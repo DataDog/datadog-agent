@@ -1,11 +1,29 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["//visibility:private"],
+)
+
+SO_VERSION = "14.25.1"
+VERSION = "1.58.0"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "nghttp2",
+        version = VERSION,
+        download_url = "https://github.com/nghttp2/nghttp2/releases/download/v{version}/nghttp2-{version}.tar.gz",
+    ),
 )
 
 license(
@@ -15,9 +33,6 @@ license(
     license_text = "COPYING",
     visibility = ["//visibility:public"],
 )
-
-SO_VERSION = "14.25.1"
-VERSION = "1.58"
 
 PUBLIC_HEADERS = [
     "lib/includes/nghttp2/nghttp2ver.h",
