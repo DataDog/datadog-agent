@@ -61,16 +61,14 @@ type RunCommandHandlerConfig struct {
 	PrivilegedEnabled             bool
 	PrivilegedSocket              string
 	// OperatorElevatableCommands lists rshell:-namespaced commands allowed to
-	// temporarily regain root inside the privileged helper. Nil or empty
-	// means no command may elevate.
+	// temporarily regain root inside the privileged helper.
 	OperatorElevatableCommands []string
-	// OperatorAllowedCommandsConfigured and OperatorAllowedPathsConfigured
-	// record whether the operator explicitly set the corresponding
-	// datadog.yaml setting, as opposed to it carrying its wildcard-admitting
-	// default. Privileged execution uses these to decide whether to narrow
-	// that axis at all: see buildAgentPolicy.
-	OperatorAllowedCommandsConfigured bool
-	OperatorAllowedPathsConfigured    bool
+	// The configured flags record whether the operator explicitly set the
+	// corresponding datadog.yaml setting. Privileged execution uses them to
+	// decide whether to narrow that axis at all: see buildAgentPolicy.
+	OperatorAllowedCommandsConfigured    bool
+	OperatorAllowedPathsConfigured       bool
+	OperatorElevatableCommandsConfigured bool
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -107,9 +105,10 @@ type RunCommandHandler struct {
 	privilegedEnabled             bool
 	privilegedSocket              string
 	// Used only to construct the privileged path's AgentPolicy; see buildAgentPolicy.
-	operatorElevatableCommands        []string
-	operatorAllowedCommandsConfigured bool
-	operatorAllowedPathsConfigured    bool
+	operatorElevatableCommands           []string
+	operatorAllowedCommandsConfigured    bool
+	operatorAllowedPathsConfigured       bool
+	operatorElevatableCommandsConfigured bool
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -132,16 +131,17 @@ func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCom
 
 	services := cloneSystemServiceAllowlist(cfg.OperatorAllowedSystemServices)
 	return &RunCommandHandler{
-		operatorAllowedPaths:              reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
-		operatorAllowedCommands:           commands,
-		operatorAllowedSystemServices:     services,
-		disableCommandTelemetry:           cfg.DisableDetailedTelemetry,
-		mode:                              mode,
-		privilegedEnabled:                 cfg.PrivilegedEnabled,
-		privilegedSocket:                  cfg.PrivilegedSocket,
-		operatorElevatableCommands:        elevatableCommands,
-		operatorAllowedCommandsConfigured: cfg.OperatorAllowedCommandsConfigured,
-		operatorAllowedPathsConfigured:    cfg.OperatorAllowedPathsConfigured,
+		operatorAllowedPaths:                 reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
+		operatorAllowedCommands:              commands,
+		operatorAllowedSystemServices:        services,
+		disableCommandTelemetry:              cfg.DisableDetailedTelemetry,
+		mode:                                 mode,
+		privilegedEnabled:                    cfg.PrivilegedEnabled,
+		privilegedSocket:                     cfg.PrivilegedSocket,
+		operatorElevatableCommands:           elevatableCommands,
+		operatorAllowedCommandsConfigured:    cfg.OperatorAllowedCommandsConfigured,
+		operatorAllowedPathsConfigured:       cfg.OperatorAllowedPathsConfigured,
+		operatorElevatableCommandsConfigured: cfg.OperatorElevatableCommandsConfigured,
 	}
 }
 
@@ -478,7 +478,7 @@ func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
 		policy.AllowedSystemServices = h.operatorAllowedSystemServices
 		configured = true
 	}
-	if h.operatorElevatableCommands != nil {
+	if h.operatorElevatableCommandsConfigured {
 		policy.ElevatableCommands = h.operatorElevatableCommands
 		configured = true
 	}

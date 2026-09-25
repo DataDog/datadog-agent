@@ -229,12 +229,11 @@ properties:
             env_parser: json_list_or_comma_separated
             comment: |-
               Commands that may temporarily regain root (via a sudo prefix)
-              inside the privileged helper's one-shot worker. Defaults to an
-              empty list: elevation is opt-in per command, never granted by
-              a wildcard default. Like allowed_commands/allowed_paths, this
-              only narrows the signed backend task and the optional local
-              policy.json; it can never grant elevation beyond what those
-              already allow.
+              inside the privileged helper's one-shot worker. When unset, the
+              Agent does not narrow signed backend or local policy.json
+              elevation grants. An explicit empty list denies every elevation.
+              Like allowed_commands/allowed_paths, this can only narrow those
+              policies; it can never grant elevation beyond what they allow.
   skip_connection_creation:
     node_type: setting
     type: boolean

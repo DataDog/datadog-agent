@@ -675,12 +675,13 @@ func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T
 	log.SetupLogger(logger, "info")
 
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
-		OperatorAllowedCommands:           []string{"rshell:cat"},
-		OperatorAllowedCommandsConfigured: true,
-		OperatorElevatableCommands:        []string{"rshell:cat"},
-		PrivilegedEnabled:                 true,
-		PrivilegedSocket:                  "",
+		OperatorAllowedPaths:                 []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:              []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured:    true,
+		OperatorElevatableCommands:           []string{"rshell:cat"},
+		OperatorElevatableCommandsConfigured: true,
+		PrivilegedEnabled:                    true,
+		PrivilegedSocket:                     "",
 	})
 	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
 	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
@@ -719,9 +720,10 @@ func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *test
 
 func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:       []string{setup.RShellPathAllowAll},
-		OperatorAllowedCommands:    []string{rShellCommandAllowAllWildcard},
-		OperatorElevatableCommands: []string{"rshell:journalctl", "rshell:systemctl"},
+		OperatorAllowedPaths:                 []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:              []string{rShellCommandAllowAllWildcard},
+		OperatorElevatableCommands:           []string{"rshell:journalctl", "rshell:systemctl"},
+		OperatorElevatableCommandsConfigured: true,
 	})
 
 	policy := handler.buildAgentPolicy()
@@ -733,14 +735,28 @@ func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *t
 	assert.Nil(t, policy.AllowedSystemServices)
 }
 
+func TestBuildAgentPolicyExplicitlyEmptyElevatableCommandsIsKillSwitch(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorElevatableCommands:           []string{},
+		OperatorElevatableCommandsConfigured: true,
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.NotNil(t, policy.ElevatableCommands)
+	assert.Empty(t, policy.ElevatableCommands)
+}
+
 func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:              []string{"/var/log:ro"},
-		OperatorAllowedCommands:           []string{"rshell:cat"},
-		OperatorAllowedCommandsConfigured: true,
-		OperatorAllowedPathsConfigured:    true,
-		OperatorAllowedSystemServices:     map[string][]string{"mysql.service": {"read"}},
-		OperatorElevatableCommands:        []string{"rshell:truncate"},
+		OperatorAllowedPaths:                 []string{"/var/log:ro"},
+		OperatorAllowedCommands:              []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured:    true,
+		OperatorAllowedPathsConfigured:       true,
+		OperatorAllowedSystemServices:        map[string][]string{"mysql.service": {"read"}},
+		OperatorElevatableCommands:           []string{"rshell:truncate"},
+		OperatorElevatableCommandsConfigured: true,
 	})
 
 	policy := handler.buildAgentPolicy()
