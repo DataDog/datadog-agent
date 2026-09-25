@@ -47,6 +47,7 @@ import (
 // task as DONE, and upon shutdown will hang until the fx timeout is hit.
 // Use a custom packag-command to perform this background work.
 var datadogAgentPackage = hooks{
+	preInstall:  preInstallDatadogAgent,
 	postInstall: postInstallDatadogAgent,
 	preRemove:   preRemoveDatadogAgent,
 
@@ -80,6 +81,13 @@ func getExtensionStoragePath(_ string) string {
 func getAgentPackageState() (repository.State, error) {
 	repos := repository.NewRepositories(paths.PackagesPath, AsyncPreRemoveHooks)
 	return repos.Get(agentPackage).GetState()
+}
+
+func preInstallDatadogAgent(ctx HookContext) error {
+	if ctx.PackageType == PackageTypeMSI {
+		return nil // The MSI enforces its own mutually exclusive product check.
+	}
+	return msi.CheckAgentFlavor(getenv().FIPSMode)
 }
 
 // postInstallDatadogAgent runs post install scripts for a given package.
@@ -165,6 +173,10 @@ func preRemoveDatadogAgent(ctx HookContext) (err error) {
 
 	// Save and remove extensions (all package types)
 	if ctx.Upgrade {
+		// Upgrades run preRemove before preInstall; reject before removing extensions.
+		if err := preInstallDatadogAgent(ctx); err != nil {
+			return err
+		}
 		if err := saveAgentExtensions(ctx, false); err != nil {
 			log.Warnf("failed to save extensions: %s", err)
 		}
@@ -240,6 +252,9 @@ func ensureProcmgrConfig(cfg procmgrConfig) error {
 // otherwise unecessarily try to uninstall and then reinstall the stable Agent.
 func preStartExperimentDatadogAgent(_ HookContext) error {
 	env := getenv()
+	if err := msi.CheckAgentFlavor(env.FIPSMode); err != nil {
+		return err
+	}
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)

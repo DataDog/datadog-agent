@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The Windows Fleet installer now rejects standard/FIPS Agent mismatches
+    before stopping the installed Agent, with a message to use the matching installer.
