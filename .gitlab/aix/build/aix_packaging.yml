@@ -18,7 +18,7 @@ package_aix-ppc64:
     - |
       aix_run_cmd <<EOF
       set -eux
-      cd $AIX_AGENT_SRC/packaging/aix && ./clean.sh
+      cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh
       cd $AIX_AGENT_SRC
       env AGENT_BUILD=1 sh $AIX_AGENT_SRC/packaging/aix/build.sh
       EOF
