@@ -423,7 +423,8 @@ func (e *engine) sourceTagForIngest(source string) string {
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.AddWithHost(source, m.name, m.host, m.value, m.timestamp, m.tags)
+	addResult := e.storage.AddWithHost(source, m.name, m.host, m.value, m.timestamp, m.tags)
+	e.handleCapacityEvictions(addResult.CapacityEvictedRefs)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -481,6 +482,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				continue
 			}
 			res := e.storage.AddWithHost(extractor.Name(), m.Name, host, m.Value, timestamp, tags)
+			e.handleCapacityEvictions(res.CapacityEvictedRefs)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
@@ -520,6 +522,25 @@ func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []stri
 		e.onStorageSeriesEvicted("extractor", len(freedAll))
 	}
 	e.fanOutSeriesRemoval(freedAll)
+}
+
+// handleCapacityEvictions synchronizes every state holder after storage makes
+// room for a newly admitted series or the post-advance safety check finds an
+// over-capacity catalog.
+func (e *engine) handleCapacityEvictions(freed []observerdef.SeriesRef) {
+	if len(freed) == 0 {
+		return
+	}
+	if e.logCounts != nil {
+		e.logCounts.removeSeriesByRefs(freed)
+	}
+	if e.onStorageCapacityHit != nil {
+		e.onStorageCapacityHit()
+	}
+	if e.onStorageSeriesEvicted != nil {
+		e.onStorageSeriesEvicted("capacity", len(freed))
+	}
+	e.fanOutSeriesRemoval(freed)
 }
 
 // fanOutSeriesRemoval notifies every detector that implements the optional
@@ -646,7 +667,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		e.completeDueBaselines(upToSec)
 	}
 	if e.logCounts != nil {
-		e.logCounts.flush(e.storage, upToSec)
+		e.handleCapacityEvictions(e.logCounts.flush(e.storage, upToSec))
 	}
 	// Inactivity eviction happens after materialized log-count buckets have
 	// restored their real last-observation activity time, and before detectors
@@ -656,19 +677,9 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
-	// Evict series beyond the storage cap and fan freed refs to detectors.
-	if freed := e.storage.EvictDefault(); len(freed) > 0 {
-		if e.logCounts != nil {
-			e.logCounts.removeSeriesByRefs(freed)
-		}
-		if e.onStorageCapacityHit != nil {
-			e.onStorageCapacityHit()
-		}
-		if e.onStorageSeriesEvicted != nil {
-			e.onStorageSeriesEvicted("capacity", len(freed))
-		}
-		e.fanOutSeriesRemoval(freed)
-	}
+	// Admission normally keeps storage within its cap. Retain this post-advance
+	// check as a safety net for direct storage writes and configuration changes.
+	e.handleCapacityEvictions(e.storage.EvictDefault())
 
 	e.emit(engineEvent{
 		kind:      eventAdvanceCompleted,

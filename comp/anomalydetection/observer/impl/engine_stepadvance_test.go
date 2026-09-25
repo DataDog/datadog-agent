@@ -10,6 +10,7 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // fixedDetector is a mock detector that returns a fixed set of anomalies once.
@@ -251,6 +252,45 @@ func TestEngine_EvictsInactiveSeriesBeforeDetectionAtConfiguredCadence(t *testin
 	assert.Nil(t, storage.GetSeriesMeta(pending))
 	assert.ElementsMatch(t, []observer.SeriesRef{old, active, pending}, detector.removed)
 	assert.Equal(t, []string{"inactive", "inactive"}, evictionReasons)
+}
+
+func TestEngine_EvictsAtAdmissionAndSynchronizesDependentState(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{
+		MaxSeries:          2,
+		EvictionFloorRatio: 0.5,
+	})
+	detector := &inactiveEvictionDetector{}
+	e := newEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
+
+	var capacityHits int
+	var capacityEvicted int
+	e.onStorageCapacityHit = func() { capacityHits++ }
+	e.onStorageSeriesEvicted = func(reason string, count int) {
+		require.Equal(t, "capacity", reason)
+		capacityEvicted += count
+	}
+
+	e.IngestMetric("workload", &metricObs{name: "first", value: 1, timestamp: 1})
+	firstMetas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, firstMetas, 1)
+	first := firstMetas[0].Ref
+	e.IngestMetric("workload", &metricObs{name: "second", value: 1, timestamp: 2})
+	secondMetas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, secondMetas, 2)
+	var second observer.SeriesRef
+	for _, meta := range secondMetas {
+		if meta.Ref != first {
+			second = meta.Ref
+		}
+	}
+	require.NotEqual(t, first, second)
+
+	e.IngestMetric("workload", &metricObs{name: "third", value: 1, timestamp: 3})
+
+	assert.Equal(t, 1, storage.TotalSeriesCount())
+	assert.ElementsMatch(t, []observer.SeriesRef{first, second}, detector.removed)
+	assert.Equal(t, 1, capacityHits)
+	assert.Equal(t, 2, capacityEvicted)
 }
 
 func TestEngine_InactiveSeriesEvictionDisabled(t *testing.T) {
