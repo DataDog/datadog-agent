@@ -8,6 +8,9 @@ package fxutil
 import (
 	"context"
 	"errors"
+	"os"
+	"runtime/pprof"
+	"runtime/trace"
 
 	"go.uber.org/fx"
 )
@@ -46,8 +49,58 @@ func OneShot(oneShotFunc interface{}, opts ...fx.Option) error {
 	// start the app
 	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
 	defer cancel()
-	if err := app.Start(startCtx); err != nil {
+
+	// DD_STARTUP_CPU_PROFILE is a local debugging aid: when set, it captures a CPU
+	// profile of exactly the fx startup window (Provide + OnStart hooks) to the given
+	// file path. It is a no-op unless the env var is set.
+	var stopProfile func()
+	if path := os.Getenv("DD_STARTUP_CPU_PROFILE"); path != "" {
+		if f, err := os.Create(path); err == nil {
+			pprof.StartCPUProfile(f) //nolint:errcheck
+			stopProfile = func() {
+				pprof.StopCPUProfile()
+				f.Close() //nolint:errcheck
+			}
+		}
+	}
+
+	// DD_STARTUP_TRACE is a local debugging aid: when set, it captures a Go execution
+	// trace (goroutine scheduling, GC, syscalls) of exactly the fx startup window to
+	// the given file path, viewable with `go tool trace`. It is a no-op unless set.
+	var stopTrace func()
+	if path := os.Getenv("DD_STARTUP_TRACE"); path != "" {
+		if f, err := os.Create(path); err == nil {
+			if err := trace.Start(f); err == nil {
+				stopTrace = func() {
+					trace.Stop()
+					f.Close() //nolint:errcheck
+				}
+			} else {
+				f.Close() //nolint:errcheck
+			}
+		}
+	}
+
+	// Named task so the fx startup window is clearly labeled in the trace viewer
+	// (regardless of whether DD_STARTUP_TRACE is set; this is a cheap no-op otherwise).
+	taskCtx, task := trace.NewTask(startCtx, "fx-onstart")
+	defer task.End()
+
+	if err := app.Start(taskCtx); err != nil {
+		if stopProfile != nil {
+			stopProfile()
+		}
+		if stopTrace != nil {
+			stopTrace()
+		}
 		return errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
+	}
+
+	if stopProfile != nil {
+		stopProfile()
+	}
+	if stopTrace != nil {
+		stopTrace()
 	}
 
 	// call the original oneShotFunc with the args captured during app startup

@@ -25,3 +25,15 @@ func SetupMock(t *testing.T, testHypervisorUUID, testProductUUID, testBoardAsset
 	productUUID = testProductUUID
 	hypervisorUUID = testHypervisorUUID
 }
+
+// SetupMockProductName configures the DMI product name variable with the provided value
+func SetupMockProductName(t *testing.T, testProductName string) {
+	t.Cleanup(func() { productName = "" })
+	productName = testProductName
+}
+
+// SetupMockChassisAssetTag configures the DMI chassis asset tag variable with the provided value
+func SetupMockChassisAssetTag(t *testing.T, testChassisAssetTag string) {
+	t.Cleanup(func() { chassisAssetTag = "" })
+	chassisAssetTag = testChassisAssetTag
+}

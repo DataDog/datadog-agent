@@ -13,10 +13,98 @@ import (
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDetectCloudProviderDMI(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	cfg.SetInTest("gce_use_dmi", true)
+	cfg.SetInTest("azure_use_dmi", true)
+	cfg.SetInTest("oracle_use_dmi", true)
+
+	dmi.SetupMock(t, "", "", "", "")
+	dmi.SetupMockProductName(t, "")
+	dmi.SetupMockChassisAssetTag(t, "")
+	assert.Equal(t, "", DetectCloudProviderDMI())
+
+	dmi.SetupMockProductName(t, gce.DMIProductName)
+	assert.Equal(t, gce.CloudProviderName, DetectCloudProviderDMI())
+	dmi.SetupMockProductName(t, "")
+
+	dmi.SetupMockChassisAssetTag(t, azure.DMIChassisAssetTag)
+	assert.Equal(t, azure.CloudProviderName, DetectCloudProviderDMI())
+	dmi.SetupMockChassisAssetTag(t, "")
+
+	dmi.SetupMockChassisAssetTag(t, oracle.DMIChassisAssetTag)
+	assert.Equal(t, oracle.CloudProviderName, DetectCloudProviderDMI())
+	dmi.SetupMockChassisAssetTag(t, "")
+
+	dmi.SetupMock(t, "", "", "i-myinstance", ec2.DMIBoardVendor)
+	assert.Equal(t, ec2.CloudProviderName, DetectCloudProviderDMI())
+}
+
+func TestDetectCloudProviderShortCircuitsNetworkCallsWhenDMIMatches(t *testing.T) {
+	origDetectors := cloudProviderDetectors
+	origResolutionOrder := cloudProviderDetectorResolutionOrder
+	defer func() {
+		cloudProviderDetectors = origDetectors
+		cloudProviderDetectorResolutionOrder = origResolutionOrder
+	}()
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	cfg.SetInTest("gce_use_dmi", true)
+	cfg.SetInTest("azure_use_dmi", true)
+	dmi.SetupMock(t, "", "", "", "")
+	dmi.SetupMockChassisAssetTag(t, "")
+	dmi.SetupMockProductName(t, gce.DMIProductName)
+
+	networkCallbackCalled := false
+	cloudProviderDetectors = map[string]cloudProviderDetector{
+		"network-detector": {name: "network-detector", callback: func(context.Context) bool {
+			networkCallbackCalled = true
+			return true
+		}},
+	}
+	cloudProviderDetectorResolutionOrder = []string{"network-detector"}
+
+	name, _ := DetectCloudProvider(context.TODO(), false)
+	assert.Equal(t, gce.CloudProviderName, name)
+	assert.False(t, networkCallbackCalled, "network callback should not be called when DMI already detected the cloud provider")
+}
+
+func TestDetectCloudProviderFallsBackToNetworkWhenDMIInconclusive(t *testing.T) {
+	origDetectors := cloudProviderDetectors
+	origResolutionOrder := cloudProviderDetectorResolutionOrder
+	defer func() {
+		cloudProviderDetectors = origDetectors
+		cloudProviderDetectorResolutionOrder = origResolutionOrder
+	}()
+
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	cfg.SetInTest("gce_use_dmi", true)
+	cfg.SetInTest("azure_use_dmi", true)
+	dmi.SetupMock(t, "", "", "", "")
+	dmi.SetupMockProductName(t, "")
+	dmi.SetupMockChassisAssetTag(t, "")
+
+	cloudProviderDetectors = map[string]cloudProviderDetector{
+		"network-detector": {name: "network-detector", callback: func(context.Context) bool { return true }},
+	}
+	cloudProviderDetectorResolutionOrder = []string{"network-detector"}
+
+	name, _ := DetectCloudProvider(context.TODO(), false)
+	assert.Equal(t, "network-detector", name)
+}
 
 func TestCloudProviderAliases(t *testing.T) {
 	origDetectors := hostAliasesDetectors
@@ -26,8 +114,8 @@ func TestCloudProviderAliases(t *testing.T) {
 	detector2Called := false
 	detector3Called := false
 
-	hostAliasesDetectors = []cloudProviderAliasesDetector{
-		{
+	hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+		"detector1": {
 			name:       "detector1",
 			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
@@ -35,7 +123,7 @@ func TestCloudProviderAliases(t *testing.T) {
 				return []string{"alias2"}, nil
 			},
 		},
-		{
+		"detector2": {
 			name:       "detector2",
 			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
@@ -43,7 +131,7 @@ func TestCloudProviderAliases(t *testing.T) {
 				return nil, errors.New("error from detector2")
 			},
 		},
-		{
+		"detector3": {
 			name:       "detector3",
 			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
@@ -80,8 +168,8 @@ func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testin
 	kubernetesDetectorCalled := false
 	otherDetectorCalled := false
 
-	hostAliasesDetectors = []cloudProviderAliasesDetector{
-		{
+	hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+		"kubelet": {
 			name:            "kubelet",
 			requiresKubelet: true,
 			callback: func(_ context.Context) ([]string, error) {
@@ -89,7 +177,7 @@ func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testin
 				return []string{"kubelet-alias"}, nil
 			},
 		},
-		{
+		"kubernetes": {
 			name:            "kubernetes",
 			requiresKubelet: true,
 			callback: func(_ context.Context) ([]string, error) {
@@ -97,7 +185,7 @@ func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testin
 				return []string{"kubernetes-alias"}, nil
 			},
 		},
-		{
+		"other": {
 			name:       "other",
 			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
@@ -113,6 +201,173 @@ func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testin
 	assert.True(t, otherDetectorCalled, "non-kubelet-dependent host alias detectors should still run on a Cluster Checks Runner")
 	assert.Equal(t, []string{"other-alias"}, aliases)
 	assert.Equal(t, "other", cloudprovider)
+}
+
+// setupDMIProvider mocks DMI so that DetectCloudProviderDMI() returns the given provider (or ""
+// for an inconclusive result, when provider is empty).
+func setupDMIProvider(t *testing.T, provider string) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	cfg.SetInTest("gce_use_dmi", true)
+	cfg.SetInTest("azure_use_dmi", true)
+
+	dmi.SetupMock(t, "", "", "", "")
+	dmi.SetupMockProductName(t, "")
+	dmi.SetupMockChassisAssetTag(t, "")
+
+	switch provider {
+	case ec2.CloudProviderName:
+		dmi.SetupMock(t, "", "", "i-myinstance", ec2.DMIBoardVendor)
+	case gce.CloudProviderName:
+		dmi.SetupMockProductName(t, gce.DMIProductName)
+	case azure.CloudProviderName:
+		dmi.SetupMockChassisAssetTag(t, azure.DMIChassisAssetTag)
+	}
+}
+
+func TestGetHostAliasesUsesDMIDetectedProviderDirectly(t *testing.T) {
+	origDetectors := hostAliasesDetectors
+	defer func() { hostAliasesDetectors = origDetectors }()
+	setupDMIProvider(t, ec2.CloudProviderName)
+
+	configCalled, ec2Called, gceCalled := false, false, false
+	hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+		"config": {name: "config", callback: func(_ context.Context) ([]string, error) {
+			configCalled = true
+			return []string{"config-alias"}, nil
+		}},
+		ec2.CloudProviderName: {name: ec2.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: func(_ context.Context) ([]string, error) {
+			ec2Called = true
+			return []string{"ec2-alias"}, nil
+		}},
+		gce.CloudProviderName: {name: gce.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: func(_ context.Context) ([]string, error) {
+			gceCalled = true
+			return []string{"gce-alias"}, nil
+		}},
+	}
+
+	aliases, cloudprovider := GetHostAliases(context.TODO())
+	assert.True(t, configCalled, "non-cloud detectors should still run")
+	assert.True(t, ec2Called, "the DMI-detected provider's detector should run")
+	assert.False(t, gceCalled, "detectors for other cloud providers should not run once one is positively detected via DMI")
+	assert.Equal(t, ec2.CloudProviderName, cloudprovider)
+	assert.ElementsMatch(t, []string{"config-alias", "ec2-alias"}, aliases)
+}
+
+func TestGetHostAliasesDoesNotFallBackWhenDMIDetectedProviderFails(t *testing.T) {
+	origDetectors := hostAliasesDetectors
+	defer func() { hostAliasesDetectors = origDetectors }()
+	setupDMIProvider(t, ec2.CloudProviderName)
+
+	gceCalled := false
+	hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+		ec2.CloudProviderName: {name: ec2.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: func(_ context.Context) ([]string, error) {
+			return nil, errors.New("ec2 metadata unreachable")
+		}},
+		gce.CloudProviderName: {name: gce.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: func(_ context.Context) ([]string, error) {
+			gceCalled = true
+			return []string{"gce-alias"}, nil
+		}},
+	}
+
+	aliases, cloudprovider := GetHostAliases(context.TODO())
+	assert.False(t, gceCalled, "should not fall back to probing all providers when the DMI-detected provider's fetch fails")
+	assert.Equal(t, "", cloudprovider)
+	assert.Equal(t, []string{}, aliases)
+}
+
+// TestGetHostAliasesAlwaysRunsNonDMIDetectableDetectors ensures that detectors that aren't
+// DMI-detectable (config, cloudfoundry, kubelet, kubernetes) still run alongside the
+// DMI-detected provider's detector, since they either aren't cloud environments or can't be
+// distinguished from DMI information alone.
+func TestGetHostAliasesAlwaysRunsNonDMIDetectableDetectors(t *testing.T) {
+	origDetectors := hostAliasesDetectors
+	defer func() { hostAliasesDetectors = origDetectors }()
+	setupDMIProvider(t, ec2.CloudProviderName)
+
+	configCalled, cloudfoundryCalled, kubeletCalled, kubernetesCalled, ec2Called, gceCalled := false, false, false, false, false, false
+	hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+		"config": {name: "config", callback: func(_ context.Context) ([]string, error) {
+			configCalled = true
+			return nil, nil
+		}},
+		"cloudfoundry": {name: "cloudfoundry", isCloudEnv: true, callback: func(_ context.Context) ([]string, error) {
+			cloudfoundryCalled = true
+			return nil, nil
+		}},
+		"kubelet": {name: "kubelet", requiresKubelet: true, callback: func(_ context.Context) ([]string, error) {
+			kubeletCalled = true
+			return nil, nil
+		}},
+		"kubernetes": {name: "kubernetes", requiresKubelet: true, callback: func(_ context.Context) ([]string, error) {
+			kubernetesCalled = true
+			return nil, nil
+		}},
+		ec2.CloudProviderName: {name: ec2.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: func(_ context.Context) ([]string, error) {
+			ec2Called = true
+			return []string{"ec2-alias"}, nil
+		}},
+		gce.CloudProviderName: {name: gce.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: func(_ context.Context) ([]string, error) {
+			gceCalled = true
+			return []string{"gce-alias"}, nil
+		}},
+	}
+
+	aliases, cloudprovider := GetHostAliases(context.TODO())
+	assert.True(t, configCalled, "config detector should always run")
+	assert.True(t, cloudfoundryCalled, "cloudfoundry detector should always run, since it can't be detected via DMI")
+	assert.True(t, kubeletCalled, "kubelet detector should always run")
+	assert.True(t, kubernetesCalled, "kubernetes detector should always run")
+	assert.True(t, ec2Called, "the DMI-detected provider's detector should run")
+	assert.False(t, gceCalled, "detectors for other DMI-detectable providers should not run once one is positively detected via DMI")
+	assert.Equal(t, ec2.CloudProviderName, cloudprovider)
+	assert.Equal(t, []string{"ec2-alias"}, aliases)
+}
+
+func TestGetPublicIPv4UsesDMIDetectedProviderDirectly(t *testing.T) {
+	origProviders := publicIPv4Providers
+	defer func() { publicIPv4Providers = origProviders }()
+	setupDMIProvider(t, gce.CloudProviderName)
+
+	ec2Called, gceCalled := false, false
+	publicIPv4Providers = map[string]func(context.Context) (string, error){
+		ec2.CloudProviderName: func(_ context.Context) (string, error) {
+			ec2Called = true
+			return "", errors.New("should not be called")
+		},
+		gce.CloudProviderName: func(_ context.Context) (string, error) {
+			gceCalled = true
+			return "1.2.3.4", nil
+		},
+	}
+
+	ip, err := GetPublicIPv4(context.TODO())
+	require.NoError(t, err)
+	assert.Equal(t, "1.2.3.4", ip)
+	assert.True(t, gceCalled, "the DMI-detected provider should be probed directly")
+	assert.False(t, ec2Called, "other providers should not be probed once one is positively detected via DMI")
+}
+
+func TestGetPublicIPv4DoesNotFallBackWhenDMIDetectedProviderFails(t *testing.T) {
+	origProviders := publicIPv4Providers
+	defer func() { publicIPv4Providers = origProviders }()
+	setupDMIProvider(t, gce.CloudProviderName)
+
+	ec2Called := false
+	publicIPv4Providers = map[string]func(context.Context) (string, error){
+		ec2.CloudProviderName: func(_ context.Context) (string, error) {
+			ec2Called = true
+			return "5.6.7.8", nil
+		},
+		gce.CloudProviderName: func(_ context.Context) (string, error) {
+			return "", errors.New("gce metadata unreachable")
+		},
+	}
+
+	ip, err := GetPublicIPv4(context.TODO())
+	assert.Error(t, err)
+	assert.Equal(t, "", ip)
+	assert.False(t, ec2Called, "should not fall back to probing all providers when the DMI-detected provider's fetch fails")
 }
 
 func TestCloudProviderHostCCRID(t *testing.T) {
