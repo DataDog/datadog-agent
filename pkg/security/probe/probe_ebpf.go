@@ -1482,6 +1482,7 @@ type execZeroKeyDiag struct {
 	SendPIDTGID  uint64
 	OpenPIDTGID  uint64
 	EntryIno     uint64
+	FoundKey     uint64
 	EntryMountID uint32
 	SendCtxID    uint32
 	OpenCtxID    uint32
@@ -1494,6 +1495,9 @@ const (
 	execDiagHasDentry = 1 << iota
 	execDiagHasOpenStamp
 	execDiagHasEntryStamp
+	execDiagRouteDirect
+	execDiagRouteImpersonated
+	execDiagKeyRepaired
 )
 
 // describeZeroExecKey reports what the kernel recorded for an exec whose file path_key
@@ -1526,13 +1530,27 @@ func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
 		verdict = "right entry with a dentry, yet the key is zero"
 	}
 
+	// which lookup produced the entry: our own key, or the impersonation fallback. This is
+	// what separates "a later execve replaced our entry" from "we were handed a sibling
+	// thread's entry", since both present as a foreign ctx_id.
+	route := "route=none"
+	switch {
+	case d.Flags&execDiagRouteDirect != 0:
+		route = fmt.Sprintf("route=direct key=%d/%d", uint32(d.FoundKey>>32), uint32(d.FoundKey))
+	case d.Flags&execDiagRouteImpersonated != 0:
+		route = fmt.Sprintf("route=impersonated key=%d/%d", uint32(d.FoundKey>>32), uint32(d.FoundKey))
+	}
+	if d.Flags&execDiagKeyRepaired != 0 {
+		route += " KEY_REPAIRED"
+	}
+
 	return fmt.Sprintf("send_task=%d/%d send_ctx_id=%d stamped_ctx_id=%d(present=%t) "+
-		"kernel_key=%d/%d dentry=%t open_task=%d/%d open_ctx_id=%d(present=%t) -> %s",
+		"kernel_key=%d/%d dentry=%t open_task=%d/%d open_ctx_id=%d(present=%t) %s -> %s",
 		uint32(d.SendPIDTGID>>32), uint32(d.SendPIDTGID), d.SendCtxID,
 		d.StampedCtxID, d.Flags&execDiagHasEntryStamp != 0,
 		d.EntryIno, d.EntryMountID, d.Flags&execDiagHasDentry != 0,
 		uint32(d.OpenPIDTGID>>32), uint32(d.OpenPIDTGID), d.OpenCtxID,
-		d.Flags&execDiagHasOpenStamp != 0, verdict)
+		d.Flags&execDiagHasOpenStamp != 0, route, verdict)
 }
 
 func (p *EBPFProbe) zeroEvent() *model.Event {

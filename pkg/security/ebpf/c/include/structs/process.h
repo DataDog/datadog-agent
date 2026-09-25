@@ -88,8 +88,14 @@ union selinux_write_payload_t {
 //     zero in userspace separates a kernel problem from a userspace one.
 // The diag is written for every exec, not just the zero-key ones, so that its absence is
 // unambiguous rather than being a second thing needing explanation.
+// handle_exec_event records the key it resolved as well as its identity, because that key
+// belongs to the execve being reported even when send_exec_event later pops a different
+// entry -- which makes it the authoritative source rather than just a diagnostic.
 struct exec_open_stamp_t {
     u64 pid_tgid;
+    u64 ino;
+    u32 mount_id;
+    u32 path_id;
     u32 ctx_id;
     u32 padding;
 };
@@ -97,11 +103,15 @@ struct exec_open_stamp_t {
 #define EXEC_DIAG_HAS_DENTRY 1
 #define EXEC_DIAG_HAS_OPEN_STAMP 2
 #define EXEC_DIAG_HAS_ENTRY_STAMP 4
+#define EXEC_DIAG_ROUTE_DIRECT 8        // entry found under the current pid_tgid
+#define EXEC_DIAG_ROUTE_IMPERSONATED 16 // entry found via exec_pid_transfer
+#define EXEC_DIAG_KEY_REPAIRED 32       // the foreign entry's key was replaced by the stamp's
 
 struct exec_zero_key_diag_t {
     u64 send_pid_tgid;   // task send_exec_event is running on
     u64 open_pid_tgid;   // task handle_exec_event ran on; 0 when it never ran
     u64 entry_ino;       // path_key as send_exec_event sees it, before the event is built
+    u64 found_key;       // pid_tgid the popped entry was actually found under
     u32 entry_mount_id;
     u32 send_ctx_id;     // ctx_id on the entry send_exec_event popped
     u32 open_ctx_id;     // ctx_id on the entry handle_exec_event populated

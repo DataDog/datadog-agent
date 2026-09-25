@@ -785,6 +785,24 @@ int hook_setup_arg_pages(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
+    // Work out which key the entry will be found under before popping, since the pop
+    // deletes it. This separates "a later execve replaced the entry under our own key"
+    // from "the impersonation fallback handed us a sibling thread's entry".
+    u64 probe_pid_tgid = bpf_get_current_pid_tgid();
+    u32 probe_tgid = probe_pid_tgid >> 32;
+    u64 found_key = 0;
+    u32 route_flags = 0;
+    if (peek_task_syscall(probe_pid_tgid, EVENT_EXEC) != NULL) {
+        found_key = probe_pid_tgid;
+        route_flags = EXEC_DIAG_ROUTE_DIRECT;
+    } else {
+        u64 *transferred = bpf_map_lookup_elem(&exec_pid_transfer, &probe_tgid);
+        if (transferred != NULL) {
+            found_key = *transferred;
+            route_flags = EXEC_DIAG_ROUTE_IMPERSONATED;
+        }
+    }
+
     struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
@@ -821,31 +839,55 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     struct path_key_t on_stack_exec_path_key = syscall->exec.file.path_key;
     bpf_map_update_elem(&pid_path_keys, &tgid, &on_stack_exec_path_key, BPF_ANY);
 
-    // debug aid: recorded for every exec, so a missing record means "send_exec_event did not
-    // run" instead of being ambiguous with "the key was not zero here".
+    // The syscall cache is keyed by pid_tgid and send_exec_event runs late, at
+    // mprotect_fixup, so the entry populated for *this* execve can be gone by now and the
+    // lookup can hand back a later one whose key was never filled. That is how an exec
+    // event reaches userspace with an all-zero path_key, and userspace then reports it as a
+    // path resolution error. handle_exec_event recorded the key it resolved along with the
+    // ctx_id of the entry it resolved it against, and trace__sys_execveat recorded the
+    // ctx_id of the entry it cached for this task; when the popped entry matches neither,
+    // prefer the recorded key, which does belong to the execve being reported.
     struct exec_zero_key_diag_t diag = {
         .send_pid_tgid = pid_tgid,
         .open_pid_tgid = 0,
         .entry_ino = syscall->exec.file.path_key.ino,
         .entry_mount_id = syscall->exec.file.path_key.mount_id,
+        .found_key = found_key,
         .send_ctx_id = syscall->ctx_id,
         .open_ctx_id = 0,
         .stamped_ctx_id = 0,
-        .flags = syscall->exec.dentry != NULL ? EXEC_DIAG_HAS_DENTRY : 0,
+        .flags = route_flags | (syscall->exec.dentry != NULL ? EXEC_DIAG_HAS_DENTRY : 0),
         .padding = 0,
     };
+
     // each NULL test has to dominate its loads: folded into a ternary these compile to a
     // select that dereferences first, and the verifier rejects it
+    u32 stamped_ctx_id = 0;
+    u32 *entry_stamp = bpf_map_lookup_elem(&exec_entry_stamp, &pid_tgid);
+    if (entry_stamp != NULL) {
+        stamped_ctx_id = *entry_stamp;
+        diag.stamped_ctx_id = stamped_ctx_id;
+        diag.flags |= EXEC_DIAG_HAS_ENTRY_STAMP;
+    }
+
     struct exec_open_stamp_t *open_stamp = bpf_map_lookup_elem(&exec_dentry_open_stamp, &tgid);
     if (open_stamp != NULL) {
         diag.open_pid_tgid = open_stamp->pid_tgid;
         diag.open_ctx_id = open_stamp->ctx_id;
         diag.flags |= EXEC_DIAG_HAS_OPEN_STAMP;
-    }
-    u32 *entry_stamp = bpf_map_lookup_elem(&exec_entry_stamp, &pid_tgid);
-    if (entry_stamp != NULL) {
-        diag.stamped_ctx_id = *entry_stamp;
-        diag.flags |= EXEC_DIAG_HAS_ENTRY_STAMP;
+
+        // only repair when the stamp is demonstrably the right execve and the popped entry
+        // is demonstrably not, so a correct entry is never overwritten
+        if (stamped_ctx_id != 0 && open_stamp->ctx_id == stamped_ctx_id && syscall->ctx_id != stamped_ctx_id) {
+            pc.entry.executable.path_key.ino = open_stamp->ino;
+            pc.entry.executable.path_key.mount_id = open_stamp->mount_id;
+            pc.entry.executable.path_key.path_id = open_stamp->path_id;
+
+            on_stack_exec_path_key = pc.entry.executable.path_key;
+            bpf_map_update_elem(&pid_path_keys, &tgid, &on_stack_exec_path_key, BPF_ANY);
+
+            diag.flags |= EXEC_DIAG_KEY_REPAIRED;
+        }
     }
     bpf_map_update_elem(&exec_zero_key_diag, &tgid, &diag, BPF_ANY);
 

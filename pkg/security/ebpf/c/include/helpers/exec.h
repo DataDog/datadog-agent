@@ -38,7 +38,11 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     u32 stamp_tgid = stamp_pid_tgid >> 32;
     struct exec_open_stamp_t stamp = {
         .pid_tgid = stamp_pid_tgid,
+        .ino = syscall->exec.file.path_key.ino,
+        .mount_id = syscall->exec.file.path_key.mount_id,
+        .path_id = syscall->exec.file.path_key.path_id,
         .ctx_id = syscall->ctx_id,
+        .padding = 0,
     };
     bpf_map_update_elem(&exec_dentry_open_stamp, &stamp_tgid, &stamp, BPF_ANY);
 
