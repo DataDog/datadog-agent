@@ -276,14 +276,11 @@ func TestCheck_Run_Success(t *testing.T) {
 		},
 		Inventories: []report.InventoryEntry{
 			{
-				Namespace: "default",
-				ConfigID:  "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				DeviceID:  "default:10.0.0.1",
-			},
-			{
-				Namespace: "default",
-				ConfigID:  "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				DeviceID:  "default:10.0.0.1",
+				DeviceID: "default:10.0.0.1",
+				ConfigID: []string{
+					"87b2343a-56d9-43bc-a35a-4d842dec9586",
+					"d348e53f-db31-47ed-8d50-11462d7a15e5",
+				},
 			},
 		},
 		CollectTimestamp: 1754043600,
@@ -324,7 +321,7 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
-	mockSender.AssertMetric(t, "Count", "datadog.ncm.inventory.entries_sent", 2, "test-agent-host", []string{"agent_host:test-agent-host"})
+	mockSender.AssertMetric(t, "Count", "datadog.ncm.inventory.entries_sent", 1, "test-agent-host", []string{"agent_host:test-agent-host"})
 	mockSender.AssertExpectations(t)
 }
 
