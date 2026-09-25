@@ -8,6 +8,7 @@ package dd_agent_go_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -323,6 +324,11 @@ type fakeGoLang struct {
 
 func (f *fakeGoLang) Kinds() map[string]rule.KindInfo {
 	return map[string]rule.KindInfo{
+		"go_library": {
+			NonEmptyAttrs:  map[string]bool{"deps": true, "embed": true, "srcs": true},
+			MergeableAttrs: map[string]bool{"srcs": true, "embed": true, "importpath": true},
+			ResolveAttrs:   map[string]bool{"deps": true},
+		},
 		"go_test": {
 			MergeableAttrs: map[string]bool{"srcs": true, "embed": true},
 			ResolveAttrs:   map[string]bool{"deps": true},
@@ -508,6 +514,174 @@ func TestLoads(t *testing.T) {
 	if !found {
 		t.Error("dd_agent_go_test load not found in ApparentLoads()")
 	}
+	found = false
+	for _, li := range loads {
+		if strings.HasSuffix(li.Name, "//go:def.bzl") {
+			found = slices.Contains(li.Symbols, "go_source") && slices.Contains(li.Symbols, "go_library")
+		}
+	}
+	if !found {
+		t.Error("go_source not added to the rules_go load in ApparentLoads()")
+	}
+}
+
+func splitLibrary(srcs ...string) *rule.Rule {
+	r := rule.NewRule("go_library", "lib")
+	r.SetAttr("srcs", srcs)
+	r.SetAttr("importpath", "example.com/lib")
+	return r
+}
+
+func TestSplitGenerated_MovesOtherSources(t *testing.T) {
+	lib := splitLibrary("a.go", "a_easyjson.go", "b.go")
+	imports := rule.PlatformStrings{Generic: []string{"example.com/dep"}}
+	result := splitGenerated(language.GenerateResult{
+		Gen:     []*rule.Rule{lib},
+		Imports: []interface{}{imports},
+	}, "*_easyjson.go")
+
+	if len(result.Gen) != 2 || len(result.Imports) != 2 {
+		t.Fatalf("expected library and go_source, got %v", result.Gen)
+	}
+	if got := lib.AttrStrings("srcs"); !stringSlicesEqual(got, []string{"a_easyjson.go"}) {
+		t.Errorf("library srcs = %v, want [a_easyjson.go]", got)
+	}
+	if got := lib.AttrStrings("embed"); !stringSlicesEqual(got, []string{":lib_sources"}) {
+		t.Errorf("library embed = %v, want [:lib_sources]", got)
+	}
+	sources := result.Gen[1]
+	if sources.Kind() != "go_source" || sources.Name() != "lib_sources" {
+		t.Fatalf("expected go_source lib_sources, got %s %s", sources.Kind(), sources.Name())
+	}
+	if got := sources.AttrStrings("srcs"); !stringSlicesEqual(got, []string{"a.go", "b.go"}) {
+		t.Errorf("go_source srcs = %v, want [a.go b.go]", got)
+	}
+	if got := result.Imports[1].(rule.PlatformStrings).Generic; !stringSlicesEqual(got, imports.Generic) {
+		t.Errorf("go_source imports = %v, want %v", got, imports.Generic)
+	}
+	if libImports := result.Imports[0].(rule.PlatformStrings); !libImports.IsEmpty() {
+		t.Errorf("expected the library to keep no imports, got %v", result.Imports[0])
+	}
+	if len(result.Empty) != 0 {
+		t.Errorf("expected no empty rules, got %v", result.Empty)
+	}
+}
+
+func TestSplitGenerated_UnsplitLibraryDeletesStaleSources(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		pattern string
+		srcs    []string
+	}{
+		{name: "no directive", srcs: []string{"a.go", "a_easyjson.go"}},
+		{name: "nothing matches", pattern: "*_easyjson.go", srcs: []string{"a.go"}},
+		{name: "everything matches", pattern: "*_easyjson.go", srcs: []string{"a_easyjson.go"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			lib := splitLibrary(tc.srcs...)
+			result := splitGenerated(language.GenerateResult{
+				Gen:     []*rule.Rule{lib},
+				Imports: []interface{}{nil},
+			}, tc.pattern)
+
+			if len(result.Gen) != 1 || lib.Attr("embed") != nil {
+				t.Errorf("expected the library untouched, got %v", result.Gen)
+			}
+			if !stringSlicesEqual(lib.AttrStrings("srcs"), tc.srcs) {
+				t.Errorf("library srcs = %v, want %v", lib.AttrStrings("srcs"), tc.srcs)
+			}
+			if len(result.Empty) != 1 || result.Empty[0].Kind() != "go_source" || result.Empty[0].Name() != "lib_sources" {
+				t.Errorf("expected an empty go_source lib_sources, got %v", result.Empty)
+			}
+		})
+	}
+}
+
+// TestGenerateRules_SplitSurvivesMerge replays Gazelle's merge against a BUILD
+// file that has the plain library, then against the split one, and finally
+// after the directive is dropped: the split has to be reached, stay stable, and
+// be fully undone.
+func TestGenerateRules_SplitSurvivesMerge(t *testing.T) {
+	file, err := rule.LoadData("BUILD.bazel", "some/pkg", []byte(`
+# gazelle:go_split_generated *_easyjson.go
+
+go_library(
+    name = "lib",
+    srcs = [
+        "a.go",
+        "a_easyjson.go",
+    ],
+    importpath = "example.com/lib",
+    deps = ["//some/dep"],
+)
+`))
+	if err != nil {
+		t.Fatalf("LoadData: %v", err)
+	}
+	c := &config.Config{Exts: map[string]interface{}{extName: ddAgentGoTestConfig{}}}
+	run := func(f *rule.File) {
+		t.Helper()
+		lib := splitLibrary("a.go", "a_easyjson.go")
+		l := &lang{Language: &fakeGoLang{result: language.GenerateResult{
+			Gen:     []*rule.Rule{lib},
+			Imports: []interface{}{nil},
+		}}}
+		result := l.GenerateRules(language.GenerateArgs{Config: c, File: f})
+		merger.MergeFile(f, result.Empty, result.Gen, merger.PreResolve, l.Kinds(), nil)
+		// Resolve: the go_source carries the deps, the library has none left.
+		for _, r := range result.Gen {
+			r.DelAttr("deps")
+			if r.Kind() == "go_source" || len(r.AttrStrings("embed")) == 0 {
+				r.SetAttr("deps", []string{"//some/dep"})
+			}
+		}
+		merger.MergeFile(f, nil, result.Gen, merger.PostResolve, l.Kinds(), nil)
+	}
+	assertSplit := func() {
+		t.Helper()
+		lib, ok := findRule(file, "go_library", "lib")
+		if !ok {
+			t.Fatalf("go_library lib missing: %v", file.Rules)
+		}
+		sources, ok := findRule(file, "go_source", "lib_sources")
+		if !ok {
+			t.Fatalf("go_source lib_sources missing: %v", file.Rules)
+		}
+		if got := lib.AttrStrings("srcs"); !stringSlicesEqual(got, []string{"a_easyjson.go"}) {
+			t.Errorf("library srcs = %v, want [a_easyjson.go]", got)
+		}
+		if got := lib.AttrStrings("embed"); !stringSlicesEqual(got, []string{":lib_sources"}) {
+			t.Errorf("library embed = %v, want [:lib_sources]", got)
+		}
+		if lib.Attr("deps") != nil {
+			t.Errorf("library deps = %v, want none", lib.AttrStrings("deps"))
+		}
+		if got := sources.AttrStrings("srcs"); !stringSlicesEqual(got, []string{"a.go"}) {
+			t.Errorf("go_source srcs = %v, want [a.go]", got)
+		}
+		if got := sources.AttrStrings("deps"); !stringSlicesEqual(got, []string{"//some/dep"}) {
+			t.Errorf("go_source deps = %v, want [//some/dep]", got)
+		}
+	}
+
+	run(file)
+	assertSplit()
+	run(file)
+	assertSplit()
+
+	file.Directives = nil
+	run(file)
+	if _, ok := findRule(file, "go_source", "lib_sources"); ok {
+		t.Errorf("expected the go_source to be deleted, got %v", file.Rules)
+	}
+	lib, _ := findRule(file, "go_library", "lib")
+	// The merge appends restored srcs; Gazelle sorts them when writing the file.
+	if got := slices.Sorted(slices.Values(lib.AttrStrings("srcs"))); !stringSlicesEqual(got, []string{"a.go", "a_easyjson.go"}) {
+		t.Errorf("library srcs = %v, want [a.go a_easyjson.go]", got)
+	}
+	if lib.Attr("embed") != nil {
+		t.Errorf("library embed = %v, want none", lib.AttrStrings("embed"))
+	}
 }
 
 // TestKnownDirectives ensures the directive is registered so Gazelle's -strict
@@ -524,6 +698,9 @@ func TestKnownDirectives(t *testing.T) {
 	}
 	if !found[canonicalTagSetDirective] {
 		t.Errorf("%q not in KnownDirectives: %v", canonicalTagSetDirective, dirs)
+	}
+	if !found[splitGeneratedDirective] {
+		t.Errorf("%q not in KnownDirectives: %v", splitGeneratedDirective, dirs)
 	}
 	if len(dirs) <= 1 {
 		t.Errorf("expected Go extension directives to be preserved, got %v", dirs)
