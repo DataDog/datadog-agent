@@ -397,6 +397,11 @@ func TestNoTightReconnectLoopOnFailure(t *testing.T) {
 	}, time.Second, time.Millisecond)
 	advanceClockUntil(t, clk, func() bool { return c.ReconnectAttempts() >= 2 })
 	advanceClockUntil(t, clk, func() bool { return c.ReconnectAttempts() >= 3 })
+
+	require.Eventually(t, func() bool {
+		status := c.ConnectionStatus()
+		return status.LastError != "" && !status.LastErrorAt.IsZero() && !status.NextReconnectAt.IsZero()
+	}, 2*time.Second, 10*time.Millisecond)
 }
 
 func TestReconnectBackoffResetsAfterSuccessfulStream(t *testing.T) {

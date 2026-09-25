@@ -46,6 +46,8 @@ import (
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
 	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
+	gnmistatusdef "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/def"
+	gnmistatusfx "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/fx"
 	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
@@ -326,6 +328,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	gnmiStatus gnmistatusdef.Component,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -391,6 +394,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		gnmiStatus,
 	); err != nil {
 		return err
 	}
@@ -589,6 +593,7 @@ func getSharedFxOption() fx.Option {
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
 		remotetraceroute.Module(),
+		gnmistatusfx.Module(),
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
@@ -636,6 +641,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	gnmiStatus gnmistatusdef.Component,
 ) error {
 	var err error
 
@@ -730,7 +736,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp, gnmiStatus)
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
 	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
 	ac.AddScheduler("check", checkScheduler, true)

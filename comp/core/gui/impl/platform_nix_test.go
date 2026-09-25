@@ -44,6 +44,7 @@ const expectedBody = `<!DOCTYPE html>
         <div id="status_side_menu" class="side_menu">
           <a href="javascript:void(0)" onclick="loadStatus('general')" class="side_menu_item">General</a>
           <a href="javascript:void(0)" onclick="loadStatus('collector')" class="side_menu_item">Collector</a>
+          <a href="javascript:void(0)" onclick="loadStatus('gnmi')" class="side_menu_item">gNMI</a>
         </div>
       </li>
       <li id="log_button" class="nav_item">
@@ -94,6 +95,7 @@ const expectedBody = `<!DOCTYPE html>
     <div id="tests" class="page"></div>
     <div id="general_status" class="page"></div>
     <div id="collector_status" class="page"></div>
+    <div id="gnmi_status" class="page"></div>
     <div id="settings" class="page"></div>
     <div id="logs" class="page"></div>
     <div id="manage_checks" class="page">

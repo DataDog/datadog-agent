@@ -71,6 +71,8 @@ import (
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	gnmistatusdef "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/def"
+	gnmistatusfx "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -187,6 +189,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				workloadfilterfx.Module(),
 				adfx.Module(),
 				healthplatform.Bundle(),
+				gnmistatusfx.Module(),
 				defaultforwardernoop.Module(),
 				inventorychecksfx.Module(),
 				logscompression.Module(),
@@ -277,6 +280,7 @@ func run(
 	ipc ipc.Component,
 	traceroute traceroute.Component,
 	healthPlatform healthplatformdef.Component,
+	gnmiStatus gnmistatusdef.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -312,7 +316,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component](), gnmiStatus)
 
 	common.LoadComponents(ac, config)
 	ac.LoadAndRun(context.Background())

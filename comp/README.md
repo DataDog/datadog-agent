@@ -959,6 +959,13 @@ Package networkconfigmanagement provides the component for retrieving network de
 
 Package networkdevices provides the Agent-side component for NDM.
 
+### [comp/networkdevices/gnmistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package gnmistatus provides the gNMI device status registry shared between
+the gNMI check instances and the agent status output.
+
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
 *Datadog Team*: windows-products

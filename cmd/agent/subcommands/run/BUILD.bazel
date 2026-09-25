@@ -147,6 +147,8 @@ go_library(
         "//comp/networkconfigmanagement/def",
         "//comp/networkconfigmanagement/fx",
         "//comp/networkdevices/fx",
+        "//comp/networkdevices/gnmistatus/def",
+        "//comp/networkdevices/gnmistatus/fx",
         "//comp/networkpath",
         "//comp/networkpath/rcprovider/fx",
         "//comp/networkpath/traceroute/def",

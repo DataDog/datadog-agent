@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	gnmistatus "github.com/DataDog/datadog-agent/comp/networkdevices/gnmistatus/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/report"
+	gnmiStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/status"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -39,17 +41,20 @@ type Check struct {
 	client             *client.Client
 	started            bool
 	lastMetadataReport time.Time
+	status             gnmistatus.Component
 }
 
-// Factory creates a new check factory.
-func Factory() option.Option[func() check.Check] {
-	return option.New(newCheck)
+// Factory creates a new check factory. The statusRegistry records device
+// state rendered in the agent status output.
+func Factory(statusRegistry gnmistatus.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check { return newCheck(statusRegistry) })
 }
 
-func newCheck() check.Check {
+func newCheck(statusRegistry gnmistatus.Component) check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBase(CheckName),
 		interval:  time.Duration(config.DefaultMinCollectionInterval) * time.Second,
+		status:    statusRegistry,
 	}
 }
 
@@ -72,7 +77,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return fmt.Errorf("common configure failed: %w", err)
 	}
 
-	gnmiClient, err := client.New(client.Config{
+	clientCfg := client.Config{
 		Address:            checkConfig.Instance.Address,
 		Port:               checkConfig.Instance.Port,
 		Username:           checkConfig.Instance.Username,
@@ -83,7 +88,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		InsecureSkipVerify: checkConfig.Instance.InsecureSkipVerify,
 		// Sample once per check run.
 		SampleInterval: time.Duration(checkConfig.Instance.MinCollectionInterval) * time.Second,
-	})
+	}
+	gnmiClient, err := client.New(clientCfg)
 	if err != nil {
 		return fmt.Errorf("create gNMI client failed: %w", err)
 	}
@@ -97,12 +103,21 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.started = false
 	c.lastMetadataReport = time.Time{}
 
+	c.status.RegisterDevice(
+		checkConfig.Instance.Address,
+		checkConfig.Instance.Port,
+		checkConfig.Instance.Profile,
+		checkConfig.Instance.CollectTopology,
+		formatSubscriptionPaths(client.SubscriptionPaths(clientCfg)),
+	)
+
 	return nil
 }
 
 // Run snapshots the client cache and submits metrics.
 func (c *Check) Run() error {
 	if err := c.ensureClientStarted(); err != nil {
+		c.updateStatusLastError(err)
 		return err
 	}
 
@@ -119,6 +134,8 @@ func (c *Check) Run() error {
 	if gnmiClient == nil || checkConfig == nil {
 		return errors.New("gNMI check is not configured")
 	}
+
+	c.updateStatusFromClient(gnmiClient, checkConfig)
 
 	now := time.Now()
 	snapshot := gnmiClient.Snapshot()
@@ -165,11 +182,21 @@ func (c *Check) Run() error {
 func (c *Check) Cancel() {
 	c.mu.Lock()
 	gnmiClient := c.client
+	var address string
+	var port int
+	if c.config != nil {
+		address = c.config.Instance.Address
+		port = c.config.Instance.Port
+	}
 	c.client = nil
 	c.config = nil
 	c.started = false
 	c.lastMetadataReport = time.Time{}
 	c.mu.Unlock()
+
+	if address != "" {
+		c.status.UnregisterDevice(address, port)
+	}
 
 	if gnmiClient != nil {
 		if err := gnmiClient.Close(); err != nil {
@@ -216,4 +243,63 @@ func (c *Check) ensureClientStarted() error {
 
 	c.started = true
 	return nil
+}
+
+func (c *Check) updateStatusFromClient(gnmiClient *client.Client, checkConfig *config.CheckConfig) {
+	streamState := gnmiClient.StreamState()
+	connStatus := gnmiClient.ConnectionStatus()
+
+	c.status.UpdateDevice(checkConfig.Instance.Address, checkConfig.Instance.Port, func(device *gnmiStatus.DeviceState) {
+		device.Started = true
+		device.StreamState = streamState.String()
+		device.Transport = string(gnmiClient.TransportMode())
+		device.ReconnectCount = gnmiClient.ReconnectAttempts()
+		device.ReceivedSamples = gnmiClient.ReceivedSamples()
+		device.CachedPaths = len(gnmiClient.Snapshot())
+		device.EverConnected = connStatus.EverConnected
+		device.LastConnectedAt = timeToUnixNano(connStatus.LastConnectedAt)
+
+		if streamState == client.StreamStateConnected {
+			device.LastError = ""
+			device.LastErrorAt = 0
+			device.NextReconnectAt = 0
+			device.StatusUpdatedAt = time.Now().UnixNano()
+			return
+		}
+
+		device.LastError = connStatus.LastError
+		device.LastErrorAt = timeToUnixNano(connStatus.LastErrorAt)
+		device.NextReconnectAt = timeToUnixNano(connStatus.NextReconnectAt)
+		device.StatusUpdatedAt = time.Now().UnixNano()
+	})
+}
+
+func (c *Check) updateStatusLastError(err error) {
+	c.mu.Lock()
+	checkConfig := c.config
+	c.mu.Unlock()
+
+	if checkConfig == nil || err == nil {
+		return
+	}
+
+	c.status.UpdateDevice(checkConfig.Instance.Address, checkConfig.Instance.Port, func(device *gnmiStatus.DeviceState) {
+		device.LastError = err.Error()
+		device.LastErrorAt = time.Now().UnixNano()
+	})
+}
+
+func timeToUnixNano(value time.Time) int64 {
+	if value.IsZero() {
+		return 0
+	}
+	return value.UnixNano()
+}
+
+func formatSubscriptionPaths(specs []client.SubscriptionSpec) []string {
+	paths := make([]string, 0, len(specs))
+	for _, spec := range specs {
+		paths = append(paths, spec.String())
+	}
+	return paths
 }

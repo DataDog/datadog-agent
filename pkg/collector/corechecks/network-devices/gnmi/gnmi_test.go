@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver"
+	gnmiStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/status"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -67,7 +68,7 @@ min_collection_interval: 15
 use_tls: false
 `)
 
-	factoryOpt := gnmi.Factory()
+	factoryOpt := gnmi.Factory(gnmiStatus.NewRegistry())
 	checkFactory, ok := factoryOpt.Get()
 	require.True(t, ok)
 	checkInstance := checkFactory()
@@ -144,7 +145,7 @@ min_collection_interval: 15
 use_tls: false
 `)
 
-	factoryOpt := gnmi.Factory()
+	factoryOpt := gnmi.Factory(gnmiStatus.NewRegistry())
 	checkFactory, ok := factoryOpt.Get()
 	require.True(t, ok)
 	checkInstance := checkFactory()

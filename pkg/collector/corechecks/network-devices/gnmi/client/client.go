@@ -88,6 +88,29 @@ const (
 	StreamStateReconnecting
 )
 
+// ConnectionStatus exposes connection diagnostics for status reporting.
+type ConnectionStatus struct {
+	LastError       string
+	LastErrorAt     time.Time
+	NextReconnectAt time.Time
+	EverConnected   bool
+	LastConnectedAt time.Time
+}
+
+// String returns a stable string representation of the stream state.
+func (s StreamState) String() string {
+	switch s {
+	case StreamStateNotReady:
+		return "not_ready"
+	case StreamStateConnected:
+		return "connected"
+	case StreamStateReconnecting:
+		return "reconnecting"
+	default:
+		return "unknown"
+	}
+}
+
 // Client maintains a streaming gNMI subscription and a latest-value cache.
 type Client struct {
 	cfg       Config
@@ -106,6 +129,11 @@ type Client struct {
 	reconnectAttempts int
 	streamState       StreamState
 	everConnected     bool
+	lastConnectedAt   time.Time
+
+	lastStreamError   string
+	lastStreamErrorAt time.Time
+	nextReconnectAt   time.Time
 }
 
 // New creates a client. Call Start to open the subscription loop.
@@ -246,6 +274,25 @@ func (c *Client) ReceivedSamples() int {
 	return c.cache.count()
 }
 
+// TransportMode returns the configured transport security mode.
+func (c *Client) TransportMode() TransportMode {
+	return c.transport.mode()
+}
+
+// ConnectionStatus returns the latest connection error and reconnect timing.
+func (c *Client) ConnectionStatus() ConnectionStatus {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return ConnectionStatus{
+		LastError:       c.lastStreamError,
+		LastErrorAt:     c.lastStreamErrorAt,
+		NextReconnectAt: c.nextReconnectAt,
+		EverConnected:   c.everConnected,
+		LastConnectedAt: c.lastConnectedAt,
+	}
+}
+
 func (c *Client) setStreamState(state StreamState) {
 	c.mu.Lock()
 	c.streamState = state
@@ -308,6 +355,8 @@ func (c *Client) run(ctx context.Context) {
 			c.setReconnectAttempts(numErrors)
 
 			delay := policy.GetBackoffDuration(numErrors)
+			c.recordReconnectError(err, numErrors, delay)
+
 			timer := c.opt.clock.Timer(delay)
 			select {
 			case <-ctx.Done():
@@ -354,6 +403,7 @@ func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
 
 	initialCache := newCache()
 	synced := false
+
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
@@ -376,10 +426,15 @@ func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
 		}
 		if isSync && !synced {
 			c.cache.replace(initialCache)
+			now := c.opt.clock.Now()
 			c.mu.Lock()
 			c.reconnectAttempts = 0
 			c.everConnected = true
+			c.lastConnectedAt = now
 			c.streamState = StreamStateConnected
+			c.lastStreamError = ""
+			c.lastStreamErrorAt = time.Time{}
+			c.nextReconnectAt = time.Time{}
 			c.mu.Unlock()
 			synced = true
 		}
@@ -520,5 +575,23 @@ func (c *Client) setCloseErr(err error) {
 	defer c.mu.Unlock()
 	if c.closeErr == nil {
 		c.closeErr = err
+	}
+}
+
+func (c *Client) recordReconnectError(err error, numErrors int, delay time.Duration) {
+	now := c.opt.clock.Now()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.reconnectAttempts = numErrors
+	if err != nil {
+		c.lastStreamError = err.Error()
+		c.lastStreamErrorAt = now
+	}
+	if delay > 0 {
+		c.nextReconnectAt = now.Add(delay)
+	} else {
+		c.nextReconnectAt = time.Time{}
 	}
 }
