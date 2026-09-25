@@ -59,11 +59,9 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 				"network_config.enabled":                      sysprobeConf,
 				"system_probe_config.enabled":                 sysprobeConf,
 			},
-			// NOTE: no procmgrDefinitionFile here on purpose. The fleet process-agent
-			// definition still ships auto_start: false, so suppressing this service would
-			// leave no process-agent running at all. Both must flip in the same change.
-			serviceName:    "datadog-process-agent",
-			shouldShutdown: false,
+			procmgrDefinitionFile: processProcmgrDefinitionFile,
+			serviceName:           "datadog-process-agent",
+			shouldShutdown:        false,
 		},
 		{
 			name: "sysprobe",
