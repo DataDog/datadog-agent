@@ -491,6 +491,7 @@ func TestFromDDConfigCredentials(t *testing.T) {
 	yaml := `
 private_action_runner:
   credentials:
+    allow_integration_credentials: true
     values:
       api_token: resolved-value
 `
@@ -499,6 +500,7 @@ private_action_runner:
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"api_token": "resolved-value"}, cfg.CredentialValues)
+	assert.True(t, cfg.AllowIntegrationCredentials)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {
