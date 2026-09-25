@@ -155,9 +155,12 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient
 	}
 }
 
-// IsEnabled always return true for the remote workloadmeta because it uses the remote catalog
+// IsEnabled reports whether the remote collector should run. It is on by default for
+// every agent that uses the remote catalog, and only opts out when this agent cannot
+// reach the core agent by design (e.g. system-probe inside a microVM) — retrying a
+// connection that can never succeed just fills the logs.
 func (s *streamHandler) IsEnabled() bool {
-	return true
+	return s.Reader.GetBool("remote_agent.core_agent_ipc.enabled")
 }
 
 func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
