@@ -627,23 +627,24 @@ cc_binary(
 pkg_files(
     name = "xccdf-resources",
     srcs = glob(["xsl/*.xsl", "xsl/*.xml"]),
-    prefix = "share/openscap/xsl",
+    prefix = "embedded/share/openscap/xsl",
     attributes = pkg_attributes("0644"),
 )
 
 pkg_files(
     name = "cpe_files",
     srcs = glob(["cpe/*.xml"]),
-    prefix = "share/openscap/cpe",
+    prefix = "embedded/share/openscap/cpe",
     attributes = pkg_attributes("0644"),
 )
 
 dd_cc_packaged(
     name = "openscap_pkg",
     input = ":openscap",
+    dest_dir = "embedded/lib",
     installed_executables = {
-        ":oscap": "bin",
-        ":oscap-io": "bin",
+        ":oscap": "embedded/bin",
+        ":oscap-io": "embedded/bin",
     },
     installed_files = [
         ":xccdf-resources",
@@ -656,6 +657,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "openscap_sce_pkg",
     input = ":openscap_sce",
+    dest_dir = "embedded/lib",
     version = "33.1.2",
     visibility = ["//visibility:public"],
 )
@@ -674,5 +676,4 @@ pkg_filegroup(
     srcs = [
         ":_dep_libs",
     ],
-    prefix = "embedded",
 )

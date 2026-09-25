@@ -12,15 +12,18 @@ import (
 	"strconv"
 
 	cyclonedx_v1_4 "github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
+// Runtime property names, aliased from pkg/sbom so that the consumers of the
+// enriched SBOM agree on them.
 const (
-	LastAccessProperty    = "LastSeenRunning"
-	HasSetSuidBitProperty = "HasSetSuidBit"
-	RunningAsRootProperty = "RunningAsRoot"
+	LastAccessProperty    = sbompkg.LastAccessProperty
+	HasSetSuidBitProperty = sbompkg.HasSetSuidBitProperty
+	RunningAsRootProperty = sbompkg.RunningAsRootProperty
 )
 
 // PackagesReport wraps package data and implements the sbom.Report interface

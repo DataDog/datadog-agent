@@ -199,18 +199,19 @@ cc_shared_library(
 pkg_files(
     name = "headers_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/xmlsec1/xmlsec",
+    prefix = "embedded/include/xmlsec1/xmlsec",
 )
 
 pkg_files(
     name = "openssl_headers_files",
     srcs = PUBLIC_OPENSSL_HEADERS,
-    prefix = "include/xmlsec1/xmlsec/openssl",
+    prefix = "embedded/include/xmlsec1/xmlsec/openssl",
 )
 
 dd_cc_packaged(
     name = "xmlsec1_pkg",
     input = ":xmlsec1",
+    dest_dir = "embedded/lib",
     installed_files = [":headers_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
@@ -219,6 +220,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "xmlsec1-openssl_pkg",
     input = ":xmlsec1-openssl",
+    dest_dir = "embedded/lib",
     installed_files = [":openssl_headers_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
