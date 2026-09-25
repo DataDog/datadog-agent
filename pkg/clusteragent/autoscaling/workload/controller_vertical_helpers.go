@@ -592,9 +592,9 @@ func shouldFallbackToRollout(toEvict []classifiedPod, hasInfeasible bool, podAut
 //
 //	a) The global config flag (autoscaling.workload.in_place_vertical_scaling.enabled) is disabled, or
 //	b) The DPA explicitly sets Strategy: TriggerRollout, or
-//	c) A GOMEMLIMIT is recommended for a container but not yet applied to all running pods
+//	c) Any runtime value is recommended for a container but not yet applied to all running pods
 //
-// pods is the current live pod list for the workload, used to check whether GOMEMLIMIT is already
+// pods is the current live pod list for the workload, used to check whether runtime values are already
 // applied so we avoid triggering unnecessary rollouts (e.g. when only CPU changed).
 func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*workloadmeta.KubernetesPod) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
@@ -605,8 +605,8 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*
 	// Force the rollout path only when the recommended value differs from what is already on the pods.
 	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
 		for _, cr := range sv.Vertical.ContainerResources {
-			if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
-				if !goMemLimitAlreadyApplied(cr.Name, cr.Runtime.Gomemlimit, pods) {
+			if cr.Runtime != nil {
+				if !runtimeValuesAlreadyApplied(cr.Name, cr.Runtime, pods) {
 					return true
 				}
 			}
@@ -619,10 +619,10 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*
 	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
 }
 
-// goMemLimitAlreadyApplied returns true if all non-terminating pods already have the expected
-// GOMEMLIMIT value for the given container, as recorded in the GoMemLimitAnnotation.
-// Returns false if any pod is missing the annotation or has a different value.
-func goMemLimitAlreadyApplied(containerName, expectedValue string, pods []*workloadmeta.KubernetesPod) bool {
+// runtimeValuesAlreadyApplied returns true if all non-terminating pods already have the expected
+// runtime values for the given container, as recorded in the RuntimeValuesAnnotation.
+// Returns false if any pod is missing the annotation or has different values.
+func runtimeValuesAlreadyApplied(containerName string, expected *datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues, pods []*workloadmeta.KubernetesPod) bool {
 	if len(pods) == 0 {
 		return false
 	}
@@ -630,16 +630,16 @@ func goMemLimitAlreadyApplied(containerName, expectedValue string, pods []*workl
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
-		annotationValue, exists := pod.Annotations[model.GoMemLimitAnnotation]
+		annotationValue, exists := pod.Annotations[model.RuntimeValuesAnnotation]
 		if !exists {
 			return false
 		}
-		var goMemLimits map[string]string
-		if err := json.Unmarshal([]byte(annotationValue), &goMemLimits); err != nil {
-			log.Debugf("Failed to parse %s annotation on pod %s/%s: %v", model.GoMemLimitAnnotation, pod.Namespace, pod.Name, err)
+		var runtimeValues map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues
+		if err := json.Unmarshal([]byte(annotationValue), &runtimeValues); err != nil {
+			log.Debugf("Failed to parse %s annotation on pod %s/%s: %v", model.RuntimeValuesAnnotation, pod.Namespace, pod.Name, err)
 			return false
 		}
-		if goMemLimits[containerName] != expectedValue {
+		if runtimeValues[containerName] != *expected {
 			return false
 		}
 	}

@@ -26,8 +26,8 @@ const (
 	RecommendationAppliedEventGeneratedAnnotation = "autoscaling.datadoghq.com/event"
 	// RolloutTimestampAnnotation is the annotation key used to store the rollout timestamp
 	RolloutTimestampAnnotation = "autoscaling.datadoghq.com/rolloutAt"
-	// GoMemLimitAnnotation is the annotation key used to store the GOMEMLIMIT values applied to the pod
-	GoMemLimitAnnotation = "autoscaling.datadoghq.com/gomemlimit"
+	// RuntimeValuesAnnotation is the annotation key used to store the runtime values applied to the pod per container.
+	RuntimeValuesAnnotation = "autoscaling.datadoghq.com/runtime-values"
 
 	// RecommendationAppliedEventReason is the event reason when a recommendation is applied
 	RecommendationAppliedEventReason = "RecommendationApplied"

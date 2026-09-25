@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -1123,10 +1124,11 @@ func TestApplyVerticalConstraints_BurstableHashChange(t *testing.T) {
 	})
 }
 
-func podWithGoMemLimitAnnotation(containerName, goMemLimit string) *workloadmeta.KubernetesPod {
+func podWithRuntimeValuesAnnotation(containerName string, rv datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues) *workloadmeta.KubernetesPod {
+	encoded, _ := json.Marshal(map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{containerName: rv})
 	return &workloadmeta.KubernetesPod{
 		EntityMeta: workloadmeta.EntityMeta{
-			Annotations: map[string]string{model.GoMemLimitAnnotation: `{"` + containerName + `":"` + goMemLimit + `"}`},
+			Annotations: map[string]string{model.RuntimeValuesAnnotation: string(encoded)},
 		},
 	}
 }
@@ -1136,11 +1138,11 @@ func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
 	pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", true)
 	defer pkgconfigsetup.Datadog().SetInTest("autoscaling.workload.in_place_vertical_scaling.enabled", false)
 
-	svWithGoMemLimit := func(value string) model.ScalingValues {
+	svWithRuntimeValues := func(rv datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues) model.ScalingValues {
 		return model.ScalingValues{Vertical: &model.VerticalScalingValues{
 			ResourcesHash: "hash",
 			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
-				{Name: "app", Runtime: &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: value}},
+				{Name: "app", Runtime: &rv},
 			},
 		}}
 	}
@@ -1148,7 +1150,7 @@ func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
 		return (&model.FakePodAutoscalerInternal{Namespace: "default", Name: "ai", ScalingValues: sv}).Build()
 	}
 
-	t.Run("no GOMEMLIMIT — no rollout", func(t *testing.T) {
+	t.Run("no runtime values — no rollout", func(t *testing.T) {
 		sv := model.ScalingValues{Vertical: &model.VerticalScalingValues{
 			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{{Name: "app"}},
 		}}
@@ -1156,42 +1158,46 @@ func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
 		assert.False(t, isRolloutRequired(&ai, nil))
 	})
 
-	t.Run("GOMEMLIMIT — no pods — rollout forced", func(t *testing.T) {
-		ai := buildAI(svWithGoMemLimit("256MiB"))
+	t.Run("runtime values — no pods — rollout forced", func(t *testing.T) {
+		ai := buildAI(svWithRuntimeValues(datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}))
 		assert.True(t, isRolloutRequired(&ai, nil))
 	})
 
-	t.Run("GOMEMLIMIT — pods missing annotation — rollout forced", func(t *testing.T) {
-		ai := buildAI(svWithGoMemLimit("256MiB"))
+	t.Run("runtime values — pods missing annotation — rollout forced", func(t *testing.T) {
+		ai := buildAI(svWithRuntimeValues(datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}))
 		pods := []*workloadmeta.KubernetesPod{{EntityMeta: workloadmeta.EntityMeta{Annotations: map[string]string{}}}}
 		assert.True(t, isRolloutRequired(&ai, pods))
 	})
 
-	t.Run("GOMEMLIMIT — all pods up to date — no rollout", func(t *testing.T) {
-		ai := buildAI(svWithGoMemLimit("256MiB"))
+	t.Run("runtime values — all pods up to date — no rollout", func(t *testing.T) {
+		rv := datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}
+		ai := buildAI(svWithRuntimeValues(rv))
 		pods := []*workloadmeta.KubernetesPod{
-			podWithGoMemLimitAnnotation("app", "256MiB"),
-			podWithGoMemLimitAnnotation("app", "256MiB"),
+			podWithRuntimeValuesAnnotation("app", rv),
+			podWithRuntimeValuesAnnotation("app", rv),
 		}
 		assert.False(t, isRolloutRequired(&ai, pods))
 	})
 
-	t.Run("GOMEMLIMIT changed — stale pod — rollout forced", func(t *testing.T) {
-		ai := buildAI(svWithGoMemLimit("512MiB"))
+	t.Run("runtime values changed — stale pod — rollout forced", func(t *testing.T) {
+		ai := buildAI(svWithRuntimeValues(datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "512MiB"}))
 		pods := []*workloadmeta.KubernetesPod{
-			podWithGoMemLimitAnnotation("app", "512MiB"),
-			podWithGoMemLimitAnnotation("app", "256MiB"), // stale
+			podWithRuntimeValuesAnnotation("app", datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "512MiB"}),
+			podWithRuntimeValuesAnnotation("app", datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}), // stale
 		}
 		assert.True(t, isRolloutRequired(&ai, pods))
 	})
 
-	t.Run("GOMEMLIMIT — terminating pods ignored — no rollout", func(t *testing.T) {
-		ai := buildAI(svWithGoMemLimit("256MiB"))
+	t.Run("runtime values — terminating pods ignored — no rollout", func(t *testing.T) {
+		rv := datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"}
+		ai := buildAI(svWithRuntimeValues(rv))
 		deletionTime := metav1.Now()
 		pods := []*workloadmeta.KubernetesPod{
-			podWithGoMemLimitAnnotation("app", "256MiB"),
+			podWithRuntimeValuesAnnotation("app", rv),
 			{
-				EntityMeta:        workloadmeta.EntityMeta{Annotations: map[string]string{model.GoMemLimitAnnotation: `{"app":"128MiB"}`}},
+				EntityMeta: workloadmeta.EntityMeta{Annotations: map[string]string{
+					model.RuntimeValuesAnnotation: `{"app":{"gomemlimit":"128MiB"}}`,
+				}},
 				DeletionTimestamp: &deletionTime.Time,
 			},
 		}

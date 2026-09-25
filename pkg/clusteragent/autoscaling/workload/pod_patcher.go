@@ -114,11 +114,11 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		patched = patchPod(reco, pod) || patched
 	}
 
-	// Record the applied GOMEMLIMIT values per container so the vertical controller can skip
-	// unnecessary rollouts when GOMEMLIMIT has not changed.
-	annotationPatched, err := setGoMemLimitAnnotation(pod, constrainedVertical.ContainerResources)
+	// Record the applied runtime values per container so the vertical controller can skip
+	// unnecessary rollouts when runtime values have not changed.
+	annotationPatched, err := setRuntimeValuesAnnotation(pod, constrainedVertical.ContainerResources)
 	if err != nil {
-		log.Warnf("Autoscaler %s: failed to set GOMEMLIMIT annotation for POD %s/%s: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+		log.Warnf("Autoscaler %s: failed to set runtime values annotation for POD %s/%s: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
 	} else {
 		patched = patched || annotationPatched
 	}
@@ -245,33 +245,33 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 	return false
 }
 
-// setGoMemLimitAnnotation writes a JSON-encoded map[containerName]goMemLimitValue annotation on the pod.
-// This lets the vertical controller compare the recommended GOMEMLIMIT against what is already
-// running on each pod without having to read container env vars (which are not available in workloadmeta).
+// setRuntimeValuesAnnotation writes a JSON-encoded map[containerName]DatadogPodAutoscalerContainerRuntimeValues
+// annotation on the pod. This lets the vertical controller compare the recommended runtime values against
+// what is already running on each pod.
 // Returns true if the annotation was created or updated, false if it was already up to date.
-func setGoMemLimitAnnotation(pod *corev1.Pod, containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (bool, error) {
-	goMemLimits := make(map[string]string)
+func setRuntimeValuesAnnotation(pod *corev1.Pod, containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (bool, error) {
+	runtimeValues := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues)
 	for _, cr := range containerResources {
-		if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
-			goMemLimits[cr.Name] = cr.Runtime.Gomemlimit
+		if cr.Runtime != nil {
+			runtimeValues[cr.Name] = *cr.Runtime
 		}
 	}
-	if len(goMemLimits) == 0 {
-		if _, exists := pod.Annotations[model.GoMemLimitAnnotation]; exists {
-			delete(pod.Annotations, model.GoMemLimitAnnotation)
+	if len(runtimeValues) == 0 {
+		if _, exists := pod.Annotations[model.RuntimeValuesAnnotation]; exists {
+			delete(pod.Annotations, model.RuntimeValuesAnnotation)
 			return true, nil
 		}
 		return false, nil
 	}
-	encoded, err := json.Marshal(goMemLimits)
+	encoded, err := json.Marshal(runtimeValues)
 	if err != nil {
 		return false, err
 	}
 	value := string(encoded)
-	if pod.Annotations[model.GoMemLimitAnnotation] == value {
+	if pod.Annotations[model.RuntimeValuesAnnotation] == value {
 		return false, nil
 	}
-	pod.Annotations[model.GoMemLimitAnnotation] = value
+	pod.Annotations[model.RuntimeValuesAnnotation] = value
 	return true, nil
 }
 
