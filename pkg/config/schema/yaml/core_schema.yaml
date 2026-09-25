@@ -5826,6 +5826,77 @@ properties:
     - golang_type:duration
     comment: If not zero, the agent will log a warning if a check is running for longer
       than this timeout
+  adaptive_downsampling:
+    node_type: section
+    type: object
+    properties:
+      all:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          When true, every check gets SDC-downsampled metrics, regardless of
+          adaptive_downsampling.checks.
+      checks:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: comma_separated
+        items:
+          type: string
+        comment: |-
+          Check names whose metrics should be downsampled with
+          Swinging Door Trending/Compression (SDC). Experimental; see
+          pkg/aggregator/check_sampler_sdc.go. Ignored when
+          adaptive_downsampling.all is true. The corresponding environment
+          variable, DD_ADAPTIVE_DOWNSAMPLING_CHECKS, is comma-separated.
+
+          SDC's bounded-error guarantee requires timestamps to increase across
+          and within check commits after truncation to integer seconds, matching
+          the precision of serialized metrics. Non-increasing points (including
+          same-second collisions) are forwarded without changing downsampler
+          state and are outside that guarantee.
+      dry_run:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: |-
+          When true, SDC-downsampled checks still run every sample through the
+          downsampler for measurement (see the checksampler_downsampling_samples_total
+          and checksampler_downsampling_breakpoints_total telemetry metrics), but
+          ship their original data. Nothing the downsampler produces is sent.
+      max_gap_flushes:
+        node_type: setting
+        type: integer
+        default: 1
+        description: |-
+          Maximum number of aggregator flush cycles a pending endpoint may wait
+          before a forced close. All metric contexts in a check share a schedule
+          that closes every N flushes, including quiet windows. The default 1
+          closes every flush; 4 skips three closes before forcing the fourth.
+          Selected breakpoints still ship every flush and do not reset the schedule.
+          This bounds deferred endpoint delivery, not the gap between sample
+          timestamps when a check stops producing samples. Context expiration,
+          check deregistration, and Agent shutdown force a final close.
+          Dry-run uses the same schedule for measurement but ships original
+          points every flush. Values below 1 are treated as 1.
+      relative_error:
+        node_type: setting
+        type: number
+        default: 0.02
+        tags:
+        - golang_type:float64
+        comment: |-
+          Relative reconstruction error used by the SDC downsampler. The
+          tolerance is relative_error multiplied by an EWMA of the signal's
+          magnitude.
+      scale_smoothing_factor:
+        node_type: setting
+        type: number
+        default: 0.3
+        tags:
+        - golang_type:float64
+        comment: EWMA smoothing factor used to track the signal's magnitude.
   clc_runner_enabled:
     node_type: setting
     type: boolean
