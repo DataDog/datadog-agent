@@ -4,14 +4,14 @@ site_author: Datadog
 site_url: https://datadoghq.dev/datadog-agent/
 repo_name: datadog/datadog-agent
 repo_url: https://github.com/DataDog/datadog-agent
-edit_uri: blob/main/docs/public
+edit_uri: blob/main/doc
 copyright: Copyright &copy; Datadog, Inc. 2024-present
 
-docs_dir: docs/public
+docs_dir: doc
 site_dir: site
 theme:
   name: material
-  custom_dir: docs/overrides
+  custom_dir: doc/.overrides
   variant: classic
   language: en
   font:
@@ -159,7 +159,7 @@ plugins:
 markdown_extensions:
 # Built-in
 - zensical.extensions.macros:
-    module_name: docs/public/.hooks/inject_variables
+    module_name: doc/.hooks/inject_variables
     on_error_fail: true
     on_undefined: strict
     # Macros are rendered before code blocks are extracted, so every delimiter must be a sequence
@@ -261,7 +261,7 @@ markdown_extensions:
 - pymdownx.snippets:
     check_paths: true
     base_path:
-    - docs/public/.snippets
+    - doc/.snippets
     # Repo root, so docs pages can embed a section of a normative in-repo file
     # (e.g. a codereview_guideline.md) rather than restating it.
     - .
