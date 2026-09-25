@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 from collections import defaultdict
 from fnmatch import fnmatch
@@ -23,6 +24,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     full_config_get_all_leaf_jobs,
     full_config_get_all_stages,
 )
+from tasks.libs.common import utils as common_utils
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
@@ -32,7 +34,9 @@ from tasks.libs.common.git import (
     get_file_modifications,
     get_staged_files,
 )
-from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.common.utils import get_repo_root, gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.linter.buildifier import buildifier_commands, select_buildifier_files
+from tasks.libs.linter.dotslash import validate as validate_dotslash
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
     PREPUSH_GITLABCI_SUBLINTERS,
@@ -170,6 +174,61 @@ def go(
 def update_go(_):
     _update_references(warn=False, version="1.2.3", dry_run=True)
     _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)
+
+
+# === BAZEL === #
+@task(help={"fix": "Fix formatting and lint findings instead of checking them."})
+def buildifier(ctx, fix=False):
+    """Checks or fixes repository-owned Starlark files with the pinned Buildifier CLI."""
+    repo_root = get_repo_root()
+    on_windows = common_utils.is_windows()
+    try:
+        git_result = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise Exit(getattr(error, "stderr", None) or str(error), code=1) from error
+    files = select_buildifier_files(git_result.stdout.split("\0"), repo_root)
+    if not files:
+        raise Exit("Buildifier selected no repository-owned Starlark files, so the check cannot continue.", code=2)
+
+    executable = repo_root / "tools" / "bin" / ("buildifier.exe" if on_windows else "buildifier")
+    command_files = [path.replace("/", "\\") for path in files] if on_windows else files
+    diff_command = "FC" if on_windows else "diff --unified"
+    try:
+        commands = buildifier_commands(str(executable), command_files, fix=fix, diff_command=diff_command)
+    except ValueError as error:
+        raise Exit(str(error), code=2) from error
+
+    failed = False
+    for command in commands:
+        try:
+            result = subprocess.run(command, cwd=repo_root, stdin=subprocess.DEVNULL, check=False)
+        except OSError as error:
+            raise Exit(str(error), code=1) from error
+        if result.returncode:
+            failed = True
+    if failed:
+        raise Exit(code=1)
+
+
+@task(
+    help={
+        "download": "Verify all platform artifacts and providers using fresh temporary caches.",
+        "smoke": "Run configured native checks through the checkout's launchers.",
+        "changed-since": "Limit download and native checks to changes since the merge base with this Git ref.",
+        "report": "Write validation results to this JSON file, including failures and skipped checks.",
+    }
+)
+def dotslash(ctx, download=False, smoke=False, changed_since=None, report=None):
+    """Validate DotSlash manifests and optionally verify downloads and native execution."""
+    if not validate_dotslash(
+        get_repo_root(), download=download, smoke=smoke, changed_since=changed_since, report=report
+    ):
+        raise Exit(code=1)
 
 
 # === PYTHON === #

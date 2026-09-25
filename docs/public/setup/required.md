@@ -2,11 +2,25 @@
 
 -----
 
+## Prerequisites
+
+Install the following tools and make them available on `PATH`:
+
+- [Git](https://git-scm.com/install/) for working with the repository.
+- [curl](https://everything.curl.dev/install/index.html) for tool downloads; requires HTTPS support and a usable CA trust store.
+- [mise](https://mise.jdx.dev/installing-mise.html) 2026.9.6 or newer for managing tools that are incompatible with DotSlash.
+
 ## Tooling
 
 The `dda` [CLI](https://datadoghq.dev/datadog-agent-dev/) is required in all aspects of development and must be available on `PATH`.
 
 <<<DDA_DOCS_INSTALL>>>
+
+## Shell
+
+Ensure that mise is [fully activated](https://mise.jdx.dev/installing-mise.html#shells) for your shell.
+
+Full activation adds this checkout's `tools/bin` directory to `PATH`, making repository tools available by command name. Mise automatically installs pinned tools and their runtimes when first needed, including after pin changes.
 
 ## Docker
 

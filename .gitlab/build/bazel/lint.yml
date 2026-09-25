@@ -46,9 +46,11 @@ bazel:query-missing-manual-tags:
 bazel:run-buildifier-test:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
-    - bazel run //bazel/buildifier:test
+    - mise install dotslash
+    - BUILDIFIER_TEST_EXECUTABLE="$CI_PROJECT_DIR/tools/bin/buildifier" mise exec -- dda inv invoke-unit-tests.run --tests=buildifier_integration --directory=tasks/unit_tests
+    - mise exec -- dda inv linter.buildifier
   variables:
-    REMEDIATION: "bazel run //bazel/buildifier"
+    REMEDIATION: "mise exec -- dda inv linter.buildifier --fix"
 
 bazel:run-gazelle:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]

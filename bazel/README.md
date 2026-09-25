@@ -2,7 +2,7 @@ As you may have noticed, we've been transitioning to the `bazel` build system.
 
 Although most elements are still under development, here are a few notes that could "help us help you."
 
-### Single requirement: `bazelisk`
+### Running Bazel: `bazelisk`
 
 > [!TIP]
 > We recommend using Bazelisk through `dda`, our developer tool.
@@ -29,14 +29,19 @@ In that case, please consider adding a link to `bazelisk` named `bazel` in your 
 
 ### Autocorrection of `bazel` files: `buildifier`
 
-To help us maintain good `bazel` file hygiene, please preferably run the version of `buildifier` specified in the branch
-you wish to work in:
+Complete the [repository tool setup](../docs/public/setup/required.md#prerequisites), then format and lint repository-owned Starlark files:
 
 ```sh
-dda bzl run //bazel/buildifier
-# or
-bazel run //bazel/buildifier
+dda inv linter.buildifier --fix
 ```
+
+For a shell without mise activation:
+
+```sh
+mise exec -- dda inv linter.buildifier --fix
+```
+
+Omit `--fix` to check files without changing them. Check mode requires `diff` with `--unified` support on Linux and macOS, or the Windows `FC` executable.
 
 ### Lock file maintenance
 

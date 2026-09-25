@@ -8,8 +8,7 @@ case-insensitive filesystem collisions.
 
 ## Formatting
 
-`buildifier` is mandatory before committing. Flag any PR that modifies `BUILD.bazel` or `.bzl` files and
-is failling tests related to buildifier.
+`buildifier` is mandatory before committing. Run `dda inv linter.buildifier --fix` with the repository's mise environment active. Flag any PR that modifies `BUILD.bazel` or `.bzl` files and fails Buildifier checks.
 
 ## Dependencies
 

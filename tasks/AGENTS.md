@@ -64,6 +64,7 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 `ctx.run` goes through `/bin/bash` on Unix but `cmd.exe` on Windows, so a command string that works locally can be silently broken for Windows developers. The invoke unit tests only run on Linux in CI, so nothing catches this for you.
 
 - **Quoting** — build the command as a list of arguments and join it with `join_command` from `libs/common/utils.py`; never use `shlex.quote` or `subprocess.list2cmdline` directly.
+- **Percent signs** — `cmd.exe` expands `%VAR%` references even inside double quotes, so `join_command` cannot preserve literal percent signs; reject such filename arguments clearly or use an argv-preserving API.
 - **Working directory** — use `git -C <dir>` for git, or wrap the `ctx.run` in `contextlib.chdir`; never prefix with `cd <dir> &&`.
 - **POSIX-only tools** — do the text manipulation in Python instead of piping through `sed`, `grep` or `cp`.
 - **Encoding** — pass `encoding="utf-8"` to `ctx.run` for any command carrying non-ASCII text.

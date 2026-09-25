@@ -12,11 +12,13 @@ The MCP servers are declared in `/agents.toml`, and will be moved to this direct
 
 ### Synchronizing
 
-Config is written into each tool's own config file by [dotagents](https://github.com/getsentry/dotagents), run through [mise](https://mise.en.dev). After changing a declaration, run:
+Config is written into each tool's own config file by [dotagents](https://github.com/getsentry/dotagents). With [repository tools set up](../docs/public/setup/required.md#prerequisites), run this after changing a declaration:
 
 ```
-mise run dotagents install   # or `mise run dotagents sync` to reconcile/repair offline
+dotagents install
 ```
+
+Use `dotagents sync` to reconcile or repair offline. For a shell without mise activation, use `mise exec -- dotagents install` or `mise exec -- dotagents sync`.
 
 dotagents writes to every tool listed in the `agents` key of `agents.toml`, repairing the servers it declares while preserving undeclared servers and unrelated content in each file.
 

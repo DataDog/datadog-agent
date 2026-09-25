@@ -1,0 +1,126 @@
+---
+.dotslash:changes:
+  rules:
+    - changes:
+        paths:
+          - tools/bin/**/*
+          - mise.toml
+          - tasks/linter.py
+          - tasks/libs/linter/dotslash.py
+          - tasks/unit_tests/dotslash*_tests.py
+          - .gitlab-ci.yml
+          - .gitlab/build/dotslash.yml
+          - .gitlab/deploy/conditions.yml
+          - .gitlab/.pre/common/macos.yml
+        compare_to: $COMPARE_TO_BRANCH
+
+.dotslash:base:
+  stage: lint
+  needs: []
+  cache: []
+  variables:
+    GIT_DEPTH: 1
+  artifacts:
+    when: always
+    expire_in: 2 weeks
+    paths:
+      - dotslash-report.json
+
+.dotslash:linux:
+  extends: .dotslash:base
+  tags: ["arch:amd64", "specific:true"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    KUBERNETES_CPU_REQUEST: 1
+    KUBERNETES_MEMORY_REQUEST: "2Gi"
+    KUBERNETES_MEMORY_LIMIT: "2Gi"
+  before_script:
+    - mise install dotslash
+
+.dotslash:compare:
+  - git fetch --no-tags origin "+refs/heads/$COMPARE_TO_BRANCH:refs/remotes/origin/$COMPARE_TO_BRANCH"
+
+dotslash:policy:
+  extends: .dotslash:linux
+  rules:
+    - !reference [.dotslash:changes, rules]
+    - when: on_success
+  script:
+    - export DOTSLASH_TEST_EXECUTABLE="$(mise which dotslash)"
+    - mise exec -- dda inv invoke-unit-tests.run --tests=dotslash,dotslash_task --directory=tasks/unit_tests
+    - mise exec -- dda inv linter.dotslash --report=dotslash-report.json
+
+dotslash:download:
+  extends: [.dotslash:linux, .dotslash:changes]
+  variables:
+    GIT_DEPTH: 0
+  needs:
+    - job: dotslash:policy
+      artifacts: false
+  script:
+    - !reference [.dotslash:compare]
+    - mise exec -- dda inv linter.dotslash --download --changed-since="origin/$COMPARE_TO_BRANCH" --report=dotslash-report.json
+
+.dotslash:native:
+  extends: [.dotslash:base, .dotslash:changes]
+  variables:
+    GIT_DEPTH: 0
+  needs:
+    - job: dotslash:download
+      artifacts: false
+  script:
+    - !reference [.dotslash:compare]
+    - mise exec -- dda inv linter.dotslash --smoke --changed-since="origin/$COMPARE_TO_BRANCH" --report=dotslash-report.json
+
+dotslash:native:linux-amd64:
+  extends: [.dotslash:linux, .dotslash:native]
+  variables:
+    DOTSLASH_EXPECTED_PLATFORM: linux-x86_64
+
+dotslash:native:linux-arm64:
+  extends: [.dotslash:linux, .dotslash:native]
+  tags: ["arch:arm64", "specific:true"]
+  variables:
+    DOTSLASH_EXPECTED_PLATFORM: linux-aarch64
+
+.dotslash:macos:
+  extends: .dotslash:native
+  before_script:
+    - !reference [.install_python_dependencies]
+    - mise install dotslash
+  after_script:
+    - !reference [.macos_cleanup_python_dependencies]
+
+dotslash:native:macos-amd64:
+  extends: .dotslash:macos
+  tags: ["macos:sonoma-amd64", "specific:true"]
+  variables:
+    DOTSLASH_EXPECTED_PLATFORM: macos-x86_64
+
+dotslash:native:macos-arm64:
+  extends: .dotslash:macos
+  tags: ["macos:sonoma-arm64", "specific:true"]
+  variables:
+    DOTSLASH_EXPECTED_PLATFORM: macos-aarch64
+
+dotslash:native:windows-amd64:
+  extends: [.windows_docker_default, .dotslash:native]
+  timeout: 60m
+  variables:
+    ARCH: x64
+    DOTSLASH_EXPECTED_PLATFORM: windows-x86_64
+  script:
+    - |
+      $ErrorActionPreference = 'Stop'
+      git fetch --no-tags origin "+refs/heads/${env:COMPARE_TO_BRANCH}:refs/remotes/origin/${env:COMPARE_TO_BRANCH}"
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      $check = @'
+      $ErrorActionPreference = 'Stop'
+      mise install dotslash
+      if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      mise exec -- dda inv linter.dotslash --smoke --changed-since="origin/$env:COMPARE_TO_BRANCH" --report=dotslash-report.json
+      exit $LASTEXITCODE
+      '@
+      $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($check))
+      docker run --rm --env=COMPARE_TO_BRANCH --env=DOTSLASH_EXPECTED_PLATFORM --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR" --workdir="$CI_PROJECT_DIR" "$WINBUILDIMAGE" powershell -NonInteractive -NoLogo -NoProfile -EncodedCommand $encoded
+      exit $LASTEXITCODE
