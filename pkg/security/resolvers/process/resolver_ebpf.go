@@ -1694,7 +1694,7 @@ func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetPro
 	}
 	if value == nil {
 		// Not registered yet: do the expensive ELF parse and register offsets for eBPF to read.
-		res, resolveErr := target.resolveTLSOffsets()
+		res, resolveErr := target.resolveTLSOffsets(procCtx)
 		if resolveErr == nil {
 			resolveErr = p.updateOTelTLS(pid, res)
 		}
