@@ -20,8 +20,9 @@ source "${RUNFILES_DIR:-/dev/null}/$f" 2>/dev/null || \
 # Bazel action), and Wine changes directory before spawning wineserver/wineboot.
 resolve() { realpath "$(rlocation "$1")"; }
 
-# Wine finds lib/ from /proc/self/exe. realpath() on the runfiles symlink lands
-# in the http_archive, which still has the drivers the filegroup excluded.
+# Wine derives every library directory from realpath() of the loaded ntdll.so.
+# A runfiles symlink resolves into the http_archive, which still has the drivers
+# the filegroup excluded, so ntdll.so and the binaries are copied instead.
 wine_link="$(rlocation wine_linux_x86_64/bin/wine)"
 case "$wine_link" in
     /*) ;;
@@ -42,13 +43,15 @@ fi
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/wine_run.XXXXXX")"
 install="$scratch/install"
-mkdir -p "$install/bin"
-cp -L "$src_root/bin/wine" "$install/bin/wine"
-cp -L "$src_root/bin/wineserver" "$install/bin/wineserver"
+copied=(bin/wine bin/wineserver lib/wine/x86_64-unix/ntdll.so)
+for rel in "${copied[@]}"; do
+    mkdir -p "$install/$(dirname "$rel")"
+    cp -L "$src_root/$rel" "$install/$rel"
+done
 while IFS= read -r -d '' path; do
     rel="${path#"$src_root"/}"
     case "$rel" in
-        bin/wine | bin/wineserver) continue ;;
+        bin/wine | bin/wineserver | lib/wine/x86_64-unix/ntdll.so) continue ;;
     esac
     mkdir -p "$install/$(dirname "$rel")"
     ln -s "$(realpath "$path")" "$install/$rel"
