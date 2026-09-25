@@ -4,7 +4,8 @@
 -- Scope: The truncation-related behaviour of the MultiLineParser
 --   at pkg/logs/internal/decoder/line_parser.go. The
 --   MultiLineParser is a stateful accumulator that combines
---   parser-marked partial lines into a single logical message,
+--   parser-marked partial lines into logical messages independently
+--   for each ParsingExtra.Stream value,
 --   emitting downstream when either (a) a parsed input is no
 --   longer marked partial, or (b) the accumulated buffer reaches
 --   line_limit bytes. When the latter happens, the emission
@@ -34,11 +35,12 @@
 --   configuration and state), the MultiLineParserTruncation
 --   surface and its @guarantees covering: flag-only
 --   accumulator semantics, buffer-overflow flag setting,
---   buffer-overflow forced emission (even when the input is
---   still marked partial), the upstream-flag-OR-internal-flag
+--   buffer-overflow forced emission for the selected stream
+--   (even when the input is still marked partial), the
+--   upstream-flag-OR-internal-flag
 --   propagation on emission, the deliberate "last-input-wins"
 --   semantics for upstream IsTruncated within a partial
---   accumulation cycle, deferred reset of state on emission.
+--   accumulation cycle, removal of the selected stream state on emission.
 -- Excludes:
 --   - The multi-line aggregation contract itself (how partial
 --     inputs are combined, what IsPartial means, which parsers
@@ -67,9 +69,10 @@
 
 entity MultiLineParser {
     -- A configured MultiLineParser instance. Combines
-    -- consecutive partial-flagged inputs into a single
-    -- logical message, with truncation tracking for
-    -- over-buffer-limit emissions.
+    -- partial-flagged inputs into logical messages keyed by
+    -- ParsingExtra.Stream, with independent truncation tracking
+    -- for each stream. Inputs without a stream share the empty
+    -- default key, preserving the single-accumulator behaviour.
     --
     -- line_limit:               byte threshold at which the
     --                           accumulator flags emission as
@@ -77,21 +80,21 @@ entity MultiLineParser {
     --                           regardless of the input's
     --                           partial-flag status. Set at
     --                           construction; immutable.
-    -- buffered_content_len:     current byte length of the
-    --                           accumulated buffer awaiting
+    -- buffered_content_len:     current byte length of the selected
+    --                           stream's accumulated buffer awaiting
     --                           emission. Initially zero;
     --                           grows on each process call
     --                           that appends parsed content;
     --                           resets to zero on emission.
-    -- is_buffer_truncated:      truncation flag set when
+    -- is_buffer_truncated:      selected-stream truncation flag set when
     --                           buffered_content_len has
     --                           reached or exceeded
     --                           line_limit during the current
-    --                           accumulation cycle. Initially
+    --                           stream accumulation cycle. Initially
     --                           false; set during process when
     --                           the limit is crossed; resets
-    --                           to false on emission (via
-    --                           deferred reset in sendLine).
+    --                           to false when that stream's state is
+    --                           removed on emission.
     -- last_input_upstream_truncated:
     --                           the IsTruncated flag carried
     --                           by the MOST RECENT parsed
@@ -207,9 +210,9 @@ surface MultiLineParserTruncation {
         -- The is_buffer_truncated flag, the
         -- buffered_content_len value, and the
         -- last_input_upstream_truncated value are all
-        -- reset (alongside the buffer and rawDataLen
+        -- removed (alongside the buffer and rawDataLen
         -- state) at the end of every sendLine emission
-        -- via a deferred reset. The state at the start of
+        -- for the selected stream. The state at the start of
         -- accumulation cycle N+1 is independent of the
         -- state from cycle N. The truncation flag on
         -- emission N+1 therefore depends only on cycle
@@ -217,18 +220,19 @@ surface MultiLineParserTruncation {
 
     @guarantee EmptyEmissionNoop
         -- A sendLine call invoked when bufferedMsg is nil
-        -- OR buffered_content_len is zero produces no
-        -- emission and changes no externally observable
-        -- state. The deferred reset still runs but is a
-        -- no-op against already-empty state.
+        -- OR accumulated rawDataLen is zero produces no
+        -- emission. The selected stream state is still removed.
+        -- A complete blank line with zero buffered content and a
+        -- non-zero rawDataLen is emitted so downstream aggregators
+        -- can observe it.
 
     @guarantee FlushDrainsBuffer
-        -- A flush() call is equivalent to a forced
-        -- sendLine: any buffered emission is produced
+        -- A flush() call forces sendLine for every active stream,
+        -- in first-seen stream order. Every buffered emission is produced
         -- (with its truncation flag determined per
         -- EmissionPropagatesLastInputAndBufferFlag), and
-        -- the accumulator state is reset. Flush on an
-        -- empty buffer is a no-op (per EmptyEmissionNoop).
+        -- each stream's accumulator state is removed. Flush with
+        -- no active streams is a no-op.
 
     @guidance
         -- Configuration immutability: line_limit is set
@@ -248,9 +252,10 @@ surface MultiLineParserTruncation {
         -- SingleLineHandler) in the legacy decoder pipeline.
         -- Its
         -- inputs are parser-tagged messages, each
-        -- carrying ParsingExtra.IsPartial set or unset
-        -- according to whether the embedded parser
-        -- considers the input a partial fragment. It
+        -- carrying ParsingExtra.IsPartial set or unset according
+        -- to whether the embedded parser considers the input a
+        -- partial fragment, plus an optional ParsingExtra.Stream
+        -- identity. It accumulates each stream independently and
         -- emits a combined message when the partial
         -- sequence terminates (IsPartial=false on the
         -- terminator input) or when the accumulated

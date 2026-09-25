@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix an issue on Windows where uninstalling the Agent could fail if the
+    configuration directory (``C:\ProgramData\Datadog`` by default) had
+    already been removed before running the uninstall.

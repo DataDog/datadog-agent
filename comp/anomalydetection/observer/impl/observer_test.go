@@ -44,6 +44,7 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
+	storageCfg.TrackAnomalyHistory = true
 	obs.Reset(settings, storageCfg)
 
 	scorer := obs.engine.scorer
@@ -104,9 +105,7 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 }
 
 func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
@@ -155,7 +154,7 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 
 func requireSeriesCountTelemetry(t *testing.T, telemetryComp telemetry.Component, want float64) {
 	t.Helper()
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	for _, family := range metricFamilies {
 		if family.GetName() != "observer__"+telemetrySeriesCount {

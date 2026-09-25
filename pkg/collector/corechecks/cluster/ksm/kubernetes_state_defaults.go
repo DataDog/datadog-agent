@@ -90,6 +90,17 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_verticalpodautoscaler_spec_resourcepolicy_container_policies_maxallowed":             "vpa.spec_container_maxallowed",
 		"kube_cronjob_spec_suspend":                                                                "cronjob.spec_suspend",
 		"kube_ingress_path":                                                                        "ingress.path",
+		// DRA accelerator allocation/pooling observability. `resourceclaim.count`
+		// carries a `state` tag (pending/allocated/in_use), so the pending
+		// count is a filter on it rather than its own metric. There is no entry
+		// for kube_resourceclaim_created: it is a creation timestamp turned
+		// into `resourceclaim.pending.age` by a transformer, the same way
+		// kube_pod_created becomes pod.age.
+		"kube_resourceclaim_status":            "resourceclaim.count",
+		"kube_resourceclaim_devices_allocated": "resourceclaim.devices.allocated",
+		"kube_resourceslice_devices_total":     "resourceslice.devices",
+		"kube_resourceslice_capacity":          "resourceslice.capacity",
+		"kube_devicetaintrule_info":            "dra.device_taint_rule",
 	}
 }
 
@@ -239,6 +250,8 @@ func getLabelToMatchForKind(kind string) []string {
 		return []string{"node"}
 	case "persistentvolume": // persistent volumes are not namespaced
 		return []string{"persistentvolume"}
+	case "namespace": // the `namespace` label already matches on its own, no need to duplicate it
+		return []string{"namespace"}
 	default:
 		return []string{kind, "namespace"}
 	}

@@ -26,10 +26,10 @@ import (
 
 func TestMatchContainerDevices(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ContainerWithNvidiaGPU", func(t *testing.T) {
 		container := &workloadmeta.Container{
@@ -206,7 +206,7 @@ func TestMatchContainerDevices(t *testing.T) {
 
 	t.Run("KubernetesDevicesOrderIsCorrect", func(t *testing.T) {
 		// Get test devices with different indices
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2, 3, 4)
 
 		// Test with resources in reverse order (highest index first)
 		container := &workloadmeta.Container{
@@ -252,7 +252,7 @@ func TestMatchContainerDevices(t *testing.T) {
 
 	t.Run("KubernetesDevicesSortedByIndexWithMixedResourceTypes", func(t *testing.T) {
 		// Get test devices with different indices
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2, 3, 4)
 
 		// Test with mixed resource types (GKE and NVIDIA device plugin formats)
 		container := &workloadmeta.Container{
@@ -298,7 +298,7 @@ func TestMatchContainerDevices(t *testing.T) {
 
 	t.Run("KubernetesContainerWithMIGDevices", func(t *testing.T) {
 		// Get test devices with MIG enabled
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 
 		// Test with MIG devices
 		container := &workloadmeta.Container{
@@ -345,7 +345,7 @@ func TestMatchContainerDevices(t *testing.T) {
 	})
 
 	t.Run("KubernetesContainerWithDRAMIGDevice", func(t *testing.T) {
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
@@ -380,10 +380,10 @@ func useFakeProcfsWithNvidiaVisibleDevices(t *testing.T, pid int, visibleDevices
 
 func TestFindDeviceForResourceName(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("NvidiaDevicePluginUUID", func(t *testing.T) {
 		// Test with NVIDIA device plugin format (UUID)
@@ -415,7 +415,7 @@ func TestFindDeviceForResourceName(t *testing.T) {
 
 	t.Run("UUIDBasedMIGDevice", func(t *testing.T) {
 		// Test with MIG device
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 		device, err := findDeviceForResourceName(devices, testutil.MIGChildrenUUIDs[5][0])
 		require.NoError(t, err)
 		require.Equal(t, device.GetDeviceInfo().UUID, testutil.MIGChildrenUUIDs[5][0])
@@ -423,7 +423,7 @@ func TestFindDeviceForResourceName(t *testing.T) {
 
 	t.Run("GKEWithMIGDevice", func(t *testing.T) {
 		// Test with MIG device
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 		_, err := findDeviceForResourceName(devices, "nvidia3")
 		require.Error(t, err)
 	})
@@ -440,7 +440,7 @@ func TestFindDeviceForResourceName(t *testing.T) {
 	})
 
 	t.Run("DRAWithMIGDevice", func(t *testing.T) {
-		devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, testutil.DefaultDevicesWithMIGChildren()...)
+		devices := nvmltestutil.PhysicalDevices(t, nvmlMock, testutil.DefaultDevicesWithMIGChildren()...)
 		_, err := findDeviceForDRAResourceName(devices, "gpu-0")
 		require.ErrorContains(t, err, "MIG devices are not supported for DRA index matching")
 	})
@@ -448,10 +448,10 @@ func TestFindDeviceForResourceName(t *testing.T) {
 
 func TestFindDeviceByUUID(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ValidUUID", func(t *testing.T) {
 		device, err := findDeviceByUUID(devices, testutil.GPUUUIDs[1])
@@ -494,10 +494,10 @@ func TestFindDeviceByUUID(t *testing.T) {
 
 func TestFindDeviceByUUIDWithMIG(t *testing.T) {
 	// Setup mock NVML with MIG enabled for some devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMock())
+	nvmlMock := nvmltestutil.SetupMockNVML(t, testutil.WithDefaultMIGDevices())
 
 	// Get test devices including MIG children
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2, 3, 4, 5, 6)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2, 3, 4, 5, 6)
 
 	t.Run("PhysicalDeviceUUID", func(t *testing.T) {
 		device, err := findDeviceByUUID(devices, testutil.GPUUUIDs[0])
@@ -531,10 +531,10 @@ func TestFindDeviceByUUIDWithMIG(t *testing.T) {
 
 func TestFindDeviceByIndex(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ValidIndex", func(t *testing.T) {
 		device, err := findDeviceByIndex(devices, "1")
@@ -583,10 +583,10 @@ func TestFindDeviceByIndex(t *testing.T) {
 
 func TestMatchByGPUDeviceIDs(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("SingleUUID", func(t *testing.T) {
 		gpuDeviceIDs := []string{testutil.GPUUUIDs[1]}
@@ -634,10 +634,10 @@ func TestMatchByGPUDeviceIDs(t *testing.T) {
 
 func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ContainerWithGPUDeviceIDsUUID", func(t *testing.T) {
 		// Simulates ECS GPU container with UUID in GPUDeviceIDs
@@ -655,18 +655,96 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		assert.Equal(t, devices[1], filteredDevices[0])
 	})
 
-	t.Run("GPUDeviceIDsTakesPrecedenceOverResolvedAllocatedResources", func(t *testing.T) {
-		// GPUDeviceIDs should be used even if ResolvedAllocatedResources is set
+	t.Run("DockerRuntimeWithKubernetesResourcesUnionsBoth", func(t *testing.T) {
+		// ResolvedAllocatedResources is a Kubernetes field, so a container
+		// carrying it on the Docker runtime is a cri-dockerd node, not ECS.
+		// There GPUDeviceIDs holds only the DRA devices the NVML collector
+		// resolved, and treating it as the whole allocation would silently drop
+		// the device-plugin GPU the same container also holds.
 		container := &workloadmeta.Container{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindContainer,
-				ID:   "test-precedence-container",
+				ID:   "test-mixed-allocation-container",
 			},
-			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // Should use this
+			Runtime:      workloadmeta.ContainerRuntimeDocker,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
 			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 				{
 					Name: string(gpuutil.GpuNvidiaGeneric),
-					ID:   testutil.GPUUUIDs[2], // Should NOT use this
+					ID:   testutil.GPUUUIDs[2],
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 2, "both the DRA device and the device-plugin device must be matched")
+		assert.Contains(t, filteredDevices, devices[0])
+		assert.Contains(t, filteredDevices, devices[2])
+	})
+
+	t.Run("ECSKeepsGPUDeviceIDsAuthoritative", func(t *testing.T) {
+		// The real ECS shape: Docker runtime, GPUDeviceIDs populated by the
+		// Docker collector, and no Kubernetes allocated resources at all. This
+		// must keep short-circuiting rather than falling through to the env-var
+		// inspection, which is what the union above must not disturb.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-ecs-precedence-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeDocker,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[0], filteredDevices[0])
+	})
+
+	t.Run("KubernetesUnionsTheMappingWithAllocatedResources", func(t *testing.T) {
+		// A Kubernetes container can hold a DRA device and a device-plugin
+		// device at once: only the DRA half reaches GPUDeviceIDs (the nvml
+		// collector resolves CDI device names), so treating the mapping as
+		// authoritative would drop the device-plugin card entirely.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-mixed-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]}, // resolved from a DRA claim
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   testutil.GPUUUIDs[2], // handed out by the device plugin
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.NoError(t, err)
+		require.Len(t, filteredDevices, 2)
+		assert.Equal(t, devices[0], filteredDevices[0])
+		assert.Equal(t, devices[2], filteredDevices[1])
+	})
+
+	t.Run("KubernetesDoesNotDuplicateADeviceResolvedByBothPaths", func(t *testing.T) {
+		// A whole-card DRA claim resolves through the mapping and, on a node
+		// with no MIG devices, through the legacy index guess as well. It is
+		// one device and must be reported once.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-dedup-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[1]},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaDRA),
+					ID:   "gpu-1",
 				},
 			},
 		}
@@ -674,16 +752,41 @@ func TestMatchContainerDevicesWithGPUDeviceIDs(t *testing.T) {
 		filteredDevices, err := MatchContainerDevices(container, devices)
 		require.NoError(t, err)
 		require.Len(t, filteredDevices, 1)
-		assert.Equal(t, devices[0], filteredDevices[0]) // Should be device 0, not device 2
+		assert.Equal(t, devices[1], filteredDevices[0])
+	})
+
+	t.Run("KubernetesReportsAnUnresolvableResourceEvenWhenTheMappingIsPresent", func(t *testing.T) {
+		// Error suppression must be scoped to the resources the mapping can
+		// account for. A DRA resource the mapping did not resolve has to keep
+		// surfacing, otherwise a half-attributed pod looks healthy.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "test-partial-container",
+			},
+			Runtime:      workloadmeta.ContainerRuntimeContainerd,
+			GPUDeviceIDs: []string{testutil.GPUUUIDs[0]},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{
+					Name: string(gpuutil.GpuNvidiaGeneric),
+					ID:   "GPU-does-not-exist",
+				},
+			},
+		}
+
+		filteredDevices, err := MatchContainerDevices(container, devices)
+		require.Error(t, err)
+		require.Len(t, filteredDevices, 1)
+		assert.Equal(t, devices[0], filteredDevices[0])
 	})
 }
 
 func TestMatchContainerDevicesWithErrors(t *testing.T) {
 	// Setup mock NVML with basic devices
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	nvmlMock := nvmltestutil.SetupMockNVML(t)
 
 	// Get test devices
-	devices := nvmltestutil.GetDDNVMLMocksWithIndexes(t, 0, 1, 2)
+	devices := nvmltestutil.PhysicalDevices(t, nvmlMock, 0, 1, 2)
 
 	t.Run("ContainerWithValidAndInvalidGPUs", func(t *testing.T) {
 		container := &workloadmeta.Container{

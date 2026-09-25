@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"testing"
 	"unsafe"
@@ -31,6 +32,25 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
 	assert.Equal(t, 10.0, series.Points[0].Value)
+}
+
+func TestTimeSeriesStorage_AddWithHostSeparatesIdenticalMetricAndTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	first := s.AddWithHost("test", "my.metric", "host-a", 10, 1000, []string{"env:prod"})
+	second := s.AddWithHost("test", "my.metric", "host-b", 20, 1000, []string{"env:prod"})
+
+	require.NotEqual(t, first.Ref, second.Ref)
+	firstMeta := s.GetSeriesMeta(first.Ref)
+	secondMeta := s.GetSeriesMeta(second.Ref)
+	require.NotNil(t, firstMeta)
+	require.NotNil(t, secondMeta)
+	assert.Equal(t, "host-a", firstMeta.Host)
+	assert.Equal(t, "host-b", secondMeta.Host)
+	ranged := s.GetSeriesRange(first.Ref, 0, 1000, AggregateAverage)
+	require.NotNil(t, ranged)
+	assert.Equal(t, "host-a", ranged.Host)
+	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
+	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: []string{"env:prod"}, Aggregate: AggregateAverage}).Key())
 }
 
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
@@ -113,20 +133,37 @@ func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 	assert.Equal(t, 3.0, series.Points[0].Value)
 }
 
-func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
+func TestTimeSeriesStorage_LeavesUnitCountsImplicit(t *testing.T) {
 	s := newTimeSeriesStorage()
+	res := s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
 
-	s.Add("test", "my.metric", 10.0, 1000, nil)
-	s.Add("test", "my.metric", 20.0, 1000, nil)
-	s.Add("test", "my.metric", 5.0, 1000, nil)
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	assert.Nil(t, stats.counts)
+	assert.Equal(t, int64(2), stats.sampleCount())
+}
 
-	minSeries := s.GetSeries("test", "my.metric", nil, AggregateMin)
-	maxSeries := s.GetSeries("test", "my.metric", nil, AggregateMax)
+func TestTimeSeriesStorage_ExplicitCountsStayAlignedThroughInsertAndTrim(t *testing.T) {
+	s := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
+	res := s.Add("test", "my.metric", 30, 1002, nil)
+	s.Add("test", "my.metric", 10, 1000, nil)
+	s.Add("test", "my.metric", 20, 1001, nil)
+	s.Add("test", "my.metric", 40, 1002, nil)
+	s.Add("test", "my.metric", 50, 1003, nil)
 
-	require.NotNil(t, minSeries)
-	require.NotNil(t, maxSeries)
-	assert.Equal(t, 5.0, minSeries.Points[0].Value)
-	assert.Equal(t, 20.0, maxSeries.Points[0].Value)
+	stats := s.resolveByID(res.Ref)
+	require.NotNil(t, stats)
+	require.NotNil(t, stats.counts)
+	assert.Equal(t, []int64{1, 2, 1}, stats.counts.values)
+
+	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, []observer.Point{
+		{Timestamp: 1001, Value: 20},
+		{Timestamp: 1002, Value: 35},
+		{Timestamp: 1003, Value: 50},
+	}, series.Points)
 }
 
 func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
@@ -251,45 +288,35 @@ func TestTimeSeriesStorage_AllSeries(t *testing.T) {
 }
 
 func TestSeriesStats_AggregateAt(t *testing.T) {
-	// Build a seriesStats with known columnar data to test aggregation.
+	// Build a seriesStats with known bucket data to test aggregation.
 	ss := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{100.0},
-		counts:     []int64{4},
-		mins:       []float64{10.0},
-		maxes:      []float64{40.0},
+		buckets: []pointBucket{{timestamp: 1000, sum: 100.0}},
+		counts:  &bucketCounts{values: []int64{4}},
 	}
 
 	assert.Equal(t, 25.0, ss.aggregateAt(0, AggregateAverage))
 	assert.Equal(t, 100.0, ss.aggregateAt(0, AggregateSum))
 	assert.Equal(t, 4.0, ss.aggregateAt(0, AggregateCount))
-	assert.Equal(t, 10.0, ss.aggregateAt(0, AggregateMin))
-	assert.Equal(t, 40.0, ss.aggregateAt(0, AggregateMax))
 
 	// Zero count returns 0 for average
 	ss2 := &seriesStats{
-		timestamps: []int64{1000},
-		sums:       []float64{10.0},
-		counts:     []int64{0},
-		mins:       []float64{0},
-		maxes:      []float64{0},
+		buckets: []pointBucket{{timestamp: 1000, sum: 10.0}},
+		counts:  &bucketCounts{values: []int64{0}},
 	}
 	assert.Equal(t, 0.0, ss2.aggregateAt(0, AggregateAverage))
 }
 
 func TestAggSuffix(t *testing.T) {
-	// Test all aggregation types return correct suffixes
+	// Test all aggregation types return correct suffixes.
 	assert.Equal(t, "avg", aggSuffix(AggregateAverage))
 	assert.Equal(t, "sum", aggSuffix(AggregateSum))
 	assert.Equal(t, "count", aggSuffix(AggregateCount))
-	assert.Equal(t, "min", aggSuffix(AggregateMin))
-	assert.Equal(t, "max", aggSuffix(AggregateMax))
 
 	// Unknown aggregation type
 	assert.Equal(t, "unknown", aggSuffix(Aggregate(999)))
 }
 
-func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsNonFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
@@ -297,14 +324,9 @@ func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
 
 	series := s.GetSeries("test", "my.metric", nil, AggregateAverage)
 	assert.Nil(t, series)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(2), nonFinite)
-	assert.Equal(t, int64(0), extreme)
-	assert.Equal(t, int64(2), byMetric["test|my.metric"])
 }
 
-func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
+func TestTimeSeriesStorage_DropsExtremeFiniteValues(t *testing.T) {
 	s := newTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
@@ -314,11 +336,6 @@ func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
 	require.NotNil(t, series)
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, math.MaxFloat64/4, series.Points[0].Value)
-
-	nonFinite, extreme, byMetric := s.DroppedValueStats()
-	assert.Equal(t, int64(0), nonFinite)
-	assert.Equal(t, int64(1), extreme)
-	assert.Equal(t, int64(1), byMetric["test|my.metric"])
 }
 
 // --- Binary-search-based range query tests ---
@@ -419,7 +436,7 @@ func TestGetSeriesRange_NoOverlap(t *testing.T) {
 
 func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	s := newTimeSeriesStorage()
-	// Two values in the same bucket: sum=30, count=2, min=10, max=20, avg=15
+	// Two values in the same bucket: sum=30, count=2, avg=15.
 	s.Add("ns", "m", 10.0, 100, nil)
 	s.Add("ns", "m", 20.0, 100, nil)
 
@@ -431,8 +448,6 @@ func TestGetSeriesRange_AllAggregates(t *testing.T) {
 	}{
 		{AggregateSum, 30.0},
 		{AggregateCount, 2.0},
-		{AggregateMin, 10.0},
-		{AggregateMax, 20.0},
 		{AggregateAverage, 15.0},
 	} {
 		result := s.GetSeriesRange(id, 0, 200, tc.agg)
@@ -568,30 +583,6 @@ func TestFindingH1_StorageListAllSeriesCompactRace(_ *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 500; i++ {
 			_ = s.ListAllSeriesCompact()
-		}
-	}()
-
-	wg.Wait()
-}
-
-func TestFindingH1_StorageDroppedValueStatsRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			// Add some NaN to trigger drop accounting writes
-			s.Add("ns", "metric", math.NaN(), int64(i), nil)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 500; i++ {
-			_, _, _ = s.DroppedValueStats()
 		}
 	}()
 
@@ -794,9 +785,9 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
 	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
 
-	hA := seriesKeyHash("ns", "a", []string{"k:1"})
-	hB := seriesKeyHash("ns", "b", []string{"k:2"})
-	hMissing := seriesKeyHash("ns", "ghost", nil)
+	hA := seriesKeyHash("ns", "a", "", []string{"k:1"})
+	hB := seriesKeyHash("ns", "b", "", []string{"k:2"})
+	hMissing := seriesKeyHash("ns", "ghost", "", nil)
 
 	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
 
@@ -999,4 +990,85 @@ func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
 
 	s.Add("ns2", "m0", 1.0, 1000, []string{"unique:tag0"})
 	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "hit on existing entry must not grow pool")
+}
+
+func TestTimeSeriesStorage_DumpToFileIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.AddWithHost("ns", "metric", "web-1", 1, 1000, []string{"env:prod"})
+
+	path := t.TempDir() + "/series.json"
+	require.NoError(t, s.DumpToFile(path))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"host": "web-1"`)
+}
+
+func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.AddWithHost("ns", "metric", "web-1", 1, 1000, nil)
+
+	metas := s.ListSeriesMetadata("ns")
+	require.Len(t, metas, 1)
+	assert.Equal(t, "web-1", metas[0].Host)
+}
+
+func TestSeriesKeyHashMatchesSeriesKey(t *testing.T) {
+	for _, tc := range []struct {
+		host string
+		tags []string
+	}{
+		{tags: []string{"env:prod", "service:api"}},
+		{host: "web-1", tags: []string{"env:prod", "service:api"}},
+	} {
+		assert.Equal(t,
+			fnv64aString(seriesKey("ns", "metric", tc.host, tc.tags)),
+			seriesKeyHash("ns", "metric", tc.host, tc.tags),
+		)
+	}
+}
+
+func TestParseSeriesKeyRequiresHostField(t *testing.T) {
+	namespace, name, host, tags, ok := parseSeriesKey("ns|metric:avg||env:prod")
+	assert.True(t, ok)
+	assert.Equal(t, "ns", namespace)
+	assert.Equal(t, "metric:avg", name)
+	assert.Empty(t, host)
+	assert.Equal(t, []string{"env:prod"}, tags)
+
+	_, _, _, _, ok = parseSeriesKey("ns|metric:avg|env:prod")
+	assert.False(t, ok)
+}
+
+func TestCompactSeriesIDResolvesHostDimension(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	hostless := s.AddWithHost("ns", "metric", "", 1, 1000, tags)
+	hostA := s.AddWithHost("ns", "metric", "web-a", 1, 1000, tags)
+	hostB := s.AddWithHost("ns", "metric", "web-b", 1, 1000, tags)
+
+	for _, tc := range []struct {
+		host string
+		ref  observer.SeriesRef
+	}{
+		{host: "", ref: hostless.Ref},
+		{host: "web-a", ref: hostA.Ref},
+		{host: "web-b", ref: hostB.Ref},
+	} {
+		key := (observer.SeriesDescriptor{
+			Namespace: "ns",
+			Name:      "metric",
+			Host:      tc.host,
+			Tags:      tags,
+			Aggregate: AggregateAverage,
+		}).Key()
+		assert.Equal(t, fmt.Sprintf("%d:avg", tc.ref), s.CompactSeriesID(key))
+	}
+}
+
+func TestCompactSeriesIDRejectsLegacyHostlessKey(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.Add("ns", "metric", 1, 1000, []string{"env:prod"})
+	legacyKey := "ns|metric:avg|env:prod"
+
+	assert.Equal(t, legacyKey, s.CompactSeriesID(legacyKey))
 }

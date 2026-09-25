@@ -267,12 +267,12 @@ func TestTopAnomalyBuffer_ContributorsAggregateSharesAndLimitResults(t *testing.
 	buffer := newTopAnomalyBuffer(10)
 	average := observer.QueryHandle{Ref: 10, Aggregate: observer.AggregateAverage}
 	count := observer.QueryHandle{Ref: 20, Aggregate: observer.AggregateCount}
-	maximum := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateMax}
+	total := observer.QueryHandle{Ref: 30, Aggregate: observer.AggregateSum}
 	buffer.entries = []topAnomaly{
 		{handle: average, weight: 3},
 		{handle: average, weight: 2},
 		{handle: count, weight: 3},
-		{handle: maximum, weight: 2},
+		{handle: total, weight: 2},
 	}
 
 	contributors := buffer.contributors(2)
@@ -950,7 +950,7 @@ func TestSubscribeSeverityEventsCreatesIndependentDispatchers(t *testing.T) {
 // newScorerWithTelemetry is a test helper that creates a scorer with no-op
 // telemetry gauges so that the internal watcher is active.
 func newScorerWithTelemetry(cfg AnomalyScorerConfig) *anomalyScorer {
-	tel := noopsimpl.GetCompatComponent()
+	tel := noopsimpl.NewComponent()
 	severityGauge := tel.NewGauge("test", "scorer_severity", nil, "")
 	ewmaGauge := tel.NewGauge("test", "scorer_ewma", nil, "")
 	return newAnomalyScorerWithTelemetry(cfg, severityGauge, ewmaGauge)
@@ -1186,9 +1186,7 @@ func TestMaxEpisodeAnomalies(t *testing.T) {
 // wires the internal watcher self-subscription, updates the current severity
 // gauge, and does not panic on transitions.
 func TestScorerWithTelemetry_GaugesAndLogs(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 	tel := newObserverTelemetry(telComp)
 
 	cfg := episodeTestCfg()

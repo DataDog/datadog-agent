@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -30,6 +29,7 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	defaultforwardernoop "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -87,9 +87,9 @@ func (f *countingForwarder) GetDomainResolvers() []resolver.DomainResolver {
 	return f.resolvers
 }
 
-// SubmitTransaction increments the sketch counter when a sketch-series transaction arrives.
+// SubmitTransaction increments the sketch counter when a sketch-series transaction reaches the intake.
 func (f *countingForwarder) SubmitTransaction(txn *transaction.HTTPTransaction) error {
-	if strings.Contains(txn.Endpoint.Name, "sketch") {
+	if txn.Endpoint.Name == endpoints.SketchSeriesEndpoint.Name {
 		f.sketchCount.Add(1)
 	}
 	return nil
@@ -233,4 +233,84 @@ func TestShutdownCascadeFlushesLateSample(t *testing.T) {
 
 	require.Equal(t, int64(1), cf.sketchCount.Load(),
 		"the OnStop cascade must drain and flush the late sample to the forwarder")
+}
+
+// TestFlushAllDeliversOpenBucketSample proves FlushAll delivers a sample still
+// sitting in the current, open bucket — no periodic flush needed.
+// require.Eventually retries because AddEnhancedMetric and the worker
+// processing it race (the still-open SampleDrainer gap); that's not what this
+// test covers.
+func TestFlushAllDeliversOpenBucketSample(t *testing.T) {
+	mockConfig := configmock.New(t)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
+
+	cf := newCountingForwarder()
+
+	deps := fxutil.Test[aggregator.TestDeps](t,
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		fx.Provide(func() defaultforwarder.Component { return cf }),
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		haagentmock.Module(),
+		logscompression.MockModule(),
+		metricscompression.MockModule(),
+		filterlistmock.MockModule(),
+	)
+
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
+	opts.FlushInterval = time.Hour // disable automatic flushes
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	defer demux.Stop()
+
+	agent := New(demux, Tags{})
+	// An hour out so the bucket can never close mid-test, regardless of real
+	// bucket-boundary timing.
+	future := float64(time.Now().Add(time.Hour).UnixNano()) / float64(time.Second)
+	agent.AddEnhancedMetric("test.metric", 1.0, pkgmetrics.MetricSourceServerless, future)
+
+	require.Eventually(t, func() bool {
+		agent.FlushAll()
+		return cf.sketchCount.Load() >= 1
+	}, time.Second, time.Millisecond,
+		"FlushAll must deliver a sample from the still-open bucket")
+}
+
+// TestFlushSkipsOpenBucket is the negative control for
+// TestFlushAllDeliversOpenBucketSample: Flush must never include a sample
+// from the still-open bucket.
+func TestFlushSkipsOpenBucket(t *testing.T) {
+	mockConfig := configmock.New(t)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
+
+	cf := newCountingForwarder()
+
+	deps := fxutil.Test[aggregator.TestDeps](t,
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		fx.Provide(func() defaultforwarder.Component { return cf }),
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		haagentmock.Module(),
+		logscompression.MockModule(),
+		metricscompression.MockModule(),
+		filterlistmock.MockModule(),
+	)
+
+	opts := aggregator.DefaultAgentDemultiplexerOptions()
+	opts.FlushInterval = time.Hour // disable automatic flushes
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "")
+	defer demux.Stop()
+
+	agent := New(demux, Tags{})
+	future := float64(time.Now().Add(time.Hour).UnixNano()) / float64(time.Second)
+	agent.AddEnhancedMetric("test.metric", 1.0, pkgmetrics.MetricSourceServerless, future)
+
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		agent.Flush()
+		time.Sleep(time.Millisecond)
+	}
+	assert.Equal(t, int64(0), cf.sketchCount.Load(),
+		"Flush must not deliver a sample from the still-open bucket")
 }

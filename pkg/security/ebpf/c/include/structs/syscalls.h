@@ -119,6 +119,7 @@ struct syscall_cache_t {
             int clone_mnt_ctr;
             int source;
             u64 ns_inum;
+            u64 unshare_flags;
         } mount;
 
         struct {
@@ -148,6 +149,7 @@ struct syscall_cache_t {
             struct args_envs_t envs;
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
+            struct go_labels_context_t go_labels;
             struct linux_binprm_t linux_binprm;
             u32 is_through_symlink;
         } exec;

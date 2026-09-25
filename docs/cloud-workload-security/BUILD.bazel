@@ -15,6 +15,7 @@ package(default_visibility = ["//visibility:private"])
             variant,
         ),
         out_file = "secl_{}.json".format(variant),
+        visibility = ["//pkg/security:__pkg__"],
     )
     for variant in [
         "linux",
@@ -22,15 +23,71 @@ package(default_visibility = ["//visibility:private"])
     ]
 ]
 
-# Markdown doc generation: renders Jinja2 templates using the committed JSON
-# schemas as inputs. Platform-neutral — reads committed source files so it runs
-# on any OS without needing the Linux-only Go generator.
+# Generates workload_protection_agent_config.schema.json from pkg/security/config/config.go.
+run_binary(
+    name = "workload_protection_agent_config_schema_gen",
+    srcs = ["//pkg/security/config:config_doc_input"],
+    outs = ["workload_protection_agent_config_schema_gen/workload_protection_agent_config.schema.json"],
+    args = [
+        "-input=pkg/security/config/config.go",
+        "-output=$(execpath workload_protection_agent_config_schema_gen/workload_protection_agent_config.schema.json)",
+    ],
+    tool = "//pkg/security/generators/config_doc",
+)
+
+write_source_file(
+    name = "workload_protection_agent_config_schema",
+    in_file = ":workload_protection_agent_config_schema_gen",
+    out_file = "workload_protection_agent_config.schema.json",
+    visibility = ["//pkg/security:__pkg__"],
+)
+
+# backend_<os>.schema.json is produced by reflecting the serializer types
+# carrying that platform's build tag, so each variant only builds on its own OS.
+[
+    [
+        run_binary(
+            name = "backend_{}_schema_gen".format(os),
+            srcs = ["//pkg/security/serializers:serializers_sources"],
+            outs = ["backend_{0}_schema_gen/backend_{0}.schema.json".format(os)],
+            args = [
+                "-serializers-dir=pkg/security/serializers",
+                "-output=$(execpath backend_{0}_schema_gen/backend_{0}.schema.json)".format(os),
+            ],
+            target_compatible_with = ["@platforms//os:" + os],
+            tool = "//pkg/security/generators/backend_doc",
+        ),
+        write_source_file(
+            name = "backend_{}_schema".format(os),
+            in_file = ":backend_{}_schema_gen".format(os),
+            out_file = "backend_{}.schema.json".format(os),
+            visibility = ["//pkg/security:__pkg__"],
+        ),
+        # The markdown docs render from the fresh schema where the generator can
+        # run, and fall back to the committed one elsewhere so they still build.
+        alias(
+            name = "backend_{}_schema_input".format(os),
+            actual = select({
+                "@platforms//os:" + os: ":backend_{}_schema_gen".format(os),
+                "//conditions:default": "backend_{}.schema.json".format(os),
+            }),
+        ),
+    ]
+    for os in [
+        "linux",
+        "windows",
+    ]
+]
+
+# Markdown doc generation: renders Jinja2 templates from the generator outputs
+# rather than the committed JSON, so a single //pkg/security:cws_codegen run
+# refreshes the schemas and their docs together.
 run_binary(
     name = "backend_linux_doc_gen",
-    srcs = ["backend_linux.schema.json"],
+    srcs = [":backend_linux_schema_input"],
     outs = ["backend_linux_doc_gen/backend_linux.md"],
     args = [
-        "$(execpath backend_linux.schema.json)",
+        "$(execpath :backend_linux_schema_input)",
         "$(execpath backend_linux_doc_gen/backend_linux.md)",
         "backend_linux.md",
     ],
@@ -43,10 +100,10 @@ run_binary(
 
 run_binary(
     name = "backend_windows_doc_gen",
-    srcs = ["backend_windows.schema.json"],
+    srcs = [":backend_windows_schema_input"],
     outs = ["backend_windows_doc_gen/backend_windows.md"],
     args = [
-        "$(execpath backend_windows.schema.json)",
+        "$(execpath :backend_windows_schema_input)",
         "$(execpath backend_windows_doc_gen/backend_windows.md)",
         "backend_windows.md",
     ],
@@ -55,10 +112,10 @@ run_binary(
 
 run_binary(
     name = "secl_linux_doc_gen",
-    srcs = ["secl_linux.json"],
+    srcs = ["//pkg/security/secl/model:accessors_unix/secl_linux.json"],
     outs = ["secl_linux_doc_gen/linux_expressions.md"],
     args = [
-        "$(execpath secl_linux.json)",
+        "$(execpath //pkg/security/secl/model:accessors_unix/secl_linux.json)",
         "$(execpath secl_linux_doc_gen/linux_expressions.md)",
         "linux_expressions.md",
     ],
@@ -71,20 +128,30 @@ run_binary(
 
 run_binary(
     name = "secl_windows_doc_gen",
-    srcs = ["secl_windows.json"],
+    srcs = ["//pkg/security/secl/model:accessors_windows/secl_windows.json"],
     outs = ["secl_windows_doc_gen/windows_expressions.md"],
     args = [
-        "$(execpath secl_windows.json)",
+        "$(execpath //pkg/security/secl/model:accessors_windows/secl_windows.json)",
         "$(execpath secl_windows_doc_gen/windows_expressions.md)",
         "windows_expressions.md",
     ],
     tool = "//tasks/libs/cws:secl_doc_gen",
 )
 
-# Umbrella target: updates all four CWS markdown docs in one shot using the
-# committed JSON schemas as inputs. Platform-neutral — can run on any OS.
-# The JSON schemas themselves are updated by backend_linux_schema /
-# backend_windows_schema (Linux-only), called from cws_go_generate.
+run_binary(
+    name = "workload_protection_agent_config_doc_gen",
+    srcs = [":workload_protection_agent_config_schema_gen"],
+    outs = ["workload_protection_agent_config_doc_gen/workload_protection_agent_config.md"],
+    args = [
+        "$(execpath :workload_protection_agent_config_schema_gen)",
+        "$(execpath workload_protection_agent_config_doc_gen/workload_protection_agent_config.md)",
+        "workload_protection_agent_config.md",
+    ],
+    tool = "//tasks/libs/cws:config_doc_gen",
+)
+
+# Umbrella target for the five CWS markdown docs. Part of
+# //pkg/security:cws_codegen, which also refreshes the JSON schemas.
 write_source_files(
     name = "cws_docs",
     files = {
@@ -92,6 +159,7 @@ write_source_files(
         "backend_windows.md": ":backend_windows_doc_gen/backend_windows.md",
         "linux_expressions.md": ":secl_linux_doc_gen/linux_expressions.md",
         "windows_expressions.md": ":secl_windows_doc_gen/windows_expressions.md",
+        "workload_protection_agent_config.md": ":workload_protection_agent_config_doc_gen/workload_protection_agent_config.md",
     },
     visibility = ["//visibility:public"],
 )

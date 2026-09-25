@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -24,9 +26,29 @@ import (
 )
 
 var (
-	createDCAArchiveFunc = CreateDCAArchive
-	sendFlareFunc        = flarehelpers.SendTo
+	createDCAArchiveFunc        = CreateDCAArchive
+	sendFlareFunc               = flarehelpers.SendTo
+	getClusterAgentIdentityFunc = getClusterAgentIdentity
 )
+
+func renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName string) string {
+	originalName := filepath.Base(filePath)
+	originalSuffix := strings.TrimPrefix(originalName, "datadog-agent-")
+	sanitize := strings.NewReplacer("/", "_", `\`, "_")
+	archiveName := fmt.Sprintf(
+		"datadog-agent-%s__%s__%s__%s",
+		sanitize.Replace(clusterName),
+		sanitize.Replace(namespace),
+		sanitize.Replace(podName),
+		originalSuffix,
+	)
+	archivePath := filepath.Join(filepath.Dir(filePath), archiveName)
+	if err := os.Rename(filePath, archivePath); err != nil {
+		log.Infof("[RemoteFlare] Could not add Cluster Agent resource identity to flare archive name, using generic name: %v", err)
+		return filePath
+	}
+	return archivePath
+}
 
 // HandleRCFlareTask creates and sends a cluster-agent flare in response to an RC AGENT_TASK.
 func HandleRCFlareTask(
@@ -68,6 +90,11 @@ func HandleRCFlareTask(
 	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, flareArgs, statusComp, diagnoseComp, ipcComp)
 	if err != nil {
 		return fmt.Errorf("failed to create cluster-agent flare: %w", err)
+	}
+	if clusterName, namespace, podName, identityErr := getClusterAgentIdentityFunc(); identityErr != nil {
+		log.Infof("[RemoteFlare] Could not add Cluster Agent resource identity to flare archive name: %v", identityErr)
+	} else {
+		filePath = renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName)
 	}
 
 	log.Infof("[RemoteFlare] Cluster-agent flare created at %s (UUID=%s)", filePath, task.Config.UUID)

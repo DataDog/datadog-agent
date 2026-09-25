@@ -111,7 +111,7 @@ func TestCGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testCGroup, err := newCGroup("cg1", "systemd")
 	if err != nil {
@@ -261,7 +261,7 @@ func TestCGroupPropagation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer test.Close()
+			defer test.CloseTest()
 
 			targetCGroupPath := "/sys/fs/cgroup/" + tc.cgroupName
 			if err := os.MkdirAll(targetCGroupPath, 0700); err != nil {
@@ -340,7 +340,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
@@ -405,7 +405,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		// Check we filled the kernel maps correctly with the same values than userspace for the testsuite process
 		var newEntry *model.ProcessCacheEntry
 		ebpfProbe := test.probe.PlatformProbe.(*probe.EBPFProbe)
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(uint32(os.Getpid()), uint32(os.Getpid()), testsuiteEntry.PPid, testsuiteStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)
@@ -415,7 +415,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the syscall tester process
 		newEntry = nil
-		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
+		ebpfProbe.Resolvers.ProcessResolver.ResolveFromKernelMaps(syscallTesterEntry.Pid, syscallTesterEntry.Pid, syscallTesterEntry.PPid, syscallTesterStats.Ino, func(entry *model.ProcessCacheEntry, _ error) {
 			newEntry = entry
 		})
 		assert.NotNil(t, newEntry)
@@ -460,7 +460,7 @@ func TestCGroupVariables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -539,7 +539,7 @@ func TestCGroupVariablesReleased(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
@@ -601,7 +601,7 @@ func TestCGroupWriteEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {

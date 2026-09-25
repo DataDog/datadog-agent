@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-// team: agent-runtimes
+// team: fleet-remediation
 
 // Component is the component type.
 type Component interface {
@@ -18,6 +18,8 @@ type Component interface {
 	Handler() http.Handler
 	// Reset resets all tracked telemetry
 	Reset()
+	// CanonicalMetricHelp returns the HELP text for a metric family created in the normal telemetry registry.
+	CanonicalMetricHelp(metricName string) (help string, found bool)
 	// RegisterCollector Registers a Collector with the prometheus registry
 	RegisterCollector(c Collector)
 	// UnregisterCollector unregisters a Collector with the prometheus registry
@@ -52,9 +54,10 @@ type Component interface {
 	// NewSimpleHistogramWithOpts creates a new SimpleHistogram.
 	NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram
 
-	// Gather exposes metrics from the general or default telemetry registry (see options.DefaultMetric)
-	Gather(defaultGather bool) ([]*MetricFamily, error)
+	// Gather exposes the metrics from the telemetry registry that the given filter accepts.
+	Gather(filter MetricFilter) ([]*MetricFamily, error)
 
-	// GatherText exposes metrics from the general or default telemetry registry (see options.DefaultMetric) in text format
-	GatherText(defaultGather bool, filter MetricFilter) (string, error)
+	// GatherText exposes, in Prometheus text format, the metrics from the telemetry registry that
+	// the given filter accepts.
+	GatherText(filter MetricFilter) (string, error)
 }

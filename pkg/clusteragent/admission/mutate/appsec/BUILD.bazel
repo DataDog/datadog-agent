@@ -21,7 +21,6 @@ go_library(
         "//pkg/clusteragent/admission/mutate/tagsfromlabels",
         "//pkg/clusteragent/appsec",
         "//pkg/clusteragent/appsec/config",
-        "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/log",
         "@io_k8s_api//admission/v1:admission",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",
@@ -48,6 +47,7 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//cmd/cluster-agent/admission",
+        "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/admission/mutate/common",

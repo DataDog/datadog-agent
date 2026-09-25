@@ -3,10 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+pub mod agent_yaml;
 pub mod command;
 pub mod config;
+pub mod config_gate;
 pub mod env;
+#[cfg(all(test, windows))]
+mod fleet_process_template;
 pub mod grpc;
+mod handle;
 pub mod manager;
 pub mod ordering;
 pub mod platform;
@@ -14,6 +19,7 @@ pub mod process;
 #[cfg(windows)]
 pub mod service;
 pub mod shutdown;
+mod spawn;
 pub mod state;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers;

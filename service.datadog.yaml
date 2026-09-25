@@ -16,19 +16,19 @@ links:
   - name: internal-chart
     provider: github
     type: repo
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent
   - name: internal-chart-with-operator
     provider: github
     type: repo
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
   - name: internal-image
     provider: github
     type: repo
-    url: https://github.com/DataDog/images/tree/master/datadog-agent
+    url: https://github.com/ddoghq/images/tree/master/datadog-agent
   - name: deployment
     provider: github
     type: repo
-    url: https://github.com/DataDog/k8s-datadog-agent-ops
+    url: https://github.com/ddoghq/k8s-datadog-agent-ops
   - name: Runbook
     type: doc
     url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks
@@ -91,7 +91,7 @@ extensions:
           branch: "conductor-sandbox"
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
-          branch: "7.82.x"
+          branch: "7.83.x"
           schedule: "30 2 * * *"
           build_only: true
           parent_environments: ["staging"]
@@ -109,98 +109,6 @@ extensions:
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml
----
-schema-version: v2.1
-dd-service: datadog-cluster-agent
-team: container-platform
-contacts:
-  - type: slack
-    # #container-platform
-    contact: https://dd.slack.com/archives/C0702JHC7G8
-  - type: email
-    contact: team-containerplatform@datadoghq.com
-links:
-  - name: datadog-agent
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/datadog-agent
-  - name: internal-chart
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-cluster-agent
-  - name: internal-chart-with-operator
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
-  - name: internal-image
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/images/tree/master/datadog-cluster-agent
-  - name: deployment
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops
-  - name: Runbook
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks
-  - name: On Call documentation
-    type: doc
-    provider: confluence
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/837812317/Combined+Agent+On-call
-  - name: Cluster-Agent documentation
-    type: doc
-    provider: confluence
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2530706500/Agent+Components+in+Kubernetes#Datadog-Cluster-Agent
-tags:
-  - team:container-platform
-  - service:datadog-cluster-agent
-  - app:datadog-cluster-agent
----
-schema-version: v2.1
-dd-service: datadog-agent-cluster-worker
-team: container-platform
-contacts:
-  - type: slack
-    # #container-platform
-    contact: https://dd.slack.com/archives/C0702JHC7G8
-  - type: email
-    contact: team-containerplatform@datadoghq.com
-links:
-  - name: datadog-agent
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/datadog-agent
-  - name: internal-chart
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-cluster-worker
-  - name: internal-chart-with-operator
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops/tree/main/k8s/datadog-agent-with-operator
-  - name: internal-image
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/images/tree/master/datadog-agent-cluster-worker
-  - name: deployment
-    type: repo
-    provider: github
-    url: https://github.com/DataDog/k8s-datadog-agent-ops
-  - name: Runbook
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/986480852/On-Call+Playbooks
-  - name: On Call documentation
-    provider: confluence
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/837812317/Combined+Agent+On-call
-  - name: Datadog-Agent-Cluster-Worker documentation
-    provider: confluence
-    type: doc
-    url: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2530706500/Agent+Components+in+Kubernetes#Datadog-Agent-Cluster-Worker
-tags:
-  - team:container-platform
-  - service:datadog-agent-cluster-worker
-  - app:datadog-agent-cluster-worker
 ---
 apiVersion: v3
 kind: service

@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -442,7 +442,7 @@ func (r *RemoteFlareProvider) getHTTPCallContent(url string) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := r.IPC.GetClient().Do(req.WithContext(ctx))
+	resp, err := r.IPC.GetClient().Do(req.WithContext(ctx), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return nil, err
 	}

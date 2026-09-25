@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Adds support for on-demand PAR action execution to Windows host
+    deployments.

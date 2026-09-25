@@ -30,7 +30,10 @@ func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureAppServiceRuntime,
 		metrics.MetricSourceGoogleCloudRunCustom,
 		metrics.MetricSourceGoogleCloudRunEnhanced,
-		metrics.MetricSourceGoogleCloudRunRuntime:
+		metrics.MetricSourceGoogleCloudRunRuntime,
+		metrics.MetricSourceAWSMicroVMCustom,
+		metrics.MetricSourceAWSMicroVMEnhanced,
+		metrics.MetricSourceAWSMicroVMRuntime:
 		return serieMetadataOriginOriginProductServerlessType
 	}
 	return serieMetadataOriginOriginProductAgentType
@@ -92,10 +95,12 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
 		metrics.MetricSourceCiscoSdwan,
+		metrics.MetricSourceCiscoCatalystCenter,
 		metrics.MetricSourceVersa,
 		metrics.MetricSourceWlan,
 		metrics.MetricSourceWindowsCertificateStore,
 		metrics.MetricSourceThermal,
+		metrics.MetricSourcePowerShell,
 		// Plugins and non-checks
 		metrics.MetricSourceCloudFoundry,
 		metrics.MetricSourceJenkins,
@@ -390,6 +395,10 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureContainerAppRuntime:
 		return 37
+	case metrics.MetricSourceAWSMicroVMCustom,
+		metrics.MetricSourceAWSMicroVMEnhanced,
+		metrics.MetricSourceAWSMicroVMRuntime:
+		return 90
 	default:
 		return 0
 	}
@@ -841,8 +850,6 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 235
 	case metrics.MetricSourceOpenTelemetryCollectorOracledbReceiver:
 		return 236
-	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
-		return 521
 	case metrics.MetricSourceOpenTelemetryCollectorPostgresqlReceiver:
 		return 237
 	case metrics.MetricSourceOpenTelemetryCollectorPrometheusReceiver:
@@ -1098,15 +1105,18 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 465
 	case metrics.MetricSourceAzureContainerAppCustom,
 		metrics.MetricSourceAzureAppServiceCustom,
-		metrics.MetricSourceGoogleCloudRunCustom:
+		metrics.MetricSourceGoogleCloudRunCustom,
+		metrics.MetricSourceAWSMicroVMCustom:
 		return 472
 	case metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureAppServiceEnhanced,
-		metrics.MetricSourceGoogleCloudRunEnhanced:
+		metrics.MetricSourceGoogleCloudRunEnhanced,
+		metrics.MetricSourceAWSMicroVMEnhanced:
 		return 473
 	case metrics.MetricSourceAzureContainerAppRuntime,
 		metrics.MetricSourceAzureAppServiceRuntime,
-		metrics.MetricSourceGoogleCloudRunRuntime:
+		metrics.MetricSourceGoogleCloudRunRuntime,
+		metrics.MetricSourceAWSMicroVMRuntime:
 		return 474
 	case metrics.MetricSourceWlan:
 		return 475
@@ -1158,12 +1168,18 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 517
 	case metrics.MetricSourceVersa:
 		return 519
+	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return 521
 	case metrics.MetricSourceExternalSecrets:
 		return 525
 	case metrics.MetricSourceKueue:
 		return 526
 	case metrics.MetricSourceThermal:
 		return 527
+	case metrics.MetricSourceCiscoCatalystCenter:
+		return 528
+	case metrics.MetricSourcePowerShell:
+		return 530
 	default:
 		return 0
 	}

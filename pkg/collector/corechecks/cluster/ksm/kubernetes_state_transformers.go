@@ -124,6 +124,7 @@ func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 		"kube_node_status_capacity":                       nodeCapacityTransformer,
 		"kube_node_status_extended_capacity":              nodeCapacityTransformer,
 		"kube_node_created":                               nodeCreationTransformer,
+		"kube_resourceclaim_created":                      resourceClaimCreationTransformer,
 		"kube_resourcequota":                              resourcequotaTransformer,
 		"kube_limitrange":                                 limitrangeTransformer,
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
@@ -249,6 +250,16 @@ func submitAge(s sender.Sender, name string, metric ksmstore.DDMetric, hostname 
 // nodeCreationTransformer generates the node age metric based on the creation timestamp
 func nodeCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	submitAge(s, ksmMetricPrefix+"node.age", metric, hostname, tags, currentTime)
+}
+
+// resourceClaimCreationTransformer generates the pending age of a DRA
+// ResourceClaim from its creation timestamp. The generator publishes a
+// timestamp rather than an elapsed value because the KSM store builds a metric
+// family when the informer sees the object, not when it is scraped; the
+// subtraction has to happen here, at submit time, exactly as it does for pods
+// and nodes.
+func resourceClaimCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	submitAge(s, ksmMetricPrefix+"resourceclaim.pending.age", metric, hostname, tags, currentTime)
 }
 
 // podCreationTransformer generates the pod age metric based on the creation timestamp
@@ -643,6 +654,11 @@ func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric
 // In KSM v2.14 the separate kube_endpoint_address_available and
 // kube_endpoint_address_not_ready metrics were removed and replaced by
 // kube_endpoint_address with a "ready" label ("true" or "false").
+// As of v2.14 KSM only emits a row for addresses that exist in that ready
+// state, so a healthy endpoint has no ready="false" sample and a fully
+// unready endpoint has no ready="true" sample. Emit the other metric as 0
+// so both address_available and address_not_ready still report instead of
+// going sparse.
 func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	ready, found := metric.Labels["ready"]
 	if !found {
@@ -654,7 +670,9 @@ func endpointAddressTransformer(s sender.Sender, _ string, metric ksmstore.DDMet
 	switch ready {
 	case "true":
 		s.Gauge(ksmMetricPrefix+"endpoint.address_available", metric.Val, hostname, tags)
+		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", 0, hostname, tags)
 	case "false":
+		s.Gauge(ksmMetricPrefix+"endpoint.address_available", 0, hostname, tags)
 		s.Gauge(ksmMetricPrefix+"endpoint.address_not_ready", metric.Val, hostname, tags)
 	}
 }

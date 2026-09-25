@@ -1,10 +1,11 @@
 #ifndef _HOOKS_SETRLIMIT_H_
 #define _HOOKS_SETRLIMIT_H_
 
-#include "constants/syscall_macro.h"   
-#include "helpers/discarders.h"        
-#include "helpers/syscalls.h"          
-#include "events_definition.h"        
+#include "constants/syscall_macro.h"
+#include "helpers/discarders.h"
+#include "helpers/span_fill.h"
+#include "helpers/syscalls.h"
+#include "events_definition.h"
 
 #define SETRLIMIT_RATE_LIMITER  100     
 
@@ -83,7 +84,7 @@ int hook_security_task_setrlimit(ctx_t *ctx)
 }
 
 static __always_inline int
-sys_setrlimit_ret(void *ctx, int ret)
+sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
 {
     struct syscall_cache_t *cache = pop_syscall(EVENT_SETRLIMIT);
     if (!cache) {
@@ -99,20 +100,27 @@ sys_setrlimit_ret(void *ctx, int ret)
        cache->setrlimit.pid = fallback;
     }
 
-    struct setrlimit_event_t evt = {
-        .syscall.retval = ret,
-        .resource = cache->setrlimit.resource,
-        .rlim_cur = cache->setrlimit.rlim_cur,
-        .rlim_max = cache->setrlimit.rlim_max,
-        .target = cache->setrlimit.pid,
-    };
+    struct setrlimit_event_t *evt = SPAN_FILL_EVENT(struct setrlimit_event_t, EVENT_SETRLIMIT);
+    if (!evt) {
+        return 0;
+    }
+    evt->syscall.retval = ret;
+    evt->resource = cache->setrlimit.resource;
+    evt->rlim_cur = cache->setrlimit.rlim_cur;
+    evt->rlim_max = cache->setrlimit.rlim_max;
+    evt->target = cache->setrlimit.pid;
 
-    struct proc_cache_t *pc = fill_process_context(&evt.process);
-    fill_cgroup_context(pc, &evt.cgroup);
-    fill_span_context(&evt.span);
+    struct proc_cache_t *pc = fill_process_context(&evt->process);
+    fill_cgroup_context(pc, &evt->cgroup);
 
-    send_event(ctx, EVENT_SETRLIMIT, evt);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
+}
+
+static __always_inline int
+sys_setrlimit_ret(void *ctx, int ret)
+{
+    return sys_setrlimit_ret_impl(ctx, ret, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(setrlimit) {
@@ -122,7 +130,7 @@ HOOK_SYSCALL_EXIT(setrlimit) {
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_setrlimit_exit,
                          struct tracepoint_raw_syscalls_sys_exit_t *args)
 {
-    return sys_setrlimit_ret(args, args->ret);
+    return sys_setrlimit_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 HOOK_SYSCALL_ENTRY4(prlimit64,

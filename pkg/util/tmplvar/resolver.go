@@ -23,7 +23,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 type Resolvable interface {
@@ -432,7 +432,12 @@ func GetPort(tplVar string, res Resolvable) (string, error) {
 		}
 		return "", fmt.Errorf("port %s not found, skipping container %s", tplVar, res.GetServiceID())
 	}
-	if len(ports) <= idx {
+	if idx < 0 {
+		// Negative indexes are Python-like: -1 is the last port, -2 the second
+		// to last, etc. They wrap around so that indexes beyond the number of
+		// ports still resolve, e.g. -4 with 3 ports resolves to the last one.
+		idx = ((idx % len(ports)) + len(ports)) % len(ports)
+	} else if len(ports) <= idx {
 		return "", fmt.Errorf("index given for the port template var is too big, skipping container %s", res.GetServiceID())
 	}
 	return strconv.Itoa(ports[idx].Port), nil

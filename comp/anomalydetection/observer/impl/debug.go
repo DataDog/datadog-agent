@@ -68,8 +68,11 @@ type StateView interface {
 	GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series
 	ScenarioBounds() (start, end int64, ok bool)
 
-	// Anomalies
+	// Anomalies (full history is available only when replay/debug tracking is enabled)
 	Anomalies() []observerdef.Anomaly
+	// DetectorOutputAnomalies returns every detector result before downstream
+	// filtering when replay tracking is enabled.
+	DetectorOutputAnomalies() []observerdef.Anomaly
 	TotalAnomalyCount() int
 
 	// Scoring

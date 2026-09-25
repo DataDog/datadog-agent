@@ -34,6 +34,17 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
 }
 
+func TestEndpointDescriptorSetFromKeysPerDomainPreservesPendingDelegatedAuth(t *testing.T) {
+	descriptors := EndpointDescriptorSetFromKeysPerDomain(map[string][]APIKeys{
+		"https://pending.example": {{
+			ConfigSettingPath:       "process_config.additional_endpoints",
+			HasPendingDelegatedAuth: true,
+		}},
+	})
+
+	assert.True(t, descriptors["https://pending.example"].HasPendingDelegatedAuth)
+}
+
 func TestGetMultipleEndpointsDefault(t *testing.T) {
 	datadogYaml := `
 api_key: fakeapikey
@@ -177,6 +188,46 @@ additional_endpoints:
 			NewAPIKeys("additional_endpoints", "fakeapikey2"),
 		}),
 		"https://foo.datadoghq.com": newEndpointDescriptor("https://foo.datadoghq.com", newAPIKeyset("additional_endpoints", "someapikey")),
+	}
+
+	assert.NoError(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
+func TestGetMultipleEndpointsPendingDelegatedAuthDirective(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://second-org.datadoghq.com":
+  - 'DELA(some-org-uuid, aws)'
+  "https://third-org.datadoghq.com":
+  - "some-static-key"
+  - 'DELA(some-other-org-uuid, aws, region=us-east-1)'
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
+
+	// A domain whose only entry is a pending DELA(...) directive still gets a resolver (with zero
+	// real keys) marked HasPendingDelegatedAuth so the forwarder doesn't drop it before delegated
+	// auth has a chance to deliver a real key.
+	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true},
+	})
+
+	// A coexisting static key is preserved; the DELA(...) directive is filtered out of the
+	// real-key list until delegated auth resolves it, but the domain is still marked pending.
+	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", []APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{"some-static-key"}, HasPendingDelegatedAuth: true},
+	})
+
+	expectedMultipleEndpoints := EndpointDescriptorSet{
+		"https://app.datadoghq.com":        newEndpointDescriptor("https://app.datadoghq.com", newAPIKeyset("api_key", "fakeapikey")),
+		"https://second-org.datadoghq.com": secondOrg,
+		"https://third-org.datadoghq.com":  thirdOrg,
 	}
 
 	assert.NoError(t, err)

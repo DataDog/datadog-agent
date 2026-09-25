@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fixed the host SBOM scan (``sbom.host.enabled``) reporting no packages when
+    the Agent runs as ``dd-agent``. The scan walks the paths the enabled
+    analyzers declare, one of which is ``/root/buildinfo/content_manifests``,
+    and ``/root`` is only traversable by root. Such a path is now skipped and
+    the scan reports the packages it found.

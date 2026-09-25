@@ -1,0 +1,25 @@
+diff --git a/internal/plugins/loader/BUILD.bazel b/internal/plugins/loader/BUILD.bazel
+index 425036c..509eeb1 100644
+--- a/internal/plugins/loader/BUILD.bazel
++++ b/internal/plugins/loader/BUILD.bazel
+@@ -3,7 +3,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+ go_library(
+     name = "loader",
+     srcs = [
+-        "load_go_plugin.go",
++        "load_go_plugin_disabled.go",
+         "loader.go",
+     ],
+     importpath = "sigs.k8s.io/kustomize/api/internal/plugins/loader",
+diff --git a/internal/plugins/loader/load_go_plugin_disabled.go b/internal/plugins/loader/load_go_plugin_disabled.go
+index 5531b79..04577dd 100644
+--- a/internal/plugins/loader/load_go_plugin_disabled.go
++++ b/internal/plugins/loader/load_go_plugin_disabled.go
+@@ -9,7 +9,6 @@
+ // to the population of ELF's sections such as .dynsym and .dynstr.
+ // By utilizing this flag, applications have the flexibility to exclude the
+ // import if they do not require support for dynamic Go plugins.
+-//go:build kustomize_disable_go_plugin_support
+ 
+ package loader
+ 

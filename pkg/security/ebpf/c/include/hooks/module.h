@@ -3,6 +3,7 @@
 
 #include "constants/syscall_macro.h"
 #include "helpers/filesystem.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 int __attribute__((always_inline)) trace_init_module(void *ctx, u32 loaded_from_memory, const char *uargs) {
@@ -96,37 +97,43 @@ int hook_security_kernel_read_file(ctx_t *ctx) {
     return trace_kernel_file(ctx, f, KPROBE_OR_FENTRY_TYPE);
 }
 
-int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
+int __attribute__((always_inline)) trace_init_module_ret_impl(void *ctx, int retval, char *modname, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_INIT_MODULE);
     if (!syscall) {
         return 0;
     }
 
-    struct init_module_event_t event = {
-        .syscall.retval = retval,
-        .file = syscall->init_module.file,
-        .loaded_from_memory = syscall->init_module.loaded_from_memory,
-    };
+    struct init_module_event_t *event = SPAN_FILL_EVENT(struct init_module_event_t, EVENT_INIT_MODULE);
+    if (!event) {
+        return 0;
+    }
 
-    bpf_probe_read_str(&event.args, sizeof(event.args), &syscall->init_module.args);
-    event.args_truncated = syscall->init_module.args_truncated;
+    event->syscall.retval = retval;
+    event->file = syscall->init_module.file;
+    event->loaded_from_memory = syscall->init_module.loaded_from_memory;
+
+    bpf_probe_read_str(&event->args, sizeof(event->args), &syscall->init_module.args);
+    event->args_truncated = syscall->init_module.args_truncated;
 
     if (!modname) {
-        bpf_probe_read_str(&event.name, sizeof(event.name), &syscall->init_module.name[0]);
+        bpf_probe_read_str(&event->name, sizeof(event->name), &syscall->init_module.name[0]);
     } else {
-        bpf_probe_read_str(&event.name, sizeof(event.name), modname);
+        bpf_probe_read_str(&event->name, sizeof(event->name), modname);
     }
 
     if (syscall->init_module.dentry != NULL) {
-        fill_file(syscall->init_module.dentry, &event.file);
+        fill_file(syscall->init_module.dentry, &event->file);
     }
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_INIT_MODULE, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
+}
+
+int __attribute__((always_inline)) trace_init_module_ret(void *ctx, int retval, char *modname) {
+    return trace_init_module_ret_impl(ctx, retval, modname, KPROBE_OR_FENTRY_TYPE);
 }
 
 // only attached on rhel-7 based kernels
@@ -146,7 +153,8 @@ int module_load(struct tracepoint_module_module_load_t *args) {
     unsigned short modname_offset = args->data_loc_modname & 0xFFFF;
     char *modname = (char *)args + modname_offset;
 
-    return trace_init_module_ret(args, 0, modname);
+    // module_load runs in tracepoint context.
+    return trace_init_module_ret_impl(args, 0, modname, TRACEPOINT_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(init_module) {
@@ -169,23 +177,28 @@ HOOK_SYSCALL_ENTRY1(delete_module, const char *, name_user) {
     return 0;
 }
 
-int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) trace_delete_module_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_DELETE_MODULE);
     if (!syscall) {
         return 0;
     }
 
-    struct delete_module_event_t event = {
-        .syscall.retval = retval,
-    };
-    bpf_probe_read_str(&event.name, sizeof(event.name), (void *)syscall->delete_module.name);
+    struct delete_module_event_t *event = SPAN_FILL_EVENT(struct delete_module_event_t, EVENT_DELETE_MODULE);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    bpf_probe_read_str(&event->name, sizeof(event->name), (void *)syscall->delete_module.name);
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_DELETE_MODULE, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
+}
+
+int __attribute__((always_inline)) trace_delete_module_ret(void *ctx, int retval) {
+    return trace_delete_module_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(delete_module) {
@@ -193,11 +206,11 @@ HOOK_SYSCALL_EXIT(delete_module) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_init_module_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return trace_init_module_ret(args, args->ret, NULL);
+    return trace_init_module_ret_impl(args, args->ret, NULL, TRACEPOINT_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_delete_module_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return trace_delete_module_ret(args, args->ret);
+    return trace_delete_module_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

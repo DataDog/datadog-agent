@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 )
 
@@ -17,21 +18,57 @@ func newTestCollectorConsumer(buildInfo component.BuildInfo) *collectorConsumer 
 	return &collectorConsumer{
 		serializerConsumer: s,
 		seenHosts:          make(map[string]struct{}),
-		seenTags:           make(map[string]struct{}),
+		seenTagSets:        make(map[tagSetKey][]string),
 		buildInfo:          buildInfo,
 		getPushTime:        func() uint64 { return uint64(2e9) },
 	}
 }
 
-func TestExporterFargateMetrics(t *testing.T) {
-	tags := []string{"version:1.0", "command:otelcontribcol"}
-	serie := exporterFargateMetrics(uint64(2e9), tags)
+func TestExporterWorkloadMetrics(t *testing.T) {
+	tests := []struct {
+		name         string
+		metricSuffix string
+		tags         []string
+		wantName     string
+	}{
+		{
+			name:         "fargate",
+			metricSuffix: "fargate",
+			tags:         []string{"version:1.0", "command:otelcontribcol", "task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"},
+			wantName:     "otel.datadog_exporter.metrics.running.fargate",
+		},
+		{
+			name:         "azurecontainerapps",
+			metricSuffix: "azurecontainerapps",
+			tags:         []string{"version:1.0", "command:otelcontribcol", "replica:replica-1"},
+			wantName:     "otel.datadog_exporter.metrics.running.azurecontainerapps",
+		},
+		{
+			name:         "azureappservices",
+			metricSuffix: "azureappservices",
+			tags:         []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"},
+			wantName:     "otel.datadog_exporter.metrics.running.azureappservices",
+		},
+		{
+			name:         "azurefunctions",
+			metricSuffix: "azurefunctions",
+			tags:         []string{"version:1.0", "command:otelcontribcol", "instance:instance-1"},
+			wantName:     "otel.datadog_exporter.metrics.running.azurefunctions",
+		},
+	}
 
-	assert.Equal(t, "otel.datadog_exporter.metrics.running.fargate", serie.Name)
-	assert.Equal(t, 1, len(serie.Points))
-	assert.Equal(t, float64(2e9), serie.Points[0].Ts)
-	assert.Equal(t, 1.0, serie.Points[0].Value)
-	assert.Equal(t, "", serie.Host)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serie := exporterWorkloadMetrics(tt.metricSuffix, uint64(2e9), tt.tags)
+
+			assert.Equal(t, tt.wantName, serie.Name)
+			assert.Equal(t, 1, len(serie.Points))
+			assert.Equal(t, float64(2e9), serie.Points[0].Ts)
+			assert.Equal(t, 1.0, serie.Points[0].Value)
+			assert.Equal(t, "", serie.Host)
+			assert.ElementsMatch(t, tt.tags, serie.Tags.UnsafeToReadOnlySliceString())
+		})
+	}
 }
 
 func TestAddRuntimeTelemetryMetric_NoTags(t *testing.T) {
@@ -64,7 +101,8 @@ func TestAddRuntimeTelemetryMetric_HostSource(t *testing.T) {
 func TestAddRuntimeTelemetryMetric_FargateTags(t *testing.T) {
 	buildInfo := component.BuildInfo{Version: "1.0", Command: "otelcontribcol"}
 	c := newTestCollectorConsumer(buildInfo)
-	c.ConsumeTag("task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc")
+	tag := "task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"
+	c.ConsumeTagSet("fargate", []string{tag})
 
 	c.addRuntimeTelemetryMetric("", nil)
 
@@ -75,11 +113,104 @@ func TestAddRuntimeTelemetryMetric_FargateTags(t *testing.T) {
 	assert.ElementsMatch(t, []string{"otel.datadog_exporter.metrics.running.fargate"}, names)
 }
 
+func TestAddRuntimeTelemetryMetric_AzureAppServices(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	tags := []string{
+		"instance:instance-1",
+		"name:my-app",
+		"subscription_id:sub-123",
+		"resource_group:my-rg",
+	}
+	reordered := []string{
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+		"name:my-app",
+		"instance:instance-1",
+	}
+	c.ConsumeTagSet("azureappservices", tags)
+	c.ConsumeTagSet("azureappservices", reordered)
+
+	c.addRuntimeTelemetryMetric("", nil)
+
+	assert.Len(t, c.series, 1)
+	assert.Equal(t, "otel.datadog_exporter.metrics.running.azureappservices", c.series[0].Name)
+	assert.ElementsMatch(t, tags, c.series[0].Tags.UnsafeToReadOnlySliceString())
+}
+
+func TestAddRuntimeTelemetryMetric_AzureFunctionsIdentity(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	firstApp := []string{
+		"instance:shared-instance",
+		"name:first-app",
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+	}
+	firstAppReordered := []string{
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+		"name:first-app",
+		"instance:shared-instance",
+	}
+	secondApp := []string{
+		"instance:shared-instance",
+		"name:second-app",
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+	}
+
+	// Multiple functions in one app instance have the same four-field identity,
+	// while a different app remains distinct even when its instance string matches.
+	c.ConsumeTagSet("azurefunctions", firstApp)
+	c.ConsumeTagSet("azurefunctions", firstAppReordered)
+	c.ConsumeTagSet("azurefunctions", secondApp)
+	c.addRuntimeTelemetryMetric("", nil)
+
+	require.Len(t, c.series, 2)
+	var got [][]string
+	for _, serie := range c.series {
+		assert.Equal(t, "otel.datadog_exporter.metrics.running.azurefunctions", serie.Name)
+		assert.Empty(t, serie.Host)
+		got = append(got, serie.Tags.UnsafeToReadOnlySliceString())
+	}
+	assert.ElementsMatch(t, [][]string{firstApp, secondApp}, got)
+}
+
+func TestAddRuntimeTelemetryMetric_AzureAppServicesDedupKeyIsUnambiguous(t *testing.T) {
+	c := newTestCollectorConsumer(component.BuildInfo{})
+	first := []string{
+		"instance:instance-1",
+		"name:my-app",
+		"resource_group:my-rg,resource_group:other-rg",
+		"subscription_id:sub-123",
+	}
+	second := []string{
+		"instance:instance-1",
+		"name:my-app,resource_group:my-rg",
+		"resource_group:other-rg",
+		"subscription_id:sub-123",
+	}
+
+	// Joining either sorted tag set with commas produces the same string. They
+	// must still identify two distinct App Service resources.
+	c.ConsumeTagSet("azureappservices", first)
+	c.ConsumeTagSet("azureappservices", second)
+	c.addRuntimeTelemetryMetric("", nil)
+
+	assert.Len(t, c.series, 2)
+	var got [][]string
+	for _, serie := range c.series {
+		assert.Equal(t, "otel.datadog_exporter.metrics.running.azureappservices", serie.Name)
+		got = append(got, serie.Tags.UnsafeToReadOnlySliceString())
+	}
+	assert.ElementsMatch(t, [][]string{first, second}, got)
+}
+
 func TestAddRuntimeTelemetryMetric_HostAndFargate(t *testing.T) {
 	buildInfo := component.BuildInfo{Version: "1.0", Command: "otelcontribcol"}
 	c := newTestCollectorConsumer(buildInfo)
 	c.ConsumeHost("my-hostname")
-	c.ConsumeTag("task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc")
+	tag := "task_arn:arn:aws:ecs:us-east-1:123:task/cluster/abc"
+	c.ConsumeTagSet("fargate", []string{tag})
 
 	c.addRuntimeTelemetryMetric("", nil)
 
@@ -90,4 +221,34 @@ func TestAddRuntimeTelemetryMetric_HostAndFargate(t *testing.T) {
 	assert.ElementsMatch(t, metricsByName["otel.datadog_exporter.metrics.running"], []string{"my-hostname"})
 	assert.ElementsMatch(t, metricsByName["otel.datadog_exporter.metrics.running.fargate"], []string{""})
 	assert.Len(t, c.series, 2)
+}
+
+func TestAzureContainerAppsMetric(t *testing.T) {
+	buildInfo := component.BuildInfo{}
+	c := newTestCollectorConsumer(buildInfo)
+	tags := []string{
+		"replica:replica-1",
+		"name:my-app",
+		"subscription_id:sub-123",
+		"resource_group:my-rg",
+	}
+	reordered := []string{
+		"resource_group:my-rg",
+		"subscription_id:sub-123",
+		"name:my-app",
+		"replica:replica-1",
+	}
+	c.ConsumeTagSet("azurecontainerapps", tags)
+	// Same tags, different order should dedup
+	c.ConsumeTagSet("azurecontainerapps", reordered)
+	c.addRuntimeTelemetryMetric("", nil)
+
+	require.Len(t, c.series, 1, "expected exactly one series (ACA only)")
+	found := c.series[0]
+	assert.Equal(t, "otel.datadog_exporter.metrics.running.azurecontainerapps", found.Name)
+	tagStrs := found.Tags.UnsafeToReadOnlySliceString()
+	assert.Contains(t, tagStrs, "replica:replica-1")
+	assert.Contains(t, tagStrs, "name:my-app")
+	assert.Contains(t, tagStrs, "subscription_id:sub-123")
+	assert.Contains(t, tagStrs, "resource_group:my-rg")
 }

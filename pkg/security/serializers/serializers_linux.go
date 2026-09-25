@@ -353,8 +353,8 @@ type ProcessSerializer struct {
 type TracerSerializer struct {
 	// Captured APM span context for this process.
 	Trace *TraceSerializer `json:"trace,omitempty"`
-	// Metadata from APM tracer instrumentation (for example, schema version, language,
-	// version, or thread-local attribute keys).
+	// Metadata from APM tracer instrumentation (for example, schema version,
+	// language, or version).
 	Metadata *tracermetadata.TracerMetadata `json:"metadata,omitempty"`
 }
 
@@ -593,6 +593,8 @@ type SecurityProfileContextSerializer struct {
 	EventInProfile bool `json:"event_in_profile"`
 	// State of the event type in this profile
 	EventTypeState string `json:"event_type_state"`
+	// True if the profile had already been persisted to the backend when this event was emitted
+	ProfileAlreadySent bool `json:"profile_already_sent"`
 }
 
 // SyscallSerializer serializes a syscall
@@ -690,6 +692,13 @@ type SetrlimitEventSerializer struct {
 	Max uint64 `json:"rlim_max"`
 	// process context of the setrlimit target
 	Target *ProcessContextSerializer `json:"target,omitempty"`
+}
+
+// UnshareEventSerializer serializes an unshare event
+// easyjson:json
+type UnshareEventSerializer struct {
+	// Namespace flags requested by the unshare call
+	Flags []string `json:"flags,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -857,6 +866,7 @@ type EventSerializer struct {
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
+	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1511,32 +1521,35 @@ type TraceSerializer struct {
 }
 
 // newTraceSerializer builds a TraceSerializer from the event's span context,
-// falling back to the first ancestor process that carries tracer data. It
-// returns nil when no span context is available so that the "dd" and "trace"
+// falling back to the closest process in the lineage that carries tracer data.
+// It returns nil when no span context is available so that the "dd" and "trace"
 // JSON keys (both omitempty pointers) are omitted entirely rather than emitted
 // as empty objects.
 func newTraceSerializer(e *model.Event) *TraceSerializer {
-	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
+	// this is the point where the lazily-filled parts of the span context are
+	// actually needed, and thus resolved
+	sc := e.FieldHandlers.ResolveSpanContext(e)
+	if sc.SpanID != 0 && (sc.TraceID.Hi != 0 || sc.TraceID.Lo != 0) {
 		return &TraceSerializer{
-			SpanID:     strconv.FormatUint(e.SpanContext.SpanID, 10),
-			TraceID:    e.SpanContext.TraceID.HexString(),
-			Attributes: e.SpanContext.Attributes,
+			SpanID:     strconv.FormatUint(sc.SpanID, 10),
+			TraceID:    sc.TraceID.HexString(),
+			Attributes: sc.Attributes,
 		}
 	}
 
-	ctx := eval.NewContext(e)
-	it := &model.ProcessAncestorsIterator{Root: e.ProcessContext.Ancestor}
-
-	for ptr := it.Front(ctx); ptr != nil; ptr = it.Next(ctx) {
-		pce := (*model.ProcessCacheEntry)(ptr)
-
-		if pce.Tracer.Trace.SpanID != 0 && (pce.Tracer.Trace.TraceID.Hi != 0 || pce.Tracer.Trace.TraceID.Lo != 0) {
+	for pc := e.ProcessContext; pc != nil; {
+		if pc.Tracer.Trace.SpanID != 0 && (pc.Tracer.Trace.TraceID.Hi != 0 || pc.Tracer.Trace.TraceID.Lo != 0) {
 			return &TraceSerializer{
-				SpanID:     strconv.FormatUint(pce.Tracer.Trace.SpanID, 10),
-				TraceID:    pce.Tracer.Trace.TraceID.HexString(),
-				Attributes: pce.Tracer.Trace.Attributes,
+				SpanID:     strconv.FormatUint(pc.Tracer.Trace.SpanID, 10),
+				TraceID:    pc.Tracer.Trace.TraceID.HexString(),
+				Attributes: pc.Tracer.Trace.Attributes,
 			}
 		}
+
+		if pc.Ancestor == nil {
+			break
+		}
+		pc = &pc.Ancestor.ProcessContext
 	}
 
 	return nil
@@ -1560,11 +1573,12 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:           e.Name,
-		Version:        e.Version,
-		Tags:           tags,
-		EventInProfile: event.IsInProfile(),
-		EventTypeState: e.EventTypeState.String(),
+		Name:               e.Name,
+		Version:            e.Version,
+		Tags:               tags,
+		EventInProfile:     event.IsInProfile(),
+		EventTypeState:     e.EventTypeState.String(),
+		ProfileAlreadySent: e.ProfileAlreadySent,
 	}
 }
 
@@ -1615,6 +1629,12 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 		Current:  e.Setrlimit.RlimCur,
 		Max:      e.Setrlimit.RlimMax,
 		Target:   newProcessContextSerializer(e.Setrlimit.Target, fakeTargetEvent, nil),
+	}
+}
+
+func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
+	return &UnshareEventSerializer{
+		Flags: model.CloneFlags(e.Unshare.Flags).StringArray(),
 	}
 }
 
@@ -1958,6 +1978,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)
+	case model.UnshareEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.Unshare.Retval)
+		s.UnshareEventSerializer = newUnshareEventSerializer(event)
 	}
 
 	return s

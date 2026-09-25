@@ -36,7 +36,7 @@ func TestVariableAnyField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var filename1 string
 
@@ -79,7 +79,7 @@ func TestVariablePrivateField(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var filename string
 
@@ -120,8 +120,6 @@ func TestVariablePrivateField(t *testing.T) {
 // subreaper - i.e. that the inherited value is snapshotted onto the grandchild
 // before its parent link changes.
 func TestVariableInheritanceReparenting(t *testing.T) {
-	t.Skip("Need to re-introduce subreaper reparenting")
-
 	SkipIfNotAvailable(t)
 
 	if ebpfLessEnabled {
@@ -155,7 +153,7 @@ func TestVariableInheritanceReparenting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

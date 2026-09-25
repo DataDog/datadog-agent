@@ -11,11 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -27,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
@@ -38,11 +41,24 @@ const (
 	AppliedPolicyEnvVar = "DD_INSTRUMENTATION_APPLIED_POLICY"
 )
 
-// policySet is an immutable, atomically swappable view of the policies a
-// TargetMutator matches against. matcher.policies and targets are aligned by
-// index, so a match resolves directly to its injection config. A disabled
-// mutator is simply represented by an empty set (no targets, no policies),
-// which naturally matches nothing.
+// allowedTracerConfigPrefixes are the env var name prefixes accepted for tracer configs supplied
+// via Targets, remote-config policies, or the tracer-configs annotation. This keeps the mechanism
+// from being used as a generic env var injector while still allowing DD_* and OTel-native OTEL_*
+// configuration (e.g. activating a tracer's OTel mode with OTEL_TRACES_EXPORTER).
+var allowedTracerConfigPrefixes = []string{"DD_", "OTEL_"}
+
+func hasAllowedTracerConfigPrefix(name string) bool {
+	for _, prefix := range allowedTracerConfigPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// policySet is matcher.policies aligned with injection targets by index, so a
+// match resolves directly to its injection config. An empty set (no targets, no
+// policies) matches nothing.
 type policySet struct {
 	targets []targetInternal
 	matcher *policyMatcher
@@ -57,21 +73,23 @@ type TargetMutator struct {
 	containerRegistry             string
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
+	ddiTargets                    DDITargetProvider
+	ssiEnabled                    bool
 
-	// base is the policy set derived from the agent configuration file. It is
-	// the baseline that remote-config policies are layered on top of.
-	base policySet
-	// active is the effective policy set: base when no remote policies are
-	// present, or remote policies (taking precedence) layered on top of base
-	// otherwise. It is swapped atomically on remote-config updates.
-	active atomic.Pointer[policySet]
+	// staticPolicies is local targeting: explicit targets, or enabledNamespaces
+	// as a namespace target (Helm, Operator, or datadog.yaml). Empty when SSI
+	// is off or when SSI is on with no targeting.
+	staticPolicies policySet
+	// injectAll is the SSI-on fallback when there is no static targeting and no RC.
+	injectAll *targetInternal
+	// remotePolicies is the current RC policy set. Nil when none are installed.
+	remotePolicies atomic.Pointer[policySet]
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups. When on-demand instrumentation is enabled and rcClient is non-nil, the
-// mutator also subscribes to remote-config SSI policies, which are layered on top of the configuration baseline at
-// runtime.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client) (*TargetMutator, error) {
+// mutator also subscribes to remote-config SSI policies, which are evaluated after static targets.
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, ddiTargets DDITargetProvider) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -83,26 +101,19 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	// Fetch the default lib versions to use if there are no user defined versions.
 	defaultLibVersions := getAllLatestDefaultLibraries(config.containerRegistry)
 
-	// If there are no targets, we should fall back to enabledNamespace/libVersions. If those are also not defined, the
-	// expected behavior is to inject all pods into all namespaces. A disabled mutator keeps an empty baseline so it
-	// matches nothing unless remote-config policies are layered on.
+	ssiEnabled := config.Instrumentation.Enabled
 	var targets []Target
-	if config.Instrumentation.Enabled {
+	if ssiEnabled {
 		targets = config.Instrumentation.Targets
-		if len(targets) == 0 {
+		if len(targets) == 0 && len(config.Instrumentation.EnabledNamespaces) > 0 {
 			targets = append(targets, createDefaultTarget(config.Instrumentation.EnabledNamespaces, config.Instrumentation.LibVersions))
 		}
 	}
 
-	internalTargets, err := buildInternalTargets(config, wmeta, targets, defaultLibVersions)
+	staticPolicies, err := newPolicySet(config, targets, defaultLibVersions, wmeta)
 	if err != nil {
 		return nil, err
 	}
-
-	// Lower the configuration targets into policies once, at the config
-	// boundary. Everything past this point matches on policies only, aligned
-	// by index with the internal targets above.
-	configPolicies := policiesFromTargets(targets)
 
 	m := &TargetMutator{
 		disabledNamespaces:            disabledNamespacesMap,
@@ -111,16 +122,20 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
-		base: policySet{
-			targets: internalTargets,
-			matcher: newPolicyMatcher(configPolicies, wmeta),
-		},
+		ddiTargets:                    ddiTargets,
+		ssiEnabled:                    ssiEnabled,
+		staticPolicies:                staticPolicies,
 	}
-	m.active.Store(&m.base)
+	// SSI on and no static targeting: prepare inject-all. Applied only when RC is also absent.
+	if ssiEnabled && len(targets) == 0 {
+		fallback, err := buildInternalTargets(config, []Target{createDefaultTarget(nil, config.Instrumentation.LibVersions)}, defaultLibVersions)
+		if err != nil {
+			return nil, err
+		}
+		m.injectAll = &fallback[0]
+	}
 
-	// Create the core mutator. This is a bit gross.
-	// The target mutator is also the filter which we are passing in.
-	core := newMutatorCore(config, wmeta, m, imageResolver, csiDriverWatcher)
+	core := newMutatorCore(config, wmeta, imageResolver, csiDriverWatcher)
 	m.core = core
 
 	// On-demand instrumentation is the local gate for remote-config SSI
@@ -133,38 +148,37 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	return m, nil
 }
 
-// buildInternalTargets converts configuration targets into the internal format used for matching and injection.
-func buildInternalTargets(config *Config, wmeta workloadmeta.Component, targets []Target, defaultLibVersions []libInfo) ([]targetInternal, error) {
+func newPolicySet(config *Config, targets []Target, defaultLibVersions []libInfo, wmeta workloadmeta.Component) (policySet, error) {
+	// Configuration targets are first-wins. Reverse so the last-TRUE-wins matcher
+	// preserves that order. RC is already last-wins on the wire and is not reversed.
+	targets = slices.Clone(targets)
+	slices.Reverse(targets)
+
+	internalTargets, err := buildInternalTargets(config, targets, defaultLibVersions)
+	if err != nil {
+		return policySet{}, err
+	}
+	return policySet{
+		targets: internalTargets,
+		matcher: newPolicyMatcher(policiesFromTargets(targets), wmeta),
+	}, nil
+}
+
+// buildInternalTargets converts configuration targets into the internal format used for injection. Matching is not
+// part of it: the selectors are lowered into policies by policiesFromTargets and evaluated by the policy engine.
+func buildInternalTargets(config *Config, targets []Target, defaultLibVersions []libInfo) ([]targetInternal, error) {
 	internalTargets := make([]targetInternal, len(targets))
 	for i, t := range targets {
-		// Convert the pod selector to a label selector.
-		podSelector := labels.Everything()
-		var err error
+		// The selectors are converted to k8s label selectors for validation only, so that an unsupported selector
+		// is still rejected at startup rather than silently abstaining at evaluation time.
 		if t.PodSelector != nil {
-			podSelector, err = t.PodSelector.AsLabelSelector()
-			if err != nil {
+			if _, err := t.PodSelector.AsLabelSelector(); err != nil {
 				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
 			}
 		}
-
-		// Determine if we should use the namespace selector or if we should use enabledNamespaces.
-		useNamespaceSelector := t.NamespaceSelector != nil && len(t.NamespaceSelector.MatchLabels)+len(t.NamespaceSelector.MatchExpressions) > 0
-
-		// Convert the namespace selector to a label selector.
-		namespaceSelector := labels.Everything()
-		if useNamespaceSelector && t.NamespaceSelector != nil {
-			namespaceSelector, err = t.NamespaceSelector.AsLabelSelector()
-			if err != nil {
+		if t.NamespaceSelector != nil {
+			if _, err := t.NamespaceSelector.AsLabelSelector(); err != nil {
 				return nil, fmt.Errorf("could not convert selector to label selector: %w", err)
-			}
-		}
-
-		// Create a map of enabled namespaces for quick lookups.
-		var enabledNamespaces map[string]bool
-		if !useNamespaceSelector && t.NamespaceSelector != nil {
-			enabledNamespaces = make(map[string]bool, len(t.NamespaceSelector.MatchNames))
-			for _, ns := range t.NamespaceSelector.MatchNames {
-				enabledNamespaces[ns] = true
 			}
 		}
 
@@ -181,75 +195,59 @@ func buildInternalTargets(config *Config, wmeta workloadmeta.Component, targets 
 			libVersions = pinnedLibraries.libs
 		}
 
-		// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
-		// this from being used as a generic env var injector. If there is a product requirement to allow arbitrary env
-		// vars in the future, we could relax this requirement.
+		// Convert the tracer configs to env vars. We only allow DD_ and OTEL_ prefixed names to avoid
+		// this from being used as a generic env var injector.
 		envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
 		for j, tc := range t.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = tc.AsEnvVar()
 		}
 
-		// Store the target in the internal format.
 		internalTargets[i] = targetInternal{
-			name:                 t.Name,
-			podSelector:          podSelector,
-			useNamespaceSelector: useNamespaceSelector,
-			nameSpaceSelector:    namespaceSelector,
-			wmeta:                wmeta,
-			enabledNamespaces:    enabledNamespaces,
-			libVersions:          libVersions,
-			envVars:              envVars,
-			json:                 createJSON(t),
-			usesDefaultLibs:      usesDefaultLibs,
+			name:            t.Name,
+			libVersions:     libVersions,
+			envVars:         envVars,
+			json:            createJSON(t),
+			usesDefaultLibs: usesDefaultLibs,
 		}
 	}
 
 	return internalTargets, nil
 }
 
-// activeSet returns the effective policy set. It is never nil after the
-// mutator has been constructed.
-func (m *TargetMutator) activeSet() *policySet {
-	return m.active.Load()
-}
-
-// SetRemotePolicies layers remote-config policies on top of the configuration
-// baseline and swaps in the result atomically. Remote policies are evaluated
-// first (they take precedence), then the configuration policies, preserving
-// first-match-wins semantics.
+// SetRemotePolicies installs remote-config policies after DDI and static
+// configuration. The wire order is already last-TRUE-wins (default first,
+// exceptions after) and is stored as-is.
 func (m *TargetMutator) SetRemotePolicies(ps []policies.Policy) error {
-	remoteTargets, err := buildInternalTargetsFromPolicies(m.core.config, m.core.wmeta, ps, m.defaultLibVersions)
+	if len(ps) == 0 {
+		m.ClearRemotePolicies()
+		return nil
+	}
+
+	remoteTargets, err := buildInternalTargetsFromPolicies(m.core.config, ps, m.defaultLibVersions)
 	if err != nil {
 		return err
 	}
 
-	combinedPolicies := make([]policies.Policy, 0, len(ps)+len(m.base.matcher.policies))
-	combinedPolicies = append(combinedPolicies, ps...)
-	combinedPolicies = append(combinedPolicies, m.base.matcher.policies...)
-
-	combinedTargets := make([]targetInternal, 0, len(remoteTargets)+len(m.base.targets))
-	combinedTargets = append(combinedTargets, remoteTargets...)
-	combinedTargets = append(combinedTargets, m.base.targets...)
-
-	m.active.Store(&policySet{
-		targets: combinedTargets,
-		matcher: newPolicyMatcher(combinedPolicies, m.core.wmeta),
+	m.remotePolicies.Store(&policySet{
+		targets: remoteTargets,
+		matcher: newPolicyMatcher(ps, m.core.wmeta),
 	})
 	return nil
 }
 
-// ClearRemotePolicies reverts the mutator to the configuration baseline.
+// ClearRemotePolicies drops remote-config policies. Matching falls back to DDI,
+// static targets, then the SSI inject-all default if there is no static targeting.
 func (m *TargetMutator) ClearRemotePolicies() {
-	m.active.Store(&m.base)
+	m.remotePolicies.Store(nil)
 }
 
 // buildInternalTargetsFromPolicies resolves each policy's outcome (tracer
 // versions and configs) into the internal injection format, mirroring
 // buildInternalTargets but sourced from policies rather than Targets.
-func buildInternalTargetsFromPolicies(config *Config, wmeta workloadmeta.Component, ps []policies.Policy, defaultLibVersions []libInfo) ([]targetInternal, error) {
+func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defaultLibVersions []libInfo) ([]targetInternal, error) {
 	internalTargets := make([]targetInternal, len(ps))
 	for i, p := range ps {
 		var libVersions []libInfo
@@ -265,15 +263,14 @@ func buildInternalTargetsFromPolicies(config *Config, wmeta workloadmeta.Compone
 
 		envVars := make([]corev1.EnvVar, len(p.Outcome.TracerConfigs))
 		for j, tc := range p.Outcome.TracerConfigs {
-			if !strings.HasPrefix(tc.Name, "DD_") {
-				return nil, fmt.Errorf("tracer config %q does not start with DD_", tc.Name)
+			if !hasAllowedTracerConfigPrefix(tc.Name) {
+				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
 			envVars[j] = corev1.EnvVar{Name: tc.Name, Value: tc.Value}
 		}
 
 		internalTargets[i] = targetInternal{
 			name:            p.Name,
-			wmeta:           wmeta,
 			libVersions:     libVersions,
 			envVars:         envVars,
 			json:            createPolicyJSON(p),
@@ -317,7 +314,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 	// Check for the init_container mode's per-language init containers.
-	for _, lang := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		lang := language(supportedLang)
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
@@ -329,15 +327,19 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, nil
 	}
 
-	// Get the target to inject. If there is not target, we should not mutate the pod.
-	target := m.getTarget(pod)
+	// Library selection still short-circuits on annotations (unchanged GA
+	// precedence). SSI mode is decided separately from whether a target/policy
+	// matched the pod — not from a namespace-level eligibility approximation.
+	target, ssi := m.resolveTargetAndSSI(pod)
 	if target == nil {
 		return false, nil
 	}
-	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
+	extracted := m.core.initExtractedLibInfo(pod, ssi).withLibs(target.libVersions)
 
-	// If the user did not specify versions, this target is eligible for language detection.
-	if target.usesDefaultLibs {
+	// Language detection is an SSI-only fallback when the selected target did
+	// not pin library versions (annotation short-circuit sets usesDefaultLibs
+	// false, so this path stays for true SSI matches with default libs).
+	if ssi && target.usesDefaultLibs {
 		extractedLanguageDetection, usingLanguageDetection := extracted.useLanguageDetectionLibs()
 		if usingLanguageDetection {
 			extracted = extractedLanguageDetection
@@ -375,8 +377,8 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 }
 
 func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
-	// A policy-driven match (remote config) carries its information on a
-	// dedicated env var / annotation, distinct from configuration targets.
+	// A remote-config policy match carries its information on a dedicated env
+	// var / annotation, distinct from configuration targets.
 	envVarName := AppliedTargetEnvVar
 	annotationKey := annotation.AppliedTarget
 	if target.fromPolicy {
@@ -408,87 +410,118 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 		return false
 	}
 
-	// At this point, we should only mutate if a target matches.
+	// At this point, we should only mutate if a target matches or annotations apply.
 	return m.getTarget(pod) != nil
 }
 
-// IsNamespaceEligible returns true if a namespace is eligible for injection/mutation.
-func (m *TargetMutator) IsNamespaceEligible(namespace string) bool {
-	set := m.activeSet()
-
-	// If the namespace is disabled, we don't need to check the targets.
-	if _, ok := m.disabledNamespaces[namespace]; ok {
-		return false
-	}
-
-	// Check if the namespace matches any of the targets. A disabled mutator has
-	// no targets, so this naturally returns false.
-	for _, target := range set.targets {
-		matches, err := target.matchesNamespaceSelector(namespace)
-		if err != nil {
-			// Match the policy evaluator's behavior: a target whose namespace-label
-			// facts are unavailable cannot be evaluated, but it must not prevent a
-			// later namespace-name, pod-only, or catch-all target from making the
-			// namespace eligible.
-			log.Debugf("namespace metadata unavailable for target %q in namespace %q, skipping target: %v", target.name, namespace, err)
-			continue
-		}
-		if matches {
-			log.Debugf("Namespace %q matched target %q", namespace, target.name)
-			return true
-		}
-	}
-
-	// No target matched.
-	return false
-}
-
-// targetInternal is the struct we use to convert the config based target into something more performant.
+// targetInternal is the injection configuration a matched target resolves to.
+// It carries no selector: matching is delegated to the policy engine for
+// static configuration targets and remote-config policies. DDI configuration
+// is resolved directly from its workload target.
 type targetInternal struct {
-	name                 string
-	podSelector          labels.Selector
-	nameSpaceSelector    labels.Selector
-	useNamespaceSelector bool
-	enabledNamespaces    map[string]bool
-	libVersions          []libInfo
-	envVars              []corev1.EnvVar
-	wmeta                workloadmeta.Component
-	json                 string
-	usesDefaultLibs      bool
-	// fromPolicy is true when this internal target was derived from a policy
-	// (remote config) rather than a configuration target. It selects which
+	name            string
+	libVersions     []libInfo
+	envVars         []corev1.EnvVar
+	json            string
+	usesDefaultLibs bool
+	// fromPolicy is true when this internal target was derived from a
+	// remote-config policy rather than a configuration target. It selects which
 	// annotation/env var carries the applied information.
 	fromPolicy bool
 }
 
-// getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
+// getTarget determines which target to use for a given pod, including the tracing libraries to inject.
+// Precedence is annotation, DatadogInstrumentation, static config, remote config, then inject-all.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
-	result := m.getTargetFromAnnotation(pod)
-	if !result.shouldContinue {
-		return result.target
-	}
-
-	return m.getMatchingTarget(pod)
+	target, _ := m.resolveTargetAndSSI(pod)
+	return target
 }
 
-type annotationResult struct {
+// resolveTargetAndSSI selects what to inject and whether the pod is in SSI mode.
+func (m *TargetMutator) resolveTargetAndSSI(pod *corev1.Pod) (*targetInternal, bool) {
+	matched := m.getMatchingTarget(pod)
+	result := m.getTargetFromAnnotation(pod)
+	if !result.shouldContinue {
+		return result.target, matched != nil
+	}
+	return matched, matched != nil
+}
+
+type filterResult struct {
 	shouldContinue bool
 	target         *targetInternal
 }
 
+func (m *TargetMutator) getTargetFromDDI(pod *corev1.Pod) *filterResult {
+	if m.ddiTargets == nil {
+		return &filterResult{shouldContinue: true}
+	}
+
+	ref := metav1.GetControllerOf(pod)
+	if ref == nil {
+		return &filterResult{shouldContinue: true}
+	}
+	rootKind, rootName := kubernetes.ResolvePodRootOwner(ref.Kind, ref.Name, pod.Labels)
+	workload := ssi.DDICRTarget{Kind: rootKind, Namespace: pod.Namespace, Name: rootName}
+	config, ok := m.ddiTargets.GetTarget(workload)
+	if !ok {
+		return &filterResult{shouldContinue: true}
+	}
+	if !config.Enabled {
+		return &filterResult{shouldContinue: false}
+	}
+
+	return &filterResult{shouldContinue: false, target: m.fromDDIAPMConfig(workload, config)}
+}
+
+func (m *TargetMutator) fromDDIAPMConfig(workload ssi.DDICRTarget, config ssi.DDIAPMConfig) *targetInternal {
+	libVersions := m.defaultLibVersions
+	usesDefaultLibs := true
+	if len(config.TracerVersions) > 0 {
+		pinned := getPinnedLibraries(config.TracerVersions, m.containerRegistry, true)
+		libVersions = pinned.libs
+		usesDefaultLibs = pinned.areSetToDefaults
+	}
+
+	name := fmt.Sprintf("datadoginstrumentation:%s", config.CR)
+	payload := struct {
+		Name           string            `json:"name"`
+		Workload       ssi.DDICRTarget   `json:"workload"`
+		TracerVersions map[string]string `json:"ddTraceVersions,omitempty"`
+		TracerConfigs  []corev1.EnvVar   `json:"ddTraceConfigs,omitempty"`
+	}{
+		Name:           name,
+		Workload:       workload,
+		TracerVersions: config.TracerVersions,
+		TracerConfigs:  config.TracerConfigs,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Warnf("error marshalling DDI target %q: %v", name, err)
+	}
+
+	return &targetInternal{
+		name:            name,
+		libVersions:     libVersions,
+		envVars:         config.TracerConfigs,
+		json:            string(data),
+		usesDefaultLibs: usesDefaultLibs,
+	}
+}
+
 // getTargetFromAnnotation determines which tracing libraries to use given
-func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResult {
+func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 	// The enabled label existing takes precedence...
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target:         nil,
 		}
 	}
 
 	if !enabledLabelExists && !m.mutateUnlabelled {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: true,
 			target:         nil,
 		}
@@ -497,7 +530,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 	// If local lib is enabled, then we should prefer the user defined libs.
 	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
@@ -508,7 +541,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 
 	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
@@ -517,69 +550,64 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	return &annotationResult{
+	return &filterResult{
 		shouldContinue: true,
 		target:         nil,
 	}
 }
 
-// getMatchingTarget filters a pod based on the targets. It returns the target to inject.
-//
-// Matching is delegated to the native policy engine: each target is compiled
-// into an equivalent policy (namespace and pod selectors ANDed together) and
-// the first policy that evaluates to true wins, preserving the previous
-// first-match semantics without relying on CGO or k8s label selectors.
+// getMatchingTarget evaluates each configuration source in priority order. A
+// matched deny returns nil and does not fall through to a lower-priority source.
 func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
-	set := m.activeSet()
-
-	// If the namespace is disabled, we don't need to check the targets.
 	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
 		return nil
 	}
 
-	// The matcher and targets are aligned by index, so the first matching
-	// policy resolves directly to its injection config (first match wins).
-	idx := set.matcher.matchIndex(pod)
-	if idx < 0 || idx >= len(set.targets) {
-		return nil
+	result := m.getTargetFromDDI(pod)
+	if !result.shouldContinue {
+		return result.target
 	}
 
-	// A matched policy may explicitly deny injection (first match wins).
+	static, staticMatched := applyMatch(&m.staticPolicies, pod)
+	remotePolicies := m.remotePolicies.Load()
+	if t, matched := applyMatch(remotePolicies, pod); matched {
+		return t
+	}
+	if staticMatched {
+		return static
+	}
+	if m.ssiEnabled && !hasTargets(&m.staticPolicies) && remotePolicies == nil {
+		return m.injectAll
+	}
+	return nil
+}
+
+func hasTargets(set *policySet) bool {
+	return set != nil && len(set.targets) > 0
+}
+
+// applyMatch returns the injection target for a policy set. matched is true
+// when a policy evaluated to TRUE (even if that policy denies injection).
+func applyMatch(set *policySet, pod *corev1.Pod) (*targetInternal, bool) {
+	if set == nil || set.matcher == nil {
+		return nil, false
+	}
+
+	idx := set.matcher.matchIndex(pod)
+	if idx < 0 || idx >= len(set.targets) {
+		return nil, false
+	}
+
 	if !set.matcher.policies[idx].Outcome.Inject {
 		log.Debugf("Pod %q matched policy %q which denies injection", mutatecommon.PodString(pod), set.targets[idx].name)
-		return nil
+		return nil, true
 	}
 
 	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), set.targets[idx].name)
-	return &set.targets[idx]
+	return &set.targets[idx], true
 }
 
-func (t targetInternal) matchesNamespaceSelector(namespace string) (bool, error) {
-	// If we are using the namespace selector, check if the namespace matches the selector.
-	if t.useNamespaceSelector {
-		nsLabels, err := getNamespaceLabels(t.wmeta, namespace)
-		if err != nil {
-			return false, fmt.Errorf("could not get labels to match: %w", err)
-		}
-
-		// Check if the namespace labels match the selector.
-		return t.nameSpaceSelector.Matches(labels.Set(nsLabels)), nil
-	}
-
-	// If there are no match names, we match all namespaces.
-	if len(t.enabledNamespaces) == 0 {
-		return true, nil
-	}
-
-	// Check if the pod namespace is in the match names.
-	_, ok := t.enabledNamespaces[namespace]
-	return ok, nil
-}
-
-// createDefaultTarget is used when there are no targets. If a user configures enabledNamespaces and libVersions, which
-// are mutually exclusive with a list of targets, then we need to translate those configuration options into a target.
-// Additionally, if there are no targets and enabledNamespaces/libVersions are not set, the expected behavior is that
-// we would inject all SDKs to all pods. This target encompasses both of those cases.
+// createDefaultTarget translates enabledNamespaces/libVersions into a target.
 func createDefaultTarget(namespaces []string, pinnedLibVersions map[string]string) Target {
 	// Create a default target.
 	target := Target{
@@ -691,7 +719,7 @@ func containsVolume(pod *corev1.Pod, volumeName string) bool {
 
 // extractTracerConfigsFromAnnotations parses the tracer-configs annotation into env vars to inject
 // alongside the locally injected libraries. It is the annotation-based equivalent of a target's
-// ddTraceConfigs. Invalid input (malformed JSON or a non DD_ prefixed name) is logged and skipped
+// ddTraceConfigs. Invalid input (malformed JSON or a name without an allowed prefix) is logged and skipped
 // rather than failing the mutation, mirroring the lenient handling of the other local SDK
 // injection annotations.
 func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
@@ -708,10 +736,10 @@ func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
 
 	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
 	for _, tc := range tracerConfigs {
-		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ prefixed names
-		// so this cannot be used as a generic env var injector.
-		if !strings.HasPrefix(tc.Name, "DD_") {
-			log.Errorf("tracer config %q from %q annotation does not start with DD_, skipping", tc.Name, annotation.TracerConfigs)
+		// Match the validation applied to config-based ddTraceConfigs: only allow DD_ or OTEL_
+		// prefixed names so this cannot be used as a generic env var injector.
+		if !hasAllowedTracerConfigPrefix(tc.Name) {
+			log.Errorf("tracer config %q from %q annotation does not start with DD_ or OTEL_, skipping", tc.Name, annotation.TracerConfigs)
 			continue
 		}
 		envVars = append(envVars, tc.AsEnvVar())
@@ -724,7 +752,8 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 	libs := []libInfo{}
 
 	// Check all supported languages for potential Local SDK Injection.
-	for _, l := range supportedLanguages {
+	for _, supportedLang := range ssi.SupportedLanguages {
+		l := language(supportedLang)
 		// Check for a custom library image.
 		customImage, found := annotation.Get(pod, annotation.LibraryImage.Format(string(l)))
 		if found {

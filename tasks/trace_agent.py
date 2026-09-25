@@ -8,12 +8,15 @@ from tasks.build_tags import (
 )
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.schema.generate import schema_codegen
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
+
+BAZEL_TARGET = "//cmd/trace-agent:trace-agent"
 
 
 @task
@@ -26,15 +29,30 @@ def build(
     flavor=AgentFlavor.base.name,
     install_path=None,
     go_mod="readonly",
+    enable_bazel=False,
 ):
     """
     Build the trace agent.
     """
 
+    flavor = AgentFlavor[flavor]
+
+    if enable_bazel:
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+        if flavor != AgentFlavor.base:
+            raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
+        if install_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
+
+        agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=agent_bin)
+        return
+
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
-
-    flavor = AgentFlavor[flavor]
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -98,5 +116,15 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
+    # The `test` build tag wires pkg/util/log to write to stdout (pkg/util/log/log_test_init.go),
+    # defaulting to the `debug` level. Those lines interleave with the `go test -bench` result
+    # lines and make the output unparseable by benchmark tooling, so silence the logger unless
+    # the caller explicitly asked for a level.
+    env = os.environ.copy()
+    env.setdefault("DD_LOG_LEVEL", "off")
+
     with ctx.cd("./pkg/trace"):
-        ctx.run(f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")
+        ctx.run(
+            f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}",
+            env=env,
+        )

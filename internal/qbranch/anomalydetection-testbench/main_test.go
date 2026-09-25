@@ -77,4 +77,14 @@ func TestValidateCLIParams(t *testing.T) {
 		err := validateCLIParams(CLIParams{RetainParquet: true, Headless: "scenario"})
 		require.NoError(t, err)
 	})
+
+	t.Run("detector output requires headless mode", func(t *testing.T) {
+		err := validateCLIParams(CLIParams{IncludeDetectorAnomalies: true})
+		require.EqualError(t, err, "--include-detector-anomalies requires --headless")
+	})
+
+	t.Run("detector output is accepted in headless mode", func(t *testing.T) {
+		err := validateCLIParams(CLIParams{IncludeDetectorAnomalies: true, Headless: "scenario"})
+		require.NoError(t, err)
+	})
 }

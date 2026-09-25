@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fixed the Agent Data Plane pre-flight sending its metrics and API key to
+    ``datadoghq.com`` instead of the configured ``site``. The generated
+    pre-flight configuration was built from the fully resolved Agent
+    configuration, so ``dd_url``'s default value appeared in it as though it
+    had been set explicitly, and an explicit ``dd_url`` takes precedence over
+    ``site``. The pre-flight configuration is now built from the settings the
+    operator actually supplied, matching what a normally-supervised Agent Data
+    Plane reads from ``datadog.yaml``.

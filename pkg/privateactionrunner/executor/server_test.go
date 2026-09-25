@@ -18,6 +18,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,8 +26,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -80,6 +84,10 @@ func startTestServer(t *testing.T, srv *Server) pb.ExecutorClient {
 	conn, err := grpc.NewClient(
 		"passthrough:///"+socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(maxMessageSize*2),
+			grpc.MaxCallSendMsgSize(maxMessageSize*2),
+		),
 		grpc.WithContextDialer(func(dialCtx context.Context, _ string) (net.Conn, error) {
 			return Dial(dialCtx, socketPath, 2*time.Second)
 		}),
@@ -115,6 +123,95 @@ func runAction(t *testing.T, client pb.ExecutorClient, taskBytes []byte) *pb.Act
 	}
 	require.NotNil(t, result, "RunAction stream ended without a terminal ActionResult")
 	return result
+}
+
+func taskWithEncodedSize(t *testing.T, target int) []byte {
+	t.Helper()
+	const prefix = `{"data":{"id":"task","attributes":{"padding":"`
+	const suffix = `"}}}`
+	padding := target - len(prefix) - len(suffix)
+	require.Positive(t, padding)
+	for {
+		raw := []byte(prefix + strings.Repeat("a", padding) + suffix)
+		size := proto.Size(&pb.RunActionRequest{Task: raw})
+		if size == target {
+			return raw
+		}
+		padding += target - size
+		require.Positive(t, padding)
+	}
+}
+
+func outputWithEncodedSize(t *testing.T, target int) string {
+	t.Helper()
+	padding := target
+	for {
+		output := strings.Repeat("a", padding)
+		outputJSON, err := json.Marshal(output)
+		require.NoError(t, err)
+		size := proto.Size(&pb.RunActionResponse{
+			Event: &pb.RunActionResponse_Result{
+				Result: &pb.ActionResult{
+					Outcome: &pb.ActionResult_Output{Output: outputJSON},
+				},
+			},
+		})
+		if size == target {
+			return output
+		}
+		padding += target - size
+		require.Positive(t, padding)
+	}
+}
+
+func receiveRunActionError(client pb.ExecutorClient, task []byte) error {
+	stream, err := client.RunAction(context.Background(), &pb.RunActionRequest{Task: task})
+	if err != nil {
+		return err
+	}
+	_, err = stream.Recv()
+	return err
+}
+
+func TestServeEnforcesRequestMessageLimit(t *testing.T) {
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   map[string]interface{}{},
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+	client := startTestServer(t, srv)
+
+	below := taskWithEncodedSize(t, maxMessageSize-1)
+	result := runAction(t, client, below)
+	require.NotNil(t, result.GetOutput())
+
+	above := taskWithEncodedSize(t, maxMessageSize+1)
+	err := receiveRunActionError(client, above)
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+}
+
+func TestServeEnforcesResponseMessageLimit(t *testing.T) {
+	below := outputWithEncodedSize(t, maxMessageSize-1)
+	fake := &fakeExecutor{
+		prepared: &runners.PreparedWorkflowTask{Task: &types.Task{}},
+		output:   below,
+	}
+	srv := NewServer(fake, "test-version")
+	srv.SetReady(true)
+	client := startTestServer(t, srv)
+
+	result := runAction(t, client, []byte(`{"data":{"id":"task-1"}}`))
+	belowJSON, err := json.Marshal(below)
+	require.NoError(t, err)
+	assert.Equal(t, belowJSON, result.GetOutput())
+
+	above := outputWithEncodedSize(t, maxMessageSize+1)
+	fake.output = above
+	err = receiveRunActionError(client, []byte(`{"data":{"id":"task-2"}}`))
+	require.Error(t, err)
+	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
 }
 
 func TestServeRunActionStreamsOutputAndForwardsRawTask(t *testing.T) {
@@ -345,7 +442,7 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	ca, caKey := newTestCA(t)
 	caPool := x509.NewCertPool()
 	caPool.AddCert(ca)
-	serverCert := newLeafCert(t, ca, caKey, "localhost", x509.ExtKeyUsageServerAuth)
+	serverCert := newLeafCert(t, ca, caKey, "localhost", x509.ExtKeyUsageAny)
 	clientCert := newLeafCert(t, ca, caKey, "par-control", x509.ExtKeyUsageClientAuth)
 
 	serverTLS := &tls.Config{
@@ -354,7 +451,10 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 		ClientCAs:    caPool,
 	}
 	srv := NewServer(&fakeExecutor{}, "test-version")
-	srv.SetReady(true)
+	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{
+		SplitMode: true,
+		Identity:  &pb.ControlPlaneIdentity{PrivateKey: "never-log-this-key"},
+	}, serverCert.Certificate[0])
 
 	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
@@ -387,20 +487,46 @@ func TestServeMTLSRequiresValidClientCert(t *testing.T) {
 	})
 	_, err = authed.Health(context.Background(), &pb.HealthRequest{})
 	require.NoError(t, err, "client with a valid IPC-style cert should be accepted")
+	_, err = authed.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+	require.Equal(t, codes.PermissionDenied, status.Code(err), "a CA-signed action client must not retrieve credentials")
+
+	shared := dial(&tls.Config{Certificates: []tls.Certificate{serverCert}, RootCAs: caPool, ServerName: "localhost"})
+	for range 2 {
+		response, err := shared.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+		require.NoError(t, err)
+		require.Equal(t, "never-log-this-key", response.Identity.PrivateKey)
+	}
+	health, err := shared.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	require.False(t, health.Ready, "bootstrap must work before action readiness")
 
 	anon := dial(&tls.Config{RootCAs: caPool, ServerName: "localhost"})
 	shortCtx, shortCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer shortCancel()
-	_, err = anon.Health(shortCtx, &pb.HealthRequest{})
+	_, err = anon.GetControlPlaneConfig(shortCtx, &pb.GetControlPlaneConfigRequest{})
 	require.Error(t, err, "client without a valid cert must be rejected")
 }
 
+func TestControlConfigRejectsPlaintext(t *testing.T) {
+	srv := NewServer(nil, "test")
+	srv.SetControlPlaneConfig(&pb.GetControlPlaneConfigResponse{}, []byte("certificate"))
+	client := startTestServer(t, srv)
+	_, err := client.GetControlPlaneConfig(context.Background(), &pb.GetControlPlaneConfigRequest{})
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
 func TestServeExitsWhenIdle(t *testing.T) {
+	for name, ready := range map[string]bool{"ready": true, "unready": false} {
+		t.Run(name, func(t *testing.T) { testServeExitsWhenIdle(t, ready) })
+	}
+}
+
+func testServeExitsWhenIdle(t *testing.T, ready bool) {
 	mockClock := clock.NewMock()
 	srv := NewServer(&fakeExecutor{}, "test-version")
 	srv.clock = mockClock
 	srv.touch()
-	srv.SetReady(true)
+	srv.SetReady(ready)
 
 	socketPath := testListenAddr(t)
 	lis, err := Listen(socketPath)
@@ -439,22 +565,24 @@ func TestIdleTracking(t *testing.T) {
 	srv.touch()
 
 	const timeout = time.Minute
-	mockClock.Add(timeout - time.Second)
-	assert.Equal(t, timeout-time.Second, srv.idleFor())
+	mockClock.Add(2 * timeout)
+	assert.Equal(t, 2*timeout, srv.idleFor(), "waiting for signing keys must not prevent idle shutdown")
 
-	srv.touch()
-	assert.Zero(t, srv.idleFor(), "dispatch activity should reset the idle clock")
+	srv.SetReady(true)
+	assert.Zero(t, srv.idleFor(), "becoming ready should reset the idle clock")
 
 	_, err := srv.Health(context.Background(), &pb.HealthRequest{})
 	require.NoError(t, err)
 	mockClock.Add(time.Second)
 	assert.Equal(t, time.Second, srv.idleFor(), "health checks should not count as activity")
 
-	srv.active.Add(1)
+	srv.startActivity()
 	mockClock.Add(2 * timeout)
-	assert.Zero(t, srv.idleFor(), "an active action should suppress the idle state")
-	srv.active.Add(-1)
-	srv.touch()
+	assert.Zero(t, srv.idleFor(), "activity should suppress the idle state")
+	health, err := srv.Health(context.Background(), &pb.HealthRequest{})
+	require.NoError(t, err)
+	assert.Zero(t, health.ActiveActions, "non-action activity must not affect action accounting")
+	srv.finishActivity()
 
 	mockClock.Add(timeout)
 	assert.Equal(t, timeout, srv.idleFor())
