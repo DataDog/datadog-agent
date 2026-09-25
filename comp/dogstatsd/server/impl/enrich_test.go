@@ -1011,8 +1011,14 @@ func TestMetricFilterListShouldBlock(t *testing.T) {
 }
 
 func TestMetricFilterListPrefixEntry(t *testing.T) {
-	// `custom.metric.*` is a prefix pattern, `other.metric` is not.
-	filter := metricname.NewMatcher([]string{"custom.metric.*", "other.metric"}, false)
+	// `custom.metric.` is a metric_filterlist_prefix entry, `other.metric` is
+	// an exact metric_filterlist entry.
+	filter, dropped := metricname.NewMatcherWithPrefixRules(
+		[]string{"other.metric"},
+		false,
+		[]metricname.PrefixRule{{Prefix: "custom.metric."}},
+	)
+	assert.Empty(t, dropped)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}

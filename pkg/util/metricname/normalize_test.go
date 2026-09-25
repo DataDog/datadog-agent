@@ -211,6 +211,116 @@ func TestNormalizePrefixMatchesNormalizedNames(t *testing.T) {
 	}
 }
 
+// TestNormalizePrefixRules asserts the normalization rules specific to
+// PrefixRule (metric_filterlist_prefix): Prefix and ExceptPrefix are
+// normalized as prefixes, ExceptExact is normalized as a complete metric
+// name, none of them are ever treated as carrying a `*` marker, and an
+// unnormalizable Prefix drops the whole rule while an unnormalizable
+// exception only drops itself.
+func TestNormalizePrefixRules(t *testing.T) {
+	cases := []struct {
+		name              string
+		rules             []PrefixRule
+		normalized        []PrefixRule
+		droppedRules      []string
+		droppedExceptions []string
+	}{
+		{
+			name:       "empty",
+			rules:      nil,
+			normalized: []PrefixRule{},
+		},
+		{
+			name: "prefix is normalized as a prefix, not as a name",
+			rules: []PrefixRule{
+				{Prefix: "service_"},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "service_"},
+			},
+		},
+		{
+			name: "star is not a marker anywhere in a PrefixRule",
+			rules: []PrefixRule{
+				{Prefix: "foo.*", ExceptExact: []string{"foo.bar*"}, ExceptPrefix: []string{"foo.baz*"}},
+			},
+			normalized: []PrefixRule{
+				// `*` is treated like any other non-alphanumeric, non-period
+				// byte -- never as a boundary or a marker. It is absorbed into
+				// the preceding period for Prefix (a period already boundaries
+				// the family), dropped outright for the complete name
+				// ExceptExact normalizes as, and turned into the boundary
+				// underscore ExceptPrefix keeps for its own family.
+				{Prefix: "foo.", ExceptExact: []string{"foo.bar"}, ExceptPrefix: []string{"foo.baz_"}},
+			},
+		},
+		{
+			name: "empty prefix and empty except_prefix are kept, they match everything",
+			rules: []PrefixRule{
+				{Prefix: "", ExceptPrefix: []string{""}},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "", ExceptPrefix: []string{""}},
+			},
+		},
+		{
+			name: "empty except_exact is dropped, no stored name is ever empty",
+			rules: []PrefixRule{
+				{Prefix: "foo.", ExceptExact: []string{"", "foo.bar"}},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "foo.", ExceptExact: []string{"foo.bar"}},
+			},
+			droppedExceptions: []string{""},
+		},
+		{
+			name: "unusable prefix drops the whole rule",
+			rules: []PrefixRule{
+				{Prefix: "123", ExceptExact: []string{"foo.bar"}},
+				{Prefix: "foo."},
+			},
+			normalized: []PrefixRule{
+				{Prefix: "foo."},
+			},
+			droppedRules: []string{"123"},
+		},
+		{
+			name: "unusable exceptions are dropped on their own, the rule is kept",
+			rules: []PrefixRule{
+				{
+					Prefix:       "foo.",
+					ExceptExact:  []string{"123", "foo.bar"},
+					ExceptPrefix: []string{"123", "foo.baz."},
+				},
+			},
+			normalized: []PrefixRule{
+				{
+					Prefix:       "foo.",
+					ExceptExact:  []string{"foo.bar"},
+					ExceptPrefix: []string{"foo.baz."},
+				},
+			},
+			droppedExceptions: []string{"123", "123"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			normalized, droppedRules, droppedExceptions := NormalizePrefixRules(c.rules)
+			assert.Equal(t, c.normalized, normalized)
+			assert.Equal(t, c.droppedRules, droppedRules)
+			assert.Equal(t, c.droppedExceptions, droppedExceptions)
+
+			// Normalizing an already-normalized list changes nothing, so a list
+			// normalized again (config load, then an RC update) is stable.
+			twice, droppedRulesTwice, droppedExceptionsTwice := NormalizePrefixRules(normalized)
+			assert.Equal(t, normalized, twice, "normalizing prefix rules must be idempotent")
+			assert.Empty(t, droppedRulesTwice)
+			assert.Empty(t, droppedExceptionsTwice)
+		})
+	}
+}
+
 func TestNormalizeUnstorableNames(t *testing.T) {
 	for _, input := range unstorableNames {
 		t.Run(input, func(t *testing.T) {

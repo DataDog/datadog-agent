@@ -12,52 +12,104 @@ import (
 	"unsafe"
 )
 
-// PrefixSuffix marks an entry in a matcher list as a prefix pattern: an entry
-// ending with it matches every metric name starting with the rest of the entry.
-const PrefixSuffix = "*"
-
-// Matcher tests a metric name for match against a list of metric names.
-// See `NewMatcher` for details.
+// Matcher tests a metric name for match against a list of metric names and/or
+// prefix rules. See `NewMatcher` and `NewMatcherWithPrefixRules` for details.
 type Matcher struct {
 	// exact contains the entries matched by equality.
 	// Invariants:
 	// - sorted and deduplicated,
 	// - no entry has an element of `prefixes` as a prefix.
 	exact []string
-	// prefixes contains the entries matched by prefix, without their
-	// trailing `PrefixSuffix`.
+	// prefixes contains the entries matched by prefix with no exceptions:
+	// entries of a whole-list-as-prefix configuration (`matchPrefix`), plus
+	// exception-free `PrefixRule` entries once their exceptions, if any, are
+	// dropped by normalization (see NewMatcherWithPrefixRules).
 	// Invariants:
 	// - sorted and deduplicated,
 	// - for all i, j such that i != j, !HasPrefix(prefixes[i], prefixes[j]).
 	prefixes []string
+	// rules contains prefix rules that still carry at least one exception
+	// after compaction. Unlike `prefixes`, entries here are not compacted
+	// against each other: two rules whose prefixes nest can each still
+	// independently match, because their exceptions differ. A rule whose
+	// prefix is already covered by an entry of `prefixes` is dropped instead
+	// of kept here, since `prefixes` already matches every name it could
+	// ever match unconditionally, which makes the rule's exceptions dead (see
+	// NewMatcherWithPrefixRules).
+	rules []compiledPrefixRule
 }
 
-// NewMatcher creates a new metric name matcher.
+// PrefixRule is a single metric_filterlist_prefix entry: it matches every
+// metric name starting with Prefix, except a name matched by one of
+// ExceptExact (exact names) or ExceptPrefix (prefixes).
 //
-// Entries are taken verbatim, apart from the trailing `*` described below. They
-// are expected to already be normalized, i.e. to be metric names as the backend
-// stores and displays them, which is what users copy into a filter list. `Test`
-// normalizes the name it is given, so the comparison happens in that same name
-// space.
+// Prefix and every entry of ExceptPrefix are prefixes; every entry of
+// ExceptExact is a complete metric name. None of them ever carry a `*`
+// marker: unlike a plain `metric_filterlist` entry, a PrefixRule field is
+// always what its name says it is, `*` included, since a literal `*` can
+// never appear in (and therefore never match) a normalized metric name.
 //
-// An entry ending with `*` is a prefix pattern: `foo.*` matches every metric
-// name starting with `foo.` (including `foo.` itself). A `*` anywhere else in an
-// entry is matched literally, and can therefore never match, since a normalized
-// name contains no `*`.
+// An empty Prefix matches every metric name, exactly like an empty entry of a
+// matchPrefix-enabled plain list (see NewMatcher). The same holds for an
+// empty entry of ExceptPrefix: it excepts every metric name, neutering the
+// rule entirely. An empty entry of ExceptExact, by contrast, can never except
+// anything, since no metric name the intake stores is ever empty.
 //
-// Use `matchPrefix` to treat every entry as a prefix, whether or not it ends
-// with `*`. A trailing `*` is always stripped, so an entry written as a prefix
-// pattern behaves the same regardless of `matchPrefix`.
+// PrefixRule values passed to NewMatcherWithPrefixRules are expected to
+// already be normalized; see NormalizePrefixRules.
+type PrefixRule struct {
+	Prefix       string
+	ExceptExact  []string
+	ExceptPrefix []string
+}
+
+// compiledPrefixRule is the compiled form of a PrefixRule kept in
+// Matcher.rules: a rule that still has at least one exception after
+// compaction.
+type compiledPrefixRule struct {
+	prefix string
+	// exceptExact is sorted and deduplicated.
+	exceptExact []string
+	// exceptPrefix is sorted and identifies unique prefixes (see
+	// compactPrefixes).
+	exceptPrefix []string
+}
+
+// NewMatcher creates a new metric name matcher from a plain list of entries,
+// with no prefix-rule (metric_filterlist_prefix) entries. It is equivalent to
+// discarding the second return value of `NewMatcherWithPrefixRules(data,
+// matchPrefix, nil)`.
+//
+// Entries are taken verbatim: they are expected to already be normalized,
+// i.e. to be metric names as the backend stores and displays them, which is
+// what users copy into a filter list. `Test` normalizes the name it is
+// given, so the comparison happens in that same name space.
+//
+// Use `matchPrefix` to treat every entry as a prefix. There is no per-entry
+// way to mark a single `metric_filterlist` entry as a prefix: that is what
+// `metric_filterlist_prefix` (see `PrefixRule`) is for.
 func NewMatcher(data []string, matchPrefix bool) Matcher {
+	m, _ := NewMatcherWithPrefixRules(data, matchPrefix, nil)
+	return m
+}
+
+// NewMatcherWithPrefixRules creates a new metric name matcher combining a
+// plain list of entries (see NewMatcher) with a list of prefix rules (see
+// PrefixRule), typically loaded from `metric_filterlist` (`data`,
+// `matchPrefix`) and `metric_filterlist_prefix` (`rules`) respectively.
+//
+// `rules` must already be normalized; see NormalizePrefixRules.
+//
+// The second return value lists, for logging purposes, the prefix of every
+// rule dropped because a broader, exception-free prefix elsewhere in `data`
+// (via `matchPrefix`) or in `rules` already matches every name that rule
+// could ever match: such a rule's exceptions can never take effect (see
+// Matcher.rules), so keeping it would only cost memory and CPU for no
+// behavioral difference.
+func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRule) (Matcher, []string) {
 	var exact, prefixes []string
 
 	for _, entry := range data {
-		if prefix, ok := strings.CutSuffix(entry, PrefixSuffix); ok {
-			// Sub-slicing shares the backing bytes of `entry`: stripping the
-			// trailing `*` does not allocate.
-			prefixes = append(prefixes, prefix)
-			continue
-		}
 		if matchPrefix {
 			prefixes = append(prefixes, entry)
 			continue
@@ -65,13 +117,46 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 		exact = append(exact, entry)
 	}
 
+	var compiled []compiledPrefixRule
+	for _, rule := range rules {
+		exceptExact := compactExact(rule.ExceptExact, nil)
+		exceptPrefix := compactPrefixes(rule.ExceptPrefix)
+
+		if len(exceptExact) == 0 && len(exceptPrefix) == 0 {
+			// No exception survives compaction: this rule is a bare prefix.
+			prefixes = append(prefixes, rule.Prefix)
+			continue
+		}
+
+		compiled = append(compiled, compiledPrefixRule{
+			prefix:       rule.Prefix,
+			exceptExact:  exceptExact,
+			exceptPrefix: exceptPrefix,
+		})
+	}
+
 	prefixes = compactPrefixes(prefixes)
 	exact = compactExact(exact, prefixes)
+
+	// Drop any exception-bearing rule whose prefix is already covered,
+	// unconditionally, by an entry of `prefixes`: such a rule can never keep
+	// any of its exceptions in effect (see Matcher.rules).
+	var dropped []string
+	var kept []compiledPrefixRule
+	for _, rule := range compiled {
+		if len(prefixes) > 0 && testPrefixes(prefixes, rule.prefix) {
+			dropped = append(dropped, rule.prefix)
+			continue
+		}
+		kept = append(kept, rule)
+	}
+	compiled = kept
 
 	return Matcher{
 		exact:    exact,
 		prefixes: prefixes,
-	}
+		rules:    compiled,
+	}, dropped
 }
 
 // NormalizeEntries returns `entries` normalized into the name space `Matcher`
@@ -79,13 +164,13 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 // the intake stores can match them (see `NormalizeAppend` and
 // `NormalizePrefixAppend` for what that rules out).
 //
-// Entries are the raw strings a user or Remote Config provides, so this is where
-// the `*` marker documented on `NewMatcher` is accounted for: the marker is not
-// part of the name, and a prefix is normalized as a prefix rather than as a
-// complete metric name, which is what keeps `service_*` from widening into
-// `service*`. The marker is preserved, so the result is a filter list of the same
-// shape as the input, ready to hand to `NewMatcher` — or to report back to the
-// user as the list actually in effect.
+// Entries are the raw strings a user or Remote Config provides. `matchPrefix`
+// normalizes every entry as a prefix rather than as a complete metric name;
+// there is no per-entry marker: a `metric_filterlist` entry is always either
+// entirely exact or entirely a prefix, for the whole list, controlled by
+// `matchPrefix`. A prefix rule with its own, independent, per-entry prefix
+// behavior belongs in `metric_filterlist_prefix` (see `PrefixRule` and
+// `NormalizePrefixRules`), not here.
 //
 // Dropped entries are returned rather than logged: this package has no logger,
 // and the caller knows which setting they came from.
@@ -95,26 +180,18 @@ func NormalizeEntries(entries []string, matchPrefix bool) (normalized, dropped [
 	var buf [MaxLength]byte
 
 	for _, entry := range entries {
-		name, hasStar := strings.CutSuffix(entry, PrefixSuffix)
-
 		var key []byte
 		var ok bool
-		if hasStar || matchPrefix {
-			key, ok = NormalizePrefixAppend(buf[:0], name)
+		if matchPrefix {
+			key, ok = NormalizePrefixAppend(buf[:0], entry)
 		} else {
-			key, ok = NormalizeAppend(buf[:0], name)
+			key, ok = NormalizeAppend(buf[:0], entry)
 		}
 		if !ok {
 			dropped = append(dropped, entry)
 			continue
 		}
 
-		// Only put back a marker the entry had: with `matchPrefix` every entry
-		// is a prefix already, whether or not it is written as one.
-		if hasStar {
-			normalized = append(normalized, string(key)+PrefixSuffix)
-			continue
-		}
 		normalized = append(normalized, string(key))
 	}
 
@@ -126,7 +203,8 @@ func NormalizeEntries(entries []string, matchPrefix bool) (normalized, dropped [
 // unique prefixes.
 //
 // `prefixes` is reordered and compacted in place: it must be a slice the caller
-// owns, which is the case for the one `NewMatcher` builds by appending.
+// owns, which is the case for the one `NewMatcherWithPrefixRules` builds by
+// appending.
 func compactPrefixes(prefixes []string) []string {
 	if len(prefixes) == 0 {
 		return nil
@@ -175,11 +253,11 @@ func compactExact(exact, prefixes []string) []string {
 }
 
 // RestrictExact returns a Matcher that shares this Matcher's compiled
-// `prefixes` — a derived matcher that must still match every prefix this one
-// matches (e.g. a histogram-aggregate name derived from a metric matched by
-// prefix) has nothing new to compute there, so the slice is shared rather
-// than rebuilt — restricted to the exact entries for which `keep` returns
-// true.
+// `prefixes` and `rules` — a derived matcher that must still match every
+// prefix (bare or with exceptions) this one matches (e.g. a
+// histogram-aggregate name derived from a metric matched by prefix) has
+// nothing new to compute there, so both slices are shared rather than
+// rebuilt — restricted to the exact entries for which `keep` returns true.
 //
 // m.exact is already sorted, deduplicated, and free of entries covered by a
 // prefix; filtering by `keep` preserves all three properties, so the result
@@ -194,21 +272,26 @@ func (m Matcher) RestrictExact(keep func(string) bool) Matcher {
 	return Matcher{
 		exact:    exact,
 		prefixes: m.prefixes,
+		rules:    m.rules,
 	}
 }
 
-// Len returns the number of entries in the compiled matcher.
+// Len returns the number of entries in the compiled matcher: exact entries,
+// bare prefixes, and prefix rules that still carry at least one exception.
 func (m *Matcher) Len() int {
 	if m == nil {
 		return 0
 	}
-	return len(m.exact) + len(m.prefixes)
+	return len(m.exact) + len(m.prefixes) + len(m.rules)
 }
 
 // MatchesAll reports whether the matcher matches every metric name the intake
-// stores, which is what an entry of a lone `*` (or any empty entry in
-// `matchPrefix` mode) asks for. Compaction leaves that empty prefix as the only
-// entry, since every name starts with it.
+// stores, which is what an entry of an empty prefix (or of a lone `*` in a
+// pre-#55504 sense — see NewMatcher) asks for. Compaction leaves that empty
+// prefix as the only entry, since every name starts with it. An
+// exception-bearing rule of an empty prefix does not make this true, since by
+// definition at least one name (one of its exceptions) is kept: such a rule
+// never folds into `prefixes` and is therefore never counted here, correctly.
 func (m *Matcher) MatchesAll() bool {
 	if m == nil {
 		return false
@@ -217,7 +300,9 @@ func (m *Matcher) MatchesAll() bool {
 }
 
 // Test returns true if the given metric name is equal to one of the exact
-// entries of the matcher, or starts with one of its prefix entries.
+// entries of the matcher, starts with one of its bare prefix entries, or
+// starts with the prefix of one of its prefix rules without being excepted by
+// that rule.
 //
 // The name is normalized before being compared. The Agent sees names exactly as
 // they were submitted, but the intake rewrites them on ingest, so a raw name
@@ -261,12 +346,40 @@ func (m *Matcher) search(name string) bool {
 
 	if len(m.exact) > 0 {
 		i := sort.SearchStrings(m.exact, name)
-		if i < len(m.exact) {
-			return name == m.exact[i]
+		if i < len(m.exact) && name == m.exact[i] {
+			return true
+		}
+	}
+
+	for i := range m.rules {
+		if matchesPrefixRule(&m.rules[i], name) {
+			return true
 		}
 	}
 
 	return false
+}
+
+// matchesPrefixRule reports whether `name` is matched by `rule`: it starts
+// with `rule.prefix` and is not covered by one of its exceptions. `name` must
+// already be normalized, exactly as required by Matcher.search.
+func matchesPrefixRule(rule *compiledPrefixRule, name string) bool {
+	if !strings.HasPrefix(name, rule.prefix) {
+		return false
+	}
+
+	if len(rule.exceptPrefix) > 0 && testPrefixes(rule.exceptPrefix, name) {
+		return false
+	}
+
+	if len(rule.exceptExact) > 0 {
+		i := sort.SearchStrings(rule.exceptExact, name)
+		if i < len(rule.exceptExact) && name == rule.exceptExact[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 // testPrefixes returns true if `name` starts with one of the entries of

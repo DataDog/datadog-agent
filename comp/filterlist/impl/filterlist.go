@@ -37,9 +37,10 @@ type Provides struct {
 }
 
 type localFilterListConfig struct {
-	metricNames   []string
-	matchPrefix   bool
-	tagFilterList []MetricTagListEntry
+	metricNames       []string
+	matchPrefix       bool
+	metricPrefixRules []metricname.PrefixRule
+	tagFilterList     []MetricTagListEntry
 }
 
 type FilterList struct {
@@ -79,6 +80,14 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	}
 	filterlist = normalizeMetricNames(filterlist, filterlistPrefix, log)
 
+	// init the metric prefix filterlist
+	var metricPrefixEntries []MetricPrefixListEntry
+	if err := structure.UnmarshalKey(config, "metric_filterlist_prefix", &metricPrefixEntries); err != nil {
+		log.Errorf("error loading metric_filterlist_prefix configuration: %s", err)
+		metricPrefixEntries = nil
+	}
+	metricPrefixRules := normalizeMetricPrefixList(metricPrefixEntries, log)
+
 	// Load tag filter list from config
 	var tagFilterListEntries []MetricTagListEntry
 	err := structure.UnmarshalKey(config, "metric_tag_filterlist", &tagFilterListEntries)
@@ -88,9 +97,10 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	}
 
 	localFilterListConfig := localFilterListConfig{
-		metricNames:   filterlist,
-		matchPrefix:   filterlistPrefix,
-		tagFilterList: tagFilterListEntries,
+		metricNames:       filterlist,
+		matchPrefix:       filterlistPrefix,
+		metricPrefixRules: metricPrefixRules,
+		tagFilterList:     tagFilterListEntries,
 	}
 
 	tlmMetricFilterListUpdates := telemetryComp.NewSimpleCounter("filterlist", "updates",
@@ -119,7 +129,11 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	compiledTag := loadTagFilterList(localFilterListConfig.tagFilterList, log)
 	fl.setTagFilterList(compiledTag)
 
-	fl.SetMetricFilterList(localFilterListConfig.metricNames, localFilterListConfig.matchPrefix)
+	fl.SetMetricFilterList(
+		localFilterListConfig.metricNames,
+		localFilterListConfig.matchPrefix,
+		localFilterListConfig.metricPrefixRules,
+	)
 
 	return fl
 }
@@ -245,11 +259,13 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 
 // normalizeMetricNames normalizes each entry so it matches the name space the
 // matcher compares in, and reports the ones dropped for not being able to match
-// any metric name the intake stores. `matchPrefix` makes every entry a prefix,
-// whether or not it is written with a trailing `*`.
+// any metric name the intake stores. `matchPrefix` makes every entry of the
+// whole list a prefix; there is no per-entry marker for that -- a per-entry
+// prefix, with optional exceptions, belongs in metric_filterlist_prefix
+// instead (see MetricPrefixListEntry and normalizeMetricPrefixList).
 //
-// The entry format and the normalizing itself belong to metricname, which owns
-// both the `*` convention and the name space entries are compared in.
+// The normalizing itself belongs to metricname, which owns the name space
+// entries are compared in.
 func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) []string {
 	normalized, dropped := metricname.NormalizeEntries(names, matchPrefix)
 	for _, entry := range dropped {
@@ -259,21 +275,29 @@ func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) [
 }
 
 // SetMetricFilterList updates the metric names filter on all running worker.
-// A metric name ending with `*` is a prefix, matching every name starting with
-// the rest of the entry. `matchPrefix` turns every entry into a prefix.
-func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
-	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
+// `metricNames` is matched exactly, unless `matchPrefix` turns every entry of
+// the whole list into a prefix. `prefixRules` (metric_filterlist_prefix) are
+// always prefixes, entry by entry, and can each carry their own exceptions
+// (see metricname.PrefixRule); they must already be normalized (see
+// normalizeMetricPrefixList).
+func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool, prefixRules []metricname.PrefixRule) {
+	fl.log.Debugf("SetMetricFilterList with %d metrics, %d prefix rules", len(metricNames), len(prefixRules))
 
 	// we will use two different filterlists:
-	// - one with all the metrics names, with all values from `metricNames`
+	// - one with all the metrics names, with all values from `metricNames` and
+	//   `prefixRules`
 	// - one with only the metric names ending with histogram aggregates suffixes
 	//
-	// A prefix entry can match any name starting with it, including the
-	// aggregates derived from a histogram, so it always belongs in the
-	// histogram filter list too: its compiled prefixes are therefore always
-	// identical to the main filter list's, and RestrictExact shares them
-	// instead of recompiling a duplicate copy.
-	filterList := metricname.NewMatcher(metricNames, matchPrefix)
+	// A prefix (bare, or a PrefixRule with its exceptions) can match any name
+	// starting with it, including the aggregates derived from a histogram, so
+	// it always belongs in the histogram filter list too: its compiled
+	// prefixes and rules are therefore always identical to the main filter
+	// list's, and RestrictExact shares them instead of recompiling a duplicate
+	// copy.
+	filterList, droppedRules := metricname.NewMatcherWithPrefixRules(metricNames, matchPrefix, prefixRules)
+	for _, prefix := range droppedRules {
+		fl.log.Warnf("metric_filterlist_prefix: dropping entry %q: a broader prefix already matches every metric name it could ever match unconditionally, so its exceptions could never apply", prefix)
+	}
 	histoFilterList := filterList.RestrictExact(fl.isHistogramAggregateSuffix)
 
 	// Worth a warning, since it silently drops every metric.
@@ -305,6 +329,7 @@ func (fl *FilterList) restoreMetricFilterListFromLocalConfig() {
 	fl.SetMetricFilterList(
 		fl.localFilterListConfig.metricNames,
 		fl.localFilterListConfig.matchPrefix,
+		fl.localFilterListConfig.metricPrefixRules,
 	)
 }
 
