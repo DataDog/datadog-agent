@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "core",
@@ -53,6 +53,7 @@ go_library(
         "get_persistent_volume.gen.go",
         "get_persistent_volume_claim.gen.go",
         "get_pod.gen.go",
+        "get_pod_logs.go",
         "get_pod_template.gen.go",
         "get_replication_controller.gen.go",
         "get_resource_quota.gen.go",
@@ -113,4 +114,11 @@ go_library(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/types",
     ],
+)
+
+go_test(
+    name = "core_test",
+    srcs = ["get_pod_logs_test.go"],
+    embed = [":core"],
+    deps = ["@io_k8s_apimachinery//pkg/apis/meta/v1:meta"],
 )
