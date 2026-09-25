@@ -44,6 +44,7 @@ rust_shared_library(
         "@crates//:openssl",
         "@crates//:postgres",
         "@crates//:postgres-openssl",
+        "@crates//:postgres-protocol",
         "@crates//:prost",
         "@crates//:serde",
     ],
