@@ -1,5 +1,14 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+easyjson(
+    name = "policy_monitor_easyjson",
+    src = "policy_monitor.go",
+    output = "policy_monitor_easyjson.go",
+    package = ":monitor",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/rules/monitor",
+)
 
 go_library(
     name = "monitor",
