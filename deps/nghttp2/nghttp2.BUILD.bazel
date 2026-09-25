@@ -1,30 +1,11 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@@//compliance/rules:purl.bzl", "purl_for_generic")
-load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
-    default_package_metadata = [":package_metadata"],
     default_visibility = ["//visibility:private"],
-)
-
-SO_VERSION = "14.25.1"
-
-VERSION = "1.58.0"
-
-package_metadata(
-    name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
-    purl = purl_for_generic(
-        download_url = "https://github.com/nghttp2/nghttp2/releases/download/v{version}/nghttp2-{version}.tar.gz",
-        package = "nghttp2",
-        version = VERSION,
-    ),
 )
 
 license(
@@ -34,6 +15,9 @@ license(
     license_text = "COPYING",
     visibility = ["//visibility:public"],
 )
+
+SO_VERSION = "14.25.1"
+VERSION = "1.58"
 
 PUBLIC_HEADERS = [
     "lib/includes/nghttp2/nghttp2ver.h",
@@ -56,11 +40,11 @@ cc_library(
         "lib/nghttp2_extpri.h",
         "lib/nghttp2_frame.c",
         "lib/nghttp2_frame.h",
-        "lib/nghttp2_hd.c",
-        "lib/nghttp2_hd.h",
+        "lib/nghttp2_hd_huffman_data.c",
         "lib/nghttp2_hd_huffman.c",
         "lib/nghttp2_hd_huffman.h",
-        "lib/nghttp2_hd_huffman_data.c",
+        "lib/nghttp2_hd.c",
+        "lib/nghttp2_hd.h",
         "lib/nghttp2_helper.c",
         "lib/nghttp2_helper.h",
         "lib/nghttp2_http.c",
@@ -104,6 +88,11 @@ cc_library(
     ]) + [
         "config.h",
     ],
+    includes = [
+        ".",  # For config.h
+        "lib/includes",
+    ],
+    visibility = ["//visibility:public"],
     # Options gleaned from the generated Makefile
     copts = [
         "-O2",
@@ -111,21 +100,16 @@ cc_library(
         "-DBUILDING_NGHTTP2",
         "-fvisibility=hidden",
     ],
-    includes = [
-        ".",  # For config.h
-        "lib/includes",
-    ],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
-    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "nghttp2",
-    visibility = ["//visibility:public"],
     deps = [":libnghttp2"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
@@ -136,10 +120,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "nghttp2_pkg",
-    dest_dir = "embedded/lib",
     input = ":nghttp2",
-    installed_files = [":header_files"],
+    dest_dir = "embedded/lib",
     version = SO_VERSION,
+    installed_files = [":header_files"],
     visibility = ["//visibility:public"],
 )
 
@@ -148,8 +132,5 @@ pkg_filegroup(
     srcs = [
         ":header_files",
     ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
