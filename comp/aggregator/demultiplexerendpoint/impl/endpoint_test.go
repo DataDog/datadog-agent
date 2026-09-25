@@ -17,8 +17,9 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/DataDog/zstd"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 type contextDumperFunc func(io.Writer) error
@@ -128,7 +129,8 @@ func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 
 	contents, err = os.ReadFile(finalPath)
 	require.NoError(t, err)
-	decoder := zstd.NewReader(bytes.NewReader(contents))
+	decoder, err := zstd.NewReader(bytes.NewReader(contents))
+	require.NoError(t, err)
 	decompressed, err := io.ReadAll(decoder)
 	require.NoError(t, err)
 	decoder.Close()

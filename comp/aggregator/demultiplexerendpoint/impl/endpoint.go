@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/zstd"
 	"golang.org/x/sync/singleflight"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
@@ -24,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	dogstatsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 var errDogstatsdOnDataPlane = errors.New("DogStatsD traffic is being served by the Agent Data Plane; run DogStatsD diagnostic commands against the agent-data-plane process instead")
@@ -109,7 +109,11 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath
 	tempPath := f.Name()
 	defer os.Remove(tempPath)
 
-	c := zstd.NewWriter(f)
+	c, err := zstd.NewWriter(f)
+	if err != nil {
+		_ = f.Close()
+		return "", err
+	}
 	w := bufio.NewWriter(c)
 
 	for _, err := range []error{demuxendpoint.demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
