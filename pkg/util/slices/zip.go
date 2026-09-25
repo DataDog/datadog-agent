@@ -8,14 +8,20 @@ package slices
 import "iter"
 
 // ZipIter combines the two iterators into a single iterator.
-// The combined iterator stops when the first of either iterator stops.
+// The combined iterator stops only when both iterators are stopped.
 func ZipIter[K any, V any](x iter.Seq[K], y iter.Seq[V]) iter.Seq2[K, V] {
 	return func(yield func(K, V) bool) {
-		pull, stop := iter.Pull(y)
-		defer stop()
-		for k := range x {
-			v, ok := pull()
-			if !ok || !yield(k, v) {
+		xpull, xstop := iter.Pull(x)
+		defer xstop()
+		ypull, ystop := iter.Pull(y)
+		defer ystop()
+		for {
+			k, okx := xpull()
+			v, oky := ypull()
+			if !okx && !oky {
+				return
+			}
+			if !yield(k, v) {
 				return
 			}
 		}
