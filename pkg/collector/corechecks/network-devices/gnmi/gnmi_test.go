@@ -75,6 +75,7 @@ use_tls: false
 	mockSender := mocksender.NewMockSender(t, "")
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("EventPlatformEvent", mock.Anything, "network-devices-metadata").Return()
 	mockSender.On("Commit").Return()
 
 	err = checkInstance.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstance, []byte(""), "test", "test")
@@ -87,6 +88,7 @@ use_tls: false
 	require.NoError(t, err)
 
 	event := waitSubscribeEvent(t, server)
+	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceNameUpdate("eth0")))
 	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceInOctetsUpdate("eth0", 42)))
 	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceOutOctetsUpdate("eth0", 84)))
 
@@ -107,6 +109,7 @@ use_tls: false
 	mockSender.AssertCalled(t, "Gauge", "datadog.gnmi.received_samples", mock.Anything, "", mock.Anything)
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCInOctets", float64(42), "", mock.Anything)
 	mockSender.AssertCalled(t, "MonotonicCount", "snmp.ifHCOutOctets", float64(84), "", mock.Anything)
+	mockSender.AssertCalled(t, "EventPlatformEvent", mock.Anything, "network-devices-metadata")
 	mockSender.AssertCalled(t, "Commit")
 
 	checkInstance.Cancel()
