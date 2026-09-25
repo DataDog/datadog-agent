@@ -2,13 +2,16 @@
 
 use anyhow::{Context, Result, bail};
 use postgres::config::SslMode as PgSslMode;
-use postgres::types::Type;
+use postgres::types::{FromSql, Type};
 use postgres::{Client, Config, NoTls, Row, Statement};
 
 use crate::backend::{ScanData, ScanEngine, ScannedColumn};
 use crate::config::{SslMode, SubTask};
 
+mod text;
 mod tls;
+
+use text::TextCell;
 
 pub struct PostgresEngine;
 pub const ENGINE: PostgresEngine = PostgresEngine;
@@ -115,16 +118,17 @@ fn columns_from_stmt(stmt: &Statement) -> (Vec<usize>, Vec<ScannedColumn>) {
     (indices, scanned_columns)
 }
 
-/// Postgres string/text types the scanner can read directly.
-/// TODO(dsec-160): add support for other postgres types (integers, floats, booleans, etc.).
+/// Postgres types the scanner can read, i.e. those [`TextCell`] converts to text.
 fn is_supported_type(ty: &Type) -> bool {
-    matches!(*ty, Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME)
+    TextCell::accepts(ty)
 }
 
-/// Reads a string cell (`None` when the value is NULL).
-/// TODO(dsec-160): add support for other postgres types (integers, floats, booleans, etc.).
+/// Reads a cell as text (`None` when the value is NULL).
 fn cell(row: &Row, index: usize) -> Option<String> {
-    row.try_get::<_, Option<String>>(index).ok().flatten()
+    row.try_get::<_, Option<TextCell>>(index)
+        .ok()
+        .flatten()
+        .map(|cell| cell.0)
 }
 
 // TODO(dsec-266): add tests for the postgres engine.

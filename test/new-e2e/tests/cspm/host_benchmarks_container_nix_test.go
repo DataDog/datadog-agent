@@ -36,9 +36,6 @@ func testContainerizedHostBenchmarks(t *testing.T, d distro) {
 		vmOS = *d.containerOS
 	}
 	vmOpts := []ec2.VMOption{ec2.WithOS(vmOS)}
-	if d.latestAMI {
-		vmOpts = append(vmOpts, ec2.WithLatestAMI())
-	}
 	e2e.Run(t, &containerBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-container-"+d.name),
 		e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithRunOptions(
