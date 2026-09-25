@@ -43,6 +43,7 @@ go_stringer(
         "StorageFormat",
         "StorageType",
     ],
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 dd_agent_go_test(

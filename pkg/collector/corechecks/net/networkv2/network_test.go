@@ -1925,6 +1925,56 @@ excluded_interface_re: "eth[0-9]"
 	mockSender.AssertCalled(t, "Rate", "system.net.packets_out.error", float64(33), "", lo0Tags)
 }
 
+func TestExcludedInterfacesIfaceSysMetrics(t *testing.T) {
+	net := &fakeNetworkStats{}
+	networkCheck := createTestNetworkCheck(net)
+
+	rawInstanceConfig := []byte(`
+excluded_interfaces:
+  - eth1
+excluded_interface_re: "veth.*"
+`)
+
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
+	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
+	assert.Nil(t, err)
+
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Commit").Return()
+
+	mockEthtool := new(MockEthtool)
+	getNewEthtool = func() (ethtoolInterface, error) {
+		return mockEthtool, nil
+	}
+
+	filesystem = afero.NewMemMapFs()
+	fs := filesystem
+	for _, iface := range []string{"eth0", "eth1", "veth1a2b"} {
+		for file, value := range map[string]string{"mtu": "1500", "tx_queue_len": "1000", "carrier": "1"} {
+			err = afero.WriteFile(fs, "/sys/class/net/"+iface+"/"+file, []byte(value), 0644)
+			assert.Nil(t, err)
+		}
+		err = fs.MkdirAll("/sys/class/net/"+iface+"/queues/tx-0", 0755)
+		assert.Nil(t, err)
+		err = fs.MkdirAll("/sys/class/net/"+iface+"/queues/rx-0", 0755)
+		assert.Nil(t, err)
+	}
+
+	err = networkCheck.Run()
+	assert.Nil(t, err)
+
+	ifaceSysMetrics := []string{"mtu", "tx_queue_len", "up", "num_tx_queues", "num_rx_queues"}
+	for _, metric := range ifaceSysMetrics {
+		mockSender.AssertCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:eth0"})
+		// excluded by name
+		mockSender.AssertNotCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:eth1"})
+		// excluded by pattern
+		mockSender.AssertNotCalled(t, "Gauge", "system.net.iface."+metric, mock.Anything, "", []string{"iface:veth1a2b"})
+	}
+}
+
 func TestFetchEthtoolStats(t *testing.T) {
 	mockEthtool := new(MockEthtool)
 
