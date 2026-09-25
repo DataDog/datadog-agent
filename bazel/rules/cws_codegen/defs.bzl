@@ -135,6 +135,8 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
         args = args,
         outs = ["{}/bootstrap.go".format(name)],
         tool = "//pkg/security/generators/easyjson_bootstrap",
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
     )
 
     go_library(
@@ -146,12 +148,16 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
             package,
             "@com_github_mailru_easyjson//gen",
         ],
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
     )
 
     go_binary(
         name = "{}_bin".format(name),
         embed = [":{}_lib".format(name)],
         target_compatible_with = compatible_with,
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
     )
 
     run_binary(
@@ -160,6 +166,8 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
         outs = ["{}/{}".format(name, output)],
         target_compatible_with = compatible_with,
         tool = ":{}_bin".format(name),
+        tags = ["manual"],
+        visibility = ["//visibility:private"],
     )
     native.exports_files([output], visibility)
     write_source_file(
