@@ -1,4 +1,3 @@
----
 schema-version: v1
 rulesets:
   - docker-best-practices
@@ -7,7 +6,7 @@ rulesets:
   - github-actions
   - sit-ci-best-practices:
     only:
-      - ".github/workflows"
+      - .github/workflows
   - python-security
   - python-best-practices:
     rules:
