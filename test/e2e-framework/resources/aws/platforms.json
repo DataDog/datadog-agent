@@ -1,4 +1,12 @@
 {
+    "alma-linux": {
+        "arm64": {
+            "9": "ami-0e45a8ceb7f9316a7"
+        },
+        "x86_64": {
+            "9": "ami-00a43ffa1aad6a150"
+        }
+    },
     "amazon-linux": {
         "arm64": {
             "2": "ami-014a2929b68fa9931",

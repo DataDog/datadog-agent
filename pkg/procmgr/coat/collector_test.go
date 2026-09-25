@@ -173,6 +173,39 @@ func TestCollectADPProcmgrRunning(t *testing.T) {
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 }
 
+func TestCollectProcessProcmgrRunning(t *testing.T) {
+	process, ok := serviceByID("process")
+	require.True(t, ok)
+	assert.Equal(t, "datadog-process-agent", process.LegacyWindowsService)
+
+	root := t.TempDir()
+	marker := installMarkerForTest(t, root, process, 0)
+	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
+	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, process.ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning},
+		},
+	})
+
+	snapshot := collector.Collect(context.Background())
+
+	service := serviceSnapshotByID(t, snapshot, "process")
+	assert.Equal(t, "process", service.ID)
+	assert.True(t, service.Installed)
+	assert.True(t, service.ProcmgrConfigured)
+	assert.Equal(t, ProcessStateRunning, service.ProcmgrState)
+	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
+}
+
 func TestCollectServiceProcmgrNotRunningStillManaged(t *testing.T) {
 	root := setupDDOTInstallFixture(t)
 

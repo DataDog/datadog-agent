@@ -249,7 +249,12 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
 RUN apt-get purge -y adduser \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+  # Keep license/copyright attribution (/usr/share/doc/*/copyright, /usr/share/common-licenses),
+  # drop the rest of the package documentation (changelogs, READMEs, etc.)
+  && find /usr/share/doc -mindepth 1 -type f ! -name 'copyright*' -delete \
+  && find /usr/share/doc -mindepth 1 -type d -empty -delete \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl \
+    /usr/share/man /usr/share/info /usr/share/lintian /usr/share/bash-completion
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Enable FIPS if needed

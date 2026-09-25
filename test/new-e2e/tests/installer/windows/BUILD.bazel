@@ -7,7 +7,6 @@ go_library(
         "agent_package.go",
         "apm_inject_base_suite.go",
         "base_suite.go",
-        "ddot_procmgr.go",
         "doc.go",
         "dotnet_base_suite.go",
         "iis_helper.go",
@@ -17,6 +16,7 @@ go_library(
         "java_helper.go",
         "package_version.go",
         "params.go",
+        "procmgr.go",
     ],
     data = [
         "fixtures/sample_config_disabled",
@@ -48,7 +48,6 @@ go_library(
         "//test/new-e2e/tests/windows/common/pipeline",
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
     ],
 )

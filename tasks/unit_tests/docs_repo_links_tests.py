@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-DOCS_DIR = ROOT / "docs" / "public"
+DOCS_DIR = ROOT / "doc"
 
 
 def load_hook():
@@ -22,7 +22,7 @@ hook = load_hook()
 
 
 class TestResolveRepoPath(unittest.TestCase):
-    """Cover the branches that the paths written in docs/public do not reach."""
+    """Cover the branches that the paths written in doc do not reach."""
 
     # Resolved against a fixture tree rather than the repository, so that editing a real file cannot
     # fail these tests and every case can be expressed rather than scavenged for.
@@ -31,7 +31,7 @@ class TestResolveRepoPath(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         cls.addClassCleanup(directory.cleanup)
         cls.root = Path(directory.name)
-        cls.docs_dir = cls.root / "docs" / "public"
+        cls.docs_dir = cls.root / "doc"
 
         (cls.docs_dir / ".snippets").mkdir(parents=True)
         (cls.docs_dir / "index.md").write_text("# Index\n", encoding="utf-8")
@@ -100,10 +100,10 @@ class TestResolveRepoPath(unittest.TestCase):
             self.resolve("PKG/rules")
 
     def test_documentation_pages_must_be_linked_relatively(self):
-        self.assert_rejected("docs/public/index.md", because="link documentation pages relatively")
+        self.assert_rejected("doc/index.md", because="link documentation pages relatively")
 
     def test_documentation_assets_may_be_linked(self):
-        self.assertEqual(self.resolve("docs/public/.snippets/links.txt"), "blob/main/docs/public/.snippets/links.txt")
+        self.assertEqual(self.resolve("doc/.snippets/links.txt"), "blob/main/doc/.snippets/links.txt")
 
     def test_anchor_shapes_are_validated(self):
         for anchor in ("top", "L0", "L1x"):
