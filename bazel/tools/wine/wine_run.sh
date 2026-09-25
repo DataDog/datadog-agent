@@ -20,8 +20,14 @@ source "${RUNFILES_DIR:-/dev/null}/$f" 2>/dev/null || \
 # Bazel action), and Wine changes directory before spawning wineserver/wineboot.
 resolve() { realpath "$(rlocation "$1")"; }
 
-wine="$(resolve wine_linux_x86_64/bin/wine)"
-wineserver="$(resolve wine_linux_x86_64/bin/wineserver)"
+# Wine finds lib/ from /proc/self/exe. realpath() on the runfiles symlink lands
+# in the http_archive, which still has the drivers the filegroup excluded.
+wine_link="$(rlocation wine_linux_x86_64/bin/wine)"
+case "$wine_link" in
+    /*) ;;
+    *) wine_link="$PWD/$wine_link" ;;
+esac
+src_root="$(dirname "$(dirname "$wine_link")")"
 
 emulator=()
 if [[ "$(uname -m)" == aarch64 ]]; then
@@ -35,6 +41,21 @@ if [[ "$(uname -m)" == aarch64 ]]; then
 fi
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/wine_run.XXXXXX")"
+install="$scratch/install"
+mkdir -p "$install/bin"
+cp -L "$src_root/bin/wine" "$install/bin/wine"
+cp -L "$src_root/bin/wineserver" "$install/bin/wineserver"
+while IFS= read -r -d '' path; do
+    rel="${path#"$src_root"/}"
+    case "$rel" in
+        bin/wine | bin/wineserver) continue ;;
+    esac
+    mkdir -p "$install/$(dirname "$rel")"
+    ln -s "$(realpath "$path")" "$install/$rel"
+done < <(find "$src_root" \( -type f -o -type l \) -print0)
+wine="$install/bin/wine"
+wineserver="$install/bin/wineserver"
+
 cleanup() {
     "${emulator[@]}" "$wineserver" -k -w 2>/dev/null || true
     rm -rf "$scratch"
