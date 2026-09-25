@@ -263,7 +263,7 @@ func TestNoAggStreamWorkerObserverHandleUsesSerializedTags(t *testing.T) {
 	assert.Equal(t, "host-gauge", handle.calls[0].host)
 	assert.ElementsMatch(t, []string{"tag:1", "tag:2", "env:prod"}, handle.calls[0].tags)
 	assert.ElementsMatch(t, mockSerializer.series[0].Tags.UnsafeToReadOnlySliceString(), handle.calls[0].tags)
-	assertObservedContextKey(t, handle.calls[0])
+	assert.Zero(t, handle.calls[0].contextKey)
 }
 
 // TestTimeSamplerObserverHandleNil verifies no panic when observerHandle is nil.

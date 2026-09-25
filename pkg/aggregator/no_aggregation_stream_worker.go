@@ -12,7 +12,6 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -49,9 +48,6 @@ type noAggregationStreamWorker struct {
 
 	taggerBuffer *tagset.HashlessTagsAccumulator
 	metricBuffer *tagset.HashlessTagsAccumulator
-	// contextKeyGenerator is separate from metricBuffer so key generation never
-	// rearranges the tags used for serialization.
-	contextKeyGenerator *ckey.SliceKeyGenerator
 
 	// Shared no-aggregation input queue. Multiple workers receive from the same
 	// channel so available workers pull work instead of being selected by demux.
@@ -118,9 +114,8 @@ func newNoAggregationStreamWorker(maxMetricsPerPayload int, metricSamplePool *me
 
 		metricSamplePool: metricSamplePool,
 
-		taggerBuffer:        tagset.NewHashlessTagsAccumulator(),
-		metricBuffer:        tagset.NewHashlessTagsAccumulator(),
-		contextKeyGenerator: ckey.NewSliceKeyGenerator(),
+		taggerBuffer: tagset.NewHashlessTagsAccumulator(),
+		metricBuffer: tagset.NewHashlessTagsAccumulator(),
 
 		stopChan:    make(chan trigger),
 		samplesChan: samplesChan,
@@ -217,12 +212,12 @@ func (w *noAggregationStreamWorker) run() {
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
 							tags := tagset.CompositeTagsFromSlice(w.metricBuffer.Copy())
 							if w.observerHandle != nil {
-								contextKey := w.contextKeyGenerator.Generate(sample.Name, sample.Host, w.metricBuffer.Get())
+								// The observer derives the key from these resolved tags.
 								w.observerHandle.ObserveMetric(resolvedMetricView{
 									sample: &sample,
 									host:   sample.Host,
 									tags:   tags,
-								}, uint64(contextKey))
+								}, 0)
 							}
 
 							// if the value is a rate, we have to account for the 10s interval
