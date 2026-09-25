@@ -10,6 +10,7 @@ require (
 
 require (
 	cloud.google.com/go/auth v0.21.0 // indirect
+	cloud.google.com/go/compute/metadata v0.9.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.47.0 // indirect
