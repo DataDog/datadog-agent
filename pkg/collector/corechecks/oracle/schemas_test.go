@@ -935,13 +935,48 @@ func TestSchemaCollectorKeepsSnapshotStateAcrossPages(t *testing.T) {
 	}
 }
 
-func TestHydrateTablePageFailsWhenSelectedTableDisappears(t *testing.T) {
-	c, _, dbMock, closeDB := newSchemaCheck(t)
-	defer closeDB()
+func TestHydrateTablePageSkipsDisappearedTables(t *testing.T) {
+	for _, allGone := range []bool{false, true} {
+		t.Run(fmt.Sprintf("all_gone_%t", allGone), func(t *testing.T) {
+			c, _, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			keys := []tableKey{{conID: 3, owner: "APP", table: "DROPPED"}, {conID: 3, owner: "APP", table: "KEPT"}}
+			rows := emptyTablesRows()
+			if !allGone {
+				addTableRow(rows, 3, "APP", "KEPT", 0)
+			}
+			dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(rows)
+			var collected []string
+			require.NoError(t, c.hydrateTablePage(context.Background(), keys, 50, func(row schemaRowDB) {
+				collected = append(collected, row.TableName)
+			}))
+			if allGone {
+				require.Empty(t, collected)
+			} else {
+				require.Equal(t, []string{"KEPT"}, collected)
+			}
+			require.NoError(t, dbMock.ExpectationsWereMet())
+		})
+	}
+}
 
-	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(emptyTablesRows())
-	err := c.hydrateTablePage(context.Background(), []tableKey{{conID: 3, owner: "APP", table: "ORDERS"}}, 50, func(schemaRowDB) {})
-	require.ErrorContains(t, err, "selected table 3.APP.ORDERS disappeared before hydration")
+func TestHydrateTablePagePropagatesQueryAndRowErrors(t *testing.T) {
+	for _, rowError := range []bool{false, true} {
+		t.Run(fmt.Sprintf("row_error_%t", rowError), func(t *testing.T) {
+			c, _, dbMock, cleanup := newSchemaCheck(t)
+			defer cleanup()
+			queryErr := context.DeadlineExceeded
+			query := dbMock.ExpectQuery("WITH ranked_columns")
+			if rowError {
+				query.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T", 0).RowError(0, queryErr))
+			} else {
+				query.WillReturnError(queryErr)
+			}
+			err := c.hydrateTablePage(context.Background(), []tableKey{{conID: 3, owner: "APP", table: "T"}}, 50, func(schemaRowDB) {})
+			require.ErrorIs(t, err, queryErr)
+			require.NoError(t, dbMock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestSchemaCollectorKeepsTableWithNoEligibleColumns(t *testing.T) {
@@ -1048,27 +1083,76 @@ func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 	require.Len(t, payloads, 1, "a container that already produced a payload must not get a second, empty one")
 }
 
-func TestPassesFilterExcludeWinsOverInclude(t *testing.T) {
-	include := compiledPatterns([]string{"^APP.*"}, "", "include")
-	exclude := compiledPatterns([]string{"^APP_TMP$"}, "", "exclude")
-
-	assert.True(t, passesFilter("APP_ORDERS", include, exclude), "matches include, does not match exclude")
-	assert.False(t, passesFilter("APP_TMP", include, exclude), "exclude wins even though it also matches include")
-	assert.False(t, passesFilter("OTHER", include, exclude), "include is non-empty and OTHER matches none of it")
-	assert.True(t, passesFilter("OTHER", nil, exclude), "an empty include list requires no match")
+func TestRegexSQLClausesUsesOracleCaseInsensitiveMatching(t *testing.T) {
+	require.Empty(t, regexSQLClauses("name", nil, nil))
+	require.Equal(t,
+		" AND NOT REGEXP_LIKE(name, '^tmp', 'i') AND (REGEXP_LIKE(name, '^orders$', 'i') OR REGEXP_LIKE(name, 'o''brien', 'i'))",
+		regexSQLClauses("name", []string{"^orders$", "o'brien"}, []string{"^tmp"}))
+	require.Equal(t,
+		" AND (REGEXP_LIKE(name, '^([a-z]+)\\1$', 'i'))",
+		regexSQLClauses("name", []string{"^([a-z]+)\\1$"}, nil))
 }
 
-func TestFilterContainersAppliesIncludeExcludeDatabases(t *testing.T) {
-	containers := map[int64]string{1: "CDB$ROOT", 3: "APP_PDB", 7: "REPORTING_PDB"}
+func TestSchemaOwnersUsesOracleFilters(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	c.config.Schemas.IncludeSchemas = []string{"^app"}
+	c.config.Schemas.ExcludeSchemas = []string{"_tmp$"}
+	query := schemaOwnersQuery + " AND NOT REGEXP_LIKE(username, '_tmp$', 'i') AND (REGEXP_LIKE(username, '^app', 'i'))"
+	dbMock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+	owners, names, err := c.schemaOwners(context.Background(), map[int64]string{3: "APP_PDB"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"APP"}, names)
+	require.Equal(t, "104", owners[ownerKey{conID: 3, owner: "APP"}])
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
 
-	assert.Equal(t, containers, filterContainers(containers, nil, nil, ""),
-		"no configured filters must return every container unchanged")
+func TestContainerNamesUsesOracleFilters(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	c.config.Schemas.IncludeDatabases = []string{"pdb$"}
+	c.config.Schemas.ExcludeDatabases = []string{"^tmp"}
+	query := containerNamesQuery + " AND NOT REGEXP_LIKE(name, '^tmp', 'i') AND (REGEXP_LIKE(name, 'pdb$', 'i'))"
+	dbMock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+	names, err := c.containerNames(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, map[int64]string{3: "APP_PDB"}, names)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
 
-	filtered := filterContainers(containers, []string{"PDB$"}, nil, "")
-	assert.Equal(t, map[int64]string{3: "APP_PDB", 7: "REPORTING_PDB"}, filtered)
-
-	filtered = filterContainers(containers, []string{"PDB$"}, []string{"^APP"}, "")
-	assert.Equal(t, map[int64]string{7: "REPORTING_PDB"}, filtered, "exclude must win over a broader include")
+func TestSchemaCollectionFilterErrorsDoNotEmitEmptySnapshot(t *testing.T) {
+	for _, stage := range []string{"database", "schema", "table"} {
+		t.Run(stage, func(t *testing.T) {
+			db, dbMock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+			c, sender := newDbDoesNotExistCheck(t, "", "")
+			c.db = sqlx.NewDb(db, "sqlmock")
+			c.dbVersion = "23.0.0.0.0"
+			c.config.Schemas.IncludeDatabases = []string{"["}
+			c.config.Schemas.IncludeSchemas = []string{"["}
+			c.config.Schemas.IncludeTables = []string{"["}
+			queryErr := errors.New("ORA-12726: unmatched bracket in regular expression")
+			containerQuery := dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery))
+			if stage == "database" {
+				containerQuery.WillReturnError(queryErr)
+			} else {
+				containerQuery.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+				ownerQuery := dbMock.ExpectQuery("cdb_users")
+				if stage == "schema" {
+					ownerQuery.WillReturnError(queryErr)
+				} else {
+					ownerQuery.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+					dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnError(queryErr)
+				}
+			}
+			require.ErrorIs(t, c.SchemaCollection(), queryErr)
+			sender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
+			require.NoError(t, dbMock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
@@ -1116,4 +1200,66 @@ func emptyTablesRows() *sqlmock.Rows {
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	})
+}
+
+func TestSchemaSnapshotAfterDisappearedPage(t *testing.T) {
+	for _, outcome := range []string{"all_gone", "capped", "query_error", "row_error"} {
+		t.Run(outcome, func(t *testing.T) {
+			db, dbMock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+			c, sender := newDbDoesNotExistCheck(t, "", "")
+			c.db = sqlx.NewDb(db, "sqlmock")
+			c.clock = clock.NewMock()
+			c.dbVersion = "23.0.0.0.0"
+			views := false
+			c.config.Schemas.CollectViews = &views
+			c.config.Schemas.MaxTables = schemaRelationPageSize + 1
+			dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+			dbMock.ExpectQuery("cdb_users").WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+			identities := sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"})
+			for i := 0; i <= schemaRelationPageSize; i++ {
+				identities.AddRow(3, "APP", fmt.Sprintf("T%03d", i))
+			}
+			if outcome == "capped" {
+				identities.AddRow(3, "APP", "T101")
+			}
+			dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identities)
+			dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(emptyTablesRows())
+			lastPage := dbMock.ExpectQuery("WITH ranked_columns")
+			switch outcome {
+			case "all_gone", "capped":
+				lastPage.WillReturnRows(emptyTablesRows())
+			case "query_error":
+				lastPage.WillReturnError(context.DeadlineExceeded)
+			case "row_error":
+				lastPage.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T100", 0).RowError(0, context.DeadlineExceeded))
+			}
+			err = c.SchemaCollection()
+			if outcome == "all_gone" || outcome == "capped" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+			}
+			var events []schemaEvent
+			for _, call := range sender.Calls {
+				if call.Method == "EventPlatformEvent" {
+					var event schemaEvent
+					require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+					events = append(events, event)
+				}
+			}
+			if outcome == "all_gone" || outcome == "capped" {
+				require.Len(t, events, 1)
+				require.Equal(t, 1, events[0].CollectionPayloadsCount)
+				require.Empty(t, events[0].Metadata[0].Schemas)
+				require.Equal(t, outcome == "capped", events[0].Truncated)
+			} else {
+				require.Empty(t, events)
+			}
+			require.NoError(t, dbMock.ExpectationsWereMet())
+		})
+	}
 }
