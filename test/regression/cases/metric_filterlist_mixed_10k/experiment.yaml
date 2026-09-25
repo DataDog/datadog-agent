@@ -22,7 +22,7 @@
 # list of metric name strings under metric_filterlist, and crash-loops
 # ("invalid type: map, expected a string", forever, not just during the
 # bounded preflight check) on the object-form prefix+exceptions entries this
-# branch added there. metric_name/except entries have since moved to a
+# branch added there. name/except_prefix/except_exact entries have since moved to a
 # separate metric_filterlist_prefix key that ADP does not read, so this
 # case's datadog-agent/datadog.yaml now puts its 5,000 exact entries under
 # metric_filterlist and its 1,250 prefix+exceptions entries under

@@ -16,35 +16,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
-// Field names of the object form of a metric filterlist entry.
+// Field names of the object form of a metric_filterlist_prefix entry.
 const (
-	metricNameField = "metric_name"
-	exceptField     = "except"
+	nameField         = "name"
+	exceptPrefixField = "except_prefix"
+	exceptExactField  = "except_exact"
 )
 
-// MetricFilterListEntry is the object form of a metric_filterlist_prefix
-// entry: a metric name prefix, and the exceptions that are kept even though
-// the name matches.
-//
-// An entry that has no exception is written as a plain string instead, which is
-// how the majority of a filterlist looks; both forms can be mixed in the same
-// list. metric_filterlist itself only ever holds plain strings -- this object
-// form is specific to metric_filterlist_prefix, so that a component which
-// only understands a flat list of metric names (for instance Agent Data
-// Plane) can keep reading metric_filterlist unchanged.
+// MetricFilterListEntry is a single metric_filterlist_prefix entry.
+// Represents one prefix with either exact or prefix exceptions.
 type MetricFilterListEntry struct {
-	MetricName string   `mapstructure:"metric_name" yaml:"metric_name" json:"metric_name"`
-	Except     []string `mapstructure:"except" yaml:"except" json:"except,omitempty"`
+	Name         string   `mapstructure:"name" yaml:"name" json:"name"`
+	ExceptPrefix []string `mapstructure:"except_prefix" yaml:"except_prefix,omitempty" json:"except_prefix,omitempty"`
+	ExceptExact  []string `mapstructure:"except_exact" yaml:"except_exact,omitempty" json:"except_exact,omitempty"`
 }
 
 // loadMetricFilterList reads the metric filterlist stored at `key` and compiles
 // it into matcher rules. A malformed entry is reported and skipped rather than
 // failing the whole list, so that one bad line does not silently disable the
 // filtering of everything else.
-//
-// Used for metric_filterlist_prefix, whose schema allows the object form
-// parsed here. metric_filterlist itself is loaded separately, and more
-// simply, by NewFilterList: see loadMetricFilterPrefixRules.
 func loadMetricFilterList(cfg config.Component, logger log.Component, key string) []metricname.Rule {
 	raw := cfg.Get(key)
 	if raw == nil {
@@ -93,36 +83,89 @@ func parseMetricFilterListEntry(entry interface{}) (metricname.Rule, error) {
 	// normalise instead of listing the map types.
 	fields, err := cast.ToStringMapE(entry)
 	if err != nil {
-		return metricname.Rule{}, fmt.Errorf("expected a metric name or a %q object, got %T", metricNameField, entry)
+		return metricname.Rule{}, fmt.Errorf("expected a metric name or a %q object, got %T", nameField, entry)
 	}
 
 	for field := range fields {
-		if field != metricNameField && field != exceptField {
-			return metricname.Rule{}, fmt.Errorf("unknown field %q, only %q and %q are supported", field, metricNameField, exceptField)
+		if field != nameField && field != exceptPrefixField && field != exceptExactField {
+			return metricname.Rule{}, fmt.Errorf("unknown field %q, only %q, %q and %q are supported", field, nameField, exceptPrefixField, exceptExactField)
 		}
 	}
 
-	name, err := cast.ToStringE(fields[metricNameField])
+	name, err := cast.ToStringE(fields[nameField])
 	if err != nil {
-		return metricname.Rule{}, fmt.Errorf("invalid %q: %s", metricNameField, err)
+		return metricname.Rule{}, fmt.Errorf("invalid %q: %s", nameField, err)
 	}
 	if name == "" {
-		return metricname.Rule{}, fmt.Errorf("missing %q", metricNameField)
+		return metricname.Rule{}, fmt.Errorf("missing %q", nameField)
 	}
 
-	var except []string
-	if raw := fields[exceptField]; raw != nil {
-		if except, err = cast.ToStringSliceE(raw); err != nil {
-			return metricname.Rule{}, fmt.Errorf("invalid %q for %q: %s", exceptField, name, err)
+	var exceptPrefix, exceptExact []string
+	if raw := fields[exceptPrefixField]; raw != nil {
+		if exceptPrefix, err = cast.ToStringSliceE(raw); err != nil {
+			return metricname.Rule{}, fmt.Errorf("invalid %q for %q: %s", exceptPrefixField, name, err)
+		}
+	}
+	if raw := fields[exceptExactField]; raw != nil {
+		if exceptExact, err = cast.ToStringSliceE(raw); err != nil {
+			return metricname.Rule{}, fmt.Errorf("invalid %q for %q: %s", exceptExactField, name, err)
 		}
 	}
 
-	return metricname.Rule{Pattern: name, Except: except}, nil
+	return metricname.Rule{Pattern: name, Except: combineExceptions(exceptPrefix, exceptExact)}, nil
+}
+
+// ensurePrefixPattern returns pattern as a prefix pattern for the internal
+// `*`-suffix convention `metricname` uses, adding the trailing marker if it
+// is not already present. Every entry of metric_filterlist_prefix -- and
+// every one of its except_prefix exceptions -- is a prefix regardless of
+// that marker, per the RFC ("RFC - metric prefix filtering configuration"),
+// so both the configuration file loader and the RC loader route their
+// entries through this before compiling them.
+func ensurePrefixPattern(pattern string) string {
+	if strings.HasSuffix(pattern, metricname.PrefixSuffix) {
+		return pattern
+	}
+	return pattern + metricname.PrefixSuffix
+}
+
+// combineExceptions builds the []string exceptions metricname.Rule expects,
+// following its internal `*`-suffix convention, from the except_prefix and
+// except_exact lists the metric_filterlist_prefix schema stores them as.
+func combineExceptions(exceptPrefix, exceptExact []string) []string {
+	if len(exceptPrefix) == 0 && len(exceptExact) == 0 {
+		return nil
+	}
+	except := make([]string, 0, len(exceptPrefix)+len(exceptExact))
+	for _, prefix := range exceptPrefix {
+		except = append(except, ensurePrefixPattern(prefix))
+	}
+	except = append(except, exceptExact...)
+	return except
+}
+
+// splitExceptions is the inverse of combineExceptions: it splits a rule's
+// exceptions -- following metricname's internal `*`-suffix convention -- back
+// into the except_prefix/except_exact lists the metric_filterlist_prefix
+// schema stores them as, stripping the marker from each prefix exception.
+func splitExceptions(except []string) (exceptPrefix, exceptExact []string) {
+	for _, e := range except {
+		if prefix, ok := strings.CutSuffix(e, metricname.PrefixSuffix); ok {
+			exceptPrefix = append(exceptPrefix, prefix)
+			continue
+		}
+		exceptExact = append(exceptExact, e)
+	}
+	return exceptPrefix, exceptExact
 }
 
 // metricFilterListEntries renders the rules back into the shape the
 // configuration holds them in, so that setting the list from remote
-// configuration keeps `agent config` readable and re-parseable.
+// configuration keeps `agent config` readable and re-parseable. Every rule
+// passed in belongs to metric_filterlist_prefix (see partitionMetricFilterRules
+// in rc.go), so its pattern always carries the internal `*`-suffix marker;
+// that marker is stripped from the rendered name, which never carries it in
+// this schema.
 func metricFilterListEntries(rules []metricname.Rule) []interface{} {
 	entries := make([]interface{}, 0, len(rules))
 	for _, rule := range rules {
@@ -130,10 +173,17 @@ func metricFilterListEntries(rules []metricname.Rule) []interface{} {
 			entries = append(entries, rule.Pattern)
 			continue
 		}
-		entries = append(entries, map[string]interface{}{
-			metricNameField: rule.Pattern,
-			exceptField:     rule.Except,
-		})
+		exceptPrefix, exceptExact := splitExceptions(rule.Except)
+		entry := map[string]interface{}{
+			nameField: strings.TrimSuffix(rule.Pattern, metricname.PrefixSuffix),
+		}
+		if len(exceptPrefix) > 0 {
+			entry[exceptPrefixField] = exceptPrefix
+		}
+		if len(exceptExact) > 0 {
+			entry[exceptExactField] = exceptExact
+		}
+		entries = append(entries, entry)
 	}
 	return entries
 }
@@ -147,9 +197,7 @@ func metricFilterListEntries(rules []metricname.Rule) []interface{} {
 func loadMetricFilterPrefixRules(cfg config.Component, logger log.Component) []metricname.Rule {
 	rules := loadMetricFilterList(cfg, logger, "metric_filterlist_prefix")
 	for i := range rules {
-		if !strings.HasSuffix(rules[i].Pattern, metricname.PrefixSuffix) {
-			rules[i].Pattern += metricname.PrefixSuffix
-		}
+		rules[i].Pattern = ensurePrefixPattern(rules[i].Pattern)
 	}
 	// Every pattern above now carries `*`, so `hasStar` inside NormalizeEntries
 	// is what makes the entry a prefix; matchPrefix would be redundant.

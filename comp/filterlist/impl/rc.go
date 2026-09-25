@@ -16,8 +16,9 @@ import (
 )
 
 type statsdFilterListUpdate struct {
-	FilteredMetrics filteredMetrics `json:"blocked_metrics"`
-	FilteredTags    filteredTags    `json:"tag_filterlist"`
+	FilteredMetrics       filteredMetrics       `json:"blocked_metrics"`
+	FilteredMetricsPrefix filteredMetricsPrefix `json:"metric_filterlist_prefix"`
+	FilteredTags          filteredTags          `json:"tag_filterlist"`
 }
 
 type filteredTags struct {
@@ -34,6 +35,10 @@ type tagEntry struct {
 	Tags       []string `json:"tags"`
 }
 
+// filteredMetrics is the blocked_metrics part of the RC payload: a list of
+// exact metric names (a name ending with `*` is still a prefix, same as one
+// read from the configuration file), one per entry with no exceptions -- see
+// the RFC ("RFC - metric prefix filtering configuration").
 type filteredMetrics struct {
 	ByName byName `json:"by_name"`
 }
@@ -42,11 +47,47 @@ type byName struct {
 	Metrics []metricEntry `json:"values"`
 }
 
+// metricEntry is one blocked_metrics entry. It carries no exceptions: those
+// only exist on a metric_filterlist_prefix entry.
 type metricEntry struct {
 	Name string `json:"metric_name"`
-	// Except is optional, and only meaningful when Name is a `*` prefix: the
-	// metrics it matches are kept even though Name matches them.
-	Except []string `json:"except"`
+}
+
+// filteredMetricsPrefix is the metric_filterlist_prefix part of the RC
+// payload: a deny list of metric name prefixes, each with the exceptions
+// (exact or prefix, kept in separate lists -- see metricPrefixEntry) that are
+// kept even though the entry matches them. It is a separate key from
+// blocked_metrics precisely so that older agents, which only understand
+// blocked_metrics's flat list of exact names, are unaffected by it -- see the
+// RFC ("RFC - metric prefix filtering configuration").
+type filteredMetricsPrefix struct {
+	ByName byNamePrefix `json:"by_name"`
+}
+
+type byNamePrefix struct {
+	Metrics []metricPrefixEntry `json:"values"`
+}
+
+// metricPrefixEntry is one metric_filterlist_prefix entry. Name is always a
+// prefix, whether or not it ends with `*`, exactly like an entry of
+// metric_filterlist_prefix in the configuration file.
+type metricPrefixEntry struct {
+	Name string `json:"name"`
+	// ExceptPrefix holds the prefixes that are kept even though Name matches
+	// them: each entry is itself always a prefix, whether or not it ends with
+	// `*`, just like Name.
+	ExceptPrefix []metricNameEntry `json:"except_prefix"`
+	// ExceptExact holds the exact metric names that are kept even though Name
+	// matches them.
+	ExceptExact []metricNameEntry `json:"except_exact"`
+}
+
+// metricNameEntry wraps a single metric name as used by a
+// metric_filterlist_prefix entry's except_prefix/except_exact list. Whether
+// it is matched as a prefix or an exact name is decided by which of those two
+// lists it comes from, not by anything in the entry itself.
+type metricNameEntry struct {
+	Name string `json:"name"`
 }
 
 // onFilterListUpdateCallback receives both metric and tag filterlist configurations.
@@ -68,6 +109,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 
 	var metricFilterListUpdates []filteredMetrics
+	var metricFilterListPrefixUpdates []filteredMetricsPrefix
 	var tagFilterListUpdates []filteredTags
 
 	// unmarshal all the configurations received from
@@ -93,16 +135,18 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		// this one has no metric in its list, strange but
 		// not an error
 		if len(config.FilteredMetrics.ByName.Metrics) == 0 &&
+			len(config.FilteredMetricsPrefix.ByName.Metrics) == 0 &&
 			len(config.FilteredTags.ByName.Metrics) == 0 {
 
 			fl.log.Debug("received a filterlist configuration with no metrics")
 			continue
 		}
 		metricFilterListUpdates = append(metricFilterListUpdates, config.FilteredMetrics)
+		metricFilterListPrefixUpdates = append(metricFilterListPrefixUpdates, config.FilteredMetricsPrefix)
 		tagFilterListUpdates = append(tagFilterListUpdates, config.FilteredTags)
 	}
 
-	metricRules := fl.buildMetricFilterListConfig(metricFilterListUpdates)
+	metricRules := fl.buildMetricFilterListConfig(metricFilterListUpdates, metricFilterListPrefixUpdates)
 	// RC lists mark their prefixes per entry with `*`, and are applied with the
 	// global prefix mode off (see SetMetricFilterRules below).
 	metricRules = normalizeMetricRules("metric_filterlist", metricRules, false, fl.log)
@@ -164,33 +208,72 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 }
 
 // buildMetricFilterListConfig builds the rules to be used for the metric
-// filterlist. Metric names are passed through as-is, so a name ending with `*`
-// is a prefix pattern, exactly like one coming from the configuration file.
+// filterlist from both parts of the RC payload: blocked_metrics is a plain
+// list of exact metric names carrying no exceptions, kept unchanged for
+// agents that only understand that flat shape, while metric_filterlist_prefix
+// carries the entries that are always a prefix and may carry exceptions --
+// see the RFC ("RFC - metric prefix filtering configuration"). A
+// blocked_metrics name is passed through as-is, so a name ending with `*` is
+// still a prefix pattern, exactly like one coming from the configuration
+// file; a metric_filterlist_prefix name is always forced into that same
+// internal prefix representation regardless of whether it already ends with
+// `*`, since every one of its entries is a prefix.
 //
 // Entries with no exception are deduped by name. Entries with exceptions are
 // not: two entries on the same name but with different exceptions are not
 // interchangeable, and the matcher applies each entry's exceptions to its own
 // match, so keeping both is what makes a metric excepted by only one of them
 // still get dropped.
-func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []metricname.Rule {
+func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics, metricFilterListPrefixUpdates []filteredMetricsPrefix) []metricname.Rule {
 	var rules []metricname.Rule
 	seen := make(map[string]struct{})
 
+	addRule := func(name string, except []string) {
+		if len(except) > 0 {
+			rules = append(rules, metricname.Rule{Pattern: name, Except: except})
+			return
+		}
+		if _, ok := seen[name]; ok {
+			return
+		}
+		seen[name] = struct{}{}
+		rules = append(rules, metricname.Rule{Pattern: name})
+	}
+
 	for _, update := range metricFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
-			if len(metric.Except) > 0 {
-				rules = append(rules, metricname.Rule{Pattern: metric.Name, Except: metric.Except})
-				continue
-			}
-			if _, ok := seen[metric.Name]; ok {
-				continue
-			}
-			seen[metric.Name] = struct{}{}
-			rules = append(rules, metricname.Rule{Pattern: metric.Name})
+			addRule(metric.Name, nil)
+		}
+	}
+	for _, update := range metricFilterListPrefixUpdates {
+		for _, metric := range update.ByName.Metrics {
+			addRule(ensurePrefixPattern(metric.Name), exceptionNames(metric.ExceptPrefix, metric.ExceptExact))
 		}
 	}
 
 	return rules
+}
+
+// exceptionNames unwraps a metric_filterlist_prefix entry's except_prefix and
+// except_exact lists into the plain names combineExceptions expects, then
+// defers to it for the actual exact/prefix combining -- see combineExceptions
+// in metricfilterlist.go, which does the same thing for the configuration
+// file's object form.
+func exceptionNames(exceptPrefix, exceptExact []metricNameEntry) []string {
+	return combineExceptions(unwrapNames(exceptPrefix), unwrapNames(exceptExact))
+}
+
+// unwrapNames unwraps a metric_filterlist_prefix except_prefix/except_exact
+// list into the plain metric names it wraps.
+func unwrapNames(entries []metricNameEntry) []string {
+	if len(entries) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name)
+	}
+	return names
 }
 
 // partitionMetricFilterRules splits rules into those with no exceptions,

@@ -18,6 +18,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/e2e",
         "//test/e2e-framework/testing/environments",
         "//test/e2e-framework/testing/provisioners/aws/host",
+        "//test/e2e-framework/testing/utils/e2e/client/agentclient",
         "//test/new-e2e/tests/agent-metric-pipelines/common",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

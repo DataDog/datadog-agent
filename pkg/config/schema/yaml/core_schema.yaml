@@ -8468,12 +8468,16 @@ properties:
       - type: string
       - type: object
         required:
-        - metric_name
+        - name
         additionalProperties: false
         properties:
-          metric_name:
+          name:
             type: string
-          except:
+          except_prefix:
+            type: array
+            items:
+              type: string
+          except_exact:
             type: array
             items:
               type: string
@@ -8484,14 +8488,17 @@ properties:
       and both drop every metric whose name starts with `redis.` (including
       `redis.` itself).
 
-      An entry can also be written as an object to attach exceptions to it:
+      An entry can also be written as an object to attach exceptions to it,
+      split into except_prefix (each itself a prefix) and except_exact (each
+      an exact metric name):
 
         metric_filterlist_prefix:
-          - redis.                      # drop everything under redis.
-          - metric_name: postgresql.    # drop everything under postgresql.
-            except:                     # except these, which are kept
+          - redis.                  # drop everything under redis.
+          - name: postgresql.       # drop everything under postgresql.
+            except_prefix:          # except everything under these prefixes
+              - postgresql.locks.
+            except_exact:           # except these exact metric names
               - postgresql.connections
-              - postgresql.locks.*
 
       Exceptions belong to the entry that declares them: a metric excepted by
       one entry is still dropped if another entry of this list, or of

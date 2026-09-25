@@ -169,11 +169,9 @@ func TestMetricFilterListPrefixKeyExceptions(t *testing.T) {
 	filterList := newFilterListWithMetricPrefixList(t, []interface{}{
 		"plain.*",
 		map[string]interface{}{
-			"metric_name": "redis.*",
-			"except": []interface{}{
-				"redis.net.commands",
-				"redis.keys.*",
-			},
+			"name":          "redis.*",
+			"except_exact":  []interface{}{"redis.net.commands"},
+			"except_prefix": []interface{}{"redis.keys."},
 		},
 	})
 
@@ -206,8 +204,8 @@ func TestMetricFilterListPrefixKeyExceptions(t *testing.T) {
 func TestMetricFilterListPrefixKeyExceptionsAreScopedToTheirEntry(t *testing.T) {
 	filterList := newFilterListWithMetricPrefixList(t, []interface{}{
 		map[string]interface{}{
-			"metric_name": "foo.*",
-			"except":      []interface{}{"foo.keep", "foo.bar.keep"},
+			"name":         "foo.*",
+			"except_exact": []interface{}{"foo.keep", "foo.bar.keep"},
 		},
 		"foo.bar.*",
 	})
@@ -226,10 +224,11 @@ func TestMetricFilterListPrefixKeyExceptionsFromYAML(t *testing.T) {
 metric_filterlist_prefix:
   - plain.metric
   - plain.prefix.*
-  - metric_name: redis.*
-    except:
+  - name: redis.*
+    except_exact:
       - redis.net.commands
-      - redis.keys.*
+    except_prefix:
+      - redis.keys.
 `)
 
 	logComponent := logmock.New(t)
@@ -253,9 +252,9 @@ func TestMetricFilterListPrefixKeyMalformedEntries(t *testing.T) {
 		name  string
 		entry interface{}
 	}{
-		{"unknown field", map[string]interface{}{"metric_name": "foo.*", "excepts": []interface{}{"foo.keep"}}},
-		{"missing metric name", map[string]interface{}{"except": []interface{}{"foo.keep"}}},
-		{"empty metric name", map[string]interface{}{"metric_name": ""}},
+		{"unknown field", map[string]interface{}{"name": "foo.*", "excepts": []interface{}{"foo.keep"}}},
+		{"missing name", map[string]interface{}{"except_exact": []interface{}{"foo.keep"}}},
+		{"empty name", map[string]interface{}{"name": ""}},
 		{"not a name nor an object", []interface{}{"foo.*"}},
 	}
 
@@ -281,8 +280,8 @@ func TestMetricFilterListCombinesBothKeys(t *testing.T) {
 		"metric_filterlist": []string{"exact.only"},
 		"metric_filterlist_prefix": []interface{}{
 			map[string]interface{}{
-				"metric_name": "prefix.only",
-				"except":      []interface{}{"prefix.only.keep"},
+				"name":         "prefix.only",
+				"except_exact": []interface{}{"prefix.only.keep"},
 			},
 		},
 	}

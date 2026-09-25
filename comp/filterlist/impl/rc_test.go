@@ -237,9 +237,13 @@ func TestFilterListUpdateWithExceptions(t *testing.T) {
 		"config1": {Config: []byte(`{
 			"blocked_metrics": {
 				"by_name": {
+					"values": [{"metric_name": "test.exact"}]
+				}
+			},
+			"metric_filterlist_prefix": {
+				"by_name": {
 					"values": [
-						{"metric_name": "redis.*", "except": ["redis.net.commands", "redis.keys.*"]},
-						{"metric_name": "test.exact"}
+						{"name": "redis.*", "except_exact": [{"name": "redis.net.commands"}], "except_prefix": [{"name": "redis.keys."}]}
 					]
 				}
 			}
@@ -259,15 +263,17 @@ func TestFilterListUpdateWithExceptions(t *testing.T) {
 	// `agent config` reports the split the configuration file uses: an entry
 	// with no exception is a plain metric_filterlist name, exactly like
 	// before exceptions existed, and only the entry carrying exceptions needs
-	// metric_filterlist_prefix's object form.
+	// metric_filterlist_prefix's object form -- itself split into
+	// except_prefix/except_exact, per the newest RFC schema.
 	metricNames := configComponent.GetStringSlice("metric_filterlist")
 	require.ElementsMatch([]string{"test.exact"}, metricNames)
 
 	prefixEntries := configComponent.Get("metric_filterlist_prefix")
 	require.ElementsMatch([]interface{}{
 		map[string]interface{}{
-			"metric_name": "redis.*",
-			"except":      []string{"redis.net.commands", "redis.keys.*"},
+			"name":          "redis.",
+			"except_exact":  []string{"redis.net.commands"},
+			"except_prefix": []string{"redis.keys."},
 		},
 	}, prefixEntries)
 }
@@ -287,10 +293,10 @@ func TestFilterListUpdateWithExceptionsThenEmptyRestoresLocal(t *testing.T) {
 
 	updates := map[string]state.RawConfig{
 		"config1": {Config: []byte(`{
-			"blocked_metrics": {
+			"metric_filterlist_prefix": {
 				"by_name": {
 					"values": [
-						{"metric_name": "redis.*", "except": ["redis.net.commands"]}
+						{"name": "redis.*", "except_exact": [{"name": "redis.net.commands"}]}
 					]
 				}
 			}
