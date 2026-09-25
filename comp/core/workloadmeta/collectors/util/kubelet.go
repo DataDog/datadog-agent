@@ -253,8 +253,10 @@ func parsePodContainers(
 		var allocatedResources []workloadmeta.ContainerAllocatedResource
 		for _, resource := range container.ResolvedAllocatedResources {
 			allocatedResources = append(allocatedResources, workloadmeta.ContainerAllocatedResource{
-				Name: resource.Name,
-				ID:   resource.ID,
+				Name:       resource.Name,
+				ID:         resource.ID,
+				PoolName:   resource.PoolName,
+				CdiDevices: resource.CdiDevices,
 			})
 		}
 

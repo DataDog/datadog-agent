@@ -297,7 +297,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/gosnmp/gosnmp v1.44.0
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api/v2 v2.0.0
@@ -491,6 +491,7 @@ require (
 	google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
+	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.31.1
 	istio.io/client-go v1.31.1
@@ -1156,7 +1157,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.8.1 // indirect
 	k8s.io/apiserver v0.35.5 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect
