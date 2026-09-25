@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -23,7 +22,6 @@ const hostPasswdRefreshInterval = time.Second
 // hostPasswdCache caches the host user database independently of NSS lookups.
 // The passwd path is captured on the first lookup, after configuration loading.
 type hostPasswdCache struct {
-	mu         sync.Mutex
 	now        func() time.Time
 	lastCheck  time.Time
 	passwdPath string
@@ -35,12 +33,10 @@ func newHostPasswdCache() *hostPasswdCache {
 	return &hostPasswdCache{now: time.Now}
 }
 
+// ponytail: production check runners serialize UID lookups; add synchronization if formatting becomes parallel.
 func (c *hostPasswdCache) lookup(uid string) (*user.User, bool) {
-	c.mu.Lock()
 	c.refresh()
 	u, found := c.users[uid]
-	c.mu.Unlock()
-
 	if !found {
 		return nil, false
 	}

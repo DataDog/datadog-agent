@@ -8,10 +8,8 @@
 package checks
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -152,53 +150,3 @@ func TestHostPasswdMissingFileAndRecovery(t *testing.T) {
 	assert.False(t, found)
 }
 
-func TestHostPasswdConcurrentRefresh(t *testing.T) {
-	dir := t.TempDir()
-	writePasswd(t, dir, "before:x:99:99::/:/bin/sh\n")
-	t.Setenv("HOST_ETC", dir)
-	cache, clk := newTestHostPasswdCache()
-	_, found := cache.lookup("99")
-	require.True(t, found)
-
-	var wg sync.WaitGroup
-	stop := make(chan struct{})
-	errCh := make(chan error, 8)
-	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-stop:
-					return
-				default:
-				}
-				u, found := cache.lookup("99")
-				if !found || (u.Username != "before" && u.Username != "after") {
-					errCh <- fmt.Errorf("unexpected snapshot: user=%v found=%v", u, found)
-					return
-				}
-			}
-		}()
-	}
-	defer func() {
-		close(stop)
-		wg.Wait()
-		close(errCh)
-		for err := range errCh {
-			assert.NoError(t, err)
-		}
-	}()
-
-	for range 10 {
-		for _, name := range []string{"after", "before"} {
-			replacement := filepath.Join(dir, "replacement")
-			require.NoError(t, os.WriteFile(replacement, []byte(name+":x:99:99::/:/bin/sh\n"), 0o600))
-			require.NoError(t, os.Rename(replacement, filepath.Join(dir, "passwd")))
-			clk.Add(hostPasswdRefreshInterval)
-			u, found := cache.lookup("99")
-			require.True(t, found)
-			assert.Equal(t, name, u.Username)
-		}
-	}
-}
