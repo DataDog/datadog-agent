@@ -5,7 +5,7 @@ features:
     The Agent can now collect metadata about containers/PDBs, schemas, tables,
     views, columns, indexes, and constraints of the Oracle databases it
     monitors, and emits it for Datadog products to consume. Schema collection
-    is disabled by default: set ``schemas.enabled: true`` on an instance that
+    is disabled by default: set ``collect_schemas.enabled: true`` on an instance that
     also has ``dbm: true`` or ``data_observability.enabled: true``.
     Collection can be tuned and scoped down through additional ``schemas.*``
     options, such as table/column limits and include/exclude filters.
