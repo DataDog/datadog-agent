@@ -466,6 +466,7 @@ func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsUnset(t *test
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Empty(t, cfg.RShellPrivilegedElevatableCommands)
+	assert.False(t, cfg.RShellPrivilegedElevatableCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsSet(t *testing.T) {
@@ -477,6 +478,7 @@ func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsSet(t *testin
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, cfg.RShellPrivilegedElevatableCommands)
+	assert.True(t, cfg.RShellPrivilegedElevatableCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsWarnsForUnnamespaced(t *testing.T) {
@@ -506,13 +508,16 @@ func TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags(t *tes
 	require.NoError(t, err)
 	assert.False(t, cfg.RShellAllowedCommandsConfigured)
 	assert.False(t, cfg.RShellAllowedPathsConfigured)
+	assert.False(t, cfg.RShellPrivilegedElevatableCommandsConfigured)
 
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"rshell:*"})
 	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/"})
+	mockConfig.SetInTest(setup.PARRestrictedShellPrivilegedElevatableCommands, []string{})
 	cfg, err = FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.True(t, cfg.RShellAllowedCommandsConfigured)
 	assert.True(t, cfg.RShellAllowedPathsConfigured)
+	assert.True(t, cfg.RShellPrivilegedElevatableCommandsConfigured)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {

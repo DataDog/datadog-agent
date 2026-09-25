@@ -32,19 +32,21 @@ type Config struct {
 	// RShellPrivilegedElevatableCommands lists commands allowed to sudo-elevate
 	// inside the privileged helper.
 	RShellPrivilegedElevatableCommands []string
-	// RShellAllowedCommandsConfigured/RShellAllowedPathsConfigured record
-	// whether the operator explicitly set the corresponding datadog.yaml
-	// setting, used to decide whether it should narrow privileged execution.
-	RShellAllowedCommandsConfigured bool
-	RShellAllowedPathsConfigured    bool
-	DDHost                          string
-	DDApiHost                       string
-	Modes                           []modes.Mode
-	OrgId                           int64
-	PrivateKey                      *ecdsa.PrivateKey
-	RunnerId                        string
-	Urn                             string
-	Tags                            []observability.Tag
+	// RShellAllowedCommandsConfigured, RShellAllowedPathsConfigured, and
+	// RShellPrivilegedElevatableCommandsConfigured record whether the operator
+	// explicitly set the corresponding datadog.yaml setting, used to decide
+	// whether it should narrow privileged execution.
+	RShellAllowedCommandsConfigured              bool
+	RShellAllowedPathsConfigured                 bool
+	RShellPrivilegedElevatableCommandsConfigured bool
+	DDHost                                       string
+	DDApiHost                                    string
+	Modes                                        []modes.Mode
+	OrgId                                        int64
+	PrivateKey                                   *ecdsa.PrivateKey
+	RunnerId                                     string
+	Urn                                          string
+	Tags                                         []observability.Tag
 
 	// RemoteConfig related fields
 	DatadogSite string
