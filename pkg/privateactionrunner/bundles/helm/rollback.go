@@ -15,6 +15,7 @@ import (
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	batchv1 "k8s.io/api/batch/v1"
 )
 
@@ -42,6 +43,11 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 	if err != nil {
 		return nil, err
 	}
+
+	// The rollback Job must run in the cluster agent's own namespace: that's
+	// where the Helm chart provisions the "-helm-actions" ServiceAccount the
+	// Job authenticates as. This is not caller-supplied input.
+	in.JobNamespace = namespace.GetMyNamespace()
 
 	report := newReport(helmactions.HelmRollbackAction, task)
 	report.ResourceNamespace = in.ReleaseNamespace
