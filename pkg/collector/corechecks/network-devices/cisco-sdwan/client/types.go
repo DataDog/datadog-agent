@@ -470,20 +470,21 @@ type CloudXStatistics struct {
 	ID               string      `json:"id"`
 }
 
-// BGPNeighbor /dataservice/data/device/state/BGPNeighbor
+// BGPNeighbor /dataservice/device/bgp/neighbors
+//
+// The real-time per-device endpoint returns a different schema than the legacy
+// /dataservice/data/device/state/BGPNeighbor state table: vpn-id and as are
+// strings (vpn-id is a VRF name and may be non-numeric, e.g. "default"), and
+// the address family is reported as afi-safi rather than afi.
 type BGPNeighbor struct {
-	RecordID        string  `json:"recordId"`
 	VdeviceName     string  `json:"vdevice-name"`
-	Afi             string  `json:"afi"`
-	CreateTimeStamp float64 `json:"createTimeStamp"`
-	VpnID           float64 `json:"vpn-id"`
+	Afi             string  `json:"afi-safi"`
+	VpnID           string  `json:"vpn-id"`
 	VdeviceHostName string  `json:"vdevice-host-name"`
 	PeerAddr        string  `json:"peer-addr"`
-	AS              float64 `json:"as"`
+	AS              string  `json:"as"`
 	VdeviceDataKey  string  `json:"vdevice-dataKey"`
-	Rid             float64 `json:"@rid"`
 	VmanageSystemIP string  `json:"vmanage-system-ip"`
-	AfiID           float64 `json:"afi-id"`
 	Lastupdated     float64 `json:"lastupdated"`
 	State           string  `json:"state"`
 }
