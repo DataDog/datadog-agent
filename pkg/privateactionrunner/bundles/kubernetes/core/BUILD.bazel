@@ -126,6 +126,7 @@ dd_agent_go_test(
     embed = [":core"],
     deps = [
         "//comp/core/config",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )

@@ -13,13 +13,13 @@ import (
 	"testing"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetPodLogsRegistered(t *testing.T) {
-	if _, ok := NewKubernetesCore().GetAction("getPodLogs").(*GetPodLogsHandler); !ok {
-		t.Fatal("getPodLogs is not registered with its handler")
-	}
+	_, ok := NewKubernetesCore().GetAction("getPodLogs").(*GetPodLogsHandler)
+	require.True(t, ok)
 }
 
 func TestGetPodLogsInputsValidate(t *testing.T) {
@@ -54,14 +54,10 @@ func TestGetPodLogsInputsValidate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.inputs.validate()
 			if test.wantErr == "" {
-				if err != nil {
-					t.Fatalf("validate() error = %v", err)
-				}
+				require.NoError(t, err)
 				return
 			}
-			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
-				t.Fatalf("validate() error = %v, want error containing %q", err, test.wantErr)
-			}
+			require.ErrorContains(t, err, test.wantErr)
 		})
 	}
 }
@@ -80,17 +76,16 @@ func TestGetPodLogsOptions(t *testing.T) {
 	}
 
 	options := inputs.options()
-	if options.Container != inputs.Container || options.Previous != inputs.Previous || options.Timestamps != inputs.Timestamps {
-		t.Fatalf("options() did not preserve scalar inputs: %#v", options)
-	}
-	if options.SinceSeconds != inputs.SinceSeconds || options.TailLines != inputs.TailLines || options.LimitBytes != inputs.LimitBytes {
-		t.Fatalf("options() did not preserve pointer inputs: %#v", options)
-	}
+	require.Equal(t, inputs.Container, options.Container)
+	require.Equal(t, inputs.Previous, options.Previous)
+	require.Equal(t, inputs.Timestamps, options.Timestamps)
+	require.Equal(t, inputs.SinceSeconds, options.SinceSeconds)
+	require.Equal(t, inputs.TailLines, options.TailLines)
+	require.Equal(t, inputs.LimitBytes, options.LimitBytes)
 
 	defaultOptions := (GetPodLogsInputs{}).options()
-	if defaultOptions.LimitBytes == nil || *defaultOptions.LimitBytes != maxPodLogsBytes {
-		t.Fatalf("options() default limit = %v, want %d", defaultOptions.LimitBytes, maxPodLogsBytes)
-	}
+	require.NotNil(t, defaultOptions.LimitBytes)
+	require.Equal(t, maxPodLogsBytes, *defaultOptions.LimitBytes)
 }
 
 func TestReadPodLogs(t *testing.T) {
@@ -99,15 +94,9 @@ func TestReadPodLogs(t *testing.T) {
 		logs, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
 			return reader, nil
 		})
-		if err != nil {
-			t.Fatalf("readPodLogs() error = %v", err)
-		}
-		if logs != "first\nsecond\n" {
-			t.Fatalf("readPodLogs() = %q", logs)
-		}
-		if !reader.closed {
-			t.Fatal("readPodLogs() did not close the stream")
-		}
+		require.NoError(t, err)
+		require.Equal(t, "first\nsecond\n", logs)
+		require.True(t, reader.closed)
 	})
 
 	t.Run("propagates stream errors", func(t *testing.T) {
@@ -115,18 +104,14 @@ func TestReadPodLogs(t *testing.T) {
 		_, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
 			return nil, wantErr
 		})
-		if !errors.Is(err, wantErr) {
-			t.Fatalf("readPodLogs() error = %v, want %v", err, wantErr)
-		}
+		require.ErrorIs(t, err, wantErr)
 	})
 
 	t.Run("rejects oversized output", func(t *testing.T) {
 		_, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
 			return io.NopCloser(io.LimitReader(zeroReader{}, maxPodLogsBytes+1)), nil
 		})
-		if err == nil || !strings.Contains(err.Error(), "output limit") {
-			t.Fatalf("readPodLogs() error = %v, want output limit error", err)
-		}
+		require.ErrorContains(t, err, "output limit")
 	})
 }
 
@@ -149,13 +134,8 @@ func TestGetPodLogsMaskSequences(t *testing.T) {
 	handler := newGetPodLogsHandler(config)
 
 	logs, err := handler.maskSequences("first token=secret\ndrop this\nsecond token=another-secret")
-	if err != nil {
-		t.Fatalf("maskSequences() error = %v", err)
-	}
-	want := "first token=[MASKED]\ndrop this\nsecond token=[MASKED]"
-	if logs != want {
-		t.Fatalf("maskSequences() = %q, want %q", logs, want)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "first token=[MASKED]\ndrop this\nsecond token=[MASKED]", logs)
 }
 
 func TestGetPodLogsMaskSequencesRejectsInvalidRules(t *testing.T) {
@@ -166,9 +146,7 @@ func TestGetPodLogsMaskSequencesRejectsInvalidRules(t *testing.T) {
 	})
 
 	_, err := newGetPodLogsHandler(config).maskSequences("token=secret")
-	if err == nil || !strings.Contains(err.Error(), "could not load global log processing rules") {
-		t.Fatalf("maskSequences() error = %v, want processing rules error", err)
-	}
+	require.ErrorContains(t, err, "could not load global log processing rules")
 }
 
 func TestGetPodLogsMaskSequencesEnforcesOutputLimit(t *testing.T) {
@@ -184,9 +162,7 @@ func TestGetPodLogsMaskSequencesEnforcesOutputLimit(t *testing.T) {
 	})
 
 	_, err := newGetPodLogsHandler(config).maskSequences(strings.Repeat("x", int(maxPodLogsBytes)))
-	if err == nil || !strings.Contains(err.Error(), "output limit") {
-		t.Fatalf("maskSequences() error = %v, want output limit error", err)
-	}
+	require.ErrorContains(t, err, "output limit")
 }
 
 type trackingReadCloser struct {

@@ -8,7 +8,6 @@ package config
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,17 +21,17 @@ func TestApplyMaskSequence(t *testing.T) {
 	require.NoError(t, CompileProcessingRules([]*ProcessingRule{rule}))
 
 	masked, matched := ApplyMaskSequence([]byte("message token=secret"), rule)
-	assert.True(t, matched)
-	assert.Equal(t, []byte("message token=[MASKED]"), masked)
+	require.True(t, matched)
+	require.Equal(t, []byte("message token=[MASKED]"), masked)
 
 	unmatched, matched := ApplyMaskSequence([]byte("message without credentials"), rule)
-	assert.False(t, matched)
-	assert.Equal(t, []byte("message without credentials"), unmatched)
+	require.False(t, matched)
+	require.Equal(t, []byte("message without credentials"), unmatched)
 }
 
 func TestApplyMaskSequenceIgnoresOtherRuleTypes(t *testing.T) {
 	content := []byte("secret")
 	masked, matched := ApplyMaskSequence(content, &ProcessingRule{Type: ExcludeAtMatch})
-	assert.False(t, matched)
-	assert.Equal(t, content, masked)
+	require.False(t, matched)
+	require.Equal(t, content, masked)
 }
