@@ -232,24 +232,22 @@ func resolveCentOSAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) 
 		osInfo.Version = os.CentOSDefault.Version
 	}
 
-	if osInfo.Architecture == os.ARM64Arch {
-		if osInfo.Version == "7" {
-			warnOSNotUsingLatestAMI(e, osInfo)
-			return "ami-0cb7a00afccf30559", nil
-		}
-		return "", fmt.Errorf("ARM64 is not supported for CentOS %s", osInfo.Version)
+	if osInfo.Version == os.CentOS7.Version {
+		warnOSNotUsingLatestAMI(e, osInfo)
+		return aws.GetAMI(osInfo)
 	}
 
-	if osInfo.Version == "7" {
-		warnOSNotUsingLatestAMI(e, osInfo)
-		return "ami-036de472bb001ae9c", nil
+	if osInfo.Architecture == os.ARM64Arch {
+		return "", fmt.Errorf("ARM64 is not supported for CentOS %s", osInfo.Version)
 	}
 
 	return ec2.SearchAMI(e, "679593333241", fmt.Sprintf("CentOS-%s-*-*.x86_64*", osInfo.Version), string(osInfo.Architecture))
 }
 
+// resolveAlmaLinuxAMI is an escape hatch for explicit ec2.WithLatestAMI() usage: it
+// bypasses the pinned AlmaLinux9 AMI in platforms.json to search AlmaLinux's own
+// publisher account (764336703387) for the newest official image.
 func resolveAlmaLinuxAMI(e aws.Environment, osInfo *os.Descriptor) (string, error) {
-	// AlmaLinux publishes official AMIs under account 764336703387.
 	return ec2.SearchAMI(e, "764336703387", "AlmaLinux OS 9*", string(osInfo.Architecture))
 }
 

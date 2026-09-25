@@ -8,6 +8,8 @@ pub mod command;
 pub mod config;
 pub mod config_gate;
 pub mod env;
+#[cfg(all(test, windows))]
+mod fleet_process_template;
 pub mod grpc;
 mod handle;
 pub mod manager;

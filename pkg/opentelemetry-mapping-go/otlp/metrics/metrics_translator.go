@@ -397,10 +397,32 @@ func tagsFromDimensions(dims map[string]string) []string {
 	return tags
 }
 
+func consumeGCPServerlessSource(consumer Consumer, src source.Source) {
+	c, ok := consumer.(TagSetConsumer)
+	if !ok {
+		return
+	}
+	suffix := "cloudrun"
+	if src.Kind == source.GCPCloudFunctionsKind {
+		suffix = "cloudrunfunctions"
+	}
+	// Revision is useful on application metrics but is not part of the approved
+	// running-metric identity. Keep the running series keyed by four dimensions.
+	dims := src.SourceIdentifier.Dimensions
+	tags := make([]string, 0, 4)
+	for _, key := range []string{"instance", "service_name", "project_id", "location"} {
+		if dims[key] == "" {
+			return
+		}
+		tags = append(tags, key+":"+dims[key])
+	}
+	c.ConsumeTagSet(suffix, tags)
+}
+
 // resolveSource determines the source from resource attributes, falling back to the fallbackSourceProvider if no source is found.
 func resolveSource(ctx context.Context, attributesTranslator *attributes.Translator, res pcommon.Resource, fallbackSourceProvider source.Provider, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
-	if !hasSource {
+	if !hasSource && !attributes.IsGCPServerless(res.Attributes()) {
 		var err error
 		src, err = fallbackSourceProvider.Source(ctx)
 		if err != nil {
@@ -633,6 +655,12 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if c, ok := consumer.(TagSetConsumer); ok {
 					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
+			case source.AzureFunctionsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurefunctions", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
+			case source.GCPCloudRunKind, source.GCPCloudFunctionsKind:
+				consumeGCPServerlessSource(consumer, src)
 			}
 		}
 	}

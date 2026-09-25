@@ -741,3 +741,77 @@ func TestMissedBytesIdentity(t *testing.T) {
 		})
 	}
 }
+
+func TestFileOpenerUsesCurrentSourcePolicy(t *testing.T) {
+	const testPath = "tailer.log"
+	makeSource := func(noFollow bool) *sources.LogSource {
+		return sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     testPath,
+			NoFollow: noFollow,
+		})
+	}
+
+	fileOpener := opener.NewMockFileOpener()
+	fileOpener.AddMockFile(opener.NewMockFile(testPath, [][]byte{[]byte("line\n")}))
+	file := NewFile(testPath, makeSource(false), false)
+	tailer := NewTailer(&TailerOptions{
+		File:       file,
+		Info:       status.NewInfoRegistry(),
+		FileOpener: fileOpener,
+	})
+
+	f, err := tailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	tailer.ReplaceSource(makeSource(true))
+	f, err = tailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	tailer.ReplaceSource(makeSource(false))
+	f, err = tailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	require.Equal(t, []opener.LogFileOpen{
+		{Path: testPath},
+		{Path: testPath, NoFollow: true},
+		{Path: testPath},
+	}, fileOpener.Opens())
+}
+
+func TestRotatedTailerUsesNewSourceOpenPolicy(t *testing.T) {
+	const testPath = "tailer.log"
+	makeFile := func(noFollow bool) *File {
+		return NewFile(testPath, sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     testPath,
+			NoFollow: noFollow,
+		}), false)
+	}
+
+	fileOpener := opener.NewMockFileOpener()
+	fileOpener.AddMockFile(opener.NewMockFile(testPath, [][]byte{[]byte("line\n")}))
+	tailer := NewTailer(&TailerOptions{
+		File:       makeFile(true),
+		Info:       status.NewInfoRegistry(),
+		FileOpener: fileOpener,
+	})
+	rotatedTailer := tailer.NewRotatedTailer(
+		makeFile(false),
+		nil,
+		nil,
+		nil,
+		status.NewInfoRegistry(),
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	f, err := rotatedTailer.fileOpener.OpenLogFile(testPath)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	require.Equal(t, []opener.LogFileOpen{{Path: testPath}}, fileOpener.Opens())
+}
