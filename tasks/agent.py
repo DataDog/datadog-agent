@@ -18,6 +18,7 @@ from tasks.build_tags import (
     AGENT_TAGS,
     COMMON_TAGS,
     compute_build_tags_for_flavor,
+    filter_incompatible_tags,
     get_default_build_tags,
 )
 from tasks.devcontainer import run_on_devcontainer
@@ -60,6 +61,7 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
+    extra_build_tags=None,
     flavor=AgentFlavor.base.name,
     development=True,
     skip_assets=False,
@@ -109,8 +111,12 @@ def build(
                 python_home_3 = bazel_embedded
 
     if flavor.is_iot():
-        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
+        # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`.
         build_tags = get_default_build_tags(build="agent", flavor=flavor)
+        if extra_build_tags:
+            build_tags = sorted(
+                set(build_tags).union(filter_incompatible_tags(extra_build_tags.split(","), target_platform))
+            )
     else:
         build_tags = compute_build_tags_for_flavor(
             build="agent",
@@ -118,6 +124,7 @@ def build(
             build_include=build_include,
             build_exclude=build_exclude,
             platform=target_platform,
+            extra_build_tags=extra_build_tags,
         )
 
     if not glibc:
@@ -158,7 +165,7 @@ def build(
         if set(build_tags) != AGENT_TAGS | COMMON_TAGS:
             raise Exit(
                 "--enable-bazel requires the default agent build-tag set (no --build-include, "
-                "--build-exclude, or --no-glibc). Requested tags differ from //cmd/agent's "
+                "--build-exclude, --extra-build-tags, or --no-glibc). Requested tags differ from //cmd/agent's "
                 f"static Bazel gotags by: {sorted(set(build_tags) ^ (AGENT_TAGS | COMMON_TAGS))}. "
                 "Drop --enable-bazel for this combination.",
                 code=1,

@@ -27,6 +27,7 @@ COMMON_TAGS = set([
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = set([
+    "anomalydetection_recorder",  # development-only recorder image
     "bundle_installer",
     "clusterchecks",
     "consul",

@@ -184,6 +184,7 @@ def compute_build_tags_for_flavor(
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     platform: str | None = None,
+    extra_build_tags: str | None = None,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
@@ -192,7 +193,7 @@ def compute_build_tags_for_flavor(
     the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
     for the given architecture.
 
-    Then, remove from these the provided list of tags to exclude.
+    Then, add any validated extra build tags and remove the provided exclusions.
     """
     target_platform = _resolve_target_platform(platform)
 
@@ -202,9 +203,11 @@ def compute_build_tags_for_flavor(
         else filter_incompatible_tags(build_include.split(","), platform=target_platform)
     )
 
+    extra_tags = [] if extra_build_tags is None else extra_build_tags.split(",")
+    extra_tags = filter_incompatible_tags(extra_tags, platform=target_platform)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    list = get_build_tags(build_include, build_exclude)
+    list = get_build_tags(set(build_include).union(extra_tags), build_exclude)
 
     return list
 
