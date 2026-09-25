@@ -1,6 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# Maintain by hand: The dependencies are too complex w.r.t. the sources for gazelle to get right.
+# gazelle:ignore
+
 go_library(
     name = "filter",
     srcs = [
