@@ -224,6 +224,56 @@ def validate_used_by_otel(ctx: Context):
         raise Exit(message)
 
 
+_DEPENDENCY_TABLE_NAMES = ('dependencies', 'dev-dependencies', 'build-dependencies')
+
+
+def _find_dependency_tables(data: dict, path: tuple[str, ...] = ()):
+    """
+    Yield (path, table) for every dependencies-like table nested anywhere in a
+    parsed Cargo.toml (covers top-level, [workspace.*] and [target.*.*] tables).
+    """
+    for key, value in data.items():
+        if not isinstance(value, dict):
+            continue
+        if key in _DEPENDENCY_TABLE_NAMES:
+            yield path + (key,), value
+        else:
+            yield from _find_dependency_tables(value, path + (key,))
+
+
+@task
+def validate_cargo(_: Context):
+    """
+    Report dependencies with a pinned version in non-top-level Cargo.toml files.
+
+    Only the top-level Cargo.toml should pin dependency versions; other Cargo.toml files
+    should reference them with `dep.workspace = true`. This only prints violations for
+    now; it does not fail the build.
+    """
+    import toml
+
+    failures = []
+    for path in sorted(glob('**/Cargo.toml', recursive=True)):
+        if path == 'Cargo.toml' or path.split(os.sep)[0].startswith('bazel-'):
+            continue
+        with open(path) as f:
+            data = toml.load(f)
+        for table_path, table in _find_dependency_tables(data):
+            for dep_name, spec in table.items():
+                pinned = isinstance(spec, str) or (isinstance(spec, dict) and 'version' in spec)
+                if pinned:
+                    failures.append(f"{path}: [{'.'.join(table_path)}] {dep_name} = {spec!r}")
+
+    if failures:
+        print("modules.validate-cargo: pinned dependency versions found in non-top-level Cargo.toml files:")
+        for failure in failures:
+            print(f"  {failure}")
+        print(
+            "Dependencies should not pin a version outside the top-level Cargo.toml (use `dep.workspace = true` instead)."
+        )
+        print("This will be an error after the existing violations are cleaned up.")
+
+
 def get_module_by_path(path: Path) -> GoModule | None:
     """
     Return the GoModule object corresponding to the given path.
