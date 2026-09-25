@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 )
@@ -44,9 +45,11 @@ type InterfaceMetadataConfig struct {
 
 // IPAddressMetadataConfig maps logical interface IP metadata fields to gNMI paths.
 type IPAddressMetadataConfig struct {
-	Keys         map[string]string `yaml:"keys"`
-	IP           string            `yaml:"ip"`
-	PrefixLength string            `yaml:"prefix_length"`
+	Keys             map[string]string `yaml:"keys"`
+	IP               string            `yaml:"ip"`
+	PrefixLength     string            `yaml:"prefix_length"`
+	IPv6             string            `yaml:"ipv6"`
+	IPv6PrefixLength string            `yaml:"ipv6_prefix_length"`
 }
 
 // MetadataConfig defines gNMI paths used for NDM device and interface metadata.
@@ -89,8 +92,10 @@ func DefaultOpenConfigMetadata() MetadataConfig {
 				"subinterface": "index",
 				"address":      "ip",
 			},
-			IP:           "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip",
-			PrefixLength: "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length",
+			IP:               "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/ip",
+			PrefixLength:     "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length",
+			IPv6:             "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/ip",
+			IPv6PrefixLength: "/openconfig/interfaces/interface/subinterfaces/subinterface/ipv6/addresses/address/state/prefix-length",
 		},
 	}
 }
@@ -116,6 +121,8 @@ func (m MetadataConfig) IsZero() bool {
 		len(m.Interface.Keys) == 0 &&
 		m.IPAddress.IP == "" &&
 		m.IPAddress.PrefixLength == "" &&
+		m.IPAddress.IPv6 == "" &&
+		m.IPAddress.IPv6PrefixLength == "" &&
 		len(m.IPAddress.Keys) == 0
 }
 
@@ -133,18 +140,37 @@ func deviceMetadataConfigIsZero(device DeviceMetadataConfig) bool {
 // SubscriptionPaths returns deduplicated metadata paths to subscribe to.
 func (m MetadataConfig) SubscriptionPaths() []PathSubscriptionConfig {
 	resolved := m.Resolved()
+	paths := [...]string{
+		resolved.Device.ComponentType,
+		resolved.Device.Hostname,
+		resolved.Device.VendorName,
+		resolved.Device.SerialNumber,
+		resolved.Device.Platform,
+		resolved.Device.SoftwareVersion,
+		resolved.Device.HardwareVersion,
+		resolved.Interface.Name,
+		resolved.Interface.Description,
+		resolved.Interface.AdminStatus,
+		resolved.Interface.OperStatus,
+		resolved.Interface.MACAddress,
+		resolved.Interface.IfIndex,
+		resolved.Interface.Type,
+		resolved.IPAddress.IP,
+		resolved.IPAddress.PrefixLength,
+		resolved.IPAddress.IPv6,
+		resolved.IPAddress.IPv6PrefixLength,
+	}
 	seen := make(map[string]struct{})
-	out := make([]PathSubscriptionConfig, 0, 16)
-
-	add := func(path string) {
+	out := make([]PathSubscriptionConfig, 0, len(paths))
+	for _, path := range paths {
 		path = normalizeMetadataPath(path)
 		if path == "" {
-			return
+			continue
 		}
 		tags := metadataSubscriptionKeys(resolved, path)
 		seenKey := path + formatMetadataSubscriptionKey(tags)
 		if _, ok := seen[seenKey]; ok {
-			return
+			continue
 		}
 		seen[seenKey] = struct{}{}
 
@@ -154,26 +180,6 @@ func (m MetadataConfig) SubscriptionPaths() []PathSubscriptionConfig {
 		}
 		out = append(out, spec)
 	}
-
-	add(resolved.Device.ComponentType)
-	add(resolved.Device.Hostname)
-	add(resolved.Device.VendorName)
-	add(resolved.Device.SerialNumber)
-	add(resolved.Device.Platform)
-	add(resolved.Device.SoftwareVersion)
-	add(resolved.Device.HardwareVersion)
-
-	add(resolved.Interface.Name)
-	add(resolved.Interface.Description)
-	add(resolved.Interface.AdminStatus)
-	add(resolved.Interface.OperStatus)
-	add(resolved.Interface.MACAddress)
-	add(resolved.Interface.IfIndex)
-	add(resolved.Interface.Type)
-
-	add(resolved.IPAddress.IP)
-	add(resolved.IPAddress.PrefixLength)
-
 	return out
 }
 
@@ -249,7 +255,9 @@ func metadataSubscriptionKeys(resolved MetadataConfig, path string) map[string]s
 	normalized := normalizeMetadataPath(path)
 	switch {
 	case normalized == normalizeMetadataPath(resolved.IPAddress.IP),
-		normalized == normalizeMetadataPath(resolved.IPAddress.PrefixLength):
+		normalized == normalizeMetadataPath(resolved.IPAddress.PrefixLength),
+		normalized == normalizeMetadataPath(resolved.IPAddress.IPv6),
+		normalized == normalizeMetadataPath(resolved.IPAddress.IPv6PrefixLength):
 		return copyStringMap(resolved.IPAddress.Keys)
 	case strings.Contains(path, "/interfaces/interface/"):
 		return copyStringMap(resolved.Interface.Keys)
@@ -274,28 +282,34 @@ func formatMetadataSubscriptionKey(tags map[string]string) string {
 
 func validateMetadataConfig(metadata MetadataConfig) error {
 	resolved := metadata.Resolved()
-	for field, path := range map[string]string{
-		"device.component_type":    resolved.Device.ComponentType,
-		"device.hostname":          resolved.Device.Hostname,
-		"device.vendor_name":       resolved.Device.VendorName,
-		"device.serial_number":     resolved.Device.SerialNumber,
-		"device.platform":          resolved.Device.Platform,
-		"device.software_version":  resolved.Device.SoftwareVersion,
-		"device.hardware_version":  resolved.Device.HardwareVersion,
-		"interface.name":           resolved.Interface.Name,
-		"interface.description":    resolved.Interface.Description,
-		"interface.admin_status":   resolved.Interface.AdminStatus,
-		"interface.oper_status":    resolved.Interface.OperStatus,
-		"interface.mac_address":    resolved.Interface.MACAddress,
-		"interface.ifindex":        resolved.Interface.IfIndex,
-		"interface.type":           resolved.Interface.Type,
-		"ip_address.ip":            resolved.IPAddress.IP,
-		"ip_address.prefix_length": resolved.IPAddress.PrefixLength,
-	} {
-		if strings.TrimSpace(path) == "" {
+	paths := [...]struct {
+		field string
+		path  string
+	}{
+		{"device.component_type", resolved.Device.ComponentType},
+		{"device.hostname", resolved.Device.Hostname},
+		{"device.vendor_name", resolved.Device.VendorName},
+		{"device.serial_number", resolved.Device.SerialNumber},
+		{"device.platform", resolved.Device.Platform},
+		{"device.software_version", resolved.Device.SoftwareVersion},
+		{"device.hardware_version", resolved.Device.HardwareVersion},
+		{"interface.name", resolved.Interface.Name},
+		{"interface.description", resolved.Interface.Description},
+		{"interface.admin_status", resolved.Interface.AdminStatus},
+		{"interface.oper_status", resolved.Interface.OperStatus},
+		{"interface.mac_address", resolved.Interface.MACAddress},
+		{"interface.ifindex", resolved.Interface.IfIndex},
+		{"interface.type", resolved.Interface.Type},
+		{"ip_address.ip", resolved.IPAddress.IP},
+		{"ip_address.prefix_length", resolved.IPAddress.PrefixLength},
+		{"ip_address.ipv6", resolved.IPAddress.IPv6},
+		{"ip_address.ipv6_prefix_length", resolved.IPAddress.IPv6PrefixLength},
+	}
+	for _, item := range paths {
+		if strings.TrimSpace(item.path) == "" {
 			continue
 		}
-		if err := validateMetadataPath(path, field); err != nil {
+		if err := validateMetadataPath(item.path, item.field); err != nil {
 			return err
 		}
 	}
@@ -382,9 +396,5 @@ func copyStringMap(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make(map[string]string, len(in))
-	for key, value := range in {
-		out[key] = value
-	}
-	return out
+	return maps.Clone(in)
 }

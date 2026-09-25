@@ -9,7 +9,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 )
@@ -76,7 +75,7 @@ func OldestSampleAgeSeconds(snapshot []client.CachedValue, now time.Time) float6
 }
 
 // ReportHealth submits datadog.gnmi.* operational metrics.
-func ReportHealth(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, stats HealthStats) error {
+func ReportHealth(s Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, stats HealthStats) error {
 	if s == nil {
 		return errors.New("sender is nil")
 	}

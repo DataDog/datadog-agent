@@ -134,6 +134,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
+	reporter := report.Sender(s)
 
 	c.mu.Lock()
 	gnmiClient := c.client
@@ -155,19 +156,19 @@ func (c *Check) Run() error {
 		ReceivedSamples:  gnmiClient.ReceivedSamples(),
 		SampleAgeSeconds: report.OldestSampleAgeSeconds(snapshot, now),
 	}
-	if err := report.ReportHealth(s, checkConfig, snapshot, healthStats); err != nil {
+	if err := report.ReportHealth(reporter, checkConfig, snapshot, healthStats); err != nil {
 		return err
 	}
 
 	if len(freshSnapshot) > 0 {
-		if err := report.ReportMetrics(s, checkConfig, freshSnapshot, snapshot); err != nil {
+		if err := report.ReportMetrics(reporter, checkConfig, freshSnapshot, snapshot); err != nil {
 			return err
 		}
 
 		c.mu.Lock()
 		bandwidthState := c.interfaceBandwidthState
 		c.mu.Unlock()
-		if err := report.ReportDerivedMetrics(s, checkConfig, freshSnapshot, bandwidthState); err != nil {
+		if err := report.ReportDerivedMetrics(reporter, checkConfig, freshSnapshot, bandwidthState); err != nil {
 			return err
 		}
 	}
@@ -179,7 +180,7 @@ func (c *Check) Run() error {
 	c.updateStatusFromClient(gnmiClient, checkConfig, snapshot)
 
 	if readyForMetadata {
-		if err := report.ReportInterfaceStatus(s, checkConfig, snapshot); err != nil {
+		if err := report.ReportInterfaceStatus(reporter, checkConfig, snapshot); err != nil {
 			return err
 		}
 	}
@@ -189,7 +190,7 @@ func (c *Check) Run() error {
 	shouldReportMetadata := report.ShouldReportMetadata(c.lastMetadataReport, metadataInterval, now)
 	c.mu.Unlock()
 	if shouldReportMetadata && readyForMetadata {
-		sent, err := report.ReportMetadata(s, checkConfig, snapshot, now)
+		sent, err := report.ReportMetadata(reporter, checkConfig, snapshot, now)
 		if err != nil {
 			return err
 		}

@@ -8,7 +8,6 @@ package report
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -31,7 +30,7 @@ const (
 )
 
 // ReportDerivedMetrics emits evaluated NDM metrics such as interface utilization and memory usage.
-func ReportDerivedMetrics(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, bandwidthState BandwidthState) error {
+func ReportDerivedMetrics(s Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, bandwidthState BandwidthState) error {
 	if s == nil {
 		return errors.New("sender is nil")
 	}
@@ -95,7 +94,7 @@ type interfaceBandwidthData struct {
 }
 
 func reportInterfaceBandwidthUsage(
-	s sender.Sender,
+	s Sender,
 	baseTags []string,
 	deviceID string,
 	profile config.ProfileDefinition,
@@ -126,62 +125,49 @@ func collectInterfaceBandwidthData(
 ) map[string]*interfaceBandwidthData {
 	byPath := indexSnapshotByPath(snapshot)
 	metrics := interfaceBandwidthMetricsFromProfile(profile)
+	metricConfigs := [...]config.MetricConfig{metrics.inOctets, metrics.outOctets, metrics.portSpeed}
 	interfaces := make(map[string]*interfaceBandwidthData)
 
-	for _, cached := range byPath[normalizeProfilePath(metrics.inOctets.Path)] {
-		keysID := cacheKeysID(cached.Key.Keys)
-		if keysID == "" {
-			continue
-		}
-		value, ok := decodeNumericValue(cached.Entry.Value)
-		if !ok {
-			continue
-		}
-
-		interfaceName := metricKeyValue(cached.Key.Keys, metrics.inOctets, "interface", "name")
-		if interfaceName == "" {
-			continue
-		}
-
-		entry := interfaces[keysID]
-		if entry == nil {
-			entry = &interfaceBandwidthData{name: interfaceName, inOctets: -1, outOctets: -1}
-			interfaces[keysID] = entry
-		}
-		entry.inOctets = value
-		entry.inTags = interfaceBandwidthTags(baseTags, deviceID, interfaceName, inventory)
-	}
-
-	for _, cached := range byPath[normalizeProfilePath(metrics.outOctets.Path)] {
-		keysID := cacheKeysID(cached.Key.Keys)
-		entry := interfaces[keysID]
-		if entry == nil {
-			interfaceName := metricKeyValue(cached.Key.Keys, metrics.outOctets, "interface", "name")
-			if interfaceName == "" {
+	for metricIndex, metric := range metricConfigs {
+		for _, cached := range byPath[normalizeProfilePath(metric.Path)] {
+			keysID := cacheKeysID(cached.Key.Keys)
+			if keysID == "" {
 				continue
 			}
-			entry = &interfaceBandwidthData{name: interfaceName, inOctets: -1, outOctets: -1}
-			interfaces[keysID] = entry
-		}
-		value, ok := decodeNumericValue(cached.Entry.Value)
-		if !ok {
-			continue
-		}
-		entry.outOctets = value
-		entry.outTags = interfaceBandwidthTags(baseTags, deviceID, entry.name, inventory)
-	}
 
-	for _, cached := range byPath[normalizeProfilePath(metrics.portSpeed.Path)] {
-		keysID := cacheKeysID(cached.Key.Keys)
-		entry := interfaces[keysID]
-		if entry == nil {
-			continue
+			entry := interfaces[keysID]
+			if metricIndex == 2 {
+				if entry == nil {
+					continue
+				}
+				value, ok := decodeMetricValue(cached.Entry.Value, metric.ValueMap)
+				if ok && value > 0 {
+					entry.speed = uint64(value)
+				}
+				continue
+			}
+
+			value, ok := decodeNumericValue(cached.Entry.Value)
+			if !ok {
+				continue
+			}
+			if entry == nil {
+				interfaceName := metricKeyValue(cached.Key.Keys, metric, "interface", "name")
+				if interfaceName == "" {
+					continue
+				}
+				entry = &interfaceBandwidthData{name: interfaceName, inOctets: -1, outOctets: -1}
+				interfaces[keysID] = entry
+			}
+			tags := interfaceBandwidthTags(baseTags, deviceID, entry.name, inventory)
+			if metricIndex == 0 {
+				entry.inOctets = value
+				entry.inTags = tags
+			} else {
+				entry.outOctets = value
+				entry.outTags = tags
+			}
 		}
-		value, ok := decodeMetricValue(cached.Entry.Value, metrics.portSpeed.ValueMap)
-		if !ok || value <= 0 {
-			continue
-		}
-		entry.speed = uint64(value)
 	}
 
 	return interfaces
@@ -201,7 +187,7 @@ func interfaceBandwidthTags(baseTags []string, deviceID string, interfaceName st
 }
 
 func emitBandwidthUsageRate(
-	s sender.Sender,
+	s Sender,
 	bandwidthState BandwidthState,
 	interfaceName string,
 	usageName string,
@@ -226,7 +212,7 @@ func emitBandwidthUsageRate(
 	s.Gauge(metricName, rate, "", tags)
 }
 
-func reportMemoryUsage(s sender.Sender, profile config.ProfileDefinition, snapshot []client.CachedValue, baseTags []string) {
+func reportMemoryUsage(s Sender, profile config.ProfileDefinition, snapshot []client.CachedValue, baseTags []string) {
 	usedMetric, freeMetric, ok := memoryMetricsFromProfile(profile)
 	if !ok {
 		return
