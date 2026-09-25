@@ -1,13 +1,29 @@
 """Agent specific BUILD file for bzip2."""
 
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_applicable_licenses = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "1.0.8"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://sourceware.org/pub/bzip2/bzip2-{version}.tar.gz",
+        package = "bzip2",
+        version = VERSION,
+    ),
 )
 
 license(
@@ -21,8 +37,6 @@ license(
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
 )
-
-VERSION = "1.0.8"
 
 # only for test cases in //deps/bzip
 exports_files([
@@ -41,9 +55,6 @@ _PUBLIC_HEADERS = [
 cc_binary(
     name = "bzip2",
     srcs = ["bzip2.c"],
-    deps = [
-        ":libbz2",
-    ],
     copts = [
         "-Wall",
         # -Winline is probably obsolete with modern compilers, but that is what
@@ -52,6 +63,9 @@ cc_binary(
         "-D_FILE_OFFSET_BITS=64",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        ":libbz2",
+    ],
 )
 
 cc_library(
@@ -93,18 +107,16 @@ cc_library(
         },
         no_match_error = "No target platform detected",
     ),
+    includes = ["."],
     local_defines = select({
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
         "//conditions:default": [],
     }),
-    includes = ["."],
     visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "bz2",
-    win_def_file = "libbz2.def",
-    deps = [":libbz2"],
     user_link_flags = select({
         #"//bazel/platforms:os_aix": [
         #    "-qmkshrobj",
@@ -122,6 +134,8 @@ cc_shared_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+    win_def_file = "libbz2.def",
+    deps = [":libbz2"],
 )
 
 pkg_files(
@@ -132,10 +146,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "bz2_pkg",
-    input = ":bz2",
     dest_dir = "embedded/lib",
-    version = VERSION,
+    input = ":bz2",
     installed_files = [":hdr_files"],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 
