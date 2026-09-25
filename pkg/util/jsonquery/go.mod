@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.69.4 // indirect
 	github.com/itchyny/timefmt-go v0.1.8 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 
