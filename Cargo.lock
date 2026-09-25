@@ -938,6 +938,7 @@ dependencies = [
  "openssl",
  "postgres",
  "postgres-openssl",
+ "postgres-protocol",
  "prost",
  "prost-build",
  "prost-types",
