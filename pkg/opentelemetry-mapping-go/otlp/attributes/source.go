@@ -47,7 +47,41 @@ const (
 var (
 	cloudPlatformAzureAppService       = semconv143.CloudPlatformAzureAppService.Value.AsString()
 	cloudPlatformAzureAppServiceLegacy = conventions.CloudPlatformAzureAppService.Value.AsString()
+	cloudPlatformAzureFunctions        = semconv143.CloudPlatformAzureFunctions.Value.AsString()
+	cloudPlatformAzureFunctionsLegacy  = conventions.CloudPlatformAzureFunctions.Value.AsString()
 )
+
+type azureFunctionsResource struct {
+	name           string
+	subscriptionID string
+	resourceGroup  string
+	instanceID     string
+}
+
+func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsResource, bool) {
+	platform, ok := attrs.Get(string(conventions.CloudPlatformKey))
+	if !ok || (platform.Str() != cloudPlatformAzureFunctions && platform.Str() != cloudPlatformAzureFunctionsLegacy) {
+		return azureFunctionsResource{}, false
+	}
+
+	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
+	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
+	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
+	instanceID, instanceIDOK := attrs.Get(string(semconv143.FaaSInstanceKey))
+	if !nameOK || name.Str() == "" ||
+		!subscriptionIDOK || subscriptionID.Str() == "" ||
+		!resourceGroupOK || resourceGroup.Str() == "" ||
+		!instanceIDOK || instanceID.Str() == "" {
+		return azureFunctionsResource{}, false
+	}
+
+	return azureFunctionsResource{
+		name:           name.Str(),
+		subscriptionID: subscriptionID.Str(),
+		resourceGroup:  resourceGroup.Str(),
+		instanceID:     instanceID.Str(),
+	}, true
+}
 
 type azureAppServiceResource struct {
 	name           string
@@ -201,6 +235,22 @@ type HostFromAttributesHandler interface {
 // SourceFromAttrs gets a telemetry signal source from its attributes.
 // Deprecated: Use Translator.ResourceToSource or Translator.AttributesToSource instead.
 func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttributesHandler) (source.Source, bool) {
+	if function, ok := azureFunctionsResourceFromAttributes(attrs); ok {
+		return source.Source{
+			Kind:       source.AzureFunctionsKind,
+			Identifier: function.instanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			SourceIdentifier: source.SourceIdentifier{
+				Primary: function.instanceID,
+				Dimensions: map[string]string{
+					"name":            function.name,
+					"subscription_id": function.subscriptionID,
+					"resource_group":  function.resourceGroup,
+					"instance":        function.instanceID,
+				},
+			},
+		}, true
+	}
+
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
 		return source.Source{
 			Kind:       source.AzureAppServiceKind,

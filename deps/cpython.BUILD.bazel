@@ -398,13 +398,13 @@ dd_collect_dependencies(
 pkg_filegroup(
     name = "runtime_deps",
     srcs = [":_runtime_deps"],
-    prefix = "embedded",
     visibility = ["//visibility:public"],
 )
 
 pkg_files(
     name = "install_files_win",
     srcs = [":python_win"],
+    prefix = "embedded3",
     strip_prefix = "build",
 )
 
@@ -441,14 +441,14 @@ select_file(
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
-    link_name = "lib/libpython{}.so".format(PYTHON_MAJOR_MINOR),
+    link_name = "embedded/lib/libpython{}.so".format(PYTHON_MAJOR_MINOR),
     target = LINUX_SO,
     attributes = pkg_attributes("0644"),
 )
 
 BIN_SYMLINKS = {
-    "bin/python3": "python{}".format(PYTHON_MAJOR_MINOR),
-    "bin/python": "python3",
+    "embedded/bin/python3": "python{}".format(PYTHON_MAJOR_MINOR),
+    "embedded/bin/python": "python3",
 }
 
 [
@@ -492,6 +492,7 @@ select_file(
 pkg_files(
     name = "install_headers_unix",
     srcs = [":headers_unix"],
+    prefix = "embedded",
 )
 
 # Grouped helper for python_pkg installed_files: installed_files is non-configurable,
@@ -509,12 +510,13 @@ pkg_filegroup(
 dd_cc_packaged(
     name = "python_pkg",
     input = ":python_unix_shared",
+    dest_dir = "embedded/lib",
     installed_files = [":_python_pkg_common_files"],
     installed_executables = {
-        ":python3_bin": "bin",
-        ":python_lib_dir_group_unix": "lib",
+        ":python3_bin": "embedded/bin",
+        ":python_lib_dir_group_unix": "embedded/lib",
     } | select({
-        "@platforms//os:linux": {":python_stable_lib_linux": "lib"},
+        "@platforms//os:linux": {":python_stable_lib_linux": "embedded/lib"},
         "//conditions:default": {},
     }),
     visibility = ["//visibility:public"],
@@ -533,10 +535,6 @@ pkg_filegroup(
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
-    }),
-    prefix = select({
-        "@platforms//os:windows": "embedded3",
-        "//conditions:default": "embedded",
     }),
     visibility = ["//visibility:public"],
 )

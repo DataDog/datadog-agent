@@ -54,7 +54,7 @@ func TestMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	mntPath := testDrive.Path("test-mount")
 	os.MkdirAll(mntPath, 0755)
@@ -172,7 +172,7 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dir1Path, _, err := test.Path("dir1")
 	if err != nil {
@@ -332,7 +332,7 @@ func testMountSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -456,7 +456,7 @@ func TestMountEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	tmpfsMountPointPath := testDrive.Path(tmpfsMountPointName)
 	if err = os.Mkdir(tmpfsMountPointPath, 0755); err != nil {

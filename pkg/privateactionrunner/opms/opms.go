@@ -22,6 +22,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/jsonapi"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -34,7 +36,6 @@ import (
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/jsonapi"
 )
 
 const (
@@ -171,9 +172,13 @@ func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
 }
 
 func (c *client) endpointURL(path string) string {
-	scheme, host := "https", c.config.DDApiHost
+	return EndpointURL(c.config, path)
+}
+
+func EndpointURL(cfg *config.Config, path string) string {
+	scheme, host := "https", cfg.DDApiHost
 	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
-		host = c.config.DDHost
+		host = cfg.DDHost
 		if strings.HasPrefix(host, "http://") {
 			scheme = "http"
 		}

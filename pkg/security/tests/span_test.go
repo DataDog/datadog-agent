@@ -229,7 +229,7 @@ func TestGoSpan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
 	if err != nil {
@@ -510,7 +510,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
 	if err != nil {
@@ -822,7 +822,7 @@ func TestOTelSpan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	type otelTesterVariant struct {
 		name string

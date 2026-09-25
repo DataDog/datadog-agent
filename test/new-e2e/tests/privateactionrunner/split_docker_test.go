@@ -46,7 +46,6 @@ func TestDockerPARSplitSuite(t *testing.T) {
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_PRIVATE_KEY", pulumi.String(privateKey)),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST", pulumi.String(runCommandAction)),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS", pulumi.String(`["rshell:echo"]`)),
-			dockeragentparams.WithAgentServiceEnvVariable("DD_PRIVATE_ACTION_RUNNER_IDLE_TIMEOUT_SECONDS", pulumi.String("5")),
 			dockeragentparams.WithAgentServiceEnvVariable("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", pulumi.String("true")),
 		)),
 	)))
@@ -65,6 +64,7 @@ func (s *dockerPARSplitSuite) TestAllInOneTopologyExecutesTask() {
 		require.Greater(c, count, 0, "par-control should poll fakeintake")
 	}, 2*time.Minute, 2*time.Second)
 
+	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))
 	setPARTaskSigningKey(s.T(), client, s.signingKey)
 	taskID := uuid.New().String()
 	s.Require().NoError(client.EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
@@ -72,13 +72,15 @@ func (s *dockerPARSplitSuite) TestAllInOneTopologyExecutesTask() {
 		"allowedCommands": []string{"rshell:echo"},
 	}))
 	s.waitForContainerProcessState("datadog-agent", parExecutorProcess, "Running", 2*time.Minute)
-	s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))
-
-	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
-	s.Require().NoError(err)
-	s.Require().True(result.Success, "split PAR action failed: %+v", result)
-	s.Require().Equal(0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
-	s.Require().Contains(result.Outputs["stdout"], "par-split-docker-e2e")
+	// Publish updates until the cold executor's RC subscription receives the key.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, client.RCAddConfig("", runnerKeysRCProduct, s.signingKey.id, s.signingKey.id, s.signingKey.config))
+		result, err := client.GetPARTaskResult(taskID, 2*time.Second)
+		require.NoError(c, err)
+		require.True(c, result.Success, "split PAR action failed: %+v", result)
+		require.Equal(c, 0, rshellExitCode(s.T(), result), "unexpected rshell result: %+v", result)
+		require.Contains(c, result.Outputs["stdout"], "par-split-docker-e2e")
+	}, 2*time.Minute, 2*time.Second)
 }
 
 func (s *dockerPARSplitSuite) waitForContainerProcessState(container, process, state string, timeout time.Duration) {

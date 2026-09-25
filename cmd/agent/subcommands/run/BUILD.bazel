@@ -40,6 +40,7 @@ go_library(
         "//comp/aggregator/demultiplexer/def",
         "//comp/aggregator/demultiplexer/impl",
         "//comp/aggregator/demultiplexerendpoint/fx",
+        "//comp/aggregator/dogstatsdclientdropdetector/fx",
         "//comp/aggregator/dogstatsdclienttelemetry/fx",
         "//comp/anomalydetection/logssource/fx",
         "//comp/anomalydetection/observer/fx",
@@ -57,7 +58,6 @@ go_library(
         "//comp/core/agenttelemetry/fx",
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/fx",
-        "//comp/core/autodiscovery/providers",
         "//comp/core/autodiscovery/providers/datasecurity",
         "//comp/core/autodiscovery/providers/datastreams",
         "//comp/core/config",
@@ -186,7 +186,6 @@ go_library(
         "//pkg/collector/corechecks/snmp/status",
         "//pkg/collector/python",
         "//pkg/commonchecks",
-        "//pkg/config/remote/data",
         "//pkg/config/settings",
         "//pkg/config/utils",
         "//pkg/diagnose/connectivity",
@@ -299,6 +298,7 @@ go_library(
             "//comp/trace/etwtracer/fx",
             "//pkg/config/model",
             "//pkg/util/winutil",
+            "@org_golang_x_sys//windows/svc",
         ],
         "//conditions:default": [],
     }),
@@ -309,6 +309,7 @@ dd_agent_go_test(
     srcs = [
         "command_test.go",
         "command_windows_test.go",
+        "dependent_services_windows_test.go",
     ],
     embed = [":run"],
     deps = [
@@ -317,5 +318,13 @@ dd_agent_go_test(
         "//comp/core/pid/impl",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/config/mock",
+            "//pkg/config/model",
+            "@com_github_stretchr_testify//assert",
+            "@org_golang_x_sys//windows/svc",
+        ],
+        "//conditions:default": [],
+    }),
 )

@@ -8,10 +8,25 @@
 package cgroups
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestNewReaderWithoutCgroupMounts(t *testing.T) {
+	procPath := t.TempDir()
+	err := os.WriteFile(filepath.Join(procPath, "mounts"), []byte("proc /proc proc rw 0 0\n"), 0o644)
+	assert.NoError(t, err)
+	if err != nil {
+		return
+	}
+
+	_, err = NewReader(WithProcPath(procPath))
+
+	assert.ErrorIs(t, err, ErrNoCgroupMount)
+}
 
 func TestDiscoverCgroupMountPoints(t *testing.T) {
 	tests := []struct {

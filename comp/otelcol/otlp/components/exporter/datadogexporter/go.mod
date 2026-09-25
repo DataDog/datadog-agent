@@ -119,6 +119,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.4 // indirect
@@ -173,7 +174,7 @@ require (
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
-	github.com/pierrec/lz4/v4 v4.1.29 // indirect
+	github.com/pierrec/lz4/v4 v4.1.30 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
@@ -419,6 +420,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../../../test/new-e2e

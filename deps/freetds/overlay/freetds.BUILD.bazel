@@ -221,7 +221,7 @@ pkg_files(
 pkg_mklink(
     name = "so_link",
     attributes = pkg_attributes(mode = "755"),
-    link_name = "lib/libtdsodbc.so.%s" % SO_VERSION,
+    link_name = "embedded/lib/libtdsodbc.so.%s" % SO_VERSION,
     target = "libtdsodbc.so",
 )
 
@@ -235,6 +235,7 @@ pkg_filegroup(
 dd_cc_packaged(
     name = "tdsodbc_pkg",
     input = ":tdsodbc",
+    dest_dir = "embedded/lib",
     installed_files = [
         ":so_links",
     ],

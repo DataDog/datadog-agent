@@ -124,6 +124,7 @@ func defaultMetricTransformers(k *KSMCheck) map[string]metricTransformerFunc {
 		"kube_node_status_capacity":                       nodeCapacityTransformer,
 		"kube_node_status_extended_capacity":              nodeCapacityTransformer,
 		"kube_node_created":                               nodeCreationTransformer,
+		"kube_resourceclaim_created":                      resourceClaimCreationTransformer,
 		"kube_resourcequota":                              resourcequotaTransformer,
 		"kube_limitrange":                                 limitrangeTransformer,
 		"kube_persistentvolume_status_phase":              pvPhaseTransformer,
@@ -249,6 +250,16 @@ func submitAge(s sender.Sender, name string, metric ksmstore.DDMetric, hostname 
 // nodeCreationTransformer generates the node age metric based on the creation timestamp
 func nodeCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
 	submitAge(s, ksmMetricPrefix+"node.age", metric, hostname, tags, currentTime)
+}
+
+// resourceClaimCreationTransformer generates the pending age of a DRA
+// ResourceClaim from its creation timestamp. The generator publishes a
+// timestamp rather than an elapsed value because the KSM store builds a metric
+// family when the informer sees the object, not when it is scraped; the
+// subtraction has to happen here, at submit time, exactly as it does for pods
+// and nodes.
+func resourceClaimCreationTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, currentTime time.Time) {
+	submitAge(s, ksmMetricPrefix+"resourceclaim.pending.age", metric, hostname, tags, currentTime)
 }
 
 // podCreationTransformer generates the pod age metric based on the creation timestamp

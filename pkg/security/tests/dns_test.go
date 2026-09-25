@@ -72,7 +72,7 @@ func TestDNS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("dns", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {

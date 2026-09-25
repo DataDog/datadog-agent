@@ -44,6 +44,10 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
+### [comp/aggregator/dogstatsdclientdropdetector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector)
+
+Package dogstatsdclientdropdetector defines the DogStatsD client drop detector component.
+
 ### [comp/aggregator/dogstatsdclienttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry)
 
 Package dogstatsdclienttelemetry defines the DogStatsD client telemetry component.

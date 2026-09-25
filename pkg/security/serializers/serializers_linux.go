@@ -593,6 +593,8 @@ type SecurityProfileContextSerializer struct {
 	EventInProfile bool `json:"event_in_profile"`
 	// State of the event type in this profile
 	EventTypeState string `json:"event_type_state"`
+	// True if the profile had already been persisted to the backend when this event was emitted
+	ProfileAlreadySent bool `json:"profile_already_sent"`
 }
 
 // SyscallSerializer serializes a syscall
@@ -1571,11 +1573,12 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:           e.Name,
-		Version:        e.Version,
-		Tags:           tags,
-		EventInProfile: event.IsInProfile(),
-		EventTypeState: e.EventTypeState.String(),
+		Name:               e.Name,
+		Version:            e.Version,
+		Tags:               tags,
+		EventInProfile:     event.IsInProfile(),
+		EventTypeState:     e.EventTypeState.String(),
+		ProfileAlreadySent: e.ProfileAlreadySent,
 	}
 }
 

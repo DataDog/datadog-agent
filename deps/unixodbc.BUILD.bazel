@@ -212,7 +212,7 @@ cc_shared_library(
 pkg_files(
     name = "unixodbc_hdr_files",
     srcs = _UNIXODBC_PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 # We do need this "fake" ltdl.h to use dlopen
@@ -221,12 +221,13 @@ pkg_files(
 pkg_files(
     name = "libltdl_hdr_files",
     srcs = _LIBLTDL_PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "odbcinst_pkg",
     input = ":odbcinst",
+    dest_dir = "embedded/lib",
     version = SOVERSION,
     visibility = ["//visibility:public"],
 )
@@ -234,6 +235,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "odbc_pkg",
     input = ":odbc",
+    dest_dir = "embedded/lib",
     version = SOVERSION,
     installed_files = [
         ":unixodbc_hdr_files",
@@ -246,6 +248,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "odbccr_pkg",
     input = ":odbccr",
+    dest_dir = "embedded/lib",
     version = SOVERSION,
     visibility = ["//visibility:public"],
 )
@@ -256,5 +259,4 @@ pkg_filegroup(
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
     ],
-    prefix = "embedded",
 )

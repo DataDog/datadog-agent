@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    On Windows, the core Agent now confirms that **dd-procmgr-service** has actually started
+    before it skips a legacy Windows service that **dd-procmgr** is configured to supervise.
+    If the process manager does not start, the Agent starts the legacy service instead, so
+    the OpenTelemetry Collector (**datadog-otel-agent**) and the Private Action Runner
+    (**datadog-agent-action**) keep running rather than being left unsupervised. This applies
+    to installs where ``process_manager.enabled`` is true and the fleet installer has written
+    a matching process definition under ``processes.d``. It does not cover the Private Action
+    Runner in split mode (``private_action_runner.split_enabled``), which depends on
+    **dd-procmgr** to run.
