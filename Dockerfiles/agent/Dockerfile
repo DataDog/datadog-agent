@@ -46,12 +46,6 @@ RUN if [ "$CI" = "true" ]; then \
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM baseimage AS nosys-seccomp
-RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
-COPY nosys-seccomp/nosys.c   /tmp/nosys.c
-COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
-
 FROM baseimage AS extract-base
 RUN apt update && apt install --no-install-recommends -y curl ca-certificates maven xz-utils
 
@@ -283,7 +277,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
 VOLUME ["/var/run/s6", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
-COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
+COPY --from=artifacts nosys.so /opt/lib/nosys.so
 ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Single entrypoint
