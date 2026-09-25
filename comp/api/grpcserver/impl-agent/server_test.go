@@ -27,6 +27,7 @@ type commandContextKey struct{}
 
 type fakeRemoteAgentRegistry struct {
 	reportErr     error
+	registration  *remoteagentregistry.RegistrationData
 	gotSessionID  string
 	gotEvents     []remoteagentregistry.RemoteAgentEvent
 	gotCommandCtx context.Context
@@ -51,7 +52,8 @@ func (s *fakeCommandStream) Send(frame *pb.ExecuteCommandResponse) error {
 	return nil
 }
 
-func (f *fakeRemoteAgentRegistry) RegisterRemoteAgent(*remoteagentregistry.RegistrationData) (string, uint32, error) {
+func (f *fakeRemoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregistry.RegistrationData) (string, uint32, error) {
+	f.registration = registration
 	return "", 0, nil
 }
 func (f *fakeRemoteAgentRegistry) RefreshRemoteAgent(string) bool { return true }
@@ -121,6 +123,18 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, codes.Unimplemented, status.Code(err))
 	})
+}
+
+func TestRegisterRemoteAgentHandler(t *testing.T) {
+	registry := &fakeRemoteAgentRegistry{}
+	srv := &remoteAgentServer{remoteAgentRegistry: registry}
+
+	_, err := srv.RegisterRemoteAgent(context.Background(), &pb.RegisterRemoteAgentRequest{
+		StatusSection: "Process Agent",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, registry.registration)
+	assert.Equal(t, "Process Agent", registry.registration.StatusSection)
 }
 
 func TestRemoteCommandProviderExecuteCommandForwardsContextAndFrames(t *testing.T) {

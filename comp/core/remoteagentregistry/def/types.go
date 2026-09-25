@@ -5,7 +5,10 @@
 
 package remoteagentregistry
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // RegisteredAgent contains the information about a registered remote agent
 type RegisteredAgent struct {
@@ -15,6 +18,7 @@ type RegisteredAgent struct {
 	PID                  string
 	LastSeen             time.Time
 	SessionID            string
+	StatusSection        string `json:"-"`
 }
 
 func (a *RegisteredAgent) String() string {
@@ -30,6 +34,8 @@ type StatusData struct {
 	FailureReason string
 	MainSection   StatusSection
 	NamedSections map[string]StatusSection
+	JSONPayload   map[string]json.RawMessage `json:"-"`
+	JSONError     string                     `json:"-"`
 }
 
 // FlareData contains the flare data for a remote agent
@@ -43,6 +49,7 @@ type RegistrationData struct {
 	AgentFlavor      string
 	AgentDisplayName string
 	AgentPID         string
+	StatusSection    string
 	APIEndpointURI   string
 	Services         []string
 }

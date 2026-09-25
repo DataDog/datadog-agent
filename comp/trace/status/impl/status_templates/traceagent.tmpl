@@ -1,7 +1,7 @@
 {{- with .apmStats }}
 {{- if .error }}
 
-  Status: Not running or unreachable on localhost:{{.port}}.
+  Status: Unavailable
   Error: {{.error}}
 {{- else}}
   Status: Running

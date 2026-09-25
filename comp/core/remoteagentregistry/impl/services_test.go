@@ -8,6 +8,7 @@ package remoteagentregistryimpl
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -25,21 +27,56 @@ import (
 )
 
 func TestGetRegisteredAgentStatuses(t *testing.T) {
-	provides, _, _, _, ipcComp := buildComponent(t)
-	component := provides.Comp.(*remoteAgentRegistry)
+	for _, test := range []struct {
+		name     string
+		payload  string
+		wantJSON string
+		invalid  bool
+	}{
+		{name: "no JSON"},
+		{name: "valid JSON", payload: `{"apmStats":{"receiver":"running"}}`, wantJSON: `{"apmStats":{"receiver":"running"}}`},
+		{name: "large integer and nested values", payload: `{"apmStats":{"count":9007199254740993,"values":[null,true,"running"]}}`, wantJSON: `{"apmStats":{"count":9007199254740993,"values":[null,true,"running"]}}`},
+		{name: "null nested value", payload: `{"apmStats":null}`, wantJSON: `{"apmStats":null}`},
+		{name: "empty object", payload: `{}`, wantJSON: `{}`},
+		{name: "malformed JSON", payload: "[", invalid: true},
+		{name: "null JSON", payload: "null", invalid: true},
+		{name: "array JSON", payload: "[]", invalid: true},
+		{name: "number JSON", payload: "42", invalid: true},
+		{name: "string JSON", payload: `"status"`, invalid: true},
+		{name: "boolean JSON", payload: "true", invalid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			provides, _, _, _, ipcComp := buildComponent(t)
+			component := provides.Comp.(*remoteAgentRegistry)
+			_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
+				withStatusProvider(map[string]string{"test_key": "test_value"}, map[string]map[string]string{"receiver": {"state": "running"}}),
+				func(_ *grpc.Server, agent *testRemoteAgentServer) {
+					agent.StatusSection = "APM Agent"
+					agent.statusJSON = []byte(test.payload)
+				},
+			)
 
-	_ = buildAndRegisterRemoteAgent(t, ipcComp, component, "test-agent", "Test Agent", "123",
-		withStatusProvider(map[string]string{
-			"test_key": "test_value",
-		}, nil),
-	)
-
-	statuses := component.GetRegisteredAgentStatuses()
-	t.Logf("statuses: %v\n", statuses[0])
-	require.Len(t, statuses, 1)
-	require.Equal(t, "test-agent", statuses[0].Flavor)
-	require.Equal(t, "Test Agent", statuses[0].DisplayName)
-	require.Equal(t, "test_value", statuses[0].MainSection["test_key"])
+			statuses := component.GetRegisteredAgentStatuses()
+			require.Len(t, statuses, 1)
+			assert.Equal(t, "test-agent", statuses[0].Flavor)
+			assert.Equal(t, "Test Agent", statuses[0].DisplayName)
+			assert.Equal(t, "APM Agent", statuses[0].StatusSection)
+			assert.Equal(t, "test_value", statuses[0].MainSection["test_key"])
+			assert.Equal(t, "running", statuses[0].NamedSections["receiver"]["state"])
+			if test.wantJSON == "" {
+				assert.Nil(t, statuses[0].JSONPayload)
+			} else {
+				payload, err := json.Marshal(statuses[0].JSONPayload)
+				require.NoError(t, err)
+				assert.Equal(t, test.wantJSON, string(payload))
+			}
+			if test.invalid {
+				assert.Contains(t, statuses[0].JSONError, "invalid remote status JSON")
+			} else {
+				assert.Empty(t, statuses[0].JSONError)
+			}
+		})
+	}
 }
 
 func TestFlareProvider(t *testing.T) {

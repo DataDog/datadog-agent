@@ -813,7 +813,7 @@ Package payloadmodifier defines the trace payload modifier component interface
 
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
-Package status implements the core status component information provider interface
+Package status defines the Trace Agent status component.
 
 ### [comp/trace-telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace-telemetry)
 

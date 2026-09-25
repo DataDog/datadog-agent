@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,11 +33,21 @@ import (
 
 type mockProvider struct {
 	data        map[string]interface{}
+	populate    func(map[string]interface{}) error
 	text        string
 	html        string
 	name        string
 	section     string
 	returnError bool
+}
+
+type mockDynamicSectionProvider struct {
+	mockProvider
+	providers []status.Provider
+}
+
+func (m mockDynamicSectionProvider) SectionProviders() []status.Provider {
+	return m.providers
 }
 
 func (m mockProvider) Name() string {
@@ -50,6 +61,9 @@ func (m mockProvider) Section() string {
 func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
 		return errors.New("JSON error")
+	}
+	if m.populate != nil {
+		return m.populate(stats)
 	}
 
 	maps.Copy(stats, m.data)
@@ -788,6 +802,151 @@ X Section
 			assert.NoError(t, err)
 
 			testCase.assertFunc(t, bytesResult)
+		})
+	}
+}
+
+func TestGetStatusByDynamicSection(t *testing.T) {
+	dynamicProvider := &mockDynamicSectionProvider{
+		mockProvider: mockProvider{
+			name:    "dynamic provider",
+			section: status.CollectorSection,
+		},
+		providers: []status.Provider{mockProvider{
+			section: "APM Agent",
+			data:    map[string]interface{}{"apmStats": map[string]interface{}{"receiver": "running"}},
+			text:    "  Receiver: running\n",
+			html:    "<span>Receiver: running</span>",
+		}},
+	}
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Supply(
+			agentParams,
+			status.NewInformationProvider(dynamicProvider),
+		),
+	))
+
+	statusComponent := newStatus(deps).Comp
+
+	assert.Equal(t, []string{"header", "collector", "apm agent"}, statusComponent.GetSections())
+
+	textOutput, err := statusComponent.GetStatusBySections([]string{"aPm AgEnT"}, "text", false)
+	require.NoError(t, err)
+	assert.Equal(t, `=========
+APM Agent
+=========
+  Receiver: running
+`, string(textOutput))
+
+	jsonOutput, err := statusComponent.GetStatusBySections([]string{"apm agent"}, "json", false)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"apmStats":{"receiver":"running"}}`, string(jsonOutput))
+	htmlOutput, err := statusComponent.GetStatusBySections([]string{"apm agent"}, "html", false)
+	require.NoError(t, err)
+	assert.Equal(t, "<span>Receiver: running</span>", string(htmlOutput))
+
+	unknownOutput, err := statusComponent.GetStatusBySections([]string{"unknown"}, "json", false)
+	assert.Nil(t, unknownOutput)
+	assert.EqualError(t, err, `unknown status section 'unknown', available sections are: ["header","collector","apm agent"]`)
+
+	dynamicProvider.providers = []status.Provider{
+		mockProvider{section: "Later Section", text: "registered later"},
+		mockProvider{section: "LATER SECTION"},
+		mockProvider{section: "collector", text: "must not replace the local section"},
+	}
+	assert.Equal(t, []string{"header", "collector", "later section"}, statusComponent.GetSections())
+	textOutput, err = statusComponent.GetStatusBySections([]string{"later section"}, "text", false)
+	require.NoError(t, err)
+	assert.Contains(t, string(textOutput), "registered later")
+	textOutput, err = statusComponent.GetStatusBySections([]string{"collector"}, "text", false)
+	require.NoError(t, err)
+	assert.NotContains(t, string(textOutput), "must not replace the local section")
+	_, err = statusComponent.GetStatusBySections([]string{"apm agent"}, "text", false)
+	require.ErrorContains(t, err, "unknown status section")
+}
+
+func TestGetStatusJSONPreservesLocalValuesBeforeDynamicProviders(t *testing.T) {
+	populate := func(stats map[string]interface{}) error {
+		stats["dynamicOnly"] = stats["shared"]
+		return nil
+	}
+	dynamicProvider := &mockDynamicSectionProvider{
+		mockProvider: mockProvider{
+			populate: populate,
+			name:     "dynamic",
+			section:  "a dynamic section",
+		},
+		providers: []status.Provider{mockProvider{section: "Dynamic Section", populate: populate}},
+	}
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Supply(
+			agentParams,
+			status.NewHeaderInformationProvider(mockHeaderProvider{
+				data: map[string]interface{}{"enabled": false},
+			}),
+			status.NewInformationProvider(mockProvider{
+				data:    map[string]interface{}{"enabled": false},
+				name:    "first static",
+				section: "z static section",
+			}),
+			status.NewInformationProvider(mockProvider{
+				data: map[string]interface{}{
+					"enabled":    true,
+					"shared":     "static value",
+					"staticOnly": "static value",
+				},
+				name:    "static",
+				section: "z static section",
+			}),
+			status.NewInformationProvider(dynamicProvider),
+		),
+	))
+	statusComponent := newStatus(deps).Comp
+
+	for _, test := range []struct {
+		name            string
+		sections        []string
+		excludeSections []string
+	}{
+		{name: "full status"},
+		{name: "dynamic section first", sections: []string{"Dynamic Section", "z static section"}},
+		{name: "static section first", sections: []string{"z static section", "Dynamic Section"}},
+		{name: "excluded dynamic provider", excludeSections: []string{"a dynamic section"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var output []byte
+			var err error
+			if len(test.sections) > 0 {
+				output, err = statusComponent.GetStatusBySections(test.sections, "json", false)
+			} else {
+				output, err = statusComponent.GetStatus("json", false, test.excludeSections...)
+			}
+			require.NoError(t, err)
+
+			var result struct {
+				Enabled     bool     `json:"enabled"`
+				DynamicOnly string   `json:"dynamicOnly"`
+				Errors      []string `json:"errors"`
+				Shared      string   `json:"shared"`
+				StaticOnly  string   `json:"staticOnly"`
+			}
+			require.NoError(t, json.Unmarshal(output, &result))
+			assert.True(t, result.Enabled, "local providers retain shared-map behavior")
+			assert.Equal(t, "static value", result.Shared)
+			assert.Equal(t, "static value", result.StaticOnly)
+			if len(test.excludeSections) > 0 {
+				assert.Empty(t, result.DynamicOnly)
+				assert.Empty(t, result.Errors)
+			} else {
+				assert.Equal(t, "static value", result.DynamicOnly, "dynamic providers receive the populated shared map")
+				assert.Empty(t, result.Errors)
+			}
 		})
 	}
 }

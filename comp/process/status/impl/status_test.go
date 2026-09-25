@@ -7,10 +7,10 @@ package statusimpl
 
 import (
 	"bytes"
+	"context"
 	"embed"
-	"net/http"
-	"net/http/httptest"
-	"strings"
+	"encoding/json"
+	"expvar"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,127 +18,60 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-//go:embed fixtures
+//go:embed fixtures/expvar_response.tmpl
 var fixturesTemplates embed.FS
 
-func fakeStatusServer(t *testing.T, errCode int, response []byte) *httptest.Server {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
-
-		if errCode != 200 {
-			http.NotFound(w, r)
-		} else {
-			_, err := w.Write(response)
-			require.NoError(t, err)
-		}
+func TestStatusFromLocalExpvars(t *testing.T) {
+	fixture, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
+	require.NoError(t, err)
+	var values map[string]map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(fixture, &values))
+	local, _ := expvar.Get("process_agent").(*expvar.Map)
+	if local == nil {
+		local = expvar.NewMap("process_agent")
 	}
-
-	return httptest.NewServer(http.HandlerFunc(handler))
-}
-
-func TestStatus(t *testing.T) {
-	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
-	assert.NoError(t, err)
-
-	server := fakeStatusServer(t, 200, jsonBytes)
-	defer server.Close()
-
-	configComponent := config.NewMock(t)
-	configComponent.SetInTest("cloud_provider_metadata", []string{})
-
-	headerProvider := statusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(),
-	}
-
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerProvider.JSON(false, stats)
-			processStats := stats["processAgentStatus"]
-
-			val, ok := processStats.(map[string]interface{})
-			assert.True(t, ok)
-
-			assert.NotEmpty(t, val["core"])
-			assert.Empty(t, val["error"])
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.Text(false, b)
-
-			assert.NoError(t, err)
-
-			assert.True(t, strings.Contains(b.String(), "API Key ending with:"))
-		}},
-		{"HTML", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.HTML(false, b)
-
-			assert.NoError(t, err)
-
-			assert.Empty(t, b.String())
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
+	for key, value := range values["process_agent"] {
+		original := local.Get(key)
+		local.Set(key, expvar.Func(func() interface{} { return value }))
+		t.Cleanup(func() {
+			if original == nil {
+				local.Delete(key)
+			} else {
+				local.Set(key, original)
+			}
 		})
 	}
-}
 
-func TestStatusError(t *testing.T) {
-	server := fakeStatusServer(t, 500, []byte{})
-	defer server.Close()
+	cfg := config.NewMock(t)
+	cfg.SetInTest("cloud_provider_metadata", []string{})
+	cfg.SetInTest("process_config.expvar_port", 0) // No HTTP status server.
+	provider := statusProvider{config: cfg, hostname: hostnameimpl.NewHostnameService()}
 
-	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
-	assert.NoError(t, err)
+	response, err := provider.GetStatusDetails(context.Background(), &pbcore.GetStatusDetailsRequest{})
+	require.NoError(t, err)
+	var payload map[string]map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(response.JsonPayload, &payload))
+	require.NotContains(t, payload["processAgentStatus"], "error")
+	assert.JSONEq(t, string(fixture), string(payload["processAgentStatus"]["expvars"]))
+	require.Contains(t, response.NamedSections, "Details")
+	assert.Contains(t, response.NamedSections["Details"].Fields[""], "Pid: 72211")
+	assert.Contains(t, response.NamedSections["Details"].Fields[""], "Enabled Checks: [process rtprocess]")
 
-	configComponent := config.NewMock(t)
+	stats := make(map[string]interface{})
+	require.NoError(t, provider.JSON(false, stats))
+	encoded, err := json.Marshal(stats)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(encoded, &payload))
+	assert.JSONEq(t, string(fixture), string(payload["processAgentStatus"]["expvars"]))
+	var output bytes.Buffer
+	require.NoError(t, provider.Text(false, &output))
+	assert.Contains(t, output.String(), "API Key ending with:")
 
-	headerProvider := statusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
-	}
-
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerProvider.JSON(false, stats)
-			processStats := stats["processAgentStatus"]
-
-			val, ok := processStats.(map[string]interface{})
-			assert.True(t, ok)
-
-			assert.NotEmpty(t, val["error"])
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.Text(false, b)
-
-			assert.NoError(t, err)
-
-			// We replace windows line break by linux so the tests pass on every OS
-			expected := strings.ReplaceAll(string(errorResponse), "\r\n", "\n")
-			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
-
-			assert.Equal(t, expected, output)
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
-		})
-	}
+	local.Set("pid", expvar.Func(func() interface{} { return "invalid pid" }))
+	output.Reset()
+	require.NoError(t, provider.Text(false, &output))
+	assert.Contains(t, output.String(), "Status: Not running or unreachable")
 }

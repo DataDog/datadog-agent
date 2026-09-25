@@ -11,7 +11,6 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,7 +59,33 @@ type statusImplementation struct {
 	sortedHeaderProviders    []status.HeaderProvider
 	sortedSectionNames       []string
 	sortedProvidersBySection map[string][]status.Provider
+	dynamicSectionProviders  []status.DynamicSectionProvider
 	log                      log.Component
+}
+
+type jsonProvider interface {
+	JSON(bool, map[string]interface{}) error
+}
+
+// populateJSON runs local providers first so dynamic providers can preserve their fields.
+func populateJSON(stats map[string]interface{}, providers []jsonProvider, verbose bool) []error {
+	var errs []error
+	var dynamicProviders []jsonProvider
+	for _, provider := range providers {
+		if _, dynamic := provider.(status.DynamicSectionProvider); dynamic {
+			dynamicProviders = append(dynamicProviders, provider)
+			continue
+		}
+		if err := provider.JSON(verbose, stats); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, provider := range dynamicProviders {
+		if err := provider.JSON(verbose, stats); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
 }
 
 // Module defines the fx options for this component.
@@ -86,8 +111,13 @@ func newStatus(deps dependencies) provides {
 	collectorSectionPresent := false
 
 	providers := fxutil.GetAndFilterGroup(deps.Providers)
+	dynamicSectionProviders := make([]status.DynamicSectionProvider, 0)
 
 	for _, provider := range providers {
+		if dynamicProvider, ok := provider.(status.DynamicSectionProvider); ok {
+			dynamicSectionProviders = append(dynamicSectionProviders, dynamicProvider)
+		}
+
 		if provider.Section() == status.CollectorSection && !collectorSectionPresent {
 			collectorSectionPresent = true
 		}
@@ -130,6 +160,7 @@ func newStatus(deps dependencies) provides {
 		sortedSectionNames:       sortedSectionNames,
 		sortedProvidersBySection: sortedProvidersBySection,
 		sortedHeaderProviders:    sortedHeaderProviders,
+		dynamicSectionProviders:  dynamicSectionProviders,
 		log:                      deps.Log,
 	}
 
@@ -160,26 +191,24 @@ func (s *statusImplementation) GetStatus(format string, verbose bool, excludeSec
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
+		var providers []jsonProvider
 		for _, sc := range s.sortedHeaderProviders {
 			if present(sc.Name(), excludeSections) {
 				continue
 			}
 
-			if err := sc.JSON(verbose, stats); err != nil {
-				errs = append(errs, err)
-			}
+			providers = append(providers, sc)
 		}
 
-		for _, providers := range s.sortedProvidersBySection {
-			for _, provider := range providers {
+		for _, section := range s.sortedSectionNames {
+			for _, provider := range s.sortedProvidersBySection[section] {
 				if present(provider.Section(), excludeSections) {
 					continue
 				}
-				if err := provider.JSON(verbose, stats); err != nil {
-					errs = append(errs, err)
-				}
+				providers = append(providers, provider)
 			}
 		}
+		errs = append(errs, populateJSON(stats, providers, verbose)...)
 
 		if len(errs) > 0 {
 			errorsInfo := []string{}
@@ -346,27 +375,19 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 		}
 	}
 
-	// Get provider lists from one or more sections
-	var providers []status.Provider
-	for _, section := range sections {
-		providersForSection, ok := s.sortedProvidersBySection[strings.ToLower(section)]
-		if !ok {
-			res, _ := json.Marshal(s.GetSections())
-			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
-			return nil, errors.New(errorMsg)
-		}
-		providers = append(providers, providersForSection...)
+	providers, err := s.providersForSections(sections, format == "json")
+	if err != nil {
+		return nil, err
 	}
 
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
-
+		jsonProviders := make([]jsonProvider, 0, len(providers))
 		for _, sc := range providers {
-			if err := sc.JSON(verbose, stats); err != nil {
-				errs = append(errs, err)
-			}
+			jsonProviders = append(jsonProviders, sc)
 		}
+		errs = append(errs, populateJSON(stats, jsonProviders, verbose)...)
 
 		if len(errs) > 0 {
 			errorsInfo := []string{}
@@ -415,8 +436,66 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	}
 }
 
+// providersForSections preserves requested text/HTML order and places dynamic JSON last.
+func (s *statusImplementation) providersForSections(sections []string, jsonOutput bool) ([]status.Provider, error) {
+	var providers, dynamicProviders []status.Provider
+	for _, section := range sections {
+		if local, ok := s.sortedProvidersBySection[strings.ToLower(section)]; ok {
+			providers = append(providers, local...)
+			continue
+		}
+
+		var matching []status.Provider
+		for _, source := range s.dynamicSectionProviders {
+			for _, provider := range source.SectionProviders() {
+				if strings.EqualFold(section, provider.Section()) {
+					matching = append(matching, provider)
+				}
+			}
+		}
+		if len(matching) == 0 {
+			available, _ := json.Marshal(s.GetSections())
+			return nil, fmt.Errorf("unknown status section '%s', available sections are: %s", section, available)
+		}
+		matching = sortByName(matching)
+		if jsonOutput {
+			dynamicProviders = append(dynamicProviders, matching...)
+		} else {
+			providers = append(providers, matching...)
+		}
+	}
+	return append(providers, dynamicProviders...), nil
+}
+
 func (s *statusImplementation) GetSections() []string {
-	return append([]string{"header"}, s.sortedSectionNames...)
+	sectionNames := make([]string, 0, len(s.sortedSectionNames))
+	for _, section := range s.sortedSectionNames {
+		if section != "header" && !present(section, sectionNames) {
+			sectionNames = append(sectionNames, strings.ToLower(section))
+		}
+	}
+
+	for _, provider := range s.dynamicSectionProviders {
+		for _, dynamic := range provider.SectionProviders() {
+			section := strings.ToLower(dynamic.Section())
+			if section != "header" && !present(section, sectionNames) {
+				sectionNames = append(sectionNames, section)
+			}
+		}
+	}
+
+	sort.Strings(sectionNames)
+	sections := []string{"header"}
+	if present(status.CollectorSection, sectionNames) {
+		sections = append(sections, status.CollectorSection)
+	}
+	for _, section := range sectionNames {
+		if section != status.CollectorSection {
+			sections = append(sections, section)
+		}
+	}
+
+	return sections
 }
 
 // fillFlare add the status.log to flares.

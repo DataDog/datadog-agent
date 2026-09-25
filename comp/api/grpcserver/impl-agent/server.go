@@ -285,6 +285,7 @@ func registerRemoteAgent(registry remoteagentregistry.Component, in *pb.Register
 		AgentPID:         in.Pid,
 		AgentFlavor:      in.Flavor,
 		AgentDisplayName: in.DisplayName,
+		StatusSection:    in.StatusSection,
 		APIEndpointURI:   in.ApiEndpointUri,
 		Services:         in.Services,
 	}

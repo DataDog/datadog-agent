@@ -111,6 +111,9 @@ type GetStatusDetailsResponse struct {
 	//
 	// Generally reserved for specific (sub)component details, such as the status of a specific feature or integration, etc.
 	NamedSections map[string]*StatusSection `protobuf:"bytes,2,rep,name=named_sections,json=namedSections,proto3" json:"named_sections,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Root-level JSON status object produced from the same snapshot as rendered status.
+	// Empty when the remote agent does not expose structured status.
+	JsonPayload   []byte `protobuf:"bytes,3,opt,name=json_payload,json=jsonPayload,proto3" json:"json_payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -159,6 +162,13 @@ func (x *GetStatusDetailsResponse) GetNamedSections() map[string]*StatusSection 
 	return nil
 }
 
+func (x *GetStatusDetailsResponse) GetJsonPayload() []byte {
+	if x != nil {
+		return x.JsonPayload
+	}
+	return nil
+}
+
 var File_datadog_remoteagent_status_proto protoreflect.FileDescriptor
 
 const file_datadog_remoteagent_status_proto_rawDesc = "" +
@@ -169,10 +179,11 @@ const file_datadog_remoteagent_status_proto_rawDesc = "" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x19\n" +
-	"\x17GetStatusDetailsRequest\"\xce\x02\n" +
+	"\x17GetStatusDetailsRequest\"\xf1\x02\n" +
 	"\x18GetStatusDetailsResponse\x12O\n" +
 	"\fmain_section\x18\x01 \x01(\v2,.datadog.remoteagent.status.v1.StatusSectionR\vmainSection\x12q\n" +
-	"\x0enamed_sections\x18\x02 \x03(\v2J.datadog.remoteagent.status.v1.GetStatusDetailsResponse.NamedSectionsEntryR\rnamedSections\x1an\n" +
+	"\x0enamed_sections\x18\x02 \x03(\v2J.datadog.remoteagent.status.v1.GetStatusDetailsResponse.NamedSectionsEntryR\rnamedSections\x12!\n" +
+	"\fjson_payload\x18\x03 \x01(\fR\vjsonPayload\x1an\n" +
 	"\x12NamedSectionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12B\n" +
 	"\x05value\x18\x02 \x01(\v2,.datadog.remoteagent.status.v1.StatusSectionR\x05value:\x028\x012\x96\x01\n" +

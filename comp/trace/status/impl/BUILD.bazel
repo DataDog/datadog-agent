@@ -11,11 +11,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/trace/status/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/ipc/def",
-        "//comp/core/ipc/httphelpers",
         "//comp/core/status",
         "//comp/def",
+        "//comp/trace/status/def",
+        "//pkg/proto/pbgo/core",
     ],
 )
 
@@ -24,9 +23,8 @@ dd_agent_go_test(
     srcs = ["status_test.go"],
     embed = [":impl"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/ipc/mock",
         "//comp/core/status",
+        "//pkg/proto/pbgo/core",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

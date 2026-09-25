@@ -44,6 +44,9 @@ message RegisterRemoteAgentRequest {
   //
   // Service names MUST be the full name of the gRPC service, such as "datadog.remoteagent.status.v1.StatusProvider".
   repeated string services = 5;
+  // Canonical status section exposed by this remote agent.
+  // Empty when the remote agent does not expose section-specific status.
+  string status_section = 6;
 }
 
 message RegisterRemoteAgentResponse {

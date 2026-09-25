@@ -9,6 +9,8 @@ package status
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"expvar"
 	"io"
 	"net/http"
 	"runtime"
@@ -141,7 +143,7 @@ func getExpvars(expVarURL string) (s ProcessExpvars, err error) {
 	return
 }
 
-// GetStatus returns a Status object with runtime information about process-agent
+// GetStatus returns a Status object with runtime information about process-agent.
 func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname hostnameinterface.Component) (*Status, error) {
 	coreStatus := getCoreStatus(coreConfig, hostname)
 	processExpVars, err := getExpvars(expVarURL)
@@ -152,6 +154,23 @@ func GetStatus(coreConfig pkgconfigmodel.Reader, expVarURL string, hostname host
 	return &Status{
 		Date:    float64(time.Now().UnixNano()),
 		Core:    coreStatus,
+		Expvars: processExpVars,
+	}, nil
+}
+
+// GetLocalStatus reads the current process's status without an HTTP request.
+func GetLocalStatus(coreConfig pkgconfigmodel.Reader, hostname hostnameinterface.Component) (*Status, error) {
+	values := expvar.Get("process_agent")
+	if values == nil {
+		return nil, errors.New("process-agent status is not initialized")
+	}
+	var processExpVars ProcessExpvars
+	if err := json.Unmarshal([]byte(values.String()), &processExpVars.ExpvarsMap); err != nil {
+		return nil, err
+	}
+	return &Status{
+		Date:    float64(time.Now().UnixNano()),
+		Core:    getCoreStatus(coreConfig, hostname),
 		Expvars: processExpVars,
 	}, nil
 }

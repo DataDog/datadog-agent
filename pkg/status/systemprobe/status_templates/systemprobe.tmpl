@@ -101,6 +101,8 @@
     {{- end }}
     {{- end }}
 
+    {{- if .SelfTests }}
+
     Self Tests
     ==========
 
@@ -121,6 +123,7 @@
       {{- else }}
       Failed: none
       {{- end }}
+    {{- end }}
 
     Policies
     ========
