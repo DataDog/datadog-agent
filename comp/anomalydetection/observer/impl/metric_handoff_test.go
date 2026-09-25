@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 
 	"github.com/stretchr/testify/assert"
@@ -99,7 +98,7 @@ func TestMetricHandoffDerivesContextKeyFromResolvedIdentity(t *testing.T) {
 	queued := <-ch
 	require.Zero(t, queued.metric.contextKey)
 	wantStorageKey := storageKeyForContextKey(queued.source, testContextKeyFor(sample))
-	keyGenerator := ckey.NewSliceKeyGenerator()
+	keyGenerator := NewSliceKeyGenerator()
 
 	decision := prepareMetricHandoff(queued.source, queued.metric, filter, keyGenerator)
 	require.NotNil(t, decision.metric)

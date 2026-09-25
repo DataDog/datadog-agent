@@ -27,7 +27,6 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -200,7 +199,7 @@ type Bench struct {
 	api *BenchAPI
 
 	replayStats        *ReplayStats
-	replayKeyGenerator *ckey.SliceKeyGenerator
+	replayKeyGenerator *observerimpl.SliceKeyGenerator
 
 	streamInputMetricsCount int64
 	streamInputMetricSeries map[uint64]struct{}
@@ -238,7 +237,7 @@ func New(obs observerdef.Component, debug observerimpl.DebugView, sseAccess test
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 		sseStop:                stop,
-		replayKeyGenerator:     ckey.NewSliceKeyGenerator(),
+		replayKeyGenerator:     observerimpl.NewSliceKeyGenerator(),
 	}
 
 	if sseAccess != nil {

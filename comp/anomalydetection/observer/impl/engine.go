@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
@@ -172,7 +171,7 @@ type engine struct {
 	detectors       []observerdef.Detector
 	correlators     []observerdef.Correlator
 	logCounts       *materializedLogCountBucketizer
-	logKeyGenerator *ckey.SliceKeyGenerator
+	logKeyGenerator *SliceKeyGenerator
 
 	// scorer is a typed pointer to the anomaly scorer (when present).
 	// It is also included in correlators for processing; this pointer is used
@@ -306,7 +305,7 @@ func newEngine(cfg engineConfig) *engine {
 		extractors:      cfg.extractors,
 		detectors:       cfg.detectors,
 		correlators:     correlators,
-		logKeyGenerator: ckey.NewSliceKeyGenerator(),
+		logKeyGenerator: NewSliceKeyGenerator(),
 		scorer:          cfg.scorer,
 		scheduler:       sched,
 

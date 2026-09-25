@@ -12,7 +12,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.82.0
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.82.0
-	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.82.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.82.0
 	github.com/DataDog/datadog-agent/pkg/tagset v0.82.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.82.0
@@ -50,6 +49,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0 // indirect

@@ -14,7 +14,6 @@ import (
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 )
 
 // StorageConfig holds tunable parameters for timeSeriesStorage.
@@ -697,7 +696,7 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 // contextKeyForIdentity derives a key for raw storage/query callers that start
 // from a metric identity rather than a precomputed metrics-pipeline key.
 func contextKeyForIdentity(name, host string, tags []string) uint64 {
-	contextKey := ckey.NewSliceKeyGenerator().Generate(name, host, tags)
+	contextKey := NewSliceKeyGenerator().Generate(name, host, tags)
 	return uint64(contextKey)
 }
 

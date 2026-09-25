@@ -29,7 +29,6 @@ import (
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -567,7 +566,7 @@ type observerImpl struct {
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
 	// One generator per dispatch goroutine; its scratch space is not thread-safe.
-	keyGenerator := ckey.NewSliceKeyGenerator()
+	keyGenerator := NewSliceKeyGenerator()
 	for obs := range o.obsCh {
 		if obs.flush != nil {
 			close(obs.flush)
@@ -1139,7 +1138,7 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	)
 }
 
-func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter *metricsFilterRules, keyGenerator *ckey.SliceKeyGenerator) metricIngestDecision {
+func prepareMetricHandoff(normalizedSource string, sample metricHandoff, filter *metricsFilterRules, keyGenerator *SliceKeyGenerator) metricIngestDecision {
 	return prepareMetricAfterPrecheck(
 		normalizedSource,
 		sample.name,
@@ -1163,7 +1162,7 @@ func prepareMetricAfterPrecheck(
 	timestamp int64,
 	precheck metricFilterPrecheck,
 	contextKey uint64,
-	keyGenerator *ckey.SliceKeyGenerator,
+	keyGenerator *SliceKeyGenerator,
 	filter *metricsFilterRules,
 ) metricIngestDecision {
 	// Canonicalize once for tag-aware filtering and downstream storage's sorted
