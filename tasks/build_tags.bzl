@@ -73,6 +73,7 @@ ALL_TAGS = set([
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
     "remove_all_sd",  # remove all discovery provider from prometheusreceiver components
+    "foldspace",  # optional native foldspace client; not part of default AGENT_TAGS
 ]).union(COMMON_TAGS)
 
 # Tags Gazelle needs to see in addition to ALL_TAGS so it can analyse test-only
@@ -90,7 +91,7 @@ GAZELLE_EXTRA_TAGS = set([
 # Tags in ALL_TAGS that we deliberately keep out of Gazelle's set, typically
 # because they require cgo/native deps that Gazelle's static analysis can't
 # resolve cleanly.
-GAZELLE_OMIT_TAGS = set(["pcap", "remove_all_sd"])
+GAZELLE_OMIT_TAGS = set(["pcap", "remove_all_sd", "foldspace"])
 
 # Build tags Gazelle considers when analysing tag-gated .go files. Loaded by the
 # root BUILD.bazel as the `build_tags` attribute of //:gazelle, so it must be a
