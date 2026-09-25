@@ -329,6 +329,7 @@ type KSMCheck struct {
 	core.CheckBase
 	agentConfig                model.Config
 	instance                   *KSMConfig
+	tagCache                   map[string]map[string]string
 	allStores                  [][]cache.Store
 	telemetry                  *telemetryCache
 	tagger                     tagger.Component
@@ -909,6 +910,9 @@ func (k *KSMCheck) Run() error {
 		log.Tracef("Current leader: %q, running kube-state-metrics core check", leader)
 	}
 
+	// Reset the tag cache at the start of each run
+	k.resetTagCache()
+
 	defer sender.Commit()
 
 	labelJoiner := newLabelJoiner(k.instance.labelJoins)
@@ -935,7 +939,8 @@ func (k *KSMCheck) Run() error {
 			}
 
 			if metricsStore != nil {
-				metrics := metricsStore.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
+				// nil filters allow all families/metrics, letting Push share the store's slices instead of copying them
+				metrics := metricsStore.Push(nil, nil)
 				k.processMetrics(sender, metrics, labelJoiner, currentTime)
 				k.processTelemetry(metrics)
 			}
@@ -1172,16 +1177,27 @@ func (k *KSMCheck) buildTag(key, value string, lMapperOverride map[string]string
 		}
 	}
 
+	if key == "host" || key == "node" {
+		hostname = value
+	}
+
+	// Memoize the built tag per (resolved key, value)
+	valueCache, found := k.tagCache[key]
+	if !found {
+		valueCache = make(map[string]string)
+		k.tagCache[key] = valueCache
+	}
+	if tag, found = valueCache[value]; found {
+		return
+	}
+
 	var sb strings.Builder
 	sb.Grow(len(key) + 1 + len(value))
 	sb.WriteString(key)
 	sb.WriteByte(':')
 	sb.WriteString(value)
 	tag = sb.String()
-
-	if key == "host" || key == "node" {
-		hostname = value
-	}
+	valueCache[value] = tag
 	return
 }
 
@@ -1371,6 +1387,13 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 	}
 }
 
+// resetTagCache clears the tag cache
+func (k *KSMCheck) resetTagCache() {
+	for _, valueCache := range k.tagCache {
+		clear(valueCache)
+	}
+}
+
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
 // during a check run then sendTelemetry should be called to forward the calculated values
 func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) {
@@ -1442,11 +1465,17 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,
 			Namespaces:   []string{},
+			// Use the node_kubelet pod collection mode to avoid leader election
+			PodCollectionMode: "node_kubelet",
 		},
 		tagger,
 		nil,
 	)
 	check.allStores = allStores
+	// Configure() is skipped here, so initRetry is never set up by SetupRetrier and
+	// would otherwise stay at its zero-value NeedSetup status, making Run() return
+	// immediately with a nil error on every call without processing any metrics.
+	_ = check.initRetry.SetupRetrier(&retry.Config{Strategy: retry.JustTesting})
 	return check
 }
 
@@ -1455,6 +1484,7 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		CheckBase:                  base,
 		agentConfig:                pkgconfigsetup.Datadog(),
 		instance:                   instance,
+		tagCache:                   make(map[string]map[string]string),
 		telemetry:                  newTelemetryCache(),
 		tagger:                     tagger,
 		isCLCRunner:                helper.IsCLCRunner(pkgconfigsetup.Datadog()),
