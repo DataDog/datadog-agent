@@ -1,10 +1,27 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//packages:__subpackages__"],
+)
 
 _VERSION = "1.5.7"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "zstd",
+        version = _VERSION,
+        download_url = "https://github.com/facebook/zstd/releases/download/v{version}/zstd-{version}.tar.gz",
+    ),
+)
 
 license(
     name = "license",

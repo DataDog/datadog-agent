@@ -62,6 +62,10 @@ archive_override(
     sha256 = "6293f766876344104a20083239785133218322ce28aac0b43040bc5479f5a513",
     strip_prefix = "supply_chain_tools-0.0.3/tools",
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply_chain_tools-0.0.3/supply_chain_tools-0.0.3.tar.gz",
+    files = {
+        "gather_metadata/core.bzl": "//zzz_sbom:gather_metadata/core.bzl",
+        "gather_metadata/serialization.bzl": "//zzz_sbom:gather_metadata/serialization.bzl",
+    },
 )
 
 # The BCR is currently behind the releases.
