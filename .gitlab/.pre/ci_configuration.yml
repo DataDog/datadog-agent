@@ -1,7 +1,7 @@
 test_and_lint_gitlab_configuration:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   needs: [compute_gitlab_ci_config]
   rules:
     - !reference [.on_dev_branches]
@@ -13,10 +13,10 @@ test_and_lint_gitlab_configuration:
 test_gitlab_compare_to:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   extends: .dd_octo_sts
   variables:
-    GIT_DEPTH: 0  # Full history: gitlab_configuration_is_modified uses merge-base and HEAD^
+    GIT_DEPTH: 0 # Full history: gitlab_configuration_is_modified uses merge-base and HEAD^
   rules:
     - !reference [.except_light_pipeline]
     - !reference [.on_gitlab_changes]
@@ -31,9 +31,9 @@ compute_gitlab_ci_config:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: .pre
   needs: []
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   variables:
-    GIT_DEPTH: 0  # Full history: computes gitlab-ci config diff against merge-base
+    GIT_DEPTH: 0 # Full history: computes gitlab-ci config diff against merge-base
   before_script:
     # Get main history
     - git fetch origin main
@@ -51,7 +51,7 @@ compute_gitlab_ci_config:
 lint_github_actions_shellcheck:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   needs: []
   rules:
     - !reference [.on_dev_branches]
@@ -62,6 +62,6 @@ lint_github_actions_shellcheck:
       when: on_success
   allow_failure: true
   variables:
-    GIT_DEPTH: 0  # Full history: linter.github-actions-shellcheck uses git merge-base
+    GIT_DEPTH: 0 # Full history: linter.github-actions-shellcheck uses git merge-base
   script:
     - dda inv -- -e linter.github-actions-shellcheck
