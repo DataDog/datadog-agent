@@ -16,7 +16,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/zstd"
 	"golang.org/x/sync/singleflight"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
@@ -26,6 +25,7 @@ import (
 	dogstatsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/contexttop"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 const (
@@ -202,7 +202,7 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath
 	tempPath := f.Name()
 	defer os.Remove(tempPath)
 
-	mode := os.FileMode(0644)
+	mode := os.FileMode(0o644)
 	if info, statErr := os.Stat(finalPath); statErr == nil {
 		mode = info.Mode().Perm()
 	} else if !errors.Is(statErr, os.ErrNotExist) {
@@ -226,7 +226,11 @@ func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsFile(finalPath
 }
 
 func (demuxendpoint *demultiplexerEndpoint) writeDogstatsdContextsToFile(f *os.File) error {
-	c := zstd.NewWriter(f)
+	c, err := zstd.NewWriter(f)
+	if err != nil {
+		_ = f.Close()
+		return err
+	}
 	w := bufio.NewWriter(c)
 
 	for _, err := range []error{demuxendpoint.demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {

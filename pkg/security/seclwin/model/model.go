@@ -156,6 +156,8 @@ type SecurityProfileContext struct {
 	Tags           []string                   `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
 	EventTypes     []EventType                `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
 	EventTypeState EventFilteringProfileState `field:"-"`           // State of the event type in this profile
+	// ProfileAlreadySent is true when the profile had already been persisted to the backend at the time this event was emitted
+	ProfileAlreadySent bool `field:"-"`
 }
 
 // IPPortContext is used to hold an IP and Port

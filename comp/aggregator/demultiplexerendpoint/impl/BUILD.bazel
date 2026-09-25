@@ -14,7 +14,7 @@ go_library(
         "//comp/dogstatsd/config",
         "//pkg/aggregator/contexttop",
         "//pkg/util/http",
-        "@com_github_datadog_zstd//:zstd",
+        "//pkg/zstd",
         "@org_golang_x_sync//singleflight",
     ],
 )
@@ -27,7 +27,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//pkg/aggregator",
-        "@com_github_datadog_zstd//:zstd",
+        "//pkg/zstd",
         "@com_github_stretchr_testify//require",
     ],
 )

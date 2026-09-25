@@ -18,10 +18,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/DataDog/zstd"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 type fakeContextDumper []aggregator.ContextDebugRepr
@@ -211,7 +211,7 @@ func TestWriteDogstatsdContextsCoalescesConcurrentDumps(t *testing.T) {
 func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 	runPath := t.TempDir()
 	finalPath := filepath.Join(runPath, dogstatsdContextsDumpFilename)
-	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0644))
+	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0o644))
 
 	started := make(chan struct{})
 	finish := make(chan struct{})
@@ -253,7 +253,8 @@ func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 
 	contents, err = os.ReadFile(finalPath)
 	require.NoError(t, err)
-	decoder := zstd.NewReader(bytes.NewReader(contents))
+	decoder, err := zstd.NewReader(bytes.NewReader(contents))
+	require.NoError(t, err)
 	decompressed, err := io.ReadAll(decoder)
 	require.NoError(t, err)
 	decoder.Close()
@@ -267,7 +268,7 @@ func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 func TestWriteDogstatsdContextsFailurePreservesExistingDump(t *testing.T) {
 	runPath := t.TempDir()
 	finalPath := filepath.Join(runPath, dogstatsdContextsDumpFilename)
-	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0644))
+	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0o644))
 
 	dumpErr := errors.New("dump failed")
 	endpoint := demultiplexerEndpoint{
