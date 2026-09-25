@@ -142,16 +142,17 @@ func (c *ContainerApp) CanCollectInventory() bool {
 }
 
 // GetInventoryData derives the inventory metadata fields for Azure Container
-// Apps. The app-level CCRID is the stable parent and the resource_id is the
-// revision under it. Each CCRID requires all of its path components; an
-// unresolved revision cannot fall back to the app-level inventory identity.
+// Apps. The lowercased app-level ARM ID is the stable parent and the resource_id
+// appends the revision with its original casing. Each CCRID requires all of its
+// path components; an unresolved revision cannot fall back to the app-level
+// inventory identity.
 func (c *ContainerApp) GetInventoryData() InventoryData {
 	subscriptionID := os.Getenv(AzureSubscriptionIdEnvVar)
 	resourceGroup := os.Getenv(AzureResourceGroupEnvVar)
 	appName := os.Getenv(ContainerAppNameEnvVar)
 	revision := os.Getenv(ContainerAppRevision)
 
-	parentResourceID := containerAppCCRID(subscriptionID, resourceGroup, appName)
+	parentResourceID := strings.ToLower(containerAppCCRID(subscriptionID, resourceGroup, appName))
 	resourceID := containerAppRevisionCCRID(parentResourceID, revision)
 
 	return InventoryData{

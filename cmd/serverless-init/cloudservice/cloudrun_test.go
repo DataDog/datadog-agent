@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -183,7 +184,7 @@ func TestGetMetaDataCloudRunTypePrefixes(t *testing.T) {
 	}
 }
 
-func TestGetCloudRunTags(t *testing.T) {
+func TestCloudRunGetTags(t *testing.T) {
 	service := &CloudRun{}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
@@ -211,7 +212,7 @@ func TestGetCloudRunTags(t *testing.T) {
 	}, tags)
 }
 
-func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
+func TestCloudRunGetTagsWithEnvironmentVariables(t *testing.T) {
 	service := &CloudRun{}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
@@ -247,7 +248,7 @@ func TestGetCloudRunTagsWithEnvironmentVariables(t *testing.T) {
 	}, tags)
 }
 
-func TestGetCloudRunFunctionTagsWithEnvironmentVariables(t *testing.T) {
+func TestCloudRunFunctionGetTagsWithEnvironmentVariables(t *testing.T) {
 	service := &CloudRun{isFunction: true}
 
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
@@ -311,7 +312,7 @@ func TestCloudRunServiceGetInventoryData(t *testing.T) {
 
 	assert.Equal(t, InventoryData{
 		WorkloadType:     workloadTypeCloudRunService,
-		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service/revisions/test_revision",
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/revisions/test_revision",
 		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service",
 		ResourceName:     "test_service",
 		Region:           "test_region",
@@ -339,15 +340,47 @@ func TestCloudRunFunctionGetInventoryData(t *testing.T) {
 
 	inv := service.GetInventoryData()
 
-	functionInventoryID := "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service/functions/test_target"
 	assert.Equal(t, InventoryData{
 		WorkloadType:     workloadTypeCloudRunFunction,
-		ResourceID:       functionInventoryID + "/revisions/test_revision",
-		ParentResourceID: functionInventoryID,
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/revisions/test_revision",
+		ParentResourceID: "//run.googleapis.com/projects/test_project/locations/test_region/services/test_service",
 		ResourceName:     "test_service",
 		Region:           "test_region",
 		GCPProjectID:     "test_project",
 	}, inv)
+}
+
+func TestCloudRunFunctionInventoryIndependentOfFunctionTarget(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{projectID: "project", location: "region"}
+	}
+	t.Setenv(ServiceNameEnvVar, "service")
+	t.Setenv(revisionNameEnvVar, "revision")
+	t.Setenv(functionTargetEnvVar, "target")
+	service := &CloudRun{isFunction: true}
+	first := service.GetInventoryData()
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/revisions/revision", first.ResourceID)
+
+	for _, target := range []struct {
+		name  string
+		value string
+		unset bool
+	}{
+		{name: "changed", value: "another_target"},
+		{name: "empty"},
+		{name: "unset", unset: true},
+	} {
+		t.Run(target.name, func(t *testing.T) {
+			t.Setenv(functionTargetEnvVar, target.value)
+			if target.unset {
+				require.NoError(t, os.Unsetenv(functionTargetEnvVar))
+			}
+			assert.Equal(t, first, service.GetInventoryData())
+			assert.True(t, service.CanCollectInventory())
+		})
+	}
 }
 
 func TestCloudRunMissingIdentity(t *testing.T) {
@@ -363,12 +396,10 @@ func TestCloudRunMissingIdentity(t *testing.T) {
 				t.Setenv(key, value)
 			}
 			keys := []string{projectID, location, ServiceNameEnvVar, revisionNameEnvVar}
-			if kind == CloudRunFunction {
-				keys = append(keys, functionTargetEnvVar)
-			} else if kind == CloudRunJob {
+			if kind == CloudRunJob {
 				keys = []string{projectID, location, cloudRunJobNameEnvVar, cloudRunExecutionEnvVar}
 			}
-			for _, missing := range append([]string{"none", containerID}, keys...) {
+			for _, missing := range append([]string{"none", containerID, functionTargetEnvVar}, keys...) {
 				t.Run(missing, func(t *testing.T) {
 					values := map[string]string{projectID: "unknown", location: "region", containerID: "instance"}
 					delete(values, missing)
@@ -381,7 +412,7 @@ func TestCloudRunMissingIdentity(t *testing.T) {
 						service = &CloudRunJobs{}
 					}
 					id := service.GetInventoryData().ResourceID
-					if missing == "none" || missing == containerID {
+					if missing == "none" || missing == containerID || missing == functionTargetEnvVar {
 						assert.NotEmpty(t, id)
 						assert.True(t, service.CanCollectInventory())
 					} else {

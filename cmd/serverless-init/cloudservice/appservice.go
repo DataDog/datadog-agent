@@ -9,6 +9,7 @@ package cloudservice
 import (
 	"maps"
 	"os"
+	"strings"
 
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
@@ -66,8 +67,10 @@ func (a *AppService) CanCollectInventory() bool {
 
 // GetInventoryData derives the inventory metadata fields for Azure App Service,
 // reusing traceutil.GetAppServicesTags as the single source of truth for the
-// CCRID, subscription id, and resource group. Runtime is inventory-specific:
-// hosting-stack labels are not evidence of an application runtime.
+// ARM ID, subscription id, and resource group. Plain web apps lowercase the
+// entire ARM ID for inventory only; function apps retain the helper's casing.
+// Runtime is inventory-specific: hosting-stack labels are not evidence of an
+// application runtime.
 //
 // Function apps (FUNCTIONS_WORKER_RUNTIME set) report azure_function; plain web
 // apps report azure_app_service. App Service has no revision-style parent or
@@ -76,13 +79,16 @@ func (a *AppService) GetInventoryData() InventoryData {
 	aasTags := traceutil.GetAppServicesTags()
 
 	workloadType := workloadTypeAzureAppService
+	resourceID := aasTags[traceutil.AASResourceID]
 	if _, isFunctionApp := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME"); isFunctionApp {
 		workloadType = workloadTypeAzureFunction
+	} else {
+		resourceID = strings.ToLower(resourceID)
 	}
 
 	return InventoryData{
 		WorkloadType:        workloadType,
-		ResourceID:          aasTags[traceutil.AASResourceID],
+		ResourceID:          resourceID,
 		ResourceName:        os.Getenv(WebsiteName),
 		Region:              os.Getenv(RegionName),
 		AzureSubscriptionID: aasTags[traceutil.AASSubscriptionID],

@@ -196,7 +196,6 @@ func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 }
 
 // cloudRunServiceCCRID builds the service-level Canonical Cloud Resource ID.
-// It is the stable parent that revision- and function-level CCRIDs nest under.
 func cloudRunServiceCCRID(project, region, service string) string {
 	if project == "" || region == "" || service == "" {
 		return ""
@@ -204,7 +203,7 @@ func cloudRunServiceCCRID(project, region, service string) string {
 	return fmt.Sprintf("projects/%s/locations/%s/services/%s", project, region, service)
 }
 
-// cloudRunFunctionCCRID extends the service CCRID with the function segment.
+// cloudRunFunctionCCRID extends the service CCRID with the function segment for telemetry tags.
 func cloudRunFunctionCCRID(project, region, service, functionTarget string) string {
 	parent := cloudRunServiceCCRID(project, region, service)
 	if parent == "" || functionTarget == "" {
@@ -218,12 +217,8 @@ func (c *CloudRun) CanCollectInventory() bool {
 }
 
 // GetInventoryData derives the inventory metadata fields for Cloud Run services
-// and functions.
-//
-// The revision is the deployed instance in both variants, so it is the
-// resource_id, and parent_resource_id is the resource it revises: the service
-// for a service, the function for a function (which itself nests under the
-// service path).
+// and Gen2 functions. Both use the regional revision identity and its service
+// as the semantic parent, whose ID is not a prefix of the revision ID.
 func (c *CloudRun) GetInventoryData() InventoryData {
 	metadata := c.resolveMetadata()
 	project := metadata[projectID]
@@ -231,38 +226,28 @@ func (c *CloudRun) GetInventoryData() InventoryData {
 	service := os.Getenv(ServiceNameEnvVar)
 	revision := os.Getenv(revisionNameEnvVar)
 
-	serviceCCRID := cloudRunServiceCCRID(project, region, service)
-
+	workloadType := workloadTypeCloudRunService
 	if c.isFunction {
-		functionCCRID := cloudRunFunctionCCRID(project, region, service, os.Getenv(functionTargetEnvVar))
-		return InventoryData{
-			WorkloadType:     workloadTypeCloudRunFunction,
-			ResourceID:       cloudRunInventoryID(cloudRunRevisionCCRID(functionCCRID, revision)),
-			ParentResourceID: cloudRunInventoryID(functionCCRID),
-			ResourceName:     service,
-			Region:           region,
-			GCPProjectID:     project,
-		}
+		workloadType = workloadTypeCloudRunFunction
 	}
 
 	return InventoryData{
-		WorkloadType:     workloadTypeCloudRunService,
-		ResourceID:       cloudRunInventoryID(cloudRunRevisionCCRID(serviceCCRID, revision)),
-		ParentResourceID: cloudRunInventoryID(serviceCCRID),
+		WorkloadType:     workloadType,
+		ResourceID:       cloudRunInventoryID(cloudRunRevisionCCRID(project, region, service, revision)),
+		ParentResourceID: cloudRunInventoryID(cloudRunServiceCCRID(project, region, service)),
 		ResourceName:     service,
 		Region:           region,
 		GCPProjectID:     project,
 	}
 }
 
-// cloudRunRevisionCCRID extends the CCRID of a revisable resource (a service or
-// a function) with the revision segment. An unresolved revision must not fall
-// back to the parent identity or produce a dangling path segment.
-func cloudRunRevisionCCRID(revisableCCRID, revision string) string {
-	if revisableCCRID == "" || revision == "" {
+// cloudRunRevisionCCRID builds the regional revision identity. The service is
+// required inventory metadata even though it is not part of the revision path.
+func cloudRunRevisionCCRID(project, region, service, revision string) string {
+	if project == "" || region == "" || service == "" || revision == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s/revisions/%s", revisableCCRID, revision)
+	return fmt.Sprintf("projects/%s/locations/%s/revisions/%s", project, region, revision)
 }
 
 // cloudRunInventoryID qualifies a Cloud Run CCRID with the API host that the

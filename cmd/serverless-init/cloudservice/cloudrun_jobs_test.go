@@ -55,7 +55,7 @@ func skipOnWindows(t *testing.T) {
 	}
 }
 
-func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
+func TestCloudRunJobsGetTagsWithEnvironmentVariables(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
 
@@ -111,7 +111,7 @@ func TestCloudRunJobsGetInventoryData(t *testing.T) {
 	jobInventoryID := "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job"
 	assert.Equal(t, InventoryData{
 		WorkloadType:     workloadTypeCloudRunJob,
-		ResourceID:       jobInventoryID + "/executions/test_execution",
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/executions/test_execution",
 		ParentResourceID: jobInventoryID,
 		ResourceName:     "test_job",
 		Region:           "test_region",
@@ -145,21 +145,29 @@ func TestCloudRunJobsGetInventoryDataMissingExecution(t *testing.T) {
 func TestCloudRunJobExecutionIdentity(t *testing.T) {
 	saved := metadataHelperFunc
 	t.Cleanup(func() { metadataHelperFunc = saved })
+	instance := "first-instance"
 	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
-		return map[string]string{projectID: "project", location: "region"}
+		return map[string]string{projectID: "project", location: "region", containerID: instance}
 	}
 	t.Setenv(cloudRunJobNameEnvVar, "unknown")
 	t.Setenv(cloudRunExecutionEnvVar, "execution")
 	t.Setenv(cloudRunTaskIndexEnvVar, "0")
 	t.Setenv(cloudRunTaskAttemptEnvVar, "0")
-	first := (&CloudRunJobs{}).GetInventoryData().ResourceID
-	require.NotEmpty(t, first)
+	t.Setenv(cloudRunTaskCountEnvVar, "2")
+	first := (&CloudRunJobs{}).GetInventoryData()
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/execution", first.ResourceID)
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/jobs/unknown", first.ParentResourceID)
 	t.Setenv(cloudRunTaskIndexEnvVar, "1")
 	t.Setenv(cloudRunTaskAttemptEnvVar, "2")
+	instance = "next-instance"
 	service := &CloudRunJobs{}
-	assert.Equal(t, first, service.GetInventoryData().ResourceID)
+	assert.Equal(t, first, service.GetInventoryData())
 	t.Setenv(cloudRunExecutionEnvVar, "next-execution")
-	assert.NotEqual(t, first, service.GetInventoryData().ResourceID)
+	next := service.GetInventoryData()
+	assert.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/next-execution", next.ResourceID)
+	assert.NotEqual(t, first.ResourceID, next.ResourceID)
+	assert.Equal(t, first.ParentResourceID, next.ParentResourceID)
+	assert.Equal(t, first.ResourceName, next.ResourceName)
 }
 
 func TestCloudRunJobsGetEnhancedMetricTags(t *testing.T) {

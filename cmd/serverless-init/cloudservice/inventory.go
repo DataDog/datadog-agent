@@ -38,7 +38,7 @@ type InventoryData struct {
 	// of the downstream composite key.
 	ResourceID string
 
-	// ResourceName is the platform display name (app / job / revision); it is
+	// ResourceName is the platform display name (app / service / job); it is
 	// never substituted with dd_service.
 	ResourceName string
 
@@ -52,9 +52,9 @@ type InventoryData struct {
 	// The inventory resolver normalizes them and selects the first usable value.
 	RuntimeCandidates []string
 
-	// ParentResourceID is the CCRID of the immediate stable parent one level
-	// above ResourceID (e.g. the Cloud Run service behind a revision). Empty when
-	// the workload has no distinct parent.
+	// ParentResourceID is the CCRID of the semantic parent (e.g. the Cloud Run
+	// service behind a revision), not necessarily a string prefix of ResourceID.
+	// Empty when the workload has no distinct parent.
 	ParentResourceID string
 }
 

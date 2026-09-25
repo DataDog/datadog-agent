@@ -113,8 +113,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	return tags
 }
 
-// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID. It is the
-// stable parent that execution-level CCRIDs nest under.
+// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID.
 func cloudRunJobCCRID(project, region, job string) string {
 	if project == "" || region == "" || job == "" {
 		return ""
@@ -122,16 +121,16 @@ func cloudRunJobCCRID(project, region, job string) string {
 	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
 }
 
-// cloudRunJobExecutionCCRID extends a job CCRID with the execution segment.
-// Missing executions must not fall back to a job-level inventory identity.
+// cloudRunJobExecutionCCRID builds the regional execution identity. The job is
+// required inventory metadata even though it is not part of the execution path.
 //
 // Tasks of one execution share this id: task index, attempt and instance
 // metadata must not split the execution's inventory identity.
-func cloudRunJobExecutionCCRID(jobCCRID, execution string) string {
-	if jobCCRID == "" || execution == "" {
+func cloudRunJobExecutionCCRID(project, region, job, execution string) string {
+	if project == "" || region == "" || job == "" || execution == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s/executions/%s", jobCCRID, execution)
+	return fmt.Sprintf("projects/%s/locations/%s/executions/%s", project, region, execution)
 }
 
 func (c *CloudRunJobs) CanCollectInventory() bool {
@@ -139,20 +138,18 @@ func (c *CloudRunJobs) CanCollectInventory() bool {
 }
 
 // GetInventoryData derives the inventory metadata fields for Cloud Run Jobs.
-// The execution is the deployed instance, so it is the resource_id, and the job
-// it runs under is the parent_resource_id.
+// The execution is the resource_id and the job is its semantic parent, whose
+// ID is not a prefix of the execution ID.
 func (c *CloudRunJobs) GetInventoryData() InventoryData {
 	metadata := c.resolveMetadata()
 	project := metadata[projectID]
 	region := metadata[location]
 	job := os.Getenv(cloudRunJobNameEnvVar)
 
-	jobCCRID := cloudRunJobCCRID(project, region, job)
-
 	return InventoryData{
 		WorkloadType:     workloadTypeCloudRunJob,
-		ResourceID:       cloudRunInventoryID(cloudRunJobExecutionCCRID(jobCCRID, os.Getenv(cloudRunExecutionEnvVar))),
-		ParentResourceID: cloudRunInventoryID(jobCCRID),
+		ResourceID:       cloudRunInventoryID(cloudRunJobExecutionCCRID(project, region, job, os.Getenv(cloudRunExecutionEnvVar))),
+		ParentResourceID: cloudRunInventoryID(cloudRunJobCCRID(project, region, job)),
 		ResourceName:     job,
 		Region:           region,
 		GCPProjectID:     project,

@@ -16,7 +16,7 @@ import (
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
-func TestGetLinuxAppServiceTags(t *testing.T) {
+func TestAppServiceGetLinuxTags(t *testing.T) {
 	service := &AppService{}
 
 	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
@@ -46,7 +46,7 @@ func TestGetLinuxAppServiceTags(t *testing.T) {
 	}, tags)
 }
 
-func TestGetWindowsAppServiceTags(t *testing.T) {
+func TestAppServiceGetWindowsTags(t *testing.T) {
 	service := &AppService{}
 
 	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
@@ -79,10 +79,10 @@ func TestGetWindowsAppServiceTags(t *testing.T) {
 func TestAppServiceGetInventoryData(t *testing.T) {
 	service := &AppService{}
 
-	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
+	t.Setenv("WEBSITE_SITE_NAME", "Test_Site_Name")
 	t.Setenv("REGION_NAME", "eastus")
-	t.Setenv("WEBSITE_OWNER_NAME", "test_subscription_id+resourcegroup-EastUSwebspace")
-	t.Setenv("WEBSITE_RESOURCE_GROUP", "test_resource_group")
+	t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+	t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
 	t.Setenv("WEBSITE_STACK", "NODE")
 	t.Setenv("WEBSITE_NODE_DEFAULT_VERSION", "~18")
 	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
@@ -93,29 +93,88 @@ func TestAppServiceGetInventoryData(t *testing.T) {
 	assert.Equal(t, InventoryData{
 		WorkloadType:        workloadTypeAzureAppService,
 		ResourceID:          "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name",
-		ResourceName:        "test_site_name",
+		ResourceName:        "Test_Site_Name",
 		Region:              "eastus",
-		AzureSubscriptionID: "test_subscription_id",
-		AzureResourceGroup:  "test_resource_group",
+		AzureSubscriptionID: "Test_Subscription_ID",
+		AzureResourceGroup:  "Test_Resource_Group",
 		RuntimeCandidates:   []string{"", "Node.js"},
 	}, inv)
 	assert.True(t, service.CanCollectInventory())
+	assert.Empty(t, inv.ParentResourceID)
+
+	tags := service.GetTags()
+	assert.Equal(t, "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.web/sites/Test_Site_Name", tags["aas.resource.id"])
+	assert.Equal(t, "Test_Site_Name", tags["app_name"])
+	assert.Equal(t, "Test_Site_Name", tags["aas.site.name"])
+	assert.Equal(t, "Test_Subscription_ID", tags["aas.subscription.id"])
+	assert.Equal(t, "Test_Resource_Group", tags["aas.resource.group"])
+	assert.Equal(t, map[string]string{
+		"name":            "Test_Site_Name",
+		"origin":          "appservice",
+		"region":          "eastus",
+		"resource_group":  "Test_Resource_Group",
+		"subscription_id": "Test_Subscription_ID",
+	}, service.GetEnhancedMetricTags(tags).Base)
 }
 
 func TestAppServiceGetInventoryDataFunctionApp(t *testing.T) {
-	service := &AppService{}
+	for _, worker := range []string{"node", ""} {
+		t.Run("worker="+worker, func(t *testing.T) {
+			service := &AppService{}
 
-	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
-	t.Setenv("REGION_NAME", "eastus")
-	t.Setenv("WEBSITE_OWNER_NAME", "test_subscription_id+resourcegroup-EastUSwebspace")
-	t.Setenv("WEBSITE_RESOURCE_GROUP", "test_resource_group")
-	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
+			t.Setenv("WEBSITE_SITE_NAME", "Test_Site_Name")
+			t.Setenv("REGION_NAME", "eastus")
+			t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+			t.Setenv("WEBSITE_STACK", "NODE")
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", worker)
 
-	inv := service.GetInventoryData()
+			inv := service.GetInventoryData()
 
-	assert.True(t, service.CanCollectInventory())
-	assert.Equal(t, workloadTypeAzureFunction, inv.WorkloadType)
-	assert.Equal(t, "/subscriptions/test_subscription_id/resourcegroups/test_resource_group/providers/microsoft.web/sites/test_site_name", inv.ResourceID)
+			assert.True(t, service.CanCollectInventory())
+			assert.Equal(t, InventoryData{
+				WorkloadType:        workloadTypeAzureFunction,
+				ResourceID:          "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.web/sites/Test_Site_Name",
+				ResourceName:        "Test_Site_Name",
+				Region:              "eastus",
+				AzureSubscriptionID: "Test_Subscription_ID",
+				AzureResourceGroup:  "Test_Resource_Group",
+				RuntimeCandidates:   []string{worker, "Node.js"},
+			}, inv)
+			tags := service.GetTags()
+			assert.Equal(t, inv.ResourceID, tags["aas.resource.id"])
+			assert.Equal(t, "functionapp", tags["aas.site.kind"])
+			assert.Equal(t, worker, tags["aas.environment.runtime"])
+		})
+	}
+}
+
+func TestAppServiceMissingIdentity(t *testing.T) {
+	for _, missing := range []string{"none", "WEBSITE_OWNER_NAME", "WEBSITE_RESOURCE_GROUP", WebsiteName} {
+		t.Run(missing, func(t *testing.T) {
+			t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+			t.Setenv(WebsiteName, "Test_Site_Name")
+			t.Setenv(RegionName, "")
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", "")
+			require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+			if missing != "none" {
+				t.Setenv(missing, "")
+			}
+
+			service := &AppService{}
+			inv := service.GetInventoryData()
+			assert.Empty(t, inv.ParentResourceID)
+			if missing == "none" {
+				assert.NotEmpty(t, inv.ResourceID)
+				assert.True(t, service.CanCollectInventory())
+			} else {
+				assert.Empty(t, inv.ResourceID)
+				assert.False(t, service.CanCollectInventory())
+				assert.Empty(t, service.GetTags()["aas.resource.id"])
+			}
+		})
+	}
 }
 
 func TestAppServiceInventoryRuntimeCandidates(t *testing.T) {
