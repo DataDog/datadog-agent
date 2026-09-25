@@ -96,7 +96,7 @@
     E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
     E2E_IMAGE_PULL_REGISTRY: 669783387624.dkr.ecr.us-east-1.amazonaws.com,us-central1-docker.pkg.dev
     E2E_IMAGE_PULL_USERNAME: AWS,_json_key
-    PRE_BUILT_BINARIES_FLAG: "--use-bazel-built-binaries --bazel-no-cache" # Build test binaries with Bazel in-job, with no cache (cold-build / OOM testing)
+    PRE_BUILT_BINARIES_FLAG: "--use-bazel-built-binaries --bazel-require-cached" # Fetch test binaries from the Bazel remote cache (warmed by go_e2e_test_binaries); fails instead of compiling if not cached
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
     DD_DISABLE_VPA: "true"
@@ -151,6 +151,8 @@
 
 .needs_new_e2e_template:
   - go_e2e_deps
+  - job: go_e2e_test_binaries
+    artifacts: false
   - job: new-e2e-base-coverage
     optional: true
   - !reference [.needs_fakeintake_publish]

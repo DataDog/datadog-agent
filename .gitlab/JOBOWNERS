@@ -264,6 +264,7 @@ new-e2e-installer-windows*              @DataDog/fleet @DataDog/windows-products
 new-e2e-windows-security-agent          @DataDog/windows-products @DataDog/agent-security
 new-e2e-windows-fips-compliance-test*   @DataDog/windows-products @DataDog/agent-runtimes
 new-e2e-windows-systemprobe*            @DataDog/windows-products @DataDog/ebpf-platform
+go_e2e_test_binaries              @DataDog/agent-devx
 all-artifacts                     @DataDog/agent-devx
 
 # Kernel matrix testing

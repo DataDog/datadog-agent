@@ -346,13 +346,18 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
     return True
 
 
-def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool = False) -> bool:
+def _build_binaries_with_bazel(
+    ctx: Context, targets: list[str], no_cache: bool = False, require_cached: bool = False
+) -> bool:
     """Build the E2E test binaries for the given targets with Bazel.
 
     Builds the go_test targets matching the requested packages, installs the binaries
     under test-binaries/ and writes the manifest.json expected by gotest-custom.
     When no_cache is set, builds without any Bazel cache (remote or disk), to test
     cold-build behavior (e.g. memory usage when no cache is available).
+    When require_cached is set, only fetches the binaries from the remote Bazel cache
+    (nothing is compiled); the build fails if they are not cached yet. Warm the cache
+    first with the `build-binaries` task.
     Returns True if at least one binary was built, False otherwise.
     """
     repo_root = get_repo_root()
@@ -377,6 +382,16 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool 
         # Passed after any wrapper-injected cache flags so they take precedence (last flag wins):
         # --config=no-remote-cache sets --remote_cache= (see .bazelrc), --disk_cache= disables the disk cache.
         bazel_args = ["--config=no-remote-cache", "--disk_cache=", *bazel_args]
+    elif require_cached:
+        print(
+            color_message(
+                "Fetching test binaries from the Bazel remote cache (nothing is compiled; fails if not cached)",
+                "yellow",
+            )
+        )
+        # Require every action to be a remote-cache hit: only fetch the outputs, never compile locally,
+        # and never inject new results into the cache. Warm it first with `new-e2e-tests.build-binaries`.
+        bazel_args = ["--experimental_remote_require_cached", "--noremote_upload_local_results", *bazel_args]
 
     # Show the resources Bazel detects (what the "auto"/HOST_CPUS expressions resolve against; cgroup-aware in CI)
     detected_resources = bazel("info", "local_resources", capture_output=True).strip()
@@ -550,6 +565,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of using pre-built ones or building them on the fly, then execute them with gotestsum",
         "bazel_no_cache": "With --use-bazel-built-binaries: build with no Bazel cache (remote or disk) to test cold-build behavior (e.g. OOM when the cache is empty)",
+        "bazel_require_cached": "With --use-bazel-built-binaries: only fetch the test binaries from the Bazel remote cache instead of compiling them; fail if they are not cached yet (warm the cache first with new-e2e-tests.build-binaries)",
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
@@ -593,6 +609,7 @@ def run(
     use_prebuilt_binaries=False,
     use_bazel_built_binaries=False,
     bazel_no_cache=False,
+    bazel_require_cached=False,
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
@@ -784,6 +801,8 @@ def run(
 
     if use_prebuilt_binaries and use_bazel_built_binaries:
         raise Exit("--use-prebuilt-binaries and --use-bazel-built-binaries cannot be used together", 1)
+    if bazel_no_cache and bazel_require_cached:
+        raise Exit("--bazel-no-cache and --bazel-require-cached cannot be used together", 1)
 
     if use_prebuilt_binaries:
         s3_uri = os.environ.get("E2E_PREBUILD_S3_URI", "")
@@ -799,11 +818,13 @@ def run(
             use_prebuilt_binaries = False
 
     if use_bazel_built_binaries:
-        if not _build_binaries_with_bazel(ctx, targets, no_cache=bazel_no_cache):
+        if not _build_binaries_with_bazel(ctx, targets, no_cache=bazel_no_cache, require_cached=bazel_require_cached):
             print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
             use_bazel_built_binaries = False
-    elif bazel_no_cache:
-        print("WARNING: --bazel-no-cache has no effect without --use-bazel-built-binaries, ignoring it")
+    elif bazel_no_cache or bazel_require_cached:
+        print(
+            "WARNING: --bazel-no-cache / --bazel-require-cached have no effect without --use-bazel-built-binaries, ignoring them"
+        )
 
     if use_prebuilt_binaries or use_bazel_built_binaries:
         ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
