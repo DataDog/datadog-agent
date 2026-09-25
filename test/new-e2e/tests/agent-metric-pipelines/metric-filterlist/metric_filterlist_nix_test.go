@@ -19,12 +19,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 )
 
 const (
 	allowedMetric = "e2e.metric.filterlist.allowed"
 	blockedMetric = "e2e.metric.filterlist.blocked"
+
+	// rcPrefixPattern is delivered through Remote Config's metric_filterlist_prefix
+	// key (see the RFC "metric prefix filtering configuration"): it blocks every
+	// name under the prefix except rcExceptedMetric.
+	rcPrefixPattern  = "e2e.metric.filterlist.rcprefix.*"
+	rcBlockedMetric  = "e2e.metric.filterlist.rcprefix.blocked"
+	rcExceptedMetric = "e2e.metric.filterlist.rcprefix.excepted"
 )
 
 type metricFilterListSuite struct {
@@ -102,4 +110,68 @@ func (s *metricFilterListSuite) TestMetricFilterListBlocksMetric() {
 	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(blockedMetric)
 	require.NoError(s.T(), err)
 	assert.Empty(s.T(), metrics, "filtered metric should not have been forwarded to fakeintake")
+}
+
+// TestMetricFilterListPrefixExceptionsViaRC verifies that a metric_filterlist_prefix
+// entry delivered through Remote Config -- the schema described by the RFC
+// "metric prefix filtering configuration" -- drops every metric name matching
+// its prefix except the ones listed in its exception.
+//
+// metric_filterlist_prefix is a Go Agent-only key: Agent Data Plane's own
+// config parser only understands the flat metric_filterlist list, so this
+// test does not run against the ADP entry point.
+func (s *metricFilterListSuite) TestMetricFilterListPrefixExceptionsViaRC() {
+	if s.adpEnabled {
+		s.T().Skip("metric_filterlist_prefix is not read by Agent Data Plane, only by the Go Agent")
+	}
+
+	fi := s.Env().FakeIntake.Client()
+
+	// Push a metric_filterlist_prefix entry through Remote Config: block
+	// everything under rcPrefixPattern except rcExceptedMetric.
+	err := fi.RCAddConfig("", "METRIC_CONTROL", "prefix-exceptions", "prefix-exceptions", []byte(fmt.Sprintf(`{
+		"metric_filterlist_prefix": {
+			"by_name": {
+				"values": [
+					{"name": %q, "except_exact": [{"name": %q}]}
+				]
+			}
+		}
+	}`, rcPrefixPattern, rcExceptedMetric)))
+	require.NoError(s.T(), err)
+
+	// Wait until the Agent has actually applied the RC update before sending
+	// any metric: `agent config get` mirrors the value Remote Config set, so
+	// the pushed prefix shows up there once polled
+	// (remote_configuration.refresh_interval is 5s). Confirming this first --
+	// rather than racing metric delivery against the RC poll -- is what makes
+	// the "never reached fakeintake" assertion below safe: without it, a
+	// metric sent before the rule is applied could reach fakeintake and be
+	// mistaken for a bug.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		cfg, err := s.Env().Agent.Client.ConfigWithError(agentclient.WithArgs([]string{"get", "metric_filterlist_prefix"}))
+		assert.NoError(c, err)
+		assert.Contains(c, cfg, rcPrefixPattern, "metric_filterlist_prefix not yet updated by RC")
+	}, 2*time.Minute, 5*time.Second, "the RC prefix rule was never applied")
+
+	// The RC rule is confirmed active: start from a clean intake so the
+	// assertions below only see traffic sent after this point.
+	require.NoError(s.T(), fi.FlushServerAndResetAggregators())
+
+	// Send both metrics on each retry so metrics keep flowing until the pipeline confirms a flush.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		s.sendStatsdGauge(rcExceptedMetric, 1)
+		s.sendStatsdGauge(rcBlockedMetric, 1)
+
+		metrics, err := fi.FilterMetrics(rcExceptedMetric)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "excepted metric should be forwarded to fakeintake despite matching the RC prefix rule")
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for the excepted metric to reach fakeintake")
+
+	// At this point the aggregation pipeline has flushed at least once since
+	// the reset above. Verify the metric matching only the prefix (and not
+	// the exception) never reached fakeintake.
+	metrics, err := fi.FilterMetrics(rcBlockedMetric)
+	require.NoError(s.T(), err)
+	assert.Empty(s.T(), metrics, "metric matching the RC prefix rule should not have been forwarded to fakeintake")
 }
