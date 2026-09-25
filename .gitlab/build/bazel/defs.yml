@@ -130,7 +130,11 @@
       .\tools\ci\docker-run-with-bazel-cache.ps1
       --env=CI_IDENTITIES_GITLAB_ID_TOKEN
       --env=CI_JOB_ID
+      --env=CI_JOB_NAME
       --env=CI_JOB_NAME_SLUG
+      --env=CI_JOB_URL
+      --env=CI_PIPELINE_SOURCE
+      --env=AGENT_API_KEY_ORG2
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"
