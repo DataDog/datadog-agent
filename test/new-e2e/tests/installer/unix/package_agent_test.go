@@ -95,6 +95,36 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
+// TestODBCDriverConfigSurvivesReinstall verifies that a package-manager
+// reinstall keeps a user-edited embedded/etc/odbcinst.ini.
+func (s *packageAgentSuite) TestODBCDriverConfigSurvivesReinstall() {
+	s.RunInstallScript()
+	defer s.Purge()
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+
+	agentDir := "/opt/datadog-agent"
+	state := s.host.State()
+	state.AssertFileExistsAnyUser(path.Join(agentDir, "embedded/share/odbc/odbcinst.ini"), 0644)
+	state.AssertFileExistsAnyUser(path.Join(agentDir, "embedded/etc/odbcinst.ini"), 0644)
+
+	custom := "[ODBC Driver 18 for SQL Server]\nDriver=/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.1.1\n"
+	s.host.Run(fmt.Sprintf(`sudo sh -c 'printf "%s" > %s/embedded/etc/odbcinst.ini'`, strings.ReplaceAll(custom, "\n", `\n`), agentDir))
+
+	switch s.host.GetPkgManager() {
+	case "apt":
+		s.host.Run("sudo apt-get install --reinstall -y datadog-agent")
+	case "yum":
+		s.host.Run("sudo yum reinstall -y datadog-agent")
+	case "zypper":
+		s.host.Run("sudo zypper --non-interactive install -f datadog-agent")
+	default:
+		s.T().Fatalf("unsupported package manager: %s", s.host.GetPkgManager())
+	}
+
+	odbcInst := s.host.Run("sudo cat " + path.Join(agentDir, "embedded/etc/odbcinst.ini"))
+	s.Require().Equal(strings.TrimSpace(custom), strings.TrimSpace(odbcInst))
+}
+
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	loadedUnits := []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit}
 	if s.host.ProcmgrEnabled() {

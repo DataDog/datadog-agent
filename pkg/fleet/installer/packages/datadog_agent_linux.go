@@ -388,6 +388,9 @@ func postInstallDatadogAgent(ctx HookContext) (err error) {
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
 	}
+	if err := ensureODBCDriverConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to configure ODBC drivers: %s", err)
+	}
 	agentVersion := getCurrentAgentVersion()
 	if err := extensionsPkg.SetPackage(ctx, agentPackage, agentVersion, false); err != nil {
 		return fmt.Errorf("failed to set package version in extensions db: %w", err)
@@ -510,6 +513,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if err := restoreODBCConfig(ctx.PackagePath); err != nil {
 		log.Warnf("failed to restore ODBC config: %s", err)
+	}
+	if err := ensureODBCDriverConfig(ctx.PackagePath); err != nil {
+		log.Warnf("failed to configure ODBC drivers: %s", err)
 	}
 	if err := agentService.WriteExperiment(ctx); err != nil {
 		return err
@@ -1192,6 +1198,7 @@ func saveODBCConfig(packagePath string) error {
 
 // restoreODBCConfig restores the ODBC configuration files from the temporary
 // directory into the new package's embedded/etc/ directory after an upgrade.
+// Sections added to a newer Agent's default odbcinst.ini are not merged in.
 func restoreODBCConfig(packagePath string) error {
 	for _, filename := range odbcConfigFiles {
 		src := filepath.Join(paths.RootTmpDir, filename)

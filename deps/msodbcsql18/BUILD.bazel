@@ -95,6 +95,38 @@ pkg_files(
     prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
 )
 
+# Read-only default for installs that skip the installer hook, such as the
+# Docker image. Keep it out of embedded/etc: users edit odbcinst.ini there, and
+# a package-owned copy would be overwritten by deb/rpm upgrades.
+genrule(
+    name = "odbcinst_ini_file",
+    outs = ["odbcinst.ini"],
+    cmd = """
+cat > $@ << 'EOF'
+[ODBC Drivers]
+FreeTDS=Installed
+
+[FreeTDS]
+Driver=/opt/datadog-agent/embedded/lib/libtdsodbc.so
+
+[ODBC Driver 18 for SQL Server]
+Description=Microsoft ODBC Driver 18 for SQL Server
+Driver=/opt/datadog-agent/embedded/msodbcsql/lib64/{so}
+UsageCount=1
+EOF
+""".format(so = SO_FILENAME),
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+pkg_files(
+    name = "odbcinst_ini",
+    srcs = [":odbcinst_ini_file"],
+    prefix = "embedded/share/odbc",
+)
+
 # The unversioned linker-name symlink lives in a sibling directory of the
 # real .so so it cannot be expressed through so_symlink's same-dir chain.
 # Emit it manually and pass it through installed_files so it flows through
@@ -121,6 +153,7 @@ dd_cc_packaged(
     installed_files = [
         ":lib_symlink",
         ":license_files",
+        ":odbcinst_ini",
         ":resource_files",
     ],
 )
