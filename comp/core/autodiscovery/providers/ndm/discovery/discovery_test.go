@@ -39,13 +39,13 @@ func newTestHandler(t *testing.T, comp *fakeComponent) *Handler {
 const oneRange = `{"ranges":[{
 	"autodiscovery_id":"ad-1",
 	"namespace":"prod",
-	"cidr":"10.0.0.0/24",
+	"network_address":"10.0.0.0/24",
 	"interval_sec":900,
 	"ignored_ip_addresses":["10.0.0.1"],
 	"tags":["site:paris"],
 	"probes":{
 		"ping":{"count":2,"interval_ms":500,"timeout_ms":1000},
-		"snmp":{"credential_ids":["cred-a"],"port":1161,"timeout_ms":2000,"retries":0}
+		"snmp":{"cred_names":["cred-a"],"port":1161,"timeout_ms":2000,"retries":0}
 	}
 }]}`
 
@@ -67,14 +67,14 @@ func TestSnapshotPassesTheWholePayloadThrough(t *testing.T) {
 	r := comp.calls[0][0]
 	assert.Equal(t, "ad-1", r.ID)
 	assert.Equal(t, "prod", r.Namespace)
-	assert.Equal(t, "10.0.0.0/24", r.CIDR)
+	assert.Equal(t, "10.0.0.0/24", r.NetworkAddress)
 	assert.Equal(t, 900, r.IntervalSec)
 	assert.Equal(t, []string{"10.0.0.1"}, r.IgnoredIPAddresses)
 	assert.Equal(t, []string{"site:paris"}, r.Tags)
 
 	require.Len(t, r.Probes, 2)
 	assert.JSONEq(t, `{"count":2,"interval_ms":500,"timeout_ms":1000}`, string(r.Probes["ping"]))
-	assert.JSONEq(t, `{"credential_ids":["cred-a"],"port":1161,"timeout_ms":2000,"retries":0}`, string(r.Probes["snmp"]),
+	assert.JSONEq(t, `{"cred_names":["cred-a"],"port":1161,"timeout_ms":2000,"retries":0}`, string(r.Probes["snmp"]),
 		"the handler never interprets a probe block")
 }
 
@@ -82,7 +82,7 @@ func TestSnapshotPassesAnUnknownProbeKindThrough(t *testing.T) {
 	comp := &fakeComponent{}
 
 	newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{
-		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","cidr":"10.0.0.0/24","probes":{"ssh":{"port":22}}}]}`),
+		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","network_address":"10.0.0.0/24","probes":{"ssh":{"port":22}}}]}`),
 	})
 
 	require.Len(t, comp.calls[0], 1)
@@ -94,7 +94,7 @@ func TestSnapshotLeavesAnAbsentProbesObjectNil(t *testing.T) {
 	comp := &fakeComponent{}
 
 	newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{
-		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","cidr":"10.0.0.0/24"}]}`),
+		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","network_address":"10.0.0.0/24"}]}`),
 	})
 
 	require.Len(t, comp.calls[0], 1)
@@ -105,8 +105,8 @@ func TestSnapshotMergesTheRangesOfEveryPath(t *testing.T) {
 	comp := &fakeComponent{}
 
 	errs := newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{
-		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","cidr":"10.0.0.0/24"}]}`),
-		"path-b": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-2","cidr":"10.0.1.0/24"}]}`),
+		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","network_address":"10.0.0.0/24"}]}`),
+		"path-b": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-2","network_address":"10.0.1.0/24"}]}`),
 	})
 
 	assert.Empty(t, errs)
@@ -126,7 +126,7 @@ func TestSnapshotSchedulesNothingForAnEmptySnapshot(t *testing.T) {
 
 func TestSnapshotRejectsARangeIDClaimedByTwoPaths(t *testing.T) {
 	comp := &fakeComponent{}
-	body := json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","cidr":"10.0.0.0/24"}]}`)
+	body := json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","network_address":"10.0.0.0/24"}]}`)
 
 	errs := newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{"path-a": body, "path-b": body})
 
@@ -141,7 +141,7 @@ func TestSnapshotRejectsAMalformedPathAndKeepsTheOthers(t *testing.T) {
 
 	errs := newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{
 		"path-a": json.RawMessage(`[]`),
-		"path-b": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-2","cidr":"10.0.1.0/24"}]}`),
+		"path-b": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-2","network_address":"10.0.1.0/24"}]}`),
 	})
 
 	require.Len(t, errs, 1)
@@ -153,7 +153,7 @@ func TestSnapshotRejectsARangeWithNoID(t *testing.T) {
 	comp := &fakeComponent{}
 
 	errs := newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{
-		"path-a": json.RawMessage(`{"ranges":[{"cidr":"10.0.0.0/24"}]}`),
+		"path-a": json.RawMessage(`{"ranges":[{"network_address":"10.0.0.0/24"}]}`),
 	})
 
 	require.Len(t, errs, 1)
@@ -162,28 +162,28 @@ func TestSnapshotRejectsARangeWithNoID(t *testing.T) {
 }
 
 func TestSnapshotMapsAComponentRejectionBackToItsPath(t *testing.T) {
-	comp := &fakeComponent{errs: map[string]error{"ad-2": errors.New("cidr is required")}}
+	comp := &fakeComponent{errs: map[string]error{"ad-2": errors.New("network_address is required")}}
 
 	errs := newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{
-		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","cidr":"10.0.0.0/24"}]}`),
+		"path-a": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-1","network_address":"10.0.0.0/24"}]}`),
 		"path-b": json.RawMessage(`{"ranges":[{"autodiscovery_id":"ad-2"}]}`),
 	})
 
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs["path-b"].Error(), "ad-2")
-	assert.Contains(t, errs["path-b"].Error(), "cidr is required")
+	assert.Contains(t, errs["path-b"].Error(), "network_address is required")
 }
 
 func TestSnapshotReportsEveryRejectedRangeOfOnePath(t *testing.T) {
 	comp := &fakeComponent{errs: map[string]error{
-		"ad-1": errors.New("cidr is required"),
+		"ad-1": errors.New("network_address is required"),
 		"ad-2": errors.New("probes must hold at least one probe"),
 	}}
 
 	errs := newTestHandler(t, comp).Snapshot(map[string]json.RawMessage{
 		"path-a": json.RawMessage(`{"ranges":[
 			{"autodiscovery_id":"ad-1"},
-			{"autodiscovery_id":"ad-2","cidr":"10.0.1.0/24"}
+			{"autodiscovery_id":"ad-2","network_address":"10.0.1.0/24"}
 		]}`),
 	})
 

@@ -67,7 +67,7 @@ func raw(t *testing.T, kinds map[string]string) map[string]json.RawMessage {
 func TestParseProbesReadsBothKinds(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{"count":3,"interval_ms":200,"timeout_ms":1500}`,
-		"snmp": `{"credential_ids":["cred-1"],"port":1161,"timeout_ms":3000,"retries":0}`,
+		"snmp": `{"cred_names":["cred-1"],"port":1161,"timeout_ms":3000,"retries":0}`,
 	}), available(), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
@@ -79,13 +79,13 @@ func TestParseProbesReadsBothKinds(t *testing.T) {
 	assert.Equal(t, uint16(1161), params.SNMP.Port)
 	assert.Equal(t, 3*time.Second, params.SNMP.Timeout)
 	assert.Equal(t, 0, params.SNMP.Retries)
-	assert.Equal(t, []string{"cred-1"}, params.SNMP.CredentialIDs)
+	assert.Equal(t, []string{"cred-1"}, params.SNMP.CredNames)
 }
 
 func TestParseProbesAppliesTheDefaults(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"credential_ids":["cred-1"]}`,
+		"snmp": `{"cred_names":["cred-1"]}`,
 	}), available(), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
@@ -102,7 +102,7 @@ func TestParseProbesAppliesTheDefaults(t *testing.T) {
 func TestParseProbesFallsBackOnAnOutOfBoundsKnob(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{"count":9000,"interval_ms":-1,"timeout_ms":600000}`,
-		"snmp": `{"credential_ids":["cred-1"],"port":70000,"timeout_ms":600000,"retries":99}`,
+		"snmp": `{"cred_names":["cred-1"],"port":70000,"timeout_ms":600000,"retries":99}`,
 	}), available(), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
@@ -127,7 +127,7 @@ func TestParseProbesCarriesTheDetectedSocketType(t *testing.T) {
 func TestParseProbesDropsPingWhenItIsNotAvailable(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"credential_ids":["cred-1"]}`,
+		"snmp": `{"cred_names":["cred-1"]}`,
 	}), pingprobe.Capability{Reason: "ping is not supported on plan9"}, logmock.New(t))
 
 	assert.Nil(t, params.Ping)
@@ -138,7 +138,7 @@ func TestParseProbesDropsWhatItCannotUse(t *testing.T) {
 	tests := map[string]map[string]string{
 		"a malformed ping block":      {"ping": `"not-an-object"`},
 		"a malformed snmp block":      {"snmp": `[]`},
-		"snmp with no credential ids": {"snmp": `{"credential_ids":[]}`},
+		"snmp with no credential ids": {"snmp": `{"cred_names":[]}`},
 		"an unknown kind":             {"ssh": `{}`},
 	}
 
@@ -155,7 +155,7 @@ func TestParseProbesDropsWhatItCannotUse(t *testing.T) {
 func TestResolveBuildsTheProbeOptionsInProbeOrder(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"credential_ids":["cred-2","cred-1"]}`,
+		"snmp": `{"cred_names":["cred-2","cred-1"]}`,
 	}), available(), logmock.New(t))
 
 	opts, dropped := params.resolve(v2cStore())
@@ -176,7 +176,7 @@ func TestResolveBuildsTheProbeOptionsInProbeOrder(t *testing.T) {
 func TestResolveDropsOnlyTheProbeWhoseCredentialIsMissing(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"credential_ids":["cred-9"]}`,
+		"snmp": `{"cred_names":["cred-9"]}`,
 	}), available(), logmock.New(t))
 
 	opts, dropped := params.resolve(v2cStore())
@@ -189,7 +189,7 @@ func TestResolveDropsOnlyTheProbeWhoseCredentialIsMissing(t *testing.T) {
 
 func TestResolveSurfacesALoadFailureWithoutTheCredentialMaterial(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"credential_ids":["cred-1"]}`,
+		"snmp": `{"cred_names":["cred-1"]}`,
 	}), available(), logmock.New(t))
 
 	opts, dropped := params.resolve(&stubCredentialStore{err: errors.New("the secret backend is down")})
@@ -202,7 +202,7 @@ func TestResolveSurfacesALoadFailureWithoutTheCredentialMaterial(t *testing.T) {
 
 func TestResolveRejectsAnInvalidCredential(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"credential_ids":["cred-bad"]}`,
+		"snmp": `{"cred_names":["cred-bad"]}`,
 	}), available(), logmock.New(t))
 
 	store := &stubCredentialStore{creds: map[string]credentials.Credential{
@@ -219,7 +219,7 @@ func TestResolveRejectsAnInvalidCredential(t *testing.T) {
 
 func TestResolveReadsTheStoreOnEveryCall(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"credential_ids":["cred-1"]}`,
+		"snmp": `{"cred_names":["cred-1"]}`,
 	}), available(), logmock.New(t))
 	store := v2cStore()
 

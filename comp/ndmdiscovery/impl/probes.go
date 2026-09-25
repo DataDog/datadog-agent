@@ -54,19 +54,19 @@ type pingJSON struct {
 
 // snmpJSON is the snmp block of a range's probes object.
 type snmpJSON struct {
-	CredentialIDs []string `json:"credential_ids"`
-	Port          int      `json:"port"`
-	TimeoutMs     int      `json:"timeout_ms"`
-	Retries       *int     `json:"retries"`
+	CredNames []string `json:"cred_names"`
+	Port      int      `json:"port"`
+	TimeoutMs int      `json:"timeout_ms"`
+	Retries   *int     `json:"retries"`
 }
 
-// snmpParams is the snmp probe's per-range configuration. The credential ids
+// snmpParams is the snmp probe's per-range configuration. The credential names
 // are resolved once per cycle, so a rotation lands without an RC redelivery.
 type snmpParams struct {
-	Port          uint16
-	Timeout       time.Duration
-	Retries       int
-	CredentialIDs []string
+	Port      uint16
+	Timeout   time.Duration
+	Retries   int
+	CredNames []string
 }
 
 // probeParams is one range's usable probes. A nil field is a probe that does
@@ -160,8 +160,8 @@ func parseSNMP(body json.RawMessage, logger log.Component) (*snmpParams, error) 
 	if err := json.Unmarshal(body, &opts); err != nil {
 		return nil, fmt.Errorf("the snmp options are not an object: %w", err)
 	}
-	if len(opts.CredentialIDs) == 0 {
-		return nil, errors.New("credential_ids must hold at least one credential")
+	if len(opts.CredNames) == 0 {
+		return nil, errors.New("cred_names must hold at least one credential")
 	}
 
 	port := defaultSNMPPort
@@ -193,10 +193,10 @@ func parseSNMP(body json.RawMessage, logger log.Component) (*snmpParams, error) 
 	}
 
 	return &snmpParams{
-		Port:          uint16(port),
-		Timeout:       time.Duration(timeoutMs) * time.Millisecond,
-		Retries:       retries,
-		CredentialIDs: opts.CredentialIDs,
+		Port:      uint16(port),
+		Timeout:   time.Duration(timeoutMs) * time.Millisecond,
+		Retries:   retries,
+		CredNames: opts.CredNames,
 	}, nil
 }
 
@@ -214,7 +214,7 @@ func (p probeParams) resolve(store credentialStore) (probe.Options, []string) {
 	}
 
 	if p.SNMP != nil {
-		creds, err := resolveSNMPCredentials(store, p.SNMP.CredentialIDs)
+		creds, err := resolveSNMPCredentials(store, p.SNMP.CredNames)
 		if err != nil {
 			dropped = append(dropped, fmt.Sprintf("skipping the snmp probe for this cycle: %v", err))
 		} else {
@@ -230,10 +230,10 @@ func (p probeParams) resolve(store credentialStore) (probe.Options, []string) {
 	return opts, dropped
 }
 
-// resolveSNMPCredentials maps a range's credential ids to credentials, keeping
+// resolveSNMPCredentials maps a range's credential names to credentials, keeping
 // the configured order so the most likely credential is tried first.
-func resolveSNMPCredentials(store credentialStore, ids []string) ([]snmpprobe.Credential, error) {
-	if len(ids) == 0 {
+func resolveSNMPCredentials(store credentialStore, names []string) ([]snmpprobe.Credential, error) {
+	if len(names) == 0 {
 		return nil, errors.New("the range references no credentials")
 	}
 
@@ -242,11 +242,11 @@ func resolveSNMPCredentials(store credentialStore, ids []string) ([]snmpprobe.Cr
 		return nil, err
 	}
 
-	creds := make([]snmpprobe.Credential, 0, len(ids))
-	for _, id := range ids {
-		c, ok := available[id]
+	creds := make([]snmpprobe.Credential, 0, len(names))
+	for _, name := range names {
+		c, ok := available[name]
 		if !ok {
-			return nil, fmt.Errorf("credential %q is not available on this agent", id)
+			return nil, fmt.Errorf("credential %q is not available on this agent", name)
 		}
 		if err := credentials.Validate(c); err != nil {
 			return nil, err
