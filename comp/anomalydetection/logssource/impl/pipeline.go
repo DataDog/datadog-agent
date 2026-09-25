@@ -6,9 +6,11 @@
 package logssourceimpl
 
 import (
+	"bytes"
 	"context"
 	"slices"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logsfilter"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -81,22 +83,49 @@ func (p *observerPipeline) start() {
 func (p *observerPipeline) drainOutputChan() {
 	defer close(p.drainDone)
 	for msg := range p.outputChan {
-		// Note: msg.Origin.Source() returns the user-defined source from an AD log
-		// config when one is set (e.g. "nginx"), overriding the container runtime.
-		// Rules using source: containerd/docker will not match AD-scheduled container
-		// logs that carry a custom source.
-		msgTags := msg.Tags()
-		if p.rules.NeedsSortedTags() {
-			msgTags = slices.Sorted(slices.Values(msgTags))
-		}
-		if !p.rules.IsAllowed(msg.Origin.Source(), msgTags) {
-			continue
-		}
-		if p.sampler != nil && !p.sampler.ShouldForward(msg) {
-			continue
-		}
-		p.observerHandle.ObserveLog(&messageLogView{msg: msg})
+		forwardLogToObserver(p.observerHandle, p.sampler, p.rules, msg)
 	}
+}
+
+// newLogsAgentMessageTap returns a tap for the existing Logs Agent processor.
+// Its input has already passed decoder-side adaptive sampling and the regular
+// Logs Agent processing rules. Non-kubelet inputs use the container source
+// controls so the POC can consume arbitrary sources without adding new config.
+func newLogsAgentMessageTap(
+	observerHandle observer.Handle,
+	sampler *logSampler,
+	rules *logsfilter.Rules,
+	settings logSourceSettings,
+) processor.MessageTap {
+	return func(msg *message.Message) {
+		if bytes.Contains(msg.GetContent(), []byte(logging.Prefix)) {
+			return
+		}
+		if isKubeletMessage(msg) {
+			if !settings.kubeletSourceEnabled {
+				return
+			}
+		} else if !settings.containerSourcesEnabled {
+			return
+		}
+		forwardLogToObserver(observerHandle, sampler, rules, msg)
+	}
+}
+
+func forwardLogToObserver(observerHandle observer.Handle, sampler *logSampler, rules *logsfilter.Rules, msg *message.Message) {
+	// Note: msg.Origin.Source() returns the user-defined source from a log config
+	// when one is set (e.g. "nginx"), overriding the container runtime.
+	msgTags := msg.Tags()
+	if rules.NeedsSortedTags() {
+		msgTags = slices.Sorted(slices.Values(msgTags))
+	}
+	if !rules.IsAllowed(msg.Origin.Source(), msgTags) {
+		return
+	}
+	if sampler != nil && !sampler.ShouldForward(msg) {
+		return
+	}
+	observerHandle.ObserveLog(&messageLogView{msg: msg})
 }
 
 // NextPipelineChan implements pipeline.Provider.
