@@ -1,0 +1,79 @@
+diff --git a/go/private/actions/link.bzl b/go/private/actions/link.bzl
+index fe7cd922..35eb7af7 100644
+--- a/go/private/actions/link.bzl
++++ b/go/private/actions/link.bzl
+@@ -212,9 +212,6 @@ def emit_link(
+     builder_args.add("-p", archive.data.importmap)
+     tool_args.add_all(gc_linkopts)
+     tool_args.add_all(go.toolchain.flags.link)
+-
+-    # Do not remove, somehow this is needed when building for darwin/arm only.
+-    tool_args.add("-buildid=redacted")
+     if go.mode.strip:
+         tool_args.add("-s", "-w")
+     tool_args.add_joined("-extldflags", extldflags, join_with = " ")
+diff --git a/go/tools/builders/link.go b/go/tools/builders/link.go
+index 16779e1d..d6c0a123 100644
+--- a/go/tools/builders/link.go
++++ b/go/tools/builders/link.go
+@@ -19,9 +19,12 @@ package main
+ import (
+ 	"bufio"
+ 	"bytes"
++	"crypto/sha256"
++	"encoding/hex"
+ 	"flag"
+ 	"fmt"
+ 	"go/build"
++	"io"
+ 	"os"
+ 	"path/filepath"
+ 	"regexp"
+@@ -180,6 +183,13 @@ func link(args []string) error {
+ 		}
+ 	}
+ 
++	buildID, err := contentBuildID(args, *main, archives, stamps)
++	if err != nil {
++		return err
++	}
++	// Appended before toolArgs, so a -buildid in gc_linkopts still takes precedence.
++	goargs = append(goargs, "-buildid="+buildID)
++
+ 	if *buildmode != "" {
+ 		goargs = append(goargs, "-buildmode", *buildmode)
+ 	}
+@@ -223,6 +233,33 @@ func link(args []string) error {
+ 	return nil
+ }
+ 
++// contentBuildID derives the Go build ID from the link inputs, so distinct
++// binaries get distinct IDs and rebuilds stay reproducible. Since Go 1.24 the
++// linker also derives the ELF GNU build ID and the Mach-O LC_UUID from it.
++func contentBuildID(args []string, main string, archives []archive, stamps []string) (string, error) {
++	h := sha256.New()
++	io.WriteString(h, runtime.Version())
++	for _, a := range args {
++		io.WriteString(h, "\x00"+a)
++	}
++	files := append([]string{main}, stamps...)
++	for _, a := range archives {
++		files = append(files, a.file)
++	}
++	for _, name := range files {
++		f, err := os.Open(name)
++		if err != nil {
++			return "", err
++		}
++		_, err = io.Copy(h, f)
++		f.Close()
++		if err != nil {
++			return "", err
++		}
++	}
++	return hex.EncodeToString(h.Sum(nil)[:20]), nil
++}
++
+ var versionExp = regexp.MustCompile(`.*go1\.(\d+).*$`)
+ 
+ func onVersion(version int) (bool, error) {
