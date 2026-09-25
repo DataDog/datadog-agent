@@ -102,15 +102,17 @@ func parsePasswd(path string) (map[string]user.User, error) {
 		if len(fields) < 7 || fields[0] == "" {
 			continue
 		}
-		if _, err := strconv.ParseUint(fields[2], 10, 32); err != nil {
+		uid, err := strconv.ParseUint(fields[2], 10, 32)
+		if err != nil {
 			continue
 		}
-		if _, found := users[fields[2]]; found {
+		uidString := strconv.FormatUint(uid, 10)
+		if _, found := users[uidString]; found {
 			continue
 		}
-		users[fields[2]] = user.User{
+		users[uidString] = user.User{
 			Username: fields[0],
-			Uid:      fields[2],
+			Uid:      uidString,
 			Gid:      fields[3],
 			Name:     fields[4],
 			HomeDir:  fields[5],

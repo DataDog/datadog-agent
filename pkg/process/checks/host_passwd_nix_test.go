@@ -69,12 +69,13 @@ func TestHostPasswdReadsHostEtcLazily(t *testing.T) {
 
 func TestHostPasswdSkipsInvalidRowsAndFirstDuplicateWins(t *testing.T) {
 	dir := t.TempDir()
-	writePasswd(t, dir, "\n# comment\nmalformed\n+compat:x:1:1::/:/bin/sh\n-invalid:x:2:2::/:/bin/sh\nbaduid:x:nope:3::/:/bin/sh\nfirst:x:42:4::/:/bin/sh\nsecond:x:42:5::/:/bin/sh\n")
+	writePasswd(t, dir, "\n# comment\nmalformed\n+compat:x:1:1::/:/bin/sh\n-invalid:x:2:2::/:/bin/sh\nbaduid:x:nope:3::/:/bin/sh\nfirst:x:00042:4::/:/bin/sh\nsecond:x:42:5::/:/bin/sh\n")
 	t.Setenv("HOST_ETC", dir)
 	cache, _ := newTestHostPasswdCache()
 	u, found := cache.lookup("42")
 	require.True(t, found)
 	assert.Equal(t, "first", u.Username)
+	assert.Equal(t, "42", u.Uid)
 	assert.Equal(t, "4", u.Gid)
 
 	_, found = cache.lookup("1")
