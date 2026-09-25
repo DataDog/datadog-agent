@@ -166,11 +166,12 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
-	logCounts   *materializedLogCountBucketizer
+	storage         *timeSeriesStorage
+	extractors      []observerdef.LogMetricsExtractor
+	detectors       []observerdef.Detector
+	correlators     []observerdef.Correlator
+	logCounts       *materializedLogCountBucketizer
+	logKeyGenerator *SliceKeyGenerator
 
 	// scorer is a typed pointer to the anomaly scorer (when present).
 	// It is also included in correlators for processing; this pointer is used
@@ -300,12 +301,13 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	e := &engine{
-		storage:     cfg.storage,
-		extractors:  cfg.extractors,
-		detectors:   cfg.detectors,
-		correlators: correlators,
-		scorer:      cfg.scorer,
-		scheduler:   sched,
+		storage:         cfg.storage,
+		extractors:      cfg.extractors,
+		detectors:       cfg.detectors,
+		correlators:     correlators,
+		logKeyGenerator: NewSliceKeyGenerator(),
+		scorer:          cfg.scorer,
+		scheduler:       sched,
 
 		anomalyDeduper:          newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
 		trackAnomalyHistory:     cfg.trackAnomalyHistory,
@@ -423,7 +425,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.AddWithHost(source, m.name, m.host, m.value, m.timestamp, m.tags)
+	e.storage.AddWithKeyAndHost(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -457,21 +459,19 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
-			// Always canonicalize so the hash computed here matches storage's
-			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
-			tags = canonicalizeTags(tags)
 			host := m.Host
 			if host == "" {
 				host = l.hostname
 			}
+			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLog(m.Name, host, tags))
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, host, tags)]; ok {
+				if _, ok := e.baseline.mutedHashes[seriesKey]; ok {
 					continue
 				}
 			}
 			timestamp := l.timestampMs / 1000
 			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
-				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags) {
+				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags, seriesKey) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)
@@ -480,7 +480,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.AddWithHost(extractor.Name(), m.Name, host, m.Value, timestamp, tags)
+			res := e.storage.AddWithKeyAndHost(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
@@ -501,6 +501,12 @@ func sliceContains(items []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// contextKeyForLog uses engine-owned scratch state: IngestLog runs on the
+// single observer goroutine, so it avoids per-output key-generator allocation.
+func (e *engine) contextKeyForLog(name, host string, tags []string) uint64 {
+	return uint64(e.logKeyGenerator.Generate(name, host, tags))
 }
 
 // removeEvictedMetricSeries removes all storage series for the given metric
@@ -778,12 +784,12 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
 				if anomaly.SourceRef != nil {
-					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags))
+					e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
 				}
 				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
+				h := e.anomalyStorageKey(anomaly)
 				if _, muted := e.baseline.mutedHashes[h]; muted {
 					continue
 				}
@@ -847,6 +853,15 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		anomalies:        allAnomalies,
 		correlatorEvents: allCorrelatorEvents,
 	}
+}
+
+func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
+	if anomaly.SourceRef != nil {
+		if key, ok := e.storage.StorageKey(anomaly.SourceRef.Ref); ok {
+			return key
+		}
+	}
+	return storageKeyForIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
 }
 
 // enrichAnomaly decorates an anomaly with context stored on the source series.

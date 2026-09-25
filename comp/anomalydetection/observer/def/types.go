@@ -21,8 +21,11 @@ import (
 
 // Handle is the lightweight observation interface passed to other components.
 type Handle interface {
-	// ObserveMetric observes a DogStatsD metric sample.
-	ObserveMetric(sample MetricView)
+	// ObserveMetric observes a metric with the metrics pipeline's resolved
+	// aggregation identity. A zero contextKey asks the observer to derive it
+	// from the resolved name, host, and tags after tag-dependent rules and
+	// before key-dependent filtering and storage.
+	ObserveMetric(sample MetricView, contextKey uint64)
 
 	// ObserveLog observes a log message.
 	ObserveLog(msg LogView)

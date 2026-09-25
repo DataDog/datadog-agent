@@ -75,9 +75,37 @@ func TestMetricHandoffDefersTagCanonicalization(t *testing.T) {
 	// The producer only captures the immutable CompositeTags view. Sorting and
 	// the associated allocation happen in the consumer.
 	assert.Equal(t, sample.tags, queued.metric.tags.UnsafeToReadOnlySliceString())
-	decision := prepareMetricHandoff(queued.source, queued.metric, filter)
+	decision := prepareMetricHandoff(queued.source, queued.metric, filter, nil)
 	require.NotNil(t, decision.metric)
 	assert.Equal(t, []string{"env:prod", "service:web", "service:web"}, decision.metric.tags)
+	assert.Equal(t, storageKeyForContextKey(queued.source, queued.metric.contextKey), decision.metric.storageKey)
+}
+
+func TestMetricHandoffDerivesContextKeyFromResolvedIdentity(t *testing.T) {
+	filter, err := newDefaultMetricsFilterRules()
+	require.NoError(t, err)
+
+	ch := make(chan observation, 1)
+	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
+	sample := &metricObs{
+		name:      "requests",
+		host:      "host-a",
+		tags:      []string{"service:web", "env:prod", "service:web"},
+		timestamp: 123,
+	}
+
+	require.False(t, h.observeMetricAndReportDrop(sample, 0))
+	queued := <-ch
+	require.Zero(t, queued.metric.contextKey)
+	wantStorageKey := storageKeyForContextKey(queued.source, testContextKeyFor(sample))
+	keyGenerator := NewSliceKeyGenerator()
+
+	decision := prepareMetricHandoff(queued.source, queued.metric, filter, keyGenerator)
+	require.NotNil(t, decision.metric)
+	assert.Equal(t, wantStorageKey, decision.metric.storageKey)
+
+	filter.publishMutedSnapshot(map[uint64]struct{}{wantStorageKey: {}})
+	assert.Nil(t, prepareMetricHandoff(queued.source, queued.metric, filter, keyGenerator).metric)
 }
 
 func TestMetricHandoffRejectsNameOnlyRuleBeforeSnapshot(t *testing.T) {
@@ -91,10 +119,10 @@ func TestMetricHandoffRejectsNameOnlyRuleBeforeSnapshot(t *testing.T) {
 	ch := make(chan observation, 1)
 	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
 
-	require.False(t, h.ObserveMetricAndReportDrop(&precheckOnlyMetricView{
+	require.False(t, h.observeMetricAndReportDrop(&precheckOnlyMetricView{
 		name: "system.cpu.user",
 		host: "host-a",
-	}))
+	}, 0))
 	assert.Len(t, ch, 0)
 }
 
@@ -115,8 +143,8 @@ func TestMetricHandoffDefersTagDependentRule(t *testing.T) {
 		timestamp: 123,
 	}
 
-	require.False(t, h.ObserveMetricAndReportDrop(sample))
+	require.False(t, h.observeMetricAndReportDrop(sample, 0))
 	queued := <-ch
 	require.True(t, queued.metric.precheck.needsTags)
-	assert.Nil(t, prepareMetricHandoff(queued.source, queued.metric, filter).metric)
+	assert.Nil(t, prepareMetricHandoff(queued.source, queued.metric, filter, nil).metric)
 }
