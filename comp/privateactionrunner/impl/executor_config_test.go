@@ -11,13 +11,19 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/stretchr/testify/require"
 )
@@ -41,6 +47,53 @@ func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T)
 		require.Nil(t, runner.keysManager)
 	}
 }
+
+func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+	t.Setenv(parconstants.InternalUseDDURLForOPMSEnvVar, "true")
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"dd_url":                                   srv.URL,
+		"api_key":                                  "test-api-key",
+		"app_key":                                  "test-app-key",
+		"private_action_runner.enabled":            true,
+		"private_action_runner.split_enabled":      true,
+		"private_action_runner.self_enroll":        true,
+		"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
+	})
+	hostname, _ := hostnamemock.NewMock("test-host")
+	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
+
+	_, err := runner.getRunnerConfig(context.Background())
+	require.ErrorIs(t, err, opms.ErrEnrollmentUnauthorized)
+	_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
+	require.NoError(t, err)
+	require.Nil(t, resolved)
+	require.NotNil(t, runner.executorServer)
+	require.Nil(t, runner.encryptionStore)
+	snapshot, err := executor.ControlPlaneConfig(cfg, resolved)
+	require.NoError(t, err)
+	require.False(t, snapshot.SplitMode)
+
+	stopped := make(chan struct{})
+	runner.shutdowner = shutdownFunc(func() error { close(stopped); return nil })
+	runner.startChan = make(chan struct{})
+	require.NoError(t, runner.Start(context.Background()))
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("monolithic runner did not request a clean shutdown")
+	}
+	require.Equal(t, 3, calls)
+}
+
+type shutdownFunc func() error
+
+func (f shutdownFunc) Shutdown() error { return f() }
 
 func TestExecutorSnapshotUsesMonolithPersistedIdentity(t *testing.T) {
 	key, _, err := util.GenerateKeys()

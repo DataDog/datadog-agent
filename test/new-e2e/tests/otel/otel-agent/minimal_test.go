@@ -9,6 +9,10 @@ package otelagent
 import (
 	_ "embed"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
@@ -128,6 +132,26 @@ func (s *minimalTestSuite) TestOTelAgentStatus() {
 
 func (s *minimalTestSuite) TestOTelAgentFlare() {
 	utils.TestOTelAgentFlareCmd(s)
+}
+
+// TestNoDDOTCollectorRunningMetric verifies that otel.ddot_collector.metrics.running is
+// NOT emitted in connected mode (otel-agent running alongside the core Agent, not
+// standalone): the core/cluster Agent already reports its own running state, so this
+// billing metric is only emitted when otel-agent runs standalone (DD_OTEL_STANDALONE=true).
+// See dogtelStandaloneTestSuite.TestDDOTCollectorRunningMetric for the standalone case.
+func (s *minimalTestSuite) TestNoDDOTCollectorRunningMetric() {
+	// Wait for proof that the metrics pipeline has flushed data at least once,
+	// so the absence check below can't pass vacuously because no export has
+	// happened yet.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		otelcolMetrics, err := s.Env().FakeIntake.Client().FilterMetrics("otelcol_process_uptime")
+		assert.NoError(c, err)
+		assert.NotEmpty(c, otelcolMetrics, "expected otelcol_process_uptime to confirm the metrics pipeline is flowing")
+	}, 2*time.Minute, 10*time.Second)
+
+	metrics, err := s.Env().FakeIntake.Client().FilterMetrics("otel.ddot_collector.metrics.running")
+	require.NoError(s.T(), err)
+	assert.Empty(s.T(), metrics, "otel.ddot_collector.metrics.running should not be emitted in connected mode")
 }
 
 func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
