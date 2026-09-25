@@ -2,5 +2,6 @@
 enhancements:
   - |
     The ``datasecurity`` check now also scans Postgres ``jsonb``, ``hstore``,
-    ``bytea``, ``inet``, ``cidr``, and ``macaddr`` columns, as well as arrays
-    of any supported type.
+    ``bytea``, ``uuid``, ``inet``, ``cidr``, and ``macaddr`` columns, as well
+    as arrays of any supported type. Date, time, and interval columns are
+    reported as scanned, but their values are skipped.

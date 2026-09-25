@@ -44,18 +44,18 @@ fn to_text_fn(ty: &Type) -> Option<ToText> {
 
 impl<'a> FromSql<'a> for TextCell {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, BoxError> {
-        let text = match ty.kind() {
-            Kind::Array(member) => array_text(member, raw)?,
-            _ => to_text_fn(ty).ok_or("unsupported type")?(ty, raw)?,
-        };
-        Ok(Self(text))
+        if let Kind::Array(member) = ty.kind() {
+            return Ok(Self(array_text(member, raw)?));
+        }
+        let to_text = to_text_fn(ty).ok_or("unsupported type")?;
+        Ok(Self(to_text(ty, raw)?))
     }
 
     fn accepts(ty: &Type) -> bool {
-        match ty.kind() {
-            Kind::Array(member) => Self::accepts(member),
-            _ => to_text_fn(ty).is_some(),
+        if let Kind::Array(member) = ty.kind() {
+            return Self::accepts(member);
         }
+        to_text_fn(ty).is_some()
     }
 }
 
@@ -122,6 +122,11 @@ mod tests {
 
     fn text(ty: Type, raw: &[u8]) -> String {
         TextCell::from_sql(&ty, raw).unwrap().0
+    }
+
+    /// An extension type, known by name only.
+    fn extension(name: &str) -> Type {
+        Type::new(name.to_string(), 90000, Kind::Simple, "public".to_string())
     }
 
     /// Encodes `value` in the postgres binary format of `ty`.
@@ -230,11 +235,6 @@ mod tests {
         assert_eq!(text(extension("citext"), b"Alice@Corp.io"), "Alice@Corp.io");
         // `ltree` carries a version byte that must not end up in the text.
         assert_eq!(text(extension("ltree"), b"\x01top.science"), "top.science");
-    }
-
-    /// An extension type, known by name only.
-    fn extension(name: &str) -> Type {
-        Type::new(name.to_string(), 90000, Kind::Simple, "public".to_string())
     }
 
     #[test]
@@ -362,6 +362,11 @@ mod tests {
         let raw = array(&Type::TEXT, &[1], &[Some(b"alice@corp.io")]);
         assert!(TextCell::from_sql(&Type::TEXT_ARRAY, &raw[..raw.len() - 1]).is_err());
         assert!(TextCell::from_sql(&Type::TEXT_ARRAY, &raw[..6]).is_err());
+    }
+
+    #[test]
+    fn rejects_unsupported_types() {
+        assert!(TextCell::from_sql(&Type::NUMERIC, &[0; 8]).is_err());
     }
 
     #[test]
