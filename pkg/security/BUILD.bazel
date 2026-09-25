@@ -25,11 +25,6 @@ write_source_files(
     ] + select({
         # These marshalers are stamped //go:build linux, so they can only be
         # generated from the Linux view of the annotated types.
-        #
-        # Do not pre-stub from serializers_linux_easyjson.mock: generating
-        # against the stubs inlines nested decoders, so the first pass diverges.
-        # It stays a manual hatch for when the package no longer compiles: copy
-        # it over the .go file, then run this target twice to converge.
         "@platforms//os:linux": [
             "//docs/cloud-workload-security:backend_linux_schema",
             "//pkg/security/probe:actions_linux_easyjson",

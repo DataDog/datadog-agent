@@ -202,17 +202,12 @@ derives the program from the `easyjson:json` comments in `src`, and Bazel
 compiles and runs it. Types are never listed here — the annotations stay the
 single source of truth.
 
-The generator links `package`, which already contains the checked-in output, so
-generation is a fixed point: easyjson calls a nested type's MarshalEasyJSON when
-that method exists and inlines a decoder when it does not. Generating from a
-stubbed or stale output therefore yields a different file, and one further run
-converges back.
-
-`<name>_stub` holds empty marshaler methods for the annotated types, for
-`easyjson_stubs`.
+The generator links `package`, the package's `easyjson_stubs` library, so it
+builds without the checked-in output. `<name>_stub` holds the empty marshaler
+methods that library compiles in its place.
 """,
     attrs = {
-        "package": attr.label(mandatory = True, configurable = False, doc = "go_library of the package the marshalers are generated for."),
+        "package": attr.label(mandatory = True, configurable = False, doc = "`easyjson_stubs` library of the package the marshalers are generated for."),
         "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package."),
         "src": attr.label(mandatory = True, configurable = False, allow_single_file = [".go"], doc = "Annotated .go file holding the easyjson:json comments (the one carrying the //go:generate directive)."),
         "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. event_easyjson.go)."),
