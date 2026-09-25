@@ -70,6 +70,11 @@ func (rh *HelmRollbackHandler) Run(ctx context.Context, task *types.Task,
 		return rh.reportPreflightFailure(report, err)
 	}
 
+	in.JobServiceAccountName, err = jobServiceAccountName(ctx, client, in.JobNamespace)
+	if err != nil {
+		return rh.reportPreflightFailure(report, fmt.Errorf("derive job service account: %w", err))
+	}
+
 	job, err := helmactionsimpl.NewRollbackExecutor(client).Run(ctx, in, meta)
 	if err != nil {
 		return rh.reportPreflightFailure(report, fmt.Errorf("helm rollback executor: %w", err))
