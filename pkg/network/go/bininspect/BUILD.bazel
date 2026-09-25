@@ -1,6 +1,6 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-load(":pclntab_test.bzl", "pclntab_fixture")
+load("//bazel/rules/go:go_binary.bzl", "unstripped_go_binary")
 
 go_library(
     name = "bininspect",
@@ -48,7 +48,7 @@ go_library(
     }),
 )
 
-pclntab_fixture(
+unstripped_go_binary(
     name = "pclntab_fixture",
     srcs = ["testdata/pclntab_fixture.go"],
     linkmode = "normal",

@@ -20,9 +20,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/jemalloc/jemalloc/archive/refs/tags/{version}.tar.gz",
         package = "jemalloc",
         version = VERSION,
-        download_url = "https://github.com/jemalloc/jemalloc/archive/refs/tags/{version}.tar.gz",
     ),
 )
 
@@ -91,8 +91,8 @@ foreign_cc_shared_wrapper(
 
 dd_cc_packaged(
     name = "jemalloc_pkg",
-    input = ":jemalloc_shared",
     dest_dir = "embedded/lib",
+    input = ":jemalloc_shared",
     libname = "libjemalloc",
     version = "2",
 )

@@ -45,7 +45,7 @@ jobs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .docs-cache
-        key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'docs/public/.hooks/inject_variables.py') }}
+        key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'doc/.hooks/inject_variables.py') }}
 
     # Restoring the most recent results, which `cache` in .lychee.toml tells the checker to keep,
     # means a host that is briefly unreachable does not fail the run.
@@ -74,7 +74,7 @@ jobs:
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .docs-cache
-        key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'docs/public/.hooks/inject_variables.py') }}
+        key: docs-content-${{ hashFiles('.gitlab-ci.yml', 'doc/.hooks/inject_variables.py') }}
 
     # Separate for the same reason. Pull requests save too: the cache is scoped to the pull request,
     # which is what a re-run of it restores.

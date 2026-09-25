@@ -15,9 +15,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-{version}.tar.gz",
         package = "popt",
         version = VERSION,
-        download_url = "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-{version}.tar.gz",
     ),
 )
 
@@ -38,9 +38,6 @@ cc_library(
         "src/poptint.h",
         "src/poptparse.c",
         "src/system.h",
-    ],
-    textual_hdrs = [
-        "src/lookup3.c",
     ],
     hdrs = [
         "src/popt.h",
@@ -71,15 +68,15 @@ cc_library(
         'POPT_SYSCONFDIR=\\"/etc/\\"',
     ],
     strip_include_prefix = "src",
-    visibility = ["//visibility:public"],
     target_compatible_with = ["@platforms//os:linux"],
+    textual_hdrs = [
+        "src/lookup3.c",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "popt",
-    deps = [
-        ":libpopt",
-    ],
     additional_linker_inputs = [
         "src/libpopt.vers",
     ],
@@ -88,6 +85,9 @@ cc_shared_library(
         "-Wl,--version-script=$(location src/libpopt.vers)",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        ":libpopt",
+    ],
 )
 
 pkg_files(
@@ -98,10 +98,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "popt_pkg",
-    input = ":popt",
     dest_dir = "embedded/lib",
-    version = "0.0.2",
+    input = ":popt",
     installed_files = [":hdr_files"],
+    version = "0.0.2",
     visibility = ["//visibility:public"],
 )
 
@@ -110,5 +110,8 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )

@@ -76,6 +76,7 @@ archive_override(
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply-chain-go-0.0.11/supply-chain-go-0.0.11.tar.gz",
 )
 
+bazel_dep(name = "apple_support", version = "2.9.1")  # provides --platforms=@apple_support//platforms:macos_x86_64
 bazel_dep(name = "bazel_features", version = "1.51.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
@@ -86,7 +87,7 @@ bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.3.1")
-bazel_dep(name = "rules_cc", version = "0.2.22")
+bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_go", version = "0.63.0")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
@@ -100,6 +101,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "toml.bzl", version = "0.4.1")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
+bazel_dep(name = "with_cfg.bzl", version = "1.0.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
@@ -112,17 +114,26 @@ single_version_override(
     version = "35.1",
 )
 
+# Temporary until https://github.com/bazelbuild/rules_cc/pull/888 is addressed in some way or another
+single_version_override(
+    module_name = "rules_cc",
+    patch_strip = 1,
+    patches = ["//bazel/patches:rules_cc-restore-grep-includes.patch"],
+    version = "0.2.25",
+)
+
 # Temporary until rules_go cuts a release >0.63.0, to pick up build info improvements: bazel-contrib/rules_go#4694
-# (main module), bazel-contrib/rules_go#4700 (checksums), and bazel-contrib/rules_go#4709 (actually reachable deps)
+# (main module), bazel-contrib/rules_go#4700 (checksums), bazel-contrib/rules_go#4709 (actually reachable deps), and
+# bazel-contrib/rules_go#4717 (GOEXPERIMENT for msgo SDK)
 archive_override(
     module_name = "rules_go",
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
     ],
-    sha256 = "d8ca6eab826bc071e7306da19960130cd7e9c11a4523d4f661d091d2003a23b0",
-    strip_prefix = "rules_go-18a6fbb9f4fa93331640efddf81271eb467710f4",
-    urls = ["https://github.com/bazel-contrib/rules_go/archive/18a6fbb9f4fa93331640efddf81271eb467710f4.tar.gz"],  # master as of September 14, 2026
+    sha256 = "7aa8987541d1502a3d59e174e47b8507d9adb6a9323e1e4c46b776c310e6865a",
+    strip_prefix = "rules_go-970e99d77c8bec98daed9b96845018617a65bd26",
+    urls = ["https://github.com/bazel-contrib/rules_go/archive/970e99d77c8bec98daed9b96845018617a65bd26.tar.gz"],  # master as of September 24, 2026
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
@@ -564,10 +575,5 @@ include("//deps:go.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/agent_integrations:integrations.MODULE.bazel")
-
-# This enables cross-compilation for macOS x86_64 on Apple Silicon.
-# Simply add --platforms=@apple_support//platforms:macos_x86_64
-# to the build command to enable it.
-bazel_dep(name = "apple_support", version = "2.9.0")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")

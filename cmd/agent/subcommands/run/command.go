@@ -68,6 +68,7 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
+	dogstatsdclientdropdetectorfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/fx"
 	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -473,6 +474,7 @@ func getSharedFxOption() fx.Option {
 		commonendpoints.Module(),
 		filterlist.Module(),
 		metriclookbackModule(),
+		dogstatsdclientdropdetectorfx.Module(),
 		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
@@ -766,9 +768,9 @@ func startAgent(
 	})
 
 	// start dependent services
-	// must run in background go command because the agent might be in service start pending
+	// runs in the background because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
-	go startDependentServices(cfg, sysprobeConf)
+	startDependentServicesAsync(cfg, sysprobeConf)
 
 	return nil
 }

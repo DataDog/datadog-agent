@@ -17,9 +17,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://www.sqlite.org/2026/sqlite-amalgamation-3530200.zip",
         package = "sqlite",
         version = VERSION,
-        download_url = "https://www.sqlite.org/2026/sqlite-amalgamation-3530200.zip",
     ),
 )
 
@@ -39,27 +39,27 @@ cc_library(
     name = "libsqlite3",
     srcs = ["sqlite3.c"],
     hdrs = _SQLITE3_PUBLIC_HEADERS,
-    includes = ["."],
     copts = [
         "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
         "-DSQLITE_THREADSAFE=1",
         "-O2",
     ],
+    includes = ["."],
     linkstatic = True,
     visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "sqlite3",
-    deps = [":libsqlite3"],
     visibility = ["//visibility:public"],
+    deps = [":libsqlite3"],
 )
 
 dd_cc_packaged(
     name = "sqlite3_pkg",
-    input = ":sqlite3",
     dest_dir = "embedded/lib",
+    input = ":sqlite3",
     version = VERSION,
     visibility = ["//visibility:public"],
 )

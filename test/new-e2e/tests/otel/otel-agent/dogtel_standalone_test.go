@@ -313,6 +313,23 @@ func assertPodRunningNoRestarts(s *dogtelCoexistTestSuite, pod corev1.Pod, conta
 	s.T().Fatalf("container %s not found in pod %s", containerName, pod.Name)
 }
 
+// TestDDOTCollectorRunningMetric verifies that the otel.ddot_collector.metrics.running
+// billing metric is emitted by the Datadog exporter when otel-agent runs standalone
+// (DD_OTEL_STANDALONE=true). This metric mirrors otel.datadog_exporter.metrics.running,
+// emitted for the ossCollector ingestion path, but only for the ddot path in
+// standalone mode; connected-mode DDOT and OTLP-ingest-into-core-Agent never emit it.
+func (s *dogtelStandaloneTestSuite) TestDDOTCollectorRunningMetric() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics("otel.ddot_collector.metrics.running")
+		assert.NoError(c, err)
+		if !assert.NotEmpty(c, metrics, "expected otel.ddot_collector.metrics.running from standalone otel-agent") {
+			return
+		}
+		require.NotEmpty(c, metrics[0].Points)
+		assert.Equal(c, 1.0, metrics[0].Points[0].Value)
+	}, 5*time.Minute, 10*time.Second, "otel.ddot_collector.metrics.running not received from standalone otel-agent")
+}
+
 // TestDogtelOrchestratorManifests verifies that Kubernetes objects collected by
 // the k8sobjectsreceiver are routed to the orchestrator (Kubernetes Resources)
 // intake. This path is gated to standalone mode on the datadog exporter; the

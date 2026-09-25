@@ -17,9 +17,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/facebook/zstd/releases/download/v{version}/zstd-{version}.tar.gz",
         package = "zstd",
         version = _VERSION,
-        download_url = "https://github.com/facebook/zstd/releases/download/v{version}/zstd-{version}.tar.gz",
     ),
 )
 
@@ -78,6 +78,9 @@ cc_library(
         ":dictbuilder_sources",
     ],
     hdrs = _PUBLIC_HEADERS,
+    copts = [
+        "-O2",
+    ],
     includes = ["lib"],
     linkstatic = True,
     local_defines = [
@@ -86,16 +89,13 @@ cc_library(
         "ZSTD_BUILD_SHARED=ON",
         "ZSTD_BUILD_STATIC=OFF",
     ],
-    copts = [
-        "-O2",
-    ],
     visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "zstd",
-    deps = [":libzstd"],
     visibility = ["//visibility:public"],
+    deps = [":libzstd"],
 )
 
 dd_cc_packaged(
