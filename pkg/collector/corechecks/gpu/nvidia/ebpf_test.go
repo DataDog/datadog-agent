@@ -204,7 +204,7 @@ func testCollectSkipsUnknownMemoryLimit(t *testing.T) {
 	}))
 	cache := createMockCacheWithStats(nil)
 
-	collector, err := newEbpfCollector(device, cache)
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
