@@ -9,6 +9,7 @@ package installer
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -102,14 +103,19 @@ func (s *testExtensionsSuite) verifyDDOTRunningSCM(expectedVersion string) {
 func (s *testExtensionsSuite) verifyDDOTRunningProcmgr(expectedVersion string) {
 	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"dd-procmgr-service"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 	s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-otel-agent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
-	s.assertManagedByProcmgr(ddotProcmgrProcess)
+	AssertDDOTManagedByProcmgrWindows(s.T(), s.Env().RemoteHost)
 	if expectedVersion == "" {
 		return
 	}
-	cli := s.procmgrCLIPath()
+	installRoot, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
+	s.Require().NoError(err)
+	cli := filepath.Join(installRoot, "bin", "agent", "dd-procmgr.exe")
 	assert.Eventually(s.T(), func() bool {
-		cmdLine, err := procmgrDescribeField(s.Env().RemoteHost, cli, ddotProcmgrProcess, "Command")
-		return err == nil && strings.Contains(cmdLine, expectedVersion)
+		cmdLine, err := WindowsDescribeDDOTCommandLine(s.Env().RemoteHost, cli)
+		if err != nil || cmdLine == "" {
+			return false
+		}
+		return strings.Contains(cmdLine, expectedVersion)
 	}, 2*time.Minute, 2*time.Second, "dd-procmgr describe Command should contain version %s", expectedVersion)
 }
 

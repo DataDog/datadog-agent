@@ -171,8 +171,6 @@ rust_test(
     # default "moderate" budget.
     timeout = "long",
     compile_data = [
-        "//cmd/agent/subcommands/run:dependent_services_windows.go",
-        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/user/windows:user.go",
         "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
     ],
@@ -211,11 +209,13 @@ rust_test(
         "tests/e2e/*.rs",
         "tests/helpers/*.rs",
     ]),
+    compile_data = ["//cmd/agent/subcommands/run:dependent_services_windows.go"],
     crate_root = "tests/e2e/main.rs",
     data = [
         ":dd-procmgr",
         ":dd-procmgrd",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
         "//pkg/procmgr/rust/tests/fixtures:.marker",
         "//pkg/procmgr/rust/tests/fixtures:test_fixtures",
     ],
@@ -224,6 +224,7 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
+        "PROCESS_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl)",
         "PROCMGR_TEST_FIXTURES_MARKER": "$(rootpath //pkg/procmgr/rust/tests/fixtures:.marker)",
     },
     # E2E tests use UDS for transport and spawn the Linux daemon binary.
