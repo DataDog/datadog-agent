@@ -716,6 +716,18 @@ properties:
         node_type: setting
         type: integer
         default: 2
+  hardening:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      requests_file:
+        node_type: setting
+        type: string
+        default: ''
   kubernetes_admission_events:
     node_type: section
     type: object
