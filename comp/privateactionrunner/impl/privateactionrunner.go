@@ -173,6 +173,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
+	runner.shutdowner = reqs.Shutdowner
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
 		OnStop:  runner.Stop,
@@ -263,7 +264,6 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
 		if err != nil {
-			p.logger.Errorf("Self-enrollment failed: %v", err)
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
 		p.coreConfig.Set(privateactionrunner.PARPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
@@ -385,6 +385,11 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerConfig(ctx)
+	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
+		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
+		return runCtx, nil, nil
+	}
 	if err != nil {
 		return runCtx, nil, err
 	}
@@ -468,6 +473,17 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
+	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
+		if p.shutdowner != nil {
+			go func() {
+				if stopErr := p.shutdowner.Shutdown(); stopErr != nil {
+					p.logger.Errorf("Failed to stop Private Action Runner: %v", stopErr)
+				}
+			}()
+		}
+		return nil
+	}
 	if err != nil {
 		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err

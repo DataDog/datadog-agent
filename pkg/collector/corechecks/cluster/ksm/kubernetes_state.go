@@ -1442,11 +1442,19 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,
 			Namespaces:   []string{},
+			// Use the node_kubelet pod collection mode to avoid leader election
+			PodCollectionMode: "node_kubelet",
+			// Enable telemetry for the benchmark
+			Telemetry: true,
 		},
 		tagger,
 		nil,
 	)
 	check.allStores = allStores
+	// Configure() is skipped here, so initRetry is never set up by SetupRetrier and
+	// would otherwise stay at its zero-value NeedSetup status, making Run() return
+	// immediately with a nil error on every call without processing any metrics.
+	_ = check.initRetry.SetupRetrier(&retry.Config{Strategy: retry.JustTesting})
 	return check
 }
 

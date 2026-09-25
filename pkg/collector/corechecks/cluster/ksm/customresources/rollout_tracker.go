@@ -87,7 +87,6 @@ type RolloutOperations interface {
 	StoreDaemonSetControllerRevision(cr *appsv1.ControllerRevision, ownerName, ownerUID string)
 	GetDaemonSetRolloutDuration(namespace, daemonSetName string) float64
 	CleanupDaemonSet(namespace, name string)
-	CleanupDaemonSetControllerRevision(namespace, name string)
 	HasActiveDaemonSetRollout(ds *appsv1.DaemonSet) bool
 	HasDaemonSetRolloutCondition(ds *appsv1.DaemonSet) bool
 }
@@ -505,13 +504,18 @@ func (rt *RolloutTracker) CleanupStatefulSet(namespace, name string) {
 	// This is preserved to detect actual rollouts vs scaling after cleanup
 }
 
-// CleanupControllerRevision removes a deleted ControllerRevision from tracking
+// CleanupControllerRevision removes a deleted ControllerRevision from tracking.
+// A ControllerRevision can be owned by either a StatefulSet or a DaemonSet.
 func (rt *RolloutTracker) CleanupControllerRevision(namespace, name string) {
-	rt.statefulSetMutex.Lock()
-	defer rt.statefulSetMutex.Unlock()
-
 	key := namespace + "/" + name
+
+	rt.statefulSetMutex.Lock()
 	delete(rt.controllerRevisionMap, key)
+	rt.statefulSetMutex.Unlock()
+
+	rt.daemonSetMutex.Lock()
+	delete(rt.daemonSetControllerRevisionMap, key)
+	rt.daemonSetMutex.Unlock()
 }
 
 // HasActiveStatefulSetRollout checks if we're actively tracking a rollout for the given StatefulSet
@@ -678,15 +682,6 @@ func (rt *RolloutTracker) CleanupDaemonSet(namespace, name string) {
 			delete(rt.daemonSetControllerRevisionMap, crKey)
 		}
 	}
-}
-
-// CleanupDaemonSetControllerRevision removes a deleted ControllerRevision from tracking
-func (rt *RolloutTracker) CleanupDaemonSetControllerRevision(namespace, name string) {
-	rt.daemonSetMutex.Lock()
-	defer rt.daemonSetMutex.Unlock()
-
-	key := namespace + "/" + name
-	delete(rt.daemonSetControllerRevisionMap, key)
 }
 
 // getNewestDaemonSetControllerRevisionCreationTime finds the most recently created ControllerRevision for a DaemonSet.

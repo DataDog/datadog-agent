@@ -550,29 +550,46 @@ func TestCleanupControllerRevision(t *testing.T) {
 
 	namespace := "default"
 	crName := "test-cr"
+	key := namespace + "/" + crName
 
-	// Add ControllerRevision
+	// Add ControllerRevision to both the StatefulSet and DaemonSet trackers, since
+	// a delete event for a ControllerRevision doesn't indicate which kind of owner it had.
 	tracker.statefulSetMutex.Lock()
-	tracker.controllerRevisionMap[namespace+"/"+crName] = &ControllerRevisionInfo{
+	tracker.controllerRevisionMap[key] = &ControllerRevisionInfo{
 		Name:      crName,
 		Namespace: namespace,
 	}
 	tracker.statefulSetMutex.Unlock()
+
+	tracker.daemonSetMutex.Lock()
+	tracker.daemonSetControllerRevisionMap[key] = &ControllerRevisionInfo{
+		Name:      crName,
+		Namespace: namespace,
+	}
+	tracker.daemonSetMutex.Unlock()
 
 	// Verify initial state
 	tracker.statefulSetMutex.RLock()
 	assert.Equal(t, 1, len(tracker.controllerRevisionMap))
 	tracker.statefulSetMutex.RUnlock()
 
+	tracker.daemonSetMutex.RLock()
+	assert.Equal(t, 1, len(tracker.daemonSetControllerRevisionMap))
+	tracker.daemonSetMutex.RUnlock()
+
 	// Cleanup
 	tracker.CleanupControllerRevision(namespace, crName)
 
-	// Verify cleanup
+	// Verify cleanup from both maps
 	tracker.statefulSetMutex.RLock()
-	_, exists := tracker.controllerRevisionMap[namespace+"/"+crName]
+	_, stsExists := tracker.controllerRevisionMap[key]
+	assert.False(t, stsExists, "StatefulSet ControllerRevision entry should be removed")
 	tracker.statefulSetMutex.RUnlock()
 
-	assert.False(t, exists, "ControllerRevision should be removed")
+	tracker.daemonSetMutex.RLock()
+	_, dsExists := tracker.daemonSetControllerRevisionMap[key]
+	assert.False(t, dsExists, "DaemonSet ControllerRevision entry should be removed")
+	tracker.daemonSetMutex.RUnlock()
 }
 
 func TestStoreStatefulSet_RevisionBasedRolloutDetection(t *testing.T) {
@@ -923,36 +940,6 @@ func TestCleanupDaemonSet(t *testing.T) {
 	assert.False(t, cr1Exists, "Associated ControllerRevision should be removed")
 	assert.False(t, cr2Exists, "Associated ControllerRevision should be removed")
 	assert.True(t, otherCrExists, "Unrelated ControllerRevision should remain")
-}
-
-func TestCleanupDaemonSetControllerRevision(t *testing.T) {
-	tracker := NewRolloutTracker()
-
-	namespace := "default"
-	crName := "test-cr"
-
-	// Add ControllerRevision
-	tracker.daemonSetMutex.Lock()
-	tracker.daemonSetControllerRevisionMap[namespace+"/"+crName] = &ControllerRevisionInfo{
-		Name:      crName,
-		Namespace: namespace,
-	}
-	tracker.daemonSetMutex.Unlock()
-
-	// Verify initial state
-	tracker.daemonSetMutex.RLock()
-	assert.Equal(t, 1, len(tracker.daemonSetControllerRevisionMap))
-	tracker.daemonSetMutex.RUnlock()
-
-	// Cleanup
-	tracker.CleanupDaemonSetControllerRevision(namespace, crName)
-
-	// Verify cleanup
-	tracker.daemonSetMutex.RLock()
-	_, exists := tracker.daemonSetControllerRevisionMap[namespace+"/"+crName]
-	tracker.daemonSetMutex.RUnlock()
-
-	assert.False(t, exists, "ControllerRevision should be removed")
 }
 
 func TestStoreDaemonSet_GenerationBasedRolloutDetection(t *testing.T) {

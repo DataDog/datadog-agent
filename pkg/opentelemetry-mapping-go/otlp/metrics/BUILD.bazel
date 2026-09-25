@@ -55,6 +55,7 @@ dd_agent_go_test(
         "consumer_test.go",
         "dimensions_test.go",
         "expo_bucket_converter_test.go",
+        "gcp_serverless_test.go",
         "histograms_test.go",
         "key_hash_cache_test.go",
         "lossless_mapper_test.go",

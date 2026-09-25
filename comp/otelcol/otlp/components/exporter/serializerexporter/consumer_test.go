@@ -207,3 +207,51 @@ func (m *MockSerializer) SendOrchestratorMetadata(_ []types.ProcessMessageBody, 
 func (m *MockSerializer) SendOrchestratorManifests(_ []types.ProcessMessageBody, _, _ string) error {
 	return nil
 }
+
+func newTestSerializerConsumer(ipath ingestionPath, standalone bool) *serializerConsumer {
+	return &serializerConsumer{
+		ipath:          ipath,
+		hosts:          make(map[string]struct{}),
+		fargateTagSets: make(map[tagSetKey][]string),
+		standalone:     standalone,
+	}
+}
+
+func TestAddRunningMetric_NotDDOTPath(t *testing.T) {
+	for _, ipath := range []ingestionPath{ossCollector, agentOTLPIngest} {
+		c := newTestSerializerConsumer(ipath, true)
+		c.ConsumeHost("otel-host")
+
+		c.addRunningMetric("agent-hostname")
+
+		assert.Empty(t, c.series)
+	}
+}
+
+func TestAddRunningMetric_NotStandalone(t *testing.T) {
+	c := newTestSerializerConsumer(ddot, false)
+	c.ConsumeHost("otel-host")
+
+	c.addRunningMetric("agent-hostname")
+
+	assert.Empty(t, c.series)
+}
+
+func TestAddRunningMetric_HostOnly(t *testing.T) {
+	c := newTestSerializerConsumer(ddot, true)
+	c.ConsumeHost("otel-host")
+
+	c.addRunningMetric("agent-hostname")
+
+	require.Len(t, c.series, 1)
+	assert.Equal(t, "otel.ddot_collector.metrics.running", c.series[0].Name)
+	assert.Equal(t, "agent-hostname", c.series[0].Host)
+}
+
+func TestAddRunningMetric_NoSignals(t *testing.T) {
+	c := newTestSerializerConsumer(ddot, true)
+
+	c.addRunningMetric("agent-hostname")
+
+	assert.Empty(t, c.series)
+}
