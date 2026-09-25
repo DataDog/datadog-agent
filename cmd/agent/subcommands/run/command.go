@@ -602,6 +602,7 @@ func getSharedFxOption() fx.Option {
 		connectivitycheckerfx.Module(),
 		configstreamfx.Module(),
 		logondurationfx.Module(),
+		fx.Supply(&healthplatformdef.RemoteRestorationParams{Enabled: true}),
 		healthplatform.Bundle(),
 		tracetelemetryfx.Module(),
 		dataplanepreflightmodefx.Module(),
