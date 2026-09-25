@@ -257,10 +257,8 @@ mod tests {
         assert_eq!(text(Type::DATE, &0i32.to_be_bytes()), "");
         assert_eq!(text(Type::TIME, &0i64.to_be_bytes()), "");
         assert_eq!(text(Type::INTERVAL, &[0; 16]), "");
-    }
-
-    #[test]
-    fn converts_arrays_to_text() {
+        // Arrays are flattened into `{a,NULL,b}`.
+        // TODO(DATASEC-349): add multidimensional array tests.
         let emails = encode(
             &vec![Some("alice@corp.io"), None, Some("bob@corp.io")],
             &Type::TEXT_ARRAY,
@@ -276,8 +274,6 @@ mod tests {
         let empty = encode(&Vec::<&str>::new(), &Type::VARCHAR_ARRAY);
         assert_eq!(text(Type::VARCHAR_ARRAY, &empty), "{}");
     }
-
-    // TODO(DATASEC-349): add multidimensional array tests.
 
     #[test]
     fn rejects_truncated_arrays() {
