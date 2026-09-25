@@ -6,6 +6,12 @@ deb_archive = use_repo_rule("//bazel/tools/wine:deb_archive.bzl", "deb_archive")
 http_archive(
     name = "wine_linux_x86_64",
     build_file = "//bazel/tools/wine:overlay/wine.BUILD.bazel",
+    # These modules link host libraries the sandbox does not have, and box64
+    # fails closed while mapping them. Wine resolves its paths through
+    # realpath(), so they have to be gone from the extracted tree itself.
+    patch_cmds = [
+        "rm -f lib/wine/*/{capi2032,gphoto2,opencl,sane,winealsa,winebus,winedmo,winegstreamer,winepulse,wineusb,winewayland,winex11,winscard,wpcap}.*",
+    ],
     sha256 = "39574efa1132c3ca0d5c77dd2eddbe4a49cca0d6cc2c290ff4924493a1c40314",
     strip_prefix = "wine-11.0-amd64-wow64",
     urls = ["https://github.com/Kron4ek/Wine-Builds/releases/download/11.0/wine-11.0-amd64-wow64.tar.xz"],
