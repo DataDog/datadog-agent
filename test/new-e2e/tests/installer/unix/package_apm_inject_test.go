@@ -66,7 +66,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -294,7 +294,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, "root", "root")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 
 	traceID := rand.Uint64()
