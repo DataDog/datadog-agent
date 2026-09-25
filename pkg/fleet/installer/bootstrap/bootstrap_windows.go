@@ -123,6 +123,10 @@ func DownloadInstallerExe(ctx context.Context, env *env.Env, url string, tmpDir 
 // Honors the InstallerBootstrapMode registry key (`OCI` / `MSI`) to
 // force one path or the other for testing.
 func extractInstallerFromAgentPackage(ctx context.Context, pkg *oci.DownloadedPackage, tmpDir string, fipsMode bool) (string, error) {
+	// Check before handing control to a target installer that may predate this guard.
+	if err := msi.CheckAgentFlavor(fipsMode); err != nil {
+		return "", err
+	}
 	// Testing override: if InstallerBootstrapMode registry key is set, use test-specific flow
 	if mode := getInstallerBootstrapMode(); mode != "" {
 		return extractInstallerFromAgentPackageTestMode(ctx, pkg, tmpDir, mode, fipsMode)
