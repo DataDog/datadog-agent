@@ -1,0 +1,24 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Agent telemetry can now supplement its built-in metric collection profiles with
+    additional profiles fetched periodically from a Datadog-hosted endpoint. This lets a
+    metric already exposed by the Agent be collected without waiting for a new Agent
+    release. The fetched profiles are purely additive: they are collected alongside the
+    built-in ones and cannot replace or modify them, disable agent telemetry, change any
+    other setting, or collect a metric the Agent does not already expose. A document that
+    fails validation is discarded. The Agent polls once shortly after start and once a day
+    thereafter, caching the result under ``run_path`` so that a host makes roughly one
+    request per day regardless of how many Agent processes it runs.
+
+    Set ``agent_telemetry.dynamic_profiles.enabled`` to ``false`` (or
+    ``DD_AGENT_TELEMETRY_DYNAMIC_PROFILES_ENABLED=false``) to disable this. It is also
+    disabled automatically wherever agent telemetry itself is, including when
+    ``fips.enabled`` is set and on ``ddog-gov.com``.

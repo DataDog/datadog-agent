@@ -82,6 +82,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
+		flaretypes.NewFiller(getAgentTelemetryDynamicProfiles),
 		flaretypes.NewFiller(getWindowsData),
 		flaretypes.NewFiller(common.GetExpVar),
 		flaretypes.NewFiller(provideInstallInfo),
@@ -251,6 +252,36 @@ func (r *RemoteFlareProvider) provideExtraFiles(_ context.Context, fb flaretypes
 
 func getVersionHistory(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.CopyFile(filepath.Join(pkgconfigsetup.Datadog().GetString("run_path"), "version-history.json")) //nolint:errcheck
+	return nil
+}
+
+// getAgentTelemetryDynamicProfiles collects the agent telemetry dynamic profiles cache: the fetched document and,
+// beside it, the attempt record. That feature logs its failures at debug level only and never surfaces them, so these
+// two files are the only record of what was fetched, when, and why the last attempt failed.
+//
+// The path resolution mirrors newDynamicProfilesManager in comp/core/agenttelemetry/impl: cache_path wins when set,
+// otherwise the file sits in run_path, and the attempt record is always its "-attempt" sibling. Keep the two in step --
+// a mismatch here silently collects nothing, and only for the users who configured cache_path.
+//
+// It lives here rather than being provided by the component so that `agent flare --local` collects it too: that path
+// builds the flare in the CLI process, whose fx graph does not include the agent telemetry component.
+func getAgentTelemetryDynamicProfiles(_ context.Context, fb flaretypes.FlareBuilder) error {
+	cfg := pkgconfigsetup.Datadog()
+
+	documentPath := cfg.GetString("agent_telemetry.dynamic_profiles.cache_path")
+	if documentPath == "" {
+		runPath := cfg.GetString("run_path")
+		if runPath == "" {
+			return nil
+		}
+		documentPath = filepath.Join(runPath, "agent-telemetry-dynamic-profiles.json")
+	}
+
+	ext := filepath.Ext(documentPath)
+	attemptPath := strings.TrimSuffix(documentPath, ext) + "-attempt" + ext
+
+	fb.CopyFile(documentPath) //nolint:errcheck
+	fb.CopyFile(attemptPath)  //nolint:errcheck
 	return nil
 }
 
