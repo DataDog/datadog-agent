@@ -32,9 +32,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://curl.haxx.se/download/curl-{version}.tar.gz",
         package = "curl",
         version = VERSION,
-        download_url = "https://curl.haxx.se/download/curl-{version}.tar.gz",
     ),
 )
 
@@ -259,7 +259,6 @@ pkg_files(
 dd_cc_packaged(
     name = "curl_pkg",
     input = ":curl_shared",
-    version = SO_VERSION,
     installed_executables = {
         ":curl": "bin",
     },
@@ -267,6 +266,7 @@ dd_cc_packaged(
         ":hdr_files",
     ],
     libname = "libcurl",
+    version = SO_VERSION,
     visibility = ["//visibility:public"],
 )
 

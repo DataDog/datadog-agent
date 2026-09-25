@@ -7,7 +7,10 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-package(default_package_metadata = [":package_metadata"], default_visibility = ["//visibility:public"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
 
 VERSION = "1.21.3"
 
@@ -17,9 +20,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
         package = "krb5",
         version = VERSION,
-        download_url = "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
     ),
 )
 
@@ -39,25 +42,82 @@ filegroup(
 # - version: full version string ("" for unversioned plugins).
 # - prefix: subdirectory under lib/ where the file lands ("" means directly in lib/).
 LIBS = {
-    "k5tls": {"version": "", "prefix": "krb5/plugins/tls"},
-    "db2": {"version": "", "prefix": "krb5/plugins/kdb"},
-    "test": {"version": "", "prefix": "krb5/plugins/preauth"},
-    "spake": {"version": "", "prefix": "krb5/plugins/preauth"},
-    "pkinit": {"version": "", "prefix": "krb5/plugins/preauth"},
-    "otp": {"version": "", "prefix": "krb5/plugins/preauth"},
-    "libcom_err": {"version": "3.0", "prefix": ""},
-    "libgssapi_krb5": {"version": "2.2", "prefix": ""},
-    "libgssrpc": {"version": "4.2", "prefix": ""},
-    "libk5crypto": {"version": "3.1", "prefix": ""},
-    "libkadm5clnt": {"version": "", "prefix": ""},
-    "libkadm5clnt_mit": {"version": "12.0", "prefix": ""},
-    "libkadm5srv": {"version": "", "prefix": ""},
-    "libkadm5srv_mit": {"version": "12.0", "prefix": ""},
-    "libkdb5": {"version": "10.0", "prefix": ""},
-    "libkrad": {"version": "0.0", "prefix": ""},
-    "libkrb5": {"version": "3.3", "prefix": ""},
-    "libkrb5support": {"version": "0.1", "prefix": ""},
-    "libverto": {"version": "0.0", "prefix": ""},
+    "k5tls": {
+        "version": "",
+        "prefix": "krb5/plugins/tls",
+    },
+    "db2": {
+        "version": "",
+        "prefix": "krb5/plugins/kdb",
+    },
+    "test": {
+        "version": "",
+        "prefix": "krb5/plugins/preauth",
+    },
+    "spake": {
+        "version": "",
+        "prefix": "krb5/plugins/preauth",
+    },
+    "pkinit": {
+        "version": "",
+        "prefix": "krb5/plugins/preauth",
+    },
+    "otp": {
+        "version": "",
+        "prefix": "krb5/plugins/preauth",
+    },
+    "libcom_err": {
+        "version": "3.0",
+        "prefix": "",
+    },
+    "libgssapi_krb5": {
+        "version": "2.2",
+        "prefix": "",
+    },
+    "libgssrpc": {
+        "version": "4.2",
+        "prefix": "",
+    },
+    "libk5crypto": {
+        "version": "3.1",
+        "prefix": "",
+    },
+    "libkadm5clnt": {
+        "version": "",
+        "prefix": "",
+    },
+    "libkadm5clnt_mit": {
+        "version": "12.0",
+        "prefix": "",
+    },
+    "libkadm5srv": {
+        "version": "",
+        "prefix": "",
+    },
+    "libkadm5srv_mit": {
+        "version": "12.0",
+        "prefix": "",
+    },
+    "libkdb5": {
+        "version": "10.0",
+        "prefix": "",
+    },
+    "libkrad": {
+        "version": "0.0",
+        "prefix": "",
+    },
+    "libkrb5": {
+        "version": "3.3",
+        "prefix": "",
+    },
+    "libkrb5support": {
+        "version": "0.1",
+        "prefix": "",
+    },
+    "libverto": {
+        "version": "0.0",
+        "prefix": "",
+    },
 }
 
 configure_make(
@@ -74,19 +134,22 @@ configure_make(
         "--with-tls-impl=openssl",
         "--disable-nls",
     ],
-    lib_source = ":all_srcs",
-    deps = [
-        "@openssl//:openssl",
-    ],
     dynamic_deps = [
         "@openssl//:openssl_shared",
     ],
+    lib_source = ":all_srcs",
     out_binaries = [
         "kinit",
     ],
     out_shared_libs = [
-        "{}/{}.so".format(spec["prefix"], libname) if spec["prefix"] else "{}.so".format(libname)
+        "{}/{}.so".format(
+            spec["prefix"],
+            libname,
+        ) if spec["prefix"] else "{}.so".format(libname)
         for libname, spec in LIBS.items()
+    ],
+    deps = [
+        "@openssl",
     ],
 )
 
@@ -103,13 +166,13 @@ configure_make(
     dd_cc_packaged(
         name = "{}_pkg".format(libname),
         input = ":{}_shared".format(libname),
-        libname = libname,
-        prefix = spec["prefix"],
-        version = spec["version"],
         # kinit rides along with libkrb5 so its rpath gets patched via dd_cc_packaged.
         installed_executables = {":_bins": "bin"} if libname == "libkrb5" else {},
         # Headers ride along with libkrb5 so they flow through dd_collect_dependencies.
         installed_files = [":hdr_files"] if libname == "libkrb5" else [],
+        libname = libname,
+        prefix = spec["prefix"],
+        version = spec["version"],
     )
     for libname, spec in LIBS.items()
 ]

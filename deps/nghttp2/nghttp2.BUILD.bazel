@@ -12,6 +12,7 @@ package(
 )
 
 SO_VERSION = "14.25.1"
+
 VERSION = "1.58.0"
 
 package_metadata(
@@ -20,9 +21,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/nghttp2/nghttp2/releases/download/v{version}/nghttp2-{version}.tar.gz",
         package = "nghttp2",
         version = VERSION,
-        download_url = "https://github.com/nghttp2/nghttp2/releases/download/v{version}/nghttp2-{version}.tar.gz",
     ),
 )
 
@@ -55,11 +56,11 @@ cc_library(
         "lib/nghttp2_extpri.h",
         "lib/nghttp2_frame.c",
         "lib/nghttp2_frame.h",
-        "lib/nghttp2_hd_huffman_data.c",
-        "lib/nghttp2_hd_huffman.c",
-        "lib/nghttp2_hd_huffman.h",
         "lib/nghttp2_hd.c",
         "lib/nghttp2_hd.h",
+        "lib/nghttp2_hd_huffman.c",
+        "lib/nghttp2_hd_huffman.h",
+        "lib/nghttp2_hd_huffman_data.c",
         "lib/nghttp2_helper.c",
         "lib/nghttp2_helper.h",
         "lib/nghttp2_http.c",
@@ -103,11 +104,6 @@ cc_library(
     ]) + [
         "config.h",
     ],
-    includes = [
-        ".",  # For config.h
-        "lib/includes",
-    ],
-    visibility = ["//visibility:public"],
     # Options gleaned from the generated Makefile
     copts = [
         "-O2",
@@ -115,16 +111,21 @@ cc_library(
         "-DBUILDING_NGHTTP2",
         "-fvisibility=hidden",
     ],
+    includes = [
+        ".",  # For config.h
+        "lib/includes",
+    ],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "nghttp2",
-    deps = [":libnghttp2"],
     visibility = ["//visibility:public"],
+    deps = [":libnghttp2"],
 )
 
 pkg_files(
@@ -136,8 +137,8 @@ pkg_files(
 dd_cc_packaged(
     name = "nghttp2_pkg",
     input = ":nghttp2",
-    version = SO_VERSION,
     installed_files = [":header_files"],
+    version = SO_VERSION,
     visibility = ["//visibility:public"],
 )
 
@@ -147,5 +148,8 @@ pkg_filegroup(
         ":header_files",
     ],
     prefix = "embedded",
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )
