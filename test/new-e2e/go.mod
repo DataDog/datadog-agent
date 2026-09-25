@@ -43,7 +43,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1
-	github.com/pulumi/pulumi/sdk/v3 v3.263.0
+	github.com/pulumi/pulumi/sdk/v3 v3.264.0
 	github.com/samber/lo v1.53.0
 	github.com/stretchr/testify v1.12.1
 	github.com/xeipuuv/gojsonschema v1.2.0
@@ -61,7 +61,10 @@ require (
 	k8s.io/client-go v0.35.5
 )
 
-require github.com/DataDog/dd-trace-go/v2 v2.10.1 // indirect
+require (
+	github.com/DataDog/dd-trace-go/v2 v2.10.1 // indirect
+	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
+)
 
 require (
 	al.essio.dev/pkg/shellescape v1.6.1 // indirect
