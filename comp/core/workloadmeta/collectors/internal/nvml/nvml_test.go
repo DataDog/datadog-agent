@@ -29,6 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
+type recordingDeviceCache struct {
+	ddnvml.DeviceCache
+	invalidated bool
+}
+
+func (c *recordingDeviceCache) Invalidate() {
+	c.invalidated = true
+}
+
 func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
 	t.Helper()
 
@@ -45,6 +54,17 @@ func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
 	err := c.Start(context.Background(), nil)
 
 	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)
+}
+
+func TestPullInvalidatesDeviceCacheWhileNVMLReleased(t *testing.T) {
+	cache := &recordingDeviceCache{}
+	c := newTestCollector(t, nil)
+	c.deviceCache = cache
+
+	require.NoError(t, ddnvml.ReleaseNVML())
+	t.Cleanup(ddnvml.ReacquireNVML)
+	require.NoError(t, c.Pull(context.Background()))
+	require.True(t, cache.invalidated)
 }
 
 func TestPull(t *testing.T) {
