@@ -32,14 +32,25 @@ dd_agent_go_test(
     gotags_sets = [["bpf"]],
     include_default = False,
     tags = ["requires_ebpf"],
-    deps = [
-        "//pkg/security/ebpf/kernel",
-        "//pkg/util/kernel",
-        "@com_github_cilium_ebpf//:ebpf",
-        "@com_github_cilium_ebpf//rlimit",
-        "@com_github_stretchr_testify//assert",
-        "@com_github_stretchr_testify//require",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/ebpf/kernel",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/ebpf/kernel",
+            "//pkg/util/kernel",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

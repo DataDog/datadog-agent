@@ -34,7 +34,7 @@ func TestMProtectEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	executable, err := os.Executable()
 	if err != nil {
