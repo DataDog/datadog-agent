@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"io"
 
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -21,11 +24,17 @@ import (
 const maxPodLogsBytes int64 = 10 * 1024 * 1024
 
 // GetPodLogsHandler retrieves the finite log output for one Pod container.
-type GetPodLogsHandler struct{}
+type GetPodLogsHandler struct {
+	config pkgconfigmodel.Reader
+}
 
 // NewGetPodLogsHandler creates a Pod logs handler.
 func NewGetPodLogsHandler() *GetPodLogsHandler {
-	return &GetPodLogsHandler{}
+	return newGetPodLogsHandler(pkgconfigsetup.Datadog())
+}
+
+func newGetPodLogsHandler(config pkgconfigmodel.Reader) *GetPodLogsHandler {
+	return &GetPodLogsHandler{config: config}
 }
 
 // GetPodLogsInputs selects the Pod log stream and bounds the returned history.
@@ -72,7 +81,27 @@ func (h *GetPodLogsHandler) Run(
 	if err != nil {
 		return nil, err
 	}
+	logs, err = h.maskSequences(logs)
+	if err != nil {
+		return nil, err
+	}
 	return &GetPodLogsOutputs{Logs: logs}, nil
+}
+
+func (h *GetPodLogsHandler) maskSequences(logs string) (string, error) {
+	rules, err := logsconfig.GlobalProcessingRules(h.config)
+	if err != nil {
+		return "", fmt.Errorf("could not load global log processing rules: %w", err)
+	}
+
+	content := []byte(logs)
+	for _, rule := range rules {
+		content, _ = logsconfig.ApplyMaskSequence(content, rule)
+	}
+	if int64(len(content)) > maxPodLogsBytes {
+		return "", fmt.Errorf("masked pod logs exceed the %d byte output limit", maxPodLogsBytes)
+	}
+	return string(content), nil
 }
 
 func (inputs GetPodLogsInputs) validate() error {
