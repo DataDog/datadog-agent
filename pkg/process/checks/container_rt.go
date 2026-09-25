@@ -6,6 +6,7 @@
 package checks
 
 import (
+	"slices"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
@@ -96,17 +98,15 @@ func (r *RTContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 		return nil, nil
 	}
 
-	groupSize := len(containers) / r.maxBatchSize
-	if len(containers)%r.maxBatchSize != 0 {
-		groupSize++
-	}
-	chunked := convertAndChunkContainers(containers, groupSize)
+	runMaxBatchSize := min(len(containers), r.maxBatchSize)
+	groupSize := getGroupSize(len(containers), runMaxBatchSize)
+	chunked := slices.Chunk(ddslices.Map(containers, convertToContainerStat), runMaxBatchSize)
 	messages := make([]model.MessageBody, 0, groupSize)
 	groupID := nextGroupID()
-	for i := 0; i < groupSize; i++ {
+	for chunk := range chunked {
 		messages = append(messages, &model.CollectorContainerRealTime{
 			HostName:          r.hostInfo.HostName,
-			Stats:             chunked[i],
+			Stats:             chunk,
 			NumCpus:           int32(system.HostCPUCount()),
 			TotalMemory:       r.hostInfo.SystemInfo.TotalMemory,
 			GroupId:           groupID,
@@ -120,31 +120,6 @@ func (r *RTContainerCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 // Cleanup frees any resource held by the RTContainerCheck before the agent exits
 func (r *RTContainerCheck) Cleanup() {}
-
-func convertAndChunkContainers(containers []*model.Container, chunks int) [][]*model.ContainerStat {
-	// Callers should already ensure this, but check just in case
-	if chunks == 0 {
-		log.Tracef("No chunks requested, returning nil slice")
-		return nil
-	}
-	perChunk := (len(containers) / chunks) + 1
-	chunked := make([][]*model.ContainerStat, chunks)
-	chunk := make([]*model.ContainerStat, 0, perChunk)
-	chunkIdx := 0
-
-	for _, ctr := range containers {
-		chunk = append(chunk, convertToContainerStat(ctr))
-		if len(chunk) == perChunk {
-			chunked[chunkIdx] = chunk
-			chunkIdx++
-			chunk = make([]*model.ContainerStat, 0, perChunk)
-		}
-	}
-	if len(chunk) > 0 {
-		chunked[chunkIdx] = chunk
-	}
-	return chunked
-}
 
 func convertToContainerStat(container *model.Container) *model.ContainerStat {
 	return &model.ContainerStat{

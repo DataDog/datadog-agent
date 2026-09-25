@@ -11,6 +11,7 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 const (
@@ -338,17 +340,18 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		stats := procsToStats(p.lastProcs)
 
 		if p.realtimeLastProcs != nil {
-			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
-			groupSize := len(chunkedStats)
-			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
+			procStats := convertProcessStats(stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
+			groupSize := getGroupSize(len(procStats), p.maxBatchSize)
+			chunkedProcStats := slices.Chunk(procStats, p.maxBatchSize)
+			ctrChunkSize := getChunkSize(len(containers), groupSize)
+			chunkedCtrStats := slices.Chunk(ddslices.Map(containers, convertToContainerStat), ctrChunkSize)
 
 			messages := make([]model.MessageBody, 0, groupSize)
-			for i := 0; i < groupSize; i++ {
+			for chunkProcStats, chunkCtrStats := range ddslices.ZipIter(chunkedProcStats, chunkedCtrStats) {
 				messages = append(messages, &model.CollectorRealTime{
 					HostName:          p.hostInfo.HostName,
-					Stats:             chunkedStats[i],
-					ContainerStats:    chunkedCtrStats[i],
+					Stats:             chunkProcStats,
+					ContainerStats:    chunkCtrStats,
 					GroupId:           groupID,
 					GroupSize:         int32(groupSize),
 					NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
