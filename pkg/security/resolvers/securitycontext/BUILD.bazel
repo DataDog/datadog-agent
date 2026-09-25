@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "resolver.go",
         "resolver_linux.go",
+        "seccomp_linux.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext",
     visibility = ["//visibility:public"],
@@ -14,9 +15,13 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/workloadmeta/def",
+            "//pkg/util/kubernetes",
+            "@in_gopkg_yaml_v3//:yaml_v3",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/workloadmeta/def",
+            "//pkg/util/kubernetes",
+            "@in_gopkg_yaml_v3//:yaml_v3",
         ],
         "//conditions:default": [],
     }),
@@ -24,7 +29,10 @@ go_library(
 
 dd_agent_go_test(
     name = "securitycontext_test",
-    srcs = ["resolver_linux_test.go"],
+    srcs = [
+        "resolver_linux_test.go",
+        "seccomp_linux_test.go",
+    ],
     embed = [":securitycontext"],
     deps = select({
         "@rules_go//go/platform:android": [

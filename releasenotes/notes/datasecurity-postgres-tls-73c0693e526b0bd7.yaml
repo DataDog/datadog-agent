@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Data security PostgreSQL scans can now connect over TLS. The instance option
+    ``ssl`` accepts ``disable``, ``allow``, ``prefer`` and ``require``. The
+    ``verify-ca`` and ``verify-full`` modes are not supported yet, as server
+    certificates are not validated.

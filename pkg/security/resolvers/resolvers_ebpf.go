@@ -331,6 +331,11 @@ func (r *EBPFResolvers) snapshot() error {
 	// Sync the namespace cache
 	r.NamespaceResolver.SyncCache()
 
+	// One snapshot for the whole walk: it reuses the buffers and the interned
+	// mapped-object paths of each process for the next, and is released with
+	// the walk.
+	otelProcCtx := r.ProcessResolver.NewOTelProcessContextSnapshot()
+
 	for _, proc := range processes {
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
@@ -342,7 +347,7 @@ func (r *EBPFResolvers) snapshot() error {
 		// Likewise for the thread-context readers, which hang off the OTel
 		// process context a process publishes rather than off its tracer
 		// metadata, and whose publication was missed the same way.
-		r.ProcessResolver.SnapshotOTelProcessContext(uint32(proc.Pid))
+		otelProcCtx.Resolve(uint32(proc.Pid))
 	}
 
 	return nil

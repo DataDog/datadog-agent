@@ -222,12 +222,13 @@ pkg_files(
         ":pcre2_h_generic",
         ":src/pcre2posix.h",
     ],
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "pcre2-8_pkg",
     input = ":pcre2-8",
+    dest_dir = "embedded/lib",
     version = "0.11.2",
     installed_files = [":headers"],
     visibility = ["//visibility:public"],
@@ -236,6 +237,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "pcre2-posix_pkg",
     input = ":pcre2-posix",
+    dest_dir = "embedded/lib",
     version = "3.0.4",
     visibility = ["//visibility:public"],
 )
@@ -245,6 +247,5 @@ pkg_filegroup(
     srcs = [
         ":headers",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

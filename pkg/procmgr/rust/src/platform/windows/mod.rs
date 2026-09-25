@@ -3,39 +3,66 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod agent_service_sid;
 mod child_env;
 mod console;
+mod installer_lsa_password;
 mod job_object;
+mod local_account;
+mod local_agent_account;
+mod pipe_caller;
+mod pipe_security;
 mod process;
 mod runtime_user;
+mod secure_utf16;
+mod service_account;
+mod sid;
 mod spawn;
+mod token_identity;
 mod wide;
 
-use crate::spawn::SpawnProfile;
-use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::sync::Notify;
 
-pub(crate) use spawn::spawn_child_handle;
+pub(crate) use spawn::user_profile::UserProfileGuard;
+pub(crate) use spawn::{SpawnCredential, resolve_initial_spawn_identity};
 
-pub use child_env::apply_child_baseline_env;
+pub use child_env::agent_service_env_var;
+pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
+#[cfg(test)]
+pub(crate) use console::caller_console_state;
+pub(crate) use console::console_lock;
 pub use console::{
-    last_signal, send_force_kill, send_graceful_stop, setup_process_group, stderr_inheritable,
-    stdout_inheritable,
+    last_signal, send_force_kill, send_graceful_stop, stderr_inheritable, stdout_inheritable,
 };
 pub use job_object::JobObject;
+pub(crate) use pipe_caller::pipe_client_may_mutate;
+pub(crate) use pipe_security::create_pipe_server;
+pub(crate) use process::{
+    ProcessWaitOutcome, WAIT_INFINITE, terminate_process, wait_for_process_exit_ms,
+};
 pub(crate) use runtime_user::runtime_user_for_pid;
 
 static SHUTDOWN_NOTIFY: OnceLock<Notify> = OnceLock::new();
-
-pub(crate) use console::console_lock;
 
 pub fn shutdown_notify() -> &'static Notify {
     SHUTDOWN_NOTIFY.get_or_init(Notify::new)
 }
 
-fn open_datadog_agent_key() -> Option<windows_registry::Key> {
+pub async fn shutdown_signal() {
+    tokio::select! {
+        result = tokio::signal::ctrl_c() => {
+            result.expect("failed to register Ctrl+C handler");
+            log::info!("received Ctrl+C");
+        }
+        _ = shutdown_notify().notified() => {
+            log::info!("received service stop request");
+        }
+    }
+}
+
+pub(crate) fn open_datadog_agent_key() -> Option<windows_registry::Key> {
     use windows_registry::LOCAL_MACHINE;
     use windows_sys::Win32::System::Registry::KEY_WOW64_64KEY;
 
@@ -47,7 +74,7 @@ fn open_datadog_agent_key() -> Option<windows_registry::Key> {
         .ok()
 }
 
-fn registry_nonempty_string(key: &windows_registry::Key, name: &str) -> Option<String> {
+pub(crate) fn registry_nonempty_string(key: &windows_registry::Key, name: &str) -> Option<String> {
     let value: String = key.get_string(name).ok()?;
     if value.is_empty() { None } else { Some(value) }
 }
@@ -82,80 +109,27 @@ fn install_root() -> PathBuf {
     install_root_from_registry().unwrap_or_else(default_install_root)
 }
 
+pub fn install_root_for_tests() -> PathBuf {
+    install_root()
+}
+
 pub fn default_config_dir() -> PathBuf {
     install_root().join("processes.d")
 }
 
-/// Wait for a shutdown trigger (Ctrl+C or SCM stop via [`shutdown_notify()`]).
-pub async fn shutdown_signal() {
-    tokio::select! {
-        result = tokio::signal::ctrl_c() => {
-            result.expect("failed to register Ctrl+C handler");
-            log::info!("received Ctrl+C");
-        }
-        _ = shutdown_notify().notified() => {
-            log::info!("received service stop request");
-        }
-    }
+/// Fleet policies directory when neither `DD_FLEET_POLICIES_DIR` nor the gated config
+/// file names one.
+///
+/// Mirrors `FleetConfigOverride` in `pkg/config/setup/config_windows.go`: the registry
+/// value, or nothing at all. The installer's managed-process path
+/// (`paths.FleetPoliciesDirForManagedProcess`) does fall back to the stable managed
+/// directory, but it hands that value over as `DD_FLEET_POLICIES_DIR`, so the caller
+/// sees it from the environment rather than from here. Falling back to that directory
+/// here would load policy the Agent itself ignores.
+pub fn fleet_policies_dir_fallback() -> Option<PathBuf> {
+    fleet_policies_dir_from_registry().map(PathBuf::from)
 }
 
-const PRIVILEGED_SPAWN_USER: &str = r"NT AUTHORITY\SYSTEM";
-
-pub(crate) fn intended_spawn_user(process_name: &str, profile: SpawnProfile) -> String {
-    match profile {
-        SpawnProfile::Privileged => PRIVILEGED_SPAWN_USER.to_string(),
-        SpawnProfile::Agent => agent_account_display_from_registry(process_name),
-    }
-}
-
-fn agent_account_display_from_registry(process_name: &str) -> String {
-    match try_agent_account_display_from_registry() {
-        Ok(display) => display,
-        Err(e) => {
-            log::warn!("[{process_name}] intended spawn user lookup failed: {e:#}");
-            "unknown".to_string()
-        }
-    }
-}
-
-fn try_agent_account_display_from_registry() -> Result<String> {
-    let key = open_datadog_agent_key().context("open Datadog Agent registry key")?;
-    let user = registry_nonempty_string(&key, "installedUser")
-        .context("read installedUser from registry")?;
-    let domain = key.get_string("installedDomain").unwrap_or_default();
-    Ok(format_account_display(&domain, &user))
-}
-
-fn format_account_display(domain: &str, user: &str) -> String {
-    let domain = domain.trim();
-    if domain.is_empty() || domain == "." {
-        format!(r".\{user}")
-    } else {
-        format!(r"{domain}\{user}")
-    }
-}
-
-#[cfg(test)]
-mod intended_spawn_user_tests {
-    use super::*;
-    use crate::spawn::SpawnProfile;
-
-    #[test]
-    fn privileged_profile_uses_local_system() {
-        assert_eq!(
-            intended_spawn_user("datadog-agent-process", SpawnProfile::Privileged),
-            PRIVILEGED_SPAWN_USER
-        );
-    }
-
-    #[test]
-    fn format_account_display_local_uses_dot_prefix() {
-        assert_eq!(format_account_display("", "ddagentuser"), r".\ddagentuser");
-        assert_eq!(format_account_display(".", "ddagentuser"), r".\ddagentuser");
-    }
-
-    #[test]
-    fn format_account_display_domain() {
-        assert_eq!(format_account_display("CORP", "gmsa$"), r"CORP\gmsa$");
-    }
+fn fleet_policies_dir_from_registry() -> Option<String> {
+    open_datadog_agent_key().and_then(|k| registry_nonempty_string(&k, "fleet_policies_dir"))
 }
