@@ -45,6 +45,7 @@ dd_agent_go_test(
         "metrics_test.go",
         "version_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":common"],
     gotags_sets = [[
         "cel",
@@ -59,6 +60,7 @@ dd_agent_go_test(
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/prometheus",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/errors",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
