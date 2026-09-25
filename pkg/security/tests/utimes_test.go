@@ -33,7 +33,7 @@ func TestUtimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("utime", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
 		fileMode := 0o447

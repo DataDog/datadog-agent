@@ -96,11 +96,11 @@ func (t *noopImpl) UnregisterCollector(telemetry.Collector) bool {
 	return true
 }
 
-func (t *noopImpl) Gather(bool) ([]*telemetry.MetricFamily, error) {
+func (t *noopImpl) Gather(telemetry.MetricFilter) ([]*telemetry.MetricFamily, error) {
 	return nil, nil
 }
 
-func (t *noopImpl) GatherText(bool, telemetry.MetricFilter) (string, error) {
+func (t *noopImpl) GatherText(telemetry.MetricFilter) (string, error) {
 	return "", nil
 }
 

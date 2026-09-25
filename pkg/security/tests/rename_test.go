@@ -37,7 +37,7 @@ func TestRename(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -225,7 +225,7 @@ func TestRenameInvalidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testOldFile, _, err := test.Path("test-rename")
 	if err != nil {
@@ -289,7 +289,7 @@ func TestRenameReuseInode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testOldFile, _, err := test.Path("test-rename-old")
 	if err != nil {
@@ -367,7 +367,7 @@ func TestRenameFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testOldFolder, _, err := test.Path(path.Dir("folder/folder-old/test-rename"))
 	if err != nil {

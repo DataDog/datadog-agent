@@ -2181,6 +2181,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 			} else {
 				out.EventTypeState = string(in.String())
 			}
+		case "profile_already_sent":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ProfileAlreadySent = bool(in.Bool())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2230,6 +2236,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		const prefix string = ",\"event_type_state\":"
 		out.RawString(prefix)
 		out.String(string(in.EventTypeState))
+	}
+	{
+		const prefix string = ",\"profile_already_sent\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.ProfileAlreadySent))
 	}
 	out.RawByte('}')
 }

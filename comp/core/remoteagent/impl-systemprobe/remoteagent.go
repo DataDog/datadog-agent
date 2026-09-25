@@ -177,7 +177,7 @@ func collectComplianceFiles(logger log.Component, complianceDir string, files ma
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
-	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
+	prometheusText, err := r.telemetry.GatherText(telemetry.StaticMetricFilter(
 		// Metrics to forward from system-probe to core agent.
 		// The emitter tag is set to "system-probe" via metrics.SetAgentIdentity() above.
 		"logs__bytes_sent",
