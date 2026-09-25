@@ -74,6 +74,11 @@ func (c *collectorConsumer) addRuntimeTelemetryMetric(_ string, languageTags []s
 func (c *collectorConsumer) addTelemetryMetric(_ string, _ exporter.Settings, _ telemetry.Gauge) {
 }
 
+// addRunningMetric is a no-op for the ossCollector path: collectorConsumer already
+// emits its own otel.datadog_exporter.metrics.running* series via addRuntimeTelemetryMetric.
+func (c *collectorConsumer) addRunningMetric(_ string) {
+}
+
 // ConsumeHost implements the metrics.HostConsumer interface.
 func (c *collectorConsumer) ConsumeHost(host string) {
 	c.seenHosts[host] = struct{}{}

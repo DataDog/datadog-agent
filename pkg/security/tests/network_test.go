@@ -67,7 +67,7 @@ func TestNetworkCIDR(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("dns", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -174,7 +174,7 @@ func TestRawPacket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("udp4", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -257,7 +257,7 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("raw-packet-router-sel-wakeup")
 	if err != nil {
@@ -339,7 +339,7 @@ func TestRawPacketAction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	cmdWrapper, err := test.StartADocker()
 	if err != nil {
@@ -433,7 +433,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.statsdClient.Flush()
 
@@ -595,7 +595,7 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	cmdWrapper, err := test.StartADocker()
 	if err != nil {
@@ -748,7 +748,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1072,7 +1072,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

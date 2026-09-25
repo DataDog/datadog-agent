@@ -2,16 +2,25 @@ load("@rules_go//go:def.bzl", "go_binary", "go_library")
 
 go_library(
     name = "kubernetes_state_lib",
-    srcs = ["main.go"],
+    srcs = [
+        "main.go",
+        "noop_sender.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/benchmarks/kubernetes_state",
     tags = ["manual"],  # keep
     visibility = ["//visibility:private"],
     deps = [
         "//comp/core/tagger/impl-noop",
-        "//comp/filterlist/impl",
-        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
         "//pkg/collector/corechecks/cluster/ksm",
         "//pkg/kubestatemetrics/builder",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/serializer/types",
+        "//pkg/util/infratags",
+        "//pkg/util/log",
         "@io_k8s_api//apps/v1:apps",
         "@io_k8s_api//batch/v1:batch",
         "@io_k8s_api//core/v1:core",
@@ -28,6 +37,7 @@ go_binary(
     gotags = [
         "kubeapiserver",
         "kubelet",
+        "test",
     ],  # keep
     visibility = ["//visibility:public"],
 )
