@@ -10,10 +10,14 @@ check_cpu_quota:
     KUBERNETES_CPU_LIMIT: "6"
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "12Gi"
+    # Enforce static CPUs (cpuset pinning) — without this, KUBERNETES_CPU_LIMIT
+    # is not enforced on these runners (cpu.max stays "max"). See oracle.yml.
+    KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
   script:
     - echo "=== Host CPU info ==="
     - nproc
     - grep -c ^processor /proc/cpuinfo || true
+    - grep Cpus_allowed_list /proc/self/status || true
     - |
       echo "=== cgroup v2 (cpu.max: quota period) ==="
       if [ -f /sys/fs/cgroup/cpu.max ]; then
