@@ -8,6 +8,8 @@ package observerimpl
 import (
 	"fmt"
 	"testing"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // diverseLogContent returns distinct line shapes (JSON, kv, syslog, plain) for series s
@@ -129,5 +131,29 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// BenchmarkLogContextSteadyState measures repeated writes to an existing
+// log-derived series, so series creation does not hide per-log context costs.
+func BenchmarkLogContextSteadyState(b *testing.B) {
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
+	e := newEngine(engineConfig{
+		storage:    newTimeSeriesStorage(),
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+	log := &logObs{
+		content:     "GET /users/123 returned 500",
+		tags:        []string{"service:api"},
+		timestampMs: 1_000,
+	}
+	e.IngestLog("logs", log)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		log.timestampMs = int64(i+2) * 1_000
+		e.IngestLog("logs", log)
 	}
 }
