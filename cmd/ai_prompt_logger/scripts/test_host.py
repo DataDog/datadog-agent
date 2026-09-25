@@ -83,7 +83,7 @@ def main():
 
     if not host_path.exists():
         print(f'ERROR: Host executable not found: {host_path}')
-        print('Build with: cargo build -p ai-usage-agent-native-host --release')
+        print('Build with: bazel run //:cargo -- build -p ai-usage-agent-native-host --release')
         sys.exit(1)
 
     cmd = [str(host_path)] + extra_args

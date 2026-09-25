@@ -24,14 +24,14 @@ To start writing a new Rust check, follow these steps:
 
 And you're done!
 
-Alternatively, you can create the crate with `cargo new checks/<check_name>` then copy the `Cargo.toml` and the source files manually. `cargo new` will automatically add your crate in the workspace members.
+Alternatively, you can create the crate with `bazel run //:cargo -- new pkg/collector/sharedlibrary/rustchecks/checks/<check_name>` then copy the `Cargo.toml` and the source files manually. `cargo new` will automatically add your crate in the workspace members.
 
 ## Compiling into shared libraries
 
 To run Rust checks in the Agent, you need to compile them into a C-Shared library with:
 
 ```
-cargo build --release --package <check_name>
+bazel run //:cargo -- build --release --package <check_name>
 ```
 
 The shared library will be created in `target/release` under the name `lib<check_name>.<lib_extension>`.

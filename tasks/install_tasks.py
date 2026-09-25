@@ -7,6 +7,7 @@ from time import sleep
 
 from invoke import Context, Exit, task
 
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.utils import environ, get_gobin, gitlab_section, link_or_copy
@@ -114,13 +115,13 @@ def install_shellcheck(ctx, version="0.8.0", destination="/usr/local/bin"):
 
 
 @task
-def install_rust_license_tool(ctx):
+def install_rust_license_tool(_):
     """
     Install dd-rust-license-tool and cargo-deny for Rust license verification.
     Required to run the lint-rust-licenses task.
     """
-    ctx.run("cargo install dd-rust-license-tool@1.0.6 --locked")
-    ctx.run("cargo install cargo-deny@0.19.4 --locked")
+    bazel("run", "//:cargo", "--", "install", "dd-rust-license-tool@1.0.6", "--locked")
+    bazel("run", "//:cargo", "--", "install", "cargo-deny@0.19.4", "--locked")
 
 
 @task

@@ -117,7 +117,7 @@ All components reference crates from this single repository: `@crates//:<crate_n
 
 4. **Regenerate `Cargo.lock`:**
     ```bash
-    cargo generate-lockfile
+    bazel run //:cargo -- generate-lockfile
     ```
 
 5. **Commit both the root `Cargo.toml` and `Cargo.lock`**
@@ -196,7 +196,7 @@ tempfile.workspace = true
 ### Step 4: Regenerate the Lock File
 
 ```bash
-cargo generate-lockfile
+bazel run //:cargo -- generate-lockfile
 ```
 
 > **Note:** You must run `cargo generate-lockfile` (or `cargo build`) whenever you change any `Cargo.toml`. If `Cargo.lock` is out of sync, Bazel will report an error:
@@ -403,8 +403,8 @@ bazel query "@crates//..."
 After modifying any `Cargo.toml`, regenerate the lock file from the repository root:
 
 ```bash
-# Alternatively, you can use cargo build command to do the same
-cargo generate-lockfile
+# Alternatively, you can use bazel run //:cargo -- build to do the same
+bazel run //:cargo -- generate-lockfile
 ```
 
 Bazel will fail if `Cargo.toml` and `Cargo.lock` are out of sync:

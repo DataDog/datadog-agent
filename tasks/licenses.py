@@ -355,15 +355,25 @@ def lint_rust_licenses(ctx):
     Checks that the Rust LICENSE-3rdparty.csv file is up-to-date
     and that all licenses are allowed.
     """
+    from tasks.libs.build.bazel import bazel
+
     print("Verify Rust licenses")
 
     rust_dir = 'rust'
 
     # Check license compliance with cargo deny
-    result = ctx.run(f'cd {rust_dir} && cargo deny --manifest-path ../Cargo.toml check licenses', warn=True)
-    if result.return_code != 0:
-        print("\nCargo-deny found non-allowed licenses.")
-        raise Exit(code=1)
+    bazel(
+        "run",
+        "//:cargo",
+        "--",
+        "deny",
+        "--manifest-path",
+        "Cargo.toml",
+        "check",
+        "--config",
+        f'{rust_dir}/deny.toml',
+        "licenses",
+    )
 
     # Check LICENSE-3rdparty.csv is up-to-date
     result = ctx.run(f'cd {rust_dir} && dd-rust-license-tool --manifest-path ../Cargo.toml check', warn=True)
