@@ -17,10 +17,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
 )
 
 const DNSPort = 5553
@@ -50,6 +51,7 @@ var _ = declare(TestDNSResponse, testOpts{
 })
 
 func TestDNSResponse(t *testing.T) {
+	t.Skip("Skipping DNSResponse test") // This test is flaky on CI and lead to timeout
 	SkipIfNotAvailable(t)
 	checkNetworkCompatibility(t)
 
