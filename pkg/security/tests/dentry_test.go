@@ -41,7 +41,7 @@ func TestDentryPathERPC(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -105,7 +105,7 @@ func TestDentryPathMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -167,7 +167,7 @@ func TestDentryName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -222,7 +222,7 @@ func TestDentryInvalidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -309,7 +309,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -365,7 +365,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }
 
 var _ = declare(BenchmarkMapDentryResolutionSegment, testOpts{disableERPCDentryResolution: true})
@@ -380,7 +380,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -436,7 +436,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }
 
 var _ = declare(BenchmarkMapDentryResolutionPath, testOpts{disableERPCDentryResolution: true})
@@ -451,7 +451,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -506,5 +506,5 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		}
 	}
 
-	test.Close()
+	test.CloseTest()
 }

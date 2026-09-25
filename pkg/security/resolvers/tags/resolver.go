@@ -100,7 +100,7 @@ func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (
 		entityContainerImageMetadataID := types.NewEntityID(types.ContainerImageMetadata, string(imageID))
 		fallbackTags, _ := tagger.Tag(entityContainerImageMetadataID, types.OrchestratorCardinality)
 		if imageTag := utils.GetTagValue("image_tag", fallbackTags); len(imageTag) != 0 {
-			tags = append(tags, imageTag)
+			tags = append(tags, "image_tag:"+imageTag)
 		}
 	}
 	return tags, err

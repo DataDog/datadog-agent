@@ -39,7 +39,7 @@ func TestSetSockOptRaw(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("setsockopt", func(t *testing.T) {
 		var fd int
@@ -128,7 +128,7 @@ func TestSetSockOptUDP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("setsockopt-DGRAM-socket", func(t *testing.T) {
 		var fd int
@@ -218,7 +218,7 @@ func TestSetSockOptTCP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("setsockopt-STREAM-socket", func(t *testing.T) {
 		var fd int
@@ -305,7 +305,7 @@ func TestSetSockOptReuseaddr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("setsockopt-reuseaddr", func(t *testing.T) {
 		var fd int
@@ -371,7 +371,7 @@ func TestSetSockOptTruncatedFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("setsockopt-TruncatedFilter", func(t *testing.T) {
 		var fd int

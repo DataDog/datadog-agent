@@ -56,7 +56,7 @@ func TestNetDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	currentNetns, err := utils.NewNSPathFromPid(utils.Getpid(), utils.NetNsType).GetNSID()
 	if err != nil {
@@ -182,7 +182,7 @@ func TestTCFilters(t *testing.T) {
 	var testModuleCleanedUp bool
 	defer func() {
 		if !testModuleCleanedUp {
-			test.Close()
+			test.CloseTest()
 		}
 	}()
 
@@ -243,8 +243,8 @@ func TestTCFilters(t *testing.T) {
 		}
 
 		// no zombie check here
-		test.CloseWithOptions(false)
-		test.cleanup()
+		test.ValidateEndOfTest(false)
+		test.CloseTestAndMonitor()
 		testMod = nil // force a full testModule reinitialization
 		testModuleCleanedUp = true
 

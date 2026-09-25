@@ -10,26 +10,32 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 const (
 	defaultVMName = "vm"
 )
 
+type preAgentInstallHook func(*aws.Environment, *remote.Host) (pulumi.Resource, error)
+
 // Params is a set of parameters for the Host environment.
 type Params struct {
 	Name string
 
-	instanceOptions    []VMOption
-	agentOptions       []agentparams.Option
-	agentClientOptions []agentclientparams.Option
-	fakeintakeOptions  []fakeintake.Option
-	installDocker      bool
-	installUpdater     bool
+	instanceOptions      []VMOption
+	agentOptions         []agentparams.Option
+	agentClientOptions   []agentclientparams.Option
+	fakeintakeOptions    []fakeintake.Option
+	preAgentInstallHooks []preAgentInstallHook
+	installDocker        bool
+	installUpdater       bool
 }
 
 func newParams() *Params {
@@ -140,6 +146,14 @@ func WithAgentClientOptions(opts ...agentclientparams.Option) Option {
 func WithFakeIntakeOptions(opts ...fakeintake.Option) Option {
 	return func(params *Params) error {
 		params.fakeintakeOptions = append(params.fakeintakeOptions, opts...)
+		return nil
+	}
+}
+
+// WithPreAgentInstallHook adds a callback after the host is ready and before the Agent package is installed.
+func WithPreAgentInstallHook(cb preAgentInstallHook) Option {
+	return func(params *Params) error {
+		params.preAgentInstallHooks = append(params.preAgentInstallHooks, cb)
 		return nil
 	}
 }

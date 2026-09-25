@@ -10,9 +10,7 @@ import "time"
 // BuiltInHealthCheck is the base configuration shared by all built-in health checks.
 // Source is the reporting component label.
 // Fn returns zero or more IssueReports; returning nil/empty means no issue detected.
-// IssueNames is populated automatically by Registry.RegisterModule from module.IssueName();
-// module authors must not set it. bundle.go uses it to query the store for persisted
-// issues from a prior run so checks can resolve them after restart.
+// IssueNames lists extra issue names Fn reports under, beyond the module's own IssueName() (which RegisterModule appends automatically); bundle.go uses it to resolve persisted issues after restart.
 type BuiltInHealthCheck struct {
 	Source     string
 	Fn         HealthCheckFunc

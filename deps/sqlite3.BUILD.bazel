@@ -45,6 +45,7 @@ cc_shared_library(
 dd_cc_packaged(
     name = "sqlite3_pkg",
     input = ":sqlite3",
+    dest_dir = "embedded/lib",
     version = VERSION,
     visibility = ["//visibility:public"],
 )

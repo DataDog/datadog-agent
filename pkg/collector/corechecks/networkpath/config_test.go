@@ -682,10 +682,6 @@ func TestConfigureSetsTestConfigSourceFromProvider(t *testing.T) {
 			expectedTestConfigName: "Production paths",
 		},
 		{
-			name:     "generic remote config",
-			provider: names.RemoteConfig,
-		},
-		{
 			name:     "unknown",
 			provider: "unknown",
 		},

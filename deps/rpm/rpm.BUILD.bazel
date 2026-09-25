@@ -287,7 +287,7 @@ dd_agent_expand_template(
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/rpm",
+    prefix = "embedded/include/rpm",
 )
 
 pkg_files(
@@ -296,12 +296,13 @@ pkg_files(
         ":gen_rpmrc",
         ":gen_rpmpopt",
     ],
-    prefix = "lib/rpm",
+    prefix = "embedded/lib/rpm",
 )
 
 dd_cc_packaged(
     name = "rpmio_pkg",
     input = ":rpmio",
+    dest_dir = "embedded/lib",
     version = "9.4.0",
     visibility = ["//visibility:public"],
 )
@@ -309,6 +310,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "rpm_pkg",
     input = ":rpm",
+    dest_dir = "embedded/lib",
     version = "9.4.0",
     installed_files = [
         ":hdr_files",
@@ -323,6 +325,5 @@ pkg_filegroup(
         ":hdr_files",
         ":misc_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

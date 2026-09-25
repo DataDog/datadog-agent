@@ -86,6 +86,27 @@ pub enum ProcessOrigin {
     Runtime,
 }
 
+/// Why a respawn was skipped by a closed start condition, and what recovering
+/// it still owes the restart accounting.
+///
+/// Reload needs the skip *reason*, not the state: `Exited`, `Failed`, and
+/// `Stopped` are also reached by a completed one-shot, a policy mismatch, the
+/// burst limit, a failed spawn, and an operator stop, none of which an
+/// unrelated reload may restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RestartBlock {
+    /// No respawn was skipped for a closed condition.
+    None,
+    /// Skipped at exit time, before `handle_restart` recorded the restart,
+    /// because the gate is checked first so that a closed gate consumes no
+    /// burst budget. Recovery owes that recording.
+    AccountingOwed,
+    /// Skipped once the restart had already been recorded (the backoff
+    /// re-check), or for a respawn that is not a restart at all (the reload of
+    /// a running process). Recovery must not record anything.
+    AlreadyAccounted,
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -97,6 +118,9 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
+    /// Set only where a respawn was skipped because a start condition was
+    /// closed, and cleared in `spawn()`.
+    restart_block: RestartBlock,
     origin: ProcessOrigin,
     last_exit_status: Option<std::process::ExitStatus>,
     #[cfg(windows)]
@@ -136,6 +160,7 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             stop_requested: false,
+            restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
             #[cfg(windows)]
@@ -286,6 +311,59 @@ impl ManagedProcess {
         self.config.condition_path_exists.is_some() || !self.config.condition_config_any.is_empty()
     }
 
+    /// Whether a respawn this process was otherwise due was skipped because a
+    /// start condition was closed. Reload restarts exactly these, so it must
+    /// only ever be set right after a `may_respawn()` check fails.
+    #[must_use]
+    pub(crate) fn restart_blocked_by_conditions(&self) -> bool {
+        self.restart_block != RestartBlock::None
+    }
+
+    /// Records a respawn skipped by a closed condition that needs no further
+    /// accounting: the backoff re-check, where `handle_restart` already
+    /// recorded the restart, and the reload of a running process, which is not
+    /// a restart-policy respawn at all. The exit-time skip is marked inside
+    /// `handle_restart`, which is the only case that owes a recording.
+    pub(crate) fn mark_restart_blocked_already_accounted(&mut self) {
+        self.restart_block = RestartBlock::AlreadyAccounted;
+    }
+
+    /// Whether the restart burst window currently holds as many restarts as
+    /// `start_limit_burst` allows.
+    #[must_use]
+    pub(crate) fn restart_burst_exhausted(&self) -> bool {
+        self.restarts
+            .is_burst_limited(self.config.burst_limit(), self.config.burst_interval())
+    }
+
+    /// Whether recovering a condition skip would take a burst slot the limit
+    /// has already refused.
+    ///
+    /// Only an exit-time skip owes the check. The gate is tested before the
+    /// limit, so that skip records nothing and can outlive a budget earlier
+    /// crashes already spent. The backoff re-check recorded its restart when
+    /// the limit admitted it, and the reload of a running process is not a
+    /// restart, so neither may be refused for a window that is already full.
+    #[must_use]
+    pub(crate) fn recovered_restart_exceeds_burst(&self) -> bool {
+        self.restart_block == RestartBlock::AccountingOwed && self.restart_burst_exhausted()
+    }
+
+    /// Accounts for a restart that a closed gate skipped before it could be
+    /// recorded. Call immediately before respawning a recovered process, and
+    /// after the burst budget has been checked, since this spends from it.
+    ///
+    /// The backoff is deliberately not advanced: a recovered process spawns
+    /// immediately rather than waiting out a delay, so there is no delay to
+    /// grow.
+    pub(crate) fn record_recovered_restart(&mut self) {
+        if self.restart_block != RestartBlock::AccountingOwed {
+            return;
+        }
+        self.restarts
+            .record(self.config.restart_delay(), self.config.runtime_success());
+    }
+
     #[must_use]
     pub fn should_start(&self) -> bool {
         if !self.config.auto_start {
@@ -300,6 +378,9 @@ impl ManagedProcess {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.stop_requested = false;
+        // The single clear site, which is what keeps the reason from going
+        // stale: boot, restart, manual start, and reload all land here.
+        self.restart_block = RestartBlock::None;
         self.transition_to(ProcessState::Starting);
         match self.try_spawn() {
             Ok(handle) => {
@@ -502,6 +583,7 @@ impl ManagedProcess {
         // burst budget nor advances the backoff.
         if !self.may_respawn() {
             info!("[{}] start conditions not met, not restarting", self.name);
+            self.restart_block = RestartBlock::AccountingOwed;
             return None;
         }
 
@@ -1158,6 +1240,154 @@ runtime_success_sec: 5
             proc.restart_count(),
             0,
             "a skipped restart must not consume burst budget"
+        );
+        assert!(
+            proc.restart_blocked_by_conditions(),
+            "the skip reason must be recorded so reload can recover the process"
+        );
+    }
+
+    /// The flag exists so that reload can start a process that a closed
+    /// condition kept from restarting, and only such a process. Each test
+    /// below drives one route into a terminal state and asserts whether that
+    /// route is one reload may act on.
+    fn condition_gated_config(gate: &std::path::Path) -> ProcessConfig {
+        let (cmd, args) = test_helpers::exit_cmd(1);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        cfg
+    }
+
+    async fn run_to_exit(proc: &mut ManagedProcess) {
+        let mut exit_rx = spawn_ok(proc);
+        let status = exit_rx.recv().await.expect("exit event").status;
+        proc.set_last_status(status);
+    }
+
+    #[tokio::test]
+    async fn test_spawn_clears_restart_blocked_flag() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("gate");
+        let mut proc = ManagedProcess::new_config(
+            "svc".into(),
+            test_helpers::test_uuid(),
+            condition_gated_config(&gate),
+        );
+
+        run_to_exit(&mut proc).await;
+        assert!(proc.handle_restart().is_none());
+        assert!(proc.restart_blocked_by_conditions());
+
+        // The condition reopens and the process is spawned again, which is the
+        // only place the flag is cleared.
+        std::fs::write(&gate, b"").unwrap();
+        assert!(proc.may_respawn());
+        run_to_exit(&mut proc).await;
+        assert!(
+            !proc.restart_blocked_by_conditions(),
+            "spawning must clear the recorded skip reason"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_completed_one_shot_does_not_record_restart_block() {
+        let (cmd, args) = test_helpers::exit_cmd(0);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Never;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        run_to_exit(&mut proc).await;
+
+        assert_eq!(proc.state(), ProcessState::Exited);
+        assert!(proc.handle_restart().is_none());
+        assert!(
+            !proc.restart_blocked_by_conditions(),
+            "a one-shot that ran to completion was not blocked by its condition"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_policy_mismatch_does_not_record_restart_block() {
+        let (cmd, args) = test_helpers::exit_cmd(0);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::OnFailure;
+        cfg.condition_path_exists = Some("/nonexistent/path/binary".to_string());
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        run_to_exit(&mut proc).await;
+
+        assert_eq!(proc.state(), ProcessState::Exited);
+        assert!(proc.handle_restart().is_none());
+        assert!(
+            !proc.restart_blocked_by_conditions(),
+            "a clean exit under on-failure was left alone by policy, not by the condition"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_burst_limit_does_not_record_restart_block() {
+        let (cmd, args) = test_helpers::exit_cmd(1);
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.start_limit_burst = Some(1);
+        cfg.start_limit_interval_sec = Some(3600);
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        run_to_exit(&mut proc).await;
+        assert!(proc.handle_restart().is_some(), "first restart is allowed");
+
+        run_to_exit(&mut proc).await;
+        assert!(
+            proc.handle_restart().is_none(),
+            "the second exit is over the burst limit"
+        );
+        assert!(
+            !proc.restart_blocked_by_conditions(),
+            "the burst limit must not look like a condition skip, or reload would bypass it"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_spawn_failure_does_not_record_restart_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("gate");
+        std::fs::write(&gate, b"").unwrap();
+        let mut cfg = condition_gated_config(&gate);
+        cfg.command = "/nonexistent/binary".to_string();
+        cfg.args = vec![];
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        let (tx, _rx) = test_exit_channel();
+        assert!(proc.spawn(tx).is_err(), "a missing binary must not spawn");
+
+        assert_eq!(proc.state(), ProcessState::Failed);
+        assert!(
+            !proc.restart_blocked_by_conditions(),
+            "a failed spawn must not look like a condition skip, or reload would hot-loop it"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_operator_stop_does_not_record_restart_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let gate = dir.path().join("gate");
+        std::fs::write(&gate, b"").unwrap();
+        let mut cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        cfg.restart = RestartPolicy::Always;
+        cfg.condition_path_exists = Some(gate.to_string_lossy().into_owned());
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+
+        let mut exit_rx = spawn_ok(&mut proc);
+        proc.request_stop();
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            !proc.restart_blocked_by_conditions(),
+            "an operator stop is deliberate and must survive an unrelated reload"
         );
     }
 

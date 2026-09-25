@@ -35,7 +35,7 @@ func TestRmdir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -181,7 +181,7 @@ func TestRmdirInvalidate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	ifSyscallSupported("SYS_RMDIR", func(t *testing.T, syscallNB uintptr) {
 		for i := 0; i != 5; i++ {

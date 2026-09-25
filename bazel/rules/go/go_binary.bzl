@@ -29,6 +29,7 @@ only be set when Bazel is invoked with the --stamp flag.
 """
 
 load("@rules_go//go:def.bzl", "go_binary")
+load("@with_cfg.bzl", "with_cfg")
 load("//bazel/rules/variables:variables.bzl", "compute_version_variables", "standard_to_url_safe")
 load(
     "//tasks:build_tags.bzl",
@@ -165,3 +166,14 @@ def dd_agent_go_binary(
         }),
         **kwargs
     )
+
+# Bazel's default --strip=sometimes strips rules_go binaries in fastbuild mode.
+# We have cases (like fixture binaries for tests) that rely on having
+# unconditionally unstripped binaries. This creates a target with a transition
+# that enforces that.
+unstripped_go_binary, _unstripped_go_binary_internal = with_cfg(
+    go_binary,
+).set(
+    "strip",
+    "never",
+).build()

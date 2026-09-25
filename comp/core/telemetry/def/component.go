@@ -54,9 +54,10 @@ type Component interface {
 	// NewSimpleHistogramWithOpts creates a new SimpleHistogram.
 	NewSimpleHistogramWithOpts(subsystem, name, help string, buckets []float64, opts Options) SimpleHistogram
 
-	// Gather exposes metrics from the general or default telemetry registry (see options.DefaultMetric)
-	Gather(defaultGather bool) ([]*MetricFamily, error)
+	// Gather exposes the metrics from the telemetry registry that the given filter accepts.
+	Gather(filter MetricFilter) ([]*MetricFamily, error)
 
-	// GatherText exposes metrics from the general or default telemetry registry (see options.DefaultMetric) in text format
-	GatherText(defaultGather bool, filter MetricFilter) (string, error)
+	// GatherText exposes, in Prometheus text format, the metrics from the telemetry registry that
+	// the given filter accepts.
+	GatherText(filter MetricFilter) (string, error)
 }

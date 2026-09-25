@@ -1009,6 +1009,7 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
+	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
 	tagList.AddLow(tags.GPUNVLinkCapable, strconv.FormatBool(gpu.NVLinkVersion != "not_nvlink_capable" && gpu.NVLinkVersion != ""))
@@ -1025,6 +1026,29 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
 	}
+}
+
+// migProfileTagValue returns the gpu_mig_profile value for a GPU. Like every
+// other device tag, it is set on every device rather than only where it
+// applies -- gpu_parent_uuid falls back to the device's own UUID and
+// gpu_slicing_mode to "none" -- so grouping by it never yields an untagged
+// bucket: devices that are not MIG instances (physical cards, MIG parents,
+// vGPUs) get "none", and a MIG instance whose profile could not be resolved
+// gets "unknown".
+//
+// A resolved profile keeps NVIDIA's name. '+' is the one character outside the
+// tag value charset, and the backend would turn it into '_' anyway; doing it
+// here keeps the documented value the one users see. Collapsing '.' and '+'
+// into '-' instead (as the KSM mig_profile tag's values end up) would merge
+// distinct profiles such as 1g.24gb+me and 1g.24gb-me.
+func migProfileTagValue(gpu *workloadmeta.GPU) string {
+	if gpu.DeviceType != workloadmeta.GPUDeviceTypeMIG {
+		return "none"
+	}
+	if gpu.MIGProfile == "" {
+		return "unknown"
+	}
+	return strings.ReplaceAll(strings.ToLower(gpu.MIGProfile), "+", "_")
 }
 
 func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {

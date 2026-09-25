@@ -2,6 +2,29 @@
 Release Notes
 =============
 
+.. _Release Notes_7.83.3:
+
+7.83.3
+======
+
+.. _Release Notes_7.83.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-09-24
+
+- Please refer to the `7.83.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7833>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.83.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix missing log source configuration fields in public inventory metadata, including Windows Event Log queries, processing options, auto-multiline settings, and maximum message size.
+
+
 .. _Release Notes_7.83.2:
 
 7.83.2

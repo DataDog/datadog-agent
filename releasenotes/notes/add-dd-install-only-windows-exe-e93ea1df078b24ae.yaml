@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add support for the ``DD_INSTALL_ONLY`` flag to the Windows executable installer.
+    Set ``$env:DD_INSTALL_ONLY = "1"`` or ``$env:DD_INSTALL_ONLY = "true"``
+    to install the Datadog Agent without starting its services.

@@ -58,5 +58,6 @@ dd_agent_go_test(
         "//pkg/snmp/snmpparse",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -163,6 +163,10 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if c, ok := consumer.(TagSetConsumer); ok {
 					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
 				}
+			case source.AzureFunctionsKind:
+				if c, ok := consumer.(TagSetConsumer); ok {
+					c.ConsumeTagSet("azurefunctions", tagsFromDimensions(src.SourceIdentifier.Dimensions))
+				}
 			}
 		}
 	}

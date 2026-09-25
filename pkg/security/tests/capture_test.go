@@ -70,7 +70,7 @@ func TestActionCaptureInherited(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	documentDir, _, err := test.Path("document")
 	if err != nil {

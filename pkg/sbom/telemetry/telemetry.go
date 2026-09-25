@@ -85,6 +85,18 @@ var (
 		commonOpts,
 	)
 
+	// SBOMEntitiesSent tracks the SBOM entities handed over to the event
+	// platform forwarder. It counts what the agent emits, not what the intake
+	// acknowledges: entities dropped further down the logs pipeline are still
+	// counted here.
+	SBOMEntitiesSent = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+		Subsystem,
+		"entities_sent",
+		[]string{"type", "status", "heartbeat", "enriched"},
+		"Number of SBOM entities sent by (type, status, heartbeat, enriched)",
+		commonOpts,
+	)
+
 	// SBOMComponentsFound is the number of components found in a SBOM
 	SBOMComponentsFound = telemetryimpl.GetCompatComponent().NewGaugeWithOpts(
 		Subsystem,

@@ -16,7 +16,7 @@ import (
 // for namespaced objects, the id will have the format {group}/{resourceType}/{namespace}/{name} (e.g. app/deployments/default/app )
 // for cluster scoped objects, the id will have the format {group}/{resourceType}//{name} (e.g. /nodes//master-node)
 func GenerateKubeMetadataEntityID(group, resource, namespace, name string) workloadmeta.KubeMetadataEntityID {
-	return workloadmeta.KubeMetadataEntityID(fmt.Sprintf("%s/%s/%s/%s", group, resource, namespace, name))
+	return workloadmeta.KubeMetadataEntityID(group + "/" + resource + "/" + namespace + "/" + name)
 }
 
 // ParseKubeMetadataEntityID parses a metadata entity ID and returns the resource type, namespace and resource name.

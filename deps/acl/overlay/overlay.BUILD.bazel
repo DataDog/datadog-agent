@@ -179,12 +179,14 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = [":fixed_headers"],
+    prefix = "embedded",
     strip_prefix = strip_prefix.from_pkg("fixed"),
 )
 
 dd_cc_packaged(
     name = "acl_pkg",
     input = ":acl",
+    dest_dir = "embedded/lib",
     version = "1.1.2301",
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
@@ -195,6 +197,5 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

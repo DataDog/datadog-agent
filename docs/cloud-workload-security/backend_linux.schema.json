@@ -1947,6 +1947,10 @@
         "event_type_state": {
           "type": "string",
           "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+          "type": "boolean",
+          "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
       },
       "additionalProperties": false,
@@ -1956,7 +1960,8 @@
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },

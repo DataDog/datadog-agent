@@ -15,9 +15,10 @@ pkg_files(
 )
 
 pkg_files(
-    name = "adp_openmetrics_compat_files",
+    name = "openmetrics_example_files",
     srcs = [
         "openmetrics.d/adp_compat.yaml.example",
+        "openmetrics.d/agent_stats.yaml.example",
     ],
     attributes = pkg_attributes(mode = "0644"),
     strip_prefix = strip_prefix.from_pkg(),
@@ -69,8 +70,8 @@ pkg_filegroup(
     name = "all_files",
     srcs = select({
         "//conditions:default": [
-            ":adp_openmetrics_compat_files",
             ":base_checks_files",
+            ":openmetrics_example_files",
         ],
     }) + select({
         "@platforms//os:macos": [

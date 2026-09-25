@@ -119,18 +119,19 @@ cc_shared_library(
 pkg_files(
     name = "main_header",
     srcs = _MAIN_HEADER,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 pkg_files(
     name = "api_headers",
     srcs = _API_HEADERS,
-    prefix = "include/lzma",
+    prefix = "embedded/include/lzma",
 )
 
 dd_cc_packaged(
     name = "lzma_pkg",
     input = ":lzma",
+    dest_dir = "embedded/lib",
     version = VERSION,
     installed_files = [
         ":main_header",
@@ -145,6 +146,5 @@ pkg_filegroup(
         ":main_header",
         ":api_headers",
     ],
-    prefix = "embedded",
     visibility = ["//visibility:public"],
 )

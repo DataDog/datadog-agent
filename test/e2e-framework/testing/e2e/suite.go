@@ -232,10 +232,12 @@ func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
 }
 
-// Logf satisfies the common.Context interface by delegating to the underlying *testing.T
+// Logf satisfies the common.Context interface by delegating to the formatted test logger.
 func (bs *BaseSuite[Env]) Logf(format string, args ...any) {
 	bs.T().Helper()
-	bs.T().Logf(format, args...)
+	// The formatted test logger includes a timestamp which is important for diagnosing slow
+	// commands during tests. The gitlab job log line timestamps are incorrect.
+	utils.Logf(bs.T(), format, args...)
 }
 
 // FailNow satisfies the common.Context interface by logging the message and stopping the test.
@@ -968,5 +970,7 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	}
 
 	s.init(options, s)
+	// https://github.com/DataDog/dd-trace-go/blob/v2.10.1/internal/civisibility/integrations/gotesting/orchestrion.yml#L243
+	instrumentTestifySuiteRun(t, s)
 	suite.Run(t, s)
 }

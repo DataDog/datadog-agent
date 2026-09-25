@@ -82,12 +82,13 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = glob(["include/selinux/*.h"]),
-    prefix = "include/selinux",
+    prefix = "embedded/include/selinux",
 )
 
 dd_cc_packaged(
     name = "selinux_pkg",
     input = ":selinux",
+    dest_dir = "embedded/lib",
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
 )
@@ -97,6 +98,5 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

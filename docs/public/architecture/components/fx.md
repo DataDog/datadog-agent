@@ -1,204 +1,115 @@
 # Overview of Fx
 
-The Agent uses [Fx](https://uber-go.github.io/fx) as its application framework. While the linked Fx documentation is thorough, it can be a bit difficult to get started with. This document describes how Fx is used within the Agent in a more approachable style.
+The Agent uses [Fx](https://uber-go.github.io/fx) to assemble applications through dependency injection. Component implementations receive ordinary Go values, while wrapper packages describe how the application obtains those values. This separation lets the same implementation run inside an Agent binary or be constructed directly by tests and other callers.
 
-## What Is It?
+The [creation tutorial](../../tutorials/components/creating-components.md) demonstrates this separation with a compression component. The [component guidelines](../../guidelines/components.md) define the repository conventions.
 
-Fx's core functionality is to create instances of required types "automatically," also known as [dependency injection](https://en.wikipedia.org/wiki/Dependency_injection). Within the agent, these instances are components, so Fx connects components to one another. Fx creates a single instance of each component, on demand.
+## Providing and requiring
 
-This means that each component declares a few things about itself to Fx, including the other components it depends on. An "app" then declares the components it contains to Fx, and instructs Fx to start up the whole assembly.
+Fx connects providers and consumers by type. A constructor makes its outputs available to the application, and another constructor can request those types as dependencies. Registering a provider records how to construct a value; construction happens only when the application needs that value. Fx shares the constructed value with its consumers within the application.
 
-## Providing and Requiring
+For example, the tutorial's compression implementation requires configuration and logging. When an application requests the compression interface, Fx first resolves those dependencies and then calls the compression constructor. Unused providers remain unconstructed.
 
-Fx connects components using types. Within the Agent, these are typically interfaces named `Component`. For example, `scrubber.Component` might be an interface defining functionality for scrubbing passwords from data structures:
+A component can become required through another constructor's dependencies or through an application entry point:
 
-/// tab | :octicons-file-code-16: scrubber/component.go
-```go
-type Component interface {
-    ScrubString(string) string
-}
-```
-///
+* [`fx.Invoke`](https://pkg.go.dev/go.uber.org/fx#Invoke) requests its arguments and runs during application construction. It can request several dependencies and return an error.
+* [`fx.Populate`](https://pkg.go.dev/go.uber.org/fx#Populate) requests values and stores them in the variables addressed by its pointer arguments. Tests can then inspect or call the assembled components.
 
-Fx needs to know how to *provide* an instance of this type when needed, and there are a few ways:
-
-* [`fx.Provide(NewScrubber)`](https://pkg.go.dev/go.uber.org/fx#Provide) where `NewScrubber` is a constructor that returns a `scrubber.Component`. This indicates that if and when a `scrubber.Component` is required, Fx should call `NewScrubber`. It will call `NewScrubber` only once, using the same value everywhere it is required.
-* [`fx.Supply(scrubber)`](https://pkg.go.dev/go.uber.org/fx#Supply) where `scrubber` implements the `scrubber.Component` interface. When another component requires a `scrubber.Component`, this is the instance it will get.
-
-The first form is much more common, as most components have constructors that do interesting things at runtime. A constructor can return multiple arguments, in which case the constructor is called if _any_ of those argument types are required. Constructors can also return `error` as the final return type. Fx will treat an error as fatal to app startup.
-
-Fx also needs to know when an instance is *required*, and this is where the magic happens. In specific circumstances, it uses reflection to examine the argument list of functions, and creates instances of each argument's type. Those circumstances are:
-
-* Constructors used with `fx.Provide`. Imagine `NewScrubber` depends on the config module to configure secret matchers:
-      ```go
-      func NewScrubber(config config.Component) Component {
-          return &scrubber{
-              matchers: makeMatchersFromConfig(config),
-          }
-      }
-      ```
-* Functions passed to [`fx.Invoke`](https://pkg.go.dev/go.uber.org/fx#Invoke):
-
-    ```go
-    fx.Invoke(func(sc scrubber.Component) {
-        fmt.Printf("scrubbed: %s", sc.ScrubString(somevalue))
-    })
-    ```
-
-    Like constructors, Invoked functions can take multiple arguments, and can optionally return an error. Invoked functions are called automatically when an app is created.
-
-* Pointers passed to [`fx.Populate`](https://pkg.go.dev/go.uber.org/fx#Populate).
-
-    ```go
-    var sc scrubber.Component
-    // ...
-    fx.Populate(&sc)
-    ```
-
-    Populate is useful in tests to fill an existing variable with a provided value. It's equivalent to `fx.Invoke(func(tmp scrubber.Component) { *sc = tmp })`.
-
-    Functions can take multiple arguments of different types, requiring all of them.
-
-## Apps and Options
-
-You may have noticed that all of the `fx` methods defined so far return an `fx.Option`. They don't actually do anything on their own. Instead, Fx uses the [functional options pattern](https://commandcenter.blogspot.com/2014/01/self-referential-functions-and-design.html) from Rob Pike. The idea is that a function takes a variable number of options, each of which has a different effect on the result.
-
-In Fx's case, the function taking the options is [`fx.New`](https://pkg.go.dev/go.uber.org/fx#New), which creates a new [`fx.App`](https://pkg.go.dev/go.uber.org/fx#New). It's within the context of an app that requirements are met, constructors are called, and so on.
-
-Tying the example above together, a very simple app might look like this:
+These alternative fragments show the same request. Here, `compression` is the tutorial's interface package and `fx` is `go.uber.org/fx`; each option is applied to an application that registers the compression wrapper and its dependencies.
 
 ```go
-someValue = "my password is hunter2"
-app := fx.New(
-    fx.Provide(scrubber.NewScrubber),
-    fx.Invoke(func(sc scrubber.Component) {
-        fmt.Printf("scrubbed: %s", sc.ScrubString(somevalue))
-    }))
-app.Run()
-// Output: scrubbed: my password is *******
+var comp compression.Component
+fx.Populate(&comp)
 ```
 
-For anything more complex, it's not practical to call `fx.Provide` for every component in a single source file. Fx has two abstraction mechanisms that allow combining lots of options into one app:
-
-* [`fx.Options`](https://pkg.go.dev/go.uber.org/fx#Options) simply bundles several Option values into a single Option that can be placed in a variable. As the example in the Fx documentation shows, this is useful to gather the options related to a single Go package, which might include un-exported items, into a single value typically named `Module`.
-* [`fx.Module`](https://pkg.go.dev/go.uber.org/fx#Module) is very similar, with two additional features. First, it requires a module name which is used in some Fx logging and can help with debugging. Second, it creates a scope for the effects of [`fx.Decorate`](https://pkg.go.dev/go.uber.org/fx#Decorate) and [`fx.Replace`](https://pkg.go.dev/go.uber.org/fx#Replace). The second feature is not used in the Agent.
-
-So a slightly more complex version of the example might be:
-
-/// tab | :octicons-file-code-16: scrubber/component.go
 ```go
-func Module() fxutil.Module {
-    return fx.Module("scrubber",
-    fx.Provide(newScrubber))    // now newScrubber need not be exported
-}
+var comp compression.Component
+fx.Invoke(func(value compression.Component) {
+    comp = value
+})
 ```
-///
 
-/// tab | :octicons-file-code-16: main.go
-```go
-someValue = "my password is hunter2"
-app := fx.New(
-    scrubber.Module(),
-    fx.Invoke(func(sc scrubber.Component) {
-        fmt.Printf("scrubbed: %s", sc.ScrubString(somevalue))
-    }))
-app.Run()
-// Output: scrubbed: my password is *******
-```
-///
+Underlying Fx also supports [`fx.Provide`](https://pkg.go.dev/go.uber.org/fx#Provide) for ordinary provider functions and [`fx.Supply`](https://pkg.go.dev/go.uber.org/fx#Supply) for existing values. A supplied value is registered under its concrete type, so it does not automatically satisfy every interface that type implements. A provider with an interface return type exposes that interface explicitly.
+
+## Apps and options
+
+Registration helpers return options describing an application. [`fx.New`](https://pkg.go.dev/go.uber.org/fx#New) applies those options, resolves dependencies requested by invocations and population, and reports construction errors through `app.Err()`. A missing dependency, duplicate provider, or constructor error prevents startup. `app.Run()` starts the application, waits for a shutdown signal, and stops it.
+
+[`fx.Options`](https://pkg.go.dev/go.uber.org/fx#Options) combines options, while [`fx.Module`](https://pkg.go.dev/go.uber.org/fx#Module) also groups them under a name and scopes operations such as `fx.Decorate` and `fx.Replace`. Agent wrappers return `fxutil.Module` through `fxutil.Component(...)`, which derives the module's name from its location. This Agent wrapper type differs from the `fx.Option` returned directly by `fx.Module(...)`.
+
+Agent binaries commonly use `fxutil.Run` for a long-running application or `fxutil.OneShot` for a command. Both include the Agent's lifecycle and shutdown adapters and Fx logging. `OneShot` calls its command function after startup completes and shuts the application down afterward. Ordinary `fx.Invoke` callbacks run earlier, during construction.
 
 ## Lifecycle
 
-Fx provides an [`fx.Lifecycle`](https://pkg.go.dev/go.uber.org/fx#Lifecycle) component that allows hooking into application start-up and shut-down. Use it in your component's constructor like this:
+Construction establishes dependencies; lifecycle hooks coordinate work that must start and stop with the application. Implementations express these hooks through <<<repo("comp/def/lifecycle.go", "`compdef.Lifecycle` and `compdef.Hook`")>>> so their code remains independent of Fx.
+
+An implementation receives a lifecycle in its `Requires` struct and appends hooks during construction. The application goes through four phases:
+
+1. Initialization constructs requested components and runs invocations. Hooks are registered but have not run.
+1. Startup calls `OnStart` hooks in registration order. Dependencies are constructed before their consumers, so hooks appended by those constructors follow that order.
+1. Runtime begins after startup completes. Startup hooks schedule ongoing work and return, allowing later hooks to run.
+1. Shutdown calls `OnStop` hooks in reverse order. If startup fails, Fx rolls back the hooks whose startup completed successfully.
+
+An unused provider never gets an opportunity to register its hooks. This is why registering a component's wrapper alone does not start its background work. Public methods may also be called by an invocation before startup, which motivates the [component lifecycle requirements](../../guidelines/components.md#concurrency-and-lifecycle).
+
+The boundary between the plain lifecycle and Fx is explicit. <<<repo("pkg/util/fxutil/provide_comp.go", "`fxutil.FxLifecycleAdapter()`", match="^func FxLifecycleAdapter")>>> supplies `compdef.Lifecycle` from Fx's lifecycle. `fxutil.FxAgentBase()` includes that adapter, the shutdown adapter, and Fx logging. An application built directly with `fx.New` needs the appropriate option when its components request these interfaces. The constructor adapter does not supply lifecycle adaptation.
+
+`fxutil.Run` and `fxutil.OneShot` already register `FxAgentBase`. Adding either adapter option to them, or combining both options in an `fx.New` application, duplicates providers.
+
+Direct callers provide their own lifecycle implementation. Tests can use `compdef.NewTestLifecycle(t)` with the repository's `test` build tag. Older Agent implementations and underlying Fx examples may instead depend directly on `fx.Lifecycle` and `fx.Hook`.
+
+Fx applies startup and shutdown timeouts when running an application. Hooks that respect cancellation of their supplied context allow those limits to take effect.
+
+## Ins and outs
+
+[`fx.In`](https://pkg.go.dev/go.uber.org/fx#In) and [`fx.Out`](https://pkg.go.dev/go.uber.org/fx#Out) identify dependency and result structs to Fx. Agent implementations use plain exported `Requires` and `Provides` structs so that their constructors also work without Fx.
+
+<<<repo("pkg/util/fxutil/provide_comp.go", "`fxutil.ProvideComponentConstructor`")>>> creates an adapter around the plain constructor. It adds Fx's markers to generated input and output types, preserves exported fields and their tags, and translates values between the generated types and the implementation's structs. A `Provides` struct can expose several types; a constructor can also return an error, which the adapter passes through to Fx.
+
+For example, the compression tutorial's output and the adapter's corresponding output have these conceptual shapes. The `compression` alias denotes the tutorial's interface package and `fx` denotes `go.uber.org/fx`. The generated type is shown only to explain the adapter.
 
 ```go
-func newScrubber(lc fx.Lifecycle) Component {
-    sc := &scrubber{..}
-    lc.Append(fx.Hook{OnStart: sc.start, OnStop: sc.stop})
-    return sc
+type Provides struct {
+    Comp compression.Component
 }
 
-func (sc *scrubber) start(ctx context.Context) error { .. }
-func (sc *scrubber) stop(ctx context.Context) error { .. }
-```
-
-This separates the application's lifecycle into a few distinct phases:
-
-* Initialization - calling constructors to satisfy requirements, and calling invoked functions that require them.
-* Startup - calling components' OnStart hooks (in the same order the components were initialized)
-* Runtime - steady state
-* Shutdown - calling components' OnStop hooks (reverse of the startup order)
-
-## Ins and Outs
-
-Fx provides some convenience types to help build constructors that require or provide lots of types: [`fx.In`](https://pkg.go.dev/go.uber.org/fx#In) and [`fx.Out`](https://pkg.go.dev/go.uber.org/fx#Out). Both types are embedded in structs, which can then be used as argument and return types for constructors, respectively. By convention, these are named `dependencies` and `provides` in Agent code:
-
-```go
-type dependencies struct {
-    fx.In
-
-    Config config.Component
-    Log log.Component
-    Status status.Component
-}
-
-type provides struct {
+type fxProvides struct {
     fx.Out
-
-    Component
-    // ... (we'll see why this is useful below)
-}
-
-func newScrubber(deps dependencies) (provides, error) { // can return an fx.Out struct and other types, such as error
-    // ..
-    return provides {
-        Component: scrubber,
-        // ..
-    }, nil
+    Comp compression.Component
 }
 ```
 
-In and Out provide a nice way to summarize and document requirements and provided types, and also allow annotations via Go struct tags. Note that annotations are also possible with [`fx.Annotate`](https://pkg.go.dev/go.uber.org/fx#Annotate), but it is much less readable and its use is discouraged.
+The adapter rejects unexported fields and manually included `fx.In` or `fx.Out` fields. The wrapper owns Fx registration, while the implementation's types describe its dependencies and results. The [constructor conventions](../../guidelines/components.md#package-and-constructor-conventions) capture this boundary.
 
-### Value Groups
+### Value groups
 
-[Value groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) make it easier to produce and consume many values of the same type. A component can add any type into groups which can be consumed by other components.
+[Value groups](https://pkg.go.dev/go.uber.org/fx#hdr-Value_Groups) let several providers contribute values of the same type. A producer tags an output with a group name, and a consumer requests a slice with that name. The constructor adapter preserves these tags.
 
-For example:
+The <<<repo("comp/core/remoteagentregistry/impl/registry.go", "remote-agent registry")>>> uses this mechanism for event subscribers. Its <<<repo("comp/core/remoteagentregistry/def/subscriber.go", "subscriber helper")>>> returns an Fx-aware struct embedding `fx.Out`. The following example adapts the subscriber type and group tag to plain producer and consumer structs registered through `fxutil.ProvideComponentConstructor`. Only the group-related fields are shown; `remoteagentregistry` denotes <<<repo("comp/core/remoteagentregistry/def", "the registry's interface package")>>>.
 
-Here, two components add a `server.Endpoint` type to the `server` group (note the `group` label in the `fx.Out` struct).
-
-/// tab | :octicons-file-code-16: todolist/todolist.go
 ```go
-type provides struct {
-    fx.Out
-    Component
-    Endpoint server.Endpoint `group:"server"`
+type Provides struct {
+    Subscriber *remoteagentregistry.EventSubscriber `group:"remoteAgentEventSubscriber"`
+}
+
+type Requires struct {
+    EventSubscribers []*remoteagentregistry.EventSubscriber `group:"remoteAgentEventSubscriber"`
 }
 ```
-///
 
-/// tab | :octicons-file-code-16: users/users.go
-```go
-type provides struct {
-    fx.Out
-    Component
-    Endpoint server.Endpoint `group:"server"`
-}
-```
-///
+When the registry is requested, Fx constructs the providers contributing subscribers. Their order in the resulting slice is unspecified. A group with no providers yields an empty slice, so the registry can accept any number of subscribers.
 
-Here, a component requests all the types added to the `server` group. This takes the form of a slice received at instantiation (note once again the `group` label but in `fx.In` struct).
+### Optional values
 
-/// tab | :octicons-file-code-16: server/server.go
-```go
-type dependencies struct {
-    fx.In
-    Endpoints []Endpoint `group:"server"`
-}
-```
-///
+An `option.Option[T]` dependency is an ordinary required type to Fx. It needs a provider even when its value represents absence. This differs from a value group, which can resolve without contributors.
 
-## Next steps
+<<<repo("pkg/util/fxutil/provide_optional.go", "`fxutil.ProvideOptional[T]()`")>>> requires a provider for `T` and wraps its value with `option.New[T](value)`; supplying absence requires a separate provider returning `option.None[T]()`. A no-op implementation still supplies `T`; converting it to an option produces a present value.
 
-Follow the [component creation tutorial](../../tutorials/components/creating-components.md) to apply these concepts, or see how to [use components in a binary](../../how-to/components/using-components.md). The [component guidelines](../../guidelines/components.md) describe the conventions Agent components must follow.
+The <<<repo("comp/core/ipc/fx-none/fx.go", "IPC `fx-none` wrapper")>>> supplies a no-op component and a present option. The <<<repo("comp/anomalydetection/recorder/fx-noop/fx_noop.go", "recorder `fx-noop` wrapper")>>> supplies an absent option. Existing package names do not consistently distinguish these behaviors.
+
+## Related documentation
+
+- Follow the [creation tutorial](../../tutorials/components/creating-components.md) to build and exercise a complete component.
+- Follow the [optional-dependency guide](../../how-to/components/optional-dependencies.md) to make an existing consumer work with an absent dependency.
+- See [using components in a binary](../../how-to/components/using-components.md) for application assembly.
+- Consult the [component guidelines](../../guidelines/components.md) for repository conventions.

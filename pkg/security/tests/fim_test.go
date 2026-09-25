@@ -34,7 +34,7 @@ func TestFIMOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -116,7 +116,7 @@ func TestFIMPermError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-file")
 	if err != nil {

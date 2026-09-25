@@ -8,6 +8,7 @@ package scheduler
 import (
 	"expvar"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -30,6 +31,8 @@ var (
 		[]string{"check_name"}, "How many checks are currently tracked by the scheduler")
 	tlmQueuesCount = telemetryimpl.GetCompatComponent().NewCounter("scheduler", "queues_count",
 		nil, "How many queues were opened")
+	tlmQueueSize = telemetryimpl.GetCompatComponent().NewGauge("scheduler", "queue_size",
+		[]string{"interval", "shadow"}, "How many checks are scheduled in each job queue")
 )
 
 func init() {
@@ -128,6 +131,7 @@ func (s *Scheduler) Enter(ch check.Check) error {
 		tlmChecksEntered.Inc(checkName)
 	}
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
+	s.updateQueueTelemetry()
 	return nil
 }
 
@@ -158,6 +162,7 @@ func (s *Scheduler) Cancel(id checkid.ID) error {
 		tlmChecksEntered.Dec(checkName)
 	}
 	schedulerExpvars.Set("Queues", expvar.Func(expQueues(s)))
+	s.updateQueueTelemetry()
 	return nil
 }
 
@@ -294,6 +299,18 @@ func (s *Scheduler) enqueueOnce(ch check.Check) {
 }
 
 // expQueues return a function to get the stats for the queues
+// updateQueueTelemetry refreshes the per-queue size gauge. It mirrors the scheduler/Queues expvar
+// and must be called with s.mu held, like the expvar refresh it accompanies. Queues are never
+// removed once opened, so no gauge series is ever left stale.
+func (s *Scheduler) updateQueueTelemetry() {
+	for interval, queue := range s.jobQueues {
+		tlmQueueSize.Set(float64(queue.size()), strconv.Itoa(int(interval/time.Second)), "false")
+	}
+	for interval, queue := range s.shadowJobQueues {
+		tlmQueueSize.Set(float64(queue.size()), strconv.Itoa(int(interval/time.Second)), "true")
+	}
+}
+
 func expQueues(s *Scheduler) func() interface{} {
 	return func() interface{} {
 		queues := make([]map[string]interface{}, 0)

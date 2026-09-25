@@ -115,12 +115,13 @@ cc_shared_library(
 pkg_files(
     name = "header_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/nghttp2",
+    prefix = "embedded/include/nghttp2",
 )
 
 dd_cc_packaged(
     name = "nghttp2_pkg",
     input = ":nghttp2",
+    dest_dir = "embedded/lib",
     version = SO_VERSION,
     installed_files = [":header_files"],
     visibility = ["//visibility:public"],
@@ -131,6 +132,5 @@ pkg_filegroup(
     srcs = [
         ":header_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

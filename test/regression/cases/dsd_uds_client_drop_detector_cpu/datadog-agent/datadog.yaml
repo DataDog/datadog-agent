@@ -1,0 +1,28 @@
+auth_token_file_path: /tmp/agent-auth-token
+
+# Disable cloud detection. This stops the Agent from probing the execution
+# environment and network, which is especially important if the target has
+# network access.
+cloud_provider_metadata: []
+
+dd_url: http://127.0.0.1:9091
+
+telemetry.enabled: true
+telemetry.checks: '*'
+
+dogstatsd_socket: '/tmp/dsd.socket'
+
+dogstatsd_client_drop_detection:
+  enabled: true
+
+# Lading selects configured tag names and values independently. Append the
+# supported detector pair here so every generated context deterministically
+# enters the matched detector path.
+dogstatsd_tags:
+  - client:go
+  - client_transport:uds
+
+# Keep the Agent Data Plane pre-flight process resident for the entire SMP run.
+# Its default 90-second shutdown otherwise creates a step change during a
+# replicate and adds noise to CPU measurements.
+data_plane.preflight_mode_duration: 30m

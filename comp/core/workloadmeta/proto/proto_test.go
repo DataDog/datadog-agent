@@ -89,6 +89,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Resources: workloadmeta.ContainerResources{
 						CPURequest:    pointer.Ptr(0.5),
@@ -152,6 +153,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Resources: &pb.ContainerResources{
 						CpuRequest:    pointer.Ptr(0.5),
@@ -219,6 +221,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Owner: &workloadmeta.EntityID{
 						Kind: workloadmeta.KindKubernetesPod,
@@ -280,6 +283,7 @@ func TestConversions(t *testing.T) {
 					},
 					ResolvedAllocatedResources: []*pb.ContainerAllocatedResource{
 						{Name: "nvidia.com/gpu", ID: "gpu1"},
+						{Name: "gpu.nvidia.com", ID: "gpu-0-mig-1g35gb-15-0", PoolName: "node-a-gpu-pool", CdiDevices: []string{"k8s.gpu.nvidia.com/claim=uid1-gpu-0-mig-1g35gb-15-0"}},
 					},
 					Owner: &pb.WorkloadmetaEntityId{
 						Kind: pb.WorkloadmetaKind_KUBERNETES_POD,

@@ -987,8 +987,8 @@ _BAZEL_EBPF_CORE_TARGETS = [
 
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
-    "//pkg/ebpf/kernelbugs/c:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
-    "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
+    "//pkg/ebpf/kernelbugs:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
 _BAZEL_RUNTIME_FLAT_TARGETS = [
@@ -1018,7 +1018,7 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
 
 _NON_EBPF_TARGETS = frozenset(
     [
-        "//pkg/ebpf/kernelbugs/c:detect-seccomp-bug",
+        "//pkg/ebpf/kernelbugs:detect-seccomp-bug",
     ]
 )
 

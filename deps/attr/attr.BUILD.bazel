@@ -103,12 +103,13 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "include/attr/",
+    prefix = "embedded/include/attr/",
 )
 
 dd_cc_packaged(
     name = "attr_pkg",
     input = ":attr",
+    dest_dir = "embedded/lib",
     version = "1.1.2501",
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
@@ -119,6 +120,5 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
     visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )

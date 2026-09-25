@@ -16,7 +16,6 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
@@ -69,6 +68,7 @@ import (
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
+	dogstatsdclientdropdetectorfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector/fx"
 	dogstatsdclienttelemetryfx "github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -80,7 +80,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configfilesdiscoveryfx "github.com/DataDog/datadog-agent/comp/core/configfilesdiscovery/fx"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
@@ -188,7 +187,6 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
@@ -476,6 +474,7 @@ func getSharedFxOption() fx.Option {
 		commonendpoints.Module(),
 		filterlist.Module(),
 		metriclookbackModule(),
+		dogstatsdclientdropdetectorfx.Module(),
 		dogstatsdclienttelemetryfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
@@ -687,15 +686,6 @@ func startAgent(
 			dataSecurityController := datasecurity.NewController(ac, rcclient)
 			ac.AddConfigProvider(dataSecurityController, false, 0)
 		}
-
-		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
-			// Spin up the config provider to schedule integrations through remote-config
-			rcProvider := providers.NewRemoteConfigProvider()
-			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
-			// LoadAndRun is called later on
-			ac.AddConfigProvider(rcProvider, true, 10*time.Second)
-		}
-
 	}
 
 	// start clc runner server
@@ -778,9 +768,9 @@ func startAgent(
 	})
 
 	// start dependent services
-	// must run in background go command because the agent might be in service start pending
+	// runs in the background because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
-	go startDependentServices(cfg, sysprobeConf)
+	startDependentServicesAsync(cfg, sysprobeConf)
 
 	return nil
 }

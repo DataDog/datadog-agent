@@ -881,6 +881,7 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"EnableSelfTests":                            opts.enableSelfTests,
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
 		"CapabilitiesMonitoringEnabled":              opts.capabilitiesMonitoringEnabled,
+		"CapabilitiesMonitoringPeriod":               opts.capabilitiesMonitoringPeriod,
 		"CaptureAllSyscallErrorsEnabled":             opts.captureAllSyscallErrorsEnabled,
 	}); err != nil {
 		return nil, nil, err
