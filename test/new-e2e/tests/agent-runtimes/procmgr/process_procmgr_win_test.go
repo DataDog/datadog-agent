@@ -209,6 +209,26 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 		}
 	})
 
+	// The merge log line is written after filtering, so it lists exactly the keys handed to
+	// the child. The log is shared by every test, so only lines added by this respawn count.
+	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
+	mergeLinePrefix := "[" + processProcessName + "] applying "
+	mergeLines := func() ([]string, error) {
+		out, err := host.Execute(psSelectStringLines(logPath, "legacy SCM environment variable"))
+		if err != nil {
+			return nil, err
+		}
+		var lines []string
+		for _, line := range strings.Split(out, "\n") {
+			if strings.Contains(line, mergeLinePrefix) {
+				lines = append(lines, strings.TrimSpace(line))
+			}
+		}
+		return lines, nil
+	}
+	linesBefore, err := mergeLines()
+	require.NoError(s.T(), err)
+
 	_, err = host.Execute(psSetServiceEnvironment(processLegacySCMServiceName, []string{
 		"DD_LOG_LEVEL=" + legacySCMLogLevel,
 		`DD_FLEET_POLICIES_DIR=C:\` + staleFleetPoliciesMarker,
@@ -219,6 +239,24 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	// new Environment block to be read.
 	_, err = host.Execute(procmgrRespawn(cli, processProcessName))
 	require.NoError(s.T(), err)
+
+	// Checked before the live level so a failure says which half broke: dd-procmgr never
+	// merging the block, or process-agent not honoring a value it was handed.
+	var merged string
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		lines, err := mergeLines()
+		if !assert.NoError(ct, err) {
+			return
+		}
+		if assert.Greater(ct, len(lines), len(linesBefore),
+			"dd-procmgr should log merging the %s Environment block when respawning %s",
+			processLegacySCMServiceName, processProcessName) {
+			merged = lines[len(lines)-1]
+		}
+	}, 30*time.Second, 3*time.Second)
+	require.Contains(s.T(), merged, "DD_LOG_LEVEL")
+	require.NotContains(s.T(), merged, "DD_FLEET_POLICIES_DIR",
+		"the denylisted key must never be merged into the child environment")
 
 	// config get asks the running process-agent for its live logger level over IPC, so this
 	// holds only if the merged value reached the child's environment and took effect.
@@ -241,16 +279,6 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	require.Contains(s.T(), out, "fleet_policies_dir")
 	assert.NotContains(s.T(), out, staleFleetPoliciesMarker,
 		"the denylisted DD_FLEET_POLICIES_DIR must not reach process-agent's config")
-
-	// The merge log line is written after filtering, so it lists exactly the keys that were
-	// merged. If the check above ever fails, this one says whether the leak came through the
-	// legacy SCM merge.
-	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
-	out, err = host.Execute(psSelectStringLines(logPath, "legacy SCM environment variable"))
-	require.NoError(s.T(), err)
-	assert.Contains(s.T(), out, "DD_LOG_LEVEL")
-	assert.NotContains(s.T(), out, "DD_FLEET_POLICIES_DIR",
-		"the denylisted key must never be merged into the child environment")
 }
 
 // TestProcessAgentPrivilegedSpawnRejectsYamlMutation proves the on-disk processes.d YAML is
