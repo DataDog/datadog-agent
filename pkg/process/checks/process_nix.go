@@ -22,8 +22,6 @@ import (
 var (
 	// overridden in tests
 	hostCPUCount = system.HostCPUCount
-
-	defaultHostPasswdCache = newHostPasswdCache()
 )
 
 func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUser {
@@ -36,11 +34,8 @@ func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUse
 		)
 		uidString := strconv.Itoa(int(fp.Uids[0]))
 		if uidProbe == nil {
-			var found bool
-			u, found = defaultHostPasswdCache.lookup(uidString)
-			if !found {
-				u, err = user.LookupId(uidString)
-			}
+			// If the probe is nil, skip it and call user.LookupId directly.
+			u, err = user.LookupId(uidString)
 		} else {
 			u, err = uidProbe.LookupID(uidString)
 		}
