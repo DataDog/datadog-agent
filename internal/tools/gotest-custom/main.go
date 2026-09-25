@@ -90,14 +90,31 @@ func main() {
 	}
 }
 
+// translateGoTestFlag renames go test flags into their test binary equivalents
+// (-timeout -> -test.timeout) so they are forwarded to the prebuilt binaries.
+func translateGoTestFlag(arg string) string {
+	if arg == "-timeout" {
+		return "-test.timeout"
+	}
+	if strings.HasPrefix(arg, "-timeout=") {
+		return "-test.timeout=" + strings.TrimPrefix(arg, "-timeout=")
+	}
+	return arg
+}
+
 // parseArguments separates command line arguments into three categories:
 // 1. Packages (everything before first flag starting with -)
-// 2. Gotest args (flags that start with -test.)
+// 2. Gotest args (flags that start with -test., plus go test's -timeout
+// translated to -test.timeout)
 // 3. Test args (everything after -args)
 func parseArguments(args []string) (packages []string, gotestArgs []string, testArgs []string) {
 	state := "packages"    // packages -> gotest -> testargs
 	nextIsTestArg := false // Used to handle case where -test.run is followed by its value, should not beed set if the -test.count=1 format is used
 	for _, arg := range args {
+		if state != "testargs" {
+			// args after -args are passed verbatim to the test binary
+			arg = translateGoTestFlag(arg)
+		}
 		switch state {
 		case "packages":
 			if arg == "-args" {

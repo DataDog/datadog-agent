@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "gotest-custom_lib",
@@ -15,4 +16,10 @@ go_binary(
     name = "gotest-custom",
     embed = [":gotest-custom_lib"],
     visibility = ["//:__subpackages__"],
+)
+
+dd_agent_go_test(
+    name = "gotest-custom_test",
+    srcs = ["main_test.go"],
+    embed = [":gotest-custom_lib"],
 )
