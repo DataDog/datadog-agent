@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package main holds main related files
+// Package main generates pkg/security/secl/model/syscalls_linux_{amd64,arm64}.go
+// (and the matching stringer files) from upstream Linux kernel syscall tables.
 package main
 
 import (
@@ -12,10 +13,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
+	"go/format"
+	"io"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -28,22 +30,24 @@ import (
 
 func main() {
 	var (
-		inputTableURL      string
+		inputTablePath     string
 		outputEnumPath     string
 		outputStringerPath string
+		stringerBin        string
 		abis               string
 	)
 
-	flag.StringVar(&inputTableURL, "table-url", "", "URL of the table to use for the generation")
+	flag.StringVar(&inputTablePath, "table-file", "", "Path to the kernel syscall table (.tbl or unistd.h)")
 	flag.StringVar(&outputEnumPath, "output", "", "Output path of the generated file with the constant declarations")
 	flag.StringVar(&outputStringerPath, "output-string", "", "Output path of the generated file with the stringer code")
-	flag.StringVar(&abis, "abis", "", "Comma separated list of ABIs to keep")
+	flag.StringVar(&stringerBin, "stringer", "", "Path to a stringer binary (default: go run golang.org/x/tools/cmd/stringer)")
+	flag.StringVar(&abis, "abis", "", "Comma separated list of ABIs to keep (only used for .tbl files)")
 	flag.Parse()
 
-	if inputTableURL == "" || outputEnumPath == "" || outputStringerPath == "" {
+	if inputTablePath == "" || outputEnumPath == "" || outputStringerPath == "" {
 		fmt.Fprintf(os.Stderr, "Please provide required flags\n")
 		flag.Usage()
-		return
+		os.Exit(1)
 	}
 
 	abiList := strings.Split(abis, ",")
@@ -53,27 +57,38 @@ func main() {
 		err      error
 	)
 
-	if strings.HasSuffix(inputTableURL, ".tbl") {
-		syscalls, err = parseSyscallTable(inputTableURL, abiList)
+	// http_file repos stage the content as ".../file/downloaded" with no
+	// extension, so sniff the contents instead of trusting the path suffix.
+	isTbl, err := looksLikeSyscallTbl(inputTablePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to read table: %v\n", err)
+		os.Exit(1)
+	}
+	if isTbl {
+		syscalls, err = parseSyscallTable(inputTablePath, abiList)
 	} else {
-		syscalls, err = parseUnistdTable(inputTableURL)
+		syscalls, err = parseUnistdTable(inputTablePath)
 	}
 
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "failed to parse table: %v\n", err)
+		os.Exit(1)
 	}
 
 	outputContent, err := generateEnumCode(syscalls)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "failed to generate enum: %v\n", err)
+		os.Exit(1)
 	}
 
 	if err := writeFileAndFormat(outputEnumPath, outputContent); err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "failed to write enum: %v\n", err)
+		os.Exit(1)
 	}
 
-	if err := generateStringer(outputEnumPath, outputStringerPath); err != nil {
-		panic(err)
+	if err := generateStringer(stringerBin, outputEnumPath, outputStringerPath); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to generate stringer: %v\n", err)
+		os.Exit(1)
 	}
 }
 
@@ -84,14 +99,48 @@ type syscallDefinition struct {
 	CamelCaseName string
 }
 
-func parseLinuxFile(url string, perLine func(string) (*syscallDefinition, error)) ([]*syscallDefinition, error) {
-	resp, err := http.Get(url)
+func parseLinuxFile(path string, perLine func(string) (*syscallDefinition, error)) ([]*syscallDefinition, error) {
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer f.Close()
+	return parseReader(f, perLine)
+}
 
-	scanner := bufio.NewScanner(resp.Body)
+// looksLikeSyscallTbl reports whether path is an x86 syscall_*.tbl (tab-separated
+// number/abi/name lines) rather than an asm-generic unistd.h.
+func looksLikeSyscallTbl(path string) (bool, error) {
+	if strings.HasSuffix(path, ".tbl") {
+		return true, nil
+	}
+	if strings.HasSuffix(path, ".h") {
+		return false, nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 3 {
+			if _, err := strconv.ParseInt(parts[0], 10, 0); err == nil {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	return false, scanner.Err()
+}
+
+func parseReader(r io.Reader, perLine func(string) (*syscallDefinition, error)) ([]*syscallDefinition, error) {
+	scanner := bufio.NewScanner(r)
 	syscalls := make([]*syscallDefinition, 0)
 
 	for scanner.Scan() {
@@ -117,8 +166,8 @@ func parseLinuxFile(url string, perLine func(string) (*syscallDefinition, error)
 
 var unistdDefinedRe = regexp.MustCompile(`#define __NR(3264)?_([0-9a-zA-Z_][0-9a-zA-Z_]*)\s+([0-9]+)`)
 
-func parseUnistdTable(url string) ([]*syscallDefinition, error) {
-	return parseLinuxFile(url, func(line string) (*syscallDefinition, error) {
+func parseUnistdTable(path string) ([]*syscallDefinition, error) {
+	return parseLinuxFile(path, func(line string) (*syscallDefinition, error) {
 		subs := unistdDefinedRe.FindStringSubmatch(line)
 		if subs != nil {
 			name := subs[2]
@@ -139,8 +188,8 @@ func parseUnistdTable(url string) ([]*syscallDefinition, error) {
 	})
 }
 
-func parseSyscallTable(url string, abis []string) ([]*syscallDefinition, error) {
-	return parseLinuxFile(url, func(line string) (*syscallDefinition, error) {
+func parseSyscallTable(path string, abis []string) ([]*syscallDefinition, error) {
+	return parseLinuxFile(path, func(line string) (*syscallDefinition, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			return nil, nil
 		}
@@ -218,27 +267,46 @@ func snakeToCamelCase(snake string) string {
 }
 
 func writeFileAndFormat(outputPath string, content string) error {
-	tmpfile, err := os.CreateTemp(path.Dir(outputPath), "syscalls-enum")
+	formatted, err := format.Source([]byte(content))
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(outputPath, formatted, 0o644)
+}
+
+// generateStringer runs stringer against a one-file directory. rules_go's
+// @go_stringer is patched to ImportDir the whole package with UseAllFiles, so
+// pointing it at pkg/security/secl/model would see both amd64 and arm64
+// Syscall definitions. Isolating the enum in a temp dir avoids that.
+func generateStringer(stringerBin, inputPath, outputPath string) error {
+	tmp, err := os.MkdirTemp("", "syscall-stringer-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+
+	src, err := os.ReadFile(inputPath)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "syscalls.go"), src, 0o644); err != nil {
+		return err
+	}
+
+	absOut, err := filepath.Abs(outputPath)
 	if err != nil {
 		return err
 	}
 
-	if _, err := tmpfile.WriteString(content); err != nil {
-		return err
+	var cmd *exec.Cmd
+	if stringerBin != "" {
+		// Use -output= so rules_go's patched stringer rewrites the header to a
+		// basename (it only special-cases the equals form).
+		cmd = exec.Command(stringerBin, "-type", "Syscall", "-tags", "linux", "-output="+absOut, tmp)
+	} else {
+		cmd = exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-tags", "linux", "-output="+absOut, tmp)
 	}
-
-	if err := tmpfile.Close(); err != nil {
-		return err
-	}
-
-	cmd := exec.Command("gofmt", "-s", "-w", tmpfile.Name())
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-
-	return os.Rename(tmpfile.Name(), outputPath)
-}
-
-func generateStringer(inputPath, outputPath string) error {
-	return exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-output", outputPath, inputPath).Run()
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
 }
