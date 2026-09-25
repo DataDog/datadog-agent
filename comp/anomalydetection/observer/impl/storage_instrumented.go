@@ -146,7 +146,7 @@ func (s *instrumentedStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observer
 	return s.inner.GetSeriesMeta(ref)
 }
 
-func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
+func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) (observerdef.MetricContext, bool) {
 	return s.inner.GetContext(ref)
 }
 
