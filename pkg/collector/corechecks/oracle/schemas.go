@@ -278,7 +278,7 @@ const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), N
 	NVL(staleness, '-'), last_refresh_date
 FROM cdb_mviews WHERE /*RELATIONS*/`
 
-const containerNamesQuery = `SELECT con_id, name FROM v$containers`
+const containerNamesQuery = `SELECT con_id, name FROM v$containers WHERE 1=1`
 
 // ORA-01795 limits an IN list to 1000 expressions.
 const (
@@ -294,38 +294,6 @@ const (
 
 var schemaOwnerPattern = regexp.MustCompile(`^[A-Z0-9_$#]+$`)
 
-func compiledPatterns(patterns []string, logPrompt, kind string) []*regexp.Regexp {
-	if len(patterns) == 0 {
-		return nil
-	}
-	compiled := make([]*regexp.Regexp, 0, len(patterns))
-	for _, p := range patterns {
-		re, err := regexp.Compile(p)
-		if err != nil {
-			log.Warnf("%s invalid %s pattern %q: %s", logPrompt, kind, p, err)
-			continue
-		}
-		compiled = append(compiled, re)
-	}
-	return compiled
-}
-
-func matchesAny(name string, patterns []*regexp.Regexp) bool {
-	for _, re := range patterns {
-		if re.MatchString(name) {
-			return true
-		}
-	}
-	return false
-}
-
-func passesFilter(name string, include, exclude []*regexp.Regexp) bool {
-	if matchesAny(name, exclude) {
-		return false
-	}
-	return len(include) == 0 || matchesAny(name, include)
-}
-
 func escapeSQLLiteral(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
@@ -333,32 +301,16 @@ func escapeSQLLiteral(s string) string {
 func regexSQLClauses(column string, include, exclude []string) string {
 	var b strings.Builder
 	for _, p := range exclude {
-		b.WriteString(" AND NOT REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "')")
+		b.WriteString(" AND NOT REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "', 'i')")
 	}
 	if len(include) > 0 {
 		parts := make([]string, len(include))
 		for i, p := range include {
-			parts[i] = "REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "')"
+			parts[i] = "REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "', 'i')"
 		}
 		b.WriteString(" AND (" + strings.Join(parts, " OR ") + ")")
 	}
 	return b.String()
-}
-
-// Oracle database filters match CDB root and PDB names.
-func filterContainers(containers map[int64]string, include, exclude []string, logPrompt string) map[int64]string {
-	if len(include) == 0 && len(exclude) == 0 {
-		return containers
-	}
-	includeRe := compiledPatterns(include, logPrompt, "include_databases")
-	excludeRe := compiledPatterns(exclude, logPrompt, "exclude_databases")
-	filtered := make(map[int64]string, len(containers))
-	for conID, name := range containers {
-		if passesFilter(name, includeRe, excludeRe) {
-			filtered[conID] = name
-		}
-	}
-	return filtered
 }
 
 type schemaRowDB struct {
@@ -614,8 +566,12 @@ func (c *schemaSnapshotCoordinator) complete() error {
 	return c.err
 }
 
-func (c *schemaSnapshotCoordinator) completeContainer(conID int64) error {
-	c.completeContainerID(strconv.FormatInt(conID, 10))
+func (c *schemaSnapshotCoordinator) completeContainer(conID int64, truncated bool) error {
+	containerID := strconv.FormatInt(conID, 10)
+	if snapshot := c.snapshots[containerID]; snapshot != nil && snapshot.pending != nil {
+		snapshot.pending.Truncated = snapshot.pending.Truncated || truncated
+	}
+	c.completeContainerID(containerID)
 	return c.err
 }
 
@@ -1025,14 +981,13 @@ type ownerKey struct {
 }
 
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
-	include := compiledPatterns(c.config.Schemas.IncludeSchemas, c.logPrompt, "include_schemas")
-	exclude := compiledPatterns(c.config.Schemas.ExcludeSchemas, c.logPrompt, "exclude_schemas")
-	// A failed or stale container lookup must not drop schemas unless database filters require it.
+	// Without database filters, owners can supply container IDs missing from the name lookup.
 	filterDatabases := len(c.config.Schemas.IncludeDatabases) > 0 || len(c.config.Schemas.ExcludeDatabases) > 0
 
 	owners := make(map[ownerKey]string)
 	names := make(map[string]struct{})
-	err := c.queryMetadata(ctx, schemaOwnersQuery, func(rows *sqlx.Rows) error {
+	query := schemaOwnersQuery + regexSQLClauses("username", c.config.Schemas.IncludeSchemas, c.config.Schemas.ExcludeSchemas)
+	err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 		var (
 			conID  int64
 			name   string
@@ -1048,9 +1003,6 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		}
 		if !schemaOwnerPattern.MatchString(name) {
 			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
-			return nil
-		}
-		if !passesFilter(name, include, exclude) {
 			return nil
 		}
 		id := ""
@@ -1302,9 +1254,10 @@ func constraintType(t string) string {
 	}
 }
 
-func (c *Check) containerNames(ctx context.Context) map[int64]string {
+func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	names := make(map[int64]string)
-	err := c.queryMetadata(ctx, containerNamesQuery, func(rows *sqlx.Rows) error {
+	query := containerNamesQuery + regexSQLClauses("name", c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases)
+	err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 		var (
 			conID int64
 			name  string
@@ -1316,9 +1269,9 @@ func (c *Check) containerNames(ctx context.Context) map[int64]string {
 		return nil
 	})
 	if err != nil {
-		log.Warnf("%s failed to query container names: %s", c.logPrompt, err)
+		return nil, fmt.Errorf("failed to query container names: %w", err)
 	}
-	return names
+	return names, nil
 }
 
 func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}, selectedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
@@ -1791,7 +1744,6 @@ func (c *Check) viewIdentities(ctx context.Context, ownerLists []string, owners 
 
 func (c *Check) viewPageRows(ctx context.Context, keys []tableKey, maxColumns int) ([]schemaRowDB, error) {
 	allowed := make(map[tableKey]struct{}, len(keys))
-	hydrated := make(map[tableKey]struct{}, len(keys))
 	for _, key := range keys {
 		allowed[key] = struct{}{}
 	}
@@ -1807,16 +1759,10 @@ func (c *Check) viewPageRows(ctx context.Context, keys []tableKey, maxColumns in
 			if err := rows.StructScan(&row); err != nil {
 				return err
 			}
-			hydrated[tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}] = struct{}{}
 			pageRows = append(pageRows, row)
 			return nil
 		}); err != nil {
 			return nil, err
-		}
-	}
-	for key := range allowed {
-		if _, ok := hydrated[key]; !ok {
-			return nil, fmt.Errorf("selected view %d.%s.%s disappeared before hydration", key.conID, key.owner, key.table)
 		}
 	}
 	return pageRows, nil
@@ -1878,7 +1824,6 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 
 func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns int) ([]schemaRowDB, error) {
 	allowed := make(map[tableKey]struct{}, len(keys))
-	hydrated := make(map[tableKey]struct{}, len(keys))
 	var pageRows []schemaRowDB
 	for _, key := range keys {
 		allowed[key] = struct{}{}
@@ -1895,16 +1840,10 @@ func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns i
 			if err := rows.StructScan(&row); err != nil {
 				return err
 			}
-			hydrated[tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}] = struct{}{}
 			pageRows = append(pageRows, row)
 			return nil
 		}); err != nil {
 			return nil, err
-		}
-	}
-	for key := range allowed {
-		if _, ok := hydrated[key]; !ok {
-			return nil, fmt.Errorf("selected table %d.%s.%s disappeared before hydration", key.conID, key.owner, key.table)
 		}
 	}
 	return pageRows, nil
@@ -1998,7 +1937,10 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		commit = sender.Commit
 	}
 
-	containers := filterContainers(c.containerNames(ctx), c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases, c.logPrompt)
+	containers, err := c.containerNames(ctx)
+	if err != nil {
+		return err
+	}
 
 	owners, names, err := c.schemaOwners(ctx, containers)
 	if err != nil {
@@ -2061,12 +2003,12 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			}
 		}
 		sort.Strings(containerOwnerNames)
-		containerTableKeys, containerCappedTables, err := c.tableIdentities(ctx, ownerListChunks(containerOwnerNames), containerOwners, tableFilters, c.config.Schemas.MaxTables)
+		containerTableKeys, containerTruncated, err := c.tableIdentities(ctx, ownerListChunks(containerOwnerNames), containerOwners, tableFilters, c.config.Schemas.MaxTables)
 		if err != nil {
 			collectionErr = errors.Join(collectionErr, fmt.Errorf("container %d table identities: %w", conID, err))
 			continue
 		}
-		if _, ok := containerCappedTables[conID]; ok {
+		if _, ok := containerTruncated[conID]; ok {
 			cappedTables[conID] = struct{}{}
 		}
 		selectedTables := make(map[tableKey]struct{}, len(containerTableKeys))
@@ -2084,7 +2026,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			if err := c.schemaContextError(ctx); err != nil {
 				return err
 			}
-			collector.truncatedContainers = containerCappedTables
+			collector.truncatedContainers = containerTruncated
 			for _, row := range rows {
 				collector.add(row)
 			}
@@ -2107,6 +2049,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			}
 			if _, ok := containerCappedViews[conID]; ok {
 				cappedViews[conID] = struct{}{}
+				containerTruncated[conID] = struct{}{}
 			}
 			if err := forEachTablePage(containerViewKeys, func(page []tableKey) error {
 				rows, err := c.viewPageRows(ctx, page, c.config.Schemas.MaxColumns)
@@ -2118,7 +2061,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 				if err := c.schemaContextError(ctx); err != nil {
 					return err
 				}
-				collector.truncatedContainers = cappedViews
+				collector.truncatedContainers = containerTruncated
 				for _, row := range rows {
 					collector.addView(row)
 				}
@@ -2136,9 +2079,12 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 			return errors.Join(collectionErr, err)
 		}
 		if !coordinator.hasContainer(conID) {
-			newSchemaEventCollector(c, coordinator.add, nil, owners, container).emitEmptyContainers(container)
+			collector := newSchemaEventCollector(c, coordinator.add, nil, owners, container)
+			collector.truncatedContainers = containerTruncated
+			collector.emitEmptyContainers(container)
 		}
-		if err := coordinator.completeContainer(conID); err != nil {
+		_, truncated := containerTruncated[conID]
+		if err := coordinator.completeContainer(conID, truncated); err != nil {
 			return err
 		}
 	}

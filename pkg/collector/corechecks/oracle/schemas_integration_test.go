@@ -611,6 +611,33 @@ func TestSchemaCollectionViews(t *testing.T) {
 	require.Contains(t, columns, "STATUS")
 }
 
+func TestSchemaCollectionFiltersUseOracleCaseInsensitiveMatching(t *testing.T) {
+	setupSchemaFixtures(t)
+	events := collectSchemaEventsWithConfig(t, `collect_schemas:
+  enabled: true
+  max_tables: 1
+  max_views: 1
+  include_databases: ['^cdb[$]root$']
+  exclude_databases: ['^freepdb']
+  include_schemas: ['^c##dd_schema_test$']
+  exclude_schemas: ['^other$']
+  include_tables: ['^dd_(orders|types|orders_view)$']
+  exclude_tables: ['^dd_types$']
+`)
+	require.NotNil(t, findTable(tableEvents(events), schemaTestUser, "dd_orders"))
+	require.Nil(t, findTable(tableEvents(events), schemaTestUser, "dd_types"))
+	require.NotNil(t, findView(viewEvents(events), schemaTestUser, "dd_orders_view"))
+	for _, event := range events {
+		require.False(t, event.Truncated)
+		for _, container := range event.Metadata {
+			require.Equal(t, "1", container.ID)
+			for _, schema := range container.Schemas {
+				require.Equal(t, strings.ToUpper(schemaTestUser), schema.Name)
+			}
+		}
+	}
+}
+
 func TestSchemaCollectionViewsRespectTableFilters(t *testing.T) {
 	setupSchemaFixtures(t)
 
