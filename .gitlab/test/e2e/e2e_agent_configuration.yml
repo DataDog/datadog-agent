@@ -21,6 +21,15 @@
         - test/new-e2e/tests/agent-subcommands/**/*
       compare_to: $COMPARE_TO_BRANCH
 
+.on_remote_flags_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/core/remoteflags/**/*
+        - pkg/remoteflags/**/*
+        - test/new-e2e/tests/remote-flags/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
 new-e2e-agent-configuration:
   extends: .new_e2e_template_needs_deb_x64
   rules:
@@ -52,4 +61,14 @@ new-e2e-remote-config:
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
+    # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
+
+new-e2e-remote-flags:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_remote_flags_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/remote-flags
+    TEAM: fleet-remediation
     # TODO: Re-enable on fips pipeline when fips is available with remote config using: ON_NIGHTLY_FIPS: "true"
