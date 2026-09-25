@@ -10,6 +10,7 @@ package com_datadoghq_remoteaction_rshell
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -693,6 +695,79 @@ func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T
 	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
 	assert.Contains(t, logs, "AllowedCommands:[rshell:cat]")
 	assert.Contains(t, logs, "ElevatableCommands:[rshell:cat]")
+}
+
+func TestBuildAgentPolicyFromYAML(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		yaml string
+		want *privilegedhelper.AgentPolicy
+	}{
+		{name: "unset", yaml: "{}"},
+		{name: "empty commands", yaml: "allowed_commands: []", want: &privilegedhelper.AgentPolicy{AllowedCommands: []string{}}},
+		{name: "empty paths", yaml: "allowed_paths: []", want: &privilegedhelper.AgentPolicy{AllowedPaths: []string{}}},
+		{name: "empty elevation", yaml: "privileged: {elevatable_commands: []}", want: &privilegedhelper.AgentPolicy{ElevatableCommands: []string{}}},
+		{name: "empty services", yaml: "allowed_system_services: {}", want: &privilegedhelper.AgentPolicy{AllowedSystemServices: map[string][]string{}}},
+		{
+			name: "all empty",
+			yaml: "allowed_commands: []\n    allowed_paths: []\n    allowed_system_services: {}\n    privileged: {elevatable_commands: []}",
+			want: &privilegedhelper.AgentPolicy{AllowedCommands: []string{}, AllowedPaths: []string{}, AllowedSystemServices: map[string][]string{}, ElevatableCommands: []string{}},
+		},
+		{
+			name: "populated",
+			yaml: "allowed_commands: [rshell:cat]\n    allowed_paths: [/var/log/]\n    allowed_system_services: {mysql.service: [read]}\n    privileged: {elevatable_commands: [rshell:cat]}",
+			want: &privilegedhelper.AgentPolicy{AllowedCommands: []string{"rshell:cat"}, AllowedPaths: []string{"/var/log/"}, AllowedSystemServices: map[string][]string{"mysql.service": {"read"}}, ElevatableCommands: []string{"rshell:cat"}},
+		},
+		{
+			name: "explicit defaults",
+			yaml: "allowed_commands: ['rshell:*']\n    allowed_paths: ['/']",
+			want: &privilegedhelper.AgentPolicy{AllowedCommands: []string{"rshell:*"}, AllowedPaths: []string{"/"}},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// Empty env vars must not hide YAML restrictions.
+			for _, suffix := range []string{"ALLOWED_COMMANDS", "ALLOWED_PATHS", "ALLOWED_SYSTEM_SERVICES", "PRIVILEGED_ELEVATABLE_COMMANDS"} {
+				t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_"+suffix, "")
+			}
+			cfg, err := parconfig.FromDDConfig(configmock.NewFromYAML(t, "private_action_runner:\n  restricted_shell:\n    "+tt.yaml), nil)
+			require.NoError(t, err)
+			if tt.want != nil {
+				if tt.want.AllowedCommands != nil {
+					assert.True(t, cfg.RShellAllowedCommandsConfigured)
+					assert.Equal(t, tt.want.AllowedCommands, cfg.RShellAllowedCommands)
+				}
+				if tt.want.AllowedPaths != nil {
+					assert.True(t, cfg.RShellAllowedPathsConfigured)
+					assert.Equal(t, tt.want.AllowedPaths, cfg.RShellAllowedPaths)
+				}
+				assert.Equal(t, tt.want.ElevatableCommands, cfg.RShellPrivilegedElevatableCommands)
+				assert.Equal(t, tt.want.AllowedSystemServices, cfg.RShellAllowedSystemServices)
+			}
+			bundle := NewRshellBundle(cfg)
+			for _, action := range []string{"runCommand", "runRemediationCommand"} {
+				t.Run(action, func(t *testing.T) {
+					handler := bundle.GetAction(action).(*RunCommandHandler)
+					policy := handler.buildAgentPolicy()
+					assert.Equal(t, tt.want, policy)
+
+					wire, err := json.Marshal(privilegedhelper.ExecuteRequest{AgentPolicy: policy})
+					require.NoError(t, err)
+					var fields map[string]json.RawMessage
+					require.NoError(t, json.Unmarshal(wire, &fields))
+					if tt.want == nil {
+						assert.NotContains(t, fields, "agentPolicy")
+						return
+					}
+					wantJSON, err := json.Marshal(tt.want)
+					require.NoError(t, err)
+					assert.JSONEq(t, string(wantJSON), string(fields["agentPolicy"]))
+					var decoded privilegedhelper.ExecuteRequest
+					require.NoError(t, json.Unmarshal(wire, &decoded))
+					assert.Equal(t, tt.want, decoded.AgentPolicy, "nil versus empty must survive the helper protocol")
+				})
+			}
+		})
+	}
 }
 
 func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {

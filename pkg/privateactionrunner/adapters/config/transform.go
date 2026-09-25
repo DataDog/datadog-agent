@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
@@ -71,6 +72,9 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		httpTimeout = time.Duration(v) * time.Second
 	}
 
+	allowedCommands, commandsConfigured := rshellAllowedCommands(config)
+	allowedPaths, pathsConfigured := rshellAllowedPaths(config)
+
 	return &Config{
 		MaxBackoff:                         maxBackoff,
 		MinBackoff:                         minBackoff,
@@ -95,15 +99,15 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		ActionsAllowlist:                   makeActionsAllowlist(config),
 		Allowlist:                          config.GetStringSlice(setup.PARHttpAllowlist),
 		AllowIMDSEndpoint:                  config.GetBool(setup.PARHttpAllowImdsEndpoint),
-		RShellAllowedPaths:                 rshellAllowedPaths(config),
-		RShellAllowedCommands:              rshellAllowedCommands(config),
+		RShellAllowedPaths:                 allowedPaths,
+		RShellAllowedCommands:              allowedCommands,
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
 		RShellDisableDetailedTelemetry:     config.GetBool(setup.PARRestrictedShellDisableDetailedTelemetry),
 		RShellPrivilegedEnabled:            config.GetBool(setup.PARRestrictedShellPrivilegedEnabled),
 		RShellPrivilegedSocket:             config.GetString(setup.PARRestrictedShellPrivilegedSocket),
 		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
-		RShellAllowedCommandsConfigured:    config.IsConfigured(setup.PARRestrictedShellAllowedCommands),
-		RShellAllowedPathsConfigured:       config.IsConfigured(setup.PARRestrictedShellAllowedPaths),
+		RShellAllowedCommandsConfigured:    commandsConfigured,
+		RShellAllowedPathsConfigured:       pathsConfigured,
 		OpmsExtraHeaders:                   config.GetStringMapString(setup.PAROpmsExtraHeaders),
 		DDHost:                             ddHost,
 		DDApiHost:                          "api." + ddSite,
@@ -152,6 +156,18 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	return allowlist
 }
 
+// rshellPolicyList preserves explicit empty lists as non-nil deny-all policies.
+// IsConfigured also checks the value, which can be nil for YAML []. Use the
+// source instead; empty environment variables are ignored by the config loader.
+func rshellPolicyList(config config.Component, key string) ([]string, bool) {
+	configured := config.GetSource(key).IsGreaterThan(model.SourceDefault)
+	values := config.GetStringSlice(key)
+	if configured && values == nil {
+		values = []string{}
+	}
+	return values, configured
+}
+
 // rshellAllowedCommands returns the operator-configured rshell command allowlist.
 //
 // The default value is a wildcard ["rshell:*"] created to match all commands in the rshell namespace.
@@ -163,10 +179,10 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // If the wildcard "rshell:*" is not present, the operator-configured list is used to filter the commands.
 // For a command to be executed by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed commands list. (intersection operation)
-func rshellAllowedCommands(config config.Component) []string {
-	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+func rshellAllowedCommands(config config.Component) ([]string, bool) {
+	commands, configured := rshellPolicyList(config, setup.PARRestrictedShellAllowedCommands)
 	warnUnnamespacedCommands(setup.PARRestrictedShellAllowedCommands, commands)
-	return commands
+	return commands, configured
 }
 
 // Nil means unset; a configured empty map is the explicit deny-all policy.
@@ -178,10 +194,10 @@ func rshellAllowedSystemServices(config config.Component) map[string][]string {
 }
 
 func rshellElevatableCommands(config config.Component) []string {
-	if !config.IsConfigured(setup.PARRestrictedShellPrivilegedElevatableCommands) {
+	commands, configured := rshellPolicyList(config, setup.PARRestrictedShellPrivilegedElevatableCommands)
+	if !configured {
 		return nil
 	}
-	commands := config.GetStringSlice(setup.PARRestrictedShellPrivilegedElevatableCommands)
 	warnUnnamespacedCommands(setup.PARRestrictedShellPrivilegedElevatableCommands, commands)
 	return commands
 }
@@ -208,11 +224,11 @@ func warnUnnamespacedCommands(key string, commands []string) {
 // The operator-configured list is used to filter the paths.
 // For a path to be accessible by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed paths list. (intersection operation)
-func rshellAllowedPaths(config config.Component) []string {
-	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+func rshellAllowedPaths(config config.Component) ([]string, bool) {
+	paths, configured := rshellPolicyList(config, setup.PARRestrictedShellAllowedPaths)
 	warnBackslashPaths(paths)
 	warnNonDirectoryPaths(paths)
-	return paths
+	return paths, configured
 }
 
 func warnBackslashPaths(paths []string) {
