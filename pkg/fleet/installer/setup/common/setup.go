@@ -214,9 +214,13 @@ func (s *Setup) Run() (err error) {
 	if !s.NoConfig && runtime.GOOS == "windows" && len(freshConfigs) > 0 {
 		s.backfillConfigTemplates(freshConfigs)
 	}
-	err = s.restartServices(ctx, packages)
-	if err != nil {
-		return fmt.Errorf("failed to restart services: %w", err)
+	if installOnlyEnabled() {
+		s.Out.WriteString("Skipping service restart as requested by DD_INSTALL_ONLY\n")
+	} else {
+		err = s.restartServices(ctx, packages)
+		if err != nil {
+			return fmt.Errorf("failed to restart services: %w", err)
+		}
 	}
 	if s.DelayedAgentRestartConfig.Scheduled {
 		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
@@ -371,4 +375,15 @@ func ScheduleDelayedAgentRestart(s *Setup, delay time.Duration, logFile string) 
 	if err := cmd.Start(); err != nil {
 		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
 	}
+}
+
+// installOnlyEnabled reports whether the operator requested the executable
+// setup flow to leave Agent services stopped after installation.
+func installOnlyEnabled() bool {
+	if runtime.GOOS != "windows" {
+		// only supported on Windows right now
+		return false
+	}
+	value := os.Getenv("DD_INSTALL_ONLY")
+	return value == "1" || strings.EqualFold(value, "true")
 }
