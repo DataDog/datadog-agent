@@ -1175,6 +1175,13 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
 
+// Pin agent-payload to the commit that carries the CWS SecurityContext seccomp
+// filter types (cws/dumpsv1.SeccompFilter/ArgCondition), which are not in the
+// released v5.0.211 tag. Other modules stay on v5.0.211; a plain require can't
+// hold a version below what they demand, so a replace is required here. Remove
+// this once the change is released and all modules are bumped to that tag.
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.211-0.20260922195804-c4f68376c5f7
+
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
 // use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector

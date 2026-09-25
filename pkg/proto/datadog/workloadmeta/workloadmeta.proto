@@ -145,6 +145,27 @@ message ContainerResources {
   optional uint64 memoryLimit = 4;
 }
 
+message Capabilities {
+  repeated string add = 1;
+  repeated string drop = 2;
+}
+
+message SeccompProfile {
+  string type = 1;
+  string localhostProfile = 2;
+}
+
+message ContainerSecurityContext {
+  Capabilities capabilities = 1;
+  bool privileged = 2;
+  SeccompProfile seccompProfile = 3;
+  // Kubernetes tri-state fields: absent = unset in the pod spec, which is
+  // semantically distinct from an explicit false value.
+  optional bool runAsNonRoot = 4;
+  optional bool allowPrivilegeEscalation = 5;
+  optional bool readOnlyRootFilesystem = 6;
+}
+
 message Container {
   WorkloadmetaEntityId entityId = 1;
   EntityMeta entityMeta = 2;
@@ -161,6 +182,15 @@ message Container {
   repeated ContainerAllocatedResource resolvedAllocatedResources = 13;
   ContainerResources resources = 14;
   WorkloadmetaEntityId owner = 15;
+  ContainerSecurityContext securityContext = 16;
+}
+
+message PodSecurityContext {
+  int32 runAsUser = 1;
+  int32 runAsGroup = 2;
+  int32 fsGroup = 3;
+  optional bool runAsNonRoot = 4;
+  SeccompProfile seccompProfile = 5;
 }
 
 message KubernetesPodOwner {
@@ -192,6 +222,7 @@ message KubernetesPod {
   repeated OrchestratorContainer InitContainers = 13;
   string runtimeClass = 14;
   repeated OrchestratorContainer ephemeralContainers = 15;
+  PodSecurityContext securityContext = 16;
 }
 
 enum ECSLaunchType {
