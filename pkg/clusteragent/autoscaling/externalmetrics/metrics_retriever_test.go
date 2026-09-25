@@ -13,12 +13,16 @@ import (
 	"testing"
 	"time"
 
+	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 )
 
 // NewDatadogMetricForTests creates a new internal metric for tests.
@@ -171,6 +175,101 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
 			fixture.run(t)
+		})
+	}
+}
+
+func TestRetrieveMetricsRejectsCrossNamespaceQueryInjectionRegardlessOfOrder(t *testing.T) {
+	configmock.New(t)
+
+	const attackerQuery = "avg:attacker{*},avg:injected-a{*},avg:injected-b{*}"
+	victimQueries := []string{"avg:victim-a{*}", "avg:victim-b{*}"}
+
+	tests := []struct {
+		name  string
+		order []string
+	}{
+		{name: "attacker first", order: []string{"attacker/injected", "victim-a/metric", "victim-b/metric"}},
+		{name: "attacker middle", order: []string{"victim-a/metric", "attacker/injected", "victim-b/metric"}},
+		{name: "attacker last", order: []string{"victim-a/metric", "victim-b/metric", "attacker/injected"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			queriesByID := map[string]string{
+				"attacker/injected": attackerQuery,
+				"victim-a/metric":   victimQueries[0],
+				"victim-b/metric":   victimQueries[1],
+			}
+
+			store := NewDatadogMetricsInternalStore()
+			metricsByID := make(map[string]model.DatadogMetricInternal, len(queriesByID))
+			for id, query := range queriesByID {
+				metric := NewDatadogMetricForTests(id, query, 0, 0)
+				metric.Value = 1
+				metric.Valid = true
+				metric.SetQueries(query)
+				metricsByID[id] = metric
+				store.Set(id, metric, "utest")
+			}
+
+			orderedMetrics := make([]model.DatadogMetricInternal, 0, len(test.order))
+			for _, id := range test.order {
+				orderedMetrics = append(orderedMetrics, metricsByID[id])
+			}
+
+			queried := make(chan string, 1)
+			datadogClientComp := datadogclientmock.New(t).Comp
+			datadogClientComp.SetQueryMetricsFunc(func(_ int64, _ int64, query string) ([]datadog.Series, error) {
+				queried <- query
+				timestamp := float64(time.Now().Add(-time.Second).UnixMilli())
+				return []datadog.Series{
+					{
+						Expression: pointer.Ptr(victimQueries[0]),
+						QueryIndex: pointer.Ptr(0),
+						Metric:     pointer.Ptr("victim-a"),
+						Scope:      pointer.Ptr("*"),
+						Points:     []datadog.DataPoint{{&timestamp, pointer.Ptr(10.0)}},
+					},
+					{
+						Expression: pointer.Ptr(victimQueries[1]),
+						QueryIndex: pointer.Ptr(1),
+						Metric:     pointer.Ptr("victim-b"),
+						Scope:      pointer.Ptr("*"),
+						Points:     []datadog.DataPoint{{&timestamp, pointer.Ptr(20.0)}},
+					},
+				}, nil
+			})
+
+			processor := autoscalers.NewProcessor(datadogClientComp)
+			metricsRetriever, err := NewMetricsRetriever(0, 300, processor, getIsLeaderFunction(true), &store, false)
+			require.NoError(t, err)
+			metricsRetriever.retrieveMetricsValuesSlice(orderedMetrics)
+
+			select {
+			case query := <-queried:
+				require.Equal(t, victimQueries[0]+","+victimQueries[1], query)
+			default:
+				require.Fail(t, "expected the valid victim queries to be sent to Datadog")
+			}
+
+			attacker := store.Get("attacker/injected")
+			require.NotNil(t, attacker)
+			require.False(t, attacker.Valid)
+			require.ErrorContains(t, attacker.Error, "top-level comma")
+			require.Equal(t, 1.0, attacker.Value)
+
+			victimA := store.Get("victim-a/metric")
+			require.NotNil(t, victimA)
+			require.True(t, victimA.Valid)
+			require.NoError(t, victimA.Error)
+			require.Equal(t, 10.0, victimA.Value)
+
+			victimB := store.Get("victim-b/metric")
+			require.NotNil(t, victimB)
+			require.True(t, victimB.Valid)
+			require.NoError(t, victimB.Error)
+			require.Equal(t, 20.0, victimB.Value)
 		})
 	}
 }
