@@ -64,25 +64,28 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
+	var messages []model.MessageBody
 	procStats := convertProcessStats(procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
-	runMaxBatchSize := min(len(procStats), p.maxBatchSize)
-	groupSize := getGroupSize(len(procStats), runMaxBatchSize)
-	chunkedProcStats := slices.Chunk(procStats, runMaxBatchSize)
-	ctrChunkSize := getChunkSize(len(containers), groupSize)
-	chunkedCtrStats := slices.Chunk(ddslices.Map(containers, convertToContainerStat), ctrChunkSize)
+	if len(procStats) > 0 {
+		runMaxBatchSize := min(len(procStats), p.maxBatchSize)
+		groupSize := getGroupSize(len(procStats), runMaxBatchSize)
+		messages = make([]model.MessageBody, 0, groupSize)
 
-	messages := make([]model.MessageBody, 0, groupSize)
-	for chunkProcStats, chunkCtrStats := range ddslices.ZipIter(chunkedProcStats, chunkedCtrStats) {
-		messages = append(messages, &model.CollectorRealTime{
-			HostName:          p.hostInfo.HostName,
-			Stats:             chunkProcStats,
-			ContainerStats:    chunkCtrStats,
-			GroupId:           groupID,
-			GroupSize:         int32(groupSize),
-			NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
-			TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
-			ContainerHostType: p.hostInfo.ContainerHostType,
-		})
+		chunkedProcStats := slices.Chunk(procStats, runMaxBatchSize)
+		ctrChunkSize := getChunkSize(len(containers), groupSize)
+		chunkedCtrStats := slices.Chunk(ddslices.Map(containers, convertToContainerStat), ctrChunkSize)
+		for chunkProcStats, chunkCtrStats := range ddslices.ZipIter(chunkedProcStats, chunkedCtrStats) {
+			messages = append(messages, &model.CollectorRealTime{
+				HostName:          p.hostInfo.HostName,
+				Stats:             chunkProcStats,
+				ContainerStats:    chunkCtrStats,
+				GroupId:           groupID,
+				GroupSize:         int32(groupSize),
+				NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+				TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+				ContainerHostType: p.hostInfo.ContainerHostType,
+			})
+		}
 	}
 
 	// Store the last state for comparison on the next run.
