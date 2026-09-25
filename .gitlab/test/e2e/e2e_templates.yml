@@ -95,7 +95,7 @@
     E2E_COVERAGE_OUT_DIR: $CI_PROJECT_DIR/coverage
     E2E_IMAGE_PULL_REGISTRY: 669783387624.dkr.ecr.us-east-1.amazonaws.com,us-central1-docker.pkg.dev
     E2E_IMAGE_PULL_USERNAME: AWS,_json_key
-    PRE_BUILT_BINARIES_FLAG: "--use-bazel-built-binaries"
+    PRE_BUILT_BINARIES_FLAG: "--use-bazel-built-binaries --bazel-no-cache" # Build test binaries with Bazel in-job, with no cache (cold-build / OOM testing)
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
   script:
