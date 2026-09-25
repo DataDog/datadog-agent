@@ -42,11 +42,12 @@ type RollbackInputs struct {
 	// Revision is the target revision number. A value of 0 means "previous
 	// revision" (helm's default behaviour).
 	Revision int `json:"revision"`
-	// JobServiceAccountName is the service account the Job pod runs as. Required:
-	// it must have the RBAC permissions helm needs to act on the release
-	// (typically: read/write secrets in the release namespace, plus permissions
-	// on the resources the chart manages).
-	JobServiceAccountName string `json:"jobServiceAccountName"`
+	// JobServiceAccountName is the service account the Job pod runs as. It must
+	// have the RBAC permissions helm needs to act on the release (typically:
+	// read/write secrets in the release namespace, plus permissions on the
+	// resources the chart manages). Derived by the runner from the cluster
+	// agent's own service account name, never supplied by the caller.
+	JobServiceAccountName string `json:"-"`
 	// JobNamespace is the namespace where the K8s Job will be created. It is
 	// always the cluster agent's own namespace (that's where the Helm chart
 	// provisions the Job's ServiceAccount) and is filled in by the runner
@@ -84,7 +85,7 @@ func (o RollbackInputs) Validate() error {
 	case o.JobNamespace == "":
 		return errors.New("job namespace must be set by the runner")
 	case o.JobServiceAccountName == "":
-		return errors.New("service account name is required")
+		return errors.New("job service account name must be set by the runner")
 	case o.Revision < 0:
 		return fmt.Errorf("revision must be >= 0, got %d", o.Revision)
 	}
