@@ -49,10 +49,6 @@
     TEAM: injection-platform
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    # Run early by design: its test binaries are built in-job with Bazel
-    # (--use-bazel-built-binaries), so it never waits on the pipeline's
-    # binary build stage. At 24Gi the build container sat pinned at its memory
-    # limit for the whole run; keep memory generous for in-job compilation.
     KUBERNETES_MEMORY_REQUEST: 72Gi
     KUBERNETES_MEMORY_LIMIT: 72Gi
   allow_failure: true
