@@ -6,7 +6,7 @@
 // Package eval holds eval related files
 package eval
 
-import "github.com/alecthomas/participle/lexer"
+import "github.com/alecthomas/participle/v2/lexer"
 
 func evaluatorFromRootDomainHandler(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
 	evaluator, err := state.model.GetEvaluator(fieldname, "", 0)

@@ -70,7 +70,7 @@ use_repo(
     "cc_mvdan_sh_v3",
     "com_github_aarzilli_whydeadcode",
     "com_github_acobaugh_osrelease",
-    "com_github_alecthomas_participle",
+    "com_github_alecthomas_participle_v2",
     "com_github_alecthomas_units",
     "com_github_apache_arrow_go_v18",
     "com_github_aptly_dev_aptly",
@@ -134,7 +134,6 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
-    "com_github_datadog_orchestrion",
     "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
@@ -148,7 +147,6 @@ use_repo(
     "com_github_elastic_go_libaudit_v2",
     "com_github_elastic_go_seccomp_bpf",
     "com_github_envoyproxy_gateway",
-    "com_github_envoyproxy_go_control_plane_envoy",
     "com_github_evanphx_json_patch_v5",
     "com_github_fatih_color",
     "com_github_fatih_structtag",
@@ -301,21 +299,21 @@ use_repo(
     "com_github_protonmail_go_crypto",
     "com_github_pulumi_pulumi_aws_sdk_v7",
     "com_github_pulumi_pulumi_awsx_sdk_v3",
-    "com_github_pulumi_pulumi_azure_native_sdk_authorization_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_compute_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_containerservice_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_managedidentity_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_network_v2",
-    "com_github_pulumi_pulumi_azure_native_sdk_v2",
+    "com_github_pulumi_pulumi_azure_native_sdk_authorization_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_compute_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_containerservice_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_managedidentity_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_network_v3",
+    "com_github_pulumi_pulumi_azure_native_sdk_v3",
     "com_github_pulumi_pulumi_command_sdk",
-    "com_github_pulumi_pulumi_docker_sdk_v4",
+    "com_github_pulumi_pulumi_docker_sdk_v5",
     "com_github_pulumi_pulumi_eks_sdk_v4",
     "com_github_pulumi_pulumi_gcp_sdk_v9",
     "com_github_pulumi_pulumi_kubernetes_sdk_v4",
     "com_github_pulumi_pulumi_libvirt_sdk",
     "com_github_pulumi_pulumi_random_sdk_v4",
     "com_github_pulumi_pulumi_sdk_v3",
-    "com_github_pulumi_pulumi_tls_sdk_v4",
+    "com_github_pulumi_pulumi_tls_sdk_v5",
     "com_github_pulumiverse_pulumi_time_sdk",
     "com_github_qri_io_jsonpointer",
     "com_github_rabbitmq_amqp091_go",
@@ -364,7 +362,7 @@ use_repo(
     "com_github_xi2_xz",
     "com_github_xor_gate_ar",
     "com_github_yusufpapurcu_wmi",
-    "com_gitlab_gitlab_org_api_client_go",
+    "com_gitlab_gitlab_org_api_client_go_v3",
     "com_google_cloud_go_compute",
     "com_google_cloud_go_compute_metadata",
     "dev_essio_al_pkg_shellescape",
@@ -527,6 +525,14 @@ go_deps.gazelle_override(
     path = "github.com/DataDog/zstd",
 )
 
+# go-nvml exposes generated cgo bindings for the full NVML API surface, including
+# functions that NVIDIA marks deprecated in nvml.h. Compiling those bindings emits
+# -Wdeprecated-declarations warnings.
+go_deps.gazelle_override(
+    directives = ["gazelle:go_copts -Wno-deprecated-declarations"],
+    path = "github.com/NVIDIA/go-nvml",
+)
+
 # sdjournal wraps journald's C API and `#include <systemd/sd-journal.h>` at compile
 # time, but the hermetic toolchain sysroot ships no libsystemd headers. Patch the
 # Gazelle-generated BUILD to pull them from the vendored @systemd archive via cdeps.
@@ -563,6 +569,10 @@ go_deps.module_override(
 )
 
 inject_repo(go_deps, "systemd")
+
+register_toolchains("@go_civisibility_sdk//:go_civisibility_linux_amd64")
+
+use_repo_rule("//bazel/rules/go_civisibility_sdk:repo.bzl", "go_civisibility_sdk")(name = "go_civisibility_sdk")
 
 use_repo_rule("//bazel/rules/go_fast:repo.bzl", "go_fast")(name = "go_fast")
 

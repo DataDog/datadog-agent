@@ -13,7 +13,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.11.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260810153831-ec0a7760b754
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -39,7 +39,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.1 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.7 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
@@ -54,7 +54,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 
@@ -235,6 +235,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e

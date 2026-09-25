@@ -53,12 +53,14 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 		{key: "system_probe_config.closed_channel_size", defaultValue: 0},
 		{key: "network_config.closed_channel_size", defaultValue: 500},
 		{key: "gpu_monitoring.nvml_lib_path", defaultValue: ""},
+		{key: "gpu_monitoring.driver_events_enabled", defaultValue: false},
 		{key: "discovery.service_collection_batch_size", defaultValue: 500},
 		{key: "discovery.service_collection_max_consecutive_timeouts", defaultValue: 5},
 		{key: "discovery.service_collection_min_process_age", defaultValue: time.Minute},
 		{key: "runtime_security_config.security_profile.v2.enabled", defaultValue: true},
 		{key: "runtime_security_config.security_profile.v2.max_dump_size", defaultValue: 2560},
 		{key: "runtime_security_config.security_profile.v2.event_types", defaultValue: []string{"exec", "open", "dns", "bind"}},
+		{key: "runtime_security_config.security_profile.v2.profile_reporting_delay.time_based", defaultValue: false},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
@@ -83,6 +85,9 @@ func TestSystemProbeDefaultConfig(t *testing.T) {
 			}
 		})
 	}
+
+	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.profile_reporting_delay.duration"))
+	assert.Equal(t, time.Duration(0), cfg.GetDuration("runtime_security_config.security_profile.v2.profiling_startup_delay"))
 }
 
 func TestDiscoveryUseSystemProbeLite(t *testing.T) {

@@ -121,7 +121,7 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_atomic//:atomic",
         "@org_uber_go_fx//:fx",
     ],

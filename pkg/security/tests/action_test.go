@@ -10,6 +10,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -73,7 +74,7 @@ func TestActionKill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -230,7 +231,7 @@ func TestActionKillExcludeBinary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	sleepCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -291,7 +292,7 @@ func TestActionKillRuleSpecific(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -589,7 +590,7 @@ func TestActionKillDisarm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -631,7 +632,7 @@ func TestActionHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-hash-action")
 	if err != nil {
@@ -890,7 +891,7 @@ func TestActionKillWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var tailCmd *exec.Cmd
@@ -1081,7 +1082,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var tailCmd *exec.Cmd
@@ -1286,7 +1287,7 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var capturedSignature string
 	var catCmd *exec.Cmd
@@ -1477,7 +1478,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1748,6 +1749,19 @@ func TestRemediationCustomEvents(t *testing.T) {
 
 }
 
+func remediationStatusSourceRuleID(data []byte) string {
+	var obj interface{}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return ""
+	}
+	if el, err := jsonpath.JsonPathLookup(obj, `$.rule_tags.rule_id`); err == nil {
+		if ruleID, ok := el.(string); ok {
+			return ruleID
+		}
+	}
+	return ""
+}
+
 func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -1791,7 +1805,7 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 	}
 	noEventRule := &rules.RuleDefinition{
 
-		ID:         "kill_remediation_not_triggering",
+		ID:         "kill_remediation_not_triggering_no_remediation_tag",
 		Expression: `exec.file.name == "there-is-again-no-file-like-that"`,
 		Actions: []*rules.ActionDefinition{
 			{
@@ -1801,13 +1815,16 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 				},
 			},
 		},
+		Tags: map[string]string{
+			"rule_id": "kill_remediation_not_triggering_no_remediation_tag",
+		},
 	}
 
 	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("not-triggered-sent-at-startup", func(t *testing.T) {
 		newRuleDefs := []*rules.RuleDefinition{remediationNotTriggeredRule}
@@ -1881,6 +1898,11 @@ func TestRemediationCustomEventNotTriggered(t *testing.T) {
 
 			msg := test.msgSender.getMsg("remediation_status")
 			if msg != nil {
+				if sourceRuleID := remediationStatusSourceRuleID(msg.Data); sourceRuleID != noEventRule.ID {
+					// Stale remediation_status from another test still in the queue.
+					test.msgSender.flush()
+					return errors.New("retry")
+				}
 				t.Error("should not find remediation_status message, got event : " + string(msg.Data))
 				return nil
 			}
@@ -1944,7 +1966,7 @@ func TestCustomEventContainer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var cGroupID string
 	var catCmd *exec.Cmd

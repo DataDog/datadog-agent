@@ -108,13 +108,12 @@ func (f *extendedJobFactory) ExpectedType() interface{} {
 // ListWatch returns a ListerWatcher for batchv1.Job
 func (f *extendedJobFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(kubernetes.Interface)
-	ctx := context.Background()
 	return &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
 			return client.BatchV1().Jobs(ns).List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
 			return client.BatchV1().Jobs(ns).Watch(ctx, opts)
 		},

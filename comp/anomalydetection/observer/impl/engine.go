@@ -197,12 +197,14 @@ type engine struct {
 
 	// Cross-advance detector deduplication is always active. Full anomaly history
 	// and its introspection indexes are populated only for testbench/replay.
-	anomalyDeduper       anomalyDeduper
-	trackAnomalyHistory  bool
-	rawAnomalies         []observerdef.Anomaly
-	rawAnomalyMu         sync.RWMutex
-	totalAnomalyCount    int             // total count ever (no cap)
-	uniqueAnomalySources map[string]bool // testbench-only, capped unique source set
+	anomalyDeduper             anomalyDeduper
+	trackAnomalyHistory        bool
+	trackDetectorOutputHistory bool
+	rawAnomalies               []observerdef.Anomaly
+	detectorOutputAnomalies    []observerdef.Anomaly
+	rawAnomalyMu               sync.RWMutex
+	totalAnomalyCount          int             // total count ever (no cap)
+	uniqueAnomalySources       map[string]bool // testbench-only, capped unique source set
 
 	// Accumulated correlations — populated only when trackCorrelationHistory is true.
 	// Correlators maintain sliding windows that evict old state, but for
@@ -278,6 +280,9 @@ type engineConfig struct {
 	// trackAnomalyHistory enables full raw anomaly history for testbench replay.
 	// Live production engines leave this false and retain only bounded dedup state.
 	trackAnomalyHistory bool
+	// trackDetectorOutputHistory retains every detector return value before
+	// downstream pipeline filtering. Used only by finite replay comparisons.
+	trackDetectorOutputHistory bool
 	// trackCorrelationHistory enables the accumulated-correlations map.
 	// Only used in tests and testbench replay; live production engines leave this false.
 	trackCorrelationHistory bool
@@ -307,9 +312,10 @@ func newEngine(cfg engineConfig) *engine {
 		scorer:      cfg.scorer,
 		scheduler:   sched,
 
-		anomalyDeduper:          newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
-		trackAnomalyHistory:     cfg.trackAnomalyHistory,
-		trackCorrelationHistory: cfg.trackCorrelationHistory,
+		anomalyDeduper:             newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
+		trackAnomalyHistory:        cfg.trackAnomalyHistory,
+		trackDetectorOutputHistory: cfg.trackDetectorOutputHistory,
+		trackCorrelationHistory:    cfg.trackCorrelationHistory,
 	}
 	if cfg.logCountBuckets.Enabled {
 		e.logCounts = newMaterializedLogCountBucketizer(cfg.logCountBuckets)
@@ -423,7 +429,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+	e.storage.AddWithHost(source, m.name, m.host, m.value, m.timestamp, m.tags)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -460,14 +466,18 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 			// Always canonicalize so the hash computed here matches storage's
 			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
 			tags = canonicalizeTags(tags)
+			host := m.Host
+			if host == "" {
+				host = l.hostname
+			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, tags)]; ok {
+				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, host, tags)]; ok {
 					continue
 				}
 			}
 			timestamp := l.timestampMs / 1000
 			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
-				if !e.logCounts.observe(extractor.Name(), m, timestamp, tags) {
+				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)
@@ -476,7 +486,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.Add(extractor.Name(), m.Name, m.Value, timestamp, tags)
+			res := e.storage.AddWithHost(extractor.Name(), m.Name, host, m.Value, timestamp, tags)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
@@ -740,6 +750,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		}
 
 		result := detector.Detect(storageForDetect, upTo)
+		if e.trackDetectorOutputHistory && len(result.Anomalies) > 0 {
+			e.recordDetectorOutputs(detector.Name(), result.Anomalies)
+		}
 		if e.baseline != nil && detector.Ready() {
 			e.baseline.ready(detector.Name(), upTo)
 		}
@@ -774,12 +787,12 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
 				if anomaly.SourceRef != nil {
-					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags))
+					e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags))
 				}
 				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Tags)
+				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
 				if _, muted := e.baseline.mutedHashes[h]; muted {
 					continue
 				}
@@ -937,6 +950,33 @@ func (e *engine) RawAnomalies() []observerdef.Anomaly {
 	return result
 }
 
+// DetectorOutputAnomalies returns every anomaly emitted directly by detectors
+// during a replay before downstream pipeline filtering. Live production mode
+// returns an empty slice.
+func (e *engine) DetectorOutputAnomalies() []observerdef.Anomaly {
+	e.rawAnomalyMu.RLock()
+	defer e.rawAnomalyMu.RUnlock()
+
+	result := make([]observerdef.Anomaly, len(e.detectorOutputAnomalies))
+	copy(result, e.detectorOutputAnomalies)
+	return result
+}
+
+func (e *engine) recordDetectorOutputs(detectorName string, anomalies []observerdef.Anomaly) {
+	if !e.trackDetectorOutputHistory || len(anomalies) == 0 {
+		return
+	}
+
+	e.rawAnomalyMu.Lock()
+	defer e.rawAnomalyMu.Unlock()
+	for _, anomaly := range anomalies {
+		if anomaly.DetectorName == "" {
+			anomaly.DetectorName = detectorName
+		}
+		e.detectorOutputAnomalies = append(e.detectorOutputAnomalies, anomaly)
+	}
+}
+
 // TotalAnomalyCount returns the total number of anomalies ever detected.
 func (e *engine) TotalAnomalyCount() int {
 	e.rawAnomalyMu.RLock()
@@ -1027,7 +1067,7 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 	if e.baseline.config.Verbose {
 		for _, ref := range refs {
 			if meta := e.storage.GetSeriesMeta(ref); meta != nil {
-				displayNames = append(displayNames, seriesKey(meta.Namespace, meta.Name, meta.Tags))
+				displayNames = append(displayNames, seriesKey(meta.Namespace, meta.Name, meta.Host, meta.Tags))
 			}
 		}
 		sort.Strings(displayNames)
@@ -1152,17 +1192,20 @@ func (e *engine) resetRawAnomalies() {
 
 	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(e.trackAnomalyHistory))
 	e.rawAnomalies = nil
+	e.detectorOutputAnomalies = nil
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
 }
 
-func (e *engine) configureAnomalyTracking(trackHistory bool) {
+func (e *engine) configureAnomalyTracking(trackHistory, trackDetectorOutputHistory bool) {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
 	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(trackHistory))
 	e.trackAnomalyHistory = trackHistory
+	e.trackDetectorOutputHistory = trackDetectorOutputHistory
 	e.rawAnomalies = nil
+	e.detectorOutputAnomalies = nil
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
 }
@@ -1240,7 +1283,7 @@ func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []
 	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
-	e.configureAnomalyTracking(storageCfg.TrackAnomalyHistory)
+	e.configureAnomalyTracking(storageCfg.TrackAnomalyHistory, storageCfg.TrackDetectorOutputHistory)
 	if baselineCfg.Enabled {
 		e.baseline = newBaselineController(baselineCfg, detectorNames(detectors))
 	} else {

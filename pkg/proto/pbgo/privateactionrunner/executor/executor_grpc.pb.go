@@ -19,14 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Executor_RunAction_FullMethodName = "/datadog.privateactionrunner.executor.Executor/RunAction"
-	Executor_Health_FullMethodName    = "/datadog.privateactionrunner.executor.Executor/Health"
+	Executor_GetControlPlaneConfig_FullMethodName = "/datadog.privateactionrunner.executor.Executor/GetControlPlaneConfig"
+	Executor_RunAction_FullMethodName             = "/datadog.privateactionrunner.executor.Executor/RunAction"
+	Executor_Health_FullMethodName                = "/datadog.privateactionrunner.executor.Executor/Health"
 )
 
 // ExecutorClient is the client API for Executor service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ExecutorClient interface {
+	GetControlPlaneConfig(ctx context.Context, in *GetControlPlaneConfigRequest, opts ...grpc.CallOption) (*GetControlPlaneConfigResponse, error)
 	// RunAction runs a single action and streams updates ending in a final ActionResult.
 	RunAction(ctx context.Context, in *RunActionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RunActionResponse], error)
 	// Health reports executor readiness and liveness; used to gate dispatch.
@@ -39,6 +41,16 @@ type executorClient struct {
 
 func NewExecutorClient(cc grpc.ClientConnInterface) ExecutorClient {
 	return &executorClient{cc}
+}
+
+func (c *executorClient) GetControlPlaneConfig(ctx context.Context, in *GetControlPlaneConfigRequest, opts ...grpc.CallOption) (*GetControlPlaneConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetControlPlaneConfigResponse)
+	err := c.cc.Invoke(ctx, Executor_GetControlPlaneConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *executorClient) RunAction(ctx context.Context, in *RunActionRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RunActionResponse], error) {
@@ -74,6 +86,7 @@ func (c *executorClient) Health(ctx context.Context, in *HealthRequest, opts ...
 // All implementations must embed UnimplementedExecutorServer
 // for forward compatibility.
 type ExecutorServer interface {
+	GetControlPlaneConfig(context.Context, *GetControlPlaneConfigRequest) (*GetControlPlaneConfigResponse, error)
 	// RunAction runs a single action and streams updates ending in a final ActionResult.
 	RunAction(*RunActionRequest, grpc.ServerStreamingServer[RunActionResponse]) error
 	// Health reports executor readiness and liveness; used to gate dispatch.
@@ -88,6 +101,9 @@ type ExecutorServer interface {
 // pointer dereference when methods are called.
 type UnimplementedExecutorServer struct{}
 
+func (UnimplementedExecutorServer) GetControlPlaneConfig(context.Context, *GetControlPlaneConfigRequest) (*GetControlPlaneConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetControlPlaneConfig not implemented")
+}
 func (UnimplementedExecutorServer) RunAction(*RunActionRequest, grpc.ServerStreamingServer[RunActionResponse]) error {
 	return status.Error(codes.Unimplemented, "method RunAction not implemented")
 }
@@ -113,6 +129,24 @@ func RegisterExecutorServer(s grpc.ServiceRegistrar, srv ExecutorServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&Executor_ServiceDesc, srv)
+}
+
+func _Executor_GetControlPlaneConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetControlPlaneConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ExecutorServer).GetControlPlaneConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Executor_GetControlPlaneConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ExecutorServer).GetControlPlaneConfig(ctx, req.(*GetControlPlaneConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Executor_RunAction_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -151,6 +185,10 @@ var Executor_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "datadog.privateactionrunner.executor.Executor",
 	HandlerType: (*ExecutorServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetControlPlaneConfig",
+			Handler:    _Executor_GetControlPlaneConfig_Handler,
+		},
 		{
 			MethodName: "Health",
 			Handler:    _Executor_Health_Handler,
