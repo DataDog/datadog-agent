@@ -727,6 +727,27 @@ target_compatible_with = select({
 })
 ```
 
+A named target that is `target_compatible_with` an incompatible platform reports
+`Target //foo:bar was skipped`, and `bazel run` then fails with
+`ERROR: No targets found to run`. That is the expected outcome, not a bug — check
+the target's constraints before assuming the rule is broken.
+
+### Running Windows-only generators from Linux
+
+Some code generators reflect over the Go types compiled *into* the generator
+binary (e.g. `//pkg/security/generators/backend_doc`, which produces
+`backend_<os>.schema.json` from the `serializers` types). Their per-platform
+output therefore cannot be cross-compiled: it needs a binary built *for* that
+platform and then actually executed.
+
+For Windows, such a generator runs on Linux under `//bazel/tools/wine:wine_run`,
+which uses a pinned Wine (under box64 on aarch64) from its runfiles, never the
+host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
+the generator for `windows_amd64`, and a `select()` on `@platforms//os:windows`
+for the `run_binary`'s `srcs`, `args` and `tool`. `wine_run` only supports Linux
+x86_64 and aarch64 (4K pages), so on macOS such targets are skipped as
+incompatible.
+
 ## Depsets and rule performance
 
 Accumulating deps with plain lists is O(n²). Use depsets.

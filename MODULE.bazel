@@ -563,6 +563,9 @@ include("//deps:go.MODULE.bazel")
 # buildifier: leave-alone
 include("//deps/agent_integrations:integrations.MODULE.bazel")
 
+# buildifier: leave-alone
+include("//bazel/tools/wine:wine.MODULE.bazel")
+
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.

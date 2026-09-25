@@ -1,0 +1,48 @@
+filegroup(
+    name = "runtime",
+    srcs = [
+        "bin/wine",
+        "bin/wineserver",
+    ] + glob(
+        [
+            "lib/**",
+            "share/wine/**",
+        ],
+        # Static import libraries are only needed to build against Wine.
+        # These unix libraries link host libraries the sandbox does not have,
+        # and box64 fails closed while mapping them. Their PE modules would
+        # still make Wine load the missing unix library.
+        exclude = [
+            "**/*.a",
+            "**/capi2032.dll",
+            "**/gphoto2.ds",
+            "**/opencl.dll",
+            "**/sane.ds",
+            "**/winealsa.drv",
+            "**/winebus.sys",
+            "**/winedmo.dll",
+            "**/winegstreamer.dll",
+            "**/winepulse.drv",
+            "**/wineusb.sys",
+            "**/winewayland.drv",
+            "**/winex11.drv",
+            "**/winscard.dll",
+            "**/wpcap.dll",
+            "lib/wine/x86_64-unix/capi2032.so",
+            "lib/wine/x86_64-unix/gphoto2.so",
+            "lib/wine/x86_64-unix/opencl.so",
+            "lib/wine/x86_64-unix/sane.so",
+            "lib/wine/x86_64-unix/winealsa.so",
+            "lib/wine/x86_64-unix/winebus.so",
+            "lib/wine/x86_64-unix/winedmo.so",
+            "lib/wine/x86_64-unix/winegstreamer.so",
+            "lib/wine/x86_64-unix/winepulse.so",
+            "lib/wine/x86_64-unix/wineusb.so",
+            "lib/wine/x86_64-unix/winewayland.so",
+            "lib/wine/x86_64-unix/winex11.so",
+            "lib/wine/x86_64-unix/winscard.so",
+            "lib/wine/x86_64-unix/wpcap.so",
+        ],
+    ),
+    visibility = ["@//bazel/tools/wine:__pkg__"],
+)
