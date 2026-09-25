@@ -571,11 +571,6 @@ private_action_runner:
 	assert.Empty(t, cfg.RShellAllowedSystemServices)
 }
 
-// TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
-// transform contract for `allowed_paths: []`: GetStringSlice returns a
-// nil slice for the explicit YAML empty list, and the transform forwards
-// that as-is.
-// The slice value here is "no entries" regardless of nil/non-nil shape.
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
 	yaml := `
 private_action_runner:
@@ -586,7 +581,8 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice")
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
+	assert.Equal(t, []string{}, cfg.RShellAllowedPaths, "YAML [] must remain a non-nil deny-all list")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -599,7 +595,50 @@ private_action_runner:
 
 	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice")
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
+	assert.Equal(t, []string{}, cfg.RShellAllowedCommands, "YAML [] must remain a non-nil deny-all list")
+}
+
+func TestFromDDConfigPARRestrictedShellElevatableCommandsEmptyYAML(t *testing.T) {
+	mockConfig := configmock.NewFromYAML(t, `
+private_action_runner:
+  restricted_shell:
+    privileged:
+      elevatable_commands: []
+`)
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{}, cfg.RShellPrivilegedElevatableCommands, "YAML [] must remain a non-nil deny-all list")
+}
+
+func TestFromDDConfigPARRestrictedShellPolicyEnv(t *testing.T) {
+	for _, tt := range []struct {
+		name                                   string
+		commands                               string
+		paths                                  string
+		elevation                              string
+		configured                             bool
+		wantCommands, wantPaths, wantElevation []string
+	}{
+		{name: "empty is unset", wantCommands: []string{"rshell:*"}, wantPaths: []string{"/"}},
+		{name: "JSON empty is deny-all", commands: "[]", paths: "[]", elevation: "[]", configured: true,
+			wantCommands: []string{}, wantPaths: []string{}, wantElevation: []string{}},
+		{name: "populated", commands: `["rshell:cat"]`, paths: `["/var/log"]`, elevation: `["rshell:cat"]`, configured: true,
+			wantCommands: []string{"rshell:cat"}, wantPaths: []string{"/var/log"}, wantElevation: []string{"rshell:cat"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_COMMANDS", tt.commands)
+			t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_ALLOWED_PATHS", tt.paths)
+			t.Setenv("DD_PRIVATE_ACTION_RUNNER_RESTRICTED_SHELL_PRIVILEGED_ELEVATABLE_COMMANDS", tt.elevation)
+			cfg, err := FromDDConfig(configmock.New(t), nil)
+			require.NoError(t, err)
+			assert.Equal(t, tt.configured, cfg.RShellAllowedCommandsConfigured)
+			assert.Equal(t, tt.configured, cfg.RShellAllowedPathsConfigured)
+			assert.Equal(t, tt.wantCommands, cfg.RShellAllowedCommands)
+			assert.Equal(t, tt.wantPaths, cfg.RShellAllowedPaths)
+			assert.Equal(t, tt.wantElevation, cfg.RShellPrivilegedElevatableCommands)
+		})
+	}
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
@@ -726,6 +765,9 @@ private_action_runner:
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 	assert.Nil(t, cfg.RShellAllowedSystemServices)
+	assert.Nil(t, cfg.RShellPrivilegedElevatableCommands)
+	assert.False(t, cfg.RShellAllowedCommandsConfigured)
+	assert.False(t, cfg.RShellAllowedPathsConfigured)
 	assert.False(t, cfg.RShellDisableDetailedTelemetry)
 }
 
