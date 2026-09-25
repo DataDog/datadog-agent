@@ -36,6 +36,11 @@ const (
 	AzureAppServiceKind Kind = "azure_app_service"
 	// AzureFunctionsKind is a serverless source on Azure Functions.
 	AzureFunctionsKind Kind = "azure_functions"
+	// GCPCloudRunKind is a serverless source on a Cloud Run service.
+	GCPCloudRunKind Kind = "gcp_cloud_run"
+	// GCPCloudFunctionsKind is a serverless source on Cloud Functions v2 / Cloud Run functions.
+	// Canonical gcp_cloud_functions resources map here without generation detection.
+	GCPCloudFunctionsKind Kind = "gcp_cloud_functions"
 )
 
 // Source represents a telemetry source.
