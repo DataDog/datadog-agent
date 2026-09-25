@@ -24,6 +24,11 @@ datadog:
 agents:
   containers:
     hostProfiler:
+      env:
+        # enable configstream consumption from the bundled core Agent.
+        # needed till 7.84 when it becomes a default
+        - name: DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED
+          value: "true"
       # Explicit zero requests avoid reserving CPU or memory on every node,
       # while limits cap runaway usage.
       resources:

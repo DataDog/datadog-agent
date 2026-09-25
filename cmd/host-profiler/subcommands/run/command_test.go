@@ -12,6 +12,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/host-profiler/globalparams"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	configsyncimpl "github.com/DataDog/datadog-agent/comp/core/configsync/impl"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,4 +34,28 @@ func TestFxRunWithAgentCore(t *testing.T) {
 	fxutil.TestOneShot(t, func() {
 		runHostProfilerCommand(context.Background(), &cliParams{GlobalParams: &globalparams.GlobalParams{CoreConfPath: "config_path"}})
 	})
+}
+
+type fakeConfigStream bool
+
+func (f fakeConfigStream) IsActive() bool { return bool(f) }
+
+func TestConfigSyncFallback(t *testing.T) {
+	deps := configsyncimpl.Requires{Config: config.NewMock(t), Log: logmock.New(t)}
+
+	component, err := newConfigSyncFallback(deps, fakeConfigStream(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := component.(noopConfigSync); !ok {
+		t.Fatal("expected configsync to be skipped when configstream is active")
+	}
+
+	component, err = newConfigSyncFallback(deps, fakeConfigStream(false))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := component.(noopConfigSync); ok {
+		t.Fatal("expected configsync to be created when configstream is inactive")
+	}
 }
