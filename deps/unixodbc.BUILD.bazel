@@ -1,31 +1,12 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_package_metadata = [":package_metadata"],
+    default_package_metadata = [":license"],
     default_visibility = ["//packages:__subpackages__"],
-)
-
-# Version info from unixODBC 2.3.9
-# The actual SONAME version would be determined by LIB_VERSION in the autotools build
-# For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
-VERSION = "2.3.9"
-
-package_metadata(
-    name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
-    purl = purl_for_generic(
-        package = "unixodbc",
-        version = VERSION,
-        download_url = "https://www.unixodbc.org/unixODBC-{version}.tar.gz",
-    ),
 )
 
 license(
@@ -37,6 +18,11 @@ license(
 
 COMMON_COPTS = ["-O3"]
 COMMON_INCLUDES = [".", "include"]
+
+# Version info from unixODBC 2.3.9
+# The actual SONAME version would be determined by LIB_VERSION in the autotools build
+# For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
+VERSION = "2.3.9"
 
 # For some reason version of .so in the final package is 2.0.0, not 2.3.9.
 # To ensure the same behavior as the autotools build, we use 2.0.0 here.

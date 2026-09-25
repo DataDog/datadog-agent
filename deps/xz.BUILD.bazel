@@ -33,18 +33,6 @@ package_metadata(
     ),
 )
 
-package_metadata(
-    name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
-    purl = purl_for_generic(
-        package = "xz",
-        version = VERSION,
-        download_url = "https://tukaani.org/xz/xz-{version}.tar.gz",
-    ),
-)
-
 # Warning: starting from 5.5.2, the license switches to BSD-0
 license(
     name = "license",

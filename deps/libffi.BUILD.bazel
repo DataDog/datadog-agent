@@ -1,27 +1,11 @@
-load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
-    default_package_metadata = [":package_metadata"],
+    default_applicable_licenses = [":license"],
     default_visibility = ["//packages:__subpackages__"],
-)
-
-VERSION = "3.4.8"
-
-package_metadata(
-    name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
-    purl = purl_for_generic(
-        package = "libffi",
-        version = VERSION,
-        download_url = "https://github.com/libffi/libffi/releases/download/v{version}/libffi-{version}.tar.gz",
-    ),
 )
 
 license(
@@ -30,6 +14,8 @@ license(
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
 )
+
+VERSION = "3.4.8"
 
 # Base configuration shared by all platforms
 _FFICONFIG_BASE = {
