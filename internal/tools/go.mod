@@ -7,7 +7,7 @@ require (
 	github.com/bazelbuild/bazelisk v1.29.0
 	github.com/favadi/protoc-go-inject-tag v1.4.0
 	github.com/frapposelli/wwhrd v0.4.0
-	github.com/go-delve/delve v1.27.1
+	github.com/go-delve/delve v1.27.2
 	github.com/go-enry/go-license-detector/v4 v4.3.1
 	github.com/golangci/golangci-lint/v2 v2.13.2
 	github.com/goware/modvendor v0.5.0
@@ -205,7 +205,7 @@ require (
 	github.com/nishanths/exhaustive v0.12.0 // indirect
 	github.com/nishanths/predeclared v0.2.2 // indirect
 	github.com/nunnatsa/ginkgolinter v0.24.0 // indirect
-	github.com/onsi/ginkgo/v2 v2.32.1 // indirect
+	github.com/onsi/ginkgo/v2 v2.32.2 // indirect
 	github.com/onsi/gomega v1.43.0 // indirect
 	github.com/otiai10/copy v1.14.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
@@ -291,7 +291,7 @@ require (
 	golang.org/x/text v0.42.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/grpc v1.83.2 // indirect
+	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/neurosnap/sentences.v1 v1.0.7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

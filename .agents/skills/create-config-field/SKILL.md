@@ -16,11 +16,13 @@ the `pkg/config/setup/*_settings.go` files are generated from the schema, and so
 are `datadog.yaml.example` / `system-probe.yaml.example`, the JSON Schema
 published to SchemaStore, and the runtime config validation.
 
-Full reference: `docs/public/agent-schema/` — [index](../../../docs/public/agent-schema/index.md),
-[keywords](../../../docs/public/agent-schema/keywords.md),
-[examples](../../../docs/public/agent-schema/examples.md),
-[cli](../../../docs/public/agent-schema/cli.md),
-[faq](../../../docs/public/agent-schema/faq.md).
+Consult these references only when the instructions below do not provide enough detail for the current task:
+
+- For guidance on adding, documenting, or publishing settings, read the [settings how-to](../../../doc/how-to/agent-schema/settings.md).
+- For unfamiliar keywords or validation rules, read the [keyword reference](../../../doc/reference/agent-schema/keywords.md).
+- For complex nested settings or the distinction between sections and object values, read the [annotated examples](../../../doc/architecture/agent-schema/examples.md).
+- For command arguments, read the [CLI reference](../../../doc/reference/agent-schema/cli.md).
+- For schema terminology and design rationale, read the [schema overview](../../../doc/architecture/agent-schema/index.md).
 
 ## Where settings live
 
@@ -127,9 +129,11 @@ insert the node where it belongs logically, not at the end of the file.
 dda inv schema.lint
 ```
 
+If the change requires generated Go code or a configuration-example preview, consult the relevant workflow for [regenerating Go code](../../../doc/how-to/agent-schema/workflows.md#validate-changes-and-regenerate-go-code) or [generating configuration examples](../../../doc/how-to/agent-schema/workflows.md#generate-configuration-examples).
+
 ## Keyword quick reference
 
-Full up-to-date details in `docs/public/agent-schema/keywords.md`.
+Full up-to-date details in `doc/reference/agent-schema/keywords.md`.
 
 | Keyword | Where | Notes |
 |---|---|---|

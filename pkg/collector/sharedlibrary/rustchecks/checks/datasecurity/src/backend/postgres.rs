@@ -1,11 +1,17 @@
 //! Postgres scan engine.
 
 use anyhow::{Context, Result, bail};
-use postgres::types::Type;
+use postgres::config::SslMode as PgSslMode;
+use postgres::types::{FromSql, Type};
 use postgres::{Client, Config, NoTls, Row, Statement};
 
 use crate::backend::{ScanData, ScanEngine, ScannedColumn};
-use crate::config::SubTask;
+use crate::config::{SslMode, SubTask};
+
+mod text;
+mod tls;
+
+use text::TextCell;
 
 pub struct PostgresEngine;
 pub const ENGINE: PostgresEngine = PostgresEngine;
@@ -53,6 +59,7 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         .password(&conn.password)
         .application_name(&conn.application_name)
         .connect_timeout(timeout)
+        .ssl_mode(pg_ssl_mode(conn.ssl))
         .options(&format!(
             "-c statement_timeout={} -c default_transaction_read_only=on",
             timeout.as_millis()
@@ -64,8 +71,21 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         config.host(&conn.host);
     }
 
-    // TODO(dsec-156): add TLS support; connections are unencrypted for now.
-    config.connect(NoTls).context("connecting to postgres")
+    match tls::connector(conn)? {
+        Some(tls) => config.connect(tls),
+        None => config.connect(NoTls),
+    }
+    .context("connecting to postgres")
+}
+
+fn pg_ssl_mode(mode: SslMode) -> PgSslMode {
+    match mode {
+        SslMode::Disable => PgSslMode::Disable,
+        // rust-postgres has no `allow` (plaintext first): `prefer` succeeds
+        // wherever `allow` would and encrypts when the server offers TLS.
+        SslMode::Allow | SslMode::Prefer => PgSslMode::Prefer,
+        SslMode::Require | SslMode::VerifyCa | SslMode::VerifyFull => PgSslMode::Require,
+    }
 }
 
 /// Turns query rows into scanned columns plus one `ScanRow` per result row.
@@ -98,16 +118,17 @@ fn columns_from_stmt(stmt: &Statement) -> (Vec<usize>, Vec<ScannedColumn>) {
     (indices, scanned_columns)
 }
 
-/// Postgres string/text types the scanner can read directly.
-/// TODO(dsec-160): add support for other postgres types (integers, floats, booleans, etc.).
+/// Postgres types the scanner can read, i.e. those [`TextCell`] converts to text.
 fn is_supported_type(ty: &Type) -> bool {
-    matches!(*ty, Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME)
+    TextCell::accepts(ty)
 }
 
-/// Reads a string cell (`None` when the value is NULL).
-/// TODO(dsec-160): add support for other postgres types (integers, floats, booleans, etc.).
+/// Reads a cell as text (`None` when the value is NULL).
 fn cell(row: &Row, index: usize) -> Option<String> {
-    row.try_get::<_, Option<String>>(index).ok().flatten()
+    row.try_get::<_, Option<TextCell>>(index)
+        .ok()
+        .flatten()
+        .map(|cell| cell.0)
 }
 
 // TODO(dsec-266): add tests for the postgres engine.

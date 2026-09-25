@@ -20,7 +20,9 @@ _LIB_SRCS = glob(
 _LIB_DEPS = [
     "//pkg/procmgr/rust/client:dd-procmgr-client",
     "@crates//:anyhow",
+    "@crates//:base64",
     "@crates//:log",
+    "@crates//:saphyr-parser",
     "@crates//:serde",
     "@crates//:serde_json",
     "@crates//:serde_yaml",
@@ -52,6 +54,13 @@ rust_library(
     deps = _LIB_DEPS,
 )
 
+# src/test_helpers.rs locates the graceful-sleeper runfile, so anything that
+# compiles it needs the runfiles library. The shipped library does not.
+_TEST_HELPERS_DEPS = select({
+    "@platforms//os:windows": ["@crates//:runfiles"],
+    "//conditions:default": [],
+})
+
 rust_library(
     name = "dd-procmgrd-lib-testhelpers",
     testonly = True,
@@ -61,7 +70,7 @@ rust_library(
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = _LIB_DEPS,
+    deps = _LIB_DEPS + _TEST_HELPERS_DEPS,
 )
 
 # ============================================================================
@@ -161,6 +170,12 @@ rust_test(
     # Windows runs the whole suite serially in one process, well past the
     # default "moderate" budget.
     timeout = "long",
+    compile_data = [
+        "//cmd/agent/subcommands/run:dependent_services_windows.go",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
+        "//pkg/fleet/installer/packages/user/windows:user.go",
+        "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
+    ],
     crate = ":dd-procmgrd-lib",
     data = select({
         "@platforms//os:windows": [":graceful-sleeper"],
@@ -179,7 +194,7 @@ rust_test(
     }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"],
+    deps = ["@crates//:tempfile"] + _TEST_HELPERS_DEPS,
 )
 
 rust_test(

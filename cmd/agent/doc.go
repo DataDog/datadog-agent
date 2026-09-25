@@ -9,8 +9,7 @@ Datadog on your behalf.
 
 To install the agent, please refer the official documentation at https://docs.datadoghq.com/.
 
-If you want to build the agent by yourself or contribute to the project, please
-refer to the Agent Developer Guide at https://github.com/DataDog/datadog-agent/tree/main/docs/dev
-for more details.
+To build the Agent or contribute to the project, refer to the Datadog Agent developer documentation
+at https://datadoghq.dev/datadog-agent/.
 */
 package main

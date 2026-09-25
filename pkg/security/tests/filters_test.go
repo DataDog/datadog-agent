@@ -69,7 +69,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd1, fd2 int
 	var testFile1, testFile2 string
@@ -147,7 +147,7 @@ func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd1, fd2 int
 	var testFile1, testFile2 string
@@ -215,7 +215,7 @@ func TestFilterOpenParentBasenameApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd1, fd2 int
 	var testDir, testFile1, testFile2 string
@@ -301,7 +301,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -377,9 +377,11 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	expectedFormats := []string{"json", "protobuf"}
 	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
+		// this exercises the v1 activity dump manager, which is inactive under security profile v2
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
-		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
+		activityDumpTracedCgroupsCount:      model.MaxTracedCgroupsCount,
 		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
@@ -390,7 +392,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dockerInstance, _, err := test.StartADockerGetDump()
 	if err != nil {
@@ -450,7 +452,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -610,7 +612,7 @@ func TestFilterOpenAUIDEqualApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -656,7 +658,7 @@ func TestFilterOpenAUIDLesserApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -692,7 +694,7 @@ func TestFilterOpenAUIDGreaterApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -728,7 +730,7 @@ func TestFilterOpenAUIDNotEqualUnsetApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -764,7 +766,7 @@ func TestFilterUnlinkAUIDEqualApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
 	if err != nil {
@@ -795,7 +797,7 @@ func TestFilterDiscarderMask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("mask", ifSyscallSupported("SYS_UTIME", func(t *testing.T, syscallNB uintptr) {
 		var testFile string
@@ -871,7 +873,7 @@ func TestFilterRenameFileDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -957,7 +959,7 @@ func TestFilterRenameFolderDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -1037,7 +1039,7 @@ func TestFilterOpenFlagsApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -1123,7 +1125,7 @@ func TestFilterOpenRdOnlyApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	const testFile = "/dev/null"
 
@@ -1194,7 +1196,7 @@ func TestFilterInUpperLayerApprover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
 	if err != nil {
@@ -1255,7 +1257,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var fd int
 	var testFile string
@@ -1357,7 +1359,7 @@ func TestFilterBpfCmd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var m *ebpf.Map
 	defer func() {
@@ -1420,7 +1422,7 @@ func TestFilterRuntimeDiscarded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("no-event")
 	if err != nil {
@@ -1465,7 +1467,7 @@ func TestFilterConnectAddrFamily(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1531,7 +1533,7 @@ func TestAuidDiscarder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("auid_discarder_test")
 	if err != nil {

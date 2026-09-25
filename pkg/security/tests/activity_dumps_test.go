@@ -51,6 +51,8 @@ func TestActivityDumps(t *testing.T) {
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds", "capabilities"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		// this exercises the v1 activity dump manager, which is inactive under security profile v2
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -66,7 +68,7 @@ func TestActivityDumps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)

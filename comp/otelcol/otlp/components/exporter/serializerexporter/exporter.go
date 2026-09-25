@@ -151,7 +151,11 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 		return source.Source{}, err
 	}
 
-	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
+	return source.Source{
+		Kind:             source.HostnameKind,
+		Identifier:       hostnameIdentifier, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		SourceIdentifier: source.SourceIdentifier{Primary: hostnameIdentifier},
+	}, nil
 }
 
 // Exporter translate OTLP metrics into the Datadog format and sends
@@ -294,6 +298,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 
 	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+	consumer.addRunningMetric(hostname)
 	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric)
 	if err := consumer.Send(e.s); err != nil {
 		errFlush := fmt.Errorf("failed to flush metrics: %w", err)

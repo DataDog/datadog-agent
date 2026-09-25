@@ -1,0 +1,46 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+
+# Refreshes every checked-in CWS generated file: `bazel run //pkg/security:cws_codegen`.
+write_source_files(
+    name = "cws_codegen",
+    additional_update_targets = [
+        "//docs/cloud-workload-security:cws_docs",
+        "//docs/cloud-workload-security:secl_linux",
+        "//docs/cloud-workload-security:secl_windows",
+        "//docs/cloud-workload-security:workload_protection_agent_config_schema",
+        "//pkg/security/config:enum_string",
+        "//pkg/security/events:event_easyjson",
+        "//pkg/security/probe:actions_easyjson",
+        "//pkg/security/rules/monitor:policy_monitor_easyjson",
+        "//pkg/security/secl/compiler/eval:eval_operators",
+        "//pkg/security/secl/model:accessors_unix",
+        "//pkg/security/secl/model:accessors_windows",
+        "//pkg/security/secl/model:consts_map_names_linux",
+        "//pkg/security/secl/model:event_deep_copy_unix",
+        "//pkg/security/secl/model:event_deep_copy_windows",
+        "//pkg/security/secl/model:model_string",
+        "//pkg/security/secl/schemas:policy_schema",
+        "//pkg/security/seclwin:sync",
+        "//pkg/security/seclwin/model:sync",
+    ] + select({
+        # These marshalers are stamped //go:build linux, so they can only be
+        # generated from the Linux view of the annotated types.
+        #
+        # Do not pre-stub from serializers_linux_easyjson.mock: generating
+        # against the stubs inlines nested decoders, so the first pass diverges.
+        # It stays a manual hatch for when the package no longer compiles: copy
+        # it over the .go file, then run this target twice to converge.
+        "@platforms//os:linux": [
+            "//docs/cloud-workload-security:backend_linux_schema",
+            "//pkg/security/probe:actions_linux_easyjson",
+            "//pkg/security/probe:custom_events_easyjson",
+            "//pkg/security/probe:remediations_linux_easyjson",
+            "//pkg/security/serializers:serializers_base_linux_easyjson",
+            "//pkg/security/serializers:serializers_linux_easyjson",
+        ],
+        "@platforms//os:windows": [
+            "//docs/cloud-workload-security:backend_windows_schema",
+        ],
+        "//conditions:default": [],
+    }),
+)

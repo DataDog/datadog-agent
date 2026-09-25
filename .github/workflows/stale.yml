@@ -11,6 +11,7 @@ permissions: {}
 
 jobs:
   stale:
+    if: github.repository == 'DataDog/datadog-agent'
     runs-on: ubuntu-latest
     environment:
       name: main

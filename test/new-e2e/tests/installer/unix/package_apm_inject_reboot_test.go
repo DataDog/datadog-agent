@@ -160,7 +160,7 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 
 	// End-to-end check: the tracer is injected into a freshly-spawned process
 	// and the resulting trace lands in fakeintake.
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))

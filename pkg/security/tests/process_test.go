@@ -35,7 +35,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/oliveagle/jsonpath"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +68,7 @@ func TestProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Create("test-process")
@@ -98,7 +97,7 @@ func TestProcessEBPFLess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
 	if !ok {
@@ -123,9 +122,17 @@ func TestProcessEBPFLess(t *testing.T) {
 	})
 }
 
+// clearForTouch removes testFile so that the touch which follows really creates it.
+// RunMultiMode runs its docker and std legs against the same path, and uutils
+// coreutils -- the default touch since Ubuntu 25.10 -- skips the O_CREAT open that
+// GNU touch always issues when the file is already there, leaving the open rules
+// below with no event to match.
+func clearForTouch(testFile string) {
+	_ = os.Remove(testFile)
+}
+
 func TestProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
-	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -227,7 +234,7 @@ func TestProcessContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -844,6 +851,8 @@ func TestProcessContext(t *testing.T) {
 		// under appropriate circumstances (source: bash changelog)
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 
+		clearForTouch(testFile)
+
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("sh", args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -869,6 +878,8 @@ func TestProcessContext(t *testing.T) {
 		// Bash attempts to optimize away forks in the last command in a function body
 		// under appropriate circumstances (source: bash changelog)
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
+
+		clearForTouch(testFile)
 
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("sh", args, nil)
@@ -899,6 +910,8 @@ func TestProcessContext(t *testing.T) {
 		// under appropriate circumstances (source: bash changelog)
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 
+		clearForTouch(testFile)
+
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -923,6 +936,8 @@ func TestProcessContext(t *testing.T) {
 		args := []string{"-c", "$(" + executable + " " + testFile + ")"}
 		envs := []string{"DD_SERVICE=myservice"}
 
+		clearForTouch(testFile)
+
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(shell, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -945,6 +960,8 @@ func TestProcessContext(t *testing.T) {
 
 		shell, executable := "sh", "touch"
 		args := []string{"-x", "-c", "$(" + executable + " " + testFile + ")"}
+
+		clearForTouch(testFile)
 
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(shell, args, nil)
@@ -1095,7 +1112,7 @@ func TestProcessEnvsWithValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("ldpreload", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -1128,7 +1145,7 @@ func TestProcessExecCTime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.WaitSignalFromRule(t, func() error {
 		testFile, _, err := test.Path("touch")
@@ -1163,7 +1180,7 @@ func TestProcessPIDVariable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.WaitSignalFromRule(t, func() error {
 		_, err := os.Open(openPath)
@@ -1246,7 +1263,7 @@ func TestProcessScopedVariable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var filename1, filename2, filename3 string
 
@@ -1306,7 +1323,7 @@ func TestTimestampVariable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var filename1, filename2 string
 
@@ -1347,7 +1364,7 @@ func TestProcessExec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1395,7 +1412,7 @@ func TestProcessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	fileMode := uint16(0o777)
 	testFile, _, err := test.CreateWithOptions("test-exec", 98, 99, int(fileMode))
@@ -1468,7 +1485,7 @@ func TestProcessExecExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	var execPid uint32
 	var nsID uint64
@@ -1588,7 +1605,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1745,7 +1762,7 @@ func TestProcessIsThread(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1822,7 +1839,7 @@ func TestProcessExit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("exit-ok", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -1972,7 +1989,7 @@ func TestProcessBusyboxSymlink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "alpine", "")
 	if err != nil {
@@ -2054,7 +2071,7 @@ func TestProcessBusyboxHardlink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	// busybox uses hardlinks
 	wrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "busybox", "")
@@ -2235,7 +2252,7 @@ chmod 755 pyscript.py
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testModule.Close()
+	defer testModule.CloseTest()
 
 	for _, test := range tests {
 		testModule.RunMultiMode(t, test.name, func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -2278,7 +2295,7 @@ func TestProcessResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -2447,7 +2464,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testModule.Close()
+	defer testModule.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, testModule, "syscall_tester")
 	if err != nil {
@@ -2509,7 +2526,7 @@ func TestSymLinkResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("exec true via symlink", func(t *testing.T) {
 		tmpLink := filepath.Join(t.TempDir(), "my_symlink")
@@ -2548,7 +2565,7 @@ func TestProcessSubreaperReparenting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -2620,7 +2637,7 @@ func TestProcessSID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("sid-updated-after-setsid", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -2693,7 +2710,7 @@ func TestProcessEnrichLongArgsOnMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	// make sure bash stays the live for /proc to be readable.
 	const shScript = "sleep 30; :"
@@ -2829,7 +2846,7 @@ func TestProcessEnrichLongArgsOnKillRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	// long sleep so the process is alive long enough for the agent to
 	// match, enrich and kill. If enrichment ran after HandleActions the
