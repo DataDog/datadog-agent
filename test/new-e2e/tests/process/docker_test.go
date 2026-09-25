@@ -109,6 +109,9 @@ func (s *dockerTestSuite) TestProcessDiscoveryCheck() {
 
 func (s *dockerTestSuite) TestHostPasswdUsername() {
 	t := s.T()
+	t.Cleanup(func() {
+		require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	})
 	// The existing fake-process image runs dd as root. Use that UID to exercise
 	// a guaranteed collision without depending on the image's dd-agent UID.
 	const hostUsername = "e2e-host-root"
