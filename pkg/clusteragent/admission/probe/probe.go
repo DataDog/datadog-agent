@@ -32,6 +32,12 @@ import (
 
 var errProbeNotReceived = errors.New("dry-run probe configmap was not annotated by the webhook")
 
+// reconcileStatusProvider reports the outcome of the most recent reconciliation
+// attempt of a controller. Implemented by the secret and webhook controllers.
+type reconcileStatusProvider interface {
+	LastReconcileError() error
+}
+
 // Probe periodically verifies that the admission webhook is reachable by
 // creating dry-run ConfigMaps and checking if they are handled by the webhook.
 type Probe struct {
@@ -42,6 +48,13 @@ type Probe struct {
 	gracePeriod    time.Duration
 	logLimiter     *log.Limit
 	diagnosticHint string
+
+	webhookName       string
+	mutationEnabled   bool
+	validationEnabled bool
+
+	secretController  reconcileStatusProvider
+	webhookController reconcileStatusProvider
 
 	healthPlatform healthplatformdef.Component
 
@@ -84,7 +97,7 @@ const (
 // New creates a new admission controller connectivity probe.
 // The namespace parameter specifies where dry-run ConfigMaps are created; this
 // should be the namespace the cluster agent is deployed in.
-func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component, healthPlatform healthplatformdef.Component) *Probe {
+func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace string, datadogConfig config.Component, healthPlatform healthplatformdef.Component, secretController, webhookController reconcileStatusProvider) *Probe {
 	interval := time.Duration(datadogConfig.GetInt("admission_controller.probe.interval")) * time.Second
 	if interval <= 0 {
 		log.Warnf("admission_controller.probe.interval is invalid (%s), falling back to %s", interval, defaultInterval)
@@ -92,13 +105,18 @@ func New(k8sClient kubernetes.Interface, isLeaderFunc func() bool, namespace str
 	}
 
 	return &Probe{
-		k8sClient:      k8sClient,
-		isLeaderFunc:   isLeaderFunc,
-		namespace:      namespace,
-		interval:       interval,
-		gracePeriod:    time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
-		logLimiter:     log.NewLogLimit(1, 10*time.Minute),
-		healthPlatform: healthPlatform,
+		k8sClient:         k8sClient,
+		isLeaderFunc:      isLeaderFunc,
+		namespace:         namespace,
+		interval:          interval,
+		gracePeriod:       time.Duration(datadogConfig.GetInt("admission_controller.probe.grace_period")) * time.Second,
+		logLimiter:        log.NewLogLimit(1, 10*time.Minute),
+		healthPlatform:    healthPlatform,
+		webhookName:       datadogConfig.GetString("admission_controller.webhook_name"),
+		mutationEnabled:   datadogConfig.GetBool("admission_controller.mutation.enabled"),
+		validationEnabled: datadogConfig.GetBool("admission_controller.validation.enabled"),
+		secretController:  secretController,
+		webhookController: webhookController,
 	}
 }
 
@@ -215,23 +233,88 @@ func (p *Probe) runProbe(ctx context.Context) {
 		return
 	}
 
-	p.handleError(err)
+	p.handleError(ctx, err)
 }
 
-func (p *Probe) handleError(err error) {
+func (p *Probe) handleError(ctx context.Context, err error) {
 	if k8serrors.IsForbidden(err) {
-		msg := fmt.Sprintf("The cluster agent service account does not have permission to create configmaps in namespace %q. Grant configmap creation RBAC to enable connectivity probing.", p.namespace)
+		wrappedErr := admcommon.WrapIfForbidden(err, "create", "configmaps", p.namespace, "")
+		msg := fmt.Sprintf("The cluster agent service account does not have permission to create configmaps in namespace %q: %v", p.namespace, wrappedErr)
 		p.stats.mu.Lock()
 		p.stats.ConfigError = msg
 		p.stats.mu.Unlock()
 		if p.logLimiter.ShouldLog() {
 			log.Errorf("Admission controller probe misconfigured: %s", msg)
 		}
-		p.clearHealthIssue()
+		fixHint := ""
+		if fix, ok := rbacFixHint(wrappedErr); ok {
+			fixHint = fix
+		}
+		p.reportHealthIssue(fmt.Sprintf("The cluster agent cannot verify admission webhook connectivity: %s. This does not mean the webhook itself is unreachable.", msg), admissionprobe.CauseProbeConfigForbidden, fixHint)
 		return
 	}
 
 	if errors.Is(err, errProbeNotReceived) {
+		if p.secretController != nil {
+			if scErr := p.secretController.LastReconcileError(); scErr != nil {
+				if p.logLimiter.ShouldLog() {
+					log.Errorf("Admission controller probe failed: the secret controller's last reconciliation attempt failed: %v", scErr)
+				}
+				cause := admissionprobe.CauseSecretControllerFailed
+				fixHint := ""
+				if fix, ok := rbacFixHint(scErr); ok {
+					cause = admissionprobe.CauseSecretControllerForbidden
+					fixHint = fix
+				} else if fix, ok := k8sErrorFixHint(scErr); ok {
+					fixHint = fix
+				}
+				p.reportHealthIssue(fmt.Sprintf("The cluster agent failed to create or refresh the TLS certificate Secret used by the admission webhook: %v", scErr), cause, fixHint)
+				return
+			}
+		}
+
+		if p.webhookController != nil {
+			if wcErr := p.webhookController.LastReconcileError(); wcErr != nil {
+				if p.logLimiter.ShouldLog() {
+					log.Errorf("Admission controller probe failed: the webhook controller's last reconciliation attempt failed: %v", wcErr)
+				}
+				cause := admissionprobe.CauseWebhookControllerFailed
+				fixHint := ""
+				if fix, ok := rbacFixHint(wcErr); ok {
+					cause = admissionprobe.CauseWebhookControllerForbidden
+					fixHint = fix
+				} else if fix, ok := k8sErrorFixHint(wcErr); ok {
+					fixHint = fix
+				}
+				p.reportHealthIssue(fmt.Sprintf("The cluster agent failed to register the admission webhook configuration with the Kubernetes API server: %v", wcErr), cause, fixHint)
+				return
+			}
+		}
+
+		exists, existsErr := p.webhookExists(ctx)
+		if existsErr == nil && !exists {
+			if p.logLimiter.ShouldLog() {
+				log.Errorf("Admission controller probe failed: webhook configuration %q does not exist. The secret and webhook controllers report no reconciliation error, so it was most likely deleted after being created.", p.webhookName)
+			}
+			p.reportHealthIssue(fmt.Sprintf("The admission webhook configuration %q does not exist in the cluster. Both the secret controller and the webhook controller last reconciled successfully, so the object was most likely deleted after being created rather than never created.", p.webhookName), admissionprobe.CauseWebhookMissing, "")
+			return
+		}
+
+		if existsErr != nil {
+			if p.logLimiter.ShouldLog() {
+				log.Warnf("Admission controller probe: could not determine whether the webhook configuration exists: %v", existsErr)
+			}
+			cause := admissionprobe.CauseIndeterminate
+			fixHint := ""
+			if fix, ok := rbacFixHint(existsErr); ok {
+				fixHint = fix
+			} else if fix, ok := k8sErrorFixHint(existsErr); ok {
+				fixHint = fix
+			}
+			p.reportHealthIssue(fmt.Sprintf("Could not determine whether the admission webhook configuration %q exists: %v.", p.webhookName, existsErr), cause, fixHint)
+			return
+		}
+
 		if p.logLimiter.ShouldLog() {
 			log.Errorf(
 				"Admission controller probe failed: the webhook did not handle the probe configmap. "+
@@ -240,20 +323,103 @@ func (p *Probe) handleError(err error) {
 				p.diagnosticHint,
 			)
 		}
-		p.reportHealthIssue()
+		p.reportHealthIssue("", "", "")
 		return
 	}
 
 	if p.logLimiter.ShouldLog() {
 		log.Errorf("Admission controller probe failed: %v", err)
 	}
-	p.reportHealthIssue()
+	p.reportHealthIssue("", "", "")
 }
 
-func (p *Probe) reportHealthIssue() {
-	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(map[string]string{
+// rbacFixHint reports the exact RBAC permission that was denied, if err
+// carries that information (see admcommon.RBACError). It returns ok=false
+// when err isn't an RBAC denial, so callers don't have to guess a cause.
+func rbacFixHint(err error) (fix string, ok bool) {
+	var rbacErr *admcommon.RBACError
+	if !errors.As(err, &rbacErr) {
+		return "", false
+	}
+	account := "the cluster agent's Kubernetes service account"
+	if rbacErr.Username != "" {
+		account = fmt.Sprintf("service account %q", rbacErr.Username)
+	}
+	if rbacErr.Namespace != "" {
+		return fmt.Sprintf("Grant %s %q permission on %s %q in namespace %q", account, rbacErr.Verb, rbacErr.Resource, rbacErr.Name, rbacErr.Namespace), true
+	}
+	return fmt.Sprintf("Grant %s %q permission on the cluster-scoped %s %q", account, rbacErr.Verb, rbacErr.Resource, rbacErr.Name), true
+}
+
+// k8sErrorFixHint classifies common Kubernetes API error conditions that
+// aren't RBAC denials, so the remediation can point at the specific
+// condition the API server reported instead of telling the user to go find
+// the error that's already in the issue description.
+func k8sErrorFixHint(err error) (fix string, ok bool) {
+	switch {
+	case k8serrors.IsTimeout(err) || k8serrors.IsServerTimeout(err):
+		return "The Kubernetes API server timed out handling the request; check network connectivity and API server load between the cluster agent and the control plane", true
+	case k8serrors.IsTooManyRequests(err):
+		return "The Kubernetes API server is rate-limiting the cluster agent's requests (429 Too Many Requests); check API server load", true
+	case k8serrors.IsServiceUnavailable(err):
+		return "The Kubernetes API server was unavailable (503); check API server health and cluster agent connectivity to the control plane", true
+	case k8serrors.IsConflict(err):
+		return "The request conflicted with a concurrent update to the same object; the controller retries automatically and this typically resolves on its own", true
+	case k8serrors.IsAlreadyExists(err):
+		return "The object already exists with content the controller doesn't manage; check for another process creating an object with the same name", true
+	case k8serrors.IsInvalid(err):
+		return "The Kubernetes API server rejected the object as invalid; see the validation error above for the specific field", true
+	case k8serrors.IsNotFound(err):
+		return "A dependent Kubernetes object was not found; verify the cluster agent's configured namespace and object names", true
+	case k8serrors.IsInternalError(err):
+		return "The Kubernetes API server returned an internal error (500); check the API server's own logs for the root cause", true
+	}
+	return "", false
+}
+
+// webhookExists reports whether the enabled webhook configuration objects
+// exist in the cluster. False+nil means confirmed missing; non-nil error
+// means existence could not be determined.
+func (p *Probe) webhookExists(ctx context.Context) (bool, error) {
+	if p.mutationEnabled {
+		_, err := admcommon.GetMutatingWebhookStatus(ctx, p.webhookName, p.k8sClient)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			err = admcommon.WrapIfForbidden(err, "get", "mutatingwebhookconfigurations", "", p.webhookName)
+			return false, fmt.Errorf("checking mutating webhook configuration: %w", err)
+		}
+	}
+
+	if p.validationEnabled {
+		_, err := admcommon.GetValidatingWebhookStatus(ctx, p.webhookName, p.k8sClient)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			err = admcommon.WrapIfForbidden(err, "get", "validatingwebhookconfigurations", "", p.webhookName)
+			return false, fmt.Errorf("checking validating webhook configuration: %w", err)
+		}
+	}
+
+	return true, nil
+}
+
+func (p *Probe) reportHealthIssue(issueDescription, cause, fixHint string) {
+	context := map[string]string{
 		"remediation": p.diagnosticHint,
-	})
+	}
+	if issueDescription != "" {
+		context["issue"] = issueDescription
+	}
+	if cause != "" {
+		context["cause"] = cause
+	}
+	if fixHint != "" {
+		context["fix_hint"] = fixHint
+	}
+	issue, buildErr := (&admissionprobe.AdmissionProbeIssue{}).BuildIssue(context)
 	if buildErr != nil {
 		issue = &healthplatformpayload.Issue{
 			Id:        healthIssueID,
