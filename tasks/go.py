@@ -399,6 +399,7 @@ def _bazel_tidy(ctx, verbose: bool, timings=None):
     )
     # 7. regenerate test/new-e2e/tests/test_binaries.bzl
     from tasks.new_e2e_tests import write_test_binaries_bzl
+
     _timed_step(
         "write test binaries",
         timings,
