@@ -232,7 +232,6 @@ pkg_filegroup(
         ":headers_files",
         ":openssl_headers_files",
     ],
-    prefix = "embedded",
     visibility = [
         "@@//deps/openscap:__pkg__",
         "@@//packages:__subpackages__",
