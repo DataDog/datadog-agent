@@ -188,6 +188,8 @@ func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider
 		k8s.WithServiceAccount(sa),
 		k8s.WithConfigMap(),
 		k8s.WithImagePullSecrets(imagePullSecrets),
+		// Mapped to `service` by test/new-e2e/tests/containers/values.yaml
+		k8s.WithAnnotations(map[string]string{"x-service-name": "nginx-from-annotation"}),
 	}
 	if config.withoutDatadogAnnotations {
 		deploymentModifiers = append(deploymentModifiers, k8s.WithoutDatadogAnnotations())
