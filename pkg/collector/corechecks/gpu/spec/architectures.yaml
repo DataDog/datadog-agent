@@ -28,8 +28,7 @@ nvlink_generations:
       - FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_TOTAL
       - FI_DEV_NVLINK_REPLAY_ERROR_COUNT_TOTAL
   2: # NVLink 2.0
-    supported_fields:
-      - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
+    supported_fields: []
   4: # NVLink 3.0
     supported_fields: []
   6: # NVLink 4.0
@@ -86,11 +85,13 @@ architectures:
         - device_modes: [physical, mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
         - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -114,6 +115,7 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -137,6 +139,7 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -158,6 +161,7 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -178,6 +182,7 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields:
@@ -208,6 +213,7 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
@@ -227,6 +233,7 @@ architectures:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
             - FI_DEV_GET_GPU_RECOVERY_ACTION
+            - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
     support:
       - device_modes: [physical]
         unsupported_fields: []
