@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -54,8 +53,6 @@ func (s *NCMStub) ReportConfig(_ context.Context, _ string, _ sender.Sender) err
 func (s *NCMStub) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
 	return nil, s.GetError()
 }
-func (s *NCMStub) SetMaxReportInterval(_ time.Duration) {}
-
 // GetConfigEndpointHandler implements [networkconfigmanagement.Component].
 func (s *NCMStub) GetConfigEndpointHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
