@@ -141,3 +141,23 @@ bazel:test:windows-amd64:go:
       bazel test --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going //... --
       -//bazel/rules/dd_packaging/...
       -//packages/agent/linux/...
+
+bazel:coverage:windows-amd64:
+  extends: [.bazel:runner:windows-amd64, .bazel:test]
+  variables:
+    GIT_DEPTH: 0
+    POWERSHELL_SCRIPT: >-
+      & './tools/ci/bazel-coverage-windows.ps1'
+      -BepFile 'bazel-bep.json'
+      -ResultJson 'test_output.json'
+      -JunitTar 'junit-${CI_JOB_NAME_SLUG}.tgz'
+      -CoverageOut 'coverage-bazel-${CI_JOB_NAME_SLUG}.out'
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - test_output.json
+      - test_output_unified.json
+      - junit-*.tgz
+      - bazel-bep.json
+      - coverage-bazel-*.out
