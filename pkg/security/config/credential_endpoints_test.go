@@ -28,11 +28,13 @@ func TestCredentialEndpoints(t *testing.T) {
 				IMDSIPv4:           "169.254.169.254",
 				EKSPodIdentityIPv4: "169.254.170.23",
 				EKSPodIdentityIPv6: "fd00:ec2::23",
+				ECSIPv4:            "169.254.170.2",
 			},
 			expected: []CredentialEndpoint{
 				{netip.MustParseAddr("169.254.169.254"), model.CredentialSourceIMDS},
 				{netip.MustParseAddr("169.254.170.23"), model.CredentialSourceEKSPodIdentity},
 				{netip.MustParseAddr("fd00:ec2::23"), model.CredentialSourceEKSPodIdentity},
+				{netip.MustParseAddr("169.254.170.2"), model.CredentialSourceECS},
 			},
 		},
 		{
@@ -56,11 +58,18 @@ func TestCredentialEndpoints(t *testing.T) {
 			config: RuntimeSecurityConfig{
 				IMDSIPv4:           "10.0.0.1",
 				EKSPodIdentityIPv4: "10.0.0.2",
+				ECSIPv4:            "10.0.0.3",
 			},
 			expected: []CredentialEndpoint{
 				{netip.MustParseAddr("10.0.0.1"), model.CredentialSourceIMDS},
 				{netip.MustParseAddr("10.0.0.2"), model.CredentialSourceEKSPodIdentity},
+				{netip.MustParseAddr("10.0.0.3"), model.CredentialSourceECS},
 			},
+		},
+		{
+			name:     "only ecs enabled",
+			config:   RuntimeSecurityConfig{ECSIPv4: "169.254.170.2"},
+			expected: []CredentialEndpoint{{netip.MustParseAddr("169.254.170.2"), model.CredentialSourceECS}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -91,6 +100,10 @@ func TestCredentialEndpointsInvalid(t *testing.T) {
 		{
 			name:   "cidr instead of an address",
 			config: RuntimeSecurityConfig{EKSPodIdentityIPv4: "169.254.170.23/32"},
+		},
+		{
+			name:   "ipv6 address in the ecs ipv4 setting",
+			config: RuntimeSecurityConfig{ECSIPv4: "fd00:ec2::2"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
