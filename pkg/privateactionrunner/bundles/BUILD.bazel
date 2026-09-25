@@ -79,7 +79,6 @@ dd_agent_go_test(
     ]],
     deps = [
         "//pkg/privateactionrunner/adapters/config",
-        "//pkg/privateactionrunner/bundle-support/authoredscripts",
         "//pkg/privateactionrunner/types",
         "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
