@@ -101,14 +101,14 @@ foreign_cc_shared_wrapper(
 pkg_files(
     name = "resource_files",
     srcs = ["msodbcsqlr18.rll"],
-    prefix = "msodbcsql/share/resources/en_US",
+    prefix = "embedded/msodbcsql/share/resources/en_US",
 )
 
 pkg_files(
     name = "license_files",
     srcs = ["LICENSE.txt"],
     # TODO(ABLD-351): Review location
-    prefix = "msodbcsql/share/doc/msodbcsql18",
+    prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
 )
 
 # The unversioned linker-name symlink lives in a sibling directory of the
@@ -118,7 +118,7 @@ pkg_files(
 pkg_mklink(
     name = "_lib_symlink",
     attributes = pkg_attributes(mode = "0755"),
-    link_name = "msodbcsql/lib/%s" % SO_LINK_NAME,
+    link_name = "embedded/msodbcsql/lib/%s" % SO_LINK_NAME,
     target = "../lib64/%s" % SO_FILENAME,
 )
 
@@ -132,7 +132,7 @@ pkg_filegroup(
 # separate cross-directory linker-name symlink under lib/.
 dd_cc_packaged(
     name = "msodbcsql_pkg",
-    dest_dir = "msodbcsql/lib64",
+    dest_dir = "embedded/msodbcsql/lib64",
     input = ":msodbcsql_shared",
     installed_files = [
         ":lib_symlink",
@@ -144,7 +144,7 @@ dd_cc_packaged(
 # Single public entry point for "ship msodbcsql18 and its runtime deps".
 # libodbcinst.so.2 is a runtime dependency of libmsodbcsql, included
 # explicitly because cc_import doesn't expose dynamic_deps for the aspect
-# to discover. The embedded/ prefix is applied at the consumption site.
+# to discover.
 dd_collect_dependencies(
     name = "installed_libs",
     srcs = [

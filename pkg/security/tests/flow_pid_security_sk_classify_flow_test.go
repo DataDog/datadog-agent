@@ -421,7 +421,7 @@ func TestFlowPidSecuritySKClassifyFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("client_sock_ipv4_udp_sendto_127.0.0.1:1123", func(t *testing.T) {
 
@@ -5133,7 +5133,7 @@ func TestFlowPidSecuritySKClassifyFlowLeaks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("client_sock_ipv4_udp_sendto_127.0.0.1:1111_sendto_127.0.0.1:1112", func(t *testing.T) {
 		var port1, port2 uint16
@@ -5598,7 +5598,7 @@ func TestMultipleProtocolsFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

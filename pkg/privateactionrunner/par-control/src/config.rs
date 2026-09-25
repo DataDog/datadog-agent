@@ -4,12 +4,11 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::opms::{ProxyDecision, TlsConfig};
+use crate::proto::executor as pb;
 use anyhow::{Context, Result, ensure};
-use regex::Regex;
-use saluki_config::GenericConfiguration;
 use std::collections::HashMap;
+use std::fmt;
 use std::path::PathBuf;
-use std::sync::LazyLock;
 use std::time::Duration;
 
 const EXECUTOR_READY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -22,7 +21,6 @@ const MAX_BACKOFF: Duration = Duration::from_secs(180);
 const WAIT_BEFORE_RETRY: Duration = Duration::from_secs(300);
 const MAX_ATTEMPTS: u32 = 20;
 pub const EXECUTOR_PROCESS_NAME: &str = "datadog-agent-action-executor";
-const INTERNAL_USE_DD_URL_FOR_OPMS: &str = "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS";
 
 #[derive(Clone)]
 pub struct Identity {
@@ -38,7 +36,6 @@ pub struct Config {
     pub task_concurrency: usize,
     pub executor_socket: PathBuf,
     pub procmgr_socket: PathBuf,
-    pub executor_process_name: String,
     pub loop_interval: Duration,
     pub heartbeat_interval: Duration,
     pub health_check_interval: Duration,
@@ -57,52 +54,30 @@ pub struct Config {
     pub identity: Identity,
 }
 
-#[derive(serde::Deserialize)]
-struct AgentParConfig {
-    enabled: bool,
-    split_enabled: bool,
-    task_concurrency: usize,
-    executor: AgentExecutorConfig,
-    opms_extra_headers: HashMap<String, String>,
-}
+// Wrap the credential-bearing protobuf rather than using its generated Debug.
+pub struct BootstrapConfig(pb::GetControlPlaneConfigResponse);
 
-#[derive(serde::Deserialize)]
-struct AgentExecutorConfig {
-    socket_path: PathBuf,
-}
-
-#[derive(serde::Deserialize, Default)]
-#[serde(default)]
-struct AgentProxyConfig {
-    http: String,
-    https: String,
-    no_proxy: Vec<String>,
-}
-
-#[derive(serde::Deserialize, Debug, Default, Clone)]
-#[serde(default, deny_unknown_fields)]
-pub struct BootstrapConfig {
-    pub split_mode: bool,
-    pub log_level: String,
-    identity: BootstrapIdentity,
-    agent_version: String,
-    pub cmd_port: u16,
-    pub auth_token_file_path: String,
-    pub ipc_cert_file_path: String,
-}
-
-#[derive(serde::Deserialize, Debug, Default, Clone)]
-#[serde(default, deny_unknown_fields)]
-struct BootstrapIdentity {
-    urn: String,
-    private_key: String,
-    org_id: i64,
-    runner_id: String,
+impl fmt::Debug for BootstrapConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("BootstrapConfig")
+            .field("split_mode", &self.0.split_mode)
+            .field("log_level", &self.0.log_level)
+            .finish_non_exhaustive()
+    }
 }
 
 impl BootstrapConfig {
+    pub fn new(response: pb::GetControlPlaneConfigResponse) -> Self {
+        Self(response)
+    }
+
+    pub fn split_mode(&self) -> bool {
+        self.0.split_mode
+    }
+
     pub fn log_level(&self) -> log::LevelFilter {
-        match self.log_level.trim().to_ascii_lowercase().as_str() {
+        match self.0.log_level.trim().to_ascii_lowercase().as_str() {
             "trace" => log::LevelFilter::Trace,
             "debug" => log::LevelFilter::Debug,
             "warn" | "warning" => log::LevelFilter::Warn,
@@ -112,22 +87,28 @@ impl BootstrapConfig {
         }
     }
 
-    pub fn into_config(
-        self,
-        agent: &GenericConfiguration,
-        dd_url_explicit: bool,
-    ) -> Result<Config> {
+    pub fn into_config(self, executor_socket: PathBuf, ipc_cert_file: PathBuf) -> Result<Config> {
         ensure!(
-            self.split_mode,
+            !executor_socket.as_os_str().is_empty(),
+            "--executor-socket is empty"
+        );
+        ensure!(
+            !ipc_cert_file.as_os_str().is_empty(),
+            "--ipc-cert-file is empty"
+        );
+        let snapshot = self.0;
+        ensure!(
+            snapshot.split_mode,
             "bootstrap configuration has split mode disabled"
         );
+        let identity = snapshot
+            .identity
+            .context("bootstrap configuration is missing identity")?;
         for (name, value) in [
-            ("log_level", self.log_level.as_str()),
-            ("identity.urn", self.identity.urn.as_str()),
-            ("identity.private_key", self.identity.private_key.as_str()),
-            ("identity.runner_id", self.identity.runner_id.as_str()),
-            ("agent_version", self.agent_version.as_str()),
-            ("ipc_cert_file_path", self.ipc_cert_file_path.as_str()),
+            ("log_level", snapshot.log_level.as_str()),
+            ("identity.urn", identity.urn.as_str()),
+            ("identity.private_key", identity.private_key.as_str()),
+            ("identity.runner_id", identity.runner_id.as_str()),
         ] {
             ensure!(
                 !value.is_empty(),
@@ -135,340 +116,174 @@ impl BootstrapConfig {
             );
         }
         ensure!(
-            self.identity.org_id > 0,
+            identity.org_id > 0,
             "bootstrap configuration is missing identity.org_id"
         );
+        let runtime = snapshot
+            .runtime
+            .context("bootstrap configuration is missing runtime")?;
         ensure!(
-            self.cmd_port > 0,
-            "bootstrap configuration is missing cmd_port"
-        );
-
-        let par: AgentParConfig = agent
-            .get_typed("private_action_runner")
-            .context("invalid private_action_runner configuration from the Core Agent")?;
-        ensure!(par.enabled, "private_action_runner.enabled is disabled");
-        ensure!(
-            par.split_enabled,
-            "private_action_runner.split_enabled is disabled"
-        );
-        ensure!(
-            par.task_concurrency > 0,
+            runtime.task_concurrency > 0,
             "private_action_runner.task_concurrency must be greater than zero"
         );
         ensure!(
-            !par.executor.socket_path.as_os_str().is_empty(),
-            "private_action_runner.executor.socket_path is empty"
+            !runtime.opms_base_url.is_empty(),
+            "bootstrap OPMS URL is empty"
         );
-
-        let opms_base_url = opms_base_url(
-            agent,
-            std::env::var(INTERNAL_USE_DD_URL_FOR_OPMS).as_deref() == Ok("true"),
-            dd_url_explicit,
-        )?;
-        let opms_proxy = proxy_for(agent, &opms_base_url)?;
-        let min_tls_version: String = agent
-            .get_typed("min_tls_version")
-            .context("invalid min_tls_version configuration from the Core Agent")?;
-        ensure!(!min_tls_version.is_empty(), "min_tls_version is empty");
-
+        ensure!(
+            !runtime.min_tls_version.is_empty(),
+            "bootstrap minimum TLS version is empty"
+        );
+        let opms_proxy = if runtime.opms_proxy_url.is_empty() {
+            ProxyDecision::None
+        } else {
+            ProxyDecision::ViaProxy(runtime.opms_proxy_url)
+        };
         Ok(Config {
-            opms_base_url,
-            task_concurrency: par.task_concurrency,
-            executor_socket: par.executor.socket_path,
+            opms_base_url: runtime.opms_base_url,
+            task_concurrency: runtime.task_concurrency as usize,
+            executor_socket,
             procmgr_socket: dd_procmgr_client::ipc_path(),
-            executor_process_name: EXECUTOR_PROCESS_NAME.to_string(),
             loop_interval: LOOP_INTERVAL,
             heartbeat_interval: HEARTBEAT_INTERVAL,
             health_check_interval: HEALTH_CHECK_INTERVAL,
             ready_timeout: EXECUTOR_READY_TIMEOUT,
             opms_request_timeout: OPMS_REQUEST_TIMEOUT,
-            opms_extra_headers: par.opms_extra_headers,
+            opms_extra_headers: runtime.opms_extra_headers,
             opms_proxy,
             tls: TlsConfig {
-                skip_ssl_validation: agent
-                    .get_typed("skip_ssl_validation")
-                    .context("invalid skip_ssl_validation configuration from the Core Agent")?,
-                min_tls_version,
+                skip_ssl_validation: runtime.skip_ssl_validation,
+                min_tls_version: runtime.min_tls_version,
             },
             min_backoff: MIN_BACKOFF,
             max_backoff: MAX_BACKOFF,
             wait_before_retry: WAIT_BEFORE_RETRY,
             max_attempts: MAX_ATTEMPTS,
-            runner_version: self.agent_version,
+            runner_version: crate::agent_version().to_string(),
             modes: vec!["pull".to_string()],
-            ipc_cert_file: self.ipc_cert_file_path.into(),
+            ipc_cert_file,
             identity: Identity {
-                urn: self.identity.urn,
-                private_key: self.identity.private_key,
-                org_id: self.identity.org_id,
-                runner_id: self.identity.runner_id,
+                urn: identity.urn,
+                private_key: identity.private_key,
+                org_id: identity.org_id,
+                runner_id: identity.runner_id,
             },
         })
-    }
-}
-
-fn opms_base_url(
-    agent: &GenericConfiguration,
-    use_dd_url: bool,
-    dd_url_explicit: bool,
-) -> Result<String> {
-    let dd_url: String = agent
-        .get_typed("dd_url")
-        .context("invalid dd_url configuration from the Core Agent")?;
-    if use_dd_url {
-        return endpoint_origin(&dd_url);
-    }
-    if dd_url_explicit {
-        let site = site_from_datadog_url(&dd_url)
-            .context("explicit dd_url does not contain a recognized Datadog site")?;
-        return Ok(format!("https://api.{site}"));
-    }
-
-    let site: String = agent
-        .get_typed("site")
-        .context("invalid site configuration from the Core Agent")?;
-    let site = site.trim();
-    ensure!(!site.is_empty(), "site is empty");
-    Ok(format!("https://api.{site}"))
-}
-
-fn endpoint_origin(raw: &str) -> Result<String> {
-    let parsed = reqwest::Url::parse(raw).context("invalid dd_url")?;
-    ensure!(
-        matches!(parsed.scheme(), "http" | "https"),
-        "dd_url must use HTTP or HTTPS"
-    );
-    ensure!(parsed.host_str().is_some(), "dd_url has no host");
-    Ok(parsed.origin().ascii_serialization())
-}
-
-// Mirrors Go's `ddSitePattern` in `pkg/config/utils/endpoints.go`: an optional datacenter
-// label (e.g. `us3.`, `ap1.`) followed by a known Datadog domain, anchored at the end of the
-// hostname.
-static SITE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?:^|\.)([a-z]{2,}\d{1,2}\.)?(datad(?:oghq|0g)\.(?:com|eu)|ddog-gov\.com)$")
-        .unwrap()
-});
-
-fn site_from_datadog_url(raw: &str) -> Option<String> {
-    let parsed = reqwest::Url::parse(raw).ok()?;
-    let host = parsed
-        .host_str()?
-        .trim_end_matches('.')
-        .to_ascii_lowercase();
-    let captures = SITE_RE.captures(&host)?;
-    let datacenter = captures.get(1).map_or("", |group| group.as_str());
-    Some(format!("{datacenter}{}", &captures[2]))
-}
-
-fn proxy_for(agent: &GenericConfiguration, target: &str) -> Result<ProxyDecision> {
-    let proxy: AgentProxyConfig = agent
-        .get_typed("proxy")
-        .context("invalid proxy configuration from the Core Agent")?;
-    let target = reqwest::Url::parse(target).context("invalid OPMS URL")?;
-    let proxy_url = match target.scheme() {
-        "http" => proxy.http,
-        "https" => proxy.https,
-        scheme => anyhow::bail!("unsupported OPMS URL scheme {scheme}"),
-    };
-    if proxy_url.is_empty() {
-        return Ok(ProxyDecision::None);
-    }
-
-    let nonexact: bool = agent
-        .get_typed("no_proxy_nonexact_match")
-        .context("invalid no_proxy_nonexact_match configuration from the Core Agent")?;
-    if nonexact {
-        return Ok(ProxyDecision::NonExact {
-            proxy_url,
-            no_proxy: proxy.no_proxy.join(","),
-        });
-    }
-
-    let host = match target.port() {
-        Some(port) => format!("{}:{port}", target.host_str().unwrap_or_default()),
-        None => target.host_str().unwrap_or_default().to_string(),
-    };
-    if proxy.no_proxy.iter().any(|entry| entry == &host) {
-        Ok(ProxyDecision::None)
-    } else {
-        Ok(ProxyDecision::Direct(proxy_url))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use saluki_config::{
-        ConfigurationLoader,
-        dynamic::{ConfigSetting, ConfigUpdate},
-    };
-    use serde_json::json;
-    use tokio::sync::mpsc;
 
-    const JSON: &str = r#"{
-        "split_mode": true,
-        "log_level": "debug",
-        "identity": {"urn":"urn","private_key":"key","org_id":42,"runner_id":"runner"},
-        "agent_version":"7.76.0",
-        "cmd_port":5001,
-        "auth_token_file_path":"/etc/datadog-agent/auth_token",
-        "ipc_cert_file_path":"/etc/datadog-agent/auth/cert.pem"
-    }"#;
-
-    async fn agent_config(task_concurrency: usize) -> GenericConfiguration {
-        agent_config_values(
-            task_concurrency,
-            "https://app.datadoghq.com",
-            json!([]),
-            false,
-        )
-        .await
+    fn snapshot() -> pb::GetControlPlaneConfigResponse {
+        pb::GetControlPlaneConfigResponse {
+            split_mode: true,
+            log_level: "debug".into(),
+            identity: Some(pb::ControlPlaneIdentity {
+                urn: "urn".into(),
+                private_key: "secret-key".into(),
+                org_id: 42,
+                runner_id: "runner".into(),
+            }),
+            runtime: Some(pb::ControlPlaneRuntime {
+                opms_base_url: "https://api.us3.datadoghq.com".into(),
+                task_concurrency: 9,
+                opms_extra_headers: HashMap::from([("X-Test".into(), "secret-header".into())]),
+                opms_proxy_url: "http://user:secret-password@proxy:3128".into(),
+                skip_ssl_validation: true,
+                min_tls_version: "tlsv1.3".into(),
+            }),
+        }
     }
 
-    async fn agent_config_with_proxy(
-        task_concurrency: usize,
-        no_proxy: serde_json::Value,
-        nonexact: bool,
-    ) -> GenericConfiguration {
-        agent_config_values(
-            task_concurrency,
-            "https://app.datadoghq.com",
-            no_proxy,
-            nonexact,
-        )
-        .await
-    }
-
-    async fn agent_config_values(
-        task_concurrency: usize,
-        dd_url: &str,
-        no_proxy: serde_json::Value,
-        nonexact: bool,
-    ) -> GenericConfiguration {
-        let settings = [
-            ConfigSetting::explicit("private_action_runner.enabled", json!(true)),
-            ConfigSetting::explicit("private_action_runner.split_enabled", json!(true)),
-            ConfigSetting::explicit(
-                "private_action_runner.task_concurrency",
-                json!(task_concurrency),
-            ),
-            ConfigSetting::explicit(
-                "private_action_runner.executor.socket_path",
-                json!("/from-agent.sock"),
-            ),
-            ConfigSetting::explicit(
-                "private_action_runner.opms_extra_headers",
-                json!({"X-Test": "agent"}),
-            ),
-            ConfigSetting::explicit("site", json!("datadoghq.com")),
-            ConfigSetting::explicit("dd_url", json!(dd_url)),
-            ConfigSetting::explicit(
-                "proxy",
-                json!({"http": "", "https": "http://proxy:3128", "no_proxy": no_proxy}),
-            ),
-            ConfigSetting::explicit("no_proxy_nonexact_match", json!(nonexact)),
-            ConfigSetting::explicit("skip_ssl_validation", json!(true)),
-            ConfigSetting::explicit("min_tls_version", json!("tlsv1.3")),
-        ];
-        let (sender, receiver) = mpsc::channel(1);
-        sender.send(ConfigUpdate::snapshot(settings)).await.unwrap();
-
-        let config = ConfigurationLoader::default()
-            .with_dynamic_configuration(receiver)
-            .into_generic()
-            .await
-            .unwrap();
-        config.ready().await;
-        config
-    }
-
-    #[tokio::test]
-    async fn combines_bootstrap_and_core_agent_configuration() {
-        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
-        assert!(bootstrap.split_mode);
-        assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
-
-        let config = bootstrap
-            .into_config(&agent_config(9).await, false)
-            .unwrap();
-
-        assert_eq!(config.opms_base_url, "https://api.datadoghq.com");
-        assert_eq!(
-            config.opms_proxy,
-            ProxyDecision::Direct("http://proxy:3128".to_string())
-        );
-        assert_eq!(config.task_concurrency, 9);
-        assert_eq!(config.executor_socket, PathBuf::from("/from-agent.sock"));
-        assert_eq!(config.opms_extra_headers["X-Test"], "agent");
-        assert!(config.tls.skip_ssl_validation);
-        assert_eq!(config.tls.min_tls_version, "tlsv1.3");
-        assert_eq!(config.loop_interval, Duration::from_secs(1));
-        assert_eq!(config.identity.org_id, 42);
-    }
-
-    #[tokio::test]
-    async fn rejects_invalid_core_agent_configuration() {
-        let bootstrap: BootstrapConfig = serde_json::from_str(JSON).unwrap();
-        let error = bootstrap
-            .into_config(&agent_config(0).await, false)
-            .err()
-            .unwrap()
-            .to_string();
-
-        assert!(error.contains("task_concurrency"));
-    }
-
-    #[tokio::test]
-    async fn applies_proxy_bypass_modes() {
-        let exact = agent_config_with_proxy(5, json!(["api.datadoghq.com"]), false).await;
-        assert_eq!(
-            proxy_for(&exact, "https://api.datadoghq.com").unwrap(),
-            ProxyDecision::None
-        );
-
-        let nonexact = agent_config_with_proxy(5, json!(["datadoghq.com"]), true).await;
-        assert_eq!(
-            proxy_for(&nonexact, "https://api.datadoghq.com").unwrap(),
-            ProxyDecision::NonExact {
-                proxy_url: "http://proxy:3128".to_string(),
-                no_proxy: "datadoghq.com".to_string(),
-            }
-        );
-    }
-
-    #[tokio::test]
-    async fn preserves_explicit_dd_url_precedence() {
-        let regional = agent_config_values(
-            5,
-            "https://intake.profile.us3.datadoghq.com/path",
-            json!([]),
-            false,
-        )
-        .await;
-        assert_eq!(
-            opms_base_url(&regional, false, true).unwrap(),
-            "https://api.us3.datadoghq.com"
-        );
-        assert_eq!(
-            opms_base_url(&regional, false, false).unwrap(),
-            "https://api.datadoghq.com"
-        );
-    }
-
-    #[tokio::test]
-    async fn uses_dd_url_for_internal_tests() {
-        let fakeintake =
-            agent_config_values(5, "http://fakeintake:8080/path", json!([]), false).await;
-        assert_eq!(
-            opms_base_url(&fakeintake, true, true).unwrap(),
-            "http://fakeintake:8080"
-        );
+    fn config(snapshot: pb::GetControlPlaneConfigResponse) -> Result<Config> {
+        BootstrapConfig::new(snapshot).into_config("/launch.sock".into(), "/launch/cert.pem".into())
     }
 
     #[test]
-    fn rejects_unknown_bootstrap_fields() {
-        let json = JSON.replace("\"split_mode\": true", "\"unknown\": true");
-        assert!(serde_json::from_str::<BootstrapConfig>(&json).is_err());
+    fn uses_bootstrap_runtime_and_launch_paths() {
+        let bootstrap = BootstrapConfig::new(snapshot());
+        assert!(bootstrap.split_mode());
+        assert_eq!(bootstrap.log_level(), log::LevelFilter::Debug);
+        let config = config(snapshot()).unwrap();
+        assert_eq!(config.opms_base_url, "https://api.us3.datadoghq.com");
+        assert_eq!(
+            config.opms_proxy,
+            ProxyDecision::ViaProxy("http://user:secret-password@proxy:3128".into())
+        );
+        assert_eq!(config.task_concurrency, 9);
+        assert_eq!(config.executor_socket, PathBuf::from("/launch.sock"));
+        assert_eq!(config.ipc_cert_file, PathBuf::from("/launch/cert.pem"));
+        assert_eq!(config.opms_extra_headers["X-Test"], "secret-header");
+        assert!(config.tls.skip_ssl_validation);
+        assert_eq!(config.tls.min_tls_version, "tlsv1.3");
+        assert_eq!(config.runner_version, crate::agent_version());
+        assert_eq!(config.identity.org_id, 42);
+        assert_eq!(config.identity.private_key, "secret-key");
+    }
+
+    #[test]
+    fn validates_snapshot_without_exposing_credentials() {
+        let mut invalid = snapshot();
+        invalid.runtime = None;
+        assert!(
+            config(invalid)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("missing runtime")
+        );
+        let mut invalid = snapshot();
+        invalid.identity = None;
+        assert!(
+            config(invalid)
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("missing identity")
+        );
+        for concurrency in [0, -1] {
+            let mut invalid = snapshot();
+            invalid.runtime.as_mut().unwrap().task_concurrency = concurrency;
+            assert!(
+                config(invalid)
+                    .err()
+                    .unwrap()
+                    .to_string()
+                    .contains("task_concurrency")
+            );
+        }
+        let debug = format!("{:?}", BootstrapConfig::new(snapshot()));
+        for secret in ["secret-key", "secret-header", "secret-password"] {
+            assert!(!debug.contains(secret));
+        }
+    }
+
+    #[test]
+    fn preserves_go_proxy_bypass_decision() {
+        let mut response = snapshot();
+        response.runtime.as_mut().unwrap().opms_proxy_url.clear();
+        assert_eq!(config(response).unwrap().opms_proxy, ProxyDecision::None);
+    }
+
+    #[test]
+    fn rejects_empty_launch_paths() {
+        for (socket, cert, flag) in [
+            ("", "/cert.pem", "--executor-socket"),
+            ("/executor.sock", "", "--ipc-cert-file"),
+        ] {
+            let error = BootstrapConfig::new(snapshot())
+                .into_config(socket.into(), cert.into())
+                .err()
+                .unwrap();
+            assert!(error.to_string().contains(flag));
+        }
+    }
+
+    #[test]
+    fn disabled_response_needs_no_identity() {
+        let bootstrap = BootstrapConfig::new(pb::GetControlPlaneConfigResponse::default());
+        assert!(!bootstrap.split_mode());
     }
 }

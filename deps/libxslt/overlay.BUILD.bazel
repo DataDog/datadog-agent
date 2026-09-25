@@ -140,11 +140,12 @@ cc_shared_library(
 pkg_files(
     name = "xslt_headers",
     srcs = _PUBLIC_XSLT_HDRS,
-    prefix = "include/libxslt",
+    prefix = "embedded/include/libxslt",
 )
 
 dd_cc_packaged(
     name = "xslt_pkg",
+    dest_dir = "embedded/lib",
     input = ":xslt",
     installed_files = [":xslt_headers"],
     version = XSLT_VERSION,
@@ -215,11 +216,12 @@ cc_shared_library(
 pkg_files(
     name = "exslt_headers",
     srcs = _PUBLIC_EXSLT_HDRS,
-    prefix = "include/libexslt",
+    prefix = "embedded/include/libexslt",
 )
 
 dd_cc_packaged(
     name = "exslt_pkg",
+    dest_dir = "embedded/lib",
     input = ":exslt",
     installed_files = [":exslt_headers"],
     version = "0.8.25",

@@ -253,14 +253,15 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
-    prefix = "include/curl",
+    prefix = "embedded/include/curl",
 )
 
 dd_cc_packaged(
     name = "curl_pkg",
+    dest_dir = "embedded/lib",
     input = ":curl_shared",
     installed_executables = {
-        ":curl": "bin",
+        ":curl": "embedded/bin",
     },
     installed_files = [
         ":hdr_files",
@@ -275,7 +276,6 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
 )
 
 dd_collect_dependencies(
@@ -287,5 +287,4 @@ dd_collect_dependencies(
 pkg_filegroup(
     name = "installed_libs",
     srcs = [":_installed_libs"],
-    prefix = "embedded",
 )
