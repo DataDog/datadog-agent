@@ -384,26 +384,37 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool 
 
     output_path = Path("test-binaries").absolute()
     manifest_binaries = []
-    build_start = time.monotonic()
-    for label, binary_name in test_binaries.items():
-        package = label.removeprefix("//").partition(":")[0].removeprefix("test/new-e2e/")
-        if not any(package == prefix or package.startswith(prefix + "/") for prefix in target_prefixes):
-            continue
-        binary_path = output_path / binary_name
-        binary_start = time.monotonic()
-        build_binary_with_bazel(
-            label,
-            args=bazel_args,
-            bin_path=str(binary_path),
-        )
-        print(f"  Built {binary_name} with Bazel in {time.monotonic() - binary_start:.1f}s")
-        manifest_binaries.append(
-            {
-                "package": package,
-                "binary": binary_name,
-                "size": binary_path.stat().st_size,
-            }
-        )
+    # Bound the Go processes spawned by the build (Go toolchain: compiler, linker) to 6 CPUs, like --jobs=6
+    # above (they parallelize their work with GOMAXPROCS). Restored afterwards so it does not leak to the
+    # test run itself, where the test binaries legitimately want the full CPU budget.
+    prev_gomaxprocs = os.environ.get("GOMAXPROCS")
+    os.environ["GOMAXPROCS"] = "6"
+    try:
+        build_start = time.monotonic()
+        for label, binary_name in test_binaries.items():
+            package = label.removeprefix("//").partition(":")[0].removeprefix("test/new-e2e/")
+            if not any(package == prefix or package.startswith(prefix + "/") for prefix in target_prefixes):
+                continue
+            binary_path = output_path / binary_name
+            binary_start = time.monotonic()
+            build_binary_with_bazel(
+                label,
+                args=bazel_args,
+                bin_path=str(binary_path),
+            )
+            print(f"  Built {binary_name} with Bazel in {time.monotonic() - binary_start:.1f}s")
+            manifest_binaries.append(
+                {
+                    "package": package,
+                    "binary": binary_name,
+                    "size": binary_path.stat().st_size,
+                }
+            )
+    finally:
+        if prev_gomaxprocs is None:
+            os.environ.pop("GOMAXPROCS", None)
+        else:
+            os.environ["GOMAXPROCS"] = prev_gomaxprocs
 
     if not manifest_binaries:
         print(f"WARNING: No Bazel test binaries found matching targets: {targets}")
