@@ -13,7 +13,6 @@ type ToText = fn(&Type, &[u8]) -> Result<String, BoxError>;
 pub(super) struct TextCell(pub String);
 
 /// Text conversion per type. Add a type here to scan it.
-/// TODO(DATASEC-348): support uuid columns.
 fn to_text_fn(ty: &Type) -> Option<ToText> {
     let to_text: ToText = match *ty {
         Type::BOOL => |_, raw| Ok(types::bool_from_sql(raw)?.to_string()),
@@ -24,28 +23,20 @@ fn to_text_fn(ty: &Type) -> Option<ToText> {
         Type::OID => |_, raw| Ok(types::oid_from_sql(raw)?.to_string()),
         Type::FLOAT4 => |_, raw| Ok(types::float4_from_sql(raw)?.to_string()),
         Type::FLOAT8 => |_, raw| Ok(types::float8_from_sql(raw)?.to_string()),
-        Type::BYTEA => {
-            |_, raw| Ok(String::from_utf8_lossy(types::bytea_from_sql(raw)).into_owned())
-        }
+        Type::BYTEA => |_, raw| Ok(bytea_text(raw)),
         Type::INET | Type::CIDR => |_, raw| Ok(types::inet_from_sql(raw)?.addr().to_string()),
-        Type::MACADDR => |_, raw| {
-            let bytes = types::macaddr_from_sql(raw)?;
-            Ok(bytes.map(|b| format!("{b:02x}")).join(":"))
-        },
+        Type::MACADDR => |_, raw| macaddr_text(raw),
+        Type::UUID => |_, raw| uuid_text(raw),
         Type::JSON | Type::XML => |_, raw| Ok(types::text_from_sql(raw)?.to_string()),
-        // `jsonb` is its version byte followed by the JSON text.
-        Type::JSONB => |_, raw| match raw.split_first() {
-            Some((1, json)) => Ok(types::text_from_sql(json)?.to_string()),
-            _ => Err("unsupported jsonb version".into()),
-        },
-        _ if ty.name() == "hstore" => |_, raw| {
-            let pairs: Vec<String> = types::hstore_from_sql(raw)?
-                .map(|(key, value)| Ok(format!("{key}=>{}", value.unwrap_or("NULL"))))
-                .collect()?;
-            Ok(pairs.join(", "))
-        },
+        Type::JSONB => |_, raw| jsonb_text(raw),
+        _ if ty.name() == "hstore" => |_, raw| hstore_text(raw),
         // String types, including extensions such as `citext` and `ltree`.
         _ if <String as FromSql>::accepts(ty) => |ty, raw| String::from_sql(ty, raw),
+        // Reported as scanned columns but read as empty text, which is not scanned: they hold
+        // no sensitive data.
+        Type::DATE | Type::TIME | Type::TIMESTAMP | Type::TIMESTAMPTZ | Type::INTERVAL => {
+            |_, _| Ok(String::new())
+        }
         _ => return None,
     };
     Some(to_text)
@@ -80,9 +71,49 @@ fn array_text(member: &Type, raw: &[u8]) -> Result<String, BoxError> {
     Ok(format!("{{{}}}", items.join(",")))
 }
 
+/// Decodes `bytea` as UTF-8, replacing invalid sequences.
+fn bytea_text(raw: &[u8]) -> String {
+    String::from_utf8_lossy(types::bytea_from_sql(raw)).into_owned()
+}
+
+/// Formats a `macaddr` as `08:00:2b:01:02:03`.
+fn macaddr_text(raw: &[u8]) -> Result<String, BoxError> {
+    let bytes = types::macaddr_from_sql(raw)?;
+    Ok(bytes.map(|b| format!("{b:02x}")).join(":"))
+}
+
+/// Formats a `uuid` as `00112233-4455-6677-8899-aabbccddeeff`.
+fn uuid_text(raw: &[u8]) -> Result<String, BoxError> {
+    let mut uuid = String::new();
+    for (i, b) in types::uuid_from_sql(raw)?.iter().enumerate() {
+        if matches!(i, 4 | 6 | 8 | 10) {
+            uuid.push('-');
+        }
+        uuid.push_str(&format!("{b:02x}"));
+    }
+    Ok(uuid)
+}
+
+/// Reads the JSON text of a `jsonb`, which is its version byte followed by the JSON text.
+fn jsonb_text(raw: &[u8]) -> Result<String, BoxError> {
+    match raw.split_first() {
+        Some((1, json)) => Ok(types::text_from_sql(json)?.to_string()),
+        _ => Err("unsupported jsonb version".into()),
+    }
+}
+
+/// Formats an `hstore` as `key=>value, key=>NULL`.
+fn hstore_text(raw: &[u8]) -> Result<String, BoxError> {
+    let pairs: Vec<String> = types::hstore_from_sql(raw)?
+        .map(|(key, value)| Ok(format!("{key}=>{}", value.unwrap_or("NULL"))))
+        .collect()?;
+    Ok(pairs.join(", "))
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr, Ipv6Addr};
+    use std::time::SystemTime;
 
     use postgres::types::private::BytesMut;
     use postgres::types::{FromSql, Kind, ToSql, Type};
@@ -119,6 +150,14 @@ mod tests {
             Type::INET,
             Type::CIDR,
             Type::MACADDR,
+            Type::UUID,
+            Type::UUID_ARRAY,
+            Type::DATE,
+            Type::TIME,
+            Type::TIMESTAMP,
+            Type::TIMESTAMPTZ,
+            Type::TIMESTAMP_ARRAY,
+            Type::INTERVAL,
             Type::JSON,
             Type::JSONB,
             Type::XML,
@@ -132,16 +171,20 @@ mod tests {
         ] {
             assert!(TextCell::accepts(&ty), "{ty} should be accepted");
         }
-        for ty in [
-            Type::UUID,
-            Type::UUID_ARRAY,
-            Type::NUMERIC,
-            Type::TIMESTAMP,
-            Type::NUMERIC_ARRAY,
-            extension("geometry"),
-        ] {
+        for ty in [Type::NUMERIC, Type::NUMERIC_ARRAY, extension("geometry")] {
             assert!(!TextCell::accepts(&ty), "{ty} should not be accepted");
         }
+    }
+
+    #[test]
+    fn converts_dates_times_and_intervals_to_empty_text() {
+        let now = SystemTime::now();
+        for ty in [Type::TIMESTAMP, Type::TIMESTAMPTZ] {
+            assert_eq!(text(ty.clone(), &encode(&now, &ty)), "");
+        }
+        assert_eq!(text(Type::DATE, &0i32.to_be_bytes()), "");
+        assert_eq!(text(Type::TIME, &0i64.to_be_bytes()), "");
+        assert_eq!(text(Type::INTERVAL, &[0; 16]), "");
     }
 
     #[test]
@@ -178,6 +221,12 @@ mod tests {
             text(Type::MACADDR, &[0x08, 0x00, 0x2b, 0x01, 0x02, 0x03]),
             "08:00:2b:01:02:03"
         );
+        let uuid: Vec<u8> = (0..16).map(|b| b * 0x11).collect();
+        assert_eq!(
+            text(Type::UUID, &uuid),
+            "00112233-4455-6677-8899-aabbccddeeff"
+        );
+        assert!(TextCell::from_sql(&Type::UUID, &uuid[..15]).is_err());
         assert_eq!(text(extension("citext"), b"Alice@Corp.io"), "Alice@Corp.io");
         // `ltree` carries a version byte that must not end up in the text.
         assert_eq!(text(extension("ltree"), b"\x01top.science"), "top.science");

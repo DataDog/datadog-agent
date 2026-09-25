@@ -15,7 +15,7 @@ impl Event for ScanData {
         for (row_idx, row) in self.rows.iter().enumerate() {
             visitor.push_segment(row_idx.into());
             for (col_idx, cell) in row.iter().enumerate() {
-                let Some(value) = cell.as_deref() else {
+                let Some(value) = cell.as_deref().filter(|value| !value.is_empty()) else {
                     continue;
                 };
                 let Some(column) = self.scanned_columns.get(col_idx) else {
