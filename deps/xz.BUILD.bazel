@@ -19,7 +19,7 @@ alias(
     actual = "@xz//:liblzma",
 )
 
-VERSION = "5.4.2"
+VERSION = "5.8.1"
 
 package_metadata(
     name = "package_metadata",
