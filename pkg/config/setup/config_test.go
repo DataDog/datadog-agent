@@ -531,7 +531,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -648,7 +648,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1672,7 +1672,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), []string{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t))
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

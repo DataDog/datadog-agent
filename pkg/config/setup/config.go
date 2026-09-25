@@ -289,9 +289,16 @@ func findUnexpectedUnicode(config pkgconfigmodel.Config) []string {
 	return messages
 }
 
-func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, additionalKnownEnvVars []string) []string {
+var findUnknownEnvVarsOnce = sync.OnceFunc(func() {
+	for _, v := range findUnknownEnvVars() {
+		log.Warnf("Unknown environment variable: %v", v)
+	}
+})
+
+func findUnknownEnvVars() []string {
 	var unknownVars []string
 
+	// List of known env vars used by the Datadog ecosystem that should not be warned on
 	knownVars := map[string]struct{}{
 		// these variables are used by the agent, but not via the Config struct,
 		// so must be listed separately.
@@ -348,15 +355,20 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_APM_NET_RECEIVER_FD":  {},
 		"DD_APM_UNIX_RECEIVER_FD": {},
 		"DD_OTLP_CONFIG_GRPC_FD":  {},
+		// otelAgentEnvVars lists DD_* environment variables that are consumed by the
+		// otel-agent binary via CLI flags (envflag) rather than through the Datadog
+		// config system.
+		"DD_SYNC_DELAY":  {},
+		"DD_SYNC_TO":     {},
+		"DD_CORE_CONFIG": {},
 	}
-	for _, key := range config.GetEnvVars() {
-		knownVars[key] = struct{}{}
-	}
-	for _, key := range additionalKnownEnvVars {
-		knownVars[key] = struct{}{}
+	for _, cfg := range []pkgconfigmodel.Config{datadog, systemProbe} {
+		for _, key := range cfg.GetEnvVars() {
+			knownVars[key] = struct{}{}
+		}
 	}
 
-	for _, equality := range environ {
+	for _, equality := range os.Environ() {
 		key := strings.SplitN(equality, "=", 2)[0]
 		if !strings.HasPrefix(key, "DD_") {
 			continue
@@ -397,7 +409,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -407,7 +419,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config, additionalEnvVars)
+	err := loadCustom(config)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -517,12 +529,12 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
-func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
-	return loadCustom(config, additionalKnownEnvVars)
+func LoadSystemProbe(config pkgconfigmodel.Config) error {
+	return loadCustom(config)
 }
 
 // loadCustom reads config into the provided config object
-func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
+func loadCustom(config pkgconfigmodel.Config) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
 		return err
@@ -532,9 +544,7 @@ func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) e
 		log.Warnf("%s", warn)
 	}
 
-	for _, v := range findUnknownEnvVars(config, os.Environ(), additionalKnownEnvVars) {
-		log.Warnf("Unknown environment variable: %v", v)
-	}
+	findUnknownEnvVarsOnce()
 
 	for _, warningMsg := range findUnexpectedUnicode(config) {
 		log.Warnf("%s", warningMsg)

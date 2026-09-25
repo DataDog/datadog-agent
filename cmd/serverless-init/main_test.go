@@ -156,7 +156,7 @@ func TestSetupOtlpAgentNoPanic(t *testing.T) {
 	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
 
 	configmock.New(t)
-	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t), nil)
+	_ = pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretsmock.New(t), delegatedauthmock.New(t))
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	bundle := metricstest.New(t, fakeTagger)
 	metricAgent := metrics.New(bundle.Demux, metrics.Tags{})
