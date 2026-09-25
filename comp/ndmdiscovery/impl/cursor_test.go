@@ -84,22 +84,22 @@ func TestPersistentCursorStoreClearIsIdempotent(t *testing.T) {
 }
 
 func TestRangeDigestIsStable(t *testing.T) {
-	cfg := rangeConfig{CIDR: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.2", "10.0.0.1"}}
+	cfg := rangeConfig{NetworkAddress: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.2", "10.0.0.1"}}
 	a := rangeDigest(cfg, []string{"snmp:b", "ping:a"})
 
-	cfg2 := rangeConfig{CIDR: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.1", "10.0.0.2"}}
+	cfg2 := rangeConfig{NetworkAddress: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.1", "10.0.0.2"}}
 	assert.Equal(t, a, rangeDigest(cfg2, []string{"ping:a", "snmp:b"}))
 	assert.NotEmpty(t, a)
 }
 
 func TestRangeDigestChangesWithTheRangeAndTheProbes(t *testing.T) {
-	base := rangeConfig{CIDR: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.1"}}
+	base := rangeConfig{NetworkAddress: "10.0.0.0/24", IgnoredIPAddresses: []string{"10.0.0.1"}}
 	fingerprints := []string{"snmp:one"}
 	a := rangeDigest(base, fingerprints)
 
-	changedCIDR := base
-	changedCIDR.CIDR = "10.0.1.0/24"
-	assert.NotEqual(t, a, rangeDigest(changedCIDR, fingerprints))
+	changedAddress := base
+	changedAddress.NetworkAddress = "10.0.1.0/24"
+	assert.NotEqual(t, a, rangeDigest(changedAddress, fingerprints))
 
 	changedIgnored := base
 	changedIgnored.IgnoredIPAddresses = []string{"10.0.0.9"}
@@ -112,8 +112,8 @@ func TestRangeDigestChangesWithTheRangeAndTheProbes(t *testing.T) {
 }
 
 func TestRangeDigestIgnoresInterval(t *testing.T) {
-	a := rangeConfig{CIDR: "10.0.0.0/24", IntervalSec: 3600}
-	b := rangeConfig{CIDR: "10.0.0.0/24", IntervalSec: 900}
+	a := rangeConfig{NetworkAddress: "10.0.0.0/24", IntervalSec: 3600}
+	b := rangeConfig{NetworkAddress: "10.0.0.0/24", IntervalSec: 900}
 	assert.Equal(t, rangeDigest(a, []string{"snmp:one"}), rangeDigest(b, []string{"snmp:one"}),
 		"an interval-only change must not discard scan progress")
 }

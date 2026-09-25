@@ -20,38 +20,38 @@ import (
 var testDefaults = rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536}
 
 func testProbes() map[string]json.RawMessage {
-	return map[string]json.RawMessage{"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`)}
+	return map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_names":["cred-a"]}`)}
 }
 
 func testRange(id, cidr string) ndmdiscovery.Range {
-	return ndmdiscovery.Range{ID: id, CIDR: cidr, Probes: testProbes()}
+	return ndmdiscovery.Range{ID: id, NetworkAddress: cidr, Probes: testProbes()}
 }
 
 func TestParseRangeFull(t *testing.T) {
 	cfg, err := parseRange(ndmdiscovery.Range{
 		ID:                 "ad-1",
 		Namespace:          "prod",
-		CIDR:               "10.0.0.0/24",
+		NetworkAddress:     "10.0.0.0/24",
 		IntervalSec:        900,
 		IgnoredIPAddresses: []string{"10.0.0.1"},
 		Tags:               []string{"site:paris"},
 		Probes: map[string]json.RawMessage{
 			"ping": json.RawMessage(`{"count":2}`),
-			"snmp": json.RawMessage(`{"credential_ids":["cred-a"]}`),
+			"snmp": json.RawMessage(`{"cred_names":["cred-a"]}`),
 		},
 	}, testDefaults, available(), logmock.New(t))
 	require.NoError(t, err)
 
 	assert.Equal(t, "ad-1", cfg.AutodiscoveryID)
 	assert.Equal(t, "prod", cfg.Namespace)
-	assert.Equal(t, "10.0.0.0/24", cfg.CIDR)
+	assert.Equal(t, "10.0.0.0/24", cfg.NetworkAddress)
 	assert.Equal(t, 900, cfg.IntervalSec)
 	assert.Equal(t, []string{"10.0.0.1"}, cfg.IgnoredIPAddresses)
 	assert.Equal(t, []string{"site:paris"}, cfg.Tags)
 	require.NotNil(t, cfg.Probes.Ping)
 	assert.Equal(t, 2, cfg.Probes.Ping.Count)
 	require.NotNil(t, cfg.Probes.SNMP)
-	assert.Equal(t, []string{"cred-a"}, cfg.Probes.SNMP.CredentialIDs)
+	assert.Equal(t, []string{"cred-a"}, cfg.Probes.SNMP.CredNames)
 }
 
 func TestParseRangeDefaults(t *testing.T) {
@@ -63,7 +63,7 @@ func TestParseRangeDefaults(t *testing.T) {
 }
 
 func TestParseRangeKeepsARangeWhoseProbesAreAllUnusable(t *testing.T) {
-	r := ndmdiscovery.Range{ID: "ad-1", CIDR: "10.0.0.0/24", Probes: map[string]json.RawMessage{
+	r := ndmdiscovery.Range{ID: "ad-1", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{
 		"ping": json.RawMessage(`{}`),
 	}}
 
@@ -79,12 +79,12 @@ func TestParseRangeValidation(t *testing.T) {
 		r       ndmdiscovery.Range
 		errPart string
 	}{
-		{"missing id", ndmdiscovery.Range{CIDR: "10.0.0.0/24", Probes: testProbes()}, "id"},
-		{"missing cidr", ndmdiscovery.Range{ID: "a", Probes: testProbes()}, "cidr"},
-		{"bad cidr", ndmdiscovery.Range{ID: "a", CIDR: "nope", Probes: testProbes()}, "invalid CIDR"},
-		{"range too large", ndmdiscovery.Range{ID: "a", CIDR: "10.0.0.0/12", Probes: testProbes()}, "exceeds the maximum"},
-		{"no probes", ndmdiscovery.Range{ID: "a", CIDR: "10.0.0.0/24"}, "probes"},
-		{"empty probes", ndmdiscovery.Range{ID: "a", CIDR: "10.0.0.0/24", Probes: map[string]json.RawMessage{}}, "probes"},
+		{"missing id", ndmdiscovery.Range{NetworkAddress: "10.0.0.0/24", Probes: testProbes()}, "id"},
+		{"missing cidr", ndmdiscovery.Range{ID: "a", Probes: testProbes()}, "network_address"},
+		{"bad cidr", ndmdiscovery.Range{ID: "a", NetworkAddress: "nope", Probes: testProbes()}, "invalid CIDR"},
+		{"range too large", ndmdiscovery.Range{ID: "a", NetworkAddress: "10.0.0.0/12", Probes: testProbes()}, "exceeds the maximum"},
+		{"no probes", ndmdiscovery.Range{ID: "a", NetworkAddress: "10.0.0.0/24"}, "probes"},
+		{"empty probes", ndmdiscovery.Range{ID: "a", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{}}, "probes"},
 	}
 
 	for _, tt := range tests {

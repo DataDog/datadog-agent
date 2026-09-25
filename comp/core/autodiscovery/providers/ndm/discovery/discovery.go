@@ -81,7 +81,7 @@ type keyConfig struct {
 type rangePayload struct {
 	AutodiscoveryID    string                     `json:"autodiscovery_id"`
 	Namespace          string                     `json:"namespace"`
-	CIDR               string                     `json:"cidr"`
+	NetworkAddress     string                     `json:"network_address"`
 	IntervalSec        int                        `json:"interval_sec"`
 	IgnoredIPAddresses []string                   `json:"ignored_ip_addresses"`
 	Tags               []string                   `json:"tags"`
@@ -104,7 +104,7 @@ func decodeRanges(raw json.RawMessage) ([]ndmdiscovery.Range, error) {
 		ranges = append(ranges, ndmdiscovery.Range{
 			ID:                 payload.AutodiscoveryID,
 			Namespace:          payload.Namespace,
-			CIDR:               payload.CIDR,
+			NetworkAddress:     payload.NetworkAddress,
 			IntervalSec:        payload.IntervalSec,
 			IgnoredIPAddresses: payload.IgnoredIPAddresses,
 			Tags:               payload.Tags,

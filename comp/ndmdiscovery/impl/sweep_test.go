@@ -146,7 +146,7 @@ func testSweepRequestWithOptions(t *testing.T, cidr string, ignored []string, op
 	cfg := rangeConfig{
 		AutodiscoveryID:    "ad-1",
 		Namespace:          "default",
-		CIDR:               cidr,
+		NetworkAddress:     cidr,
 		IgnoredIPAddresses: ignored,
 	}
 	plan, err := newChunkPlan(cidr, ignored, 65536)

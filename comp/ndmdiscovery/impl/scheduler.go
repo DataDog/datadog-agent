@@ -139,7 +139,7 @@ func (s *scheduler) workerShare() int64 {
 func (s *scheduler) set(cfg rangeConfig) error {
 	// Validate before touching any state so a bad update cannot take down a
 	// range that is already running well.
-	if _, err := newChunkPlan(cfg.CIDR, cfg.IgnoredIPAddresses, s.opts.MaxAddresses); err != nil {
+	if _, err := newChunkPlan(cfg.NetworkAddress, cfg.IgnoredIPAddresses, s.opts.MaxAddresses); err != nil {
 		return err
 	}
 
@@ -236,7 +236,7 @@ func (s *scheduler) runCycle(ctx context.Context, cfg rangeConfig) {
 		return
 	}
 
-	plan, err := newChunkPlan(cfg.CIDR, cfg.IgnoredIPAddresses, s.opts.MaxAddresses)
+	plan, err := newChunkPlan(cfg.NetworkAddress, cfg.IgnoredIPAddresses, s.opts.MaxAddresses)
 	if err != nil {
 		s.log.Warnf("ndmdiscovery: skipping range %s: %v", cfg.AutodiscoveryID, err)
 		return

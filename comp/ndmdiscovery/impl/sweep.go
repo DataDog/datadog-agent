@@ -77,7 +77,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 	if state.NextChunk == 0 {
 		s.log.Infof("ndmdiscovery: scanning range %s (%s): %d addresses in %d chunks, %d ignored, run %s",
-			id, r.Config.CIDR, r.Plan.totalAddresses(), total, r.Plan.ignoredCount(), state.RunID)
+			id, r.Config.NetworkAddress, r.Plan.totalAddresses(), total, r.Plan.ignoredCount(), state.RunID)
 		s.reportRun(r, metadata.AutodiscoveryRunMetadata{
 			AutodiscoveryID:  id,
 			RunID:            state.RunID,
@@ -87,7 +87,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 		})
 	} else {
 		s.log.Infof("ndmdiscovery: resuming the scan of range %s (%s) at chunk %d of %d, run %s",
-			id, r.Config.CIDR, state.NextChunk, total, state.RunID)
+			id, r.Config.NetworkAddress, state.NextChunk, total, state.RunID)
 	}
 
 	// reported is a lower bound after a restart: a resumed run inherits no count.
@@ -133,7 +133,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 	}
 
 	s.log.Infof("ndmdiscovery: completed the scan of range %s (%s): %d addresses scanned, %d devices reported, run %s",
-		id, r.Config.CIDR, state.Scanned, reported, state.RunID)
+		id, r.Config.NetworkAddress, state.Scanned, reported, state.RunID)
 	s.reportRun(r, metadata.AutodiscoveryRunMetadata{
 		AutodiscoveryID:  id,
 		RunID:            state.RunID,

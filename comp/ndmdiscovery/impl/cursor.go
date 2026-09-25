@@ -79,7 +79,7 @@ func (s *persistentCursorStore) Clear(autodiscoveryID string) error {
 // so that a change to either invalidates a partial cycle.
 func rangeDigest(cfg rangeConfig, fingerprints []string) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "cidr=%s\n", cfg.CIDR)
+	fmt.Fprintf(h, "network_address=%s\n", cfg.NetworkAddress)
 
 	ignored := append([]string(nil), cfg.IgnoredIPAddresses...)
 	sort.Strings(ignored)

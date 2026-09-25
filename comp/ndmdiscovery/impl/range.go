@@ -26,7 +26,7 @@ var autodiscoveryIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 type rangeConfig struct {
 	AutodiscoveryID    string
 	Namespace          string
-	CIDR               string
+	NetworkAddress     string
 	IntervalSec        int
 	IgnoredIPAddresses []string
 	Tags               []string
@@ -49,20 +49,20 @@ func parseRange(r ndmdiscovery.Range, def rangeDefaults, ping pingprobe.Capabili
 	if !autodiscoveryIDPattern.MatchString(r.ID) {
 		return rangeConfig{}, fmt.Errorf("the range id %q is invalid: it must hold only letters, digits, underscores, and dashes", r.ID)
 	}
-	if r.CIDR == "" {
-		return rangeConfig{}, errors.New("cidr is required")
+	if r.NetworkAddress == "" {
+		return rangeConfig{}, errors.New("network_address is required")
 	}
 	if len(r.Probes) == 0 {
 		return rangeConfig{}, errors.New("probes must hold at least one probe")
 	}
-	if _, err := newChunkPlan(r.CIDR, r.IgnoredIPAddresses, def.MaxAddresses); err != nil {
+	if _, err := newChunkPlan(r.NetworkAddress, r.IgnoredIPAddresses, def.MaxAddresses); err != nil {
 		return rangeConfig{}, err
 	}
 
 	cfg := rangeConfig{
 		AutodiscoveryID:    r.ID,
 		Namespace:          r.Namespace,
-		CIDR:               r.CIDR,
+		NetworkAddress:     r.NetworkAddress,
 		IntervalSec:        r.IntervalSec,
 		IgnoredIPAddresses: r.IgnoredIPAddresses,
 		Tags:               r.Tags,
