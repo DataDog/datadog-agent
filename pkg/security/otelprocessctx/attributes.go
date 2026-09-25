@@ -41,33 +41,6 @@ func KeyAttributeKeyMap(ctx ProcessContext) ([]string, error) {
 	return keys, nil
 }
 
-// The V8 layout attributes below are only published by the Node.js writer,
-// alongside the schema version, so the reader needs to know nothing of how V8
-// was built.
-
-// KeyTaggedSize returns the width in bytes of a V8 tagged word.
-func KeyTaggedSize(ctx ProcessContext) (int64, error) {
-	return intAttribute(ctx, "threadlocal.tagged_size")
-}
-
-// KeyJSMapTableOffset returns the offset of the backing table pointer within a
-// JSMap.
-func KeyJSMapTableOffset(ctx ProcessContext) (int64, error) {
-	return intAttribute(ctx, "threadlocal.js_map_table_offset")
-}
-
-// KeyOrderedHashMapHeaderSize returns the size of the header preceding the
-// fields of an OrderedHashMap.
-func KeyOrderedHashMapHeaderSize(ctx ProcessContext) (int64, error) {
-	return intAttribute(ctx, "threadlocal.ordered_hash_map_header_size")
-}
-
-// KeyJSObjectRecordOffset returns the offset of internal field 0 within the
-// JSObject wrapping a record, which holds the record pointer.
-func KeyJSObjectRecordOffset(ctx ProcessContext) (int64, error) {
-	return intAttribute(ctx, "threadlocal.js_object_record_offset")
-}
-
 // stringAttribute returns the value of the string attribute named key, or an
 // error if ctx published none by that name.
 func stringAttribute(ctx ProcessContext, key string) (string, error) {
@@ -76,16 +49,6 @@ func stringAttribute(ctx ProcessContext, key string) (string, error) {
 		return "", fmt.Errorf("unknown attribute %s", key)
 	}
 	return value.GetStringValue(), nil
-}
-
-// intAttribute returns the value of the integer attribute named key, or an
-// error if ctx published none by that name.
-func intAttribute(ctx ProcessContext, key string) (int64, error) {
-	value := findAttribute(ctx.GetAttributes(), key)
-	if value == nil {
-		return 0, fmt.Errorf("unknown attribute %s", key)
-	}
-	return value.GetIntValue(), nil
 }
 
 // findAttribute returns the value of the attribute named key among attrs, or nil if

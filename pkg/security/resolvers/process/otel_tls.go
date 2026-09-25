@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -42,10 +41,6 @@ const (
 	otelNodeJSTLSSymbolName = "otel_thread_ctx_nodejs_v1"
 	otelNodeJSTLSExportSize = 32
 
-	// otelNodeJSSchemaPrefix is what the process context of a process using the
-	// Node.js writer announces, as of the development version "nodejs_v1_dev".
-	otelNodeJSSchemaPrefix = "nodejs_v1"
-
 	// otelRuntimeNative is a runtime using ELF thread-local storage (C, C++,
 	// Rust, Java/JNI, ...).
 	otelRuntimeNative uint32 = 0
@@ -68,12 +63,47 @@ const (
 const otelSupportedTaggedSize = 8
 
 // otelV8Layout is what walking from the Node.js discovery struct to a record
-// takes, as the writer's process context publishes it.
+// takes.
 type otelV8Layout struct {
 	taggedSize               uint16
 	jsMapTableOffset         uint16
 	orderedHashMapHeaderSize uint16
 	jsObjectRecordOffset     uint16
+}
+
+// otelNodeJSSchemaVersion is one schema version the Node.js writer may
+// announce, and the V8 layout it implies.
+type otelNodeJSSchemaVersion struct {
+	// prefix is matched against the process context's announced schema
+	// version, e.g. "nodejs_v1" matches the development version
+	// "nodejs_v1_dev".
+	prefix string
+	layout otelV8Layout
+}
+
+// otelNodeJSSchemaVersions lists every Node.js writer schema this resolver
+// understands.
+var otelNodeJSSchemaVersions = []otelNodeJSSchemaVersion{
+	{
+		prefix: "nodejs_v1",
+		layout: otelV8Layout{
+			taggedSize:               otelSupportedTaggedSize,
+			jsMapTableOffset:         0x18,
+			orderedHashMapHeaderSize: 0x10,
+			jsObjectRecordOffset:     0x18,
+		},
+	},
+}
+
+// otelNodeJSSchemaFor returns the entry of otelNodeJSSchemaVersions whose
+// prefix matches schema.
+func otelNodeJSSchemaFor(schema string) (otelNodeJSSchemaVersion, bool) {
+	for _, v := range otelNodeJSSchemaVersions {
+		if strings.HasPrefix(schema, v.prefix) {
+			return v, true
+		}
+	}
+	return otelNodeJSSchemaVersion{}, false
 }
 
 // otelWriter is the thread context writer a process publishes with: which TLS
@@ -259,66 +289,16 @@ func otelAttributeKeys(procCtx otelprocessctx.ProcessContext) ([]string, error) 
 // otelWriterFrom works out which thread context writer a process publishes with.
 func otelWriterFrom(procCtx otelprocessctx.ProcessContext) (otelWriter, error) {
 	schema, _ := otelprocessctx.KeySchemaVersion(procCtx)
-	if !strings.HasPrefix(schema, otelNodeJSSchemaPrefix) {
+	nodeJSSchema, ok := otelNodeJSSchemaFor(schema)
+	if !ok {
 		return otelNativeWriter, nil
-	}
-
-	// Registering without these would be worse than not registering: the reader
-	// would walk the discovery struct with offsets it was not published with.
-	v8, err := otelV8LayoutFrom(procCtx)
-	if err != nil {
-		return otelWriter{}, err
 	}
 
 	return otelWriter{
 		symbolName:  otelNodeJSTLSSymbolName,
 		symbolSize:  otelNodeJSTLSExportSize,
 		runtimeLang: otelRuntimeNodeJS,
-		v8:          v8,
-	}, nil
-}
-
-// otelV8LayoutFrom picks the V8 layout constants out of a process context.
-func otelV8LayoutFrom(procCtx otelprocessctx.ProcessContext) (otelV8Layout, error) {
-	field := func(get func(otelprocessctx.ProcessContext) (int64, error), name string, mustBeSet bool) (uint16, error) {
-		value, err := get(procCtx)
-		if err != nil {
-			return 0, fmt.Errorf("%w: missing %s: %w", errSpanCtxMalformed, name, err)
-		}
-		// otelV8Layout's fields are u16: reject anything that wouldn't survive
-		// the narrowing below, rather than let it silently wrap.
-		if value < 0 || value > math.MaxUint16 || (mustBeSet && value == 0) {
-			return 0, fmt.Errorf("%w: implausible %s: %d", errSpanCtxMalformed, name, value)
-		}
-		return uint16(value), nil
-	}
-
-	taggedSize, err := field(otelprocessctx.KeyTaggedSize, "tagged size", true)
-	if err != nil {
-		return otelV8Layout{}, err
-	}
-	if taggedSize != otelSupportedTaggedSize {
-		return otelV8Layout{}, fmt.Errorf("%w: V8 tagged size %d", errSpanCtxUnsupported, taggedSize)
-	}
-
-	jsMapTableOffset, err := field(otelprocessctx.KeyJSMapTableOffset, "js map table offset", true)
-	if err != nil {
-		return otelV8Layout{}, err
-	}
-	orderedHashMapHeaderSize, err := field(otelprocessctx.KeyOrderedHashMapHeaderSize, "ordered hash map header size", true)
-	if err != nil {
-		return otelV8Layout{}, err
-	}
-	jsObjectRecordOffset, err := field(otelprocessctx.KeyJSObjectRecordOffset, "js object record offset", true)
-	if err != nil {
-		return otelV8Layout{}, err
-	}
-
-	return otelV8Layout{
-		taggedSize:               taggedSize,
-		jsMapTableOffset:         jsMapTableOffset,
-		orderedHashMapHeaderSize: orderedHashMapHeaderSize,
-		jsObjectRecordOffset:     jsObjectRecordOffset,
+		v8:          nodeJSSchema.layout,
 	}, nil
 }
 
