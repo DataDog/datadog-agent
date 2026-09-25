@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    Add internal ``check_runner`` configuration section for the Agent Check Runner (ACR),
+    an optional out-of-process Python check executor. These settings are not yet
+    user-facing and have no effect until ACR is bundled with the Agent.

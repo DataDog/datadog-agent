@@ -105,6 +105,9 @@ Rules that the linter enforces:
 
 - Every node needs `node_type: section` or `node_type: setting`.
 - Every setting needs a `type` and exactly one of `default` / `platform_default`.
+- For an optional string whose default is computed by another process, use
+  `default: null` to preserve an unset value. An empty-string default is streamed
+  as an explicit value and can suppress that process's fallback.
 - `platform_default` must cover every platform — list `linux`, `windows`,
   `darwin`, `aix` explicitly, or add an `other` catch-all. `container` /
   `fargate` are optional and fall back to `linux` then `other`.
