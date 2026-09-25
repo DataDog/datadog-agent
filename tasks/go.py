@@ -327,10 +327,9 @@ def tidy_all(ctx):
 @task
 def tidy(ctx, verbose: bool = False, time: bool = False):
     """
-    time: report how long each of tidy's subtasks took. Linux/Mac only; silently ignored on Windows.
+    time: report how long each of tidy's subtasks took.
     """
     _check_valid_mods()
-    time = time and os.name != 'nt'  # not windows
     timings = []
     (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose, timings if time else None)
     for result in sorted(timings, reverse=True):
