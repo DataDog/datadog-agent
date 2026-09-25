@@ -487,6 +487,20 @@ func TestFromDDConfigPARRestrictedShellAllowedSystemServicesSet(t *testing.T) {
 	}, cfg.RShellAllowedSystemServices)
 }
 
+func TestFromDDConfigCredentials(t *testing.T) {
+	yaml := `
+private_action_runner:
+  credentials:
+    values:
+      api_token: resolved-value
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"api_token": "resolved-value"}, cfg.CredentialValues)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {
 	yaml := `
 private_action_runner:

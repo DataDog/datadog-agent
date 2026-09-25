@@ -67,6 +67,26 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
+  credentials:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Named credentials available to Private Action Runner tasks.
+    properties:
+      values:
+        node_type: setting
+        type: object
+        default: {}
+        visibility: public
+        additionalProperties:
+          type: string
+        description: |-
+          Named credential values available to Private Action Runner tasks.
+          Values may use ENC[...] handles resolved by Agent secret management.
+        example: |2-
+
+            api_token: ENC[api_token]
   http_timeout_seconds:
     node_type: setting
     type: integer

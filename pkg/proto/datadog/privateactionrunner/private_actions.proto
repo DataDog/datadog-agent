@@ -6,6 +6,7 @@ option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateacti
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "datadog/privateactionrunner/actionsclient.proto";
+import "validate/validate.proto";
 
 /**
 This proto contains a dedicated version of tasks for usage with the private actions runner.
@@ -76,6 +77,28 @@ message ConnectionInfo {
   repeated ConnectionToken tokens = 2;
   CredentialsType credentials_type = 3;
   string runner_id = 4;
+  // Connection tokens whose values are inline or resolved by the runner.
+  repeated ConnectionTokenV2 tokens_v2 = 5;
+}
+
+message ConnectionTokenV2 {
+  reserved 3, 4;
+  repeated string name_segments = 1
+      [(validate.rules).repeated.items.string.min_len = 1];
+
+  oneof source {
+    PlainText plain_text = 2;
+    RunnerCredential runner_credential = 5;
+  }
+
+  message PlainText {
+    string value = 1;
+  }
+
+  message RunnerCredential {
+    // Identifier in the runner credential catalog.
+    string key = 1;
+  }
 }
 
 // The ConnectionToken is similar to connectionpb.ConnectionToken, but is specifically limited to data pertinent to private actions.
@@ -111,4 +134,5 @@ enum CredentialsType {
   TOKEN_AUTH = 1;
   BASIC_AUTH = 2;
   OAUTH2 = 3;
+  CONNECTION_TOKENS_V2 = 5;
 }

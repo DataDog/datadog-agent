@@ -25,6 +25,7 @@ proto_library(
     visibility = ["//visibility:public"],
     deps = [
         ":actionsclient_proto",
+        "@com_github_envoyproxy_protoc_gen_validate//validate:validate_proto",
         "@protobuf//:struct_proto",
         "@protobuf//:timestamp_proto",
     ],
@@ -49,7 +50,10 @@ go_proto_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions",
     proto = ":privateactions_proto",
     visibility = ["//visibility:public"],
-    deps = [":actionsclient_go_proto"],
+    deps = [
+        ":actionsclient_go_proto",
+        "@com_github_envoyproxy_protoc_gen_validate//validate:validate_go_proto",
+    ],
 )
 
 proto_library(
