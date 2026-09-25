@@ -16,6 +16,7 @@ type NCMPayload struct {
 	Namespace        string                `json:"namespace"`
 	Configs          []NetworkDeviceConfig `json:"configs,omitempty"`
 	Inventories      []InventoryEntry      `json:"inventories,omitempty"`
+	InventoryEmpty bool `json:"inventory_empty,omitempty"`
 	CollectTimestamp int64                 `json:"collect_timestamp"`
 	AgentHostname    string                `json:"agent_hostname"`
 }
@@ -43,7 +44,9 @@ type InventoryEntry struct {
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
-func ToNCMPayload(namespace string, agentHostname string, configs []NetworkDeviceConfig, inventories []InventoryEntry, timestamp int64) NCMPayload {
+// inventoryEmpty should be true when the agent attempted an inventory report this cycle and found
+// the local config store empty, as opposed to inventories simply not being collected this cycle.
+func ToNCMPayload(namespace string, agentHostname string, configs []NetworkDeviceConfig, inventories []InventoryEntry, inventoryEmpty bool, timestamp int64) NCMPayload {
 	for i := range configs {
 		// if timestamp could not be extracted from the configurations / commands, use the agent timestamp
 		if configs[i].Timestamp == 0 {
@@ -55,6 +58,7 @@ func ToNCMPayload(namespace string, agentHostname string, configs []NetworkDevic
 		AgentHostname:    agentHostname,
 		Configs:          configs,
 		Inventories:      inventories,
+		InventoryEmpty:   inventoryEmpty,
 		CollectTimestamp: timestamp,
 	}
 }
