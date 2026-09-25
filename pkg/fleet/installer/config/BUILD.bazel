@@ -4,9 +4,15 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "config",
     srcs = [
+        "account_darwin.go",
+        "account_default.go",
         "config.go",
+        "config_darwin.go",
         "config_nix.go",
+        "config_tree.go",
         "config_windows.go",
+        "dir_swap.go",
+        "resting_link.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/config",
     visibility = ["//visibility:public"],
@@ -33,7 +39,6 @@ go_library(
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/symlink",
-            "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -61,7 +66,6 @@ go_library(
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/symlink",
-            "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:js": [
@@ -132,6 +136,7 @@ go_library(
 dd_agent_go_test(
     name = "config_test",
     srcs = [
+        "config_darwin_test.go",
         "config_nix_test.go",
         "config_test.go",
         "config_windows_test.go",
@@ -142,6 +147,12 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
             "@org_golang_x_sys//windows",

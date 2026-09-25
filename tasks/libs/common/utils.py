@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from subprocess import check_output, list2cmdline
 from types import SimpleNamespace
 
@@ -510,10 +510,15 @@ def get_version_ldflags(ctx, install_path=None):
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
             package_version = f"{package_version}-1"
-        else:
-            install_dir = os.path.basename(install_path)
-            if install_dir != "datadog-agent":
-                package_version = install_dir
+        elif PurePosixPath(install_path).parent.parent.name == "datadog-packages":
+            # Only the OCI/fleet-managed layout encodes the package version in the install
+            # path, as <root>/datadog-packages/<product>/<version>. Every other layout has no
+            # version to recover there, so taking the last component would stamp a directory
+            # name: deb/rpm's /opt/<product> yields the product, and a build-time staging
+            # directory such as the macOS DMG's $TMPDIR/datadog-agent-build/bin yields "bin".
+            # Fleet Automation health-checks the host against this value, so a wrong one makes
+            # every config deployment to that host fail before any config is pushed.
+            package_version = PurePosixPath(install_path).name
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersionURLSafe={version_url_safe} "
     return ldflags

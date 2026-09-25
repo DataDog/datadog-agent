@@ -96,6 +96,7 @@ type daemonImpl struct {
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
+	gate            methodGate
 	clientID        string
 	refreshInterval time.Duration
 	gcInterval      time.Duration
@@ -187,6 +188,7 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		configs:         make(map[string]installerConfig),
 		configsOverride: make(map[string]installerConfig),
 		taskDB:          taskDB,
+		gate:            newMethodGate(),
 		refreshInterval: refreshInterval,
 		gcInterval:      gcInterval,
 		secretsPubKey:   secretsPubKey,
@@ -592,6 +594,15 @@ func (d *daemonImpl) handleCatalogUpdate(c catalog) error {
 }
 
 func (d *daemonImpl) scheduleRemoteAPIRequest(request remoteAPIRequest) error {
+	// The gate is consulted here rather than in handleRemoteAPIRequest because this is the last
+	// point whose error still reaches the backend as the request's apply status. Dispatch is
+	// asynchronous: once a request is on the queue it has been acknowledged, whatever happens
+	// to it afterwards.
+	if !d.gate.Supported(request.Method) {
+		err := d.gate.Decline(request.Method)
+		log.Infof("Installer: declining remote request %s: %v", request.ID, err)
+		return err
+	}
 	d.requestsWG.Add(1)
 	d.requests <- request
 	return nil
@@ -813,23 +824,33 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningVersions := map[string]string{
 		"datadog-agent": version.AgentPackageVersion,
 	}
-	runningConfigVersions := map[string]string{
-		"datadog-agent": d.env.ConfigID,
-	}
 	var ddotProcessState string
 	if _, ok := configAndPackageStates.States["datadog-agent"]; ok {
 		ddotProcessState = d.ddotProcessState(ctx)
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
+		configState := configAndPackageStates.ConfigStates[pkg]
+		// The currently running config version is whatever config is active on disk for this
+		// package right now (experiment takes precedence over stable), not d.env.ConfigID: that
+		// field is only a startup-time snapshot of the agent's own config_id and is never updated
+		// for the lifetime of the daemon process, so it goes stale as soon as a config experiment
+		// starts or is promoted without a daemon restart.
+		runningConfigVersion := configState.Stable
+		if configState.HasExperiment() {
+			runningConfigVersion = configState.Experiment
+		}
+		if runningConfigVersion == "" {
+			runningConfigVersion = d.env.ConfigID
+		}
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
 			ExperimentVersion:       s.Experiment,
-			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
-			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
+			StableConfigVersion:     configState.Stable,
+			ExperimentConfigVersion: configState.Experiment,
 			RunningVersion:          runningVersions[pkg],
-			RunningConfigVersion:    runningConfigVersions[pkg],
+			RunningConfigVersion:    runningConfigVersion,
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 		if pkg == "datadog-agent" {
