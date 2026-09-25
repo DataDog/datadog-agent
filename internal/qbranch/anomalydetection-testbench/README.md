@@ -72,9 +72,15 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--headless` | _(empty)_ | Scenario subdirectory name to run in headless mode (no HTTP server) |
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
+| `--include-detector-anomalies` | `false` | Include every anomaly returned by detectors before baseline/muting/deduplication or correlation. Output is deterministic but grows with detector emissions. |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
 | `--cpuprofile` | _(empty)_ | Write a CPU profile covering the scenario replay to this file |
 | `--retain-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
+
+`--include-detector-anomalies` adds `metadata.total_detector_anomalies` and a
+sorted `detector_anomalies` array to the output. Each entry has `detector`,
+`timestamp`, canonical `source`, and `title`; it is intended to compare detector
+behavior across two runs without being affected by the correlator output.
 
 ## Components
 

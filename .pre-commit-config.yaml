@@ -59,7 +59,7 @@ repos:
       entry: 'dda inv linter.docs-links'
       language: system
       require_serial: true
-      files: ^docs/public/.*\.md$
+      files: ^doc/.*\.md$
       pass_filenames: false
     - id: win-clang-format
       name: win-clang-format

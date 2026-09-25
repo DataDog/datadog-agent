@@ -333,6 +333,12 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		assert.NoError(tt, err, "install should create %s", adpProcmgrConfigPath)
 	})
 
+	tt.Run("creates process-agent process manager config", func(tt *testing.T) {
+		processAgentProcmgrConfigPath := filepath.Join(t.expectedInstallPath, "processes.d", "datadog-agent-process.yaml")
+		_, err := t.host.Lstat(processAgentProcmgrConfigPath)
+		assert.NoError(tt, err, "install should create %s", processAgentProcmgrConfigPath)
+	})
+
 	tt.Run("creates par process manager config", func(tt *testing.T) {
 		parBin := filepath.Join(t.expectedInstallPath, "bin", "agent", "privateactionrunner.exe")
 		exists, err := t.host.FileExists(parBin)

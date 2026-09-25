@@ -83,19 +83,6 @@ def _test_tag_set_check_name(name, gotags = None):
              "_TAG_SET_SUFFIX_ALIASES in //bazel/rules/go:dd_agent_go_test.bzl.") % (name, length, _WINDOWS_MAX_PATH),
         )
 
-def _test_tag_set_target_compatible_with(gotags):
-    if gotags == None:
-        return []
-
-    excluded = _excluded_os(gotags)
-    if not excluded:
-        return []
-
-    conditions = {"//conditions:default": []}
-    for os_name in excluded:
-        conditions["@platforms//os:" + os_name] = ["@platforms//:incompatible"]
-    return select(conditions)
-
 def dd_agent_go_test(
         name,
         gotags_sets = None,
@@ -110,8 +97,7 @@ def dd_agent_go_test(
         gotags_sets: Lists of Go build tags, such as [["zlib", "zstd"]].
         include_default: Whether to emit the minimally tagged default test.
         tags: Optional user-supplied Bazel tags.
-        target_compatible_with: Optional user-supplied target_compatible_with;
-              merged with gotags-set platform restrictions.
+        target_compatible_with: Optional user-supplied target_compatible_with.
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     user_tags = tags or []
@@ -144,7 +130,7 @@ def dd_agent_go_test(
             name = name + "_" + suffix,
             gotags = _test_tag_set_tags(gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
-            target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),
+            target_compatible_with = user_tcw,
             visibility = visibility,
             **kwargs
         )

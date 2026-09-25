@@ -929,6 +929,14 @@ workflow:
       - omnibus/config/software/**/*
       - omnibus/config/templates/**/*
       - release.json
+      # dd-procmgr supervises Agent processes on Windows: the MSI writes their processes.d
+      # entries, and the core Agent skips the legacy SCM service each one replaces.
+      - pkg/procmgr/**/*
+      - pkg/fleet/installer/packages/datadog_agent_windows.go
+      - pkg/fleet/installer/packages/embedded/tmpl/*-windows.yaml.tmpl
+      - pkg/fleet/installer/packages/embedded/tmpl/gen/windows/**/*
+      - pkg/fleet/installer/packages/processmanager/*_windows.go
+      - cmd/agent/subcommands/run/dependent_services_windows.go
     compare_to: $COMPARE_TO_BRANCH
 
 .except_windows_installer_changes:

@@ -1,0 +1,13 @@
+diff --git a/cc/private/toolchain/BUILD b/cc/private/toolchain/BUILD
+index abd4e6b..01193fb 100644
+--- a/cc/private/toolchain/BUILD
++++ b/cc/private/toolchain/BUILD
+@@ -106,3 +106,8 @@ alias(
+ )
+ 
+ cc_flags_supplier(name = "cc_flags")
++
++alias(
++    name = "grep-includes",
++    actual = ":interface_library_builder",  # dummy, any single-file target works (rules_cc 0.2.23 dropped it)
++)

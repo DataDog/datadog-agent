@@ -2,7 +2,7 @@
 
 -----
 
-The Datadog Agent developer site is built with [Zensical](https://zensical.org) from Markdown in <<<repo("docs/public")>>>. It uses the classic theme variant and the configuration in <<<repo("mkdocs.yml")>>>. The [writing guidelines](../guidelines/docs.md) cover how to organize and author pages; this page describes the build and the repository's customizations.
+The Datadog Agent developer site is built with [Zensical](https://zensical.org) from Markdown in <<<repo("doc")>>>. It uses the classic theme variant and the configuration in <<<repo("mkdocs.yml")>>>. The [writing guidelines](../guidelines/docs.md) cover how to organize and author pages; this page describes the build and the repository's customizations.
 
 ## Configuration and source files
 
@@ -11,12 +11,12 @@ Key configuration and customization files include:
 | Location | Purpose |
 | --- | --- |
 | <<<repo("mkdocs.yml")>>> | Defines the site URL, navigation, theme, Markdown extensions, and additional assets. |
-| <<<repo("docs/public")>>> | Contains the site's Markdown pages and static assets. |
-| <<<repo("docs/public/.hooks/inject_variables.py")>>> | Supplies Markdown variables and repository-link macros. |
-| <<<repo("docs/public/.snippets")>>> | Contains shared link definitions and abbreviations. |
-| <<<repo("docs/overrides/main.html")>>> | Adapts the theme's navigation for independent roots. |
-| <<<repo("docs/public/assets/javascripts/navigation-roots.js")>>> | Implements the keyboard shortcut for returning from an independent navigation root to the main docs. |
-| <<<repo("docs/public/assets/css/custom.css")>>> | Customizes the site's appearance. |
+| <<<repo("doc")>>> | Contains the site's Markdown pages and static assets. |
+| <<<repo("doc/.hooks/inject_variables.py")>>> | Supplies Markdown variables and repository-link macros. |
+| <<<repo("doc/.snippets")>>> | Contains shared link definitions and abbreviations. |
+| <<<repo("doc/.overrides/main.html")>>> | Adapts the theme's navigation for independent roots. |
+| <<<repo("doc/assets/javascripts/navigation-roots.js")>>> | Implements the keyboard shortcut for returning from an independent navigation root to the main docs. |
+| <<<repo("doc/assets/css/custom.css")>>> | Customizes the site's appearance. |
 | <<<repo(".dda/extend/commands/run/docs")>>> | Implements the documentation commands. |
 | <<<repo(".dda/extend/pythonpath/utils/docs/deps.py")>>> | Declares the documentation tool dependencies. |
 
@@ -38,7 +38,7 @@ The <<<repo(".github/workflows/docs-dev.yml", "documentation workflow")>>> defin
 
 ## Variable injection
 
-The `zensical.extensions.macros` Markdown extension loads <<<repo("docs/public/.hooks/inject_variables.py")>>> through `module_name`. Its `define_env` function registers variables and macros before Markdown is converted to HTML. Undefined variables and macro errors fail the build.
+The `zensical.extensions.macros` Markdown extension loads <<<repo("doc/.hooks/inject_variables.py")>>> through `module_name`. Its `define_env` function registers variables and macros before Markdown is converted to HTML. Undefined variables and macro errors fail the build.
 
 The custom delimiters avoid collisions with Go composite literals, GitHub Actions expressions, and Markdown attribute lists:
 
@@ -70,7 +70,7 @@ Macros run throughout a page, including inside fenced code blocks. Literal examp
 
 The hook registers `repo(path, text=None, *, match=None)` and `repo_url(path, *, match=None)`. Both accept a repository-relative path; `match` is a keyword-only regular expression that must match exactly one line of a regular file. `repo` produces a Markdown link, while `repo_url` produces the URL for uses such as HTML attributes.
 
-The macros validate that paths exist with the correct casing, use `blob` URLs for files and `tree` URLs for directories, and reject Markdown pages under `docs/public`, which must use relative site links. Line matches are resolved at build time so source edits do not leave stale line numbers in the docs.
+The macros validate that paths exist with the correct casing, use `blob` URLs for files and `tree` URLs for directories, and reject Markdown pages under `doc`, which must use relative site links. Line matches are resolved at build time so source edits do not leave stale line numbers in the docs.
 
 The target repository comes from `repo_url` in `mkdocs.yml`. The source ref is selected from `DOCS_REF` when set, otherwise the current branch, otherwise the commit for a detached checkout, with `main` as the fallback when Git information is unavailable. Preview links therefore refer to the source being built; the branch or commit must exist on GitHub for readers to open them.
 
@@ -89,11 +89,11 @@ Several top-level sections can have independent roots. Nested roots are not supp
 
 Outside a root, that section appears as a single link to its landing page. Inside it, the section's direct children become the top-level tabs, and their children supply sidebar entries and sections. The logo points to the root's landing page. A final navigation entry returns to the main homepage on desktop and mobile, and the `b` shortcut activates that link. Search and Previous/Next navigation remain shared across the entire site.
 
-The template in <<<repo("docs/overrides/main.html")>>> extends `base.html` and changes the navigation passed to the stock theme. It preserves Zensical's tab and sidebar rendering without copying their partials. The template also emits the return destination in the page content for the keyboard handler.
+The template in <<<repo("doc/.overrides/main.html")>>> extends `base.html` and changes the navigation passed to the stock theme. It preserves Zensical's tab and sidebar rendering without copying their partials. The template also emits the return destination in the page content for the keyboard handler.
 
 ## JavaScript and CSS
 
-The `extra_javascript` and `extra_css` settings in `mkdocs.yml` load additional browser assets. Local paths are relative to `docs/public`; external assets are listed by URL. These are Zensical's supported [asset customization mechanisms](https://zensical.org/docs/customization/#adding-assets).
+The `extra_javascript` and `extra_css` settings in `mkdocs.yml` load additional browser assets. Local paths are relative to `doc`; external assets are listed by URL. These are Zensical's supported [asset customization mechanisms](https://zensical.org/docs/customization/#adding-assets).
 
 The site enables `navigation.instant`, which replaces page content without a full browser reload. Page-dependent JavaScript uses Zensical's `document$` observable to initialize after each page change.
 
@@ -103,4 +103,4 @@ The custom stylesheet includes branding and typography adjustments. Theme option
 
 The `markdown_extensions` list in `mkdocs.yml` configures authoring features such as syntax highlighting and admonitions. The macros extension renders injected content before the other Markdown processing described above.
 
-The snippets extension searches both <<<repo("docs/public/.snippets")>>> and the repository root, with missing paths treated as errors. It appends `links.txt` and `abbrs.txt` to every page for shared links and abbreviation tooltips. The repository-root search path also allows pages to include existing source documents without maintaining a separate copy of their text.
+The snippets extension searches both <<<repo("doc/.snippets")>>> and the repository root, with missing paths treated as errors. It appends `links.txt` and `abbrs.txt` to every page for shared links and abbreviation tooltips. The repository-root search path also allows pages to include existing source documents without maintaining a separate copy of their text.

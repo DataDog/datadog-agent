@@ -1104,5 +1104,5 @@ Key Bazel macros:
 
 ## See also
 
-- [Rust in the Datadog Agent](../docs/public/guidelines/languages/RUST.md)
+- [Rust in the Datadog Agent](../doc/guidelines/languages/RUST.md)
 - [eBPF Core Checks](../pkg/collector/corechecks/ebpf/AGENTS.md)

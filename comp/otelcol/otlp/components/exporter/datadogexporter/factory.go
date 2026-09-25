@@ -220,7 +220,11 @@ func (f *factory) createMetricsExporter(
 	ctx, cancel := context.WithCancel(ctx) // cancel() runs on shutdown
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 
-	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter)
+	// otel.ddot_collector.metrics.running* billing metrics are only emitted when
+	// otel-agent runs standalone (DD_OTEL_STANDALONE=true); in connected mode the
+	// core/cluster Agent already reports its own running state.
+	standalone := f.coreCfg != nil && f.coreCfg.GetBool("otel_standalone")
+	sf := serializerexporter.NewFactoryForOTelAgent(f.s, f.h, statsIn, f.gatewayUsage, f.store, f.reporter, standalone)
 	ex := buildMetricsExporterConfig(cfg, func(context.Context) error {
 		cancel()  // first cancel context
 		wg.Wait() // then wait for shutdown

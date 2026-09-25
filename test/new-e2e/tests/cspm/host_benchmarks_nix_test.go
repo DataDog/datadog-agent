@@ -67,14 +67,16 @@ type distro struct {
 	minRules    int
 	bands       map[string]band
 	onlyProbes  []string // nil = all applicable probes; else restrict to these names
-	latestAMI   bool     // resolve the AMI by search rather than a pinned one (AlmaLinux)
 }
 
 // Bands bracket the observed host and container distributions with a ~7 point margin
-// (10 for AlmaLinux, whose latest AMI drifts), tight enough to catch a real distribution
-// regression while tolerating the small host/container delta and a benchmark content
-// update. Actuals are logged. They are the distribution gate; per-rule coverage comes
-// from TestCrossCheck and the probes, since the golden snapshot only reports.
+// (10 for AlmaLinux, tuned back when its AMI was resolved by live search and could
+// drift; now pinned via platforms.json, so this margin could likely be tightened
+// once re-harvested against the pinned AMI), tight enough to catch a real
+// distribution regression while tolerating the small host/container delta and a
+// benchmark content update. Actuals are logged. They are the distribution gate;
+// per-rule coverage comes from TestCrossCheck and the probes, since the golden
+// snapshot only reports.
 var rhel10Bands = map[string]band{
 	"passed":  {0.44, 0.60},
 	"failed":  {0.30, 0.45},
@@ -87,8 +89,6 @@ var ubuntu2404Bands = map[string]band{
 	"skipped": {0.09, 0.23},
 }
 
-// almalinux9 resolves the latest AMI rather than a pinned one, so its distribution can
-// drift with OS updates. Its band is wider (~10 points) and its golden stays informational.
 var almalinux9Bands = map[string]band{
 	"passed":  {0.38, 0.58},
 	"failed":  {0.29, 0.49},
@@ -164,7 +164,6 @@ var distroAlmaLinux9 = distro{
 	family:      rhel,
 	minRules:    230,
 	bands:       almalinux9Bands,
-	latestAMI:   true,
 }
 
 var distroRHEL8 = distro{
@@ -361,11 +360,7 @@ type hostBenchmarksSuite struct {
 
 func testHostBenchmarks(t *testing.T, d distro) {
 	t.Parallel()
-	instanceOpts := []ec2.VMOption{ec2.WithOS(d.os)}
-	if d.latestAMI {
-		instanceOpts = append(instanceOpts, ec2.WithLatestAMI())
-	}
-	instanceOpts = append(instanceOpts, ec2.WithInternetAccess())
+	instanceOpts := []ec2.VMOption{ec2.WithOS(d.os), ec2.WithInternetAccess()}
 	e2e.Run(t, &hostBenchmarksSuite{distro: d},
 		e2e.WithStackName("cspm-host-"+d.name),
 		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(

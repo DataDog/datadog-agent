@@ -115,7 +115,7 @@ def run(
 def dda() -> str:
     found = shutil.which("dda")
     if found is None:
-        fail(ERROR, "`dda` is not on PATH. See /docs/public/setup/required.md.")
+        fail(ERROR, "`dda` is not on PATH. See /doc/setup/required.md.")
     return found
 
 

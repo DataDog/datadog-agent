@@ -179,7 +179,7 @@ func (c *NetworkCheck) Run() error {
 		}
 	}
 
-	submitInterfaceSysMetrics(sender)
+	c.submitInterfaceSysMetrics(sender)
 
 	ethtoolObject, err := getNewEthtool()
 	if err != nil {
@@ -226,7 +226,7 @@ func (c *NetworkCheck) isInterfaceExcluded(interfaceName string) bool {
 	return false
 }
 
-func submitInterfaceSysMetrics(sender sender.Sender) {
+func (c *NetworkCheck) submitInterfaceSysMetrics(sender sender.Sender) {
 	sysNetLocation := "/sys/class/net"
 	sysNetMetrics := []string{"mtu", "tx_queue_len", "up"}
 	ifaces, err := afero.ReadDir(filesystem, sysNetLocation)
@@ -235,6 +235,9 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 		return
 	}
 	for _, iface := range ifaces {
+		if c.isInterfaceExcluded(iface.Name()) {
+			continue
+		}
 		ifaceTag := []string{"iface:" + iface.Name()}
 		for _, metricName := range sysNetMetrics {
 			metricFileName := metricName

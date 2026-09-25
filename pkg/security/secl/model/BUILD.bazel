@@ -31,6 +31,7 @@ go_stringer(
     linecomment = True,
     output = "model_string.go",
     types = ["HashState"],
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 # TODO(ABLD-420): hand-wired because the matching //go:generate directive lives
@@ -43,6 +44,7 @@ bpf_maps_generator(
     package_name = "model",
     header = "//pkg/security/ebpf/c/include:maps.h",
     output = "consts_map_names_linux.go",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 # TODO(ABLD-420): plug these into the //bazel/rules/cws_codegen Gazelle
@@ -96,6 +98,7 @@ EVENT_DEEP_COPY_PKG_SRCS_WINDOWS = glob(
         package_path = "github.com/DataDog/datadog-agent/pkg/security/secl/model",
         tags = variant["tags"],
         types_file = "model.go",
+        visibility = ["//pkg/security:__pkg__"],
     )
     for variant in [
         {
@@ -165,7 +168,10 @@ EVENT_DEEP_COPY_PKG_SRCS_WINDOWS = glob(
                 "consts_linux_arm.go",
                 "consts_linux_arm64.go",
             ],
-            "visibility": ["//docs/cloud-workload-security:__pkg__"],
+            "visibility": [
+                "//docs/cloud-workload-security:__pkg__",
+                "//pkg/security:__pkg__",
+            ],
         },
         {
             "name": "windows",
@@ -181,6 +187,7 @@ EVENT_DEEP_COPY_PKG_SRCS_WINDOWS = glob(
             # docs/cloud-workload-security consumes secl_windows.json.
             "visibility": [
                 "//docs/cloud-workload-security:__pkg__",
+                "//pkg/security:__pkg__",
                 "//pkg/security/seclwin/model:__pkg__",
             ],
         },

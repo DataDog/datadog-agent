@@ -55,8 +55,11 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/core/log/mock",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/enrollment",
         "//pkg/privateactionrunner/executor",
+        "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/util",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",

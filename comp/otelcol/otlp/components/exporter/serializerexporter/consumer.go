@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/multierr"
@@ -90,6 +91,7 @@ type SerializerConsumer interface {
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
 	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
 	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge)
+	addRunningMetric(hostname string)
 }
 
 type serializerConsumer struct {
@@ -101,6 +103,10 @@ type serializerConsumer struct {
 	ipath           ingestionPath
 	hosts           map[string]struct{}
 	fargateTagSets  map[tagSetKey][]string
+	buildInfo       component.BuildInfo
+	// standalone reports whether otel-agent is running standalone (DD_OTEL_STANDALONE=true),
+	// as opposed to embedded/connected to the core Agent. Only used to gate addRunningMetric.
+	standalone bool
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -340,4 +346,42 @@ func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
 	slices.Sort(sorted)
 	dedupKey := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
 	c.fargateTagSets[dedupKey] = sorted
+}
+
+// addRunningMetric emits the otel.ddot_collector.metrics.running billing metric,
+// mirroring otel.datadog_exporter.metrics.running (emitted for the ossCollector
+// path by collectorConsumer), but only for the ddot ingestion path while
+// otel-agent is running standalone (DD_OTEL_STANDALONE=true). Connected-mode DDOT
+// and agentOTLPIngest never emit this, since the core/cluster Agent already
+// reports its own running state.
+//
+// hostname is the Agent's own resolved hostname (from the hostname component),
+// not a host derived from OTel resource attributes: c.hosts is only used here
+// as a signal that some host-attributed metric was seen this cycle, never as
+// the tag value, so the billing host tag stays stable regardless of what
+// hostname OTel telemetry happens to report.
+func (c *serializerConsumer) addRunningMetric(hostname string) {
+	if c.ipath != ddot || !c.standalone {
+		return
+	}
+	timestamp := float64(time.Now().Unix())
+	buildTags := tagsFromBuildInfo(c.buildInfo)
+
+	if len(c.hosts) > 0 {
+		c.series = append(c.series, ddotRunningMetric(hostname, timestamp, buildTags))
+	}
+}
+
+// ddotRunningMetric creates a built-in metric to report that the DDOT collector
+// (otel-agent in standalone mode) is running. Mirrors exporterDefaultMetrics for
+// the ossCollector path, under the "otel.ddot_collector.metrics.running" name.
+func ddotRunningMetric(hostname string, timestamp float64, tags []string) *metrics.Serie {
+	return &metrics.Serie{
+		Name:   "otel.ddot_collector.metrics.running",
+		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		Host:   hostname,
+		MType:  metrics.APIGaugeType,
+		Tags:   tagset.CompositeTagsFromSlice(tags),
+		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
 }
