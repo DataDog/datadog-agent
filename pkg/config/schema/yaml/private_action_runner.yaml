@@ -174,9 +174,7 @@ properties:
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
 
-          When explicitly configured, this also narrows privileged execution
-          (see restricted_shell.privileged), the same way it narrows the
-          ordinary restricted shell.
+          It also narrows privileged execution when configured.
       allowed_system_services:
         node_type: setting
         type: object
@@ -192,8 +190,7 @@ properties:
           The "*" action admits every backend-granted action for an exact service.
           The environment variable accepts a JSON object only.
 
-          When explicitly configured, this also narrows privileged execution's
-          system-service grants (see restricted_shell.privileged).
+          It also narrows privileged system-service grants when configured.
       disable_detailed_telemetry:
         node_type: setting
         type: boolean
@@ -228,12 +225,8 @@ properties:
               type: string
             env_parser: json_list_or_comma_separated
             comment: |-
-              Commands that may temporarily regain root (via a sudo prefix)
-              inside the privileged helper's one-shot worker. When unset, the
-              Agent does not narrow signed backend or local policy.json
-              elevation grants. An explicit empty list denies every elevation.
-              Like allowed_commands/allowed_paths, this can only narrow those
-              policies; it can never grant elevation beyond what they allow.
+              Commands that may temporarily regain root with sudo. When unset,
+              this does not narrow backend or policy.json grants; [] denies all.
   skip_connection_creation:
     node_type: setting
     type: boolean

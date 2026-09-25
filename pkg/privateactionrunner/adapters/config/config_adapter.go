@@ -20,33 +20,26 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist               map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
-	Allowlist                      []string
-	AllowIMDSEndpoint              bool
-	RShellAllowedPaths             []string
-	RShellAllowedCommands          []string
-	RShellAllowedSystemServices    map[string][]string
-	RShellDisableDetailedTelemetry bool
-	RShellPrivilegedEnabled        bool
-	RShellPrivilegedSocket         string
-	// RShellPrivilegedElevatableCommands lists commands allowed to sudo-elevate
-	// inside the privileged helper.
+	ActionsAllowlist                   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	Allowlist                          []string
+	AllowIMDSEndpoint                  bool
+	RShellAllowedPaths                 []string
+	RShellAllowedCommands              []string
+	RShellAllowedSystemServices        map[string][]string
+	RShellDisableDetailedTelemetry     bool
+	RShellPrivilegedEnabled            bool
+	RShellPrivilegedSocket             string
 	RShellPrivilegedElevatableCommands []string
-	// RShellAllowedCommandsConfigured, RShellAllowedPathsConfigured, and
-	// RShellPrivilegedElevatableCommandsConfigured record whether the operator
-	// explicitly set the corresponding datadog.yaml setting, used to decide
-	// whether it should narrow privileged execution.
-	RShellAllowedCommandsConfigured              bool
-	RShellAllowedPathsConfigured                 bool
-	RShellPrivilegedElevatableCommandsConfigured bool
-	DDHost                                       string
-	DDApiHost                                    string
-	Modes                                        []modes.Mode
-	OrgId                                        int64
-	PrivateKey                                   *ecdsa.PrivateKey
-	RunnerId                                     string
-	Urn                                          string
-	Tags                                         []observability.Tag
+	RShellAllowedCommandsConfigured    bool
+	RShellAllowedPathsConfigured       bool
+	DDHost                             string
+	DDApiHost                          string
+	Modes                              []modes.Mode
+	OrgId                              int64
+	PrivateKey                         *ecdsa.PrivateKey
+	RunnerId                           string
+	Urn                                string
+	Tags                               []observability.Tag
 
 	// RemoteConfig related fields
 	DatadogSite string
