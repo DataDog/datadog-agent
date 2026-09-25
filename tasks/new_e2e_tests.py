@@ -346,11 +346,13 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
     return True
 
 
-def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
+def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool = False) -> bool:
     """Build the E2E test binaries for the given targets with Bazel.
 
     Builds the go_test targets matching the requested packages, installs the binaries
     under test-binaries/ and writes the manifest.json expected by gotest-custom.
+    When no_cache is set, builds without any Bazel cache (remote or disk), to test
+    cold-build behavior (e.g. memory usage when no cache is available).
     Returns True if at least one binary was built, False otherwise.
     """
     repo_root = get_repo_root()
@@ -360,6 +362,18 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
 
     # Normalize targets: ./tests/agent-devx -> tests/agent-devx
     target_prefixes = [target.lstrip("./") for target in targets]
+
+    bazel_args = ["--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk"]
+    if no_cache:
+        print(
+            color_message(
+                "Building test binaries with no Bazel cache (cold build): remote and disk caches are disabled",
+                "yellow",
+            )
+        )
+        # Passed after any wrapper-injected cache flags so they take precedence (last flag wins):
+        # --config=no-remote-cache sets --remote_cache= (see .bazelrc), --disk_cache= disables the disk cache.
+        bazel_args = ["--config=no-remote-cache", "--disk_cache=", *bazel_args]
 
     output_path = Path("test-binaries").absolute()
     manifest_binaries = []
@@ -372,7 +386,7 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
         binary_start = time.monotonic()
         build_binary_with_bazel(
             label,
-            args=["--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk"],
+            args=bazel_args,
             bin_path=str(binary_path),
         )
         print(f"  Built {binary_name} with Bazel in {time.monotonic() - binary_start:.1f}s")
@@ -517,6 +531,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of using pre-built ones or building them on the fly, then execute them with gotestsum",
+        "bazel_no_cache": "With --use-bazel-built-binaries: build with no Bazel cache (remote or disk) to test cold-build behavior (e.g. OOM when the cache is empty)",
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
@@ -559,6 +574,7 @@ def run(
     stack_name_suffix="",
     use_prebuilt_binaries=False,
     use_bazel_built_binaries=False,
+    bazel_no_cache=False,
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
@@ -765,9 +781,11 @@ def run(
             use_prebuilt_binaries = False
 
     if use_bazel_built_binaries:
-        if not _build_binaries_with_bazel(ctx, targets):
+        if not _build_binaries_with_bazel(ctx, targets, no_cache=bazel_no_cache):
             print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
             use_bazel_built_binaries = False
+    elif bazel_no_cache:
+        print("WARNING: --bazel-no-cache has no effect without --use-bazel-built-binaries, ignoring it")
 
     if use_prebuilt_binaries or use_bazel_built_binaries:
         ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
