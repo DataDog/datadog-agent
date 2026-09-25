@@ -303,21 +303,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v137515717-cbd951c9
+  CI_IMAGE_BTF_GEN: v139769367-4cd68bc1
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v137515717-cbd951c9
+  CI_IMAGE_DOCKER_X64: v139769367-4cd68bc1
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v137515717-cbd951c9
+  CI_IMAGE_DOCKER_ARM64: v139769367-4cd68bc1
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v137515717-cbd951c9
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v139769367-4cd68bc1
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v137515717-cbd951c9
+  CI_IMAGE_LINUX: v139769367-4cd68bc1
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v137515717-cbd951c9
+  CI_IMAGE_RPM_X64: v139769367-4cd68bc1
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v137515717-cbd951c9
+  CI_IMAGE_RPM_ARM64: v139769367-4cd68bc1
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v137515717-cbd951c9
+  CI_IMAGE_RPM_ARMHF: v139769367-4cd68bc1
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v137515717-cbd951c9
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -974,10 +974,10 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_light_pipeline]
-  # A fakeintake server change rebuilds the image: run e2e against the built
-  # v<sha> image via the override. Must precede the run-all/main/release/rc cases
-  # (first-match-wins) so the override is never dropped. Needs publish_fakeintake.
-  - changes:
+  # Fakeintake server change: run e2e against the built v<sha> override image.
+  # Main-targeting pipelines only.
+  - if: $COMPARE_TO_BRANCH == "main"
+    changes:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
     variables:
@@ -1059,6 +1059,8 @@ workflow:
       paths:
         - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
+        - comp/core/workloadmeta/collectors/internal/process/**/*
+        - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
         - comp/process/**/*
         - pkg/process/**/*
         - pkg/config/setup/process.go
@@ -1291,6 +1293,12 @@ workflow:
   - changes:
       <<: *fakeintake_server_paths
       compare_to: $COMPARE_TO_BRANCH
+
+# Fakeintake is built and published from main-targeting pipelines only; release
+# branches and PRs targeting them are skipped (see test/fakeintake/AGENTS.md).
+.except_fakeintake_off_main:
+  - !reference [.except_release_branch]
+  - !reference [.except_pr_targeting_release_branch]
 
 .on_fakeintake_changes_on_main:
   - changes:

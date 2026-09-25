@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use crate::helpers::{ProcessExpect, ReloadExpect, TestEnv, write_config};
+use crate::helpers::{ProcessExpect, ReloadExpect, TestEnv, kill_pid_force, write_config};
+use std::time::Duration;
 
 /// Writes the `datadog.yaml` that the `config_gate` fixtures point their gate at.
 fn write_agent_yaml(env: &TestEnv, process_collection_enabled: bool) {
@@ -161,4 +162,43 @@ fn gate_closing_does_not_stop_running_process() {
     procmgr
         .require_list()
         .assert_process_state("config_gate", ProcessExpect::Running);
+}
+
+/// A gate that closes between a crash and the respawn skips the restart, which leaves
+/// the process outside `Created` with nothing queued. Reopening the gate has to bring it
+/// back, otherwise a config change overlapping a crash silently stops the process for
+/// good and only `dd-procmgr start` or a daemon restart recovers it.
+#[test]
+fn reload_restarts_process_stranded_by_gate_closing_during_restart() {
+    let env = TestEnv::new();
+    write_agent_yaml(&env, true);
+    let procmgr = env.with_process("config_gate_on_failure").start();
+    let pid = procmgr
+        .wait_for_process_running("config_gate_on_failure")
+        .expect("expected config_gate_on_failure running when the gate is open")
+        .pid;
+
+    // The gate closes first, so the crash finds no open condition to restart into.
+    write_agent_yaml(&procmgr, false);
+    kill_pid_force(pid as u32);
+    procmgr
+        .wait_for_process_state(
+            "config_gate_on_failure",
+            ProcessExpect::Failed,
+            Duration::from_secs(10),
+        )
+        .expect("expected the killed process to stay Failed behind the closed gate");
+
+    write_agent_yaml(&procmgr, true);
+    procmgr.assert_reload_matches(ReloadExpect {
+        unchanged: Some(vec!["config_gate_on_failure".into()]),
+        added: Some(vec![]),
+        removed: Some(vec![]),
+        modified: Some(vec![]),
+        ..Default::default()
+    });
+
+    procmgr
+        .wait_for_process_running("config_gate_on_failure")
+        .expect("expected the stranded process to restart once the gate reopens");
 }
