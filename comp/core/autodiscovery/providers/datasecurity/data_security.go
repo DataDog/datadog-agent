@@ -211,8 +211,7 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 		})
 	}
 
-	// JSON is valid YAML (parsed by the check's serde_yaml) and emits the scanning_rule (json.RawMessage) as-is.
-	return json.Marshal(inst)
+	return inst.toYAML()
 }
 
 // resolvePostgresConnection builds the scan connection from the local postgres instance
