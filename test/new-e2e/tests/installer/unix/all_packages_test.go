@@ -215,18 +215,6 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
 	s.updateCurlOnUbuntu()
-	s.updatePythonOnSuse()
-}
-
-func (s *packageBaseSuite) updatePythonOnSuse() {
-	// The suse/15-4 AMI ships python311 pre-baked (needed for injection,
-	// since the default Python3.6 is too old) but deliberately leaves
-	// /usr/bin/python3 pointing at 3.6 so cloud-init's first-boot SSH key
-	// injection still works. Repoint it now that cloud-init has already run.
-	if s.os.Flavor != e2eos.Suse {
-		return
-	}
-	s.host.Run("sudo ln -sf /usr/bin/python3.11 /usr/bin/python3")
 }
 
 func (s *packageBaseSuite) disableUnattendedUpgrades() {
