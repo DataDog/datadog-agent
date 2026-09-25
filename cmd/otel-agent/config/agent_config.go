@@ -569,8 +569,16 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 // OTel exporter config. This ensures Unmarshal constructs endpoint URLs with the correct site.
 // Returns an error if the input datadog exporter config is invalid.
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
+	// Validate that site is configured in pkgconfig
+	site := strings.TrimSpace(pkgconfig.GetString("site"))
+	isSiteEmpty := site == ""
+
 	if ddcfg == nil {
-		return map[string]any{"api": map[string]any{"site": pkgconfig.GetString("site")}}, nil
+		if !isSiteEmpty {
+			return map[string]any{"api": map[string]any{"site": site}}, nil
+		} else {
+			return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
+		}
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -578,16 +586,28 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		ddcfgMap["api"] = map[string]any{"site": pkgconfig.GetString("site")}
-		return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		if !isSiteEmpty {
+			ddcfgMap["api"] = map[string]any{"site": site}
+			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		} else {
+			ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
+			return ddcfgMap, nil
+		}
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
 		return nil, errors.New("invalid datadog exporter config")
 	}
 	apiSite, ok := apicfgMap["site"]
-	if !ok || apiSite == "" {
-		apicfgMap["site"] = pkgconfig.GetString("site")
+	apiSiteStr, isString := apiSite.(string)
+	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
+		if !isSiteEmpty {
+			apicfgMap["site"] = site
+		} else {
+			apicfgMap["site"] = "datadoghq.com"
+		}
+	} else {
+		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
 	return ddcfgMap, nil
 }
