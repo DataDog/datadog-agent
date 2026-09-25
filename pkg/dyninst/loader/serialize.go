@@ -51,6 +51,11 @@ type serializedProgram struct {
 	// trace_context_type_id; SM_OP_GO_CONTEXT_CHAIN_INIT writes it into the
 	// rewritten data item header at chase time.
 	traceContextTypeID ir.TypeID
+
+	// sessionThrottlerIdx is the index of the session-global throttler used by
+	// Tier 1 coordinated sampling. Published as the BPF volatile-const
+	// session_throttler_idx.
+	sessionThrottlerIdx uint32
 }
 
 type goRuntimeTypeIDs struct {
@@ -185,6 +190,7 @@ func serializeProgram(
 	serialized.commonTypes = program.CommonTypes
 	serialized.isARM64 = program.IsARM64
 
+	serialized.sessionThrottlerIdx = program.SessionThrottlerIdx
 	serialized.throttlerParams = make([]throttlerParams, len(program.Throttlers))
 	for i, t := range program.Throttlers {
 		serialized.throttlerParams[i] = throttlerParams{
@@ -208,7 +214,11 @@ func serializeProgram(
 				Kind:                  int8(f.EventKind),
 				Probe_id:              f.ProbeID,
 				Top_pc_offset:         int8(f.TopPCOffset),
-				X__padding:            [2]int8{},
+				Ctx_loc_kind:          f.CtxLocKind,
+				Ctx_reg_tab:           f.CtxRegTab,
+				Ctx_reg_data:          f.CtxRegData,
+				Ctx_stack_offset:      f.CtxStackOffset,
+				X__padding:            [3]int8{},
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{
 				PC:     f.InjectionPC,

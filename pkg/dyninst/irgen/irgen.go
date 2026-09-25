@@ -692,17 +692,18 @@ func generateIR(
 	slices.SortFunc(issues, ir.CompareProbeIDs)
 
 	return &ir.Program{
-		ID:               programID,
-		Subprograms:      subprograms,
-		Probes:           probes,
-		Types:            typeCatalog.typesByID,
-		MaxTypeID:        typeCatalog.idAlloc.alloc,
-		Issues:           issues,
-		GoModuledataInfo: processed.goModuledataInfo,
-		GoMapHashInfo:    processed.goMapHashInfo,
-		CommonTypes:      commonTypes,
-		IsARM64:          arch == "arm64",
-		Redaction:        cfg.redaction,
+		ID:                  programID,
+		Subprograms:         subprograms,
+		Probes:              probes,
+		Types:               typeCatalog.typesByID,
+		MaxTypeID:           typeCatalog.idAlloc.alloc,
+		Issues:              issues,
+		GoModuledataInfo:    processed.goModuledataInfo,
+		GoMapHashInfo:       processed.goMapHashInfo,
+		CommonTypes:         commonTypes,
+		IsARM64:             arch == "arm64",
+		Redaction:           cfg.redaction,
+		CoordinatedSampling: cfg.coordinatedSampling,
 	}, nil
 }
 

@@ -131,4 +131,8 @@ volatile const uint64_t VARIABLE_runtime_dot_aeskeysched = 0;
 // (x86 AESENC vs arm64 AESE+AESMC) the BPF hash emulation uses.
 volatile const uint32_t is_arm64 = 0;
 
+// Session-global throttler index used by coordinated sampling for the per-trace
+// decision. See pkg/dyninst/docs/coordinated-sampling-plan.md.
+volatile const uint32_t session_throttler_idx = 0;
+
 #endif // __PROGRAM_H__

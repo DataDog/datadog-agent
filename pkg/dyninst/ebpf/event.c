@@ -12,6 +12,7 @@
 #include "walk_stack.h"
 #include "scratch.h"
 #include "throttler.h"
+#include "coordinated_sample.h"
 
 char _license[] SEC("license") = "GPL";
 
@@ -292,7 +293,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     return;
   }
   if (params->throttle_mode == THROTTLE_AFTER_COND_CHECK &&
-      should_throttle(params->throttler_idx, start_ns)) {
+      should_drop_event(params, start_ns)) {
     if (params->kind == EVENT_KIND_RETURN) {
       // Return throttled after condition passed — send signal to discard buffered entry.
       scratch_buf_set_len(global_ctx.buf, sizeof(di_event_header_t));
@@ -493,7 +494,14 @@ int probe_run_with_cookie(struct pt_regs* regs) {
   }
   __sync_fetch_and_add(&stats->hit_cnt, 1);
 
-  if (params->throttle_mode == THROTTLE_AT_START && should_throttle(params->throttler_idx, start_ns)) {
+  // Resolve the trace_id once, before capture; both throttle gates read the
+  // result via should_drop_event. The register copy happens here, on the real
+  // context pointer, so the context never crosses into the subprogram.
+  coord_copy_regs(regs);
+  coord_extract_trace_id(params);
+
+  if (params->throttle_mode == THROTTLE_AT_START &&
+      should_drop_event(params, start_ns)) {
     __sync_fetch_and_add(&stats->throttled_cnt, 1);
   } else {
     probe_run(start_ns, params, regs);
