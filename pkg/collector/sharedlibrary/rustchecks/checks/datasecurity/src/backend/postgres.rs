@@ -11,6 +11,7 @@ use crate::config::{SslMode, SubTask};
 mod text;
 mod tls;
 
+use error::PostgresError;
 use text::TextCell;
 
 pub struct PostgresEngine;
@@ -35,9 +36,13 @@ impl ScanEngine for PostgresEngine {
         let mut client = connect(sub_task)?;
         let stmt = client
             .prepare(sub_task.query.as_str())
+            .map_err(PostgresError::from)
             .context("preparing postgres query")?;
 
-        let rows = client.query(&stmt, &[]).context("running postgres query")?;
+        let rows = client
+            .query(&stmt, &[])
+            .map_err(PostgresError::from)
+            .context("running postgres query")?;
 
         Ok(rows_to_scan_data(&stmt, &rows))
     }
@@ -75,6 +80,7 @@ fn connect(sub_task: &SubTask) -> Result<Client> {
         Some(tls) => config.connect(tls),
         None => config.connect(NoTls),
     }
+    .map_err(PostgresError::from)
     .context("connecting to postgres")
 }
 
