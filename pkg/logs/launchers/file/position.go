@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -50,8 +51,20 @@ func offsetBeyondEndOfFile(fileOpener opener.FileOpener, path string, offset int
 	}
 }
 
+// recoveryFingerprint fingerprints the file as it is now under the stored checksum
+// parameters, so the result is comparable with the stored fingerprint.
+func recoveryFingerprint(fingerprinter tailer.Fingerprinter, filePath string, storedConfig *types.FingerprintConfig, currentFingerprint *types.Fingerprint) (*types.Fingerprint, error) {
+	// Reuse avoids a second read that could catch the file mid-rotation. An invalid
+	// fingerprint means no read happened, so reusing it would falsely signal a rotation.
+	if currentFingerprint != nil && currentFingerprint.ValidFingerprint() && storedConfig.SameChecksumParameters(currentFingerprint.Config) {
+		return currentFingerprint, nil
+	}
+
+	return fingerprinter.ComputeFingerprintFromConfig(filePath, storedConfig)
+}
+
 // Position returns the position from where logs should be collected.
-func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter, fileOpener opener.FileOpener) (int64, int, error) {
+func Position(registry auditor.Registry, identifier string, mode config.TailingMode, fingerprinter tailer.Fingerprinter, fileOpener opener.FileOpener, currentFingerprint *types.Fingerprint) (int64, int, error) {
 	var offset int64
 	var whence int
 	var err error
@@ -72,7 +85,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	if filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
-			newFingerprint, ferr := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
+			newFingerprint, ferr := recoveryFingerprint(fingerprinter, filePath, prevFingerprint.Config, currentFingerprint)
 			if ferr != nil {
 				// The fingerprint could not be computed, so keep trusting the stored offset rather
 				// than re-reading the file from the start and sending its contents twice.
