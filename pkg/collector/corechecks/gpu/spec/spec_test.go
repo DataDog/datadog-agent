@@ -296,7 +296,6 @@ func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
 		NVLinkGenerations: map[int]FieldSupportSpec{
 			1: {SupportedFields: []string{"FI_DEV_NVLINK_LINK_COUNT"}},
 			2: {SupportedFields: []string{"FI_DEV_NVLINK_THROUGHPUT_DATA_RX"}},
-			3: {SupportedFields: []string{"FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT"}},
 		},
 		C2C: FieldSupportSpec{SupportedFields: []string{"FI_DEV_C2C_LINK_ERROR_INTR"}},
 	}
@@ -318,7 +317,7 @@ func TestUnsupportedFieldsForModeIncludesHigherNVLinkGenerations(t *testing.T) {
 	assert.Contains(t, unsupported, "FI_DEV_MEMORY_TEMP")
 	assert.NotContains(t, unsupported, "FI_DEV_NVLINK_LINK_COUNT")
 	assert.Contains(t, unsupported, "FI_DEV_NVLINK_THROUGHPUT_DATA_RX")
-	assert.Contains(t, unsupported, "FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT")
+	assert.NotContains(t, unsupported, "FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT")
 	assert.Contains(t, unsupported, "FI_DEV_C2C_LINK_ERROR_INTR")
 }
 
