@@ -47,8 +47,11 @@ type RollbackInputs struct {
 	// (typically: read/write secrets in the release namespace, plus permissions
 	// on the resources the chart manages).
 	JobServiceAccountName string `json:"jobServiceAccountName"`
-	// JobNamespace is the namespace where the K8s Job will be created. Required.
-	JobNamespace string `json:"jobNamespace,omitempty"`
+	// JobNamespace is the namespace where the K8s Job will be created. It is
+	// always the cluster agent's own namespace (that's where the Helm chart
+	// provisions the Job's ServiceAccount) and is filled in by the runner
+	// after decoding the wire inputs, never supplied by the caller.
+	JobNamespace string `json:"-"`
 	// Image overrides the helm container image. Defaults to DefaultHelmImage.
 	Image string `json:"image,omitempty"`
 	// Driver selects the helm storage backend that holds the release state.
@@ -79,7 +82,7 @@ func (o RollbackInputs) Validate() error {
 	case o.ReleaseNamespace == "":
 		return errors.New("release namespace is required")
 	case o.JobNamespace == "":
-		return errors.New("job namespace is required")
+		return errors.New("job namespace must be set by the runner")
 	case o.JobServiceAccountName == "":
 		return errors.New("service account name is required")
 	case o.Revision < 0:
