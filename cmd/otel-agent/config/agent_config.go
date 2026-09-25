@@ -504,7 +504,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 		if !isSiteEmpty {
 			return map[string]any{"api": map[string]any{"site": site}}, nil
 		} else {
-			return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
+			return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
 		}
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
@@ -517,7 +517,8 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 			ddcfgMap["api"] = map[string]any{"site": site}
 			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
 		} else {
-			return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
+			ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
+			return ddcfgMap, nil
 		}
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
@@ -530,7 +531,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 		if !isSiteEmpty {
 			apicfgMap["site"] = site
 		} else {
-			return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
+			apicfgMap["site"] = "datadoghq.com"
 		}
 	} else {
 		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
