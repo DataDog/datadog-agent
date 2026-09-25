@@ -117,6 +117,15 @@ def dd_agent_go_test(
     user_tags = tags or []
     user_tcw = [] if target_compatible_with == None else target_compatible_with
 
+    #TODO(regis): make our Gazelle extension manage the following attributes (didn't want to bloat #56569)
+    importpath = "github.com/DataDog/datadog-agent/" + native.package_name()
+    if kwargs.get("importpath") not in (None, importpath):
+        fail('{}: expected `importpath = "{}"`, got `importpath = "{}"`'.format(name, importpath, kwargs["importpath"]))
+    visibility = None
+    if native.package_name().startswith("test/new-e2e/tests/"):
+        kwargs["importpath"] = importpath  # for CI Visibility's module-identity parity
+        visibility = ["//test/new-e2e/tests:__subpackages__"]  # needed by //test/new-e2e/tests:test_binaries
+
     if include_default:
         _test_tag_set_check_name(name)
         go_test(
@@ -124,6 +133,7 @@ def dd_agent_go_test(
             gotags = _test_tag_set_tags(),
             tags = user_tags + ["dd_agent_go_test"],
             target_compatible_with = user_tcw,
+            visibility = visibility,
             **kwargs
         )
 
@@ -135,5 +145,6 @@ def dd_agent_go_test(
             gotags = _test_tag_set_tags(gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
             target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),
+            visibility = visibility,
             **kwargs
         )

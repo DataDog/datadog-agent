@@ -67,7 +67,7 @@ func TestNetworkCIDR(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("dns", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -174,7 +174,7 @@ func TestRawPacket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("udp4", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
@@ -246,20 +246,42 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 
 	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
 
+	// Dummy open: wakes the event reader so the async snapshot (and sel flip) can
+	// run. Seeing the event means the flip already ran (it is at the end of the snapshot, before dispatch).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule_raw_packet_router_sel",
-		Expression: `dns.question.name == "never.match.raw.packet.router.sel.test"`,
+		Expression: `open.file.path == "{{.Root}}/raw-packet-router-sel-wakeup"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
+
+	testFile, _, err := test.Path("raw-packet-router-sel-wakeup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	openWakeup := func() error {
+		f, err := os.OpenFile(testFile, os.O_CREATE|os.O_RDONLY, 0755)
+		if err != nil {
+			return err
+		}
+		return f.Close()
+	}
 
 	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		t.Fatal("expected *probe.EBPFProbe")
+	}
+
+	// Drain the constructor's async snapshot so selBefore is the post-snapshot value
+	// (two overlapping flips would cancel out).
+	if err := waitForOpenProbeEvent(test, openWakeup, testFile); err != nil {
+		t.Fatalf("wait for initial ruleset apply: %v", err)
 	}
 
 	selBefore, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager.Get())
@@ -274,13 +296,18 @@ func TestRawPacketRouterSelFlipOnRulesetReload(t *testing.T) {
 		t.Fatalf("reload policies: %v", err)
 	}
 
+	if err := waitForOpenProbeEvent(test, openWakeup, testFile); err != nil {
+		t.Fatalf("wait for ruleset reload: %v", err)
+	}
+
 	selAfter, err := ebpfprobes.GetActiveRawPacketMapNumber(p.Manager.Get())
 	if err != nil {
 		t.Fatalf("raw_packet_router_sel (after reload): %v", err)
 	}
-
-	assert.Equal(t, uint32(1)-selBefore, selAfter,
-		"raw_packet_router_sel must be flipped after ruleset reload")
+	expected := uint32(1) - selBefore
+	if selAfter != expected {
+		t.Fatalf("raw_packet_router_sel must be flipped after ruleset reload: got %d, want %d", selAfter, expected)
+	}
 }
 
 var _ = declare(TestRawPacketAction, testOpts{networkRawPacketEnabled: true})
@@ -312,7 +339,7 @@ func TestRawPacketAction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	cmdWrapper, err := test.StartADocker()
 	if err != nil {
@@ -406,7 +433,7 @@ func TestRawPacketDropMetricAccuracyWithReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.statsdClient.Flush()
 
@@ -568,7 +595,7 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	cmdWrapper, err := test.StartADocker()
 	if err != nil {
@@ -721,7 +748,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -1045,7 +1072,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {

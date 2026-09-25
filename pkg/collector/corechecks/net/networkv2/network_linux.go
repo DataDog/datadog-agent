@@ -94,6 +94,7 @@ type networkInstanceConfig struct {
 	CollectEthtoolStats       bool
 	CollectEthtoolMetrics     bool     `yaml:"collect_ethtool_metrics"`
 	CollectEnaMetrics         bool     `yaml:"collect_aws_ena_metrics"`
+	CollectRoceMetrics        bool     // from agent-level gpu.enabled, not instance config
 	UseConntrackProcfile      bool     `yaml:"use_conntrack_procfile"`
 	ConntrackPath             string   `yaml:"conntrack_path"`
 	UseSudoConntrack          bool     `yaml:"use_sudo_conntrack"`
@@ -178,7 +179,7 @@ func (c *NetworkCheck) Run() error {
 		}
 	}
 
-	submitInterfaceSysMetrics(sender)
+	c.submitInterfaceSysMetrics(sender)
 
 	ethtoolObject, err := getNewEthtool()
 	if err != nil {
@@ -191,7 +192,7 @@ func (c *NetworkCheck) Run() error {
 		if !c.isInterfaceExcluded(interfaceIO.Name) {
 			submitInterfaceMetrics(sender, interfaceIO)
 			if c.config.instance.CollectEthtoolStats {
-				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics)
+				err = handleEthtoolStats(sender, ethtoolObject, interfaceIO, c.config.instance.CollectEnaMetrics, c.config.instance.CollectEthtoolMetrics, c.config.instance.CollectRoceMetrics)
 				if err != nil {
 					return err
 				}
@@ -225,7 +226,7 @@ func (c *NetworkCheck) isInterfaceExcluded(interfaceName string) bool {
 	return false
 }
 
-func submitInterfaceSysMetrics(sender sender.Sender) {
+func (c *NetworkCheck) submitInterfaceSysMetrics(sender sender.Sender) {
 	sysNetLocation := "/sys/class/net"
 	sysNetMetrics := []string{"mtu", "tx_queue_len", "up"}
 	ifaces, err := afero.ReadDir(filesystem, sysNetLocation)
@@ -234,6 +235,9 @@ func submitInterfaceSysMetrics(sender sender.Sender) {
 		return
 	}
 	for _, iface := range ifaces {
+		if c.isInterfaceExcluded(iface.Name()) {
+			continue
+		}
 		ifaceTag := []string{"iface:" + iface.Name()}
 		for _, metricName := range sysNetMetrics {
 			metricFileName := metricName
@@ -286,7 +290,7 @@ func submitInterfaceMetrics(sender sender.Sender, interfaceIO net.IOCountersStat
 	sender.Rate("system.net.packets_out.error", float64(interfaceIO.Errout), "", tags)
 }
 
-func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool) error {
+func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, interfaceIO net.IOCountersStat, collectEnaMetrics bool, collectEthtoolMetrics bool, collectRoceMetrics bool) error {
 	if interfaceIO.Name == "lo" || interfaceIO.Name == "lo0" {
 		// Skip loopback ifaces as they don't support SIOCETHTOOL
 		log.Debugf("Skipping loopbackinterface %s", interfaceIO.Name)
@@ -346,8 +350,8 @@ func handleEthtoolStats(sender sender.Sender, ethtoolObject ethtoolInterface, in
 		log.Debugf("tracked %d network ena metrics for interface %s", count, interfaceIO.Name)
 	}
 
-	if collectEthtoolMetrics {
-		processedMap := getEthtoolMetrics(driverName, statsMap)
+	if collectEthtoolMetrics || collectRoceMetrics {
+		processedMap := getEthtoolMetrics(driverName, statsMap, collectEthtoolMetrics, collectRoceMetrics)
 		for extraTag, keyValuePairing := range processedMap {
 			tags := []string{
 				"device:" + interfaceIO.Name,
@@ -378,7 +382,10 @@ func getEnaMetrics(statsMap map[string]uint64) map[string]uint64 {
 	return metrics
 }
 
-func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string]map[string]uint64 {
+// getEthtoolMetrics resolves ethtool stat names against the per-driver allowlists. The two
+// gates are independent so that either can be enabled without pulling in the other's
+// counters.
+func getEthtoolMetrics(driverName string, statsMap map[string]uint64, collectBaseMetrics bool, collectRoceMetrics bool) map[string]map[string]uint64 {
 	result := map[string]map[string]uint64{}
 	if _, ok := ethtoolMetricNames[driverName]; !ok {
 		return result
@@ -483,10 +490,34 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				}
 			}
 		}
+		if continueCase && collectRoceMetrics {
+			// Extract the 802.1p priority and the metric name from ethtool stat name:
+			//   rx_prio3_packets -> (prio:3, rx_packets)
+			//   tx_prio0_pause_duration -> (prio:0, tx_pause_duration)
+			// The literal "global" infix the kernel uses for link-level pause does not
+			// contain "_prio", so those stats correctly fall through to the global case.
+			if i := strings.Index(statName, "_prio"); i >= 0 {
+				rest := statName[i+len("_prio"):]
+				// the priority digits run up to the next separator
+				if j := strings.IndexByte(rest, '_'); j > 0 {
+					num, err := strconv.Atoi(rest[:j])
+					// PFC defines exactly 8 priorities. An out-of-range index means a
+					// malformed stat name; without this guard rx_prio42_packets would
+					// strip to the allowlisted rx_packets and emit tag prio:42.
+					if err == nil && num >= 0 && num <= 7 {
+						queueTag = fmt.Sprintf("prio:%d", num)
+						newKey = statName[:i] + rest[j:]
+						metricPrefix = ".prio."
+						continueCase = false
+					}
+				}
+			}
+		}
 		if continueCase {
 			// if we've made it this far, check if the stat name is a global metric for the NIC
 			if statName != "" {
-				if slices.Contains(ethtoolGlobalMetrics, statName) {
+				if (collectBaseMetrics && slices.Contains(ethtoolGlobalMetrics, statName)) ||
+					(collectRoceMetrics && slices.Contains(ethtoolRoceGlobalMetricNames[driverName], statName)) {
 					queueTag = "global"
 					newKey = statName
 					metricPrefix = "."
@@ -498,7 +529,8 @@ func getEthtoolMetrics(driverName string, statsMap map[string]uint64) map[string
 				// we already guard against parsing unsupported NICs
 				queueMetrics := ethtoolMetricNames[driverName]
 				// skip queues metrics we don't support for the NIC
-				if !slices.Contains(queueMetrics, newKey) {
+				if !(collectBaseMetrics && slices.Contains(queueMetrics, newKey)) &&
+					!(collectRoceMetrics && slices.Contains(ethtoolRoceMetricNames[driverName], newKey)) {
 					continue
 				}
 			}
@@ -1121,7 +1153,8 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 		}
 	}
 
-	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics {
+	if c.config.instance.CollectEthtoolMetrics || c.config.instance.CollectEnaMetrics ||
+		c.config.instance.CollectRoceMetrics {
 		c.config.instance.CollectEthtoolStats = true
 	}
 
@@ -1140,6 +1173,7 @@ func newCheck(cfg config.Component) check.Check {
 		config: networkConfig{
 			instance: networkInstanceConfig{
 				CollectRateMetrics:        true,
+				CollectRoceMetrics:        cfg.GetBool("gpu.enabled"),
 				CombineConnectionStates:   true,
 				UseConntrackProcfile:      false,
 				ConntrackPath:             "",

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -53,7 +54,7 @@ func TestMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	mntPath := testDrive.Path("test-mount")
 	os.MkdirAll(mntPath, 0755)
@@ -63,7 +64,7 @@ func TestMount(t *testing.T) {
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
 
-	var mntID uint32
+	var mntID atomic.Uint32
 	t.Run("mount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
@@ -71,20 +72,16 @@ func TestMount(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			mntID = event.Mount.MountID
-			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
-				return true
+			if event.ProcessContext.Pid != testSuitePid {
+				return false
 			}
+
+			mntID.Store(event.Mount.MountID)
 			if !ebpfLessEnabled {
 				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
 				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
 				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
 				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
-			}
-
-			// filter by pid
-			if event.ProcessContext.Pid != testSuitePid {
-				return false
 			}
 
 			return assert.Equal(t, "/"+dstMntBasename, event.Mount.MountPointStr, "wrong mount point") &&
@@ -130,16 +127,11 @@ func TestMount(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if !assert.Equal(t, "umount", event.GetType(), "wrong event type") {
-				return true
-			}
-
-			// filter by process
 			if event.ProcessContext.Pid != testSuitePid {
 				return false
 			}
 
-			return ebpfLessEnabled || assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
+			return ebpfLessEnabled || assert.Equal(t, mntID.Load(), event.Umount.MountID, "wrong mount id")
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
 			t.Error(err)
@@ -180,7 +172,7 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	dir1Path, _, err := test.Path("dir1")
 	if err != nil {
@@ -340,7 +332,7 @@ func testMountSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
@@ -464,7 +456,7 @@ func TestMountEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	tmpfsMountPointPath := testDrive.Path(tmpfsMountPointName)
 	if err = os.Mkdir(tmpfsMountPointPath, 0755); err != nil {

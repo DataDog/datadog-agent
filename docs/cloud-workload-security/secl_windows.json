@@ -1675,6 +1675,25 @@
       ]
     },
     {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS Responses",
       "link": "dns-responses",
       "description": "DNS Responses are the supported response codes",
