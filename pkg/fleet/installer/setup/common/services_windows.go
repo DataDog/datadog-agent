@@ -10,6 +10,7 @@ package common
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 )
 
@@ -31,6 +32,9 @@ func (s *Setup) stopServices(ctx context.Context, pkgs []packageWithVersion) err
 	for _, pkg := range pkgs {
 		switch pkg.name {
 		case DatadogAgentPackage:
+			if err := msi.CheckAgentFlavor(s.Env.FIPSMode); err != nil {
+				return err
+			}
 			if err := windowssvc.NewWinServiceManager().StopAllAgentServices(ctx); err != nil {
 				return err
 			}
