@@ -684,8 +684,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, nil)
 			require.NoError(t, err)
 
-			// Get the target from the annotation.
-			actual := f.getTargetFromAnnotation(test.in)
+			// Get the target from the annotation source.
+			actual := f.annotationSource.resolve(test.in)
 
 			// Validate the output.
 			if test.expected == nil {
@@ -817,12 +817,13 @@ func TestGetTargetFromCRD(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			actual := mutator.getTargetFromDDI(test.pod)
-			require.Equal(t, test.continueResolution, actual.shouldContinue)
+			actual := mutator.ddiSource.resolve(test.pod)
 			if test.continueResolution {
+				require.Equal(t, sourceAbstain, actual.action)
 				require.Nil(t, actual.target)
 				return
 			}
+			require.NotEqual(t, sourceAbstain, actual.action)
 			if test.expected == nil {
 				require.Nil(t, actual.target)
 				return
@@ -875,18 +876,18 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 		ParentKind: "replicaset",
 		ParentName: "web-bcdfg",
 	}.Create()
-	target := mutator.getTarget(pod)
-	require.NotNil(t, target)
-	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, target.libVersions, "DDI should win over remote config")
+	resolved := mutator.getTarget(pod)
+	require.NotNil(t, resolved)
+	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.target.libVersions, "DDI should win over remote config")
 
 	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, false, nil, nil)
 	require.Nil(t, mutator.getTarget(pod), "CRD opt-out should block static and remote config fallback")
 
 	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, nil)
 	mutator.ClearRemotePolicies()
-	target = mutator.getTarget(pod)
-	require.NotNil(t, target)
-	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, target.libVersions)
+	resolved = mutator.getTarget(pod)
+	require.NotNil(t, resolved)
+	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.target.libVersions)
 }
 
 func TestGetTargetLibraries(t *testing.T) {
@@ -1147,7 +1148,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			require.NoError(t, err)
 
 			// Filter the pod.
-			actual := f.getMatchingTarget(test.in)
+			actual := f.getSSITarget(test.in)
 
 			// Validate the output.
 			if test.expected == nil {
