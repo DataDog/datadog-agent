@@ -8,6 +8,8 @@ package guiimpl
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -35,17 +37,28 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	"github.com/DataDog/datadog-agent/pkg/gui/bootstrap"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// intentTokenTTL bounds how long a single-use intent token stays valid. Intent
-// tokens are handed to the OS URL-opener as part of a query string and can end
-// up exposed in a child process's argv (e.g. /proc/<pid>/cmdline); a short TTL
-// limits how long that exposure is exploitable.
+// intentTokenTTL bounds how long a single-use intent token stays valid. It
+// covers the time a browser needs to start up and load the bootstrap page
+// written by pkg/gui/bootstrap, and nothing more.
 const intentTokenTTL = 30 * time.Second
+
+// maxAuthBodySize bounds the body of a request to /auth, which only ever
+// carries an intent token id and secret.
+const maxAuthBodySize = 4 << 10
+
+// intentEntry is a pending GUI launch. Only a hash of the secret is kept, so
+// the map never holds a credential that could be redeemed as-is.
+type intentEntry struct {
+	secretHash [sha256.Size]byte
+	expiresAt  time.Time
+}
 
 type gui struct {
 	logger log.Component
@@ -55,7 +68,7 @@ type gui struct {
 	router   *http.ServeMux
 
 	auth         authenticator
-	intentTokens map[string]time.Time // token -> expiration time
+	intentTokens map[string]intentEntry // intent token id -> entry
 	intentMu     sync.Mutex
 
 	sysprobeConfig sysprobeconfig.Component
@@ -118,7 +131,7 @@ func NewComponent(deps Requires) Provides {
 	g := gui{
 		address:        net.JoinHostPort(guiHost, guiPort),
 		logger:         deps.Log,
-		intentTokens:   make(map[string]time.Time),
+		intentTokens:   make(map[string]intentEntry),
 		sysprobeConfig: deps.SysprobeConfig,
 	}
 
@@ -137,7 +150,12 @@ func NewComponent(deps Requires) Provides {
 
 	// register the public routes
 	publicRouter.HandleFunc("GET /{$}", g.renderIndexPage)
-	publicRouter.HandleFunc("GET /auth", g.getAccessToken)
+	publicRouter.HandleFunc("POST /auth", g.getAccessToken)
+	// The intent token used to be accepted as a GET query parameter, which put
+	// it in the argv of the OS URL-opener (VULN-92705). It is now POSTed by the
+	// local bootstrap page instead. Keep an explicit handler so a stale GET
+	// gets a clear error rather than the catch-all authMiddleware's 401.
+	publicRouter.HandleFunc("GET /auth", rejectLegacyAuth)
 	// Mount our filesystem at the view/{path} route
 	publicRouter.Handle("/view/", http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
 
@@ -189,29 +207,50 @@ func (g *gui) stop(_ context.Context) error {
 	return nil
 }
 
-// Generate a single use IntentToken (32 random chars base64 encoded)
+// Generate a single use intent token: an id naming the pending launch and a
+// secret proving ownership of it, both random and base64 encoded.
 func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
-	key := make([]byte, 32)
-	_, e := rand.Read(key)
+	id, e := randomToken(16)
 	if e != nil {
 		http.Error(w, e.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	token := base64.RawURLEncoding.EncodeToString(key)
+	secret, e := randomToken(32)
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	g.intentMu.Lock()
-	defer g.intentMu.Unlock()
 	g.purgeExpiredIntentTokensLocked()
-	g.intentTokens[token] = time.Now().Add(intentTokenTTL)
-	w.Write([]byte(token))
+	g.intentTokens[id] = intentEntry{
+		secretHash: sha256.Sum256([]byte(secret)),
+		expiresAt:  time.Now().Add(intentTokenTTL),
+	}
+	g.intentMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	if e := json.NewEncoder(w).Encode(bootstrap.Token{ID: id, Secret: secret}); e != nil {
+		g.logger.Errorf("GUI server failed to write the intent token: %v", e)
+	}
+}
+
+// randomToken returns size cryptographically random bytes, base64 encoded.
+func randomToken(size int) (string, error) {
+	key := make([]byte, size)
+	if _, err := rand.Read(key); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(key), nil
 }
 
 // purgeExpiredIntentTokensLocked removes expired intent tokens. Callers must hold intentMu.
 func (g *gui) purgeExpiredIntentTokensLocked() {
 	now := time.Now()
-	for token, expiresAt := range g.intentTokens {
-		if now.After(expiresAt) {
-			delete(g.intentTokens, token)
+	for id, entry := range g.intentTokens {
+		if now.After(entry.expiresAt) {
+			delete(g.intentTokens, id)
 		}
 	}
 }
@@ -274,24 +313,47 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 	w.Write(data)
 }
 
+// rejectLegacyAuth answers the GET form of /auth, which no longer exists.
+func rejectLegacyAuth(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Allow", http.MethodPost)
+	http.Error(w, "the GUI session is now started by 'agent launch-gui'", http.StatusMethodNotAllowed)
+}
+
+// getAccessToken exchanges a single-use intent token for the GUI session cookie.
+//
+// The token arrives in the body of a POST made by the local bootstrap page that
+// launch-gui (or the Windows systray) wrote to a user-private file and opened
+// in the browser — see pkg/gui/bootstrap. It is deliberately not read from the
+// query string: a URL is handed to the OS URL-opener as an argv element, where
+// any co-resident local user could read it (VULN-92705, CWE-214).
+//
+// There is also deliberately no Origin check here. The bootstrap page is a
+// file:// document, so browsers send "Origin: null", and this handler reads no
+// ambient credential — a cross-site POST without a valid (id, secret) pair
+// gains nothing. Do not add the check authMiddleware applies; it would break
+// the launch flow.
 func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	r.Body = http.MaxBytesReader(w, r.Body, maxAuthBodySize)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// intentToken is present in the query when the GUI is opened from the CLI
-	intentToken := r.URL.Query().Get("intent")
-	if intentToken == "" {
+	id, secret := r.PostFormValue("id"), r.PostFormValue("secret")
+	if id == "" || secret == "" {
 		http.Error(w, "missing intentToken", http.StatusUnauthorized)
 		return
 	}
+
 	g.intentMu.Lock()
-	expiresAt, ok := g.intentTokens[intentToken]
-	// Remove single use token from map (atomic with validation), whether or not it's expired
-	delete(g.intentTokens, intentToken)
+	entry, ok := g.intentTokens[id]
+	// Remove single use token from map (atomic with validation), whether or not it's valid
+	delete(g.intentTokens, id)
 	g.intentMu.Unlock()
-	if !ok || time.Now().After(expiresAt) {
+
+	secretHash := sha256.Sum256([]byte(secret))
+	if !ok || time.Now().After(entry.expiresAt) ||
+		subtle.ConstantTimeCompare(secretHash[:], entry.secretHash[:]) != 1 {
 		http.Error(w, "invalid intentToken", http.StatusUnauthorized)
 		return
 	}
@@ -308,7 +370,9 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   31536000, // 1 year
 	})
-	http.Redirect(w, r, "/", http.StatusFound)
+	// 303 rather than 302: the browser reached this handler with a POST and
+	// must follow the redirect with a GET.
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // Middleware which blocks access to secured files from unauthorized clients

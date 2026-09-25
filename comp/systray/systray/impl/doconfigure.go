@@ -8,6 +8,7 @@ package systrayimpl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -16,6 +17,7 @@ import (
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	"github.com/DataDog/datadog-agent/pkg/gui/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -59,17 +61,31 @@ func doConfigure(s *systrayImpl) error {
 		return err
 	}
 
-	intentToken, err := endpoint.DoGet()
+	res, err := endpoint.DoGet()
 	if err != nil {
 		return err
 	}
 
+	var intentToken bootstrap.Token
+	if err := json.Unmarshal(res, &intentToken); err != nil {
+		return fmt.Errorf("unable to decode the GUI intent token: %w", err)
+	}
+
 	guiAddress := net.JoinHostPort(guiHost, guiPort)
 
-	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://" + guiAddress + "/auth?intent=" + string(intentToken))
+	// Hand the intent token to the browser through a file only this user can
+	// read, rather than through the URL: a URL ends up in the argv of the OS
+	// URL-opener and of the browser it spawns, where any other local user could
+	// read it (VULN-92705). LaunchUnelevated starts the browser with the
+	// unelevated token of this same user, so it can still read the file.
+	bootstrap.Sweep()
+	pageURL, err := bootstrap.Write(guiAddress, intentToken)
 	if err != nil {
-		return fmt.Errorf("error opening GUI: %s", err.Error())
+		return err
+	}
+
+	if err := open(pageURL); err != nil {
+		return fmt.Errorf("error opening GUI: %w (open %s to continue manually)", err, pageURL)
 	}
 
 	s.log.Debugf("GUI opened at %s\n", guiAddress)

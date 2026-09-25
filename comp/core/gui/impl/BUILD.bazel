@@ -57,6 +57,7 @@ go_library(
         "//pkg/collector/python",
         "//pkg/config/model",
         "//pkg/config/setup",
+        "//pkg/gui/bootstrap",
         "//pkg/template/html",
         "//pkg/util/defaultpaths",
         "//pkg/util/log",
@@ -94,6 +95,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/core/config",
+        "//pkg/gui/bootstrap",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({
