@@ -606,6 +606,18 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 		// For more information on the bit shift operations see:
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
 		if t.status.Rtt_var>>2 == expected.rttVar {
+			// srtt_us and mdev_us are adjacent u32 fields in struct tcp_sock
+			// on kernels <= 6.9. If the rtt_var match is further away, the rtt
+			// offset was most likely a false positive (e.g. another RTT-scaled
+			// field such as rtt_min); in that case, resume guessing rtt just
+			// before this rtt_var match, where the true srtt_us is expected.
+			if t.status.Offset_rtt_var != t.status.Offset_rtt+4 {
+				log.Debugf("rtt offset %d is likely a false positive (rtt_var offset %d is not adjacent), resuming rtt guessing at offset %d",
+					t.status.Offset_rtt, t.status.Offset_rtt_var, t.status.Offset_rtt_var-4)
+				t.status.Offset_rtt = t.status.Offset_rtt_var - 4
+				t.status.What = uint64(GuessRTT)
+				break
+			}
 			t.logAndAdvance(t.status.Offset_rtt_var, GuessSocketSK)
 			break
 		}
