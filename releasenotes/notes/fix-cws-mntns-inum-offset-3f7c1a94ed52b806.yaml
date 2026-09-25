@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    CWS: fixed the mount namespace ID reported for processes that changed mount
+    namespace, and for their descendants. The ``switch_task_namespaces`` hook read
+    ``ns_common.inum`` straight from the ``mnt_namespace`` pointer, without the
+    ``offsetof(struct mnt_namespace, ns)`` term. That offset is only 0 on kernels
+    5.11 and later, so on older kernels the read landed on ``ns_common.ops`` and
+    ``process.mntns`` (along with ``exec.mntns``, ``exit.mntns``, the
+    ``process.ancestors`` variants and the ``ptrace``/``signal``/``setrlimit``
+    target variants) reported a constant unrelated value. The same value was fed
+    to the mount resolver as the per-PID mount namespace, which could misresolve
+    mount points and file paths for those processes.
