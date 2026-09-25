@@ -159,7 +159,17 @@ func (c *Check) Run() error {
 	}
 
 	if len(freshSnapshot) > 0 {
-		if err := report.ReportMetrics(s, checkConfig, freshSnapshot); err != nil {
+		if err := report.ReportMetrics(s, checkConfig, freshSnapshot, snapshot); err != nil {
+			return err
+		}
+	}
+
+	readyForMetadata := gnmiClient.StreamState() == client.StreamStateConnected &&
+		gnmiClient.Synchronized() &&
+		report.InterfaceSnapshotComplete(snapshot)
+
+	if readyForMetadata {
+		if err := report.ReportInterfaceStatus(s, checkConfig, snapshot); err != nil {
 			return err
 		}
 	}
@@ -168,12 +178,12 @@ func (c *Check) Run() error {
 	c.mu.Lock()
 	shouldReportMetadata := report.ShouldReportMetadata(c.lastMetadataReport, metadataInterval, now)
 	c.mu.Unlock()
-	if shouldReportMetadata {
-		reported, err := report.ReportMetadata(s, checkConfig, snapshot, now)
+	if shouldReportMetadata && readyForMetadata {
+		sent, err := report.ReportMetadata(s, checkConfig, snapshot, now)
 		if err != nil {
 			return err
 		}
-		if reported {
+		if sent {
 			c.mu.Lock()
 			c.lastMetadataReport = now
 			c.mu.Unlock()

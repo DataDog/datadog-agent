@@ -195,7 +195,7 @@ func TestReportMetricsSkipsStaleValues(t *testing.T) {
 	mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
 	mockSender.SetupAcceptAll()
 
-	require.NoError(t, ReportMetrics(mockSender, cfg, freshSnapshot))
+	require.NoError(t, ReportMetrics(mockSender, cfg, freshSnapshot, freshSnapshot))
 	mockSender.AssertMetric(t, "MonotonicCount", "snmp.ifHCInOctets", 42, "", append(baseTags, "interface:fresh"))
 	mockSender.AssertNumberOfCalls(t, "MonotonicCount", 1)
 }

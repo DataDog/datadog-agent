@@ -90,6 +90,7 @@ use_tls: false
 
 	event := waitSubscribeEvent(t, server)
 	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceNameUpdate("eth0")))
+	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceIfIndexUpdate("eth0", 1)))
 	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceInOctetsUpdate("eth0", 42)))
 	require.NoError(t, server.SendUpdate(event.StreamID, fakeserver.InterfaceOutOctetsUpdate("eth0", 84)))
 
