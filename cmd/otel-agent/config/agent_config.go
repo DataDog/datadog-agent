@@ -570,13 +570,15 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 // Returns an error if the input datadog exporter config is invalid.
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
 	// Validate that site is configured in pkgconfig
-	site := pkgconfig.GetString("site")
-	if site == "" {
-		return nil, errors.New("site configuration is empty: set DD_SITE environment variable or datadog.site in config")
-	}
+	site := strings.TrimSpace(pkgconfig.GetString("site"))
+	isSiteEmpty := site == ""
 
 	if ddcfg == nil {
-		return map[string]any{"api": map[string]any{"site": site}}, nil
+		if !isSiteEmpty {
+			return map[string]any{"api": map[string]any{"site": site}}, nil
+		} else {
+			return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
+		}
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -584,8 +586,13 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		ddcfgMap["api"] = map[string]any{"site": site}
-		return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		if !isSiteEmpty {
+			ddcfgMap["api"] = map[string]any{"site": site}
+			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
+		} else {
+			ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
+			return ddcfgMap, nil
+		}
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
@@ -593,8 +600,14 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apiSite, ok := apicfgMap["site"]
 	apiSiteStr, isString := apiSite.(string)
-	if !ok || !isString || apiSiteStr == "" {
-		apicfgMap["site"] = site
+	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
+		if !isSiteEmpty {
+			apicfgMap["site"] = site
+		} else {
+			apicfgMap["site"] = "datadoghq.com"
+		}
+	} else {
+		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
 	return ddcfgMap, nil
 }
