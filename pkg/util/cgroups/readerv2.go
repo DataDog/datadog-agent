@@ -43,9 +43,13 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter, pidMapperID s
 	}, nil
 }
 
-// parseCgroups parses the cgroups from the cgroupRoot and returns a map of cgroup id to cgroup.
-func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
+// parseCgroups parses the cgroups from the cgroupRoot and returns a map of cgroup id to cgroup,
+// plus a map of sub-cgroup inodes to container IDs. The sub-cgroup inode map allows DogStatsD
+// origin detection to resolve containers whose cgroup namespace root is a sub-directory of the
+// registered cgroup path (e.g. CRI-O's .scope/container/ layout on cgroupv2).
+func (r *readerV2) parseCgroups() (map[string]Cgroup, map[uint64]string, error) {
 	res := make(map[string]Cgroup)
+	subInodes := make(map[uint64]string)
 
 	err := filepath.WalkDir(r.cgroupRoot, func(fullPath string, de fs.DirEntry, err error) error {
 		if err != nil {
@@ -63,19 +67,24 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 		id, err := r.filter(fullPath, de.Name())
 		if id != "" {
 			// If we already have a cgroup with this id, that means that we have a sub-cgroup.
-			// In that case, we keep the parent's stats path.
+			// In that case, we keep the parent's stats path, but also record the sub-cgroup's
+			// inode so DogStatsD can find the container if a client reports it.
 			if _, exists := res[id]; !exists {
 				relPath, err := filepath.Rel(r.cgroupRoot, fullPath)
 				if err != nil {
 					return err
 				}
 				res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
+			} else {
+				if subInode := inodeForPath(fullPath); subInode != unknownInode {
+					subInodes[subInode] = id
+				}
 			}
 		}
 
 		return err
 	})
-	return res, err
+	return res, subInodes, err
 }
 
 func readCgroupControllers(cgroupRoot string) (map[string]struct{}, error) {

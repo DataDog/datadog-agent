@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix DogStatsD origin detection on nodes running CRI-O with cgroupv2 and cgroup
+    namespace isolation (e.g. AL2023).
