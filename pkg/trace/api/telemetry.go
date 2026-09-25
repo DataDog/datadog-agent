@@ -166,23 +166,32 @@ const (
 type flushedBatch struct {
 	events        []*pb.AgentTelemetryEvent
 	totalBodySize int
+	// reservedSize is the sum of inflight bytes startRequest accounted for on
+	// behalf of each event in this batch. It is tracked separately from
+	// totalBodySize because scrubbing happens after the reservation and can
+	// change an event's content length; releasing totalBodySize instead would
+	// make inflightCount drift by the cumulative effect of scrubbing on every
+	// event ever batched.
+	reservedSize int64
 }
 
 type currentBatch struct {
 	mu                 sync.Mutex
 	bufferedEvents     []*pb.AgentTelemetryEvent
 	bufferedSize       int
+	reservedSize       int64
 	oldestEventTime    time.Time
 	batchSizeThreshold int
 }
 
-func (b *currentBatch) addEvent(ev *pb.AgentTelemetryEvent) (batch flushedBatch, shouldFlush bool) {
+func (b *currentBatch) addEvent(ev *pb.AgentTelemetryEvent, reserved int64) (batch flushedBatch, shouldFlush bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if len(b.bufferedEvents) == 0 {
 		b.oldestEventTime = time.Now()
 	}
 	b.bufferedSize += len(ev.Content)
+	b.reservedSize += reserved
 	b.bufferedEvents = append(b.bufferedEvents, ev)
 	shouldFlush = b.bufferedSize >= b.batchSizeThreshold
 	if shouldFlush {
@@ -210,9 +219,11 @@ func (b *currentBatch) takeBatchLocked() flushedBatch {
 	batch := flushedBatch{
 		events:        b.bufferedEvents,
 		totalBodySize: b.bufferedSize,
+		reservedSize:  b.reservedSize,
 	}
 	b.bufferedEvents = make([]*pb.AgentTelemetryEvent, 0, len(batch.events))
 	b.bufferedSize = 0
+	b.reservedSize = 0
 	b.oldestEventTime = time.Time{}
 	return batch
 }
@@ -377,7 +388,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 		batch, shouldFlush := forwarder.batch.addEvent(&pb.AgentTelemetryEvent{
 			Headers: eventHeaders,
 			Content: body,
-		})
+		}, reserved)
 
 		if shouldFlush {
 			select {
@@ -386,7 +397,7 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 			default:
 				// This drops not only the current payload but also previously accumulated
 				// messages
-				forwarder.inflightCount.Add(-int64(batch.totalBodySize))
+				forwarder.inflightCount.Add(-batch.reservedSize)
 				writeEmptyJSON(w, http.StatusTooManyRequests)
 			}
 		} else {
@@ -687,7 +698,7 @@ func (f *TelemetryForwarder) forwarder() {
 				default:
 					// Flush remaining events in the buffer
 					batch := f.batch.takeBatch()
-					if batch.totalBodySize > 0 {
+					if len(batch.events) > 0 {
 						f.serializeAndForward(batch)
 					}
 					return
@@ -714,15 +725,15 @@ func (f *TelemetryForwarder) serializeAndForward(batch flushedBatch) {
 	}).MarshalMsg(nil)
 	if err != nil {
 		f.logger.Error("Failed to serialize telemetry batch: %v", err)
-		f.inflightCount.Add(-int64(batch.totalBodySize))
+		f.inflightCount.Add(-batch.reservedSize)
 		return
 	}
-	f.forwardBatchToEndpoints(body, batch.totalBodySize)
+	f.forwardBatchToEndpoints(body, batch.reservedSize)
 }
 
 // forwardBatchToEndpoints sends a serialized batch to all configured endpoints.
-func (f *TelemetryForwarder) forwardBatchToEndpoints(body []byte, totalBodySize int) {
-	defer f.inflightCount.Add(-int64(totalBodySize))
+func (f *TelemetryForwarder) forwardBatchToEndpoints(body []byte, reservedSize int64) {
+	defer f.inflightCount.Add(-reservedSize)
 
 	var compressed bytes.Buffer
 	writer, err := f.compressor.NewWriter(&compressed)
