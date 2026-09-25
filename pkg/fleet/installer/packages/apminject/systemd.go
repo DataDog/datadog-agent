@@ -141,22 +141,10 @@ func installerSupportsTmpfs(path string) bool {
 	return true
 }
 
-// RequiresReinstall reports whether the injector was configured with the
-// tmpfs preload path but the installer currently selected for its systemd
+// requiresReinstallForPreload reports whether the injector was configured with
+// the tmpfs preload path but the installer currently selected for its systemd
 // service predates that lifecycle. Replaying the injector post-install hook
 // repairs this state by switching back to the persistent preload path.
-func RequiresReinstall() bool {
-	mgr := NewSystemdServiceManager()
-	if mgr.InstallerPath() == "" || mgr.TmpfsCompatible() {
-		return false
-	}
-	preload, err := os.ReadFile(ldSoPreloadPath)
-	if err != nil {
-		return false
-	}
-	return requiresReinstallForPreload(string(preload), false)
-}
-
 func requiresReinstallForPreload(preload string, tmpfsCompatible bool) bool {
 	if tmpfsCompatible {
 		return false
