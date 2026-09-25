@@ -1036,18 +1036,6 @@ func (tb *Bench) GetMetricsAnomaliesForSource(sd observerdef.SeriesDescriptor) [
 	for _, a := range all {
 		if a.Source.Key() == targetKey {
 			result = append(result, a)
-			continue
-		}
-		if a.Source.Namespace != sd.Namespace && a.Source.Name != "" {
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			telemetrySD := observerdef.SeriesDescriptor{
-				Namespace: "telemetry",
-				Name:      telemetryName,
-				Aggregate: observerdef.AggregateAverage,
-			}
-			if telemetrySD.Key() == targetKey {
-				result = append(result, a)
-			}
 		}
 	}
 	return result
@@ -1140,12 +1128,7 @@ func (tb *Bench) GetCompressedCorrelations(threshold float64) []observerimpl.Com
 		memberSources := make([]string, 0, len(corr.Anomalies))
 		seen := make(map[string]bool)
 		for _, a := range corr.Anomalies {
-			var src string
-			if a.SourceRef != nil {
-				src = a.SourceRef.CompactID()
-			} else {
-				src = a.Source.Key()
-			}
+			src := a.SourceRef.CompactID()
 			if !seen[src] {
 				seen[src] = true
 				memberSources = append(memberSources, src)

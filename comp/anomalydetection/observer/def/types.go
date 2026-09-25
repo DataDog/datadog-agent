@@ -95,8 +95,7 @@ type MetricOutput struct {
 
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
 type LogMetricsExtractorOutput struct {
-	Metrics   []MetricOutput
-	Telemetry []ObserverTelemetry
+	Metrics []MetricOutput
 	// EvictedMetricNames lists metric names whose series should be removed from
 	// storage (e.g. after extractor LRU eviction or garbage collection).
 	EvictedMetricNames []string
@@ -216,7 +215,7 @@ type Anomaly struct {
 	Source SeriesDescriptor
 	// SourceRef is the storage handle for this anomaly's series, enabling
 	// direct compact ID lookups without string-key reconstruction. Nil for
-	// anomalies without a storage-backed series (e.g. log anomalies, RRCF).
+	// standalone scorer inputs without storage. Detector outputs must set it.
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
@@ -281,31 +280,9 @@ type Point struct {
 	Value     float64
 }
 
-// MetricKind distinguishes gauge (absolute level) from counter (increment) telemetry.
-// Gauge samples are exported with Set; counter samples with Add(value) on the backend counter.
-type MetricKind int
-
-const (
-	// MetricKindGauge is the default: the metric value is an absolute level.
-	MetricKindGauge MetricKind = iota
-	// MetricKindCounter indicates the value is a delta added to the named counter.
-	MetricKindCounter
-)
-
-// ObserverTelemetry describes a telemetry event emitted by the observer.
-type ObserverTelemetry struct {
-	DetectorName string
-	Metric       MetricView
-	Log          LogView
-	// Kind is telemetry metric kind; zero means gauge (backward compatible).
-	Kind MetricKind
-}
-
 // DetectionResult contains outputs from anomaly detection.
 type DetectionResult struct {
 	Anomalies []Anomaly
-	// Used to debug anomaly detectors
-	Telemetry []ObserverTelemetry
 }
 
 // SeriesDetector analyzes a time series for anomalies.
@@ -581,10 +558,6 @@ type StorageReader interface {
 	// do not allocate. Returns false if the series was not found.
 	ForEachPoint(handle SeriesRef, start, end int64, agg Aggregate, fn func(*Series, Point)) bool
 
-	// PointCount returns the number of raw data points for a series without
-	// loading or converting them. Returns 0 if the series is not found.
-	PointCount(handle SeriesRef) int
-
 	// PointCountUpTo returns the number of raw data points with timestamp <= endTime.
 	// Uses binary search for efficiency. Returns 0 if the series is not found.
 	PointCountUpTo(handle SeriesRef, endTime int64) int
@@ -608,8 +581,7 @@ type StorageReader interface {
 	SeriesGeneration() uint64
 }
 
-// Detector is the flexible detection interface where detectors pull data from storage.
-// This supports multivariate detection across multiple series.
+// Detector analyzes stored series for anomalies.
 type Detector interface {
 	Name() string
 
@@ -618,7 +590,8 @@ type Detector interface {
 	Ready() bool
 
 	// Detect is called periodically by the scheduler.
-	// The detector queries storage for whatever data it needs.
+	// The detector queries storage for whatever data it needs. Each returned
+	// anomaly must identify its source series and aggregate with SourceRef.
 	// dataTime is the current data timestamp (for determinism - only read data <= dataTime).
 	Detect(storage StorageReader, dataTime int64) DetectionResult
 }

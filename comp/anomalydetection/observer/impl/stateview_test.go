@@ -71,11 +71,13 @@ func TestStateView_Anomalies(t *testing.T) {
 	// Add some anomalies via the engine
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector_a",
 		Timestamp:    100,
 	})
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "mem"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 2, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "bocpd",
 		Timestamp:    101,
 	})
@@ -115,6 +117,7 @@ func TestStateView_Anomalies(t *testing.T) {
 	diskDesc := observerdef.SeriesDescriptor{Name: "disk", Aggregate: observerdef.AggregateAverage}
 	e.acceptAnomaly(observerdef.Anomaly{
 		Source:       diskDesc,
+		SourceRef:    &observerdef.QueryHandle{Ref: 3, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector_a",
 		Timestamp:    102,
 	})
@@ -256,18 +259,20 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 		t.Fatalf("live dedup cache has %d entries after series retention elapsed, expected 0", got)
 	}
 
-	withoutSourceRef := observerdef.Anomaly{
-		Source:       observerdef.SeriesDescriptor{Name: "rrcf.score"},
-		DetectorName: "rrcf",
+	defaultSeries := storage.Add("logs", "connection.errors", 1, 200, nil)
+	withDefaultRetention := observerdef.Anomaly{
+		Source:       observerdef.SeriesDescriptor{Namespace: "logs", Name: "connection.errors"},
+		SourceRef:    &observerdef.QueryHandle{Ref: defaultSeries.Ref, Aggregate: observerdef.AggregateAverage},
+		DetectorName: "detector",
 		Title:        "spike",
 		Timestamp:    200,
 	}
-	if !e.acceptAnomaly(withoutSourceRef) {
-		t.Fatal("expected anomaly without a source ref to be accepted")
+	if !e.acceptAnomaly(withDefaultRetention) {
+		t.Fatal("expected anomaly with default series retention to be accepted")
 	}
 	e.removeExpiredAnomalyDedup(300)
-	if e.acceptAnomaly(withoutSourceRef) {
-		t.Fatal("expected anomaly without a source ref to use global retention")
+	if e.acceptAnomaly(withDefaultRetention) {
+		t.Fatal("expected anomaly with default series retention to use global retention")
 	}
 	e.removeExpiredAnomalyDedup(301)
 	if got := e.anomalyDeduper.live.Len(); got != 0 {
@@ -285,6 +290,7 @@ func TestReplayAnomalyDedupDoesNotExpire(t *testing.T) {
 	})
 	anomaly := observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector",
 		Timestamp:    100,
 	}
@@ -305,6 +311,7 @@ func TestResetForReplayConfiguresAnomalyHistory(t *testing.T) {
 
 	anomaly := observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "cpu"},
+		SourceRef:    &observerdef.QueryHandle{Ref: 1, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector_a",
 		Timestamp:    100,
 	}

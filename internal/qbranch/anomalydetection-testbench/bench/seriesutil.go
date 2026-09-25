@@ -19,16 +19,7 @@ func aggSuffix(agg observerdef.Aggregate) string {
 	return observerdef.AggregateString(agg)
 }
 
-// seriesKey returns a canonical string key for a series:
-// "namespace|name:agg|host|tag1,tag2,..."
-func seriesKey(namespace, nameWithAgg, host string, tags []string) string {
-	sorted := make([]string, len(tags))
-	copy(sorted, tags)
-	sort.Strings(sorted)
-	return namespace + "|" + nameWithAgg + "|" + host + "|" + strings.Join(sorted, ",")
-}
-
-// parseSeriesKey parses a seriesKey back into its components.
+// parseSeriesKey parses a canonical series key into its components.
 // Returns ok=false if the key doesn't have the expected format.
 func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
 	// Format: "namespace|name:agg|host|tags"
@@ -89,7 +80,7 @@ func (s *stateViewStorage) getSeriesMeta(ref observerdef.SeriesRef) *observerdef
 	return nil
 }
 
-// compactSeriesID maps a full seriesKey to a compact numeric ID ("42:avg").
+// compactSeriesID maps a canonical series key to a compact numeric ID ("42:avg").
 // Returns the original key if not found (to match the original behavior).
 func (s *stateViewStorage) compactSeriesID(fullKey string) string {
 	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)

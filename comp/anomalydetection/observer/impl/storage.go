@@ -10,7 +10,6 @@ import (
 	"math"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -667,21 +666,6 @@ func seriesKey(namespace, name, host string, tags []string) string {
 	return b.String()
 }
 
-// parseSeriesKey parses a series key back into its parts.
-func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
-	parts := strings.SplitN(key, "|", 4)
-	if len(parts) != 4 {
-		return "", "", "", nil, false
-	}
-	namespace = parts[0]
-	name = parts[1]
-	host = parts[2]
-	if parts[3] == "" {
-		return namespace, name, host, nil, true
-	}
-	return namespace, name, host, strings.Split(parts[3], ","), true
-}
-
 // copyTags creates a copy of tags slice.
 func copyTags(tags []string) []string {
 	if tags == nil {
@@ -1311,40 +1295,6 @@ func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
 	return s.EvictToCapacity(s.cfg.MaxSeries, target)
 }
 
-// CompactSeriesID translates a full series key to its compact numeric ID string.
-// The full key format is "namespace|name:agg|host|tags" where the storage key is
-// "namespace|name|host|tags" (without the agg suffix). This method strips the agg
-// suffix, looks up the numeric ID, and returns "numericID:agg".
-// Returns the original key unchanged if no mapping exists.
-func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)
-	if !ok {
-		return fullKey
-	}
-
-	// Split off the aggregation suffix from the name.
-	baseName := nameWithAgg
-	aggStr := ""
-	if idx := strings.LastIndex(nameWithAgg, ":"); idx > 0 {
-		baseName = nameWithAgg[:idx]
-		aggStr = nameWithAgg[idx+1:]
-	}
-
-	// Look up by hash; verify identity to guard against hash collisions.
-	stats := s.series[seriesKeyHash(namespace, baseName, host, tags)]
-	if stats == nil || stats.Namespace != namespace || stats.Name != baseName || stats.Host != host {
-		return fullKey
-	}
-
-	if aggStr != "" {
-		return strconv.Itoa(int(stats.ref)) + ":" + aggStr
-	}
-	return strconv.Itoa(int(stats.ref))
-}
-
 // StorageReader interface implementation
 
 // ListSeries returns metadata for all series matching the filter.
@@ -1399,17 +1349,6 @@ func (s *timeSeriesStorage) ListSeriesRefsInto(filter observer.SeriesFilter, dst
 		dst = append(dst, stats.ref)
 	}
 	return dst
-}
-
-// PointCount returns the number of raw data points for a series.
-func (s *timeSeriesStorage) PointCount(ref observer.SeriesRef) int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if stats := s.resolveByID(ref); stats != nil {
-		return stats.pointCount()
-	}
-	return 0
 }
 
 // TotalSampleCount returns the total number of stored samples across all series,
