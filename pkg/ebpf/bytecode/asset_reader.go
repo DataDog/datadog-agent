@@ -16,3 +16,14 @@ type AssetReader interface {
 	io.ReaderAt
 	io.Closer
 }
+
+type readerAt interface {
+	io.Reader
+	io.ReaderAt
+}
+
+type nopCloser struct {
+	readerAt
+}
+
+func (nopCloser) Close() error { return nil }
