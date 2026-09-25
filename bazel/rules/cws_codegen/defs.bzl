@@ -120,9 +120,13 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
     # itself is just parsing, so that step stays platform-neutral.
     compatible_with = ["@platforms//os:{}".format(build_tags)] if build_tags else None
 
+    # Outputs referenced by file label must start with `<name>_` in a symbolic macro.
+    bootstrap_go = "{}/bootstrap.go".format(bootstrap)
+    stub = "{}_stub/{}".format(name, output)
     args = [
         "-input=$(execpath {})".format(src),
-        "-output=$(execpath {}/bootstrap.go)".format(name),
+        "-output=$(execpath {})".format(bootstrap_go),
+        "-stub-output=$(execpath {})".format(stub),
         "-package-path={}".format(package_path),
         "-out-basename={}".format(output),
     ]
@@ -133,15 +137,24 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
         name = bootstrap,
         srcs = [src],
         args = args,
-        outs = ["{}/bootstrap.go".format(name)],
+        outs = [
+            bootstrap_go,
+            stub,
+        ],
         tool = "//pkg/security/generators/easyjson_bootstrap",
         tags = ["manual"],
         visibility = ["//visibility:private"],
     )
+    native.filegroup(
+        name = "{}_stub".format(name),
+        srcs = [stub],
+        tags = ["manual"],
+        visibility = visibility,
+    )
 
     go_library(
         name = "{}_lib".format(name),
-        srcs = [":{}".format(bootstrap)],
+        srcs = [bootstrap_go],
         importpath = "github.com/DataDog/datadog-agent/bazel/rules/cws_codegen/easyjson/{}/{}".format(native.package_name(), name),
         target_compatible_with = compatible_with,
         deps = [
@@ -194,6 +207,9 @@ generation is a fixed point: easyjson calls a nested type's MarshalEasyJSON when
 that method exists and inlines a decoder when it does not. Generating from a
 stubbed or stale output therefore yields a different file, and one further run
 converges back.
+
+`<name>_stub` holds empty marshaler methods for the annotated types, for
+`easyjson_stubs`.
 """,
     attrs = {
         "package": attr.label(mandatory = True, configurable = False, doc = "go_library of the package the marshalers are generated for."),
@@ -201,6 +217,32 @@ converges back.
         "src": attr.label(mandatory = True, configurable = False, allow_single_file = [".go"], doc = "Annotated .go file holding the easyjson:json comments (the one carrying the //go:generate directive)."),
         "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. event_easyjson.go)."),
         "build_tags": attr.string(configurable = False, default = "", doc = "Value of the CLI's -build_tags flag, when the annotated file is platform-specific. Doubles as the OS the generator is constrained to, so it must name a @platforms//os value."),
+    },
+)
+
+def _easyjson_stubs_impl(name, sources, package_path, stubs, visibility):
+    go_library(
+        name = name,
+        srcs = stubs,
+        embed = [sources],
+        importpath = package_path,
+        tags = ["manual"],
+        visibility = visibility,
+    )
+
+easyjson_stubs = macro(
+    implementation = _easyjson_stubs_impl,
+    doc = """Compile a package with empty easyjson methods in place of its checked-in marshalers.
+
+`easyjson` generators linked against this library build even when the
+checked-in output no longer compiles, e.g. after a serialized field is removed.
+The package's deps come from `sources`, which already carries jlexer/jwriter
+for the generated files.
+""",
+    attrs = {
+        "sources": attr.label(mandatory = True, configurable = False, doc = "go_source with the package's sources minus its easyjson output: the `<library>_sources` target of `# gazelle:go_split_generated *_easyjson.go`."),
+        "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package."),
+        "stubs": attr.label_list(mandatory = True, configurable = False, doc = "`<name>_stub` of every easyjson call in the package. All of them are needed: easyjson calls a nested annotated type's marshaler only when the type has one, whichever file declares it."),
     },
 )
 
