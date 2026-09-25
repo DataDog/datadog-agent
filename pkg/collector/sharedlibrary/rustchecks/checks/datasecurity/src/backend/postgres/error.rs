@@ -105,12 +105,15 @@ mod tests {
     }
 
     #[test]
-    fn client_errors_keep_only_top_level_message() {
+    fn client_timeout_error() {
         assert_eq!(
             PostgresError::from(postgres::Error::__private_api_timeout()).to_string(),
             "postgres client error: timeout waiting for server"
         );
+    }
 
+    #[test]
+    fn client_tls_error_drops_cause() {
         // Fake server declining TLS.
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
