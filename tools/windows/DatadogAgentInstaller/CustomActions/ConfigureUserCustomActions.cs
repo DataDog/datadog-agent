@@ -95,23 +95,25 @@ namespace Datadog.CustomActions
         /// <summary>
         /// Add ddagentuser to groups
         /// </summary>
-        private void ConfigureUserGroups()
+        internal void ConfigureUserGroups()
         {
+            var isDomainController = false;
             try
             {
-                if (_nativeMethods.IsReadOnlyDomainController())
-                {
-                    _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
-                                 " Install will continue, agent may not function properly if user has not been added to these groups.");
-                    return;
-                }
+                isDomainController = _nativeMethods.IsDomainController();
             }
             catch (Exception e)
             {
-                // On error assume the host is not a read-only domain controller
-                // If the host is actually a read-only domain controller then the following operations will fail
-                _session.Log($"Error determining if host is a read-only domain controller, continuing assuming it is not: {e}");
-                _session.Log("If the host is actually a read-only domain controller, ensure the LanmanServer/Server service is running.");
+                // The underlying NetGetServerInfo call can fail if the Server service is not running or not available.
+                // Since the Server service must be running on a DC, assume this host is not a DC.
+                _session.Log($"Error determining if host is a domain controller, continuing assuming it is not: {e}");
+            }
+
+            if (isDomainController && _nativeMethods.IsReadOnlyDomainController())
+            {
+                _session.Log("Host is a Read-Only Domain controller, user cannot be added to groups by the installer." +
+                             " Install will continue, agent may not function properly if user has not been added to these groups.");
+                return;
             }
 
             _nativeMethods.AddToGroup(_ddAgentUserSID, WellKnownSidType.BuiltinPerformanceMonitoringUsersSid);
