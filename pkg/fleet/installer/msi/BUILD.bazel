@@ -49,6 +49,7 @@ dd_agent_go_test(
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",
