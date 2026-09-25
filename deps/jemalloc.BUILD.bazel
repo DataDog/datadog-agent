@@ -2,12 +2,28 @@
 
 load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
-    default_package_metadata = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["//visibility:public"],
+)
+
+VERSION = "5.3.0"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/jemalloc/jemalloc/archive/refs/tags/{version}.tar.gz",
+        package = "jemalloc",
+        version = VERSION,
+    ),
 )
 
 license(
@@ -75,8 +91,8 @@ foreign_cc_shared_wrapper(
 
 dd_cc_packaged(
     name = "jemalloc_pkg",
-    input = ":jemalloc_shared",
     dest_dir = "embedded/lib",
+    input = ":jemalloc_shared",
     libname = "libjemalloc",
     version = "2",
 )
