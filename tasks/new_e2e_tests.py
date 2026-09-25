@@ -14,6 +14,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -362,16 +363,19 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
 
     output_path = Path("test-binaries").absolute()
     manifest_binaries = []
+    build_start = time.monotonic()
     for label, binary_name in test_binaries.items():
         package = label.removeprefix("//").partition(":")[0].removeprefix("test/new-e2e/")
         if not any(package == prefix or package.startswith(prefix + "/") for prefix in target_prefixes):
             continue
         binary_path = output_path / binary_name
+        binary_start = time.monotonic()
         build_binary_with_bazel(
             label,
             args=["--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk"],
             bin_path=str(binary_path),
         )
+        print(f"  Built {binary_name} with Bazel in {time.monotonic() - binary_start:.1f}s")
         manifest_binaries.append(
             {
                 "package": package,
@@ -384,6 +388,8 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
         print(f"WARNING: No Bazel test binaries found matching targets: {targets}")
         return False
 
+    build_duration = time.monotonic() - build_start
+
     manifest = {
         "build_info": {
             "timestamp": ctx.run("date -u +%Y-%m-%dT%H:%M:%SZ", hide=True).stdout.strip(),
@@ -394,7 +400,7 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
     with open("manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"Built {len(manifest_binaries)} test binaries with Bazel into {output_path}")
+    print(f"Built {len(manifest_binaries)} test binaries with Bazel into {output_path} in {build_duration:.1f}s")
     return True
 
 
