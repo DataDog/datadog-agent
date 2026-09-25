@@ -104,7 +104,7 @@ type metricObs struct {
 	name       string
 	value      float64
 	host       string
-	tags       []string
+	tags       tagset.CompositeTags
 	timestamp  int64
 	storageKey uint64
 }
@@ -121,7 +121,7 @@ func (m *metricObs) GetValue() float64 {
 }
 
 func (m *metricObs) GetTags() tagset.CompositeTags {
-	return tagset.CompositeTagsFromSlice(m.tags)
+	return m.tags
 }
 
 func (m *metricObs) GetHost() string { return m.host }
@@ -1125,6 +1125,9 @@ func prepareMetricIngest(source string, contextKey uint64, sample observerdef.Me
 	if precheck.reject {
 		return metricIngestDecision{source: normalizedSource}
 	}
+	if contextKey != 0 && filter.isMutedWithKey(normalizedSource, storageKeyForContextKey(normalizedSource, contextKey)) {
+		return metricIngestDecision{source: normalizedSource}
+	}
 	return prepareMetricAfterPrecheck(
 		normalizedSource,
 		name,
@@ -1166,15 +1169,15 @@ func prepareMetricAfterPrecheck(
 	keyGenerator *ckey.SliceKeyGenerator,
 	filter *metricsFilterRules,
 ) metricIngestDecision {
-	// Canonicalize once for tag-aware filtering and downstream storage's sorted
-	// tag interning fast path.
-	tags := canonicalizeTags(resolvedTags.UnsafeToReadOnlySliceString())
-	if precheck.needsTags && !filter.isAllowedByRulesFromWithHost(name, source, host, tags, precheck.firstCandidate) {
+	if precheck.needsTags && !filter.isAllowedByRulesFromWithHostComposite(name, source, host, resolvedTags, precheck.firstCandidate) {
 		return metricIngestDecision{source: source}
 	}
 	if contextKey == 0 {
 		// No pipeline key: derive it from the resolved metric identity.
-		contextKey = uint64(keyGenerator.Generate(name, host, tags))
+		if keyGenerator == nil {
+			keyGenerator = ckey.NewSliceKeyGenerator()
+		}
+		contextKey = uint64(keyGenerator.GenerateComposite(name, host, resolvedTags))
 	}
 	seriesKey := storageKeyForContextKey(source, contextKey)
 	if filter.isMutedWithKey(source, seriesKey) {
@@ -1190,7 +1193,7 @@ func prepareMetricAfterPrecheck(
 			name:       name,
 			value:      value,
 			host:       host,
-			tags:       tags,
+			tags:       resolvedTags,
 			timestamp:  timestamp,
 			storageKey: seriesKey,
 		},

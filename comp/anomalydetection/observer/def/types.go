@@ -11,7 +11,6 @@
 package observer
 
 import (
-	"sort"
 	"strconv"
 	"strings"
 
@@ -90,10 +89,11 @@ type LogObserver interface {
 // The storage keeps sum/count summaries so aggregation is specified at read
 // time, not write time.
 type MetricOutput struct {
-	Name    string
-	Value   float64
-	Host    string
-	Tags    []string
+	Name  string
+	Value float64
+	Host  string
+	// Tags is an immutable view retained by the observer storage.
+	Tags    tagset.CompositeTags
 	Context *MetricContext // optional; stored on the series for anomaly enrichment
 }
 
@@ -117,8 +117,8 @@ type SeriesDescriptor struct {
 	Name string
 	// Host is the host dimension carried separately from Tags.
 	Host string
-	// Tags are the series-level tags (e.g. ["host:web-1", "env:prod"]).
-	Tags []string
+	// Tags are immutable, unordered series-level tags.
+	Tags tagset.CompositeTags
 	// Aggregate is the aggregation applied when reading the series.
 	Aggregate Aggregate
 }
@@ -138,37 +138,29 @@ func (sd SeriesDescriptor) String() string {
 // DisplayName returns a display string with tags (e.g. "cpu.user:avg{host:web-1}").
 func (sd SeriesDescriptor) DisplayName() string {
 	base := sd.String()
-	tags := sd.Tags
-	if sd.Host != "" && !containsTag(tags, "host:"+sd.Host) {
-		tags = append([]string{"host:" + sd.Host}, tags...)
-	}
-	if len(tags) == 0 {
+	if sd.Tags.Len() == 0 && sd.Host == "" {
 		return base
 	}
-	return base + "{" + strings.Join(tags, ",") + "}"
+	var b strings.Builder
+	b.WriteString(base)
+	b.WriteByte('{')
+	if sd.Host != "" && !sd.Tags.Find(func(tag string) bool { return tag == "host:"+sd.Host }) {
+		b.WriteString("host:")
+		b.WriteString(sd.Host)
+		if sd.Tags.Len() > 0 {
+			b.WriteByte(',')
+		}
+	}
+	b.WriteString(sd.Tags.Join(","))
+	b.WriteByte('}')
+	return b.String()
 }
 
 // Key returns a stable string suitable for use as a map key.
 // Format: "namespace|name:agg|host|tag1,tag2,...".
 func (sd SeriesDescriptor) Key() string {
 	aggStr := AggregateString(sd.Aggregate)
-	var tagStr string
-	if len(sd.Tags) > 0 {
-		sorted := make([]string, len(sd.Tags))
-		copy(sorted, sd.Tags)
-		sort.Strings(sorted)
-		tagStr = strings.Join(sorted, ",")
-	}
-	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + tagStr
-}
-
-func containsTag(tags []string, tag string) bool {
-	for _, candidate := range tags {
-		if candidate == tag {
-			return true
-		}
-	}
-	return false
+	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + sd.Tags.Join(",")
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
@@ -275,7 +267,7 @@ type Series struct {
 	Namespace string
 	Name      string
 	Host      string
-	Tags      []string
+	Tags      tagset.CompositeTags
 	Points    []Point
 }
 
@@ -499,7 +491,7 @@ type SeriesMeta struct {
 	Namespace string
 	Name      string
 	Host      string
-	Tags      []string
+	Tags      tagset.CompositeTags
 }
 
 // Aggregate specifies which statistic to extract from summary stats.

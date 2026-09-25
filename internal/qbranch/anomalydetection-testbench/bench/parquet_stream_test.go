@@ -20,13 +20,14 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 var benchmarkLogSink []recorderdef.LogData
 
 func TestScorerReportContributorNameUsesLogContext(t *testing.T) {
 	name := scorerReportContributorName(
-		&observerdef.SeriesMeta{Namespace: "log_metrics_extractor", Name: "log.pattern.abc.count", Tags: []string{"service:api"}},
+		&observerdef.SeriesMeta{Namespace: "log_metrics_extractor", Name: "log.pattern.abc.count", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
 		&observerdef.MetricContext{Pattern: "ERROR <*>", Example: "ERROR: connection refused"},
 		observerdef.AggregateCount,
 	)
