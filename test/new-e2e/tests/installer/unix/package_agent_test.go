@@ -434,9 +434,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// This works through nsswitch.conf without needing environment variables
 
 	// Install libnss-extrausers
-	if s.host.GetPkgManager() == "apt" {
-		// Already baked into the Debian/Ubuntu e2e AMI (ami-builder provision-e2e-apt.sh).
-	} else if s.host.GetPkgManager() == "yum" {
+	if s.host.GetPkgManager() == "yum" {
 		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
 		if err != nil {
 			s.T().Skip("libnss-extrausers not available on this system")
