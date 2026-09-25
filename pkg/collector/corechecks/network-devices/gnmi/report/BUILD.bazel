@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "report",
     srcs = [
+        "bandwidth_state.go",
+        "derived_metrics.go",
         "health.go",
         "metadata.go",
         "metrics.go",
@@ -29,6 +31,7 @@ go_library(
 dd_agent_go_test(
     name = "report_test",
     srcs = [
+        "derived_metrics_test.go",
         "health_test.go",
         "metadata_test.go",
         "metrics_test.go",
