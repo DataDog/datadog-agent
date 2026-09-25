@@ -106,11 +106,8 @@ func (s *testSubServicesOptsSuite) TestProcessEnabled() {
 		}
 	}
 
-	// NOTE: Even with processEnabled=false the Agent will start process-agent because container_collection is
-	//       enabled by default. We do not have an installer option to control this process-agent setting.
-	//       However, process-agent will exit soon after starting because there's no container environment installed
-	//       and the other options are disabled.
-	s.testServiceState("datadog-process-agent", tc.processEnabled)
+	// dd-procmgr supervises process-agent, so the legacy service stays Stopped regardless of processEnabled.
+	s.testServiceState("datadog-process-agent", false)
 }
 
 func (s *testSubServicesOptsSuite) TestAPMEnabled() {

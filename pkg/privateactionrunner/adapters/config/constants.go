@@ -74,6 +74,7 @@ var DefaultClusterAgentActionFQNs = append([]string{
 	"com.datadoghq.kubernetes.apps.listStatefulSet",
 	// k8s core — Pods
 	"com.datadoghq.kubernetes.core.getPod",
+	"com.datadoghq.kubernetes.core.getPodLogs",
 	"com.datadoghq.kubernetes.core.listPod",
 	// k8s core — ConfigMaps
 	"com.datadoghq.kubernetes.core.getConfigMap",

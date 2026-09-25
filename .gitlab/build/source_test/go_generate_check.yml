@@ -1,5 +1,6 @@
 ---
-# check that go generate has been run in the pkg/security directory
+# check that the security-agent mocks are up to date; the other generated
+# files are covered by the Bazel diff tests in bazel:test:*
 security_go_generate_check:
   extends: .bazel:defs:cache:progressive
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
