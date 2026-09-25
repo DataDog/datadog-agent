@@ -73,6 +73,7 @@
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_CPU_LIMIT: 6
     # AWS SSH Key configuration
     E2E_AWS_PUBLIC_KEY_PATH: /tmp/agent-qa-aws-ssh-key.pub
     E2E_AWS_PRIVATE_KEY_PATH: /tmp/agent-qa-aws-ssh-key
