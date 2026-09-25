@@ -30,6 +30,17 @@ type Filter struct {
 	Tags           []string
 }
 
+// matches reports whether the filter matches the given domain and/or IP.
+func (filter *Filter) matches(domain string, ip netip.Addr) bool {
+	if filter.matchDomain != nil && filter.matchDomain.MatchString(domain) {
+		return true
+	}
+	if filter.matchIPCidr.IsValid() && ip.IsValid() && filter.matchIPCidr.Contains(ip) {
+		return true
+	}
+	return false
+}
+
 // ConnFilter class
 type ConnFilter struct {
 	filters []Filter
@@ -127,18 +138,7 @@ func (f *ConnFilter) EvaluateWithConfig(domain string, ip netip.Addr) (bool, str
 		isIncluded = false
 	}
 	for _, filter := range f.filters {
-		matched := false
-		if filter.matchDomain != nil {
-			if filter.matchDomain.MatchString(domain) {
-				matched = true
-			}
-		}
-		if filter.matchIPCidr.IsValid() && ip.IsValid() {
-			if filter.matchIPCidr.Contains(ip) {
-				matched = true
-			}
-		}
-		if matched {
+		if filter.matches(domain, ip) {
 			testConfigID = filter.TestConfigID
 			testConfigName = filter.TestConfigName
 			tags = filter.Tags
@@ -153,4 +153,61 @@ func (f *ConnFilter) EvaluateWithConfig(domain string, ip netip.Addr) (bool, str
 		return false, "", "", nil
 	}
 	return true, testConfigID, testConfigName, tags
+}
+
+// EvaluateDomains evaluates the ordered filter chain against all DNS names
+// mapped to a destination IP. A filter matches the connection when its IP
+// condition or any of its domain conditions match, and the last matching filter
+// wins. This preserves the precedence of EvaluateWithTags while preventing DNS
+// cache ordering from deciding whether a connection is included. When an
+// include rule wins by domain, that matching domain is returned as the path
+// hostname.
+func (f *ConnFilter) EvaluateDomains(domains []string, ip netip.Addr) (bool, string, string, string, []string) {
+	if len(domains) == 0 {
+		domains = []string{""}
+	}
+
+	isIncluded := false
+	hostname := domains[0]
+	for _, domain := range domains {
+		if domain != "" {
+			isIncluded = true
+			hostname = domain
+			break
+		}
+	}
+	defaultHostname := hostname
+	var testConfigID string
+	var testConfigName string
+	var tags []string
+	for _, filter := range f.filters {
+		domainMatched := false
+		matchedDomain := ""
+		for _, domain := range domains {
+			if filter.matchDomain != nil && filter.matchDomain.MatchString(domain) {
+				domainMatched = true
+				matchedDomain = domain
+				break
+			}
+		}
+		matchedIP := filter.matchIPCidr.IsValid() && ip.IsValid() && filter.matchIPCidr.Contains(ip)
+		if !domainMatched && !matchedIP {
+			continue
+		}
+
+		isIncluded = filter.Type == FilterTypeInclude
+		testConfigID = filter.TestConfigID
+		testConfigName = filter.TestConfigName
+		tags = filter.Tags
+		if isIncluded && domainMatched {
+			hostname = matchedDomain
+		} else if isIncluded {
+			hostname = defaultHostname
+		}
+	}
+
+	if !isIncluded {
+		return false, "", "", "", nil
+	}
+	return true, hostname, testConfigID, testConfigName, tags
 }
