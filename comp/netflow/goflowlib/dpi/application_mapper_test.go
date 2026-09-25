@@ -102,3 +102,33 @@ func TestApplicationMapper_addToCache(t *testing.T) {
 		})
 	}
 }
+
+func TestApplicationMapper_enterpriseSpecificIDs(t *testing.T) {
+	ciscoID := make([]byte, 8)
+	binary.BigEndian.PutUint32(ciscoID[0:4], 9) // Cisco's PEN
+	binary.BigEndian.PutUint32(ciscoID[4:8], 100)
+
+	otherID := make([]byte, 8)
+	binary.BigEndian.PutUint32(otherID[0:4], 12345) // a different enterprise's PEN
+	binary.BigEndian.PutUint32(otherID[4:8], 100)   // same low 32 bits as ciscoID
+
+	ciscoRecord := netflow.OptionsDataRecord{
+		ScopesValues:  []netflow.DataField{{Type: ipfixFieldApplicationID, Value: ciscoID}},
+		OptionsValues: []netflow.DataField{{Type: ipfixFieldApplicationName, Value: []byte("nbar:webex")}},
+	}
+	otherRecord := netflow.OptionsDataRecord{
+		ScopesValues:  []netflow.DataField{{Type: ipfixFieldApplicationID, Value: otherID}},
+		OptionsValues: []netflow.DataField{{Type: ipfixFieldApplicationName, Value: []byte("other:app")}},
+	}
+
+	mapper := NewApplicationMapper()
+	mapper.addToCache("10.0.0.1", []netflow.OptionsDataFlowSet{{Records: []netflow.OptionsDataRecord{ciscoRecord, otherRecord}}})
+
+	app, ok := mapper.lookupApplication("10.0.0.1", ciscoID)
+	assert.True(t, ok)
+	assert.Equal(t, "nbar:webex", app.applicationName)
+
+	app, ok = mapper.lookupApplication("10.0.0.1", otherID)
+	assert.True(t, ok)
+	assert.Equal(t, "other:app", app.applicationName, "ids sharing their low 32 bits but differing in their enterprise number must not overwrite each other")
+}

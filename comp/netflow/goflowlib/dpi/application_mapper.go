@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
-	"github.com/netsampler/goflow2/producer"
 )
 
 const (
@@ -26,19 +25,14 @@ type Application struct {
 
 type ApplicationMapper struct {
 	mu   sync.RWMutex
-	apps map[string]map[uint32]Application // exporterIP -> applicationId -> {applicationName, applicationDescription}
+	apps map[string]map[string]Application // exporterIP -> applicationId -> {applicationName, applicationDescription}
 }
 
 func NewApplicationMapper() *ApplicationMapper {
-	return &ApplicationMapper{apps: make(map[string]map[uint32]Application)}
+	return &ApplicationMapper{apps: make(map[string]map[string]Application)}
 }
 
 func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte) (Application, bool) {
-	var id uint64
-	if err := producer.DecodeUNumber(rawAppID, &id); err != nil {
-		return Application{}, false
-	}
-
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -47,7 +41,7 @@ func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte
 		return Application{}, false
 	}
 
-	app, found := apps[uint32(id)]
+	app, found := apps[string(rawAppID)]
 	return app, found
 }
 
@@ -63,7 +57,7 @@ func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []n
 	}
 }
 
-func extractApplicationID(fields []netflow.DataField) (appID uint32, haveID bool) {
+func extractApplicationID(fields []netflow.DataField) (appID string, haveID bool) {
 	for _, f := range fields {
 		if f.Type != ipfixFieldApplicationID {
 			continue
@@ -72,12 +66,9 @@ func extractApplicationID(fields []netflow.DataField) (appID uint32, haveID bool
 		if !ok {
 			continue
 		}
-		var id uint64
-		if err := producer.DecodeUNumber(v, &id); err == nil {
-			return uint32(id), true
-		}
+		return string(v), true
 	}
-	return 0, false
+	return "", false
 }
 
 func extractApplicationName(fields []netflow.DataField) (appName string, appDescription string, haveName bool) {
@@ -97,12 +88,12 @@ func extractApplicationName(fields []netflow.DataField) (appName string, appDesc
 	return appName, appDescription, haveName
 }
 
-func (m *ApplicationMapper) set(exporterIP string, appID uint32, appName string, appDescription string) {
+func (m *ApplicationMapper) set(exporterIP string, appID string, appName string, appDescription string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	apps, ok := m.apps[exporterIP]
 	if !ok {
-		apps = make(map[uint32]Application)
+		apps = make(map[string]Application)
 		m.apps[exporterIP] = apps
 	}
 	apps[appID] = Application{applicationName: appName, applicationDescription: appDescription}
