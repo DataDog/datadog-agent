@@ -76,23 +76,38 @@ union selinux_write_payload_t {
 };
 
 // Debug aid for exec events that reach userspace with an all-zero file path_key.
-// handle_exec_event() is the only writer of syscall->exec.file.path_key, so the stamp it
-// leaves behind answers the two questions the event itself cannot: did that hook run for
-// this exec at all, and did it see the *same* syscall cache entry that send_exec_event()
-// later popped. A differing ctx_id means the two hooks worked on different entries, which
-// would explain both the 0/0 key and the foreign execve pathname the syscall context
-// reports. See exec_dentry_open_stamp / exec_zero_key_diag.
+//
+// Three stamps are compared, because each rules out a different story:
+//   - exec_entry_stamp, written by trace__sys_execveat under the pid_tgid the entry was
+//     cached under, says whether the entry send_exec_event popped is the one this task's
+//     execve created. ctx_id identifies the execve, and collect_syscall_ctx assigns ids
+//     from 1, so a popped entry carrying ctx_id 0 cannot have come from that path at all.
+//   - exec_dentry_open_stamp, written by handle_exec_event, says whether the only writer of
+//     exec.file.path_key ran, and against which entry.
+//   - the key and dentry as send_exec_event itself sees them, so a key that is fine here but
+//     zero in userspace separates a kernel problem from a userspace one.
+// The diag is written for every exec, not just the zero-key ones, so that its absence is
+// unambiguous rather than being a second thing needing explanation.
 struct exec_open_stamp_t {
     u64 pid_tgid;
     u32 ctx_id;
     u32 padding;
 };
 
+#define EXEC_DIAG_HAS_DENTRY 1
+#define EXEC_DIAG_HAS_OPEN_STAMP 2
+#define EXEC_DIAG_HAS_ENTRY_STAMP 4
+
 struct exec_zero_key_diag_t {
-    u64 open_pid_tgid; // task handle_exec_event() ran on; 0 when it never ran for this tgid
-    u64 send_pid_tgid; // task send_exec_event() is running on
-    u32 open_ctx_id;   // ctx_id on the entry handle_exec_event() populated
-    u32 send_ctx_id;   // ctx_id on the entry send_exec_event() popped
+    u64 send_pid_tgid;   // task send_exec_event is running on
+    u64 open_pid_tgid;   // task handle_exec_event ran on; 0 when it never ran
+    u64 entry_ino;       // path_key as send_exec_event sees it, before the event is built
+    u32 entry_mount_id;
+    u32 send_ctx_id;     // ctx_id on the entry send_exec_event popped
+    u32 open_ctx_id;     // ctx_id on the entry handle_exec_event populated
+    u32 stamped_ctx_id;  // ctx_id trace__sys_execveat recorded for this pid_tgid
+    u32 flags;           // EXEC_DIAG_* above
+    u32 padding;
 };
 
 #endif
