@@ -157,7 +157,7 @@ func TestReportMetricsSkipsStaleValues(t *testing.T) {
 		Profile: config.ProfileDefinition{
 			Metrics: []config.MetricConfig{
 				{
-					Path:   "/interfaces/interface/state/counters/in-octets",
+					Path:   "/openconfig/interfaces/interface/state/counters/in-octets",
 					Metric: "snmp.ifHCInOctets",
 					Type:   config.MetricTypeMonotonicCount,
 					Tags: map[string]string{
@@ -171,7 +171,7 @@ func TestReportMetricsSkipsStaleValues(t *testing.T) {
 	snapshot := []client.CachedValue{
 		{
 			Key: client.CacheKey{
-				Path: "/interfaces/interface/state/counters/in-octets",
+				Path: "/openconfig/interfaces/interface/state/counters/in-octets",
 				Keys: map[string]string{"name": "fresh"},
 			},
 			Entry: client.CacheEntry{
@@ -181,7 +181,7 @@ func TestReportMetricsSkipsStaleValues(t *testing.T) {
 		},
 		{
 			Key: client.CacheKey{
-				Path: "/interfaces/interface/state/counters/in-octets",
+				Path: "/openconfig/interfaces/interface/state/counters/in-octets",
 				Keys: map[string]string{"name": "stale"},
 			},
 			Entry: client.CacheEntry{
