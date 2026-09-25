@@ -34,6 +34,31 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
+	s := newTimeSeriesStorage()
+	result := s.Add("logs", "log.pattern.count", 1, 1, nil)
+	_, ok := s.GetContext(result.Ref)
+	require.False(t, ok)
+
+	s.SetContext(result.Ref, observer.MetricContext{Pattern: "first", Example: "first log"})
+	stored := s.seriesIDStats[result.Ref].context
+	first, ok := s.GetContext(result.Ref)
+	require.True(t, ok)
+
+	s.SetContext(result.Ref, observer.MetricContext{Pattern: "second", Example: "second log"})
+	require.Same(t, stored, s.seriesIDStats[result.Ref].context, "updates should reuse the series context allocation")
+	second, ok := s.GetContext(result.Ref)
+	require.True(t, ok)
+	assert.Equal(t, "first", first.Pattern)
+	assert.Equal(t, "first log", first.Example)
+	assert.Equal(t, "second", second.Pattern)
+	assert.Equal(t, "second log", second.Example)
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{result.Ref})
+	_, ok = s.GetContext(result.Ref)
+	assert.False(t, ok)
+}
+
 func TestTimeSeriesStorage_AddWithHostSeparatesIdenticalMetricAndTags(t *testing.T) {
 	s := newTimeSeriesStorage()
 	first := s.AddWithHost("test", "my.metric", "host-a", 10, 1000, []string{"env:prod"})

@@ -48,10 +48,11 @@ func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.Log
 		if strings.Contains(content, pattern) {
 			return observer.LogMetricsExtractorOutput{
 				Metrics: []observer.MetricOutput{{
-					Name:  "connection.errors",
-					Value: 1.0,
-					Tags:  tags,
-					Context: &observer.MetricContext{
+					Name:       "connection.errors",
+					Value:      1.0,
+					Tags:       tags,
+					HasContext: true,
+					Context: observer.MetricContext{
 						Pattern: pattern,
 						Example: truncate(log.GetContent(), 160),
 						Source:  "connection_error_extractor",

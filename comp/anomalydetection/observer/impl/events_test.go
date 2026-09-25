@@ -229,7 +229,7 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 	storage := newTimeSeriesStorage()
 	// Add a series and store context on it via SetContext.
 	addRes := storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
-	storage.SetContext(addRes.Ref, ctx)
+	storage.SetContext(addRes.Ref, *ctx)
 
 	anomalies := []observerdef.Anomaly{{
 		Source: observerdef.SeriesDescriptor{
@@ -262,6 +262,10 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 	assert.Equal(t, "error <*> timeout", got.Context.Pattern)
 	assert.Equal(t, "log_metrics_extractor", got.Context.Source)
 	assert.Contains(t, got.Context.Example, "very long example line")
+
+	storage.SetContext(addRes.Ref, observerdef.MetricContext{Pattern: "later", Example: "later log"})
+	assert.Equal(t, "error <*> timeout", got.Context.Pattern, "an emitted anomaly must keep its context snapshot")
+	assert.Contains(t, got.Context.Example, "very long example line")
 }
 
 func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
@@ -270,7 +274,7 @@ func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	addRes := storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
 	// Store context directly on the series.
-	storage.SetContext(addRes.Ref, &observerdef.MetricContext{Pattern: "p2", Example: "e2", Source: "second"})
+	storage.SetContext(addRes.Ref, observerdef.MetricContext{Pattern: "p2", Example: "e2", Source: "second"})
 
 	anomaly := observerdef.Anomaly{
 		Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},

@@ -38,8 +38,12 @@ func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.
 	}
 	return &meta
 }
-func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
-	return s.contexts[ref]
+func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) (observerdef.MetricContext, bool) {
+	context := s.contexts[ref]
+	if context == nil {
+		return observerdef.MetricContext{}, false
+	}
+	return *context, true
 }
 
 func TestFormatScorerContributorMessage(t *testing.T) {

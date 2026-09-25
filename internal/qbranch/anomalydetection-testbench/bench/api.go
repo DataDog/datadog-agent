@@ -1334,8 +1334,13 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 				if meta == nil {
 					continue
 				}
+				contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+				var context *observerdef.MetricContext
+				if hasContext {
+					context = &contextValue
+				}
 				report.Contributors = append(report.Contributors, scorerReportContributor{
-					Name:  scorerReportContributorName(meta, storage.GetContext(contributor.Handle.Ref), contributor.Handle.Aggregate),
+					Name:  scorerReportContributorName(meta, context, contributor.Handle.Aggregate),
 					Share: contributor.Share,
 				})
 			}

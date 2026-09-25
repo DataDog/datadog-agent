@@ -474,7 +474,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				continue
 			}
 			res := e.storage.AddWithHost(extractor.Name(), m.Name, host, m.Value, timestamp, tags)
-			if m.Context != nil && res.Ref >= 0 {
+			if m.HasContext && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
@@ -847,11 +847,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 // Context is written at ingest time via storage.SetContext when an extractor
 // emits a MetricOutput.Context; here we read it back in O(1).
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	ctx := e.storage.GetContext(a.SourceRef.Ref)
-	if ctx == nil {
-		return
+	if ctx, ok := e.storage.GetContext(a.SourceRef.Ref); ok {
+		a.Context = &ctx
 	}
-	a.Context = ctx
 }
 
 // processAnomaly sends an anomaly to all registered correlators.

@@ -136,7 +136,7 @@ func TestLogMetricsExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotNil(t, res.Metrics[0].Context)
+	require.True(t, res.Metrics[0].HasContext)
 
 	ctx := res.Metrics[0].Context
 	assert.Equal(t, "log_metrics_extractor", ctx.Source)
@@ -159,8 +159,8 @@ func TestLogMetricsExtractor_ContextDiffersPerTagSet(t *testing.T) {
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
 	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotNil(t, resA.Metrics[0].Context)
-	require.NotNil(t, resB.Metrics[0].Context)
+	require.True(t, resA.Metrics[0].HasContext)
+	require.True(t, resB.Metrics[0].HasContext)
 
 	ctxA := resA.Metrics[0].Context
 	ctxB := resB.Metrics[0].Context

@@ -1092,26 +1092,30 @@ func (s *timeSeriesStorage) removeSeries(stats *seriesStats) bool {
 	return true
 }
 
-// SetContext stores a MetricContext on the series identified by ref.
+// SetContext updates the MetricContext on the series identified by ref.
+// The first update allocates one context for the series; subsequent updates
+// reuse it. Readers receive snapshots rather than this mutable pointer.
 // No-op when ref is out of range or the series has been removed.
-func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx *observer.MetricContext) {
+func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx observer.MetricContext) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if stats := s.resolveByID(ref); stats != nil {
-		stats.context = ctx
+		if stats.context == nil {
+			stats.context = new(observer.MetricContext)
+		}
+		*stats.context = ctx
 	}
 }
 
-// GetContext returns the MetricContext stored on the series identified by ref.
-// Returns nil when ref is out of range, the series has been removed, or no
-// context was set.
-func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricContext {
+// GetContext returns a value snapshot of the series context. The SplitTags map
+// is shared and must remain immutable after being passed to SetContext.
+func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) (observer.MetricContext, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if stats := s.resolveByID(ref); stats != nil {
-		return stats.context
+	if stats := s.resolveByID(ref); stats != nil && stats.context != nil {
+		return *stats.context, true
 	}
-	return nil
+	return observer.MetricContext{}, false
 }
 
 // SetSupportedAggregations limits which interpretations detectors should use
