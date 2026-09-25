@@ -11,9 +11,6 @@ go_test(
     name = "client_lifecycle_test",
     srcs = [":client_lifecycle_test_src"],
     tags = ["manual"],
-    target_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:linux",
-    ],
+    target_compatible_with = ["@platforms//os:linux"],
     deps = ["@libdd_rc_source//:rcx509"],
 )

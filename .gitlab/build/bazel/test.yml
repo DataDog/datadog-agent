@@ -75,11 +75,10 @@ bazel:test:linux-amd64:
 bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
-# Deliberately manual and limited to Linux amd64 to validate the pinned
-# libdd-rc source through both its native build and public Go client lifecycle.
+# Deliberately manual to validate the pinned libdd-rc source through both its
+# native build and public Go client lifecycle on each supported Linux runner.
 # Keep native outputs on failures so CI runs provide enough evidence to refine
-bazel:rc-x509-ffi:linux-amd64:
-  extends: .bazel:runner:linux-amd64
+.bazel:rc-x509-ffi:linux:
   stage: source_test
   needs: []
   rules:
@@ -117,6 +116,12 @@ bazel:rc-x509-ffi:linux-amd64:
     when: always
     paths:
       - rc-x509-artifacts/
+
+bazel:rc-x509-ffi:linux-amd64:
+  extends: [.bazel:runner:linux-amd64, .bazel:rc-x509-ffi:linux]
+
+bazel:rc-x509-ffi:linux-arm64:
+  extends: [.bazel:runner:linux-arm64, .bazel:rc-x509-ffi:linux]
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
