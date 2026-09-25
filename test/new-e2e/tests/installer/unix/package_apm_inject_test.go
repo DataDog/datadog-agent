@@ -496,7 +496,7 @@ func (s *packageApmInjectSuite) TestAppArmor() {
 		assert.Equal(s.T(), string(baseBefore)+"\n"+appArmorLegacyInclude, string(baseAfter))
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
-	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
+	// isc-dhcp-client (dhclient) is baked into the Debian/Ubuntu e2e AMI.
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
 	assert.Contains(s.T(), res, "not injecting")
 

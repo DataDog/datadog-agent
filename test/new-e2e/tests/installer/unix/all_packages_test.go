@@ -214,7 +214,6 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host.ConfigureAptMirrors()
 	s.host.ConfigureYumMirrors()
 	s.disableUnattendedUpgrades()
-	s.updateCurlOnUbuntu()
 	s.updatePythonOnSuse()
 }
 
@@ -232,15 +231,6 @@ func (s *packageBaseSuite) disableUnattendedUpgrades() {
 	if _, err := s.Env().RemoteHost.Execute("which apt"); err == nil {
 		// Try to disable unattended-upgrades to avoid interfering with the tests, it can fail if it is not installed, we ignore errors
 		s.Env().RemoteHost.Execute("sudo apt remove -y unattended-upgrades") //nolint:errcheck
-	}
-}
-
-func (s *packageBaseSuite) updateCurlOnUbuntu() {
-	// There is an issue with the default cURL version on Ubuntu that causes sporadic
-	// SSL failures, and the fix is to update it.
-	// See https://stackoverflow.com/questions/72627218/openssl-error-messages-error0a000126ssl-routinesunexpected-eof-while-readin
-	if s.os.Flavor == e2eos.Ubuntu {
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt upgrade -y curl")
 	}
 }
 
@@ -367,7 +357,7 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	pathPrefix := ""
 	switch flavor.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
+		// ansible is baked into the Debian/Ubuntu e2e AMI (ami-builder provision-e2e-apt.sh).
 	case e2eos.Fedora:
 		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
 	case e2eos.CentOS:

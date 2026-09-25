@@ -434,9 +434,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// This works through nsswitch.conf without needing environment variables
 
 	// Install libnss-extrausers
-	if s.host.GetPkgManager() == "apt" {
-		s.host.Run("sudo apt-get update && sudo apt-get install -y libnss-extrausers")
-	} else if s.host.GetPkgManager() == "yum" {
+	if s.host.GetPkgManager() == "yum" {
 		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
 		if err != nil {
 			s.T().Skip("libnss-extrausers not available on this system")
