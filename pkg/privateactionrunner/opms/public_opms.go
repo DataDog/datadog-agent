@@ -200,13 +200,13 @@ func (p *publicClient) doEnrollRequest(ctx context.Context, url string, body []b
 		}
 	}()
 
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): check the API/application key and its required scopes, then restart the Private Action Runner", ErrEnrollmentUnauthorized, resp.StatusCode)
+	}
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and failed to read HTTP response with error %w", resp.StatusCode, err)
-	}
-
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, resp.StatusCode, fmt.Errorf("%w (HTTP %d): check the API/application key and its required scopes, then restart the Private Action Runner", ErrEnrollmentUnauthorized, resp.StatusCode)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, resp.StatusCode, fmt.Errorf("runner creation failed with HTTP status code %d and response %s", resp.StatusCode, string(respBody))
