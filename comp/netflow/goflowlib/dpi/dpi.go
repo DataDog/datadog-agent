@@ -40,8 +40,10 @@ func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mappe
 					continue
 				}
 				if app, found := mapper.lookupApplication(exporterIP, v); found {
-					fields["dpi.application_name"] = app.applicationName
-					fields["dpi.application_description"] = app.applicationDescription
+					fields["dpi"] = map[string]any{
+						"application_name":        app.applicationName,
+						"application_description": app.applicationDescription,
+					}
 				}
 			}
 			flowsFields = append(flowsFields, fields)

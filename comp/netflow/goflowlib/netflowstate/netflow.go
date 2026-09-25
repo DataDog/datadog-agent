@@ -99,10 +99,8 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 	}
 
 	timeTrackStart := time.Now()
-	s.Logger.Debugf("DEBUGTMP DecodeFlow received packet exporterIP=%s bytes=%d", key, len(pkt.Payload))
 	msgDec, err := netflow.DecodeMessageContext(s.ctx, buf, key, netflow.TemplateWrapper{Ctx: s.ctx, Key: key, Inner: s.TemplateSystem})
 	if err != nil {
-		s.Logger.Debugf("DEBUGTMP DecodeFlow decode error exporterIP=%s err=%v", key, err)
 		switch err.(type) {
 		case *netflow.ErrorTemplateNotFound:
 			utils.NetFlowErrors.With(
@@ -122,7 +120,6 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 		return err
 	}
 
-	s.Logger.Debugf("DEBUGTMP DecodeFlow decoded ok exporterIP=%s type=%T", key, msgDec)
 	s.sendTelemetryMetrics(msgDec, key)
 
 	flowMessageSet, err := producer.ProcessMessageNetFlowConfig(msgDec, sampling, s.configMapped)

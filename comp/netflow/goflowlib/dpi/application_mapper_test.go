@@ -42,24 +42,24 @@ func TestApplicationMapper_addToCache(t *testing.T) {
 			name:    "id and name present, with unrelated field ignored",
 			records: []netflow.OptionsDataRecord{validRecord},
 			check: func(t *testing.T, mapper *ApplicationMapper) {
-				app, ok := mapper.Lookup("10.0.0.1", 100)
+				app, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 				assert.True(t, ok, "unrelated option fields must not prevent caching")
 				assert.Equal(t, "HTTP", app.applicationName)
 				assert.Equal(t, "Hypertext Transfer Protocol", app.applicationDescription)
 
-				_, ok = mapper.Lookup("10.0.0.1", 101)
+				_, ok = mapper.lookupApplication("10.0.0.1", appIDtoBytes(101))
 				assert.False(t, ok, "unrelated application ids must not resolve")
 
 				dnsRecord := httpOptionsRecord(100)
 				dnsRecord.OptionsValues = []netflow.DataField{{Type: ipfixFieldApplicationName, Value: []byte("DNS\x00")}}
 				mapper.addToCache("10.0.0.2", []netflow.OptionsDataFlowSet{{Records: []netflow.OptionsDataRecord{dnsRecord}}})
 
-				app, ok = mapper.Lookup("10.0.0.2", 100)
+				app, ok = mapper.lookupApplication("10.0.0.2", appIDtoBytes(100))
 				assert.True(t, ok, "same application id from a different exporter must resolve independently")
 				assert.Equal(t, "DNS", app.applicationName)
 				assert.Empty(t, app.applicationDescription, "an options record with no description field must leave it empty")
 
-				app, ok = mapper.Lookup("10.0.0.1", 100)
+				app, ok = mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 				assert.True(t, ok, "caching a second exporter must not disturb the first")
 				assert.Equal(t, "HTTP", app.applicationName)
 			},
@@ -70,7 +70,7 @@ func TestApplicationMapper_addToCache(t *testing.T) {
 				{OptionsValues: []netflow.DataField{{Type: ipfixFieldApplicationName, Value: []byte("HTTP")}}},
 			},
 			check: func(t *testing.T, mapper *ApplicationMapper) {
-				_, ok := mapper.Lookup("10.0.0.1", 100)
+				_, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 				assert.False(t, ok)
 			},
 		},
@@ -80,7 +80,7 @@ func TestApplicationMapper_addToCache(t *testing.T) {
 				{ScopesValues: []netflow.DataField{{Type: ipfixFieldApplicationID, Value: appIDtoBytes(100)}}},
 			},
 			check: func(t *testing.T, mapper *ApplicationMapper) {
-				_, ok := mapper.Lookup("10.0.0.1", 100)
+				_, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 				assert.False(t, ok)
 			},
 		},
@@ -88,7 +88,7 @@ func TestApplicationMapper_addToCache(t *testing.T) {
 			name:    "record with no fields at all",
 			records: []netflow.OptionsDataRecord{{}},
 			check: func(t *testing.T, mapper *ApplicationMapper) {
-				_, ok := mapper.Lookup("10.0.0.1", 100)
+				_, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 				assert.False(t, ok)
 			},
 		},

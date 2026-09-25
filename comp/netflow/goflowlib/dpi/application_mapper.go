@@ -33,15 +33,22 @@ func NewApplicationMapper() *ApplicationMapper {
 	return &ApplicationMapper{apps: make(map[string]map[uint32]Application)}
 }
 
-func (m *ApplicationMapper) Lookup(exporterIP string, appID uint32) (Application, bool) {
+func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte) (Application, bool) {
+	var id uint64
+	if err := producer.DecodeUNumber(rawAppID, &id); err != nil {
+		return Application{}, false
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	apps, ok := m.apps[exporterIP]
 	if !ok {
 		return Application{}, false
 	}
-	app, ok := apps[appID]
-	return app, ok
+
+	app, found := apps[uint32(id)]
+	return app, found
 }
 
 func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []netflow.OptionsDataFlowSet) {
@@ -54,15 +61,6 @@ func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []n
 			}
 		}
 	}
-}
-
-func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte) (Application, bool) {
-	var id uint64
-	if err := producer.DecodeUNumber(rawAppID, &id); err != nil {
-		return Application{}, false
-	}
-	app, found := m.Lookup(exporterIP, uint32(id))
-	return app, found
 }
 
 func extractApplicationID(fields []netflow.DataField) (appID uint32, haveID bool) {

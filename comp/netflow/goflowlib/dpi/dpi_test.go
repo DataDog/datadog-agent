@@ -42,7 +42,7 @@ func TestProcessMessageApplicationNames_IPFIX(t *testing.T) {
 	fields = ProcessMessageApplicationNames(emptyPacket, "10.0.0.1", mapper)
 	assert.Nil(t, fields, "options records with no application id/name must not cause an error")
 
-	app, ok := mapper.Lookup("10.0.0.1", 100)
+	app, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 	assert.True(t, ok, "application-name caching must not require any fieldsConfig")
 	assert.Equal(t, "HTTP", app.applicationName)
 	assert.Equal(t, "Hypertext Transfer Protocol", app.applicationDescription)
@@ -61,7 +61,7 @@ func TestProcessMessageApplicationNames_IPFIX(t *testing.T) {
 	}
 	fields = ProcessMessageApplicationNames(dataPacket, "10.0.0.1", mapper)
 	assert.Equal(t, []common.AdditionalFields{
-		{"dpi.application_name": "HTTP", "dpi.application_description": "Hypertext Transfer Protocol"},
+		{"dpi": map[string]any{"application_name": "HTTP", "application_description": "Hypertext Transfer Protocol"}},
 		{},
 	}, fields, "one entry per flow record, in order, resolving known application ids and leaving unknown ones empty")
 }
