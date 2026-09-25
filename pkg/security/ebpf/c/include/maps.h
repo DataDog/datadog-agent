@@ -75,9 +75,12 @@ BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
 // the one drop that leaves no other trace in any map. See describeADKernelState.
 BPF_LRU_MAP(ad_cgroup_reserve_failed, u64, u64, 512)
 // Debug aid: exec_dentry_open_stamp records, per tgid, which task ran handle_exec_event()
-// and the ctx_id it saw; send_exec_event() consumes it and, only when the resulting file
-// path_key is 0/0, records the comparison in exec_zero_key_diag for userspace to log.
+// and the ctx_id it saw. send_exec_event() folds it into exec_zero_key_diag, which it
+// writes for every exec so that a missing record is itself informative.
 BPF_LRU_MAP(exec_dentry_open_stamp, u32, struct exec_open_stamp_t, 1024)
+// written by trace__sys_execveat under the pid_tgid the exec entry is cached under, so
+// send_exec_event can tell whether the entry it popped is the one that execve created
+BPF_LRU_MAP(exec_entry_stamp, u64, u32, 4096)
 BPF_LRU_MAP(exec_zero_key_diag, u32, struct exec_zero_key_diag_t, 1024)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime

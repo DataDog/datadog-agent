@@ -50,6 +50,7 @@ var bpfMapNames = []string{
 	"events_ringbuf_",
 	"events_stats",
 	"exec_dentry_ope",
+	"exec_entry_stam",
 	"exec_pid_transf",
 	"exec_zero_key_d",
 	"fb_approver_sta",

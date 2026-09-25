@@ -268,6 +268,17 @@ func (p *EBPFProbe) selectSyscallTaskStorageMode() {
 		return
 	}
 
+	// the zero-key execs seen so far are confined to kernels that land on the LRU hash
+	// fallback, so record which side of that boundary a run is on rather than inferring it
+	// from the distro's kernel version afterwards
+	defer func() {
+		mode := "LRU hash (pre-5.11 fallback)"
+		if p.useSyscallTaskStorage {
+			mode = "task storage"
+		}
+		seclog.Warnf("syscall cache mode: %s (kernel %s)", mode, p.kernelVersion.Code)
+	}()
+
 	var supported bool
 	var programType lib.ProgramType
 	if p.useFentry {
@@ -1441,8 +1452,20 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if eventType == model.ExecEventType && event.ProcessCacheEntry != nil &&
 		event.ProcessCacheEntry.Source != model.ProcessCacheEntryFromPlaceholder {
 		if f := &event.ProcessCacheEntry.FileEvent; f.Inode == 0 && f.MountID == 0 {
-			seclog.Errorf("zero exec path_key for pid %d (%s): %s",
+			// report both key views: the cache entry's and the exec event's own. They are
+			// copied from the same kernel field, so a divergence localises the loss to
+			// userspace rather than the probe.
+			var execIno uint64
+			var execMountID uint32
+			if event.Exec.Process != nil {
+				execIno, execMountID = event.Exec.Process.FileEvent.Inode, event.Exec.Process.FileEvent.MountID
+			}
+			seclog.Errorf("zero exec path_key for pid %d (%s): pce_key=%d/%d exec_key=%d/%d "+
+				"event_source=%s entry_source=%s event_ctx_id=%d | %s",
 				event.ProcessCacheEntry.Pid, event.ProcessCacheEntry.Comm,
+				f.Inode, f.MountID, execIno, execMountID,
+				event.Source, processEntrySource(event.ProcessCacheEntry.Source),
+				event.Exec.SyscallContext.ID,
 				p.describeZeroExecKey(event.ProcessCacheEntry.Pid))
 		}
 	}
@@ -1453,49 +1476,63 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	return true
 }
 
-// execZeroKeyDiag mirrors struct exec_zero_key_diag_t. Keep it padding-free so that
-// binary.Size equals unsafe.Sizeof, otherwise Lookup fails at runtime.
+// execZeroKeyDiag mirrors struct exec_zero_key_diag_t. Keep it padding-free and in the
+// same field order so binary.Size equals unsafe.Sizeof, otherwise Lookup fails at runtime.
 type execZeroKeyDiag struct {
-	OpenPIDTGID uint64
-	SendPIDTGID uint64
-	OpenCtxID   uint32
-	SendCtxID   uint32
+	SendPIDTGID  uint64
+	OpenPIDTGID  uint64
+	EntryIno     uint64
+	EntryMountID uint32
+	SendCtxID    uint32
+	OpenCtxID    uint32
+	StampedCtxID uint32
+	Flags        uint32
+	Padding      uint32
 }
 
-// describeZeroExecKey reports whether handle_exec_event() -- the only writer of
-// syscall->exec.file.path_key -- ran for this exec, and whether it worked on the same
-// syscall cache entry that send_exec_event() popped. A missing stamp means the hook never
-// ran; differing ctx_ids mean the two hooks saw different entries, which would account for
-// both the zero key and the unrelated pathname the syscall context reports.
+const (
+	execDiagHasDentry = 1 << iota
+	execDiagHasOpenStamp
+	execDiagHasEntryStamp
+)
+
+// describeZeroExecKey reports what the kernel recorded for an exec whose file path_key
+// reached userspace as 0/0. The diag is written for every exec, so a missing record now
+// means send_exec_event did not run, rather than being ambiguous with "the key was fine".
 func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
 	m, _, err := p.Manager.Get().GetMap("exec_zero_key_diag")
 	if err != nil || m == nil {
 		return fmt.Sprintf("exec_zero_key_diag unavailable (%v)", err)
 	}
 
-	var diag execZeroKeyDiag
-	if err := m.Lookup(pid, &diag); err != nil {
-		return fmt.Sprintf("no exec_zero_key_diag entry for tgid %d (%v)", pid, err)
+	var d execZeroKeyDiag
+	if err := m.Lookup(pid, &d); err != nil {
+		return fmt.Sprintf("send_exec_event recorded nothing for tgid %d (%v)", pid, err)
 	}
 
-	openPid, openTid := uint32(diag.OpenPIDTGID>>32), uint32(diag.OpenPIDTGID)
-	sendPid, sendTid := uint32(diag.SendPIDTGID>>32), uint32(diag.SendPIDTGID)
-
-	// ctx_id identifies the execve syscall, so it is the only thing that ties a stamp to
-	// this exec: equal ids mean the same entry, and then a zero key cannot be explained by
-	// the hook having been skipped.
+	// The stamp is what ties the popped entry to an execve. ctx_ids come from
+	// collect_syscall_ctx starting at 1, so 0 means the entry was never initialised there.
 	var verdict string
 	switch {
-	case diag.OpenPIDTGID == 0:
-		verdict = "handle_exec_event never ran for this tgid"
-	case diag.OpenCtxID != diag.SendCtxID:
-		verdict = "MISMATCH: the stamp belongs to another execve, so handle_exec_event did not run for this one"
+	case d.Flags&execDiagHasEntryStamp == 0:
+		verdict = "no execve stamp for this pid_tgid: the popped entry was cached under another key"
+	case d.StampedCtxID != d.SendCtxID:
+		verdict = fmt.Sprintf("POPPED A FOREIGN ENTRY: execve stamped ctx_id %d but the entry carries %d", d.StampedCtxID, d.SendCtxID)
+	case d.EntryIno != 0 || d.EntryMountID != 0:
+		verdict = "the kernel had a valid key here, so it was lost after send_exec_event"
+	case d.Flags&execDiagHasDentry == 0:
+		verdict = "right entry, but exec.dentry is NULL: do_dentry_open never populated the key"
 	default:
-		verdict = "same entry, so the key was zeroed with the hook having run"
+		verdict = "right entry with a dentry, yet the key is zero"
 	}
 
-	return fmt.Sprintf("open_task=%d/%d open_ctx_id=%d send_task=%d/%d send_ctx_id=%d -> %s",
-		openPid, openTid, diag.OpenCtxID, sendPid, sendTid, diag.SendCtxID, verdict)
+	return fmt.Sprintf("send_task=%d/%d send_ctx_id=%d stamped_ctx_id=%d(present=%t) "+
+		"kernel_key=%d/%d dentry=%t open_task=%d/%d open_ctx_id=%d(present=%t) -> %s",
+		uint32(d.SendPIDTGID>>32), uint32(d.SendPIDTGID), d.SendCtxID,
+		d.StampedCtxID, d.Flags&execDiagHasEntryStamp != 0,
+		d.EntryIno, d.EntryMountID, d.Flags&execDiagHasDentry != 0,
+		uint32(d.OpenPIDTGID>>32), uint32(d.OpenPIDTGID), d.OpenCtxID,
+		d.Flags&execDiagHasOpenStamp != 0, verdict)
 }
 
 func (p *EBPFProbe) zeroEvent() *model.Event {
