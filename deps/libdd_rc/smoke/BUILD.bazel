@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_test")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 genrule(
     name = "client_lifecycle_test_src",
@@ -13,4 +14,9 @@ go_test(
     tags = ["manual"],
     target_compatible_with = ["@platforms//os:linux"],
     deps = ["@libdd_rc_source//:rcx509"],
+)
+
+dd_agent_go_test(
+    name = "smoke_test",
+    srcs = ["client_lifecycle_generated_test.go"],
 )
