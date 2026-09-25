@@ -6,9 +6,16 @@
 // We use a power of 2 array size so the upper bound of a map
 // access can be easily constrained with an 'and' operation
 #define T_MAX_ERRNO 64
+#define MAX_CPUS 128
+
+typedef struct {
+    unsigned long count;
+    char pad[56];
+} update_op_t;
 
 typedef struct {
     unsigned long err_count[T_MAX_ERRNO];
+    update_op_t update_ops[MAX_CPUS];
 } map_err_telemetry_t;
 
 #define bpf_probe_read_indx         0

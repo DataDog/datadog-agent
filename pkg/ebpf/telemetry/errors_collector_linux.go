@@ -28,6 +28,7 @@ type EBPFErrorsCollector struct {
 	t            ebpfErrorsTelemetry
 	mapOpsErrors *prometheus.CounterVec
 	helperErrors *prometheus.CounterVec
+	updateOps    *prometheus.CounterVec
 	lastValues   map[metricKey]uint64
 }
 
@@ -53,6 +54,14 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 			},
 			[]string{"map_name", "error", "module"},
 		),
+		updateOps: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Subsystem: "ebpf__maps",
+				Name:      "_updates",
+				Help:      "Update operations for a specific ebpf map reported per map",
+			},
+			[]string{"map_name", "module"},
+		),
 		helperErrors: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Subsystem: "ebpf__helpers",
@@ -69,6 +78,7 @@ func NewEBPFErrorsCollector() prometheus.Collector {
 func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
 	e.mapOpsErrors.Describe(ch)
 	e.helperErrors.Describe(ch)
+	e.updateOps.Describe(ch)
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -81,7 +91,7 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	e.t.forEachMapErrorEntryInMaps(func(tKey telemetryKey, eBPFKey uint64, val mapErrTelemetry) bool {
-		if count := getErrCount(val.Count[:]); len(count) > 0 {
+		if count := getErrCount(val.Err_count[:]); len(count) > 0 {
 			for errStr, errCount := range count {
 				key := metricKey{
 					hash: eBPFKey,
@@ -95,6 +105,21 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 				e.lastValues[key] = errCount
 			}
 		}
+
+		// update_ops is a per-CPU sharded counter: each CPU increments its own
+		// cache-line-aligned slot, so the map-wide total is the sum of all slots.
+		updates := sumUpdateOps(val.Update_ops[:])
+		updKey := metricKey{
+			hash: eBPFKey,
+			id:   mapUpdateOps,
+		}
+		// Compare before subtracting: these are uint64 counters, and a map that was
+		// torn down and re-created restarts at zero.
+		if last := e.lastValues[updKey]; updates > last {
+			e.updateOps.WithLabelValues(tKey.resourceName.Name(), tKey.moduleName.Name()).Add(float64(updates - last))
+		}
+		e.lastValues[updKey] = updates
+
 		return true
 	})
 
@@ -122,6 +147,15 @@ func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
 
 	e.mapOpsErrors.Collect(ch)
 	e.helperErrors.Collect(ch)
+	e.updateOps.Collect(ch)
+}
+
+func sumUpdateOps(v []updateOp) uint64 {
+	var total uint64
+	for i := range v {
+		total += v[i].Count
+	}
+	return total
 }
 
 func getErrCount(v []uint64) map[string]uint64 {

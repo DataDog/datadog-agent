@@ -15,3 +15,7 @@ func TestCgoAlignment_mapErrTelemetry(t *testing.T) {
 func TestCgoAlignment_helperErrTelemetry(t *testing.T) {
 	ebpftest.TestCgoAlignment[helperErrTelemetry](t)
 }
+
+func TestCgoAlignment_updateOp(t *testing.T) {
+	ebpftest.TestCgoAlignment[updateOp](t)
+}

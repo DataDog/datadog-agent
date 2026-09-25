@@ -8,6 +8,8 @@
 package telemetry
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -129,14 +131,14 @@ func TestEBPFErrorsCollector_SingleCollect(t *testing.T) {
 				resourceName: &MockMapName{n: mockMapName},
 				moduleName:   names.NewModuleName("m1"),
 			},
-		}: {Count: [64]uint64{mapErrorsMockValue}},
+		}: {Err_count: [64]uint64{mapErrorsMockValue}},
 		{
 			eBPFKey: 2,
 			tKey: telemetryKey{
 				resourceName: &MockMapName{n: mockMapName},
 				moduleName:   names.NewModuleName("m2"),
 			},
-		}: {Count: [64]uint64{mapErrorsMockValue}},
+		}: {Err_count: [64]uint64{mapErrorsMockValue}},
 	}
 
 	helperEntries := map[telemetryIndex]helperErrTelemetry{
@@ -235,14 +237,14 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 				resourceName: &MockMapName{n: mockMapName},
 				moduleName:   names.NewModuleName("m1"),
 			},
-		}: {Count: [64]uint64{mapErrorsMockValue1}},
+		}: {Err_count: [64]uint64{mapErrorsMockValue1}},
 		{
 			eBPFKey: 2,
 			tKey: telemetryKey{
 				resourceName: &MockMapName{n: mockMapName},
 				moduleName:   names.NewModuleName("m2"),
 			},
-		}: {Count: [64]uint64{mapErrorsMockValue1}},
+		}: {Err_count: [64]uint64{mapErrorsMockValue1}},
 	}
 
 	helperEntries := map[telemetryIndex]helperErrTelemetry{
@@ -303,14 +305,14 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 					resourceName: &MockMapName{n: mockMapName},
 					moduleName:   names.NewModuleName("m1"),
 				},
-			}: {Count: [64]uint64{mapErrorsMockValue2}},
+			}: {Err_count: [64]uint64{mapErrorsMockValue2}},
 			{
 				eBPFKey: 2,
 				tKey: telemetryKey{
 					resourceName: &MockMapName{n: mockMapName},
 					moduleName:   names.NewModuleName("m2"),
 				},
-			}: {Count: [64]uint64{mapErrorsMockValue2}},
+			}: {Err_count: [64]uint64{mapErrorsMockValue2}},
 		},
 		helperErrMap: map[telemetryIndex]helperErrTelemetry{
 			{
@@ -372,4 +374,184 @@ func TestEBPFErrorsCollector_DoubleCollect(t *testing.T) {
 	for _, expected := range expectedMetrics {
 		require.True(t, expected.discovered, "expected metric (%v %v) not found", expected.value, expected)
 	}
+}
+
+const updateOpsFQName = "ebpf__maps__updates"
+
+// mapErrWithUpdateOps builds a mapErrTelemetry with the given per-CPU update_ops
+// counts, keyed by CPU index. Err_count is left zeroed so that a Collect over these
+// entries emits update metrics only.
+func mapErrWithUpdateOps(counts map[int]uint64) mapErrTelemetry {
+	var val mapErrTelemetry
+	for cpu, count := range counts {
+		val.Update_ops[cpu].Count = count
+	}
+	return val
+}
+
+// lastCPUSlot is the highest valid index into update_ops, derived from the generated
+// struct so the tests do not hardcode MAX_CPUS.
+func lastCPUSlot() int {
+	var val mapErrTelemetry
+	return len(val.Update_ops) - 1
+}
+
+func mapKey(eBPFKey uint64, module string) telemetryIndex {
+	return telemetryIndex{
+		eBPFKey: eBPFKey,
+		tKey: telemetryKey{
+			resourceName: &MockMapName{n: mockMapName},
+			moduleName:   names.NewModuleName(module),
+		},
+	}
+}
+
+type collectedMetric struct {
+	value  float64
+	labels map[string]string
+}
+
+// collectByName runs one Collect cycle and returns the counters whose fully-qualified
+// name is fqName, with labels flattened into a map.
+func collectByName(t *testing.T, collector prometheus.Collector, fqName string) []collectedMetric {
+	t.Helper()
+
+	ch := make(chan prometheus.Metric)
+	go func() {
+		collector.Collect(ch)
+		close(ch)
+	}()
+
+	descMatch := fmt.Sprintf("fqName: %q", fqName)
+	var out []collectedMetric
+	for m := range ch {
+		if !strings.Contains(m.Desc().String(), descMatch) {
+			continue
+		}
+
+		dtoMetric := dto.Metric{}
+		require.NoError(t, m.Write(&dtoMetric), "failed to parse metric %v", m.Desc())
+		require.NotNilf(t, dtoMetric.GetCounter(), "expected metric %v to be of a counter type", m.Desc())
+
+		labels := make(map[string]string, len(dtoMetric.GetLabel()))
+		for _, label := range dtoMetric.GetLabel() {
+			labels[label.GetName()] = label.GetValue()
+		}
+		out = append(out, collectedMetric{value: dtoMetric.GetCounter().GetValue(), labels: labels})
+	}
+
+	return out
+}
+
+// TestEBPFErrorsCollector_UpdateOpsSummedAcrossCPUs validates that update_ops, which is
+// sharded per-CPU in the eBPF map, is reported as the sum over every CPU slot.
+func TestEBPFErrorsCollector_UpdateOpsSummedAcrossCPUs(t *testing.T) {
+	//skip this test on unsupported kernel versions
+	if ok, _ := EBPFTelemetrySupported(); !ok {
+		t.SkipNow()
+	}
+
+	// spread the counts over the first, an interior, and the final CPU slot so a
+	// truncated sum over the array would be caught
+	counts := map[int]uint64{0: 3, 1: 5, 7: 11, lastCPUSlot(): 13}
+	var expected uint64
+	for _, c := range counts {
+		expected += c
+	}
+
+	telemetry := &mockErrorsTelemetry{
+		mapErrMap: map[telemetryIndex]mapErrTelemetry{
+			mapKey(1, "m1"): mapErrWithUpdateOps(counts),
+		},
+		helperErrMap: map[telemetryIndex]helperErrTelemetry{},
+	}
+	collector := createTestCollector(telemetry)
+	assert.NotNil(t, collector, "expected collector to be created")
+
+	metrics := collectByName(t, collector, updateOpsFQName)
+	require.Len(t, metrics, 1, "expected a single update metric")
+	assert.Equal(t, float64(expected), metrics[0].value, "expected the sum of all per-CPU slots")
+	// update counts carry no errno dimension, so the label set is map_name/module only
+	assert.Equal(t, map[string]string{"map_name": mockMapName, "module": "m1"}, metrics[0].labels)
+}
+
+// TestEBPFErrorsCollector_UpdateOpsDoubleCollect validates that a second collect adds
+// only the delta, leaving the counter at the current eBPF total.
+func TestEBPFErrorsCollector_UpdateOpsDoubleCollect(t *testing.T) {
+	//skip this test on unsupported kernel versions
+	if ok, _ := EBPFTelemetrySupported(); !ok {
+		t.SkipNow()
+	}
+
+	telemetry := &mockErrorsTelemetry{
+		mapErrMap: map[telemetryIndex]mapErrTelemetry{
+			mapKey(1, "m1"): mapErrWithUpdateOps(map[int]uint64{0: 20, 3: 12}),
+		},
+		helperErrMap: map[telemetryIndex]helperErrTelemetry{},
+	}
+	collector := createTestCollector(telemetry)
+	assert.NotNil(t, collector, "expected collector to be created")
+
+	metrics := collectByName(t, collector, updateOpsFQName)
+	require.Len(t, metrics, 1, "expected a single update metric")
+	assert.Equal(t, float64(32), metrics[0].value)
+
+	//grow the per-CPU counters before the second collect
+	collector.(*EBPFErrorsCollector).t = &mockErrorsTelemetry{
+		mapErrMap: map[telemetryIndex]mapErrTelemetry{
+			mapKey(1, "m1"): mapErrWithUpdateOps(map[int]uint64{0: 50, 3: 30, 9: 20}),
+		},
+		helperErrMap: map[telemetryIndex]helperErrTelemetry{},
+	}
+
+	metrics = collectByName(t, collector, updateOpsFQName)
+	require.Len(t, metrics, 1, "expected a single update metric")
+	// 32 from the first collect plus a delta of 68
+	assert.Equal(t, float64(100), metrics[0].value, "expected the counter to track the eBPF total")
+}
+
+// TestEBPFErrorsCollector_UpdateOpsCounterReset validates that a map torn down and
+// re-created, which restarts update_ops at zero, does not emit a spike from an
+// underflowing uint64 subtraction.
+func TestEBPFErrorsCollector_UpdateOpsCounterReset(t *testing.T) {
+	//skip this test on unsupported kernel versions
+	if ok, _ := EBPFTelemetrySupported(); !ok {
+		t.SkipNow()
+	}
+
+	telemetry := &mockErrorsTelemetry{
+		mapErrMap: map[telemetryIndex]mapErrTelemetry{
+			mapKey(1, "m1"): mapErrWithUpdateOps(map[int]uint64{0: 50}),
+			mapKey(2, "m2"): mapErrWithUpdateOps(map[int]uint64{0: 50}),
+		},
+		helperErrMap: map[telemetryIndex]helperErrTelemetry{},
+	}
+	collector := createTestCollector(telemetry)
+	assert.NotNil(t, collector, "expected collector to be created")
+
+	metrics := collectByName(t, collector, updateOpsFQName)
+	require.Len(t, metrics, 2, "expected one update metric per map entry")
+	for _, m := range metrics {
+		assert.Equal(t, float64(50), m.value)
+	}
+
+	//m1 regressed to 10, as if the map had been re-created; m2 kept counting
+	collector.(*EBPFErrorsCollector).t = &mockErrorsTelemetry{
+		mapErrMap: map[telemetryIndex]mapErrTelemetry{
+			mapKey(1, "m1"): mapErrWithUpdateOps(map[int]uint64{0: 10}),
+			mapKey(2, "m2"): mapErrWithUpdateOps(map[int]uint64{0: 80}),
+		},
+		helperErrMap: map[telemetryIndex]helperErrTelemetry{},
+	}
+
+	metrics = collectByName(t, collector, updateOpsFQName)
+	require.Len(t, metrics, 2, "expected one update metric per map entry")
+
+	byModule := make(map[string]float64, len(metrics))
+	for _, m := range metrics {
+		byModule[m.labels["module"]] = m.value
+	}
+	//the regressed entry must hold its previous value rather than wrap to ~1.8e19
+	assert.Equal(t, float64(50), byModule["m1"], "a counter reset must not emit a spike")
+	assert.Equal(t, float64(80), byModule["m2"], "an entry that kept counting must report its delta")
 }
