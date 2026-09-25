@@ -81,7 +81,8 @@ disable_error_code = []
 
 [tool.vulture]
 ignore_decorators = ["@task", "@field_validator"]
-ignore_names = ["test_*", "Test*", "model_config"]
+# The standard library invokes HTTP handler callbacks without explicit callers in the tests.
+ignore_names = ["test_*", "Test*", "model_config", "do_GET", "log_message"]
 paths = ["tasks"]
 
 [tool.ddev]

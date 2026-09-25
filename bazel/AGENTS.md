@@ -8,9 +8,13 @@ conventions for working with Bazel in this codebase. The repo targets **Bazel 9*
 Use `bazelisk` (or the `bazel` symlink it installs) to invoke Bazel. Bazelisk automatically selects the version
 specified in `.bazelversion`. Never invoke a pinned `bazel` binary directly — the version must match.
 
+Developer-facing commands assume the [repository tool setup](../doc/setup/required.md), including full mise shell activation.
+
+Build rules invoking manifest-defined tools must use the shared action helper described in the [DotSlash adapter](dotslash/README.md), so the selected runtime's inputs, environment, and execution requirements apply to each action.
+
 ```sh
 # Format and lint all BUILD/.bzl files
-bazel run //bazel/buildifier
+dda inv linter.buildifier --fix
 
 # Resolve and fetch all external deps (updates MODULE.bazel.lock as a side-effect)
 bazel mod deps
@@ -197,7 +201,7 @@ generators and for other languages, sourced from third-party rulesets or written
 
 ```sh
 bazel run //:gazelle -- ./path/to/package   # generate or update BUILD.bazel
-bazel run //bazel/buildifier                # format
+dda inv linter.buildifier --fix             # format
 ```
 
 Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extension's job is precisely to keep that
@@ -265,8 +269,7 @@ case-sensitive filesystem — Docker Desktop can expose the two as the same inod
 
 ### Formatting and structure
 
-- `buildifier` is mandatory. Run `bazel run //bazel/buildifier` before committing. It is the single source of truth for
-  formatting — do not debate style in code review.
+- `buildifier` is mandatory. Run `dda inv linter.buildifier --fix` before committing. It is the single source of truth for formatting, so do not debate style in code review.
 - File structure order: package description comment → `load()` statements → `package()` → rules (leaves first).
 - Standalone comments (not attached to a specific rule) require an empty line after them; attached comments do not.
 - Single blank line between top-level definitions.

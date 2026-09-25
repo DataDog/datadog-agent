@@ -1,5 +1,5 @@
 # dotagents declarations for this repo (https://github.com/getsentry/dotagents).
-# Run `mise run dotagents install` (or `sync`) to write each tool's MCP config.
+# Run `dotagents install` (or `dotagents sync`) to write each tool's MCP config.
 agents = ["claude", "codex", "cursor", "vscode", "opencode"]
 
 [[mcp]]

@@ -1,0 +1,82 @@
+#!/usr/bin/env dotslash
+{
+  "name": "buildifier",
+  "metadata": {
+    "native_check": {
+      "command": ["buildifier", "-version"],
+      "pattern": "(?m)^buildifier version: \\S+"
+    }
+  },
+  "platforms": {
+    "macos-x86_64": {
+      "size": 10050384,
+      "hash": "sha256",
+      "digest": "e9e10ff52ec8786fcabccd251c8109ebf31ef7be1f667e27c6e069b96dbdc1f6",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-darwin-amd64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-darwin-amd64"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 9596226,
+      "hash": "sha256",
+      "digest": "e9804864c407f920f5ecbf03a5e056a8145e11a6ae6b90d2438a3fd106d34473",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-darwin-arm64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-darwin-arm64"
+        }
+      ]
+    },
+    "linux-x86_64": {
+      "size": 10029304,
+      "hash": "sha256",
+      "digest": "31b6a8aa1e5c746696788f428729701770ad91925873d8256cb885c60e12c77e",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-linux-amd64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-linux-amd64"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 9561790,
+      "hash": "sha256",
+      "digest": "38d2ed845f560b4a16ddee41de906508a95f8dc85b04e0851b0a71e3a70d3890",
+      "path": "buildifier",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-linux-arm64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-linux-arm64"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 10471424,
+      "hash": "sha256",
+      "digest": "931a6e9c3844b90ccdb1467ccacd8dd72457e308d2709d624a3c5880d835ac3c",
+      "path": "buildifier.exe",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-windows-amd64.exe"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildifier-windows-amd64.exe"
+        }
+      ]
+    }
+  }
+}

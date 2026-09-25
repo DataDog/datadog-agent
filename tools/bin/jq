@@ -1,0 +1,85 @@
+#!/usr/bin/env dotslash
+{
+  "name": "jq",
+  "metadata": {
+    "native_check": {
+      "command": [
+        "jq",
+        "--version"
+      ],
+      "pattern": "(?m)^jq-\\S+"
+    }
+  },
+  "platforms": {
+    "linux-x86_64": {
+      "size": 2255816,
+      "hash": "sha256",
+      "digest": "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d",
+      "path": "jq",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+        },
+        {
+          "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 1797872,
+      "hash": "sha256",
+      "digest": "6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4",
+      "path": "jq",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+        },
+        {
+          "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"
+        }
+      ]
+    },
+    "macos-x86_64": {
+      "size": 855272,
+      "hash": "sha256",
+      "digest": "e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f",
+      "path": "jq",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
+        },
+        {
+          "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 841408,
+      "hash": "sha256",
+      "digest": "a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603",
+      "path": "jq",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"
+        },
+        {
+          "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 1026560,
+      "hash": "sha256",
+      "digest": "23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334",
+      "path": "jq.exe",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
+        },
+        {
+          "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
+        }
+      ]
+    }
+  }
+}

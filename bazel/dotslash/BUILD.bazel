@@ -1,0 +1,10 @@
+exports_files([
+    "defs.bzl",
+    "repositories.bzl",
+    "toolchain.bzl",
+])
+
+toolchain_type(
+    name = "toolchain_type",
+    visibility = ["//visibility:public"],
+)

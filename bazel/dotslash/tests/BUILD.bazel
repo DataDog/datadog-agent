@@ -1,0 +1,32 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//bazel/dotslash:toolchain.bzl", "host_dotslash_toolchain")
+load(":fixtures.bzl", "format_fixture")
+
+py_binary(
+    name = "capture",
+    srcs = ["capture.py"],
+    tags = ["manual"],
+)
+
+format_fixture(
+    name = "formatted",
+    src = "input.txt",
+    tags = ["manual"],
+    tool = "//tools/bin:buildifier_tool",
+)
+
+host_dotslash_toolchain(
+    name = "unavailable_runtime",
+    discovery = "//:mise.toml",
+    dotslash = "",
+    environment = {},
+    error = "The alternate DotSlash runtime was selected.",
+    tags = ["manual"],
+)
+
+toolchain(
+    name = "unavailable_toolchain",
+    tags = ["manual"],
+    toolchain = ":unavailable_runtime",
+    toolchain_type = "//bazel/dotslash:toolchain_type",
+)
