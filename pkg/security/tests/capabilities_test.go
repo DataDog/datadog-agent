@@ -202,7 +202,13 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, "capabilities", event.GetType(), "wrong event type")
 			assert.Equal(t, "test_capabilities_host_userns_netlink_capable", rule.ID, "wrong rule ID")
 			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.CapabilitiesUsage.Used, "wrong capabilities used")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.CapabilitiesUsage.Attempted, "wrong capabilities attempted")
 			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.CapabilitiesUsage.UsedHostUserNS, "wrong capabilities used in the initial user namespace")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.CapabilitiesUsage.AttemptedHostUserNS, "wrong capabilities attempted in the initial user namespace")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_AUDIT_WRITE), "wrong capabilities used")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_AUDIT_WRITE), "wrong capabilities attempted")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.ProcessCacheEntry.CapsUsedHostUserNS&(1<<unix.CAP_AUDIT_WRITE), "wrong capabilities used in the initial user namespace")
+			assert.Equal(t, uint64(1<<unix.CAP_AUDIT_WRITE), event.ProcessCacheEntry.CapsAttemptedHostUserNS&(1<<unix.CAP_AUDIT_WRITE), "wrong capabilities attempted in the initial user namespace")
 		}, "test_capabilities_host_userns_netlink_capable")
 	})
 
