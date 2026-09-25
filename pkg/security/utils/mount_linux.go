@@ -112,7 +112,7 @@ func GetFSTypeFromFilePath(path string) string {
 		return ""
 	}
 	for _, m := range magic2fs {
-		if m.magic == s.Type {
+		if m.magic == int64(s.Type) {
 			return m.fs
 		}
 	}
