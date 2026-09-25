@@ -6,6 +6,7 @@
 package transform
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -1545,4 +1546,215 @@ func TestScopeConvention(t *testing.T) {
 			}
 		})
 	}
+}
+
+// buildReadOnlySafetyCorpus builds traces exercising every span feature the DDOT traces
+// path touches.
+func buildReadOnlySafetyCorpus() ptrace.Traces {
+	traces := ptrace.NewTraces()
+	rspan := traces.ResourceSpans().AppendEmpty()
+
+	rattrs := rspan.Resource().Attributes()
+	rattrs.PutStr("service.name", "readonly-svc")
+	rattrs.PutStr("deployment.environment.name", "prod")
+	rattrs.PutStr("service.version", "1.2.3")
+	rattrs.PutStr("host.name", "test-host")
+	rattrs.PutStr("container.id", "abcdef0123456789")
+	rattrs.PutStr("container.name", "test-container")
+	rattrs.PutStr("container.image.name", "datadog/agent")
+	rattrs.PutStr("container.image.tag", "7")
+	rattrs.PutStr("k8s.pod.uid", "pod-uid-1")
+	rattrs.PutStr("k8s.namespace.name", "default")
+	rattrs.PutStr("k8s.node.name", "node-1")
+	rattrs.PutStr("k8s.deployment.name", "deploy-1")
+	rattrs.PutStr("aws.ecs.task.arn", "arn:aws:ecs:us-east-1:123456789012:task/abc")
+	rattrs.PutStr("cloud.provider", "aws")
+	rattrs.PutStr("cloud.region", "us-east-1")
+
+	sspan := rspan.ScopeSpans().AppendEmpty()
+	sspan.Scope().SetName("test-scope")
+	sspan.Scope().SetVersion("v0.1.0")
+	sspan.Scope().Attributes().PutStr("scope.attr", "scope-value")
+
+	span := sspan.Spans().AppendEmpty()
+	span.SetName("readonly-span")
+	span.SetKind(ptrace.SpanKindServer)
+	span.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	span.SetSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+	span.TraceState().FromRaw("dd=p:0123456789abcdef;s:1")
+	// Post-2000 so normalize.FixStartTime leaves them alone: it rewrites older start
+	// times to time.Now(), which would make the converted span non-deterministic.
+	span.SetStartTimestamp(pcommon.Timestamp(1700000000000000100))
+	span.SetEndTimestamp(pcommon.Timestamp(1700000000000000200))
+	span.SetDroppedAttributesCount(7)
+	span.SetDroppedEventsCount(3)
+	span.SetDroppedLinksCount(2)
+	span.Status().SetCode(ptrace.StatusCodeError)
+	span.Status().SetMessage("boom")
+
+	sattrs := span.Attributes()
+	sattrs.PutStr("http.request.method", "GET")
+	sattrs.PutStr("url.full", "https://example.com/a?b=c")
+	sattrs.PutInt("http.response.status_code", 500)
+	sattrs.PutStr("db.system.name", "postgresql")
+	sattrs.PutStr("db.namespace", "testdb")
+	sattrs.PutStr("db.query.text", "SELECT 1")
+	sattrs.PutStr("messaging.system", "kafka")
+	sattrs.PutStr("messaging.operation.name", "publish")
+	sattrs.PutStr("network.peer.address", "10.0.0.1")
+	sattrs.PutInt("network.peer.port", 5432)
+	sattrs.PutStr("peer.service", "upstream")
+
+	// One attribute per pcommon.ValueType, plus a dropped-attribute count.
+	event := span.Events().AppendEmpty()
+	event.SetName("exception")
+	event.SetTimestamp(pcommon.Timestamp(150))
+	event.SetDroppedAttributesCount(5)
+	eattrs := event.Attributes()
+	eattrs.PutStr("exception.message", "OOM")
+	eattrs.PutStr("exception.type", "mem")
+	eattrs.PutStr("exception.stacktrace", "1/2/3")
+	eattrs.PutInt("int.attr", 42)
+	eattrs.PutDouble("double.attr", 2.5)
+	eattrs.PutBool("bool.attr", true)
+	eattrs.PutEmptyBytes("bytes.attr").FromRaw([]byte{0xde, 0xad})
+	eattrs.PutEmpty("empty.attr")
+	nested := eattrs.PutEmptyMap("map.attr")
+	nested.PutStr("inner", "value")
+	arr := eattrs.PutEmptySlice("slice.attr")
+	arr.AppendEmpty().SetStr("one")
+	arr.AppendEmpty().SetInt(2)
+
+	// Non-finite doubles: json.Marshal rejects these, so MarshalEvents must emit
+	// "redacted" for the value rather than dropping the attribute or the event.
+	nonfinite := span.Events().AppendEmpty()
+	nonfinite.SetName("nonfinite")
+	nfattrs := nonfinite.Attributes()
+	nfattrs.PutDouble("nan.attr", math.NaN())
+	nfattrs.PutDouble("posinf.attr", math.Inf(1))
+	nfattrs.PutDouble("neginf.attr", math.Inf(-1))
+	nfattrs.PutStr("finite.attr", "kept")
+	nfattrs.PutEmptySlice("nan.in.slice").AppendEmpty().SetDouble(math.NaN())
+	nfattrs.PutEmptyMap("nan.in.map").PutDouble("inner", math.NaN())
+
+	// An event with a dropped count but no attributes, and one with neither.
+	bare := span.Events().AppendEmpty()
+	bare.SetName("bare")
+	bare.SetDroppedAttributesCount(1)
+	span.Events().AppendEmpty().SetName("empty")
+
+	link := span.Links().AppendEmpty()
+	link.SetTraceID(pcommon.TraceID([16]byte{16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1}))
+	link.SetSpanID(pcommon.SpanID([8]byte{8, 7, 6, 5, 4, 3, 2, 1}))
+	link.TraceState().FromRaw("dd=p:fedcba9876543210")
+	link.SetDroppedAttributesCount(4)
+	link.Attributes().PutStr("link.attr", "link-value")
+
+	return traces
+}
+
+func readOnlySafetyTestConfig(t *testing.T) *config.AgentConfig {
+	t.Helper()
+	cfg := &config.AgentConfig{}
+	cfg.OTLPReceiver = &config.OTLP{}
+	var err error
+	cfg.OTLPReceiver.AttributesTranslator, err = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	require.NoError(t, err)
+	return cfg
+}
+
+// TestOtelSpanToDDSpanReadOnlyTraces gates sharing pdata between the two consumers of the
+// default DDOT traces pipeline: once the exporter is non-mutating the fanout consumer marks
+// the shared ptrace.Traces read-only, and pdata setters panic on read-only data. Both
+// conversions must stay read-only and produce the same output as on mutable data.
+func TestOtelSpanToDDSpanReadOnlyTraces(t *testing.T) {
+	cfg := readOnlySafetyTestConfig(t)
+
+	extract := func(traces ptrace.Traces) (ptrace.Span, pcommon.Resource, pcommon.InstrumentationScope) {
+		rspan := traces.ResourceSpans().At(0)
+		sspan := rspan.ScopeSpans().At(0)
+		return sspan.Spans().At(0), rspan.Resource(), sspan.Scope()
+	}
+
+	// Baseline, to compare the read-only run against.
+	mutable := buildReadOnlySafetyCorpus()
+	mSpan, mRes, mLib := extract(mutable)
+	wantFull := OtelSpanToDDSpan(mSpan, mRes, mLib, cfg)
+	wantMinimal := OtelSpanToDDSpanMinimal(mSpan, mRes, mLib, true, true, cfg, nil, nil)
+
+	readOnly := buildReadOnlySafetyCorpus()
+	readOnly.MarkReadOnly()
+	require.True(t, readOnly.IsReadOnly(), "corpus must be read-only for this test to mean anything")
+	roSpan, roRes, roLib := extract(readOnly)
+
+	// The exporter path and the connector path. Neither may write to pdata.
+	require.NotPanics(t, func() {
+		got := OtelSpanToDDSpan(roSpan, roRes, roLib, cfg)
+		assert.Equal(t, wantFull, got)
+	}, "OtelSpanToDDSpan must not mutate read-only pdata")
+
+	require.NotPanics(t, func() {
+		got := OtelSpanToDDSpanMinimal(roSpan, roRes, roLib, true, true, cfg, nil, nil)
+		assert.Equal(t, wantMinimal, got)
+	}, "OtelSpanToDDSpanMinimal must not mutate read-only pdata")
+
+	// Not merely panic-free: the input must come out untouched. Compared as serialized
+	// bytes because the corpus holds NaN attributes, which are never reflect.DeepEqual
+	// to themselves; this is also a stricter comparison than struct equality.
+	marshaler := &ptrace.ProtoMarshaler{}
+	wantBytes, err := marshaler.MarshalTraces(buildReadOnlySafetyCorpus())
+	require.NoError(t, err)
+	gotBytes, err := marshaler.MarshalTraces(mutable)
+	require.NoError(t, err)
+	assert.Equal(t, wantBytes, gotBytes, "conversion must not modify input pdata")
+}
+
+// TestMarshalEventsDoesNotMutate: MarshalEvents reports dropped attributes without writing
+// the count back onto the span event.
+func TestMarshalEventsDoesNotMutate(t *testing.T) {
+	events := ptrace.NewSpanEventSlice()
+	e := events.AppendEmpty()
+	e.SetName("boom")
+	e.SetDroppedAttributesCount(3)
+	e.Attributes().PutStr("message", "OOM")
+
+	got := MarshalEvents(events)
+	assert.Equal(t, `[{"name":"boom","attributes":{"message":"OOM"},"dropped_attributes_count":3}]`, got)
+	assert.Equal(t, uint32(3), events.At(0).DroppedAttributesCount(), "MarshalEvents must not mutate the event")
+
+	// Not idempotent if the count were accumulated onto the event.
+	assert.Equal(t, got, MarshalEvents(events))
+}
+
+// TestMarshalEventsReadOnly asserts MarshalEvents is safe on read-only pdata and pins its
+// exact output. The golden string makes this a gate rather than a self-comparison: it covers
+// the event shapes that emit dropped_attributes_count differently (attributes plus a count,
+// a count alone, neither) and the one attribute-value marshal failure that is actually
+// reachable: non-finite doubles, emitted as "redacted".
+func TestMarshalEventsReadOnly(t *testing.T) {
+	const want = `[{"time_unix_nano":150,"name":"exception","attributes":{"exception.message":"OOM",` +
+		`"exception.type":"mem","exception.stacktrace":"1/2/3","int.attr":42,"double.attr":2.5,` +
+		`"bool.attr":true,"bytes.attr":"3q0=","empty.attr":null,"map.attr":{"inner":"value"},` +
+		`"slice.attr":["one",2]},"dropped_attributes_count":5},` +
+		`{"name":"nonfinite","attributes":{"nan.attr":"redacted","posinf.attr":"redacted",` +
+		`"neginf.attr":"redacted","finite.attr":"kept","nan.in.slice":"redacted",` +
+		`"nan.in.map":"redacted"}},` +
+		`{"name":"bare","dropped_attributes_count":1},` +
+		`{"name":"empty"}]`
+
+	traces := buildReadOnlySafetyCorpus()
+	assert.Equal(t, want, MarshalEvents(traces.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events()))
+
+	readOnly := buildReadOnlySafetyCorpus()
+	readOnly.MarkReadOnly()
+	events := readOnly.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Events()
+
+	require.NotPanics(t, func() {
+		assert.Equal(t, want, MarshalEvents(events))
+	})
+
+	// The counts must survive marshalling: they are read, never written back.
+	assert.Equal(t, uint32(5), events.At(0).DroppedAttributesCount())
+	assert.Equal(t, uint32(0), events.At(1).DroppedAttributesCount())
+	assert.Equal(t, uint32(1), events.At(2).DroppedAttributesCount())
 }
