@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -127,6 +128,65 @@ func TestReadPodLogs(t *testing.T) {
 			t.Fatalf("readPodLogs() error = %v, want output limit error", err)
 		}
 	})
+}
+
+func TestGetPodLogsMaskSequences(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{
+				"type":                "mask_sequences",
+				"name":                "mask_token",
+				"pattern":             `token=[^[:space:]]+`,
+				"replace_placeholder": "token=[MASKED]",
+			},
+			{
+				"type":    "exclude_at_match",
+				"name":    "unrelated_rule",
+				"pattern": "drop this",
+			},
+		},
+	})
+	handler := newGetPodLogsHandler(config)
+
+	logs, err := handler.maskSequences("first token=secret\ndrop this\nsecond token=another-secret")
+	if err != nil {
+		t.Fatalf("maskSequences() error = %v", err)
+	}
+	want := "first token=[MASKED]\ndrop this\nsecond token=[MASKED]"
+	if logs != want {
+		t.Fatalf("maskSequences() = %q, want %q", logs, want)
+	}
+}
+
+func TestGetPodLogsMaskSequencesRejectsInvalidRules(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{"type": "mask_sequences", "name": "invalid", "pattern": "("},
+		},
+	})
+
+	_, err := newGetPodLogsHandler(config).maskSequences("token=secret")
+	if err == nil || !strings.Contains(err.Error(), "could not load global log processing rules") {
+		t.Fatalf("maskSequences() error = %v, want processing rules error", err)
+	}
+}
+
+func TestGetPodLogsMaskSequencesEnforcesOutputLimit(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{
+				"type":                "mask_sequences",
+				"name":                "expand",
+				"pattern":             "x",
+				"replace_placeholder": "xx",
+			},
+		},
+	})
+
+	_, err := newGetPodLogsHandler(config).maskSequences(strings.Repeat("x", int(maxPodLogsBytes)))
+	if err == nil || !strings.Contains(err.Error(), "output limit") {
+		t.Fatalf("maskSequences() error = %v, want output limit error", err)
+	}
 }
 
 type trackingReadCloser struct {
