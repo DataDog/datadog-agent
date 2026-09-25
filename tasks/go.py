@@ -370,10 +370,6 @@ def _bazel_tidy(ctx, verbose: bool):
     bazel("run", "//:gazelle")
     # 6. regenerate agent payload version file from go.mod
     bazel("run", "//tasks:write_agent_payload_version")
-    # 7. regenerate test/new-e2e/tests/test_binaries.bzl
-    from tasks.new_e2e_tests import write_test_binaries_bzl
-
-    write_test_binaries_bzl(ctx)
 
 
 @task(autoprint=True)

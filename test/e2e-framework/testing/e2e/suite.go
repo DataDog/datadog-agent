@@ -970,7 +970,5 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	}
 
 	s.init(options, s)
-	// https://github.com/DataDog/dd-trace-go/blob/v2.10.1/internal/civisibility/integrations/gotesting/orchestrion.yml#L243
-	instrumentTestifySuiteRun(t, s)
 	suite.Run(t, s)
 }
