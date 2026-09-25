@@ -236,7 +236,7 @@ const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), N
 	NVL(staleness, '-'), last_refresh_date
 FROM cdb_mviews WHERE /*RELATIONS*/`
 
-const containerNamesQuery = `SELECT con_id, name FROM v$containers`
+const containerNamesQuery = `SELECT con_id, name FROM v$containers WHERE 1=1`
 
 // total_views is aliased to total_tables for the shared row scanner.
 const viewsQueryTemplate = `WITH ranked_views AS (
@@ -313,38 +313,6 @@ const (
 
 var schemaOwnerPattern = regexp.MustCompile(`^[A-Z0-9_$#]+$`)
 
-func compiledPatterns(patterns []string, logPrompt, kind string) []*regexp.Regexp {
-	if len(patterns) == 0 {
-		return nil
-	}
-	compiled := make([]*regexp.Regexp, 0, len(patterns))
-	for _, p := range patterns {
-		re, err := regexp.Compile(p)
-		if err != nil {
-			log.Warnf("%s invalid %s pattern %q: %s", logPrompt, kind, p, err)
-			continue
-		}
-		compiled = append(compiled, re)
-	}
-	return compiled
-}
-
-func matchesAny(name string, patterns []*regexp.Regexp) bool {
-	for _, re := range patterns {
-		if re.MatchString(name) {
-			return true
-		}
-	}
-	return false
-}
-
-func passesFilter(name string, include, exclude []*regexp.Regexp) bool {
-	if matchesAny(name, exclude) {
-		return false
-	}
-	return len(include) == 0 || matchesAny(name, include)
-}
-
 func escapeSQLLiteral(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
@@ -352,32 +320,16 @@ func escapeSQLLiteral(s string) string {
 func regexSQLClauses(column string, include, exclude []string) string {
 	var b strings.Builder
 	for _, p := range exclude {
-		b.WriteString(" AND NOT REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "')")
+		b.WriteString(" AND NOT REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "', 'i')")
 	}
 	if len(include) > 0 {
 		parts := make([]string, len(include))
 		for i, p := range include {
-			parts[i] = "REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "')"
+			parts[i] = "REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "', 'i')"
 		}
 		b.WriteString(" AND (" + strings.Join(parts, " OR ") + ")")
 	}
 	return b.String()
-}
-
-// Oracle database filters match CDB root and PDB names.
-func filterContainers(containers map[int64]string, include, exclude []string, logPrompt string) map[int64]string {
-	if len(include) == 0 && len(exclude) == 0 {
-		return containers
-	}
-	includeRe := compiledPatterns(include, logPrompt, "include_databases")
-	excludeRe := compiledPatterns(exclude, logPrompt, "exclude_databases")
-	filtered := make(map[int64]string, len(containers))
-	for conID, name := range containers {
-		if passesFilter(name, includeRe, excludeRe) {
-			filtered[conID] = name
-		}
-	}
-	return filtered
 }
 
 type schemaRowDB struct {
@@ -1017,14 +969,13 @@ type ownerKey struct {
 }
 
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
-	include := compiledPatterns(c.config.Schemas.IncludeSchemas, c.logPrompt, "include_schemas")
-	exclude := compiledPatterns(c.config.Schemas.ExcludeSchemas, c.logPrompt, "exclude_schemas")
-	// A failed or stale container lookup must not drop schemas unless database filters require it.
+	// Without database filters, owners can supply container IDs missing from the name lookup.
 	filterDatabases := len(c.config.Schemas.IncludeDatabases) > 0 || len(c.config.Schemas.ExcludeDatabases) > 0
 
 	owners := make(map[ownerKey]string)
 	names := make(map[string]struct{})
-	err := c.queryMetadata(ctx, schemaOwnersQuery, func(rows *sqlx.Rows) error {
+	query := schemaOwnersQuery + regexSQLClauses("username", c.config.Schemas.IncludeSchemas, c.config.Schemas.ExcludeSchemas)
+	err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 		var (
 			conID  int64
 			name   string
@@ -1040,9 +991,6 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		}
 		if !schemaOwnerPattern.MatchString(name) {
 			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
-			return nil
-		}
-		if !passesFilter(name, include, exclude) {
 			return nil
 		}
 		id := ""
@@ -1272,9 +1220,10 @@ func constraintType(t string) string {
 	}
 }
 
-func (c *Check) containerNames(ctx context.Context) map[int64]string {
+func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	names := make(map[int64]string)
-	err := c.queryMetadata(ctx, containerNamesQuery, func(rows *sqlx.Rows) error {
+	query := containerNamesQuery + regexSQLClauses("name", c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases)
+	err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 		var (
 			conID int64
 			name  string
@@ -1286,9 +1235,9 @@ func (c *Check) containerNames(ctx context.Context) map[int64]string {
 		return nil
 	})
 	if err != nil {
-		log.Warnf("%s failed to query container names: %s", c.logPrompt, err)
+		return nil, fmt.Errorf("failed to query container names: %w", err)
 	}
-	return names
+	return names, nil
 }
 
 func (c *Check) tableDetails(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}) map[tableKey]*tableDetails {
@@ -1713,7 +1662,6 @@ func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumn
 
 func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns int) ([]schemaRowDB, error) {
 	allowed := make(map[tableKey]struct{}, len(keys))
-	hydrated := make(map[tableKey]struct{}, len(keys))
 	var pageRows []schemaRowDB
 	for _, key := range keys {
 		allowed[key] = struct{}{}
@@ -1730,16 +1678,10 @@ func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns i
 			if err := rows.StructScan(&row); err != nil {
 				return err
 			}
-			hydrated[tableKey{conID: row.ConID, owner: row.Owner, table: row.TableName}] = struct{}{}
 			pageRows = append(pageRows, row)
 			return nil
 		}); err != nil {
 			return nil, err
-		}
-	}
-	for key := range allowed {
-		if _, ok := hydrated[key]; !ok {
-			return nil, fmt.Errorf("selected table %d.%s.%s disappeared before hydration", key.conID, key.owner, key.table)
 		}
 	}
 	return pageRows, nil
@@ -1821,7 +1763,10 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		return fmt.Errorf("failed to initialize sender: %w", err)
 	}
 
-	containers := filterContainers(c.containerNames(ctx), c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases, c.logPrompt)
+	containers, err := c.containerNames(ctx)
+	if err != nil {
+		return err
+	}
 
 	owners, names, err := c.schemaOwners(ctx, containers)
 	if err != nil {
@@ -1899,7 +1844,9 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	sort.Slice(emptyContainerIDs, func(i, j int) bool { return emptyContainerIDs[i] < emptyContainerIDs[j] })
 	for _, conID := range emptyContainerIDs {
 		container := map[int64]string{conID: emptyContainers[conID]}
-		newSchemaEventCollector(c, coordinator.add, nil, owners, container).emitEmptyContainers(container)
+		collector := newSchemaEventCollector(c, coordinator.add, nil, owners, container)
+		collector.truncatedContainers = cappedContainers
+		collector.emitEmptyContainers(container)
 		if err := coordinator.completeContainer(conID); err != nil {
 			return err
 		}
