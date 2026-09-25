@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +28,11 @@ const (
 	DefaultMetadataCollectionInterval = 10 * time.Minute
 
 	interfaceStatusMetric = "snmp.interface.status"
+
+	// gnmiInterfaceRawIDType identifies the RawID scheme (deviceID:interfaceName) used for
+	// gNMI interfaces, matching the naming convention used by other integrations
+	// (e.g. "versa_interface").
+	gnmiInterfaceRawIDType = "gnmi_interface"
 )
 
 // ShouldReportMetadata reports whether metadata should be submitted based on the last report time.
@@ -50,9 +54,8 @@ func MetadataCollectionInterval(cfg *config.CheckConfig) time.Duration {
 	return time.Duration(cfg.Instance.MetadataCollectionInterval) * time.Second
 }
 
-// InterfaceSnapshotComplete reports whether every discovered interface has a stable ifindex.
+// InterfaceSnapshotComplete reports whether every discovered interface has a name in the snapshot.
 func InterfaceSnapshotComplete(snapshot []client.CachedValue, metadata config.MetadataConfig) bool {
-	resolved := metadata.Resolved()
 	index := indexSnapshot(snapshot)
 	names := interfaceNames(index, metadata, nil)
 	if len(names) == 0 {
@@ -60,9 +63,7 @@ func InterfaceSnapshotComplete(snapshot []client.CachedValue, metadata config.Me
 	}
 
 	for _, name := range names {
-		keys := metadata.InterfaceKeyValues(name)
-		ifIndex, ok := firstInt32Value(index, resolved.Interface.IfIndex, keys)
-		if !ok || ifIndex <= 0 {
+		if strings.TrimSpace(name) == "" {
 			return false
 		}
 	}
@@ -79,12 +80,13 @@ func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.
 		return false, errors.New("check config is nil")
 	}
 
-	deviceID := buildDeviceID(cfg.Instance.Address)
-	tags := append(ndmutils.CopyStrings(buildBaseTags(cfg)), cfg.Instance.Tags...)
+	deviceID := buildDeviceID(cfg)
+	tags := append(ndmutils.CopyStrings(buildBaseTags(cfg, snapshot)), cfg.Instance.Tags...)
 	tags = sortutil.UniqInPlace(tags)
 
 	device := buildDeviceMetadata(deviceID, cfg, snapshot, tags)
-	interfaces := buildInterfaceMetadata(deviceID, cfg.Profile.Metadata, snapshot)
+	interfaces := buildInterfaceMetadata(deviceID, cfg.Profile.Metadata, snapshot, interfaceMetricPathsFromProfile(cfg.Profile))
+	ipAddresses := buildIPAddressMetadata(deviceID, cfg.Profile.Metadata, interfaces, snapshot)
 
 	var topologyLinks []devicemetadata.TopologyLinkMetadata
 	if cfg.Instance.CollectTopology {
@@ -97,14 +99,14 @@ func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.
 	}
 
 	payloads := devicemetadata.BatchPayloads(
-		integrations.Gnmi,
+		integrations.SNMP,
 		defaultDeviceNamespace,
 		"",
 		collectTime,
 		devicemetadata.PayloadMetadataBatchSize,
 		[]devicemetadata.DeviceMetadata{device},
 		interfaces,
-		nil,
+		ipAddresses,
 		topologyLinks,
 		nil,
 		nil,
@@ -119,7 +121,7 @@ func ReportMetadata(s sender.Sender, cfg *config.CheckConfig, snapshot []client.
 		s.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	}
 
-	return len(payloads) > 0, nil
+	return true, nil
 }
 
 // ReportInterfaceStatus emits snmp.interface.status for each interface in the snapshot.
@@ -131,20 +133,19 @@ func ReportInterfaceStatus(s sender.Sender, cfg *config.CheckConfig, snapshot []
 		return errors.New("check config is nil")
 	}
 
-	deviceID := buildDeviceID(cfg.Instance.Address)
-	interfaces := buildInterfaceMetadata(deviceID, cfg.Profile.Metadata, snapshot)
+	deviceID := buildDeviceID(cfg)
+	interfaces := buildInterfaceMetadata(deviceID, cfg.Profile.Metadata, snapshot, interfaceMetricPathsFromProfile(cfg.Profile))
 	if len(interfaces) == 0 {
 		return nil
 	}
 
-	baseTags := buildBaseTags(cfg)
+	baseTags := buildBaseTags(cfg, snapshot)
 	for _, iface := range interfaces {
 		status := string(computeInterfaceStatus(iface.AdminStatus, iface.OperStatus))
 		tags := []string{
 			"status:" + status,
 			"admin_status:" + iface.AdminStatus.AsString(),
 			"oper_status:" + iface.OperStatus.AsString(),
-			"interface_index:" + strconv.Itoa(int(iface.Index)),
 		}
 		if iface.Name != "" {
 			tags = append(tags, "interface:"+iface.Name)
@@ -153,7 +154,9 @@ func ReportInterfaceStatus(s sender.Sender, cfg *config.CheckConfig, snapshot []
 			tags = append(tags, "interface_alias:"+iface.Description)
 		}
 		tags = append(tags, baseTags...)
-		tags = append(tags, internalInterfaceResourceTag(deviceID, iface.Index))
+		if iface.Name != "" {
+			tags = append(tags, internalInterfaceResourceTag(deviceID, iface.Name))
+		}
 
 		s.Gauge(interfaceStatusMetric, 1, "", tags)
 	}
@@ -193,7 +196,7 @@ func isEmptyMetadata(device devicemetadata.DeviceMetadata, interfaces []deviceme
 	if len(interfaces) > 0 || len(links) > 0 {
 		return false
 	}
-	return device.Name == "" &&
+	return device.OsHostname == "" &&
 		device.Vendor == "" &&
 		device.SerialNumber == "" &&
 		device.ProductName == "" &&
@@ -205,23 +208,31 @@ func buildDeviceMetadata(deviceID string, cfg *config.CheckConfig, snapshot []cl
 	index := indexSnapshot(snapshot)
 	metadata := cfg.Profile.Metadata.Resolved()
 
-	componentKeys := resolveDeviceComponentKeys(index, metadata.Device)
-	hostname := deviceMetadataString(index, metadata.Device.Hostname, componentKeys)
-	vendor := deviceMetadataString(index, metadata.Device.VendorName, componentKeys)
-	serialNumber := deviceMetadataString(index, metadata.Device.SerialNumber, componentKeys)
-	platform := deviceMetadataString(index, metadata.Device.Platform, componentKeys)
-	softwareVersion := deviceMetadataString(index, metadata.Device.SoftwareVersion, componentKeys)
-	hardwareVersion := deviceMetadataString(index, metadata.Device.HardwareVersion, componentKeys)
+	hostname := resolveDeviceHostname(index, metadata)
+	componentName := resolveDeviceComponentName(index, metadata)
+	deviceKeys := metadata.DeviceKeyValues(componentName)
+
+	vendor := deviceMetadataString(index, metadata.Device.VendorName, deviceKeys)
+	serialNumber := deviceMetadataString(index, metadata.Device.SerialNumber, deviceKeys)
+	platform := deviceMetadataString(index, metadata.Device.Platform, deviceKeys)
+	softwareVersion := deviceMetadataString(index, metadata.Device.SoftwareVersion, deviceKeys)
+	hardwareVersion := deviceMetadataString(index, metadata.Device.HardwareVersion, deviceKeys)
 
 	productName := platform
 	if productName == "" {
 		productName = hardwareVersion
 	}
 
+	deviceName := hostname
+	if deviceName == "" {
+		deviceName = cfg.Instance.Address
+	}
+
 	return devicemetadata.DeviceMetadata{
 		ID:           deviceID,
-		IDTags:       []string{"device_ip:" + cfg.Instance.Address},
-		Name:         hostname,
+		IDTags:       buildDeviceIDTags(cfg),
+		Name:         deviceName,
+		OsHostname:   hostname,
 		IPAddress:    cfg.Instance.Address,
 		Profile:      cfg.Profile.Name,
 		Vendor:       vendor,
@@ -231,40 +242,12 @@ func buildDeviceMetadata(deviceID string, cfg *config.CheckConfig, snapshot []cl
 		OsVersion:    softwareVersion,
 		Tags:         tags,
 		Status:       devicemetadata.DeviceStatusReachable,
-		Integration:  string(integrations.Gnmi),
+		Integration:  string(integrations.SNMP),
 	}
-}
-
-func resolveDeviceComponentKeys(index snapshotIndex, metadata config.DeviceMetadataConfig) map[string]string {
-	candidates := make([]client.CachedValue, 0)
-	for _, cached := range index[metadata.ComponentType] {
-		componentType, ok := stringValue(cached.Entry.Value)
-		if !ok {
-			continue
-		}
-		if separator := strings.LastIndex(componentType, ":"); separator >= 0 {
-			componentType = componentType[separator+1:]
-		}
-		if strings.EqualFold(strings.TrimSpace(componentType), "chassis") {
-			candidates = append(candidates, cached)
-		}
-	}
-	if len(candidates) == 0 {
-		return nil
-	}
-
-	sort.Slice(candidates, func(i, j int) bool {
-		return stableKeyString(candidates[i].Key.Keys) < stableKeyString(candidates[j].Key.Keys)
-	})
-	keys := make(map[string]string, len(candidates[0].Key.Keys))
-	for key, value := range candidates[0].Key.Keys {
-		keys[key] = value
-	}
-	return keys
 }
 
 func deviceMetadataString(index snapshotIndex, path string, componentKeys map[string]string) string {
-	if strings.Contains(path, "/components/component/") {
+	if strings.Contains(path, componentPathSegment) {
 		if len(componentKeys) == 0 {
 			return ""
 		}
@@ -273,19 +256,10 @@ func deviceMetadataString(index snapshotIndex, path string, componentKeys map[st
 	return firstStringValue(index, path, nil)
 }
 
-func stableKeyString(keys map[string]string) string {
-	parts := make([]string, 0, len(keys))
-	for key, value := range keys {
-		parts = append(parts, key+"="+value)
-	}
-	sort.Strings(parts)
-	return strings.Join(parts, "\x00")
-}
-
-func buildInterfaceMetadata(deviceID string, metadata config.MetadataConfig, snapshot []client.CachedValue) []devicemetadata.InterfaceMetadata {
+func buildInterfaceMetadata(deviceID string, metadata config.MetadataConfig, snapshot []client.CachedValue, metricPaths []interfaceMetricPath) []devicemetadata.InterfaceMetadata {
 	resolved := metadata.Resolved()
 	index := indexSnapshot(snapshot)
-	names := interfaceNames(index, metadata, nil)
+	names := interfaceNames(index, metadata, metricPaths)
 	if len(names) == 0 {
 		return nil
 	}
@@ -295,11 +269,16 @@ func buildInterfaceMetadata(deviceID string, metadata config.MetadataConfig, sna
 	for _, name := range names {
 		keys := metadata.InterfaceKeyValues(name)
 
-		ifIndex, ok := firstInt32Value(index, resolved.Interface.IfIndex, keys)
-		if !ok || ifIndex <= 0 {
-			log.Debugf("skipping interface %q metadata for %s: missing ifindex at %s", name, deviceID, resolved.Interface.IfIndex)
+		interfaceName := firstStringValue(index, resolved.Interface.Name, keys)
+		if interfaceName == "" {
+			interfaceName = name
+		}
+		if interfaceName == "" {
+			log.Debugf("skipping interface metadata for %s: missing interface name", deviceID)
 			continue
 		}
+
+		ifIndex, _ := firstInt32Value(index, resolved.Interface.IfIndex, keys)
 
 		ifType, _ := firstInt32Value(index, resolved.Interface.Type, keys)
 		if ifType == 0 {
@@ -311,15 +290,12 @@ func buildInterfaceMetadata(deviceID string, metadata config.MetadataConfig, sna
 		adminStatus := parseAdminStatus(firstStringValue(index, resolved.Interface.AdminStatus, keys))
 		operStatus := parseOperStatus(firstStringValue(index, resolved.Interface.OperStatus, keys))
 
-		interfaceName := firstStringValue(index, resolved.Interface.Name, keys)
-		if interfaceName == "" {
-			interfaceName = name
-		}
-
 		interfaces = append(interfaces, devicemetadata.InterfaceMetadata{
 			DeviceID:    deviceID,
 			IDTags:      []string{"interface:" + interfaceName},
 			Index:       ifIndex,
+			RawID:       buildInterfaceID(deviceID, interfaceName),
+			RawIDType:   gnmiInterfaceRawIDType,
 			Name:        interfaceName,
 			Description: firstStringValue(index, resolved.Interface.Description, keys),
 			MacAddress:  firstStringValue(index, resolved.Interface.MACAddress, keys),
@@ -331,6 +307,122 @@ func buildInterfaceMetadata(deviceID string, metadata config.MetadataConfig, sna
 	}
 
 	return interfaces
+}
+
+func buildIPAddressMetadata(
+	deviceID string,
+	metadata config.MetadataConfig,
+	interfaces []devicemetadata.InterfaceMetadata,
+	snapshot []client.CachedValue,
+) []devicemetadata.IPAddressMetadata {
+	resolved := metadata.Resolved()
+	ipPath := normalizeProfilePath(resolved.IPAddress.IP)
+	if ipPath == "" {
+		return nil
+	}
+	prefixPath := normalizeProfilePath(resolved.IPAddress.PrefixLength)
+	interfaceKey := metadataKeyName(resolved.IPAddress.Keys, "interface", "name")
+	subinterfaceKey := metadataKeyName(resolved.IPAddress.Keys, "subinterface", "index")
+	addressValueKey := metadataKeyName(resolved.IPAddress.Keys, "address", "ip")
+
+	type addressData struct {
+		ip        string
+		prefixLen int32
+		hasPrefix bool
+	}
+
+	addresses := make(map[string]*addressData)
+	addressKey := func(keys map[string]string) string {
+		interfaceName := keys[interfaceKey]
+		if interfaceName == "" {
+			return ""
+		}
+		parts := []string{interfaceName}
+		if subinterfaceIndex := keys[subinterfaceKey]; subinterfaceIndex != "" {
+			parts = append(parts, subinterfaceIndex)
+		}
+		if ip := keys[addressValueKey]; ip != "" {
+			parts = append(parts, ip)
+		}
+		return strings.Join(parts, "\x00")
+	}
+
+	for _, cached := range snapshot {
+		key := addressKey(cached.Key.Keys)
+		if key == "" {
+			continue
+		}
+		entry := addresses[key]
+		if entry == nil {
+			entry = &addressData{}
+			addresses[key] = entry
+		}
+
+		switch {
+		case snapshotPathMatches(cached.Key.Path, ipPath):
+			if value, ok := stringValue(cached.Entry.Value); ok {
+				entry.ip = value
+			}
+			if entry.ip == "" {
+				entry.ip = cached.Key.Keys[addressValueKey]
+			}
+		case snapshotPathMatches(cached.Key.Path, prefixPath):
+			if value, ok := int64Value(cached.Entry.Value); ok {
+				entry.prefixLen = int32(value)
+				entry.hasPrefix = true
+			}
+		}
+	}
+
+	interfaceByName := make(map[string]devicemetadata.InterfaceMetadata, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.Name == "" {
+			continue
+		}
+		interfaceByName[iface.Name] = iface
+	}
+
+	ipAddresses := make([]devicemetadata.IPAddressMetadata, 0, len(addresses))
+	for key, entry := range addresses {
+		if entry.ip == "" {
+			continue
+		}
+		interfaceName := strings.Split(key, "\x00")[0]
+		iface, ok := interfaceByName[interfaceName]
+		if !ok || iface.Name == "" {
+			log.Debugf("skipping interface IP %s for %s: missing interface metadata for %q", entry.ip, deviceID, interfaceName)
+			continue
+		}
+		if iface.Index == 0 {
+			log.Debugf("skipping interface IP %s for %s: interface %q has no ifIndex", entry.ip, deviceID, interfaceName)
+			continue
+		}
+
+		ipMetadata := devicemetadata.IPAddressMetadata{
+			InterfaceID: buildInterfaceIDFromIndex(deviceID, iface.Index),
+			IPAddress:   entry.ip,
+		}
+		if entry.hasPrefix {
+			ipMetadata.Prefixlen = entry.prefixLen
+		}
+		ipAddresses = append(ipAddresses, ipMetadata)
+	}
+
+	sort.Slice(ipAddresses, func(i, j int) bool {
+		if ipAddresses[i].InterfaceID == ipAddresses[j].InterfaceID {
+			return ipAddresses[i].IPAddress < ipAddresses[j].IPAddress
+		}
+		return ipAddresses[i].InterfaceID < ipAddresses[j].InterfaceID
+	})
+
+	return ipAddresses
+}
+
+func metadataKeyName(keys map[string]string, segment, fallback string) string {
+	if keyName := keys[segment]; keyName != "" {
+		return keyName
+	}
+	return fallback
 }
 
 func parseAdminStatus(value string) devicemetadata.IfAdminStatus {

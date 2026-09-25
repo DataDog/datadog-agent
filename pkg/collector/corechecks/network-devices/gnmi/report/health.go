@@ -76,7 +76,7 @@ func OldestSampleAgeSeconds(snapshot []client.CachedValue, now time.Time) float6
 }
 
 // ReportHealth submits datadog.gnmi.* operational metrics.
-func ReportHealth(s sender.Sender, cfg *config.CheckConfig, stats HealthStats) error {
+func ReportHealth(s sender.Sender, cfg *config.CheckConfig, snapshot []client.CachedValue, stats HealthStats) error {
 	if s == nil {
 		return errors.New("sender is nil")
 	}
@@ -84,7 +84,7 @@ func ReportHealth(s sender.Sender, cfg *config.CheckConfig, stats HealthStats) e
 		return errors.New("check config is nil")
 	}
 
-	tags := buildBaseTags(cfg)
+	tags := buildBaseTags(cfg, snapshot)
 	s.Gauge(metricStreamState, streamStateValue(stats.StreamState), "", tags)
 	s.Gauge(metricReconnectCount, float64(stats.ReconnectCount), "", tags)
 	s.Gauge(metricReceivedSamples, float64(stats.ReceivedSamples), "", tags)

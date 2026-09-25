@@ -93,9 +93,14 @@ func TestOldestSampleAgeSeconds(t *testing.T) {
 
 func TestReportHealth(t *testing.T) {
 	deviceAddress := "10.0.0.1"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	baseTags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		integrationSourceGNMITag,
+		internalDeviceResourceTag(deviceID),
 	}
 
 	cfg := &config.CheckConfig{
@@ -113,7 +118,7 @@ func TestReportHealth(t *testing.T) {
 		ReceivedSamples:  4,
 		SampleAgeSeconds: 12.5,
 	}
-	require.NoError(t, ReportHealth(mockSender, cfg, stats))
+	require.NoError(t, ReportHealth(mockSender, cfg, nil, stats))
 
 	mockSender.AssertMetric(t, "Gauge", metricStreamState, streamStateConnected, "", baseTags)
 	mockSender.AssertMetric(t, "Gauge", metricReconnectCount, 2, "", baseTags)
@@ -128,14 +133,14 @@ func TestReportHealthValidation(t *testing.T) {
 	stats := HealthStats{StreamState: client.StreamStateNotReady}
 
 	t.Run("nil sender", func(t *testing.T) {
-		err := ReportHealth(nil, cfg, stats)
+		err := ReportHealth(nil, cfg, nil, stats)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "sender is nil")
 	})
 
 	t.Run("nil config", func(t *testing.T) {
 		mockSender := mocksender.NewMockSender(t, checkid.ID("gnmi"))
-		err := ReportHealth(mockSender, nil, stats)
+		err := ReportHealth(mockSender, nil, nil, stats)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "check config is nil")
 	})
@@ -144,9 +149,14 @@ func TestReportHealthValidation(t *testing.T) {
 func TestReportMetricsSkipsStaleValues(t *testing.T) {
 	now := time.Unix(100, 0)
 	deviceAddress := "10.0.0.1"
+	deviceID := buildDeviceIDFromConfigAddress(deviceAddress)
 	baseTags := []string{
+		deviceNamespaceTag,
 		"device_ip:" + deviceAddress,
-		"device_id:default:" + deviceAddress,
+		"device_id:" + deviceID,
+		"snmp_device:" + deviceAddress,
+		integrationSourceGNMITag,
+		internalDeviceResourceTag(deviceID),
 	}
 
 	cfg := &config.CheckConfig{
