@@ -373,7 +373,7 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool 
         )
         # Passed after any wrapper-injected cache flags so they take precedence (last flag wins):
         # --config=no-remote-cache sets --remote_cache= (see .bazelrc), --disk_cache= disables the disk cache.
-        bazel_args = ["--config=no-remote-cache", "--disk_cache=", *bazel_args]
+        bazel_args = ["--local_cpu_resources=6", "--config=no-remote-cache", "--disk_cache=", *bazel_args]
 
     output_path = Path("test-binaries").absolute()
     manifest_binaries = []
