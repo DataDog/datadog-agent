@@ -39,7 +39,7 @@ const (
 	testEnv      = "testing"
 )
 
-func assertPayload(t *testing.T, testSets []*pb.StatsPayload, payloads []*payload) {
+func assertPayload(t *testing.T, testSets []*pb.StatsPayload, srv *testServer) {
 	t.Helper()
 	expectedHeaders := map[string]string{
 		"X-Datadog-Reported-Languages": strings.Join(info.Languages(), "|"),
@@ -47,12 +47,21 @@ func assertPayload(t *testing.T, testSets []*pb.StatsPayload, payloads []*payloa
 		"Content-Encoding":             "gzip",
 		"Dd-Api-Key":                   "123",
 	}
+	received := srv.Received()
+	// A body that is not valid gzip has historically shown up here, and the count
+	// is the first thing that tells apart "the writer under test misbehaved" from
+	// "a request that belongs to another test reached this server". Check it
+	// before decoding, and describe every recorded request when it is wrong.
+	require.Len(t, received, len(testSets),
+		"unexpected number of requests reached the test server; recorded: %s", describeReceived(received))
+	require.Empty(t, srv.ReadErrors(),
+		"the test server failed to read a request body, which means a request was in flight when it closed")
 	var decoded []*pb.StatsPayload
-	for _, p := range payloads {
+	for _, p := range received {
 		var statsPayload pb.StatsPayload
 		r, err := gzip.NewReader(p.body)
-		require.NoError(t, err, "payload body is not valid gzip")
-		require.NoError(t, msgp.Decode(r, &statsPayload))
+		require.NoError(t, err, "payload body is not valid gzip: %s", p.describe())
+		require.NoError(t, msgp.Decode(r, &statsPayload), "payload body is not decodable: %s", p.describe())
 		require.NoError(t, r.Close())
 		for k, v := range expectedHeaders {
 			assert.Equal(t, v, p.headers[k])
@@ -70,7 +79,7 @@ func assertPayload(t *testing.T, testSets []*pb.StatsPayload, payloads []*payloa
 
 func TestStatsWriter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		sw, srv := testStatsWriter()
+		sw, srv := testStatsWriter(t)
 		go sw.Run()
 
 		testSets := []*pb.StatsPayload{
@@ -106,11 +115,11 @@ func TestStatsWriter(t *testing.T) {
 		sw.Write(testSets[0])
 		sw.Write(testSets[1])
 		sw.Stop()
-		assertPayload(t, testSets, srv.Payloads())
+		assertPayload(t, testSets, srv)
 	})
 
-	t.Run("race", func(_ *testing.T) {
-		sw, _ := testStatsWriter()
+	t.Run("race", func(t *testing.T) {
+		sw, _ := testStatsWriter(t)
 		// Don't start the writer as we're going to call send ourselves to test for a race
 		stopChan := make(chan struct{})
 		wg := sync.WaitGroup{}
@@ -179,7 +188,7 @@ func TestStatsWriter(t *testing.T) {
 
 	t.Run("buildPayloads", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, srv := testStatsWriter()
+		sw, srv := testStatsWriter(t)
 		srv.Close()
 		// This gives us a total of 45 entries. 3 per span, 5
 		// spans per stat bucket. Each buckets have the same
@@ -251,7 +260,7 @@ func TestStatsWriter(t *testing.T) {
 	t.Run("no-split", func(t *testing.T) {
 		assert := assert.New(t)
 
-		sw, srv := testStatsWriter()
+		sw, srv := testStatsWriter(t)
 		srv.Close()
 		// This gives us a total of 45 entries. 3 per span, 5 spans per
 		// stat bucket. Each bucket has the same time window (start:
@@ -278,7 +287,7 @@ func TestStatsWriter(t *testing.T) {
 
 	t.Run("container-tags", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, srv := testStatsWriter()
+		sw, srv := testStatsWriter(t)
 		srv.Close()
 		stats := &pb.StatsPayload{
 			AgentHostname: "agenthost",
@@ -312,7 +321,7 @@ func TestStatsWriter(t *testing.T) {
 }
 
 func TestStatsResetBuffer(t *testing.T) {
-	w, _ := testStatsSyncWriter()
+	w, _ := testStatsSyncWriter(t)
 
 	runtime.GC()
 	var m runtime.MemStats
@@ -342,7 +351,7 @@ func TestStatsSyncWriter(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		assert := assert.New(t)
-		sw, srv := testStatsSyncWriter()
+		sw, srv := testStatsSyncWriter(t)
 		go sw.Run()
 		testSets := []*pb.StatsPayload{
 			{
@@ -378,11 +387,11 @@ func TestStatsSyncWriter(t *testing.T) {
 		assert.Nil(err)
 		sw.Stop()
 		srv.Close()
-		assertPayload(t, testSets, srv.Payloads())
+		assertPayload(t, testSets, srv)
 	})
 
 	t.Run("stop", func(t *testing.T) {
-		sw, srv := testStatsSyncWriter()
+		sw, srv := testStatsSyncWriter(t)
 		go sw.Run()
 
 		testSets := []*pb.StatsPayload{
@@ -413,13 +422,16 @@ func TestStatsSyncWriter(t *testing.T) {
 		sw.Write(testSets[1])
 		sw.Stop()
 		srv.Close()
-		assertPayload(t, testSets, srv.Payloads())
+		// Unlike the sibling subtests, nothing is sent here: in sync mode Write
+		// only buffers and Stop does not flush that buffer.
+		require.Empty(t, srv.Received(), "Stop is not expected to flush in sync mode")
+		require.Empty(t, srv.ReadErrors())
 	})
 }
 
 func TestStatsWriterUpdateAPIKey(t *testing.T) {
 	assert := assert.New(t)
-	sw, srv := testStatsSyncWriter()
+	sw, srv := testStatsSyncWriter(t)
 	go sw.Run()
 	defer sw.Stop()
 
@@ -444,7 +456,7 @@ func TestStatsWriterInfo(t *testing.T) {
 	assert := assert.New(t)
 	// statsLastMinute updates depend on StatsWriter internal ticker, but are also triggered
 	// with sync mode. We will use sync writer to test the stats info updates.
-	sw, srv := testStatsSyncWriter()
+	sw, srv := testStatsSyncWriter(t)
 	go sw.Run()
 
 	time.Sleep(200 * time.Millisecond) // allow stats to be initialized
@@ -484,7 +496,7 @@ func TestStatsWriterInfo(t *testing.T) {
 	err := sw.FlushSync()
 	assert.Nil(err)
 
-	assertPayload(t, testSets, srv.Payloads())
+	assertPayload(t, testSets, srv)
 
 	assert.NotEmpty(sw.statsLastMinute.Bytes.Load())
 	assert.Empty(sw.statsLastMinute.Errors.Load())
@@ -568,7 +580,7 @@ func TestContainerTagsBufferManyTracerPayload(t *testing.T) {
 				},
 			}
 
-			sw, srv := testStatsWriterWithBuffer(mockBuf)
+			sw, srv := testStatsWriterWithBuffer(t, mockBuf)
 			go sw.Run()
 			defer sw.Stop()
 
@@ -619,30 +631,47 @@ func (m *mockContainerTagsBuffer) AsyncEnrichment(containerID string, cb func([]
 	return m.pending
 }
 
-func testStatsWriterWithBuffer(buffer containertagsbuffer.ContainerTagsBuffer) (*DatadogStatsWriter, *testServer) {
-	writer, srv := testStatsWriter()
+func testStatsWriterWithBuffer(t *testing.T, buffer containertagsbuffer.ContainerTagsBuffer) (*DatadogStatsWriter, *testServer) {
+	writer, srv := testStatsWriter(t)
 	writer.containerTagsBuffer = buffer
 	return writer, srv
 }
 
-func testStatsWriter() (*DatadogStatsWriter, *testServer) {
+func testStatsWriter(t *testing.T) (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
 		Endpoints:     []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		ContainerTags: func(_ string) ([]string, error) { return nil, nil },
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}), srv
+	w := NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{})
+	cleanupWriter(t, w, srv)
+	return w, srv
 }
 
-func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
+func testStatsSyncWriter(t *testing.T) (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
 		Endpoints:           []*config.Endpoint{{Host: srv.URL, APIKey: "123"}},
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}), srv
+	w := NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{})
+	cleanupWriter(t, w, srv)
+	return w, srv
+}
+
+// cleanupWriter guarantees that a writer's senders and its test server are torn
+// down when the test ends, in that order. NewStatsWriter starts ConnectionLimit
+// sender goroutines immediately, so a test that forgets to stop its writer used
+// to leave workers, an HTTP client and a listener alive for every later test in
+// the package to interact with. Both sender.Stop and testServer.Close are
+// idempotent, so a test may still stop or close explicitly.
+func cleanupWriter(t *testing.T, w *DatadogStatsWriter, srv *testServer) {
+	t.Cleanup(func() {
+		stopSenders(w.senders)
+		srv.Close()
+	})
 }
 
 type key struct {
