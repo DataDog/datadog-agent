@@ -182,17 +182,6 @@ mod tests {
     }
 
     #[test]
-    fn converts_dates_times_and_intervals_to_empty_text() {
-        let now = SystemTime::now();
-        for ty in [Type::TIMESTAMP, Type::TIMESTAMPTZ] {
-            assert_eq!(text(ty.clone(), &encode(&now, &ty)), "");
-        }
-        assert_eq!(text(Type::DATE, &0i32.to_be_bytes()), "");
-        assert_eq!(text(Type::TIME, &0i64.to_be_bytes()), "");
-        assert_eq!(text(Type::INTERVAL, &[0; 16]), "");
-    }
-
-    #[test]
     fn converts_cells_to_text() {
         assert_eq!(text(Type::TEXT, b"alice@corp.io"), "alice@corp.io");
         assert_eq!(text(Type::BOOL, &[1]), "true");
@@ -209,10 +198,12 @@ mod tests {
             text(Type::JSON, br#"{"email": "alice@corp.io"}"#),
             r#"{"email": "alice@corp.io"}"#
         );
+        // `jsonb` is a version byte (1) followed by the JSON text.
         assert_eq!(
             text(Type::JSONB, b"\x01{\"email\": \"alice@corp.io\"}"),
             r#"{"email": "alice@corp.io"}"#
         );
+        assert_eq!(text(Type::JSONB, &[1]), "");
         assert_eq!(
             text(Type::XML, b"<email>alice@corp.io</email>"),
             "<email>alice@corp.io</email>"
@@ -232,62 +223,40 @@ mod tests {
             "00112233-4455-6677-8899-aabbccddeeff"
         );
         assert!(TextCell::from_sql(&Type::UUID, &uuid[..15]).is_err());
-        assert_eq!(text(extension("citext"), b"Alice@Corp.io"), "Alice@Corp.io");
-        // `ltree` carries a version byte that must not end up in the text.
-        assert_eq!(text(extension("ltree"), b"\x01top.science"), "top.science");
-    }
-
-    #[test]
-    fn converts_network_addresses_to_text() {
         let host: IpAddr = "192.168.0.1".parse().unwrap();
         assert_eq!(text(Type::INET, &encode(&host, &Type::INET)), "192.168.0.1");
-
         // cidr `2001:db8::/32`: family, netmask bits, is_cidr, address length, address.
         let mut cidr = vec![3, 32, 1, 16];
         cidr.extend("2001:db8::".parse::<Ipv6Addr>().unwrap().octets());
         assert_eq!(text(Type::CIDR, &cidr), "2001:db8::");
-    }
-
-    #[test]
-    fn converts_jsonb_to_text() {
-        // `jsonb` is a version byte (1) followed by the JSON text.
-        let jsonb = |json: &str| [&[1u8], json.as_bytes()].concat();
-
-        let profile = r#"{"contact": {"emails": ["alice@corp.io"]}, "age": 42}"#;
-        assert_eq!(text(Type::JSONB, &jsonb(profile)), profile);
-
-        // `jsonb[]`: header (1 dimension, has NULL, element oid), dimension, elements.
-        let mut array = Vec::new();
-        for word in [1, 1, Type::JSONB.oid() as i32, 2, 1] {
-            array.extend(word.to_be_bytes());
-        }
-        let email = jsonb(r#""bob@corp.io""#);
-        array.extend((email.len() as i32).to_be_bytes());
-        array.extend(&email);
-        array.extend((-1i32).to_be_bytes());
-        assert_eq!(text(Type::JSONB_ARRAY, &array), r#"{"bob@corp.io",NULL}"#);
-
-        // Only the version byte: empty JSON text, which the scanner just skips.
-        assert_eq!(text(Type::JSONB, &[1]), "");
-    }
-
-    #[test]
-    fn converts_hstore_to_text() {
-        // Pair count, then each key and value as a length (-1 for NULL) and its bytes.
-        let mut raw = 2i32.to_be_bytes().to_vec();
+        // hstore: pair count, then each key and value as a length (-1 for NULL) and its bytes.
+        let mut hstore = 2i32.to_be_bytes().to_vec();
         for item in [Some("email"), Some("alice@corp.io"), Some("phone"), None] {
             match item {
                 Some(item) => {
-                    raw.extend((item.len() as i32).to_be_bytes());
-                    raw.extend(item.as_bytes());
+                    hstore.extend((item.len() as i32).to_be_bytes());
+                    hstore.extend(item.as_bytes());
                 }
-                None => raw.extend((-1i32).to_be_bytes()),
+                None => hstore.extend((-1i32).to_be_bytes()),
             }
         }
         assert_eq!(
-            text(extension("hstore"), &raw),
+            text(extension("hstore"), &hstore),
             "email=>alice@corp.io, phone=>NULL"
         );
+        assert_eq!(text(extension("citext"), b"Alice@Corp.io"), "Alice@Corp.io");
+        // `ltree` carries a version byte that must not end up in the text.
+        assert_eq!(text(extension("ltree"), b"\x01top.science"), "top.science");
+        // Dates, times and intervals are reported but read as empty text.
+        let now = SystemTime::now();
+        assert_eq!(text(Type::TIMESTAMP, &encode(&now, &Type::TIMESTAMP)), "");
+        assert_eq!(
+            text(Type::TIMESTAMPTZ, &encode(&now, &Type::TIMESTAMPTZ)),
+            ""
+        );
+        assert_eq!(text(Type::DATE, &0i32.to_be_bytes()), "");
+        assert_eq!(text(Type::TIME, &0i64.to_be_bytes()), "");
+        assert_eq!(text(Type::INTERVAL, &[0; 16]), "");
     }
 
     #[test]
@@ -303,6 +272,10 @@ mod tests {
 
         let ints = encode(&vec![1i32, -2], &Type::INT4_ARRAY);
         assert_eq!(text(Type::INT4_ARRAY, &ints), "{1,-2}");
+
+        let email = b"\x01\"bob@corp.io\"";
+        let jsonb = array(&Type::JSONB, &[2], &[Some(email), None]);
+        assert_eq!(text(Type::JSONB_ARRAY, &jsonb), r#"{"bob@corp.io",NULL}"#);
 
         let empty = encode(&Vec::<&str>::new(), &Type::VARCHAR_ARRAY);
         assert_eq!(text(Type::VARCHAR_ARRAY, &empty), "{}");
