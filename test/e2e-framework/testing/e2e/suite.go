@@ -151,6 +151,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -215,13 +217,16 @@ type BaseSuite[Env any] struct {
 
 	outputDir string
 
-	// cleanupCalled is true once TearDownSuite has executed (regardless of caller). Used by
-	// the t.Cleanup hook registered in SetupSuite to skip cleanup when testify or a
-	// derived-suite defer has already handled it. testify calls TearDownSuite reliably on
-	// every path *except* SetupSuite failure (testify suite.go:214 defers TearDownSuite
-	// after SetupSuite returns, so a Goexit during setup never registers the defer); the
-	// t.Cleanup hook covers that one gap.
-	cleanupCalled bool
+	// teardownOnce ensures exactly one caller runs the teardown body
+	// (teardownSuite); concurrent or later callers block inside TearDownSuite
+	// until that run finishes. teardownStarted is set at the start of the body
+	// and read by the t.Cleanup hook registered in SetupSuite to skip cleanup
+	// when teardown is already handled. testify calls TearDownSuite reliably on
+	// every path *except* SetupSuite failure (testify suite.go:214 defers
+	// TearDownSuite after SetupSuite returns, so a Goexit during setup never
+	// registers the defer); the t.Cleanup hook covers that one gap.
+	teardownOnce    sync.Once
+	teardownStarted atomic.Bool
 }
 
 //
@@ -593,13 +598,13 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	// suite.go:214) is registered *after* SetupSuite returns, so a panic or T.FailNow in
 	// any SetupSuite layer (framework or derived override) leaves the goroutine without
 	// ever invoking it. t.Cleanup runs against the *testing.T regardless of how the test
-	// goroutine terminates, so it is robust to Goexit/panic during setup. The cleanupCalled
-	// flag (set at the start of TearDownSuite) ensures the hook is a no-op when testify
+	// goroutine terminates, so it is robust to Goexit/panic during setup. The teardownStarted
+	// flag (set at the start of the teardown body) ensures the hook is a no-op when testify
 	// or a legacy `defer s.CleanupOnSetupFailure()` already handled cleanup. When the hook
 	// does invoke CleanupOnSetupFailure, recover() returns nil and we fall through to its
 	// T().Failed() branch to run the diagnose + TearDownSuite + T.Fatal sequence.
 	bs.T().Cleanup(func() {
-		if bs.cleanupCalled {
+		if bs.teardownStarted.Load() {
 			return
 		}
 		bs.CleanupOnSetupFailure()
@@ -708,17 +713,23 @@ func (bs *BaseSuite[Env]) IsWithinCI() bool {
 //
 // If you override TearDownSuite in your custom test suite type, the function must call [e2e.BaseSuite.TearDownSuite].
 //
-// Idempotent: a `cleanupCalled` flag is set on the first call so subsequent calls return
-// early. This coordinates the various paths that reach cleanup — testify's normal
-// after-tests defer, the t.Cleanup hook in SetupSuite, the legacy
-// `defer s.CleanupOnSetupFailure()` in derived suites — to result in exactly one teardown.
+// Safe to call from several goroutines: a `sync.Once` guarantees that exactly
+// one caller runs the teardown body, and concurrent or later callers block
+// until it finishes. This coordinates the various paths that reach cleanup —
+// testify's normal after-tests defer, the t.Cleanup hook in SetupSuite, the
+// legacy `defer s.CleanupOnSetupFailure()` in derived suites — to result in
+// exactly one teardown, and keeps the suite (and the process) from exiting
+// while a teardown is still running.
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 func (bs *BaseSuite[Env]) TearDownSuite() {
-	if bs.cleanupCalled {
-		return
-	}
-	bs.cleanupCalled = true
+	bs.teardownOnce.Do(bs.teardownSuite)
+}
+
+// teardownSuite is the teardown body; exactly one caller runs it, see
+// TearDownSuite for the concurrency contract.
+func (bs *BaseSuite[Env]) teardownSuite() {
+	bs.teardownStarted.Store(true)
 	bs.endTime = time.Now()
 
 	// Runs via defer, not inline, so it still executes across the devMode/initOnly

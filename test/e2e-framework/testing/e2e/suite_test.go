@@ -197,9 +197,9 @@ func makeTestEnvResources() provisioners.RawResources {
 	return resources
 }
 
-// TestTearDownSuiteIdempotent verifies the cleanupCalled guard:
+// TestTearDownSuiteIdempotent verifies the teardown guard:
 //   - testify's post-test defer runs TearDownSuite once, calling Destroy.
-//   - A second direct TearDownSuite call observes cleanupCalled and short-circuits
+//   - A second direct TearDownSuite call blocks on the sync.Once and returns
 //     without calling Destroy again.
 func TestTearDownSuiteIdempotent(t *testing.T) {
 	p := &testProvisioner{}
@@ -211,10 +211,52 @@ func TestTearDownSuiteIdempotent(t *testing.T) {
 	Run(t, s, WithProvisioner(p))
 
 	p.AssertNumberOfCalls(t, "Destroy", 1)
-	require.True(t, s.cleanupCalled, "cleanupCalled should be true after TearDownSuite ran")
+	require.True(t, s.teardownStarted.Load(), "teardownStarted should be true after TearDownSuite ran")
 
 	// Second TearDownSuite call must observe the guard and not call Destroy again.
 	s.TearDownSuite()
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
+// TestTearDownSuiteConcurrentCallsRunOnce verifies the concurrency contract of
+// the teardown guard: when two goroutines call TearDownSuite at the same time,
+// the teardown body runs exactly once (Destroy once) and the second caller
+// blocks until the first teardown finishes instead of returning early.
+func TestTearDownSuiteConcurrentCallsRunOnce(t *testing.T) {
+	destroyStarted := make(chan struct{})
+	destroyRelease := make(chan struct{})
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).
+		Run(func(mock.Arguments) {
+			close(destroyStarted)
+			<-destroyRelease
+		})
+
+	s := &testNoOpSuite{}
+	s.init([]SuiteOption{WithProvisioner(p)}, s)
+	s.SetT(t)
+
+	done := make(chan struct{}, 2)
+	go func() { s.TearDownSuite(); done <- struct{}{} }()
+	<-destroyStarted // first teardown is now inside Destroy
+
+	go func() { s.TearDownSuite(); done <- struct{}{} }()
+	select {
+	case <-done:
+		t.Fatal("second TearDownSuite returned while the first teardown was still running")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(destroyRelease)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-done:
+		case <-time.After(30 * time.Second):
+			t.Fatal("TearDownSuite did not return")
+		}
+	}
 	p.AssertNumberOfCalls(t, "Destroy", 1)
 }
 
