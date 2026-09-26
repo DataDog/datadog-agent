@@ -7,6 +7,7 @@ package demultiplexerendpointimpl
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -19,13 +20,139 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
+
+type fakeContextDumper []aggregator.ContextDebugRepr
+
+func (d fakeContextDumper) DumpDogstatsdContexts(w io.Writer) error {
+	enc := json.NewEncoder(w)
+	for _, context := range d {
+		if err := enc.Encode(context); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 type contextDumperFunc func(io.Writer) error
 
 func (f contextDumperFunc) DumpDogstatsdContexts(w io.Writer) error {
 	return f(w)
+}
+
+func TestValidateTopRequest(t *testing.T) {
+	for _, request := range []topRequest{
+		{Source: topSourceLive, NumMetrics: 0, NumTags: 5},
+		{Source: topSourceLive, NumMetrics: maxNumMetrics + 1, NumTags: 5},
+		{Source: topSourceLive, NumMetrics: 10, NumTags: 0},
+		{Source: topSourceLive, NumMetrics: 10, NumTags: maxNumTags + 1},
+		{Source: "saved", NumMetrics: 10, NumTags: 5},
+	} {
+		require.Error(t, validateTopRequest(request))
+	}
+
+	require.NoError(t, validateTopRequest(topRequest{Source: topSourceLive, NumMetrics: 10, NumTags: 5}))
+	require.NoError(t, validateTopRequest(topRequest{Source: topSourceDump, NumMetrics: 10, NumTags: 5}))
+}
+
+func TestTopDogstatsdContextsFromDump(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux: fakeContextDumper{
+			{Name: "requests", MetricTags: []string{"env:prod"}},
+		},
+		runPath: t.TempDir(),
+	}
+	_, err := endpoint.writeDogstatsdContexts()
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{"source":"dump"}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{
+		"source": "dump",
+		"metrics": [{
+			"name": "requests",
+			"contexts": 1,
+			"tags": [{"key": "env", "unique_values": 1}]
+		}]
+	}`, recorder.Body.String())
+}
+
+func TestTopDogstatsdContextsDefaultsToLive(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux: fakeContextDumper{
+			{Name: "requests", MetricTags: []string{"env:prod"}},
+		},
+		runPath: t.TempDir(),
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{
+		"source": "live",
+		"metrics": [{
+			"name": "requests",
+			"contexts": 1,
+			"tags": [{"key": "env", "unique_values": 1}]
+		}]
+	}`, recorder.Body.String())
+}
+
+func TestTopDogstatsdContextsStrictlyLimitsSingleRemainders(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux: fakeContextDumper{
+			{Name: "first", MetricTags: []string{"alpha:1", "beta:1", "gamma:1"}},
+			{Name: "first", MetricTags: []string{"alpha:2", "beta:1", "gamma:1"}},
+			{Name: "second"},
+			{Name: "third"},
+		},
+		runPath: t.TempDir(),
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{"num_metrics":2,"num_tags":2,"source":"live"}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{
+		"source": "live",
+		"metrics": [
+			{
+				"name": "first",
+				"contexts": 2,
+				"tags": [
+					{"key": "alpha", "unique_values": 2},
+					{"key": "beta", "unique_values": 1}
+				],
+				"other_tags": 1,
+				"other_tag_values": 1
+			},
+			{"name": "second", "contexts": 1, "tags": []}
+		],
+		"other_metrics": 1,
+		"other_contexts": 1
+	}`, recorder.Body.String())
+}
+
+func TestTopDogstatsdContextsRejectsLiveWhenDataPlaneOwnsDogstatsd(t *testing.T) {
+	endpoint := demultiplexerEndpoint{
+		demux:                fakeContextDumper{{Name: "requests"}},
+		runPath:              t.TempDir(),
+		dogstatsdOnDataPlane: true,
+	}
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/dogstatsd-contexts-top", bytes.NewBufferString(`{}`))
+	endpoint.topDogstatsdContexts(recorder, request)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 }
 
 func TestDumpDogstatsdContextsRejectsWhenDataPlaneOwnsDogstatsd(t *testing.T) {
@@ -66,27 +193,24 @@ func TestWriteDogstatsdContextsCoalescesConcurrentDumps(t *testing.T) {
 	}()
 	<-dumpStarted
 
-	secondCallStarted := make(chan struct{})
-	secondResultCh := make(chan result, 1)
-	go func() {
-		close(secondCallStarted)
-		path, err := endpoint.writeDogstatsdContexts()
-		secondResultCh <- result{path: path, err: err}
-	}()
-	<-secondCallStarted
+	finalPath := filepath.Join(endpoint.runPath, dogstatsdContextsDumpFilename)
+	secondResultCh := endpoint.dumpGroup.DoChan(finalPath, func() (any, error) {
+		return endpoint.writeDogstatsdContextsFile(finalPath)
+	})
 	close(releaseDump)
 
 	firstResult := <-firstResultCh
 	secondResult := <-secondResultCh
 	require.NoError(t, firstResult.err)
-	require.NoError(t, secondResult.err)
-	require.Equal(t, firstResult.path, secondResult.path)
+	require.NoError(t, secondResult.Err)
+	require.True(t, secondResult.Shared)
+	require.Equal(t, firstResult.path, secondResult.Val)
 	require.Equal(t, int32(1), dumpCalls.Load())
 }
 
 func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 	runPath := t.TempDir()
-	finalPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")
+	finalPath := filepath.Join(runPath, dogstatsdContextsDumpFilename)
 	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0o644))
 
 	started := make(chan struct{})
@@ -136,14 +260,14 @@ func TestWriteDogstatsdContextsPublishesAtomically(t *testing.T) {
 	decoder.Close()
 	require.JSONEq(t, `{"name":"new dump"}`, string(decompressed))
 
-	tempFiles, err := filepath.Glob(filepath.Join(runPath, "dogstatsd_contexts-*.tmp"))
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
 	require.NoError(t, err)
 	require.Empty(t, tempFiles)
 }
 
 func TestWriteDogstatsdContextsFailurePreservesExistingDump(t *testing.T) {
 	runPath := t.TempDir()
-	finalPath := filepath.Join(runPath, "dogstatsd_contexts.json.zstd")
+	finalPath := filepath.Join(runPath, dogstatsdContextsDumpFilename)
 	require.NoError(t, os.WriteFile(finalPath, []byte("previous dump"), 0o644))
 
 	dumpErr := errors.New("dump failed")
@@ -163,7 +287,7 @@ func TestWriteDogstatsdContextsFailurePreservesExistingDump(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []byte("previous dump"), contents)
 
-	tempFiles, err := filepath.Glob(filepath.Join(runPath, "dogstatsd_contexts-*.tmp"))
+	tempFiles, err := filepath.Glob(filepath.Join(runPath, ".dogstatsd_contexts-*.tmp"))
 	require.NoError(t, err)
 	require.Empty(t, tempFiles)
 }

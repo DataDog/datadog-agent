@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
+// Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump and /dogstatsd-contexts-top API endpoints that can register via Fx value groups.
 package demultiplexerendpoint
 
 // team: agent-metric-pipelines
