@@ -6,8 +6,11 @@
 package containers
 
 import (
+	"context"
 	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -15,6 +18,11 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type kindSuite struct {
@@ -60,6 +68,59 @@ clusterAgent:
 func (suite *kindSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
+}
+
+func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
+	const (
+		deploymentLabel = "nvidia.com/dynamo-graph-deployment-name"
+		deploymentName  = "my-model"
+		namespace       = "workload-cpustress"
+	)
+
+	ctx := suite.T().Context()
+	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
+	list, err := pods.List(ctx, metav1.ListOptions{})
+	suite.Require().NoError(err)
+
+	var podName string
+	for _, pod := range list.Items {
+		if strings.HasPrefix(pod.Name, "stress-ng-") {
+			podName = pod.Name
+			break
+		}
+	}
+	suite.Require().NotEmpty(podName, "no stress-ng pod found for Dynamo tag test")
+
+	setLabel := func(ctx context.Context, value string) error {
+		pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if value == "" {
+			delete(pod.Labels, deploymentLabel)
+		} else {
+			pod.Labels[deploymentLabel] = value
+		}
+		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
+		return err
+	}
+	suite.Require().NoError(setLabel(ctx, deploymentName))
+	defer func() {
+		suite.Require().NoError(setLabel(context.Background(), ""), "restore stress-ng pod labels")
+	}()
+
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := suite.Fakeintake.FilterMetrics(
+			"container.cpu.usage",
+			fakeintakeclient.WithTags[*aggregator.MetricSeries]([]string{
+				"kube_namespace:" + namespace,
+				"pod_name:" + podName,
+				"dynamo_graph_deployment:" + deploymentName,
+			}),
+		)
+		require.NoError(c, err)
+		assert.NotEmpty(c, metrics, "container CPU metric did not reach fakeintake with the Dynamo deployment tag")
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (suite *kindSuite) TestControlPlane() {
