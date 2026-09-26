@@ -10,6 +10,8 @@ package dogtelextensionimpl
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -25,6 +27,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
@@ -170,6 +173,135 @@ func TestSendLivenessMetric_UsesHostname(t *testing.T) {
 	assert.Equal(t, "otel.dogtel_extension.running", captured[0].Name)
 	assert.Equal(t, "expected-host", captured[0].Host)
 	assert.Equal(t, 1.0, captured[0].Points[0].Value)
+}
+
+// TestSendLivenessMetric_ECSFargate_Success verifies that on ECS Fargate the liveness
+// metric is tagged with the task ARN fetched from the ECS metadata v4 endpoint, instead
+// of the host-based metric.
+func TestSendLivenessMetric_ECSFargate_Success(t *testing.T) {
+	env.SetFeatures(t, env.ECSFargate)
+
+	const wantARN = "arn:aws:ecs:us-east-1:123456789012:task/my-cluster/abc123"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/task", r.URL.Path)
+		_, _ = w.Write([]byte(`{"TaskARN":"` + wantARN + `"}`))
+	}))
+	defer server.Close()
+	t.Setenv(ecsMetadataURIv4EnvVar, server.URL)
+
+	hostname, _ := hostnameinterface.NewMock("my-host")
+
+	var captured []*agentmetrics.Serie
+	serializer := serializermock.NewMetricSerializer(t)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		src := args.Get(0).(agentmetrics.SerieSource)
+		for src.MoveNext() {
+			if s := src.Current(); s != nil {
+				sc := *s
+				captured = append(captured, &sc)
+			}
+		}
+	}).Return(nil)
+
+	ext := &dogtelExtension{
+		log:        logmock.New(t),
+		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		serializer: serializer,
+		hostname:   hostname,
+	}
+
+	err := ext.sendLivenessMetric(context.Background())
+	require.NoError(t, err)
+	require.Len(t, captured, 1)
+	assert.Equal(t, "otel.dogtel_extension.running.fargate", captured[0].Name)
+	assert.Empty(t, captured[0].Host, "the fargate metric must not carry a host")
+	var hasTaskARNTag bool
+	captured[0].Tags.ForEach(func(tag string) {
+		if tag == "task_arn:"+wantARN {
+			hasTaskARNTag = true
+		}
+	})
+	assert.True(t, hasTaskARNTag, "expected a task_arn tag on the fargate metric")
+}
+
+// TestSendLivenessMetric_ECSFargate_MetadataError verifies that a failure to reach the
+// ECS metadata endpoint surfaces as an error, rather than silently falling back to the
+// host-based metric.
+func TestSendLivenessMetric_ECSFargate_MetadataError(t *testing.T) {
+	env.SetFeatures(t, env.ECSFargate)
+	t.Setenv(ecsMetadataURIv4EnvVar, "")
+
+	hostname, _ := hostnameinterface.NewMock("my-host")
+	serializer := serializermock.NewMetricSerializer(t)
+
+	ext := &dogtelExtension{
+		log:        logmock.New(t),
+		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		serializer: serializer,
+		hostname:   hostname,
+	}
+
+	err := ext.sendLivenessMetric(context.Background())
+	require.Error(t, err)
+	serializer.AssertNotCalled(t, "SendIterableSeries", mock.Anything)
+}
+
+// TestSendLivenessMetric_AzureContainerApps_Success verifies that on Azure Container Apps,
+// with all identifying attributes present, the liveness metric is tagged with the container
+// app identity instead of the host-based metric.
+func TestSendLivenessMetric_AzureContainerApps_Success(t *testing.T) {
+	t.Setenv(containerAppNameEnvVar, "my-app")
+	t.Setenv(containerAppReplicaNameEnvVar, "replica-1")
+	t.Setenv(azureSubscriptionIDEnvVar, "sub-123")
+	t.Setenv(azureResourceGroupEnvVar, "my-rg")
+
+	hostname, _ := hostnameinterface.NewMock("my-host")
+
+	var captured []*agentmetrics.Serie
+	serializer := serializermock.NewMetricSerializer(t)
+	serializer.On("SendIterableSeries", mock.Anything).Run(func(args mock.Arguments) {
+		src := args.Get(0).(agentmetrics.SerieSource)
+		for src.MoveNext() {
+			if s := src.Current(); s != nil {
+				sc := *s
+				captured = append(captured, &sc)
+			}
+		}
+	}).Return(nil)
+
+	ext := &dogtelExtension{
+		log:        logmock.New(t),
+		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		serializer: serializer,
+		hostname:   hostname,
+	}
+
+	err := ext.sendLivenessMetric(context.Background())
+	require.NoError(t, err)
+	require.Len(t, captured, 1)
+	assert.Equal(t, "otel.dogtel_extension.running.azurecontainerapps", captured[0].Name)
+	assert.Empty(t, captured[0].Host, "the container apps metric must not carry a host")
+}
+
+// TestSendLivenessMetric_AzureContainerApps_IncompleteIdentity verifies that when Azure
+// Container Apps is detected but subscription_id/resource_group are not set (customers must
+// set them manually), the metric is skipped entirely rather than sent partially tagged.
+func TestSendLivenessMetric_AzureContainerApps_IncompleteIdentity(t *testing.T) {
+	t.Setenv(containerAppNameEnvVar, "my-app")
+
+	hostname, _ := hostnameinterface.NewMock("my-host")
+	serializer := serializermock.NewMetricSerializer(t)
+
+	ext := &dogtelExtension{
+		log:        logmock.New(t),
+		coreConfig: configmock.NewMockWithOverrides(t, nil),
+		serializer: serializer,
+		hostname:   hostname,
+	}
+
+	err := ext.sendLivenessMetric(context.Background())
+	require.NoError(t, err)
+	serializer.AssertNotCalled(t, "SendIterableSeries", mock.Anything)
 }
 
 // TestIsSecretsNoop_WithNoopImpl verifies that the noop impl is detected.
