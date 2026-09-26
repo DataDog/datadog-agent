@@ -1,0 +1,9 @@
+# Fix for Docker container size metrics not being collected when configured via autodiscovery
+---
+fixes:
+  - |
+    Fixed an issue where ``docker.container.size_rw`` and ``docker.container.size_rootfs`` 
+    metrics were not being sent to Datadog when ``collect_container_size`` was enabled 
+    via autodiscovery configuration. The ``collectContainerSize`` parameter was not being 
+    properly passed to the ``runDockerCustom`` method, causing the size metrics to be 
+    ignored regardless of the configuration setting.
