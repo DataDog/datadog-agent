@@ -213,6 +213,18 @@ func TestGetProvidersDefinitionsIncludesKubernetesNodeTagsOnNodeAgent(t *testing
 	providers := getProvidersDefinitions(mockConfig)
 	_, hasKubernetesNodeTags := providers["kubernetes"]
 	assert.True(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be registered on a regular node Agent")
+
+	_, hasEKSIdentity := providers["kubernetes_cluster_agent_eks_identity"]
+	assert.True(t, hasEKSIdentity, "EKS identity provider should be registered on a Kubernetes node Agent")
+}
+
+func TestGetProvidersDefinitionsSkipsEKSIdentityOutsideKubernetes(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	env.SetFeatures(t)
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasEKSIdentity := providers["kubernetes_cluster_agent_eks_identity"]
+	assert.False(t, hasEKSIdentity, "EKS identity provider must not be registered without the Kubernetes feature")
 }
 
 func TestHostTagsCache(t *testing.T) {

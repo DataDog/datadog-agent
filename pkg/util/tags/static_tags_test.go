@@ -7,6 +7,7 @@ package tags
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -140,4 +141,112 @@ func TestClusterAgentGlobalTags(t *testing.T) {
 			"orch":    {"tag"},
 		}, globalTags)
 	})
+}
+
+func stubEKSIdentity(t *testing.T, tags []string, err error) *int {
+	t.Helper()
+	original := getClusterAgentEKSIdentityTags
+	t.Cleanup(func() { getClusterAgentEKSIdentityTags = original })
+	calls := new(int)
+	getClusterAgentEKSIdentityTags = func(context.Context) ([]string, error) {
+		*calls++
+		return tags, err
+	}
+	return calls
+}
+
+var eksIdentityTags = []string{
+	"eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders",
+	"aws_account:123456789012",
+	"region:us-west-2",
+}
+
+func TestStaticTagsSliceEKSIdentityOnNodeAgent(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+	recordFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+	flavor.SetFlavor(flavor.DefaultAgent)
+
+	mockConfig := configmock.New(t)
+
+	t.Run("cluster agent disabled does not query identity", func(t *testing.T) {
+		mockConfig.SetInTest("cluster_agent.enabled", false)
+		calls := stubEKSIdentity(t, eksIdentityTags, nil)
+		assert.Empty(t, GetStaticTagsSlice(t.Context(), mockConfig))
+		assert.Equal(t, 0, *calls)
+	})
+
+	t.Run("identity from cluster agent is attached", func(t *testing.T) {
+		mockConfig.SetInTest("cluster_agent.enabled", true)
+		calls := stubEKSIdentity(t, eksIdentityTags, nil)
+		assert.ElementsMatch(t, eksIdentityTags, GetStaticTagsSlice(t.Context(), mockConfig))
+		assert.Equal(t, 1, *calls)
+	})
+
+	t.Run("identity failure adds nothing", func(t *testing.T) {
+		mockConfig.SetInTest("cluster_agent.enabled", true)
+		stubEKSIdentity(t, nil, errors.New("cluster is not EKS"))
+		assert.Empty(t, GetStaticTagsSlice(t.Context(), mockConfig))
+	})
+
+	t.Run("cluster agent flavor never queries itself", func(t *testing.T) {
+		flavor.SetFlavor(flavor.ClusterAgent)
+		defer flavor.SetFlavor(flavor.DefaultAgent)
+		mockConfig.SetInTest("cluster_agent.enabled", true)
+		calls := stubEKSIdentity(t, eksIdentityTags, nil)
+		assert.Empty(t, GetStaticTagsSlice(t.Context(), mockConfig))
+		assert.Equal(t, 0, *calls)
+	})
+}
+
+func TestStaticTagsSliceEKSIdentityOnFargate(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("kubernetes_kubelet_nodename", "eksnode")
+	mockConfig.SetInTest("cluster_agent.enabled", true)
+	env.SetFeatures(t, env.EKSFargate)
+
+	originalStatic := getClusterAgentStaticTags
+	t.Cleanup(func() { getClusterAgentStaticTags = originalStatic })
+	getClusterAgentStaticTags = func() ([]string, error) {
+		return []string{"orch_cluster_id:94e43011-177b-11ea-a4fe-42010a8401d2"}, nil
+	}
+
+	t.Run("identity is attached to sidecar static tags", func(t *testing.T) {
+		stubEKSIdentity(t, eksIdentityTags, nil)
+		staticTags := GetStaticTagsSlice(t.Context(), mockConfig)
+		assert.Subset(t, staticTags, eksIdentityTags)
+		assert.Contains(t, staticTags, "orch_cluster_id:94e43011-177b-11ea-a4fe-42010a8401d2")
+		assert.Contains(t, staticTags, "kube_distribution:eks")
+	})
+
+	t.Run("identity failure keeps existing sidecar tags", func(t *testing.T) {
+		stubEKSIdentity(t, nil, errors.New("unavailable"))
+		staticTags := GetStaticTagsSlice(t.Context(), mockConfig)
+		assert.Contains(t, staticTags, "kube_distribution:eks")
+		for _, tag := range eksIdentityTags {
+			assert.NotContains(t, staticTags, tag)
+		}
+	})
+}
+
+func TestClusterAgentGlobalTagsEKSIdentity(t *testing.T) {
+	env.SetFeatures(t, env.Kubernetes)
+	clustername.ResetClusterName()
+	mockConfig := configmock.New(t)
+	recordFlavor := flavor.GetFlavor()
+	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
+	flavor.SetFlavor(flavor.ClusterAgent)
+
+	original := getClusterAgentEKSIdentity
+	t.Cleanup(func() { getClusterAgentEKSIdentity = original })
+	calls := 0
+	getClusterAgentEKSIdentity = func(context.Context) []string {
+		calls++
+		return eksIdentityTags
+	}
+
+	// Without EKS detection the resolver must not be consulted at all.
+	globalTags := GetClusterAgentStaticTags(t.Context(), mockConfig)
+	assert.Equal(t, 0, calls)
+	assert.NotContains(t, globalTags, "eks_cluster_arn")
 }

@@ -37,6 +37,8 @@ const (
 	OrchClusterID = "orch_cluster_id"
 	// KubeDistribution is the tag for the managed Kubernetes cloud provider: eks, gke, aks
 	KubeDistribution = "kube_distribution"
+	// EksClusterARN is the tag for the EKS cluster ARN (Amazon Resource Name)
+	EksClusterARN = "eks_cluster_arn"
 
 	// ImageName is the tag for the image name
 	ImageName = "image_name"
@@ -179,7 +181,7 @@ const (
 	TaskFamily = "task_family"
 	// TaskVersion is the tag for the ECS task version
 	TaskVersion = "task_version"
-	// Region is the tag for the ECS region
+	// Region is the tag for the AWS region
 	Region = "region"
 	// AvailabilityZone is the tag for the ECS availability zone
 	AvailabilityZone = "availability-zone"
@@ -199,7 +201,7 @@ const (
 	EcsDaemonName = "ecs_daemon"
 	// EcsDaemonARN is the tag for the ECS daemon ARN (Amazon Resource Name)
 	EcsDaemonARN = "daemon_arn"
-	// AwsAccount is the tag for ECS account id
+	// AwsAccount is the tag for the AWS account ID
 	AwsAccount = "aws_account"
 
 	// Language is the tag for the process language

@@ -68,6 +68,12 @@ func (suite *eksSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.envSpecificClusterTags = []string{"^kube_distribution:eks$"}
+	// Authoritative EKS cluster identity resolved by the Cluster Agent through eks:DescribeCluster.
+	suite.envContainerTags = []string{
+		`^eks_cluster_arn:arn:aws:eks:[a-z0-9-]+:[0-9]{12}:cluster/[A-Za-z0-9_-]+$`,
+		`^aws_account:[0-9]{12}$`,
+		`^region:[a-z0-9-]+$`,
+	}
 }
 
 func (suite *eksSuite) TestEKSFargate() {
@@ -319,6 +325,10 @@ func (suite *eksSuite) TestHostTags() {
 			`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
 			`nodegroup-image:ami-[0-9a-f]{17}`,
 			`^os:linux$`,
+			// Authoritative EKS identity; present on nodes whose Agent reaches the Cluster Agent.
+			`^eks_cluster_arn:arn:aws:eks:[a-z0-9-]+:[0-9]{12}:cluster/[A-Za-z0-9_-]+$`,
+			`^aws_account:[0-9]{12}$`,
+			`^region:[a-z0-9-]+$`,
 		},
 	}
 
