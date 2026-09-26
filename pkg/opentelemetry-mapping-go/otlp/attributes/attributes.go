@@ -223,6 +223,37 @@ var (
 		string(semconv1_27.URLFullKey):                "http.url",
 		string(semconv1_27.UserAgentOriginalKey):      "http.useragent",
 	}
+
+	// AWSIdentitySpanMappings defines the mapping between OpenTelemetry semantic
+	// conventions that carry AWS resource identity (account, Region, ARNs) and the
+	// span tag names the Datadog tracers and the Agent tagger already emit for the
+	// same information. Unlike HTTPMappings, the OpenTelemetry key is kept on the
+	// span as well: the Datadog name is added alongside it so that OTLP-instrumented
+	// workloads can be queried with the same identity tags as natively instrumented
+	// ones without breaking queries that already use the OpenTelemetry names.
+	//
+	// cloud.account.id and aws.dynamodb.table_names are intentionally absent: the
+	// former is only aws_account when cloud.provider is aws, and the latter is an
+	// array attribute. Both are handled in the trace transform.
+	AWSIdentitySpanMappings = map[string]string{
+		// Cloud conventions, same target as ContainerMappings.
+		string(semconv1_27.CloudRegionKey): "region",
+
+		// Lambda: aws.lambda.invoked_arn is the ARN of the function being executed
+		// on the invocation span; Datadog's serverless instrumentation calls it function_arn.
+		string(semconv1_27.AWSLambdaInvokedARNKey): "function_arn",
+
+		// ECS: same targets as the Agent's ECS tagger (comp/core/tagger/tags).
+		string(semconv1_27.AWSECSTaskARNKey):    "task_arn",
+		string(semconv1_27.AWSECSClusterARNKey): "cluster_arn",
+
+		// EKS: same target as the Agent's EKS cluster identity static tag.
+		string(semconv1_27.AWSEKSClusterARNKey): "eks_cluster_arn",
+
+		// S3: the Datadog AWS SDK integrations tag the bucket as bucketname, which is
+		// also the peer.aws.s3.bucket precursor.
+		string(semconv1_27.AWSS3BucketKey): "bucketname",
+	}
 )
 
 // TagsFromAttributes converts a selected list of attributes
