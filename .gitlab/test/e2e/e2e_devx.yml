@@ -2,26 +2,21 @@
 # e2e stage - agent-devx owned jobs
 # Owned by: agent-devx
 
-# Build test binaries job that creates pre-compiled test binaries
-# This job runs early in the pipeline and uploads per-package tarballs to S3
-# so that each test job can download only the binaries it needs.
+# Build all E2E test binaries with Bazel (new-e2e-tests.build-binaries). This warms the
+# Bazel remote cache, so that each e2e test job can fetch its binaries from the cache
+# (--bazel-require-cached) instead of compiling them in-job.
 go_e2e_test_binaries:
   extends: [.bazel:defs:cache:progressive]
   stage: binary_build
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
-  needs:
-    - go_e2e_deps
   variables:
-    KUBERNETES_CPU_REQUEST: 4
-    KUBERNETES_CPU_LIMIT: 4
+    KUBERNETES_CPU_REQUEST: 6
+    KUBERNETES_CPU_LIMIT: 6
     KUBERNETES_MEMORY_REQUEST: 64Gi
     KUBERNETES_MEMORY_LIMIT: 64Gi
-  before_script:
-    - !reference [.retrieve_linux_go_e2e_deps]
   script:
     - dda inv -- -e new-e2e-tests.build-binaries --output-dir test-binaries --manifest-file-path manifest.json
-    - dda inv -- -e new-e2e-tests.upload-binaries --output-dir test-binaries --manifest-file-path manifest.json --s3-base-uri $S3_PERMANENT_ARTIFACTS_URI/e2e-pre-build/$CI_PIPELINE_ID
   rules:
     - !reference [.except_light_pipeline]
     - when: on_success

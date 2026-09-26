@@ -116,7 +116,7 @@ go_tools_deps:
     - key:
         files:
           - ./**/go.mod
-          - tasks/install_tasks.py  # TOOL_LIST
+          - tasks/install_tasks.py # TOOL_LIST
         prefix: go_tools_deps_v2
       paths:
         - go_tools_bin.tar.zst
@@ -146,7 +146,7 @@ go_tools_deps_arm64:
     - key:
         files:
           - ./**/go.mod
-          - tasks/install_tasks.py  # TOOL_LIST
+          - tasks/install_tasks.py # TOOL_LIST
         prefix: go_tools_deps_arm64_v2
       paths:
         - go_tools_bin_arm64.tar.zst

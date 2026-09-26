@@ -14,6 +14,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -27,7 +28,7 @@ from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
@@ -345,6 +346,111 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
     return True
 
 
+def _build_binaries_with_bazel(
+    ctx: Context, targets: list[str], no_cache: bool = False, require_cached: bool = False
+) -> bool:
+    """Build the E2E test binaries for the given targets with Bazel.
+
+    Builds the go_test targets matching the requested packages, installs the binaries
+    under test-binaries/ and writes the manifest.json expected by gotest-custom.
+    When no_cache is set, builds without any Bazel cache (remote or disk), to test
+    cold-build behavior (e.g. memory usage when no cache is available).
+    When require_cached is set, only fetches the binaries from the remote Bazel cache
+    (nothing is compiled); the build fails if they are not cached yet. Warm the cache
+    first with the `build-binaries` task.
+    Returns True if at least one binary was built, False otherwise.
+    """
+    repo_root = get_repo_root()
+    test_binaries_bzl = {}
+    exec((repo_root / "test/new-e2e/tests/test_binaries.bzl").read_text(), test_binaries_bzl)
+    test_binaries = test_binaries_bzl["TEST_BINARIES"]
+
+    # Normalize targets: ./tests/agent-devx -> tests/agent-devx
+    target_prefixes = [target.lstrip("./") for target in targets]
+
+    bazel_args = ["--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk"]
+    # Limit concurrent actions to 6 (the e2e jobs' KUBERNETES_CPU_LIMIT), to bound peak memory during builds.
+    # Note: --local_cpu_resources no longer exists in Bazel 9, --jobs is the replacement.
+    bazel_args = ["--jobs=6", *bazel_args]
+    if no_cache:
+        print(
+            color_message(
+                "Building test binaries with no Bazel cache (cold build): remote and disk caches are disabled",
+                "yellow",
+            )
+        )
+        # Passed after any wrapper-injected cache flags so they take precedence (last flag wins):
+        # --config=no-remote-cache sets --remote_cache= (see .bazelrc), --disk_cache= disables the disk cache.
+        bazel_args = ["--config=no-remote-cache", "--disk_cache=", *bazel_args]
+    elif require_cached:
+        print(
+            color_message(
+                "Fetching test binaries from the Bazel remote cache (nothing is compiled; fails if not cached)",
+                "yellow",
+            )
+        )
+        # Require every action to be a remote-cache hit: only fetch the outputs, never compile locally,
+        # and never inject new results into the cache. Warm it first with `new-e2e-tests.build-binaries`.
+        bazel_args = ["--experimental_remote_require_cached", "--noremote_upload_local_results", *bazel_args]
+
+    # Show the resources Bazel detects (what the "auto"/HOST_CPUS expressions resolve against; cgroup-aware in CI)
+    detected_resources = bazel("info", "local_resources", capture_output=True).strip()
+    print(f"Bazel detected resources: {detected_resources}")
+
+    output_path = Path("test-binaries").absolute()
+    manifest_binaries = []
+    # Bound the Go processes spawned by the build (Go toolchain: compiler, linker) to 6 CPUs, like --jobs=6
+    # above (they parallelize their work with GOMAXPROCS). Restored afterwards so it does not leak to the
+    # test run itself, where the test binaries legitimately want the full CPU budget.
+    prev_gomaxprocs = os.environ.get("GOMAXPROCS")
+    os.environ["GOMAXPROCS"] = "6"
+    try:
+        build_start = time.monotonic()
+        for label, binary_name in test_binaries.items():
+            package = label.removeprefix("//").partition(":")[0].removeprefix("test/new-e2e/")
+            if not any(package == prefix or package.startswith(prefix + "/") for prefix in target_prefixes):
+                continue
+            binary_path = output_path / binary_name
+            binary_start = time.monotonic()
+            build_binary_with_bazel(
+                label,
+                args=bazel_args,
+                bin_path=str(binary_path),
+            )
+            print(f"  Built {binary_name} with Bazel in {time.monotonic() - binary_start:.1f}s")
+            manifest_binaries.append(
+                {
+                    "package": package,
+                    "binary": binary_name,
+                    "size": binary_path.stat().st_size,
+                }
+            )
+    finally:
+        if prev_gomaxprocs is None:
+            os.environ.pop("GOMAXPROCS", None)
+        else:
+            os.environ["GOMAXPROCS"] = prev_gomaxprocs
+
+    if not manifest_binaries:
+        print(f"WARNING: No Bazel test binaries found matching targets: {targets}")
+        return False
+
+    build_duration = time.monotonic() - build_start
+
+    manifest = {
+        "build_info": {
+            "timestamp": ctx.run("date -u +%Y-%m-%dT%H:%M:%SZ", hide=True).stdout.strip(),
+            "commit": get_commit_sha(ctx, short=True),
+        },
+        "binaries": manifest_binaries,
+    }
+    with open("manifest.json", "w") as f:
+        json.dump(manifest, f, indent=2)
+
+    print(f"Built {len(manifest_binaries)} test binaries with Bazel into {output_path} in {build_duration:.1f}s")
+    return True
+
+
 # Buffer subtracted from the remaining GitLab job time to derive the go test
 # timeout. It gives the test framework (TearDownSuite: pulumi destroy, cluster
 # state dump, dashboard URL log) a window to run after go test panics on its
@@ -457,6 +563,9 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
+        "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of using pre-built ones or building them on the fly, then execute them with gotestsum",
+        "bazel_no_cache": "With --use-bazel-built-binaries: build with no Bazel cache (remote or disk) to test cold-build behavior (e.g. OOM when the cache is empty)",
+        "bazel_require_cached": "With --use-bazel-built-binaries: only fetch the test binaries from the Bazel remote cache instead of compiling them; fail if they are not cached yet (warm the cache first with new-e2e-tests.build-binaries)",
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
@@ -498,6 +607,9 @@ def run(
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
     use_prebuilt_binaries=False,
+    use_bazel_built_binaries=False,
+    bazel_no_cache=False,
+    bazel_require_cached=False,
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
@@ -687,6 +799,11 @@ def run(
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
+    if use_prebuilt_binaries and use_bazel_built_binaries:
+        raise Exit("--use-prebuilt-binaries and --use-bazel-built-binaries cannot be used together", 1)
+    if bazel_no_cache and bazel_require_cached:
+        raise Exit("--bazel-no-cache and --bazel-require-cached cannot be used together", 1)
+
     if use_prebuilt_binaries:
         s3_uri = os.environ.get("E2E_PREBUILD_S3_URI", "")
         if s3_uri and targets:
@@ -700,7 +817,16 @@ def run(
             )
             use_prebuilt_binaries = False
 
-    if use_prebuilt_binaries:
+    if use_bazel_built_binaries:
+        if not _build_binaries_with_bazel(ctx, targets, no_cache=bazel_no_cache, require_cached=bazel_require_cached):
+            print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
+            use_bazel_built_binaries = False
+    elif bazel_no_cache or bazel_require_cached:
+        print(
+            "WARNING: --bazel-no-cache / --bazel-require-cached have no effect without --use-bazel-built-binaries, ignoring them"
+        )
+
+    if use_prebuilt_binaries or use_bazel_built_binaries:
         ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"

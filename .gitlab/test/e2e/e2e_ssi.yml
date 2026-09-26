@@ -49,9 +49,10 @@
     TEAM: injection-platform
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    # Run early by design and never wait for go_e2e_test_binaries, so `go test` always
-    # compiles the suite in-job. At 24Gi the build container sat pinned at its memory
-    # limit for the whole run; sized to match go_e2e_test_binaries.
+    # Run early by design: this job never waits for go_e2e_test_binaries (the Bazel cache
+    # warm-up), so it opts out of fetching binaries from the cache and `go test` compiles
+    # the suite in-job. Keep memory generous for the in-job compilation.
+    PRE_BUILT_BINARIES_FLAG: ""
     KUBERNETES_MEMORY_REQUEST: 72Gi
     KUBERNETES_MEMORY_LIMIT: 72Gi
   allow_failure: true
