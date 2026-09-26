@@ -3670,6 +3670,52 @@ func TestConvertStats(t *testing.T) {
 	}
 }
 
+func TestProcessStatsObfuscatesTagsRegardlessOfTracerObfuscationVersion(t *testing.T) {
+	const command = "SET key value"
+
+	for _, tt := range []struct {
+		name               string
+		obfuscationVersion string
+		expectedResource   string
+	}{
+		{name: "missing-obfuscation-version", expectedResource: "SET"},
+		{name: "current-obfuscation-version", obfuscationVersion: strconv.Itoa(obfuscate.Version), expectedResource: command},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.New()
+			cfg.MaxResourceLen = 5000
+			cfg.Obfuscation.Redis.Enabled = true
+			o := cfg.Obfuscation.Export(cfg)
+			agnt := &Agent{
+				Blacklister:    filters.NewBlacklister(nil),
+				obfuscatorConf: &o,
+				Replacer:       filters.NewReplacer(nil),
+				conf:           cfg,
+			}
+			in := &pb.ClientStatsPayload{
+				Stats: []*pb.ClientStatsBucket{{
+					Stats: []*pb.ClientGroupedStats{{
+						Service:                "service",
+						Name:                   "operation",
+						Type:                   "redis",
+						Resource:               command,
+						SpanDerivedPrimaryTags: []string{"redis.raw_command:" + command},
+						AdditionalMetricTags:   []string{"redis.raw_command:" + command},
+					}},
+				}},
+			}
+
+			out := agnt.processStats(in, "go", "v1", "", tt.obfuscationVersion)
+
+			require.Len(t, out.Stats, 1)
+			require.Len(t, out.Stats[0].Stats, 1)
+			assert.Equal(t, tt.expectedResource, out.Stats[0].Stats[0].Resource)
+			assert.Equal(t, []string{"redis.raw_command:SET key ?"}, out.Stats[0].Stats[0].SpanDerivedPrimaryTags)
+			assert.Equal(t, []string{"redis.raw_command:SET key ?"}, out.Stats[0].Stats[0].AdditionalMetricTags)
+		})
+	}
+}
+
 func TestProcessStatsLongSQLResource(t *testing.T) {
 	// A valid SQL resource longer than MaxResourceLen (5000). Using backtick-quoted
 	// identifiers ensures the obfuscator must see the full string to tokenize it
