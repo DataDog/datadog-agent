@@ -1,0 +1,345 @@
+diff --git a/go/private/actions/link.bzl b/go/private/actions/link.bzl
+index fe7cd922..35eb7af7 100644
+--- a/go/private/actions/link.bzl
++++ b/go/private/actions/link.bzl
+@@ -212,9 +212,6 @@ def emit_link(
+     builder_args.add("-p", archive.data.importmap)
+     tool_args.add_all(gc_linkopts)
+     tool_args.add_all(go.toolchain.flags.link)
+-
+-    # Do not remove, somehow this is needed when building for darwin/arm only.
+-    tool_args.add("-buildid=redacted")
+     if go.mode.strip:
+         tool_args.add("-s", "-w")
+     tool_args.add_joined("-extldflags", extldflags, join_with = " ")
+diff --git a/go/tools/builders/BUILD.bazel b/go/tools/builders/BUILD.bazel
+index 760f8558..8883f0f0 100644
+--- a/go/tools/builders/BUILD.bazel
++++ b/go/tools/builders/BUILD.bazel
+@@ -140,6 +140,7 @@ filegroup(
+         "asm.go",
+         "baseline_coverage.go",
+         "builder.go",
++        "buildid.go",
+         "buildinfo.go",
+         "cc.go",
+         "cgo2.go",
+diff --git a/go/tools/builders/buildid.go b/go/tools/builders/buildid.go
+new file mode 100644
+index 00000000..f7ecd62a
+--- /dev/null
++++ b/go/tools/builders/buildid.go
+@@ -0,0 +1,99 @@
++// Copyright 2026 The Bazel Authors. All rights reserved.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//    http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package main
++
++import (
++	"bytes"
++	"crypto/sha256"
++	"debug/elf"
++	"encoding/hex"
++	"os"
++	"strings"
++)
++
++// buildIDPlaceholder makes the linker emit the Go and GNU build ID notes, which
++// setContentBuildID overwrites in place once the binary is linked. Its length
++// matches the hex-encoded ID written over it.
++var buildIDPlaceholder = strings.Repeat("0", 2*buildIDSize)
++
++const buildIDSize = 20
++
++// hasContentBuildID reports whether setContentBuildID supports binaries for goos.
++func hasContentBuildID(goos string) bool {
++	switch goos {
++	case "android", "dragonfly", "freebsd", "illumos", "linux", "netbsd", "openbsd", "solaris":
++		return true
++	}
++	return false
++}
++
++// setContentBuildID replaces the placeholder Go build ID and the GNU build ID
++// of the ELF binary at path with a hash of the binary, so that distinct
++// binaries get distinct IDs and rebuilds stay reproducible. Binaries without
++// the placeholder, e.g. built with -buildid in gc_linkopts, are left untouched.
++func setContentBuildID(path string) error {
++	data, err := os.ReadFile(path)
++	if err != nil {
++		return err
++	}
++	f, err := elf.NewFile(bytes.NewReader(data))
++	if err != nil {
++		return err
++	}
++	goStart, goEnd, ok := noteDesc(f, ".note.go.buildid")
++	if !ok || string(data[goStart:goEnd]) != buildIDPlaceholder {
++		return nil
++	}
++
++	sum := sha256.Sum256(data)
++	out, err := os.OpenFile(path, os.O_WRONLY, 0)
++	if err != nil {
++		return err
++	}
++	defer out.Close()
++	if _, err := out.WriteAt([]byte(hex.EncodeToString(sum[:buildIDSize])), goStart); err != nil {
++		return err
++	}
++	// The GNU note is missing when the external linker does not support --build-id.
++	if start, end, ok := noteDesc(f, ".note.gnu.build-id"); ok {
++		desc := make([]byte, end-start)
++		copy(desc, sum[:])
++		if _, err := out.WriteAt(desc, start); err != nil {
++			return err
++		}
++	}
++	return out.Close()
++}
++
++// noteDesc returns the file offsets of the descriptor of the first note in the
++// named section.
++func noteDesc(f *elf.File, name string) (start, end int64, ok bool) {
++	s := f.Section(name)
++	if s == nil || s.Type != elf.SHT_NOTE {
++		return 0, 0, false
++	}
++	var hdr [12]byte
++	if _, err := s.ReadAt(hdr[:], 0); err != nil {
++		return 0, 0, false
++	}
++	namesz := int64(f.ByteOrder.Uint32(hdr[0:]))
++	descsz := int64(f.ByteOrder.Uint32(hdr[4:]))
++	start = int64(len(hdr)) + (namesz+3)&^3
++	if start+descsz > int64(s.Size) {
++		return 0, 0, false
++	}
++	start += int64(s.Offset)
++	return start, start + descsz, true
++}
+diff --git a/go/tools/builders/link.go b/go/tools/builders/link.go
+index 16779e1d..b3841643 100644
+--- a/go/tools/builders/link.go
++++ b/go/tools/builders/link.go
+@@ -180,6 +180,14 @@ func link(args []string) error {
+ 		}
+ 	}
+ 
++	// Appended before toolArgs, so a -buildid in gc_linkopts still takes precedence.
++	contentBuildID := *buildmode != "c-archive" && hasContentBuildID(os.Getenv("GOOS"))
++	if contentBuildID {
++		goargs = append(goargs, "-buildid="+buildIDPlaceholder)
++	} else {
++		goargs = append(goargs, "-buildid=redacted")
++	}
++
+ 	if *buildmode != "" {
+ 		goargs = append(goargs, "-buildmode", *buildmode)
+ 	}
+@@ -214,6 +222,12 @@ func link(args []string) error {
+ 		return err
+ 	}
+ 
++	if contentBuildID {
++		if err := setContentBuildID(*outFile); err != nil {
++			return fmt.Errorf("error setting build ID: %v", err)
++		}
++	}
++
+ 	if *buildmode == "c-archive" {
+ 		if err := stripArMetadata(*outFile); err != nil {
+ 			return fmt.Errorf("error stripping archive metadata: %v", err)
+diff --git a/tests/core/go_binary/BUILD.bazel b/tests/core/go_binary/BUILD.bazel
+index b4f4263d..ef9362fb 100644
+--- a/tests/core/go_binary/BUILD.bazel
++++ b/tests/core/go_binary/BUILD.bazel
+@@ -13,6 +13,12 @@ go_bazel_test(
+     target_compatible_with = ["@platforms//os:linux"],
+ )
+ 
++go_bazel_test(
++    name = "buildid_test",
++    srcs = ["buildid_test.go"],
++    target_compatible_with = ["@platforms//os:linux"],
++)
++
+ go_bazel_test(
+     name = "configurable_attribute_bad_test",
+     srcs = ["configurable_attribute_bad_test.go"],
+diff --git a/tests/core/go_binary/buildid_test.go b/tests/core/go_binary/buildid_test.go
+new file mode 100644
+index 00000000..9edeb03f
+--- /dev/null
++++ b/tests/core/go_binary/buildid_test.go
+@@ -0,0 +1,159 @@
++// Copyright 2026 The Bazel Authors. All rights reserved.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//    http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++//go:build linux
++
++package buildid_test
++
++import (
++	"bytes"
++	"debug/elf"
++	"encoding/hex"
++	"strings"
++	"testing"
++
++	"github.com/bazelbuild/rules_go/go/tools/bazel_testing"
++)
++
++func TestMain(m *testing.M) {
++	bazel_testing.TestMain(m, bazel_testing.Args{
++		Main: `
++-- src/pure.go --
++package main
++
++func main() {}
++
++-- src/cgo.go --
++package main
++
++import "C"
++
++func main() {}
++
++-- src/cdep.go --
++package main
++
++// int value(void);
++import "C"
++
++func main() { println(C.value()) }
++
++-- src/native.c --
++#ifndef VALUE
++#define VALUE 1
++#endif
++int value(void) { return VALUE; }
++
++-- src/BUILD.bazel --
++load("@io_bazel_rules_go//go:def.bzl", "go_binary")
++
++go_binary(
++    name = "pure",
++    srcs = ["pure.go"],
++    pure = "on",
++)
++
++go_binary(
++    name = "cgo",
++    srcs = ["cgo.go"],
++    cgo = True,
++)
++
++cc_library(
++    name = "native",
++    srcs = ["native.c"],
++)
++
++go_binary(
++    name = "cdep",
++    srcs = ["cdep.go"],
++    cdeps = [":native"],
++    cgo = True,
++)
++
++go_binary(
++    name = "custom",
++    srcs = ["pure.go"],
++    gc_linkopts = ["-buildid=custom"],
++    pure = "on",
++)
++`,
++	})
++}
++
++type buildIDs struct {
++	goID, gnuID string
++}
++
++func TestContentBuildID(t *testing.T) {
++	pure := build(t, "//src:pure")
++	cgo := build(t, "//src:cgo")
++	for name, ids := range map[string]buildIDs{"pure": pure, "cgo": cgo} {
++		if _, err := hex.DecodeString(ids.goID); err != nil || len(ids.goID) != 40 || ids.goID == strings.Repeat("0", 40) {
++			t.Errorf("%s: Go build ID %q is not a content hash", name, ids.goID)
++		}
++		if ids.gnuID == "" || strings.Trim(ids.gnuID, "0") == "" {
++			t.Errorf("%s: GNU build ID %q is not set", name, ids.gnuID)
++		}
++	}
++	if pure == cgo {
++		t.Errorf("pure and cgo binaries share build IDs %+v", pure)
++	}
++
++	if got := build(t, "//src:custom").goID; got != "custom" {
++		t.Errorf("-buildid in gc_linkopts: got Go build ID %q, want %q", got, "custom")
++	}
++}
++
++func TestNativeChangeChangesBuildID(t *testing.T) {
++	v1 := build(t, "//src:cdep", "--copt=-DVALUE=1")
++	v2 := build(t, "//src:cdep", "--copt=-DVALUE=2")
++	if v1.goID == v2.goID || v1.gnuID == v2.gnuID {
++		t.Errorf("changing only native code kept build IDs: %+v and %+v", v1, v2)
++	}
++}
++
++func build(t *testing.T, target string, flags ...string) buildIDs {
++	t.Helper()
++	if err := bazel_testing.RunBazel(append([]string{"build", target}, flags...)...); err != nil {
++		t.Fatal(err)
++	}
++	out, err := bazel_testing.BazelOutput(append([]string{"cquery", "--output=files", target}, flags...)...)
++	if err != nil {
++		t.Fatal(err)
++	}
++	f, err := elf.Open(strings.TrimSpace(string(out)))
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer f.Close()
++	goID := noteDesc(t, f, ".note.go.buildid")
++	return buildIDs{goID: string(goID), gnuID: hex.EncodeToString(noteDesc(t, f, ".note.gnu.build-id"))}
++}
++
++func noteDesc(t *testing.T, f *elf.File, name string) []byte {
++	t.Helper()
++	s := f.Section(name)
++	if s == nil {
++		return nil
++	}
++	data, err := s.Data()
++	if err != nil {
++		t.Fatal(err)
++	}
++	namesz := f.ByteOrder.Uint32(data[0:])
++	descsz := f.ByteOrder.Uint32(data[4:])
++	start := 12 + (namesz+3)&^3
++	return bytes.Clone(data[start : start+descsz])
++}

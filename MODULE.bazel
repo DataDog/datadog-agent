@@ -126,6 +126,8 @@ archive_override(
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # bazel-contrib/rules_go#3977
+        "//bazel/patches:rules_go-content-buildid.patch",  # bazel-contrib/rules_go#4572
+        "//bazel/patches:rules_go-macho-content-buildid.patch",  # bazel-contrib/rules_go#4572
     ],
     sha256 = "7aa8987541d1502a3d59e174e47b8507d9adb6a9323e1e4c46b776c310e6865a",
     strip_prefix = "rules_go-970e99d77c8bec98daed9b96845018617a65bd26",
