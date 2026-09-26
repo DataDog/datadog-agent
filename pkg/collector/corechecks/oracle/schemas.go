@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -22,6 +23,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const defaultSchemaPayloadChunkSize = 1000
 
 // A snapshot is scoped to one container. Its payloads share collection_started_at, and only
 // the final payload carries collection_payloads_count.
@@ -226,7 +229,10 @@ const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), N
 	NVL(staleness, '-'), last_refresh_date
 FROM cdb_mviews WHERE /*RELATIONS*/`
 
-const containerNamesQuery = `SELECT con_id, name FROM v$containers WHERE 1=1`
+// CDB_* views omit closed or restricted PDBs; those are not empty databases.
+const containerNamesQuery = `SELECT con_id, name FROM v$containers
+WHERE open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricted, 'NO') = 'NO'
+AND EXISTS (SELECT 1 FROM cdb_users u WHERE u.con_id = v$containers.con_id AND u.username = 'SYS')`
 
 // total_views is aliased to total_tables for the shared row scanner.
 const viewsQueryTemplate = `WITH ranked_views AS (
@@ -514,6 +520,96 @@ type schemaEvent struct {
 type payloadEmitter func(payload []byte)
 type schemaEventEmitter func(event schemaEvent)
 
+type schemaSnapshot struct {
+	startedAt int64
+	count     int
+	pending   *schemaEvent
+}
+
+type schemaSnapshotCoordinator struct {
+	emit      payloadEmitter
+	validate  func(string) error
+	snapshots map[string]*schemaSnapshot
+	order     []string
+	err       error
+}
+
+func newSchemaSnapshotCoordinator(emit payloadEmitter) *schemaSnapshotCoordinator {
+	return &schemaSnapshotCoordinator{emit: emit, snapshots: make(map[string]*schemaSnapshot)}
+}
+
+func (c *schemaSnapshotCoordinator) add(event schemaEvent) {
+	if c.err != nil {
+		return
+	}
+	if len(event.Metadata) != 1 {
+		c.err = fmt.Errorf("schema event contains %d containers", len(event.Metadata))
+		return
+	}
+
+	containerID := event.Metadata[0].ID
+	snapshot := c.snapshots[containerID]
+	if snapshot == nil {
+		snapshot = &schemaSnapshot{startedAt: event.CollectionStartedAt}
+		c.snapshots[containerID] = snapshot
+		c.order = append(c.order, containerID)
+	}
+	if snapshot.pending != nil {
+		c.emitEvent(*snapshot.pending)
+	}
+	event.CollectionStartedAt = snapshot.startedAt
+	event.CollectionPayloadsCount = 0
+	snapshot.count++
+	snapshot.pending = &event
+}
+
+func (c *schemaSnapshotCoordinator) emitEvent(event schemaEvent) {
+	if c.err != nil {
+		return
+	}
+	payload, err := json.Marshal(event)
+	if err != nil {
+		c.err = err
+		return
+	}
+	c.emit(payload)
+}
+
+func (c *schemaSnapshotCoordinator) complete() error {
+	var err error
+	for _, containerID := range c.order {
+		err = errors.Join(err, c.completeContainerID(containerID))
+	}
+	return errors.Join(err, c.err)
+}
+
+func (c *schemaSnapshotCoordinator) completeContainer(conID int64) error {
+	return errors.Join(c.completeContainerID(strconv.FormatInt(conID, 10)), c.err)
+}
+
+func (c *schemaSnapshotCoordinator) completeContainerID(containerID string) error {
+	snapshot := c.snapshots[containerID]
+	if snapshot == nil || snapshot.pending == nil {
+		return nil
+	}
+	if c.validate != nil {
+		if err := c.validate(containerID); err != nil {
+			c.emitEvent(*snapshot.pending)
+			snapshot.pending = nil
+			return err
+		}
+	}
+	snapshot.pending.CollectionPayloadsCount = snapshot.count
+	c.emitEvent(*snapshot.pending)
+	snapshot.pending = nil
+	return c.err
+}
+
+func (c *schemaSnapshotCoordinator) hasContainer(conID int64) bool {
+	_, ok := c.snapshots[strconv.FormatInt(conID, 10)]
+	return ok
+}
+
 func schemaPayloadEmitter(c *Check, emit payloadEmitter) schemaEventEmitter {
 	return func(event schemaEvent) {
 		payload, err := json.Marshal(event)
@@ -525,6 +621,17 @@ func schemaPayloadEmitter(c *Check, emit payloadEmitter) schemaEventEmitter {
 	}
 }
 
+func emitSchemaSnapshotEvents(events []schemaEvent, complete bool, emit payloadEmitter) error {
+	coordinator := newSchemaSnapshotCoordinator(emit)
+	for _, event := range events {
+		coordinator.add(event)
+	}
+	if complete {
+		return coordinator.complete()
+	}
+	return coordinator.err
+}
+
 type tableKey struct {
 	conID int64
 	owner string
@@ -533,44 +640,66 @@ type tableKey struct {
 
 type schemaCollector struct {
 	check               *Check
+	kind                string
 	emit                schemaEventEmitter
+	payloadChunkSize    int
+	details             map[tableKey]*tableDetails
 	owners              map[ownerKey]string
 	containers          map[int64]string
+	started             map[int64]struct{}
 	truncatedContainers map[int64]struct{}
 
 	conID       int64
 	conName     string
+	startedAt   int64
+	payloads    int
 	schemas     []*schemaObject
 	tableCount  int
 	tablesTotal int
-	truncated   bool
+
+	truncated bool
 
 	currentSchema *schemaObject
 	currentTable  *schemaTable
 }
 
-func newSchemaCollector(c *Check, emit payloadEmitter, _ map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
-	return &schemaCollector{
-		check:      c,
-		emit:       schemaPayloadEmitter(c, emit),
-		owners:     owners,
-		containers: containers,
-		conID:      -1,
+func newSchemaCollector(c *Check, emit payloadEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	return newSchemaEventCollector(c, schemaPayloadEmitter(c, emit), details, owners, containers)
+}
+
+func newSchemaEventCollector(c *Check, emit schemaEventEmitter, details map[tableKey]*tableDetails, owners map[ownerKey]string, containers map[int64]string) *schemaCollector {
+	payloadChunkSize := c.schemaPayloadChunkSize
+	if payloadChunkSize <= 0 {
+		payloadChunkSize = defaultSchemaPayloadChunkSize
 	}
+	return &schemaCollector{check: c, kind: "oracle_databases", emit: emit, payloadChunkSize: payloadChunkSize, details: details, owners: owners, containers: containers, conID: -1, started: make(map[int64]struct{})}
 }
 
 func (s *schemaCollector) startContainer(conID int64) {
 	if s.conID != -1 {
-		s.emitContainer()
+		s.maybeFlush(true)
 	}
 	s.conID = conID
+	s.started[conID] = struct{}{}
 	if name, ok := s.containers[conID]; ok {
 		s.conName = s.check.getFullPDBName(name)
 	} else {
 		s.conName = s.check.getFullPDBName(strconv.FormatInt(conID, 10))
 	}
+	s.startedAt = s.check.nextSnapshotID()
+	s.payloads = 0
 	_, s.truncated = s.truncatedContainers[conID]
 	s.reset()
+}
+
+// collection_started_at must stay unique when collections share a clock millisecond.
+func (c *Check) nextSnapshotID() int64 {
+	now := c.clock.Now().UnixMilli()
+	if now <= c.lastSnapshotID {
+		now = c.lastSnapshotID + 1
+	}
+	c.lastSnapshotID = now
+	return now
 }
 
 func (s *schemaCollector) reset() {
@@ -582,30 +711,43 @@ func (s *schemaCollector) reset() {
 
 func (s *schemaCollector) baseEvent() schemaEvent {
 	return schemaEvent{
-		Host:               s.check.dbHostname,
-		DatabaseInstance:   s.check.dbInstanceIdentifier,
-		AgentVersion:       s.check.agentVersion,
-		Dbms:               "oracle",
-		Kind:               "oracle_databases",
-		CollectionInterval: s.check.config.Schemas.CollectionInterval,
-		DbmsVersion:        s.check.dbVersion,
-		Tags:               s.check.tags,
-		Timestamp:          float64(s.check.clock.Now().UnixMilli()),
+		Host:                s.check.dbHostname,
+		DatabaseInstance:    s.check.dbInstanceIdentifier,
+		AgentVersion:        s.check.agentVersion,
+		Dbms:                "oracle",
+		Kind:                s.kind,
+		CollectionInterval:  s.check.config.Schemas.CollectionInterval,
+		DbmsVersion:         s.check.dbVersion,
+		Tags:                s.check.tags,
+		Timestamp:           float64(s.check.clock.Now().UnixMilli()),
+		CollectionStartedAt: s.startedAt,
 	}
 }
 
-func (s *schemaCollector) emitContainer() {
-	if s.conID == -1 {
+func (s *schemaCollector) maybeFlush(isLast bool) {
+	if !isLast && s.tableCount < s.payloadChunkSize {
 		return
 	}
+	if s.tableCount == 0 && !isLast {
+		return
+	}
+
+	s.payloads++
 	e := s.baseEvent()
 	e.Metadata = []containerObject{{
 		ID:      strconv.FormatInt(s.conID, 10),
 		Name:    s.conName,
 		Schemas: s.schemas,
 	}}
+	if isLast {
+		e.CollectionPayloadsCount = s.payloads
+	}
 	e.Truncated = s.truncated
+
 	s.emit(e)
+	log.Debugf("%s schema payload con_id=%d tables=%d last=%t",
+		s.check.logPrompt, s.conID, s.tableCount, isLast)
+
 	s.reset()
 }
 
@@ -627,9 +769,13 @@ func (s *schemaCollector) add(r schemaRowDB) {
 		s.startContainer(r.ConID)
 	}
 
+	newTable := s.currentSchema == nil || s.currentSchema.Name != r.Owner || s.currentTable == nil || s.currentTable.Name != r.TableName
+	if newTable {
+		s.maybeFlush(false)
+	}
+
 	s.useSchema(r.ConID, r.Owner)
 
-	newTable := s.currentTable == nil || s.currentTable.Name != r.TableName
 	if newTable {
 		t := &schemaTable{
 			Name:       r.TableName,
@@ -647,7 +793,7 @@ func (s *schemaCollector) add(r schemaRowDB) {
 			}
 		}
 		s.currentTable = t
-		s.currentSchema.Tables = append(s.currentSchema.Tables, t)
+		s.currentSchema.Tables = append(s.currentSchema.Tables, s.currentTable)
 		s.tableCount++
 		s.tablesTotal++
 
@@ -671,9 +817,24 @@ func (s *schemaCollector) add(r schemaRowDB) {
 	}
 }
 
+// Call only after successful collection; the final payload marks the snapshot complete.
 func (s *schemaCollector) finish() {
-	s.emitContainer()
+	if s.conID == -1 {
+		return
+	}
+	s.maybeFlush(true)
 	s.conID = -1
+}
+
+// Empty snapshots clear stale backend metadata when a container produces no rows.
+func (s *schemaCollector) emitEmptyContainers(containers map[int64]string) {
+	for conID := range containers {
+		if _, ok := s.started[conID]; ok {
+			continue
+		}
+		s.startContainer(conID)
+		s.finish()
+	}
 }
 
 func dataType(r schemaRowDB) string {
@@ -776,9 +937,6 @@ type ownerKey struct {
 }
 
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
-	// Without database filters, owners can supply container IDs missing from the name lookup.
-	filterDatabases := len(c.config.Schemas.IncludeDatabases) > 0 || len(c.config.Schemas.ExcludeDatabases) > 0
-
 	owners := make(map[ownerKey]string)
 	names := make(map[string]struct{})
 	query := schemaOwnersQuery + regexSQLClauses("username", c.config.Schemas.IncludeSchemas, c.config.Schemas.ExcludeSchemas)
@@ -791,10 +949,8 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		if err := rows.Scan(&conID, &name, &userID); err != nil {
 			return fmt.Errorf("failed to scan schema owner: %w", err)
 		}
-		if filterDatabases {
-			if _, ok := containers[conID]; !ok {
-				return nil
-			}
+		if _, ok := containers[conID]; !ok {
+			return nil
 		}
 		if !schemaOwnerPattern.MatchString(name) {
 			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
@@ -959,6 +1115,30 @@ func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx
 
 // Missing or version-incompatible optional detail views do not fail collection.
 
+func (c *Check) validateSchemaContainer(ctx context.Context, containerID string) error {
+	conID, err := strconv.ParseInt(containerID, 10, 64)
+	if err != nil {
+		return err
+	}
+	available := false
+	query := containerNamesQuery + fmt.Sprintf(" AND con_id = %d", conID)
+	if err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return err
+		}
+		available = true
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to validate container %d: %w", conID, err)
+	}
+	if !available {
+		return fmt.Errorf("container %d is no longer available for schema collection", conID)
+	}
+	return nil
+}
+
 func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	names := make(map[int64]string)
 	query := containerNamesQuery + regexSQLClauses("name", c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases)
@@ -1092,14 +1272,21 @@ func ownerListForKeys(keys []tableKey) string {
 }
 
 func forEachTablePage(keys []tableKey, process func([]tableKey) error) error {
-	for start := 0; start < len(keys); start += schemaRelationPageSize {
+	for start := 0; start < len(keys); {
 		end := start + schemaRelationPageSize
 		if end > len(keys) {
 			end = len(keys)
 		}
+		for i := start + 1; i < end; i++ {
+			if keys[i].conID != keys[start].conID {
+				end = i
+				break
+			}
+		}
 		if err := process(keys[start:end]); err != nil {
 			return err
 		}
+		start = end
 	}
 	return nil
 }
@@ -1133,8 +1320,22 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	emit := func(payload []byte) {
+		sender.EventPlatformEvent(payload, "dbm-metadata")
+	}
+	coordinator := newSchemaSnapshotCoordinator(emit)
+	coordinator.validate = func(containerID string) error {
+		return c.validateSchemaContainer(ctx, containerID)
+	}
+
 	if len(names) == 0 {
-		log.Debugf("%s no user schemas to collect", c.logPrompt)
+		log.Debugf("%s no user schemas to collect, sending empty snapshot", c.logPrompt)
+		newSchemaEventCollector(c, coordinator.add, nil, owners, containers).emitEmptyContainers(containers)
+		if err := coordinator.complete(); err != nil {
+			return err
+		}
+		sender.Commit()
 		return nil
 	}
 
@@ -1144,21 +1345,52 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		return fmt.Errorf("failed to query table identities: %w", err)
 	}
 
-	emit := func(payload []byte) {
-		sender.EventPlatformEvent(payload, "dbm-metadata")
-	}
 	tablesTotal := 0
+	activeContainer := int64(-1)
 	if err := forEachTablePage(keys, func(page []tableKey) error {
-		collector := newSchemaCollector(c, emit, nil, owners, containers)
+		conID := page[0].conID
+		if activeContainer != -1 && conID != activeContainer {
+			if err := coordinator.completeContainer(activeContainer); err != nil {
+				return err
+			}
+		}
+		activeContainer = conID
+		collector := newSchemaEventCollector(c, coordinator.add, nil, owners, containers)
 		collector.truncatedContainers = cappedContainers
 		if err := c.hydrateTablePage(ctx, page, c.config.Schemas.MaxColumns, collector.add); err != nil {
 			return err
 		}
 		collector.finish()
 		tablesTotal += collector.tablesTotal
-		return nil
+		return coordinator.err
 	}); err != nil {
+		sender.Commit()
 		return fmt.Errorf("failed to query schemas: %w", err)
+	}
+	if activeContainer != -1 {
+		if err := coordinator.completeContainer(activeContainer); err != nil {
+			return err
+		}
+	}
+	emptyContainers := make(map[int64]string)
+	for conID, name := range containers {
+		if !coordinator.hasContainer(conID) {
+			emptyContainers[conID] = name
+		}
+	}
+	emptyContainerIDs := make([]int64, 0, len(emptyContainers))
+	for conID := range emptyContainers {
+		emptyContainerIDs = append(emptyContainerIDs, conID)
+	}
+	sort.Slice(emptyContainerIDs, func(i, j int) bool { return emptyContainerIDs[i] < emptyContainerIDs[j] })
+	for _, conID := range emptyContainerIDs {
+		container := map[int64]string{conID: emptyContainers[conID]}
+		collector := newSchemaEventCollector(c, coordinator.add, nil, owners, container)
+		collector.truncatedContainers = cappedContainers
+		collector.emitEmptyContainers(container)
+		if err := coordinator.completeContainer(conID); err != nil {
+			return err
+		}
 	}
 
 	for conID := range cappedContainers {

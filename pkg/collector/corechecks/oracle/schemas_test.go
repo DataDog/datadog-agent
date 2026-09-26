@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/benbjohnson/clock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -63,6 +64,123 @@ func TestSchemaCollectionNoOwnersSkips(t *testing.T) {
 	require.NoError(t, c.schemaCollection(ctx))
 	assert.Equal(t, 2, ctx.deadlines, "container and owner queries must each create their own timeout")
 	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func expectSchemaContainerAvailable(dbMock sqlmock.Sqlmock, conID int64) {
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + fmt.Sprintf(" AND con_id = %d", conID))).
+		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(conID, "PDB"))
+}
+
+func TestSchemaCollectionUnavailableContainerDoesNotComplete(t *testing.T) {
+	for _, hasOwners := range []bool{false, true} {
+		for _, queryFails := range []bool{false, true} {
+			t.Run(fmt.Sprintf("owners_%t_query_error_%t", hasOwners, queryFails), func(t *testing.T) {
+				c, _, dbMock, cleanup := newSchemaCheck(t)
+				defer cleanup()
+				views := false
+				c.config.Schemas.CollectViews = &views
+				dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+					sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+				owners := sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"})
+				if hasOwners {
+					owners.AddRow(3, "APP", 104)
+				}
+				dbMock.ExpectQuery("cdb_users").WillReturnRows(owners)
+				if hasOwners {
+					dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(
+						sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"}))
+				}
+				query := dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = 3"))
+				if queryFails {
+					query.WillReturnError(errors.New("availability check failed"))
+				} else {
+					query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+				}
+				err := c.SchemaCollection()
+				if queryFails {
+					require.ErrorContains(t, err, "availability check failed")
+				} else {
+					require.ErrorContains(t, err, "no longer available")
+				}
+				sender, err := c.GetRawSender()
+				require.NoError(t, err)
+				mockSender, ok := sender.(*mocksender.MockSender)
+				require.True(t, ok)
+				for _, call := range mockSender.Calls {
+					if call.Method == "EventPlatformEvent" {
+						var event schemaEvent
+						require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+						require.Zero(t, event.CollectionPayloadsCount)
+					}
+				}
+				require.NoError(t, dbMock.ExpectationsWereMet())
+			})
+		}
+	}
+}
+
+func TestSchemaCollectionEmptyContainerValidationFailureDoesNotBlockNext(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB1").AddRow(4, "PDB2"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = 3")).WillReturnError(context.DeadlineExceeded)
+	expectSchemaContainerAvailable(dbMock, 4)
+	require.ErrorIs(t, c.SchemaCollection(), context.DeadlineExceeded)
+	sender, err := c.GetRawSender()
+	require.NoError(t, err)
+	mockSender, ok := sender.(*mocksender.MockSender)
+	require.True(t, ok)
+	var completed []string
+	for _, call := range mockSender.Calls {
+		if call.Method == "EventPlatformEvent" {
+			var event schemaEvent
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+			if event.CollectionPayloadsCount > 0 {
+				completed = append(completed, event.Metadata[0].ID)
+			}
+		}
+	}
+	require.Equal(t, []string{"4"}, completed)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestSchemaSnapshotValidationFailureKeepsOtherContainers(t *testing.T) {
+	var events []schemaEvent
+	coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	})
+	unavailable := errors.New("PDB closed")
+	coordinator.validate = func(id string) error {
+		if id == "3" {
+			return unavailable
+		}
+		return nil
+	}
+	for _, id := range []string{"3", "4"} {
+		coordinator.add(schemaEvent{CollectionStartedAt: 123, Metadata: []containerObject{{ID: id}}})
+	}
+	require.ErrorIs(t, coordinator.complete(), unavailable)
+	require.Len(t, events, 2)
+	require.Zero(t, events[0].CollectionPayloadsCount)
+	require.Equal(t, 1, events[1].CollectionPayloadsCount)
+	require.NoError(t, coordinator.complete())
+	require.Len(t, events, 2)
+}
+
+func TestContainerNamesExcludesUnavailablePDBs(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	dbMock.ExpectQuery(`SELECT con_id, name FROM v\$containers WHERE open_mode IN \('READ WRITE', 'READ ONLY'\) AND NVL\(restricted, 'NO'\) = 'NO'`).
+		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "OPEN_PDB"))
+	names, err := c.containerNames(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, map[int64]string{3: "OPEN_PDB"}, names)
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestDataTypeRendering(t *testing.T) {
@@ -334,6 +452,7 @@ func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP1000", "T2"))
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP0000", "T1", 0))
 
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 
@@ -382,6 +501,99 @@ func TestQueryMetadataReturnsIterationError(t *testing.T) {
 	require.ErrorIs(t, err, iterationErr)
 }
 
+func TestSnapshotChunking(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.schemaPayloadChunkSize = 2
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
+
+	for _, name := range []string{"T1", "T2", "T3", "T4", "T5"} {
+		collector.add(schemaRowDB{
+			ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
+			IotType: "-", ClusterName: "-", Partitioned: "NO",
+			ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true},
+			Nullable: "Y",
+		})
+	}
+	collector.finish()
+
+	require.Len(t, payloads, 3, "5 tables at chunk size 2 must split into 3 payloads")
+
+	for i, p := range payloads {
+		assert.Equal(t, payloads[0].CollectionStartedAt, p.CollectionStartedAt,
+			"payload %d must carry the snapshot id", i)
+	}
+	assert.Zero(t, payloads[0].CollectionPayloadsCount, "only the last payload is terminating")
+	assert.Zero(t, payloads[1].CollectionPayloadsCount)
+	assert.Equal(t, 3, payloads[2].CollectionPayloadsCount,
+		"the terminating payload must declare how many payloads the snapshot has")
+}
+
+func TestSnapshotPerContainer(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
+
+	for _, conID := range []int64{1, 1, 3} {
+		collector.add(schemaRowDB{
+			ConID: conID, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
+			IotType: "-", ClusterName: "-", Partitioned: "NO",
+			ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true},
+			Nullable: "Y",
+		})
+	}
+	collector.finish()
+
+	require.Len(t, payloads, 2, "each container is its own snapshot")
+	assert.Equal(t, "1", payloads[0].Metadata[0].ID)
+	assert.Equal(t, "3", payloads[1].Metadata[0].ID)
+	for _, p := range payloads {
+		assert.Equal(t, 1, p.CollectionPayloadsCount, "each container terminates its own snapshot")
+	}
+
+	// Both containers share a clock tick; snapshot IDs must still be unique.
+	assert.NotEqual(t, payloads[0].CollectionStartedAt, payloads[1].CollectionStartedAt,
+		"containers must not share a snapshot identifier")
+}
+
+func TestEmitSchemaSnapshotEventsCombinesKindsPerContainer(t *testing.T) {
+	events := []schemaEvent{
+		{Kind: "oracle_databases", CollectionStartedAt: 100, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
+		{Kind: "oracle_databases", CollectionStartedAt: 200, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
+		{Kind: "oracle_views", CollectionStartedAt: 300, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "1"}}},
+		{Kind: "oracle_views", CollectionStartedAt: 400, CollectionPayloadsCount: 1, Metadata: []containerObject{{ID: "3"}}},
+	}
+
+	var emitted []schemaEvent
+	require.NoError(t, emitSchemaSnapshotEvents(events, true, func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		emitted = append(emitted, event)
+	}))
+
+	require.Len(t, emitted, 4)
+	assert.Equal(t, int64(100), emitted[0].CollectionStartedAt)
+	assert.Equal(t, int64(200), emitted[1].CollectionStartedAt)
+	assert.Equal(t, int64(100), emitted[2].CollectionStartedAt)
+	assert.Equal(t, int64(200), emitted[3].CollectionStartedAt)
+	assert.Zero(t, emitted[0].CollectionPayloadsCount)
+	assert.Zero(t, emitted[1].CollectionPayloadsCount)
+	assert.Equal(t, 2, emitted[2].CollectionPayloadsCount)
+	assert.Equal(t, 2, emitted[3].CollectionPayloadsCount)
+}
+
 func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	db, dbMock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -420,6 +632,7 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(mainRows)
 
 	// Leave detail queries unprimed to simulate missing grants.
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 
 	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
@@ -437,6 +650,9 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
 	assert.Equal(t, "oracle_databases", event.Kind)
 	assert.Equal(t, "oracle", event.Dbms)
+	assert.Equal(t, int64(1787000000000), event.CollectionStartedAt,
+		"the snapshot id is the collection start in epoch milliseconds")
+	assert.Equal(t, 1, event.CollectionPayloadsCount)
 	require.Len(t, event.Metadata, 1)
 	assert.Equal(t, "3", event.Metadata[0].ID)
 	require.Len(t, event.Metadata[0].Schemas, 1)
@@ -475,6 +691,45 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	assert.Equal(t, "free.FREEPDB1", payloads[1].Metadata[0].Name)
 	assert.Equal(t, "free.7", payloads[2].Metadata[0].Name, "unknown container falls back to con_id")
 }
+
+func TestSnapshotChunkingAtRealisticTableBoundary(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.schemaPayloadChunkSize = 2
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{})
+
+	for _, name := range []string{"T1", "T2", "T3"} {
+		for _, col := range []string{"C1", "C2", "C3"} {
+			collector.add(schemaRowDB{
+				ConID: 3, Owner: "APP", TableName: name, Temporary: "N", External: "NO",
+				IotType: "-", ClusterName: "-", Partitioned: "NO",
+				ColumnName: col, DataType: sql.NullString{String: "NUMBER", Valid: true},
+				Nullable: "Y",
+			})
+		}
+	}
+	collector.finish()
+
+	require.Len(t, payloads, 2, "3 tables at chunk size 2 must split into 2 payloads, not one per column row")
+
+	var seenTables []string
+	for _, p := range payloads {
+		for _, table := range p.Metadata[0].Schemas[0].Tables {
+			seenTables = append(seenTables, table.Name)
+			assert.Len(t, table.Columns, 3, "table %s must keep all 3 of its columns in one payload", table.Name)
+		}
+	}
+	assert.Equal(t, []string{"T1", "T2", "T3"}, seenTables, "no table must be split or dropped across the chunk boundary")
+	assert.Equal(t, 2, payloads[1].CollectionPayloadsCount)
+}
+
+// A partial snapshot has no completion marker, so scan errors must emit no payload.
 
 func TestSchemaCollectionScanErrorEmitsNoPayload(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
@@ -671,7 +926,7 @@ func TestSchemaOwnersBatchesBeyondMaxSchemaOwners(t *testing.T) {
 	}
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(rows)
 
-	owners, names, err := c.schemaOwners(context.Background(), map[int64]string{})
+	owners, names, err := c.schemaOwners(context.Background(), map[int64]string{3: "APP_PDB"})
 	require.NoError(t, err)
 	assert.Len(t, names, total, "every owner beyond the 1000-item IN-list cap must still be returned")
 	assert.Len(t, owners, total)
@@ -741,6 +996,63 @@ func TestForEachTablePageBoundsPageSize(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []int{schemaRelationPageSize, schemaRelationPageSize, 1}, pageSizes)
+}
+
+func TestForEachTablePageDoesNotMixContainers(t *testing.T) {
+	keys := make([]tableKey, schemaRelationPageSize+1)
+	for i := 0; i < schemaRelationPageSize-1; i++ {
+		keys[i].conID = 3
+	}
+	keys[schemaRelationPageSize-1].conID = 5
+	keys[schemaRelationPageSize].conID = 5
+
+	var pages [][]tableKey
+	require.NoError(t, forEachTablePage(keys, func(page []tableKey) error {
+		pages = append(pages, page)
+		return nil
+	}))
+
+	require.Len(t, pages, 2)
+	assert.Len(t, pages[0], schemaRelationPageSize-1)
+	assert.Len(t, pages[1], 2)
+	assert.Equal(t, int64(3), pages[0][0].conID)
+	assert.Equal(t, int64(5), pages[1][0].conID)
+}
+
+func TestSchemaCollectorKeepsSnapshotStateAcrossPages(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+	c.schemaPayloadChunkSize = 40
+
+	var payloads []schemaEvent
+	coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		payloads = append(payloads, event)
+	})
+	keys := make([]tableKey, schemaRelationPageSize+1)
+	for i := range keys {
+		keys[i] = tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("T%03d", i)}
+	}
+	require.NoError(t, forEachTablePage(keys, func(page []tableKey) error {
+		collector := newSchemaEventCollector(&c, coordinator.add, nil, map[ownerKey]string{{conID: 3, owner: "APP"}: "1"}, map[int64]string{3: "PDB"})
+		for _, key := range page {
+			collector.add(schemaRowDB{ConID: key.conID, Owner: key.owner, TableName: key.table})
+		}
+		collector.finish()
+		return nil
+	}))
+	require.NoError(t, coordinator.complete())
+
+	require.Len(t, payloads, 4)
+	assert.Zero(t, payloads[0].CollectionPayloadsCount)
+	assert.Zero(t, payloads[1].CollectionPayloadsCount)
+	assert.Zero(t, payloads[2].CollectionPayloadsCount)
+	assert.Equal(t, 4, payloads[3].CollectionPayloadsCount)
+	assert.Equal(t, payloads[0].CollectionStartedAt, payloads[3].CollectionStartedAt)
+	for _, payload := range payloads {
+		assert.LessOrEqual(t, len(payload.Metadata[0].Schemas[0].Tables), 40)
+	}
 }
 
 func TestHydrateTablePageSkipsDisappearedTables(t *testing.T) {
@@ -819,6 +1131,7 @@ func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
 	c.config.Schemas.Enabled = true
 	c.config.Schemas.MaxTables = schemaRelationPageSize + 1
 	c.config.Schemas.MaxColumns = 50
+	c.schemaPayloadChunkSize = 50
 	collectViews := false
 	c.config.Schemas.CollectViews = &collectViews
 
@@ -841,10 +1154,53 @@ func TestSchemaCollectionEmitsCompletedPageBeforeNextPageFails(t *testing.T) {
 
 	require.ErrorContains(t, c.SchemaCollection(), "second page failed")
 	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	sender.AssertNumberOfCalls(t, "Commit", 1)
 	call := sender.Calls[0]
 	var event schemaEvent
 	require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
-	assert.Len(t, event.Metadata[0].Schemas[0].Tables, schemaRelationPageSize)
+	assert.Len(t, event.Metadata[0].Schemas[0].Tables, 50)
+	assert.Zero(t, event.CollectionPayloadsCount)
+}
+
+func TestEmptyContainerStillEmitsTerminatingPayload(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{5: "EMPTY_PDB"})
+
+	collector.emitEmptyContainers(map[int64]string{5: "EMPTY_PDB"})
+
+	require.Len(t, payloads, 1)
+	assert.Equal(t, "5", payloads[0].Metadata[0].ID)
+	assert.Empty(t, payloads[0].Metadata[0].Schemas)
+	assert.Equal(t, 1, payloads[0].CollectionPayloadsCount, "an empty container's payload must still be marked complete")
+}
+
+func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
+	c, _, _, closeDB := newSchemaCheck(t)
+	defer closeDB()
+
+	var payloads []schemaEvent
+	collector := newSchemaCollector(&c, func(b []byte) {
+		var e schemaEvent
+		require.NoError(t, json.Unmarshal(b, &e))
+		payloads = append(payloads, e)
+	}, map[tableKey]*tableDetails{}, map[ownerKey]string{}, map[int64]string{3: "APP_PDB"})
+
+	collector.add(schemaRowDB{
+		ConID: 3, Owner: "APP", TableName: "T", Temporary: "N", External: "NO",
+		IotType: "-", ClusterName: "-", Partitioned: "NO",
+		ColumnName: "C1", DataType: sql.NullString{String: "NUMBER", Valid: true}, Nullable: "Y",
+	})
+	collector.finish()
+	collector.emitEmptyContainers(map[int64]string{3: "APP_PDB"})
+
+	require.Len(t, payloads, 1, "a container that already produced a payload must not get a second, empty one")
 }
 
 func TestRegexSQLClausesUsesOracleCaseInsensitiveMatching(t *testing.T) {
@@ -927,7 +1283,7 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	c.config.Schemas.IncludeTables = []string{"^ORD"}
 	c.config.Schemas.ExcludeTables = []string{"_STAGING$"}
 
-	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 
@@ -937,6 +1293,7 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	dbMock.ExpectQuery(regexp.QuoteMeta(expectedFilter)).WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}))
 
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 	assert.NoError(t, dbMock.ExpectationsWereMet(), "the query actually sent to Oracle must carry the substituted REGEXP_LIKE filter")
 }
@@ -964,4 +1321,69 @@ func emptyTablesRows() *sqlmock.Rows {
 		"DATA_TYPE_OWNER", "DATA_TYPE_MOD", "DATA_LENGTH", "CHAR_LENGTH", "DATA_PRECISION",
 		"DATA_SCALE", "CHAR_USED", "NULLABLE", "DATA_DEFAULT_VC",
 	})
+}
+
+func TestSchemaSnapshotAfterDisappearedPage(t *testing.T) {
+	for _, outcome := range []string{"all_gone", "capped", "query_error", "row_error"} {
+		t.Run(outcome, func(t *testing.T) {
+			db, dbMock, err := sqlmock.New()
+			require.NoError(t, err)
+			defer db.Close()
+			c, sender := newDbDoesNotExistCheck(t, "", "")
+			c.db = sqlx.NewDb(db, "sqlmock")
+			c.clock = clock.NewMock()
+			c.dbVersion = "23.0.0.0.0"
+			views := false
+			c.config.Schemas.CollectViews = &views
+			c.config.Schemas.MaxTables = schemaRelationPageSize + 1
+			dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+			dbMock.ExpectQuery("cdb_users").WillReturnRows(
+				sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
+			identities := sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"})
+			for i := 0; i <= schemaRelationPageSize; i++ {
+				identities.AddRow(3, "APP", fmt.Sprintf("T%03d", i))
+			}
+			if outcome == "capped" {
+				identities.AddRow(3, "APP", "T101")
+			}
+			dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identities)
+			dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(emptyTablesRows())
+			lastPage := dbMock.ExpectQuery("WITH ranked_columns")
+			switch outcome {
+			case "all_gone", "capped":
+				lastPage.WillReturnRows(emptyTablesRows())
+			case "query_error":
+				lastPage.WillReturnError(context.DeadlineExceeded)
+			case "row_error":
+				lastPage.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T100", 0).RowError(0, context.DeadlineExceeded))
+			}
+			if outcome == "all_gone" || outcome == "capped" {
+				expectSchemaContainerAvailable(dbMock, 3)
+			}
+			err = c.SchemaCollection()
+			if outcome == "all_gone" || outcome == "capped" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+			}
+			var events []schemaEvent
+			for _, call := range sender.Calls {
+				if call.Method == "EventPlatformEvent" {
+					var event schemaEvent
+					require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+					events = append(events, event)
+				}
+			}
+			if outcome == "all_gone" || outcome == "capped" {
+				require.Len(t, events, 1)
+				require.Equal(t, 1, events[0].CollectionPayloadsCount)
+				require.Empty(t, events[0].Metadata[0].Schemas)
+				require.Equal(t, outcome == "capped", events[0].Truncated)
+			} else {
+				require.Empty(t, events)
+			}
+			require.NoError(t, dbMock.ExpectationsWereMet())
+		})
+	}
 }
