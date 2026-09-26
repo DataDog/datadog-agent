@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package datadog.trace;
+
+option go_package = "pkg/proto/pbgo/trace"; // golang
+
+// AgentTelemetryBatch is the top-level envelope for batched telemetry
+// payloads the agent forwards to the backend telemetry intake.
+message AgentTelemetryBatch {
+	// @gotags: msg:"request_type"
+	string requestType = 1;
+	// @gotags: msg:"payload"
+	AgentTelemetryPayload payload = 2;
+}
+
+// AgentTelemetryPayload wraps the list of buffered telemetry events.
+message AgentTelemetryPayload {
+	// @gotags: msg:"events"
+	repeated AgentTelemetryEvent events = 1;
+}
+
+// AgentTelemetryEvent is a single buffered telemetry HTTP request, captured
+// as its original headers and body.
+message AgentTelemetryEvent {
+	// @gotags: msg:"headers"
+	map<string, string> headers = 1;
+	// @gotags: msg:"content"
+	bytes content = 2;
+}

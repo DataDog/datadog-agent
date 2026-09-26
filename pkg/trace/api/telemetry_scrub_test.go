@@ -396,8 +396,11 @@ func TestTelemetryProxy_ScrubsInjectionMetadata(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recordedStatusCode(rec))
 	select {
 	case got := <-received:
-		assert.NotContains(t, string(got), "hunter2", "secret leaked to upstream intake")
-		assert.Contains(t, decodeCommandLine(t, got), "********")
+		batch := decodeBatch(t, got)
+		require.Len(t, batch.Payload.Events, 1)
+		content := batch.Payload.Events[0].Content
+		assert.NotContains(t, string(content), "hunter2", "secret leaked to upstream intake")
+		assert.Contains(t, decodeCommandLine(t, content), "********")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
 	}
@@ -433,7 +436,9 @@ func TestTelemetryProxy_DoesNotScrubOtherRequestTypes(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recordedStatusCode(rec))
 	select {
 	case got := <-received:
-		assert.Equal(t, body, got, "non-injection-metadata payloads must pass through verbatim")
+		batch := decodeBatch(t, got)
+		require.Len(t, batch.Payload.Events, 1)
+		assert.Equal(t, body, batch.Payload.Events[0].Content, "non-injection-metadata payloads must pass through verbatim")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
 	}
@@ -645,7 +650,11 @@ func TestTelemetryProxy_ScrubsInjectionMetadataField(t *testing.T) {
 	select {
 	case got := <-received:
 		assert.NotContains(t, string(got), "raw-secret-value", "secret leaked to upstream intake")
-		assert.Contains(t, string(decodeMetadata(t, got)), "********")
+		batch := decodeBatch(t, got)
+		require.Len(t, batch.Payload.Events, 1)
+		content := batch.Payload.Events[0].Content
+		assert.NotContains(t, string(content), "raw-secret-value", "secret leaked to upstream intake")
+		assert.Contains(t, string(decodeMetadata(t, content)), "********")
 	case <-time.After(2 * time.Second):
 		t.Fatal("upstream never received forwarded request")
 	}
@@ -684,9 +693,11 @@ func TestTelemetryProxy_InflightBytesAccountingWithScrubbing(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			const requests = 10
 
-			// Signalled once per payload the upstream intake receives, so the
-			// test can wait for every forward to have happened instead of
-			// sleeping.
+			// Signalled once per forward the upstream intake receives. The
+			// requests below are small enough to sit under the default size
+			// threshold, so they coalesce into a single buffered batch and
+			// produce exactly one forward, triggered by Stop's shutdown
+			// flush below.
 			forwarded := make(chan struct{}, requests)
 			srv := assertingServer(t, func(_ *http.Request, _ []byte) error {
 				forwarded <- struct{}{}
@@ -706,13 +717,10 @@ func TestTelemetryProxy_InflightBytesAccountingWithScrubbing(t *testing.T) {
 				require.Equal(t, http.StatusOK, recordedStatusCode(rec), "request %d", i)
 			}
 
-			// Every payload has reached the intake, so every forward is
-			// underway; Stop then waits for the workers to finish, which is
-			// what releases the reserved bytes.
-			for i := 0; i < requests; i++ {
-				<-forwarded
-			}
+			// Nothing is flushed until Stop drains the buffered batch and
+			// forwards it; that forward is what releases the reserved bytes.
 			recv.telemetryForwarder.Stop()
+			<-forwarded
 
 			assert.Zero(t, recv.telemetryForwarder.inflightCount.Load(),
 				"inflight bytes must be released exactly as reserved, whatever scrubbing does to the body's length")
