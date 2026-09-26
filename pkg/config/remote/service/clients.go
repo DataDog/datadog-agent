@@ -77,15 +77,9 @@ func (c *clients) seen(pbClient *pbgo.Client) {
 	defer c.m.Unlock()
 	now := c.clock.Now().UTC()
 	pbClient.LastSeen = uint64(now.UnixMilli())
-	// Store a copy: the caller may keep mutating pbClient after this returns.
-	pbCopy, ok := proto.Clone(pbClient).(*pbgo.Client)
-	if !ok {
-		// Unreachable: proto.Clone always returns the same concrete type.
-		pbCopy = pbClient
-	}
 	c.clients[pbClient.Id] = &client{
 		lastSeen: now,
-		pbClient: pbCopy,
+		pbClient: pbClient,
 	}
 }
 
@@ -110,7 +104,13 @@ func (c *clients) activeClients() []*pbgo.Client {
 			delete(c.clients, id)
 			continue
 		}
-		activeClients = append(activeClients, client.pbClient)
+		// Return a copy: seen() may keep mutating client.pbClient after this returns.
+		pbCopy, ok := proto.Clone(client.pbClient).(*pbgo.Client)
+		if !ok {
+			// Unreachable: proto.Clone always returns the same concrete type.
+			pbCopy = client.pbClient
+		}
+		activeClients = append(activeClients, pbCopy)
 	}
 	return activeClients
 }
