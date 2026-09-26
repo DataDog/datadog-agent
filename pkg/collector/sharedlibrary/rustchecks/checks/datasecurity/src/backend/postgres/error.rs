@@ -13,9 +13,9 @@ impl fmt::Display for PostgresError {
         match self {
             Self::Server(state) => write!(
                 f,
-                "postgres server error: {} (SQLSTATE {})",
-                describe(state),
-                state.code()
+                "postgres server error: SQLSTATE {} - {}",
+                state.code(),
+                describe(state)
             ),
             Self::Client(message) => write!(f, "postgres client error: {message}"),
         }
@@ -54,7 +54,9 @@ fn describe(state: &SqlState) -> &'static str {
             Some("08") => "connection failure",
             Some("42") => "invalid query",
             Some("53") => "insufficient resources (e.g. too many connections)",
-            _ => "",
+            _ => {
+                "please investigate using the SQLSTATE code"
+            }
         },
     }
 }
@@ -77,11 +79,11 @@ mod tests {
         // Cast failure, used to leak `invalid input syntax for type integer: "<value>"`.
         assert_eq!(
             PostgresError::Server(SqlState::INVALID_TEXT_REPRESENTATION).to_string(),
-            "postgres server error:  (SQLSTATE 22P02)"
+            "postgres server error: SQLSTATE 22P02 - please investigate using the SQLSTATE code"
         );
         assert_eq!(
             PostgresError::Server(SqlState::INSUFFICIENT_PRIVILEGE).to_string(),
-            "postgres server error: permission denied, the user lacks the required privileges (SQLSTATE 42501)"
+            "postgres server error: SQLSTATE 42501 - permission denied, the user lacks the required privileges"
         );
     }
 

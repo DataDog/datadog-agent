@@ -8,6 +8,7 @@ use postgres::{Client, Config, NoTls, Row, Statement};
 use crate::backend::{ScanData, ScanEngine, ScannedColumn};
 use crate::config::{SslMode, SubTask};
 
+mod error;
 mod text;
 mod tls;
 
