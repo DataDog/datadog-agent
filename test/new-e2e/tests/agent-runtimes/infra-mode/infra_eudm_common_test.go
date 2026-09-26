@@ -95,13 +95,12 @@ func (s *eudmSuite) TestEUDMChecks() {
 // keys are emitted on macOS and Windows.
 func (s *eudmSuite) TestEUDMHostTags() {
 	// Restart the agent to reset the host metadata backoff
-	var service svcmanager.ServiceManager
+	var err error
 	if s.descriptor.Family() == e2eos.WindowsFamily {
-		service = svcmanager.NewWindows(s.Env().RemoteHost)
+		err = svcmanager.NewWindows(s.Env().RemoteHost).Restart("datadogagent")
 	} else {
-		service = svcmanager.NewSystemctl(s.Env().RemoteHost)
+		err = svcmanager.NewSystemctl(s.Env().RemoteHost).Restart("datadog-agent")
 	}
-	_, err := service.Restart("datadog-agent")
 	require.NoError(s.T(), err, "failed to restart datadog-agent service")
 
 	fakeintake := s.Env().FakeIntake.Client()
