@@ -36,6 +36,7 @@ go_library(
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_davecgh_go_spew//spew",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_golang_x_crypto//ssh",
         "@org_golang_x_text//encoding/unicode",
     ],

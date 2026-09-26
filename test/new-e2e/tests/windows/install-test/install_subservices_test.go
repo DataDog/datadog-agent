@@ -7,7 +7,6 @@ package installtest
 
 import (
 	"strconv"
-	"time"
 
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -15,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -124,15 +122,9 @@ func (s *testSubServicesOptsSuite) TestAPMEnabled() {
 }
 
 func (s *testSubServicesOptsSuite) testServiceState(serviceName string, running bool) {
-	vm := s.Env().RemoteHost
-
-	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		status, err := windowsCommon.GetServiceStatus(vm, serviceName)
-		require.NoError(c, err)
-		if running {
-			assert.Equal(c, "Running", status, "%s should be running", serviceName)
-		} else {
-			assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName)
-		}
-	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+	state := "Stopped"
+	if running {
+		state = "Running"
+	}
+	windowsCommon.AssertServiceState(s.T(), s.Env().RemoteHost, serviceName, state)
 }
