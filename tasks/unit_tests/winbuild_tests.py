@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
 from invoke import Context
 
@@ -13,6 +14,7 @@ from tasks.winbuild import (
     _extract_pdbs,
     _format_index_key,
     _symbol_index_key,
+    agent_package,
     generate_symbol_store,
 )
 
@@ -47,6 +49,24 @@ def _real_agent_pdb() -> bytes:
         raw = base64.b64decode(b64)
         buf[off : off + len(raw)] = raw
     return bytes(buf)
+
+
+class TestAgentPackage(unittest.TestCase):
+    def test_exports_flavor_specific_installer(self):
+        for flavor, filename in (
+            ("base", "datadog-installer-7.85.0-1-x86_64.exe"),
+            ("fips", "datadog-fips-installer-7.85.0-1-x86_64.exe"),
+        ):
+            with self.subTest(flavor=flavor), contextlib.ExitStack() as stack:
+                for name in ("omnibus_build", "build_agent_msi", "generate_symbol_store", "os.makedirs", "shutil.move"):
+                    stack.enter_context(patch(f"tasks.winbuild.{name}"))
+                stack.enter_context(patch("tasks.winbuild.get_version", return_value="7.85.0"))
+                stack.enter_context(patch("tasks.winbuild.OUTPUT_PATH", "output"))
+                copy = stack.enter_context(patch("tasks.winbuild.shutil.copy2"))
+
+                agent_package(Context(), flavor=flavor)
+
+                self.assertEqual(copy.call_args.args[1], os.path.join("output", filename))
 
 
 class TestFormatIndexKey(unittest.TestCase):
