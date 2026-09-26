@@ -268,9 +268,11 @@ fn evaluate_none(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
 const ANY_LABEL: &str = "condition_config_any";
 const NONE_LABEL: &str = "condition_config_none";
 
-/// An unknown key resolves false, which is permissive for an any-of and restrictive for
-/// a veto. Both are the safe direction: a gate the daemon cannot evaluate should not be
-/// what stops a workload from running.
+/// An unknown key resolves false, which is restrictive for an any-of (the term can never
+/// open the gate) and permissive for a veto (it can never close it). Neither direction is
+/// safe on its own, so the miss is not the remedy: it warns on every evaluation, and the
+/// `fleet_*_template` tests assert the shipped templates name nothing outside
+/// [`GATED_KEY_SPECS`].
 fn gated_key_enabled(label: &str, path: &str, key: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
     match GATED_KEY_SPECS.iter().find(|spec| spec.key == key) {
         Some(spec) => spec.enabled(path, yaml, os),
