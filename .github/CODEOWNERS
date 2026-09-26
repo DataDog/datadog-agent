@@ -915,6 +915,7 @@
 /tasks/build_tags.py                                            @DataDog/agent-build
 /tasks/build_tags.bzl                                           @DataDog/agent-build
 /tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
+/.gitlab/test/functional_test/anomalydetection.yml               @DataDog/agent-anomaly-detection
 /tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
 /tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
