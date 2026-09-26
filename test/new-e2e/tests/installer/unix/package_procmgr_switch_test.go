@@ -1,0 +1,100 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package installer
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+)
+
+type packageProcmgrSwitchSuite struct {
+	packageBaseSuite
+}
+
+func testProcmgrSwitch(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
+	return &packageProcmgrSwitchSuite{
+		packageBaseSuite: newPackageSuite("procmgr_switch", os, arch, method),
+	}
+}
+
+func (s *packageProcmgrSwitchSuite) RunInstallScript(params ...string) {
+	err := s.RunInstallScriptWithError(params...)
+	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s",
+		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log || true"),
+		s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log || true"),
+	)
+}
+
+func (s *packageProcmgrSwitchSuite) RunInstallScriptWithError(params ...string) error {
+	scriptURL := "https://" + InstallerScriptBaseURL() + "/scripts/install.sh"
+	_, err := s.Env().RemoteHost.Execute(
+		fmt.Sprintf(`%s bash -c "$(curl -L %s)" > /tmp/datadog-installer-stdout.log 2> /tmp/datadog-installer-stderr.log`, strings.Join(params, " "), scriptURL),
+		client.WithEnvVariables(InstallInstallerScriptEnvWithPackages()),
+	)
+	return err
+}
+
+func (s *packageProcmgrSwitchSuite) TestProcmgrSwitch() {
+	initialEnabled := os.Getenv("DD_PROCESS_MANAGER_ENABLED") != "false"
+
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_PROCESS_MANAGER_ENABLED="+strconv.FormatBool(initialEnabled))
+	defer s.Purge()
+
+	// Install the ddot extension (not the standalone datadog-agent-ddot package) so its lifecycle,
+	// which is managed by the agent's own service definition, can be checked under both managers.
+	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
+	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
+
+	s.assertManagerState(initialEnabled)
+
+	if initialEnabled {
+		s.runProcessManagerCommand("disable")
+		s.assertManagerState(false)
+
+		s.runProcessManagerCommand("enable")
+		s.assertManagerState(true)
+	} else {
+		s.runProcessManagerCommand("enable")
+		s.assertManagerState(true)
+
+		s.runProcessManagerCommand("disable")
+		s.assertManagerState(false)
+	}
+}
+
+func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) {
+	s.waitForInstallerDaemonReady()
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer daemon process-manager " + subcommand)
+	require.NoError(s.T(), err, "Failed to run process-manager %s: datadog-agent-installer journalctl:\n%s",
+		subcommand,
+		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-agent-installer.service --no-pager"),
+	)
+}
+
+func (s *packageProcmgrSwitchSuite) waitForInstallerDaemonReady() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		_, err := s.Env().RemoteHost.Execute("sudo datadog-installer daemon rc-status")
+		assert.NoError(c, err, "%s is not serving the local API yet", installerUnit)
+	}, 2*time.Minute, 2*time.Second)
+}
+
+func (s *packageProcmgrSwitchSuite) assertManagerState(procmgrEnabled bool) {
+	if procmgrEnabled {
+		s.host.WaitForUnitActive(s.T(), agentUnit, procmgrUnit)
+		s.host.WaitForProcessesRunning(s.T(), ddotProcess)
+	} else {
+		s.host.WaitForUnitActive(s.T(), agentUnit, ddotUnit)
+	}
+}

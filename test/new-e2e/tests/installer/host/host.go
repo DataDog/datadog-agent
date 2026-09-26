@@ -8,9 +8,9 @@ package host
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -75,14 +75,10 @@ func (h *Host) GetPkgManager() string {
 	return h.pkgManager
 }
 
-// Procmgr enabled returns true if the procmgr is enabled on the host, ie if the folder processes.d exists
+// ProcmgrEnabled returns the DD_PROCESS_MANAGER_ENABLED value set by the test matrix, defaulting
+// to true.
 func (h *Host) ProcmgrEnabled() bool {
-	_, err := h.remote.ReadDir("/opt/datadog-packages/datadog-agent/stable/processes.d")
-	if errors.Is(err, fs.ErrNotExist) {
-		return false
-	}
-	require.NoError(h.t(), err)
-	return true
+	return os.Getenv("DD_PROCESS_MANAGER_ENABLED") != "false"
 }
 
 // procmgr COAT telemetry gauge names, reported via `datadog-agent diagnose show-metadata agent-full-telemetry`.
@@ -736,9 +732,7 @@ func (h *Host) getSystemdUnitInfo() map[string]SystemdUnitInfo {
 
 func (h *Host) getProcessesUnitInfo() map[string]ProcessesUnitInfo {
 	processes := make(map[string]ProcessesUnitInfo)
-	if !h.ProcmgrEnabled() {
-		return processes
-	}
+
 	// Return early if procmgr is not running
 	if _, err := h.remote.Execute("systemctl is-active --quiet datadog-agent-procmgr.service"); err != nil {
 		return processes

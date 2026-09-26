@@ -28,6 +28,7 @@ dd_agent_go_test(
         "package_apm_inject_reboot_test.go",
         "package_apm_inject_test.go",
         "package_ddot_test.go",
+        "package_procmgr_switch_test.go",
         "upgrade_scenario_test.go",
     ],
     embed = [":unix"],
