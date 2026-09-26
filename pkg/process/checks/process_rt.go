@@ -7,6 +7,7 @@ package checks
 
 import (
 	"net/http"
+	"slices"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 // runRealtime runs the realtime ProcessCheck to collect statistics about the running processes.
@@ -62,22 +64,28 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 		return CombinedRunResult{}, nil
 	}
 
-	chunkedStats := fmtProcessStats(p.maxBatchSize, procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
-	groupSize := len(chunkedStats)
-	chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
+	var messages []model.MessageBody
+	procStats := convertProcessStats(procs, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
+	if len(procStats) > 0 {
+		runMaxBatchSize := min(len(procStats), p.maxBatchSize)
+		groupSize := getGroupSize(len(procStats), runMaxBatchSize)
+		messages = make([]model.MessageBody, 0, groupSize)
 
-	messages := make([]model.MessageBody, 0, groupSize)
-	for i := 0; i < groupSize; i++ {
-		messages = append(messages, &model.CollectorRealTime{
-			HostName:          p.hostInfo.HostName,
-			Stats:             chunkedStats[i],
-			ContainerStats:    chunkedCtrStats[i],
-			GroupId:           groupID,
-			GroupSize:         int32(groupSize),
-			NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
-			TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
-			ContainerHostType: p.hostInfo.ContainerHostType,
-		})
+		chunkedProcStats := slices.Chunk(procStats, runMaxBatchSize)
+		ctrChunkSize := getChunkSize(len(containers), groupSize)
+		chunkedCtrStats := slices.Chunk(ddslices.Map(containers, convertToContainerStat), ctrChunkSize)
+		for chunkProcStats, chunkCtrStats := range ddslices.ZipIter(chunkedProcStats, chunkedCtrStats) {
+			messages = append(messages, &model.CollectorRealTime{
+				HostName:          p.hostInfo.HostName,
+				Stats:             chunkProcStats,
+				ContainerStats:    chunkCtrStats,
+				GroupId:           groupID,
+				GroupSize:         int32(groupSize),
+				NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+				TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+				ContainerHostType: p.hostInfo.ContainerHostType,
+			})
+		}
 	}
 
 	// Store the last state for comparison on the next run.
@@ -89,22 +97,15 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	return CombinedRunResult{Realtime: messages}, nil
 }
 
-// fmtProcessStats formats and chunks a slice of ProcessStat into chunks.
-func fmtProcessStats(
-	maxBatchSize int,
+// convertProcessStats converts procutil.Stat into model.ProcessStat.
+func convertProcessStats(
 	procs, lastProcs map[int32]*procutil.Stats,
 	pidToCid map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
 	now time.Time,
-) [][]*model.ProcessStat {
-	chunked := make([][]*model.ProcessStat, 0)
-	chunkSize := len(procs)
-	if maxBatchSize > 0 && maxBatchSize < chunkSize {
-		chunkSize = maxBatchSize
-	}
-	chunk := make([]*model.ProcessStat, 0, chunkSize)
-
+) []*model.ProcessStat {
+	var procStats []*model.ProcessStat
 	for pid, fp := range procs {
 		// Skipping any processes that didn't exist in the previous run.
 		// This means short-lived processes (<2s) will never be captured.
@@ -144,17 +145,9 @@ func fmtProcessStats(
 			ContainerId:            pidToCid[int(pid)],
 		}
 
-		chunk = append(chunk, stat)
-
-		if len(chunk) == maxBatchSize {
-			chunked = append(chunked, chunk)
-			chunk = make([]*model.ProcessStat, 0, maxBatchSize)
-		}
+		procStats = append(procStats, stat)
 	}
-	if len(chunk) > 0 {
-		chunked = append(chunked, chunk)
-	}
-	return chunked
+	return procStats
 }
 
 func calculateRate(cur, prev uint64, before time.Time) float32 {

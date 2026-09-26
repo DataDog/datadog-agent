@@ -11,6 +11,7 @@ import (
 	"math"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	ddslices "github.com/DataDog/datadog-agent/pkg/util/slices"
 )
 
 const (
@@ -338,25 +340,29 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		stats := procsToStats(p.lastProcs)
 
 		if p.realtimeLastProcs != nil {
-			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
-			groupSize := len(chunkedStats)
-			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
+			procStats := convertProcessStats(stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, time.Now())
+			if len(procStats) > 0 {
+				runMaxBatchSize := min(len(procStats), p.maxBatchSize)
+				groupSize := getGroupSize(len(procStats), runMaxBatchSize)
+				messages := make([]model.MessageBody, 0, groupSize)
 
-			messages := make([]model.MessageBody, 0, groupSize)
-			for i := 0; i < groupSize; i++ {
-				messages = append(messages, &model.CollectorRealTime{
-					HostName:          p.hostInfo.HostName,
-					Stats:             chunkedStats[i],
-					ContainerStats:    chunkedCtrStats[i],
-					GroupId:           groupID,
-					GroupSize:         int32(groupSize),
-					NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
-					TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
-					ContainerHostType: p.hostInfo.ContainerHostType,
-				})
+				chunkedProcStats := slices.Chunk(procStats, runMaxBatchSize)
+				ctrChunkSize := getChunkSize(len(containers), groupSize)
+				chunkedCtrStats := slices.Chunk(ddslices.Map(containers, convertToContainerStat), ctrChunkSize)
+				for chunkProcStats, chunkCtrStats := range ddslices.ZipIter(chunkedProcStats, chunkedCtrStats) {
+					messages = append(messages, &model.CollectorRealTime{
+						HostName:          p.hostInfo.HostName,
+						Stats:             chunkProcStats,
+						ContainerStats:    chunkCtrStats,
+						GroupId:           groupID,
+						GroupSize:         int32(groupSize),
+						NumCpus:           int32(len(p.hostInfo.SystemInfo.Cpus)),
+						TotalMemory:       p.hostInfo.SystemInfo.TotalMemory,
+						ContainerHostType: p.hostInfo.ContainerHostType,
+					})
+				}
+				result.Realtime = messages
 			}
-			result.Realtime = messages
 		}
 
 		p.realtimeLastCPUTime = p.lastCPUTime
@@ -383,7 +389,7 @@ func (p *ProcessCheck) generateHints() int32 {
 }
 
 func procsToStats(procs map[int32]*procutil.Process) map[int32]*procutil.Stats {
-	stats := map[int32]*procutil.Stats{}
+	stats := make(map[int32]*procutil.Stats, len(procs))
 	for pid, proc := range procs {
 		stats[pid] = proc.Stats
 	}

@@ -7,6 +7,7 @@ package checks
 
 import (
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -117,18 +118,18 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 		runMaxBatchSize = len(procDiscoveries)
 	}
 
-	procDiscoveryChunks := chunkProcessDiscoveries(procDiscoveries, runMaxBatchSize)
-	payload := make([]model.MessageBody, len(procDiscoveryChunks))
-
+	groupSize := getGroupSize(len(procDiscoveries), runMaxBatchSize)
+	procDiscoveryChunks := slices.Chunk(procDiscoveries, runMaxBatchSize)
+	payload := make([]model.MessageBody, 0, groupSize)
 	groupID := nextGroupID()
-	for i, procDiscoveryChunk := range procDiscoveryChunks {
-		payload[i] = &model.CollectorProcDiscovery{
+	for procDiscoveryChunk := range procDiscoveryChunks {
+		payload = append(payload, &model.CollectorProcDiscovery{
 			HostName:           d.info.HostName,
 			GroupId:            groupID,
-			GroupSize:          int32(len(procDiscoveryChunks)),
+			GroupSize:          int32(groupSize),
 			ProcessDiscoveries: procDiscoveryChunk,
 			Host:               host,
-		}
+		})
 	}
 
 	return StandardRunResult(payload), nil
@@ -136,6 +137,22 @@ func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOption
 
 // Cleanup frees any resource held by the ProcessDiscoveryCheck before the agent exits
 func (d *ProcessDiscoveryCheck) Cleanup() {}
+
+func getGroupSize(totalCount int, chunkSize int) int {
+	chunkCount := totalCount / chunkSize
+	if totalCount%chunkSize != 0 {
+		chunkCount++
+	}
+	return chunkCount
+}
+
+func getChunkSize(totalCount int, groupSize int) int {
+	chunkSize := totalCount / groupSize
+	if totalCount%groupSize != 0 {
+		chunkSize++
+	}
+	return chunkSize
+}
 
 func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *LookupIDProbe, scrubber *procutil.DataScrubber) []*model.ProcessDiscovery {
 	pd := make([]*model.ProcessDiscovery, 0, len(pidMap))
@@ -151,23 +168,6 @@ func pidMapToProcDiscoveries(pidMap map[int32]*procutil.Process, userProbe *Look
 	}
 
 	return pd
-}
-
-// chunkProcessDiscoveries split non-container processes into chunks and return a list of chunks
-// This function is patiently awaiting go to support generics, so that we don't need two chunkProcesses functions :)
-func chunkProcessDiscoveries(procs []*model.ProcessDiscovery, size int) [][]*model.ProcessDiscovery {
-	chunkCount := len(procs) / size
-	if chunkCount*size < len(procs) {
-		chunkCount++
-	}
-	chunks := make([][]*model.ProcessDiscovery, 0, chunkCount)
-
-	for i := 0; i < len(procs); i += size {
-		end := min(i+size, len(procs))
-		chunks = append(chunks, procs[i:end])
-	}
-
-	return chunks
 }
 
 // Needed to calculate the correct normalized cpu metric value
