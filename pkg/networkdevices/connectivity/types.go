@@ -40,9 +40,9 @@ type PingOptions struct {
 }
 
 type SNMPOptions struct {
-	Port      int `json:"port"`
-	TimeoutMs int `json:"timeoutMs"`
-	Retries   int `json:"retries"`
+	Port       int `json:"port"`
+	TimeoutSec int `json:"timeoutSec"`
+	Retries    int `json:"retries"`
 }
 
 type SNMPCredential struct {
