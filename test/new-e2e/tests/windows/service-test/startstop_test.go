@@ -699,21 +699,27 @@ const xperfSCMSessionName = "scm-trace"
 // FileMode so that for tests with multiple start/stop iterations the trace captures
 // the tail of activity around whichever iteration fails.
 func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
-	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
-	if !s.Assert().NoError(err, "should fetch xperf artifact") {
+	xperfPath := "C:/xperf/xperf.exe"
+	xperfExists, err := host.FileExists(xperfPath)
+	if !s.Assert().NoError(err, "should check whether xperf is already installed") {
 		return
 	}
 
-	// Extract if C:/xperf dir does not exist.
-	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
-	if !s.Assert().NoError(err, "should expand xperf archive") {
-		return
+	if !xperfExists {
+		err = host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+		if !s.Assert().NoError(err, "should fetch xperf artifact") {
+			return
+		}
+
+		_, err = host.Execute("Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf -Force")
+		if !s.Assert().NoError(err, "should expand xperf archive") {
+			return
+		}
 	}
 
 	// Single xperf invocation starts both the NT Kernel Logger (-on <KernelGroups> -f kernel.etl ...)
 	// and a named user-mode session (-start scm-trace -on Microsoft-Windows-Services) per the
 	// MS TSS xperf SCM-tracing recipe. -d on stop will merge both into a single .etl.
-	xperfPath := "C:/xperf/xperf.exe"
 	cmd := fmt.Sprintf(
 		`& "%s" -on Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f C:/kernel.etl -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular -start %s -on Microsoft-Windows-Services`,
 		xperfPath, xperfSCMSessionName,
