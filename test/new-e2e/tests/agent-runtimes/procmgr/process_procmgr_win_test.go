@@ -28,18 +28,9 @@ const (
 	processLegacySCMServiceName  = "datadog-process-agent"
 	processProcmgrConfigFileName = "datadog-agent-process.yaml"
 
-	// The provisioned datadog.yaml leaves log_level at its info default, so a running
-	// process-agent can only report this level if it came through the merged environment.
 	legacySCMLogLevel = "warn"
 
-	// Substring of the stale DD_FLEET_POLICIES_DIR value, distinctive enough to find in
-	// process-agent's config output however YAML quotes or escapes the path.
 	staleFleetPoliciesMarker = "procmgr-e2e-stale-fleet-dir"
-
-	// processCmdPort is the process_config.cmd_port default, which the provisioned
-	// datadog.yaml leaves alone. process-agent's `config` subcommands talk to whoever listens
-	// on it.
-	processCmdPort = 6162
 )
 
 type processProcmgrWindowsSuite struct {
@@ -196,8 +187,6 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentCutoverSupervisedByProcmgrA
 // process-agent at the wrong policies.
 func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEnvironment() {
 	host := s.Env().RemoteHost
-	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
-	require.NoError(s.T(), err)
 	configRoot, err := windowsagent.GetConfigRootFromRegistry(host)
 	require.NoError(s.T(), err)
 
@@ -214,24 +203,39 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 		}
 	})
 
-	// The merge log line is written after filtering, so it lists exactly the keys handed to
-	// the child. The log is shared by every test, so only lines added by this respawn count.
-	logPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
-	mergeLinePrefix := "[" + processProcessName + "] applying "
-	mergeLines := func() ([]string, error) {
-		out, err := host.Execute(psSelectStringLines(logPath, "legacy SCM environment variable"))
+	// Both logs are shared by every test, so only lines added by this respawn count.
+	matchingLines := func(path, pattern, contains string) ([]string, error) {
+		out, err := host.Execute(psSelectStringLines(path, pattern))
 		if err != nil {
 			return nil, err
 		}
 		var lines []string
 		for _, line := range strings.Split(out, "\n") {
-			if strings.Contains(line, mergeLinePrefix) {
+			if strings.Contains(line, contains) {
 				lines = append(lines, strings.TrimSpace(line))
 			}
 		}
 		return lines, nil
 	}
-	linesBefore, err := mergeLines()
+
+	// The merge log line is written after filtering, so it lists exactly the keys handed to
+	// the child.
+	procmgrLogPath := joinWindowsPath(configRoot, "logs", "dd-procmgr.log")
+	mergeLines := func() ([]string, error) {
+		return matchingLines(procmgrLogPath, "legacy SCM environment variable", "["+processProcessName+"] applying ")
+	}
+	mergeLinesBefore, err := mergeLines()
+	require.NoError(s.T(), err)
+
+	// With config streaming, the default, process-agent drops its own env-var config layer
+	// so the core Agent's values win, and names every setting a DD_* var tried to set in a
+	// one-time warning. That warning is the only view of the child's environment the
+	// process gives, so it is what shows which merged keys reached it.
+	processLogPath := joinWindowsPath(configRoot, "logs", "process-agent.log")
+	ignoredEnvLines := func() ([]string, error) {
+		return matchingLines(processLogPath, "which config streaming ignores", "configstreamconsumer[process-agent]")
+	}
+	ignoredEnvLinesBefore, err := ignoredEnvLines()
 	require.NoError(s.T(), err)
 
 	_, err = host.Execute(psSetServiceEnvironment(processLegacySCMServiceName, []string{
@@ -245,15 +249,15 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	_, err = host.Execute(procmgrRespawn(cli, processProcessName))
 	require.NoError(s.T(), err)
 
-	// Checked before the live level so a failure says which half broke: dd-procmgr never
-	// merging the block, or process-agent not honoring a value it was handed.
+	// Checked before process-agent's side so a failure says which half broke: dd-procmgr
+	// never merging the block, or the merged block not reaching the child.
 	var merged string
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
 		lines, err := mergeLines()
 		if !assert.NoError(ct, err) {
 			return
 		}
-		if assert.Greater(ct, len(lines), len(linesBefore),
+		if assert.Greater(ct, len(lines), len(mergeLinesBefore),
 			"dd-procmgr should log merging the %s Environment block when respawning %s",
 			processLegacySCMServiceName, processProcessName) {
 			merged = lines[len(lines)-1]
@@ -263,44 +267,23 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	require.NotContains(s.T(), merged, "DD_FLEET_POLICIES_DIR",
 		"the denylisted key must never be merged into the child environment")
 
-	// config get asks the running process-agent for its live logger level over IPC, so this
-	// holds only if the merged value reached the child's environment and took effect.
-	processAgentCLI := agentBin(installRoot, "process-agent.exe")
+	// The warning is written once the first streamed snapshot lands, which can take a while
+	// after the spawn.
+	var ignored string
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		// A process-agent that outlived the stop keeps the port, so config get would read
-		// its level instead of the respawned one's.
-		desc, err := host.Execute(procmgrCmd(cli, "describe "+processProcessName))
+		lines, err := ignoredEnvLines()
 		if !assert.NoError(ct, err) {
 			return
 		}
-		owner, err := host.Execute(psListeningPortOwner(processCmdPort))
-		if !assert.NoError(ct, err) {
-			return
+		if assert.Greater(ct, len(lines), len(ignoredEnvLinesBefore),
+			"the respawned process-agent should report the DD_* vars it was spawned with") {
+			ignored = lines[len(lines)-1]
 		}
-		supervised := fieldValue(desc, "PID")
-		if !assert.Equal(ct, supervised, strings.TrimSpace(owner),
-			"port %d should belong to the process-agent dd-procmgr supervises (PID %s): %s",
-			processCmdPort, supervised, desc) {
-			return
-		}
-
-		out, err := host.Execute(fmt.Sprintf(`& "%s" config get log_level`, processAgentCLI))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.Contains(ct, out, "log_level is set to: "+legacySCMLogLevel,
-			"process-agent should run with DD_LOG_LEVEL merged from %s", processLegacySCMServiceName)
 	}, 2*time.Minute, 5*time.Second)
-
-	// The same running process-agent, which the check above proved reads its merged
-	// environment, must not have picked up the denylisted value. /config/all renders
-	// defaults too, so fleet_policies_dir is always listed and its absence cannot make this
-	// pass.
-	out, err := host.Execute(fmt.Sprintf(`& "%s" config --all`, processAgentCLI))
-	require.NoError(s.T(), err)
-	require.Contains(s.T(), out, "fleet_policies_dir")
-	assert.NotContains(s.T(), out, staleFleetPoliciesMarker,
-		"the denylisted DD_FLEET_POLICIES_DIR must not reach process-agent's config")
+	require.Contains(s.T(), ignored, "log_level (DD_LOG_LEVEL)",
+		"DD_LOG_LEVEL merged from %s should reach process-agent's environment", processLegacySCMServiceName)
+	require.NotContains(s.T(), ignored, "DD_FLEET_POLICIES_DIR",
+		"the denylisted DD_FLEET_POLICIES_DIR must not reach process-agent's environment")
 }
 
 // TestProcessAgentPrivilegedSpawnRejectsYamlMutation proves the on-disk processes.d YAML is
@@ -432,12 +415,6 @@ func psClearServiceEnvironment(service string) string {
 func psSelectStringLines(path, pattern string) string {
 	return `$ErrorActionPreference='Stop'; (Select-String -LiteralPath ` + psSingleQuote(path) +
 		` -Pattern ` + psSingleQuote(pattern) + ` | ForEach-Object { $_.Line }) -join [Environment]::NewLine`
-}
-
-// psListeningPortOwner prints the PIDs listening on port, comma-separated, or nothing when
-// the port is free.
-func psListeningPortOwner(port int) string {
-	return fmt.Sprintf(`$ErrorActionPreference='Stop'; (Get-NetTCPConnection -LocalPort %d -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique) -join ','`, port)
 }
 
 func psReadFileBase64(path string) string {
