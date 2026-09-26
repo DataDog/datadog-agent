@@ -837,6 +837,48 @@ func TestProcessCacheSameCmdline(t *testing.T) {
 	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
 }
 
+func TestProcessCacheDifferenceParentPID(t *testing.T) {
+	const pid int32 = 12345
+	const createTime int64 = 1000
+	current := &procutil.Process{
+		Pid:     pid,
+		Ppid:    2,
+		Cmdline: []string{"zombie"},
+		Stats:   &procutil.Stats{CreateTime: createTime, Status: "Z"},
+	}
+	previous := &procutil.Process{
+		Pid:     pid,
+		Ppid:    1,
+		Cmdline: []string{"zombie"},
+		Stats:   &procutil.Stats{CreateTime: createTime, Status: "Z"},
+	}
+
+	diff := processCacheDifference(
+		map[int32]*procutil.Process{pid: current},
+		map[int32]*procutil.Process{pid: previous},
+	)
+
+	require.Len(t, diff, 1)
+	assert.Equal(t, int32(2), diff[0].Ppid)
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("process_config.process_collection.enabled", true)
+	collectorTest := setUpCollectorTest(t, cfg, nil, nil)
+	collectorTest.collector.lastCollectedProcesses = map[int32]*procutil.Process{pid: previous}
+	collectorTest.probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(map[int32]*procutil.Process{pid: current}, nil).
+		Once()
+	collectorTest.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	event := collectorTest.collector.collectProcessesOnce()
+	require.NotNil(t, event)
+	require.Len(t, event.Deleted, 1)
+	assert.Equal(t, strconv.Itoa(int(pid)), event.Deleted[0].EntityID.ID)
+	require.Len(t, event.Created, 1)
+	assert.Equal(t, pid, event.Created[0].Pid)
+	assert.Equal(t, int32(2), event.Created[0].Ppid)
+}
+
 // TestProcessCacheDifferenceContainerID tests that processCacheDifference detects
 // when a process gains or changes its container ID (same PID, same CreateTime, same Cmdline).
 func TestProcessCacheDifferenceContainerID(t *testing.T) {

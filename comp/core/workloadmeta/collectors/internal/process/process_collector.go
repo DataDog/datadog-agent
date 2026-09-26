@@ -332,7 +332,7 @@ func enrichProcessesWithContainerID(procs map[int32]*procutil.Process, pidToCid 
 }
 
 // processCacheDifference returns new processes that exist in procCacheA and not in procCacheB.
-// It uses PID, creation time, command line hash, and container ID to detect new or changed processes
+// It uses PID, creation time, command line hash, zombie parent PID, and container ID to detect new or changed processes
 func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB map[int32]*procutil.Process) []*procutil.Process {
 	// attempt to pre-allocate right slice size to reduce number of slice growths
 	diffSize := 0
@@ -351,7 +351,8 @@ func processCacheDifference(procCacheA map[int32]*procutil.Process, procCacheB m
 			continue
 		}
 
-		if !procutil.IsSameProcess(procA, procB) || procA.ContainerID != procB.ContainerID {
+		zombieParentChanged := (procA.Stats.IsZombie() || procB.Stats.IsZombie()) && procA.Ppid != procB.Ppid
+		if !procutil.IsSameProcess(procA, procB) || zombieParentChanged || procA.ContainerID != procB.ContainerID {
 			newProcs = append(newProcs, procA)
 		}
 	}

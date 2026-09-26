@@ -91,6 +91,65 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 	assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)
 }
 
+func TestRunRealtimeFiltersProcessThatBecameZombie(t *testing.T) {
+	processCheck, probe, _ := processCheckWithMocks(t)
+	processCheck.lastPIDs = []int32{1}
+	processCheck.realtimeLastProcs = map[int32]*procutil.Stats{1: makeProcessStats()}
+	processCheck.realtimeLastCPUTime = cpu.TimesStat{}
+	processCheck.realtimeLastRun = time.Now().Add(-time.Second)
+
+	zombie := makeProcessStats()
+	zombie.Status = "Z"
+	probe.On("StatsForPIDs", []int32{1}, mock.Anything).Return(map[int32]*procutil.Stats{1: zombie}, nil).Once()
+
+	actual, err := processCheck.runRealtime(0)
+	require.NoError(t, err)
+	assert.Empty(t, actual.RealtimePayloads())
+	assert.Empty(t, processCheck.realtimeLastProcs)
+}
+
+func TestFmtProcessStatsSkipsZombies(t *testing.T) {
+	live := makeProcessStats()
+	zombie := makeProcessStats()
+	zombie.Status = "Z"
+
+	chunked := fmtProcessStats(
+		10,
+		map[int32]*procutil.Stats{1: live, 2: zombie, 3: nil},
+		map[int32]*procutil.Stats{1: makeProcessStats(), 2: makeProcessStats(), 3: makeProcessStats()},
+		map[int]string{},
+		cpu.TimesStat{},
+		cpu.TimesStat{},
+		time.Now().Add(-time.Second),
+		time.Now(),
+	)
+	require.Len(t, chunked, 1)
+	require.Len(t, chunked[0], 1)
+	assert.Equal(t, int32(1), chunked[0][0].Pid)
+	assert.NotEqual(t, model.ProcessState_Z, chunked[0][0].ProcessState)
+
+	allZombies := fmtProcessStats(
+		10,
+		map[int32]*procutil.Stats{2: zombie},
+		map[int32]*procutil.Stats{2: makeProcessStats()},
+		map[int]string{},
+		cpu.TimesStat{},
+		cpu.TimesStat{},
+		time.Now().Add(-time.Second),
+		time.Now(),
+	)
+	assert.Empty(t, allZombies)
+}
+
+func TestFilterRealtimeStats(t *testing.T) {
+	live := makeProcessStats()
+	zombie := makeProcessStats()
+	zombie.Status = "Z"
+
+	filtered := filterRealtimeStats(map[int32]*procutil.Stats{1: live, 2: zombie, 3: nil})
+	assert.Equal(t, map[int32]*procutil.Stats{1: live}, filtered)
+}
+
 // TestFmtProcessStats test the chunking logic of fmtProcessStats
 func TestFmtProcessStats(t *testing.T) {
 	procs := map[int32]*procutil.Stats{
