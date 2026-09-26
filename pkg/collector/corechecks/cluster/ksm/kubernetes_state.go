@@ -541,7 +541,7 @@ func (k *KSMCheck) buildStores() error {
 	}
 
 	builder.WithNamespaces(namespaces)
-	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+	allowDenyList, err := allowdenylist.New(k.buildAllowedMetricsSet(), options.MetricSet{})
 	if err != nil {
 		return err
 	}
@@ -1566,41 +1566,30 @@ func defaultCollectors() []string {
 	return collectors
 }
 
-// buildDeniedMetricsSet adds *_created metrics to the default denied metric rules.
-// It allows us to get kube_node_created and kube_pod_created and deny
-// the rest of *_created metrics without relying on a unmaintainable and unreadable regex.
-func buildDeniedMetricsSet(collectors []string) options.MetricSet {
-	deniedMetrics := options.MetricSet{
-		".*_generation":                                    {},
-		".*_metadata_resource_version":                     {},
-		"kube_pod_owner":                                   {},
-		"kube_pod_restart_policy":                          {},
-		"kube_pod_completion_time":                         {},
-		"kube_pod_status_scheduled_time":                   {},
-		"kube_cronjob_status_active":                       {},
-		"kube_node_status_phase":                           {},
-		"kube_cronjob_spec_starting_deadline_seconds":      {},
-		"kube_job_spec_active_deadline_seconds":            {},
-		"kube_job_spec_completions":                        {},
-		"kube_job_spec_parallelism":                        {},
-		"kube_job_status_active":                           {},
-		"kube_job_status_.*_time":                          {},
-		"kube_service_spec_external_ip":                    {},
-		"kube_service_status_load_balancer_ingress":        {},
-		"kube_statefulset_status_current_revision":         {},
-		"kube_statefulset_status_update_revision":          {},
-		"kube_pod_container_status_last_terminated_reason": {},
-		"kube_lease_renew_time":                            {},
+// buildAllowedMetricsSet returns the set of KSM family names the check actually does something with:
+//   - sent via metricNamesMapper
+//   - sent via metricTransformers
+//   - accumulated by a metricAggregator
+//   - consumed as a label-join source
+//
+// All four sources are derived from configuration (defaults plus the check
+// instance's config) and are not modified at runtime based on discovered
+// resources or the metrics store itself.
+func (k *KSMCheck) buildAllowedMetricsSet() options.MetricSet {
+	allowedMetrics := make(options.MetricSet)
+	for name := range k.metricNamesMapper {
+		allowedMetrics["^"+name+"$"] = struct{}{}
 	}
-	for _, resource := range collectors {
-		// resource format: pods, nodes, jobs, deployments...
-		if resource == "pods" || resource == "nodes" {
-			continue
-		}
-		deniedMetrics["kube_"+strings.TrimRight(resource, "s")+"_created"] = struct{}{}
+	for name := range k.metricTransformers {
+		allowedMetrics["^"+name+"$"] = struct{}{}
 	}
-
-	return deniedMetrics
+	for name := range k.metricAggregators {
+		allowedMetrics["^"+name+"$"] = struct{}{}
+	}
+	for name := range k.instance.labelJoins {
+		allowedMetrics["^"+name+"$"] = struct{}{}
+	}
+	return allowedMetrics
 }
 
 // ownerTags returns kube_<kind> tags based on given kind and name, along with the resolved Deployment name.
