@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -228,7 +229,10 @@ const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), N
 	NVL(staleness, '-'), last_refresh_date
 FROM cdb_mviews WHERE /*RELATIONS*/`
 
-const containerNamesQuery = `SELECT con_id, name FROM v$containers WHERE 1=1`
+// CDB_* views omit closed or restricted PDBs; those are not empty databases.
+const containerNamesQuery = `SELECT con_id, name FROM v$containers
+WHERE open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricted, 'NO') = 'NO'
+AND EXISTS (SELECT 1 FROM cdb_users u WHERE u.con_id = v$containers.con_id AND u.username = 'SYS')`
 
 // total_views is aliased to total_tables for the shared row scanner.
 const viewsQueryTemplate = `WITH ranked_views AS (
@@ -524,6 +528,7 @@ type schemaSnapshot struct {
 
 type schemaSnapshotCoordinator struct {
 	emit      payloadEmitter
+	validate  func(string) error
 	snapshots map[string]*schemaSnapshot
 	order     []string
 	err       error
@@ -571,25 +576,33 @@ func (c *schemaSnapshotCoordinator) emitEvent(event schemaEvent) {
 }
 
 func (c *schemaSnapshotCoordinator) complete() error {
+	var err error
 	for _, containerID := range c.order {
-		c.completeContainerID(containerID)
+		err = errors.Join(err, c.completeContainerID(containerID))
 	}
-	return c.err
+	return errors.Join(err, c.err)
 }
 
 func (c *schemaSnapshotCoordinator) completeContainer(conID int64) error {
-	c.completeContainerID(strconv.FormatInt(conID, 10))
-	return c.err
+	return errors.Join(c.completeContainerID(strconv.FormatInt(conID, 10)), c.err)
 }
 
-func (c *schemaSnapshotCoordinator) completeContainerID(containerID string) {
+func (c *schemaSnapshotCoordinator) completeContainerID(containerID string) error {
 	snapshot := c.snapshots[containerID]
 	if snapshot == nil || snapshot.pending == nil {
-		return
+		return nil
+	}
+	if c.validate != nil {
+		if err := c.validate(containerID); err != nil {
+			c.emitEvent(*snapshot.pending)
+			snapshot.pending = nil
+			return err
+		}
 	}
 	snapshot.pending.CollectionPayloadsCount = snapshot.count
 	c.emitEvent(*snapshot.pending)
 	snapshot.pending = nil
+	return c.err
 }
 
 func (c *schemaSnapshotCoordinator) hasContainer(conID int64) bool {
@@ -924,9 +937,6 @@ type ownerKey struct {
 }
 
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
-	// Without database filters, owners can supply container IDs missing from the name lookup.
-	filterDatabases := len(c.config.Schemas.IncludeDatabases) > 0 || len(c.config.Schemas.ExcludeDatabases) > 0
-
 	owners := make(map[ownerKey]string)
 	names := make(map[string]struct{})
 	query := schemaOwnersQuery + regexSQLClauses("username", c.config.Schemas.IncludeSchemas, c.config.Schemas.ExcludeSchemas)
@@ -939,10 +949,8 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		if err := rows.Scan(&conID, &name, &userID); err != nil {
 			return fmt.Errorf("failed to scan schema owner: %w", err)
 		}
-		if filterDatabases {
-			if _, ok := containers[conID]; !ok {
-				return nil
-			}
+		if _, ok := containers[conID]; !ok {
+			return nil
 		}
 		if !schemaOwnerPattern.MatchString(name) {
 			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
@@ -1106,6 +1114,30 @@ func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx
 }
 
 // Missing or version-incompatible optional detail views do not fail collection.
+
+func (c *Check) validateSchemaContainer(ctx context.Context, containerID string) error {
+	conID, err := strconv.ParseInt(containerID, 10, 64)
+	if err != nil {
+		return err
+	}
+	available := false
+	query := containerNamesQuery + fmt.Sprintf(" AND con_id = %d", conID)
+	if err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return err
+		}
+		available = true
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to validate container %d: %w", conID, err)
+	}
+	if !available {
+		return fmt.Errorf("container %d is no longer available for schema collection", conID)
+	}
+	return nil
+}
 
 func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	names := make(map[int64]string)
@@ -1293,6 +1325,9 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		sender.EventPlatformEvent(payload, "dbm-metadata")
 	}
 	coordinator := newSchemaSnapshotCoordinator(emit)
+	coordinator.validate = func(containerID string) error {
+		return c.validateSchemaContainer(ctx, containerID)
+	}
 
 	if len(names) == 0 {
 		log.Debugf("%s no user schemas to collect, sending empty snapshot", c.logPrompt)
