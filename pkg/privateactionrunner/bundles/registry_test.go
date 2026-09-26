@@ -11,9 +11,24 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
+
+type testRCClient struct {
+	handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))
+}
+
+func (c *testRCClient) Subscribe(_ string, handler func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+	c.handler = handler
+}
+
+func (*testRCClient) GetConfigTUFProof(string) (state.ConfigTUFProof, bool) {
+	return state.ConfigTUFProof{}, false
+}
 
 type testBundle struct {
 	name string
@@ -77,4 +92,16 @@ func TestRegistryGetBundle(t *testing.T) {
 			assert.Same(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
+	rcClient := &testRCClient{}
+	registry, err := NewRegistry(&config.Config{}, rcClient, nil, nil, nil, nil, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, rcClient.handler)
+
+	bundle := registry.GetBundle("com.datadoghq.authoredscripts.echo")
+	require.NotNil(t, bundle)
+	action := bundle.GetAction("echo")
+	require.NotNil(t, action)
 }
