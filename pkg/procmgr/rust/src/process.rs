@@ -278,15 +278,23 @@ impl ManagedProcess {
 
     #[must_use]
     fn config_gate_met(&self) -> bool {
-        if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
-            return true;
+        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            info!(
+                "[{}] condition_config_any not met: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+            );
+            return false;
         }
-        info!(
-            "[{}] condition_config_any not met: {}",
-            self.name,
-            crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-        );
-        false
+        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
+            info!(
+                "[{}] condition_config_none vetoed: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_none)
+            );
+            return false;
+        }
+        true
     }
 
     #[must_use]
@@ -308,7 +316,9 @@ impl ManagedProcess {
     /// reload would override whatever left it alone.
     #[must_use]
     pub(crate) fn has_start_conditions(&self) -> bool {
-        self.config.condition_path_exists.is_some() || !self.config.condition_config_any.is_empty()
+        self.config.condition_path_exists.is_some()
+            || !self.config.condition_config_any.is_empty()
+            || !self.config.condition_config_none.is_empty()
     }
 
     /// Whether a respawn this process was otherwise due was skipped because a
@@ -740,6 +750,31 @@ pub mod tests {
         cfg.condition_path_exists = Some(exe.to_str().unwrap().to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(proc.should_start());
+    }
+
+    /// The veto has to be consulted by the start path, not merely parsed. The pair also
+    /// pins the direction: only the true value blocks.
+    #[test]
+    fn test_should_start_honours_condition_config_none() {
+        for (body, expected_start) in [
+            ("system_probe_config:\n  external: true\n", false),
+            ("system_probe_config:\n  external: false\n", true),
+        ] {
+            let _env = crate::config_gate::test_env_guard();
+            let dir = tempfile::tempdir().unwrap();
+            let sysprobe = dir.path().join("system-probe.yaml");
+            std::fs::write(&sysprobe, body).unwrap();
+
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut cfg = test_helpers::make_config(cmd, args);
+            cfg.condition_config_none = vec![crate::config_gate::ConditionConfigFile {
+                path: sysprobe.to_string_lossy().into_owned(),
+                keys: vec!["system_probe_config.external".to_string()],
+            }];
+            let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+
+            assert_eq!(proc.should_start(), expected_start, "for {body:?}");
+        }
     }
 
     #[test]

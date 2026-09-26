@@ -9,7 +9,9 @@
 //! these tests only run on Windows.
 
 use crate::config::ProcessConfig;
-use crate::config_gate::{condition_config_any_met, gated_key_names, test_env_guard};
+use crate::config_gate::{
+    condition_config_any_met, condition_config_none_met, gated_key_names, test_env_guard,
+};
 use crate::fleet_template_support::{INSTALL_DIR, scm_service_keys, sorted, write_gated_files};
 use std::path::Path;
 
@@ -43,9 +45,9 @@ fn fleet_sysprobe_template_declares_legacy_scm_gate() {
         config.args
     );
     assert!(
-        !config.auto_start,
-        "the core Agent still starts datadog-system-probe through the SCM, so auto-starting \
-         here would run two system-probes"
+        config.auto_start,
+        "the Agent suppresses the datadog-system-probe SCM service whenever this entry is \
+         installed, so procmgr is the only thing left that can start system-probe"
     );
 
     let (core_keys, sysprobe_keys) = scm_service_keys("sysprobe");
@@ -74,6 +76,18 @@ fn fleet_sysprobe_template_declares_legacy_scm_gate() {
         "drift from the SCM coreConf keys"
     );
 
+    let veto = &config.condition_config_none;
+    assert_eq!(
+        veto.len(),
+        1,
+        "expected one veto file, system-probe.yaml, got {veto:?}"
+    );
+    assert_eq!(
+        veto[0].path,
+        format!("{}/system-probe.yaml", etc.path().display())
+    );
+    assert_eq!(veto[0].keys, vec!["system_probe_config.external"]);
+
     // on-failure is load-bearing: a system-probe that finds itself disabled exits 0, and
     // `always` would turn that into a permanent respawn loop.
     assert_eq!(config.restart.to_string(), "on-failure");
@@ -91,7 +105,14 @@ fn fleet_sysprobe_template_declares_legacy_scm_gate() {
 fn fleet_sysprobe_template_names_only_evaluable_keys() {
     let etc = tempfile::tempdir().expect("tempdir");
     let evaluable = gated_key_names();
-    for file in &load_template(etc.path()).condition_config_any {
+    let config = load_template(etc.path());
+    // The veto matters more than the any-of here: an unknown key resolving false is
+    // permissive for an any-of term and silently disables a veto entirely.
+    for file in config
+        .condition_config_any
+        .iter()
+        .chain(config.condition_config_none.iter())
+    {
         for key in &file.keys {
             assert!(
                 evaluable.contains(&key.as_str()),
@@ -144,6 +165,61 @@ fn fleet_sysprobe_template_gate_opens_on_each_scm_key() {
             "gate stayed closed for datadog.yaml={agent_yaml:?} system-probe.yaml={sysprobe_yaml:?}"
         );
     }
+}
+
+/// An externally managed system-probe declines to run whatever else is enabled, so every
+/// key that would otherwise open the gate has to lose to the veto. Checking one open key
+/// would not show that: the any-of and the veto are evaluated separately, and it is the
+/// combination that used to spawn a process whose only act was to exit.
+#[test]
+fn fleet_sysprobe_template_external_vetoes_every_open_key() {
+    const EXTERNAL: &str = "system_probe_config:\n  external: true\n";
+
+    for (agent_yaml, sysprobe_yaml) in [
+        (
+            EMPTY_AGENT_YAML,
+            format!("{EXTERNAL}network_config:\n  enabled: true\n"),
+        ),
+        (
+            EMPTY_AGENT_YAML,
+            format!("{EXTERNAL}windows_crash_detection:\n  enabled: true\n"),
+        ),
+        (
+            EMPTY_AGENT_YAML,
+            format!("{EXTERNAL}runtime_security_config:\n  enabled: true\n"),
+        ),
+        (
+            "software_inventory:\n  enabled: true\n",
+            EXTERNAL.to_string(),
+        ),
+    ] {
+        let _env = test_env_guard();
+        let etc = tempfile::tempdir().expect("tempdir");
+        write_gated_files(etc.path(), agent_yaml, &sysprobe_yaml);
+        let config = load_template(etc.path());
+
+        assert!(
+            !condition_config_none_met(&config.condition_config_none),
+            "external system-probe must veto the entry, system-probe.yaml={sysprobe_yaml:?}"
+        );
+    }
+}
+
+/// The veto is inert on the installs that are not externally managed, which is all of
+/// them by default. Without this, a veto that always fired would pass the test above.
+#[test]
+fn fleet_sysprobe_template_veto_is_clear_without_external() {
+    let _env = test_env_guard();
+    let etc = tempfile::tempdir().expect("tempdir");
+    write_gated_files(
+        etc.path(),
+        EMPTY_AGENT_YAML,
+        "network_config:\n  enabled: true\n",
+    );
+    let config = load_template(etc.path());
+
+    assert!(condition_config_any_met(&config.condition_config_any));
+    assert!(condition_config_none_met(&config.condition_config_none));
 }
 
 fn load_template(etc: &Path) -> ProcessConfig {

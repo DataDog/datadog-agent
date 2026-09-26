@@ -8,7 +8,8 @@
 package installer
 
 import (
-	"path/filepath"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,7 @@ import (
 const (
 	ddotProcmgrProcess         = "datadog-agent-ddot"
 	processAgentProcmgrProcess = "datadog-agent-process"
+	sysprobeProcmgrProcess     = "datadog-agent-sysprobe"
 )
 
 // assertManagedByProcmgr verifies processName has a processes.d config and that dd-procmgrd
@@ -30,24 +32,45 @@ func (s *BaseSuite) assertManagedByProcmgr(processName string) {
 	s.Require().Host(s.Env().RemoteHost).FileExists(s.procmgrConfigPath(processName),
 		"%s should have a processes.d config", processName)
 
+	windowsagent.AssertProcmgrProcessRunning(s.T(), s.Env().RemoteHost, processName)
+}
+
+// restartUnderProcmgr cycles a supervised process so it rereads its configuration.
+//
+// dd-procmgr has no restart command, and its stop returns once the stop is requested rather
+// than once the child is gone, so the intermediate Stopped state has to be waited for
+// explicitly. The explicit start is not subject to the process's config gate, which only
+// governs auto-start and reload.
+func (s *BaseSuite) restartUnderProcmgr(processName string) {
+	s.T().Helper()
 	cli := s.procmgrCLIPath()
-	var runningSince time.Time
-	const minRunningDuration = 5 * time.Second
+
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`& '%s' stop %s`, strings.ReplaceAll(cli, `'`, `''`), processName))
+	s.Require().NoErrorf(err, "failed to stop %s under dd-procmgrd", processName)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		state, err := windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, cli, processName, "State")
-		if !assert.NoError(c, err) ||
-			!assert.Equal(c, "Running", state, "%s should be running under dd-procmgrd", processName) {
-			runningSince = time.Time{}
+		if !assert.NoError(c, err) {
 			return
 		}
-		if runningSince.IsZero() {
-			runningSince = time.Now()
-		}
-		// EventuallyWithT treats a tick with no recorded failures as an immediate success, so the
-		// stability window must be enforced via an assertion rather than a silent early return.
-		assert.GreaterOrEqual(c, time.Since(runningSince), minRunningDuration,
-			"%s has not been running long enough yet", processName)
-	}, 3*time.Minute, 5*time.Second)
+		assert.Equal(c, "Stopped", state, "%s should have stopped under dd-procmgrd", processName)
+	}, 1*time.Minute, 2*time.Second)
+
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(`& '%s' start %s`, strings.ReplaceAll(cli, `'`, `''`), processName))
+	s.Require().NoErrorf(err, "failed to start %s under dd-procmgrd", processName)
+	s.assertManagedByProcmgr(processName)
+}
+
+// assertNotRunningUnderProcmgr verifies processName is declared to dd-procmgrd but is not
+// running. The config existing is the point: asserting only that the legacy SCM service is
+// stopped would pass for a process procmgr had happily started instead.
+func (s *BaseSuite) assertNotRunningUnderProcmgr(processName string) {
+	s.T().Helper()
+	s.Require().Host(s.Env().RemoteHost).FileExists(s.procmgrConfigPath(processName),
+		"%s should have a processes.d config", processName)
+
+	state, err := windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, s.procmgrCLIPath(), processName, "State")
+	s.Require().NoError(err)
+	s.Require().NotEqual("Running", state, "%s should not be running under dd-procmgrd", processName)
 }
 
 // assertNoProcmgrConfig verifies processes.d has no config for processName.
@@ -65,9 +88,9 @@ func (s *BaseSuite) procmgrInstallRoot() string {
 }
 
 func (s *BaseSuite) procmgrCLIPath() string {
-	return filepath.Join(s.procmgrInstallRoot(), "bin", "agent", "dd-procmgr.exe")
+	return windowsagent.ProcmgrCLIPath(s.procmgrInstallRoot())
 }
 
 func (s *BaseSuite) procmgrConfigPath(processName string) string {
-	return filepath.Join(s.procmgrInstallRoot(), "processes.d", processName+".yaml")
+	return windowsagent.ProcmgrProcessConfigPath(s.procmgrInstallRoot(), processName)
 }

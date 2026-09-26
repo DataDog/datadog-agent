@@ -8,12 +8,62 @@ param(
     [Parameter(Mandatory=$true)][string[]]$ExpectedServerTags,
     [Parameter(Mandatory=$true)][string]$ConnExe
 )
+# dd-procmgr supervises process-agent and system-probe, so their legacy SCM services are
+# stopped and starting or stopping them would not touch the running processes.
+$installPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Datadog\Datadog Agent' -Name InstallPath).InstallPath
+$procmgr = Join-Path $installPath 'bin\agent\dd-procmgr.exe'
+
+function get-procmgrstate {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    $out = & $procmgr describe $Name 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        return "Unknown"
+    }
+    foreach ($line in $out) {
+        if ($line -match '^\s*State:\s*(\S+)') {
+            return $Matches[1]
+        }
+    }
+    return "Unknown"
+}
+
+function wait-forprocmgrstate {
+    param(
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][scriptblock]$Predicate,
+        [Parameter(Mandatory=$true)][string]$Description,
+        [Parameter(Mandatory=$false)][int]$TimeoutSeconds=60
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $state = get-procmgrstate -Name $Name
+        if (& $Predicate $state) {
+            return
+        }
+        Start-Sleep -Seconds 1
+    }
+    Write-Host -ForegroundColor Red "$Name is still $state after $TimeoutSeconds seconds, expected $Description"
+    exit 1
+}
+
+# stop-procmgrprocess waits for "not Running" rather than exactly "Stopped": a process whose
+# config gate is closed sits in Created and never transitions. It also tolerates a process
+# that is already down, since dd-procmgr stop fails in that case and this runs both before
+# and after the test body.
+function stop-procmgrprocess {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ((get-procmgrstate -Name $Name) -eq "Running") {
+        & $procmgr stop $Name 2>&1 | Out-Null
+    }
+    wait-forprocmgrstate -Name $Name -Predicate { param($s) $s -ne "Running" } -Description "not Running"
+}
+
 function stop-servicesfortest {
     # disable process agent so that it doesn't query the connections endpoint while we're running
-    stop-service -force datadog-process-agent -ErrorAction Stop
+    stop-procmgrprocess -Name datadog-agent-process
 
     # stop system probe to clean out any connections we're not interested in
-    stop-service -force datadog-system-probe -ErrorAction Stop
+    stop-procmgrprocess -Name datadog-agent-sysprobe
 }
 
 function make-connectionrequest {
@@ -51,7 +101,12 @@ stop-servicesfortest
 #   it sets the DD_SERVICE: service1  DD_ENV: staging DD_VERSION: 1.0-prerelease
 
 ## start the system probe
-start-service datadog-system-probe
+& $procmgr start datadog-agent-sysprobe
+if ($LASTEXITCODE -ne 0) {
+    Write-Host -ForegroundColor Red "Failed to start system-probe under dd-procmgr"
+    exit 1
+}
+wait-forprocmgrstate -Name datadog-agent-sysprobe -Predicate { param($s) $s -eq "Running" } -Description "Running"
 
 ## just give everything a chance to settle into place.
 Start-Sleep -Seconds 5
