@@ -7,7 +7,6 @@ package spec
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 )
@@ -18,6 +17,7 @@ type GPUConfig struct {
 	DeviceMode      DeviceMode               `json:"device_mode"`
 	Capabilities    ArchitectureCapabilities `json:"capabilities,omitempty"`
 	NVLinkLinkCount int                      `json:"nvlink_link_count,omitempty"`
+	NVLinkCapable   *bool                    `json:"nvlink_capable,omitempty"`
 }
 
 // ValidationOptions controls which spec failures should be enforced.
@@ -25,6 +25,19 @@ type ValidationOptions struct {
 	WorkloadActive bool `json:"workload_active"`
 	// IgnoreMetrics is a list of metric names that should be ignored during validation.
 	IgnoreMetrics map[string]bool `json:"ignore_metrics,omitempty"`
+	// ConfigFeatures contains enabled Agent configuration features. Metrics that
+	// require a disabled feature are not expected.
+	ConfigFeatures map[ConfigFeature]bool `json:"config_features,omitempty"`
+	// WorkloadTagsets contains workload-only tagsets required for active
+	// workloads. It lets callers distinguish bare processes from workloads with
+	// additional metadata, such as Kubernetes containers.
+	WorkloadTagsets map[string]bool `json:"workload_tagsets,omitempty"`
+	// NvidiaSMIValues contains normalized nvidia-smi values keyed by spec metric name.
+	// A non-nil map enables nvidia-smi validation for marked metrics.
+	NvidiaSMIValues map[string]*float64 `json:"-"`
+	// CalibratedWorkloadValues contains calibrated workload values keyed by spec
+	// metric name. A non-nil map enables workload validation for marked metrics.
+	CalibratedWorkloadValues map[string]*float64 `json:"-"`
 }
 
 // Equals checks if two GPU configs are equal.
@@ -34,7 +47,15 @@ func (c *GPUConfig) Equals(other GPUConfig) bool {
 		c.Capabilities.GPM == other.Capabilities.GPM &&
 		c.Capabilities.NVLink == other.Capabilities.NVLink &&
 		c.Capabilities.C2C == other.Capabilities.C2C &&
-		c.NVLinkLinkCount == other.NVLinkLinkCount
+		c.NVLinkLinkCount == other.NVLinkLinkCount &&
+		nvLinkCapabilityEqual(c.NVLinkCapable, other.NVLinkCapable)
+}
+
+func nvLinkCapabilityEqual(a, b *bool) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // TagFilter returns the Datadog tag filter expression for a GPU config.
@@ -48,6 +69,9 @@ func (c *GPUConfig) TagFilter() string {
 		parts = append(parts, "gpu_virtualization_mode:*vgpu")
 	default:
 		parts = append(parts, "NOT gpu_virtualization_mode:*vgpu", "NOT gpu_slicing_mode:mig")
+	}
+	if c.NVLinkCapable != nil {
+		parts = append(parts, fmt.Sprintf("gpu_nvlink_capable:%t", *c.NVLinkCapable))
 	}
 
 	return strings.Join(parts, " AND ")
@@ -68,7 +92,10 @@ type MetricObservation struct {
 	Name       string
 	MetricType string
 	Tags       []string
+	TagKeys    []string
 	Value      *float64
+	// TagsArePartial means absent tags must not be interpreted as missing.
+	TagsArePartial bool
 }
 
 const maxInvalidValueSamplesPerMetric = 5
@@ -174,12 +201,26 @@ func KnownGPUConfigs(specs *Specs) []GPUConfig {
 			if capabilities.NVLink > 0 {
 				nvlinkLinkCount = 2
 			}
-			configs = append(configs, GPUConfig{
+			config := GPUConfig{
 				Architecture:    strings.ToLower(archName),
 				DeviceMode:      mode,
 				Capabilities:    capabilities,
 				NVLinkLinkCount: nvlinkLinkCount,
-			})
+			}
+			if capabilities.NVLink == 0 {
+				configs = append(configs, config)
+				continue
+			}
+
+			nvLinkCapable := true
+			config.NVLinkCapable = &nvLinkCapable
+			configs = append(configs, config)
+
+			nvLinkNotCapable := false
+			config.Capabilities.NVLink = 0
+			config.NVLinkLinkCount = 0
+			config.NVLinkCapable = &nvLinkNotCapable
+			configs = append(configs, config)
 		}
 	}
 
@@ -193,13 +234,13 @@ func ExpectedMetricsForConfig(specs *Specs, config GPUConfig, options Validation
 		if !metricSpec.SupportsConfig(config) {
 			continue
 		}
-		if suppressInactiveNVLinkMetric(metricName, config) {
-			continue
-		}
 		if !metricSpec.SupportsCapabilities(config.Capabilities) {
 			continue
 		}
 		if metricSpec.WorkloadOnly && !options.WorkloadActive {
+			continue
+		}
+		if !hasRequiredConfigFeatures(metricSpec, options.ConfigFeatures) {
 			continue
 		}
 		if options.IgnoreMetrics[metricName] {
@@ -208,6 +249,34 @@ func ExpectedMetricsForConfig(specs *Specs, config GPUConfig, options Validation
 		expected[metricName] = metricSpec
 	}
 	return expected
+}
+
+func hasRequiredConfigFeatures(metricSpec MetricSpec, enabled map[ConfigFeature]bool) bool {
+	for _, feature := range metricSpec.ConfigRequired {
+		if !enabled[feature] {
+			return false
+		}
+	}
+	return true
+}
+
+// AllConfigFeatures returns every configuration feature known by the spec.
+func AllConfigFeatures() map[ConfigFeature]bool {
+	return map[ConfigFeature]bool{
+		ConfigFeatureSystemProbeEBPF: true,
+		ConfigFeatureSystemProbePRM:  true,
+	}
+}
+
+// AllWorkloadTagsets returns every workload-only tagset defined by the spec.
+func AllWorkloadTagsets(tagsSpec *TagsSpec) map[string]bool {
+	tagsets := make(map[string]bool)
+	for name, tagset := range tagsSpec.Tagsets {
+		if tagset.WorkloadOnly {
+			tagsets[name] = true
+		}
+	}
+	return tagsets
 }
 
 // PrefixedMetricName adds the spec metric prefix to a metric name if needed.
@@ -235,18 +304,18 @@ func TagsToKeyValues(tags []string) map[string][]string {
 	return result
 }
 
-// RequiredTagsForMetric expands the required tags for a metric from tagsets and custom tags.
-func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[string]TagSpec, map[string]TagSpec, error) {
-	requiredTags := make(map[string]TagSpec)
-	workloadOnlyTags := make(map[string]TagSpec)
+// ExpectedTagsForMetric expands the expected tags for a metric from tagsets and custom tags.
+func ExpectedTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[string]TagSpec, map[string]TagSpec, error) {
+	expectedTags := make(map[string]TagSpec)
+	workloadTags := make(map[string]TagSpec)
 	for _, tagsetName := range metricSpec.Tagsets {
 		tagsetSpec, ok := tagsSpec.Tagsets[tagsetName]
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown tagset %q", tagsetName)
 		}
-		targetMap := requiredTags
+		targetMap := expectedTags
 		if tagsetSpec.WorkloadOnly {
-			targetMap = workloadOnlyTags
+			targetMap = workloadTags
 		}
 		for _, tag := range tagsetSpec.Tags {
 			tagSpec, found := tagsSpec.Tags[tag]
@@ -262,10 +331,32 @@ func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[strin
 		if !found {
 			return nil, nil, fmt.Errorf("unknown custom tag %q", tag)
 		}
-		requiredTags[tag] = tagSpec
+		expectedTags[tag] = tagSpec
 	}
 
-	return requiredTags, workloadOnlyTags, nil
+	return expectedTags, workloadTags, nil
+}
+
+// ExpectedTagsForMetricWithOptions returns tags expected for a metric in the
+// supplied validation context.
+func ExpectedTagsForMetricWithOptions(tagsSpec *TagsSpec, metricSpec MetricSpec, options ValidationOptions) (map[string]TagSpec, error) {
+	expectedTags, workloadTags, err := ExpectedTagsForMetric(tagsSpec, metricSpec)
+	if err != nil {
+		return nil, err
+	}
+	if !options.WorkloadActive {
+		return expectedTags, nil
+	}
+	for _, tagsetName := range metricSpec.Tagsets {
+		tagsetSpec := tagsSpec.Tagsets[tagsetName]
+		if !tagsetSpec.WorkloadOnly || !options.WorkloadTagsets[tagsetName] {
+			continue
+		}
+		for _, tagName := range tagsetSpec.Tags {
+			expectedTags[tagName] = workloadTags[tagName]
+		}
+	}
+	return expectedTags, nil
 }
 
 // validateMetricTagsAgainstSpec validates emitted tags against the spec for a metric.
@@ -273,18 +364,26 @@ func RequiredTagsForMetric(tagsSpec *TagsSpec, metricSpec MetricSpec) (map[strin
 func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSamples []MetricObservation, knownTagValues map[string]string, options ValidationOptions) (map[string]*TagSummary, error) {
 	tagResults := make(map[string]*TagSummary)
 
-	requiredTags, workloadOnlyTags, err := RequiredTagsForMetric(spec.Tags, metricSpec)
+	expectedTags, workloadTags, err := ExpectedTagsForMetric(spec.Tags, metricSpec)
 	if err != nil {
-		return nil, fmt.Errorf("required tags failed: %w", err)
+		return nil, fmt.Errorf("expand expected tags: %w", err)
 	}
 
 	if options.WorkloadActive {
-		maps.Copy(requiredTags, workloadOnlyTags) // include workload tags as required for the tag validation
+		for _, tagsetName := range metricSpec.Tagsets {
+			tagsetSpec := spec.Tags.Tagsets[tagsetName]
+			if !tagsetSpec.WorkloadOnly || !options.WorkloadTagsets[tagsetName] {
+				continue
+			}
+			for _, tagName := range tagsetSpec.Tags {
+				expectedTags[tagName] = workloadTags[tagName]
+			}
+		}
 	}
 
 	getTagSummary := func(tag string) *TagSummary {
 		if _, found := tagResults[tag]; !found {
-			_, workloadOnly := workloadOnlyTags[tag]
+			_, workloadOnly := workloadTags[tag]
 			tagResults[tag] = &TagSummary{WorkloadOnly: workloadOnly}
 		}
 		return tagResults[tag]
@@ -293,9 +392,12 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 	for _, sample := range metricSamples {
 		tagsByKey := TagsToKeyValues(sample.Tags)
 
-		for tag := range requiredTags {
+		for tag, tagSpec := range expectedTags {
 			summary := getTagSummary(tag)
 			if values, found := tagsByKey[tag]; !found || len(values) == 0 {
+				if tagSpec.Optional || sample.TagsArePartial {
+					continue
+				}
 				summary.Missing++
 			} else {
 				summary.Found++
@@ -303,7 +405,7 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 		}
 
 		for tag, values := range tagsByKey {
-			_, allowed := requiredTags[tag]
+			_, allowed := expectedTags[tag]
 			if !allowed {
 				getTagSummary(tag).Unknown++
 				continue
@@ -311,12 +413,18 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 
 			for _, value := range values {
 				expectedValue, hasExpectedValue := knownTagValues[tag]
-				tagSpec, hasTagSpec := requiredTags[tag]
+				tagSpec, hasTagSpec := expectedTags[tag]
 
 				if value == "" || (hasExpectedValue && value != expectedValue) || (hasTagSpec && tagSpec.Regex != nil && !tagSpec.Regex.MatchString(value)) {
 					getTagSummary(tag).addInvalidValue(value)
 					continue
 				}
+			}
+		}
+
+		for _, tag := range sample.TagKeys {
+			if _, allowed := expectedTags[tag]; !allowed {
+				getTagSummary(tag).Unknown++
 			}
 		}
 	}
@@ -328,6 +436,9 @@ func validateMetricTagsAgainstSpec(spec *Specs, metricSpec MetricSpec, metricSam
 func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMetrics map[string][]MetricObservation, knownTagValues map[string]string, options ValidationOptions) (ValidationResult, error) {
 	results := ValidationResult{
 		Metrics: make(map[string]*MetricStatus),
+	}
+	if err := validateValidationOptions(specs, options); err != nil {
+		return results, err
 	}
 
 	// First, check that all of the emitted metrics are known to the spec and supported by the given config.
@@ -343,7 +454,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 			continue
 		}
 
-		if suppressInactiveNVLinkMetric(metricName, config) || !metricSpec.SupportsCapabilities(config.Capabilities) {
+		if !metricSpec.SupportsCapabilities(config.Capabilities) {
 			results.getMetricStatus(metricName).Unsupported++
 		}
 	}
@@ -353,7 +464,9 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 	for metricName, metricSpec := range expectedMetrics {
 		metricSamples, found := emittedMetrics[metricName]
 		if !found {
-			results.getMetricStatus(metricName).Missing++
+			if !metricSpec.Optional {
+				results.getMetricStatus(metricName).Missing++
+			}
 			continue
 		}
 
@@ -372,20 +485,52 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 				}
 			}
 
-			if metricSpec.Validator != nil && sample.Value != nil {
-				if err := metricSpec.Validator.Validate(*sample.Value); err != nil {
+			if metricSpec.Validator.HasStaticValueValidation() && sample.Value != nil {
+				if err := metricSpec.Validator.ValidateStaticValue(*sample.Value); err != nil {
 					results.addInvalidValue(metricName, err.Error())
 				}
 			}
+		}
+
+		if options.NvidiaSMIValues != nil && metricSpec.Validator != nil && metricSpec.Validator.NvidiaSMI {
+			validateMetricAgainstKnownGood(&results, metricName, metricSpec.Validator, metricSamples, options.NvidiaSMIValues)
+		}
+		if options.CalibratedWorkloadValues != nil && metricSpec.Validator != nil && metricSpec.Validator.CalibratedWorkload {
+			validateMetricAgainstKnownGood(&results, metricName, metricSpec.Validator, metricSamples, options.CalibratedWorkloadValues)
 		}
 	}
 
 	return results, nil
 }
 
-func suppressInactiveNVLinkMetric(metricName string, config GPUConfig) bool {
-	return strings.HasPrefix(metricName, "nvlink.") &&
-		// NVSwitch connectivity can be reported as zero even when no active NVLink ports are present.
-		metricName != "nvlink.nvswitch_connected" &&
-		config.NVLinkLinkCount == 0
+func validateValidationOptions(specs *Specs, options ValidationOptions) error {
+	for tagsetName, enabled := range options.WorkloadTagsets {
+		if !enabled {
+			continue
+		}
+		tagsetSpec, found := specs.Tags.Tagsets[tagsetName]
+		if !found {
+			return fmt.Errorf("unknown enabled workload tagset %q", tagsetName)
+		}
+		if !tagsetSpec.WorkloadOnly {
+			return fmt.Errorf("enabled workload tagset %q is not workload-only", tagsetName)
+		}
+	}
+	return nil
+}
+
+func validateMetricAgainstKnownGood(results *ValidationResult, metricName string, validator *MetricValidator, observations []MetricObservation, knownGoodValues map[string]*float64) {
+	if len(observations) == 0 {
+		results.addInvalidValue(metricName, "emitted metric observation is missing")
+		return
+	}
+
+	latest := observations[len(observations)-1]
+	if latest.Value == nil {
+		results.addInvalidValue(metricName, "emitted metric value is missing")
+		return
+	}
+	if err := validator.ValidateKnownGoodValue(*latest.Value, knownGoodValues[metricName]); err != nil {
+		results.addInvalidValue(metricName, err.Error())
+	}
 }

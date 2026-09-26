@@ -28,6 +28,7 @@ dd_agent_go_test(
         "check_test.go",
         "gpu_burner_test.go",
         "nvml_test.go",
+        "value_validation_test.go",
     ],
     embed = [":integrationtests"],
     gotags_sets = [["nvml"]],
@@ -47,7 +48,6 @@ dd_agent_go_test(
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_stretchr_testify//require",
-            "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
         ],
         "@rules_go//go/platform:linux": [
@@ -64,7 +64,6 @@ dd_agent_go_test(
             "//pkg/util/gpu",
             "@com_github_nvidia_go_nvml//pkg/nvml",
             "@com_github_stretchr_testify//require",
-            "@com_github_stretchr_testify//suite",
             "@org_uber_go_mock//gomock",
         ],
         "//conditions:default": [],
