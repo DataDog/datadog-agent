@@ -9,7 +9,10 @@ package docker
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"net"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -189,6 +192,23 @@ var (
 	getRoutesFunc = system.ParseProcessRoutes
 )
 
+func routesForContainer(procPath string, entry *containerNetworkEntry) ([]system.NetworkRoute, error) {
+	for _, pid := range entry.pids {
+		routes, err := getRoutesFunc(procPath, pid)
+		if err == nil {
+			return routes, nil
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+
+		log.Tracef("Cannot list routes for container id %s through pid %d: %s, trying next pid", entry.containerID, pid, err)
+	}
+
+	return nil, fmt.Errorf("none of the %d known PIDs of the container are still running", len(entry.pids))
+}
+
 func findDockerNetworks(procPath string, entry *containerNetworkEntry, container container.Summary) {
 	netMode := container.HostConfig.NetworkMode
 	// Check the known network modes that require specific handling.
@@ -219,7 +239,6 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 		return
 	}
 
-	var err error
 	interfaces := make(map[string]uint64)
 	for netName, netConf := range netSettings.Networks {
 		if netName == "host" {
@@ -238,9 +257,9 @@ func findDockerNetworks(procPath string, entry *containerNetworkEntry, container
 		interfaces[netName] = uint64(binary.LittleEndian.Uint32(ip.To4()))
 	}
 
-	destinations, err := getRoutesFunc(procPath, entry.pids[0])
+	destinations, err := routesForContainer(procPath, entry)
 	if err != nil {
-		log.Warnf("Cannot list routes for container id %s: %s, skipping", entry.containerID, err)
+		log.Debugf("Cannot list routes for container id %s: %s, falling back to raw interface names for the docker_network tag", entry.containerID, err)
 		return
 	}
 
