@@ -14,7 +14,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +34,48 @@ func TestSchemaContainerAvailabilityAgainstDatabase(t *testing.T) {
 		require.NoError(t, c.validateSchemaContainer(context.Background(), strconv.FormatInt(conID, 10)))
 	}
 	require.ErrorContains(t, c.validateSchemaContainer(context.Background(), "999999"), "no longer available")
+}
+
+func TestSchemaWorkerAgainstDatabase(t *testing.T) {
+	setupSchemaFixtures(t)
+	c, sender := newDefaultCheck(t, "collect_schemas:\n  enabled: true\n  collection_interval: 1", "")
+	defer c.Teardown()
+	require.NoError(t, c.init())
+	c.dbmEnabled = true
+	c.config.AgentSQLTrace.Enabled = false
+	clk := clock.NewMock()
+	c.clock = clk
+	var previousSnapshotID int64
+	for range 2 {
+		callsBefore := len(sender.Calls)
+		require.NoError(t, c.collectSchemasIfDue())
+		c.schemaWorkerMu.Lock()
+		done := c.schemaWorkerDone
+		c.schemaWorkerMu.Unlock()
+		require.NotNil(t, done)
+		select {
+		case <-done:
+		case <-time.After(2 * time.Minute):
+			t.Fatal("background schema collection did not finish")
+		}
+		var events []schemaEvent
+		for _, call := range sender.Calls[callsBefore:] {
+			require.NotEqual(t, "Commit", call.Method, "schema worker must not commit the main check sender")
+			if call.Method != "EventPlatformEvent" {
+				continue
+			}
+			var event schemaEvent
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+			events = append(events, event)
+		}
+		require.NotNil(t, findTable(tableEvents(events), schemaTestUser, "dd_orders"))
+		require.NotNil(t, findView(viewEvents(events), schemaTestUser, "dd_orders_view"))
+		require.Greater(t, c.lastSnapshotID, previousSnapshotID)
+		previousSnapshotID = c.lastSnapshotID
+		require.False(t, c.schemaWorkerRunning)
+		require.Zero(t, c.db.Stats().InUse)
+		clk.Add(2 * time.Second)
+	}
 }
 
 func setupSchemaFixtures(t *testing.T) string {
@@ -161,7 +205,6 @@ func setupSchemaFixtures(t *testing.T) string {
 }
 
 // ALTER SESSION and subsequent DDL must use the same physical connection.
-
 func setupPDBFixture(t *testing.T, sysCheck Check) string {
 	ctx := context.Background()
 
@@ -197,7 +240,7 @@ func setupPDBFixture(t *testing.T, sysCheck Check) string {
 }
 
 func collectSchemaEvents(t *testing.T) []schemaEvent {
-	return collectSchemaEventsWithConfig(t, "schemas:\n  enabled: true\n  collection_interval: 1")
+	return collectSchemaEventsWithConfig(t, "collect_schemas:\n  enabled: true\n  collection_interval: 1")
 }
 
 func collectSchemaEventsWithConfig(t *testing.T, schemasConfig string) []schemaEvent {
@@ -227,6 +270,16 @@ func tableEvents(events []schemaEvent) []schemaEvent {
 	var out []schemaEvent
 	for _, e := range events {
 		if e.Kind == "oracle_databases" {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func viewEvents(events []schemaEvent) []schemaEvent {
+	var out []schemaEvent
+	for _, e := range events {
+		if e.Kind == "oracle_views" {
 			out = append(out, e)
 		}
 	}
@@ -264,6 +317,24 @@ func findTableInContainer(events []schemaEvent, nameSubstr, owner, name string) 
 				for _, table := range schema.Tables {
 					if strings.EqualFold(table.Name, name) {
 						return table
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func findView(events []schemaEvent, owner, name string) *viewObject {
+	for _, e := range events {
+		for _, container := range e.Metadata {
+			for _, schema := range container.Schemas {
+				if !strings.EqualFold(schema.Name, owner) {
+					continue
+				}
+				for _, view := range schema.Views {
+					if strings.EqualFold(view.Name, name) {
+						return view
 					}
 				}
 			}
@@ -553,6 +624,71 @@ func TestSchemaCollectionRelationKinds(t *testing.T) {
 	assert.Equal(t, "RANGE", part.Partitioned.PartitioningType)
 	assert.EqualValues(t, 2, part.Partitioned.NumPartitions)
 	assert.Equal(t, "RANGE (CREATED_AT)", strings.ToUpper(part.Partitioned.PartitionKey))
+}
+
+func TestSchemaCollectionViews(t *testing.T) {
+	setupSchemaFixtures(t)
+	all := collectSchemaEvents(t)
+
+	views := viewEvents(all)
+	require.NotEmpty(t, views, "no oracle_views payload was emitted")
+
+	view := findView(views, schemaTestUser, "dd_orders_view")
+	require.NotNil(t, view, "the fixture view was not collected")
+	assert.Equal(t, "Schema collection view fixture", view.Comment)
+	assert.Contains(t, strings.ToUpper(view.Definition), "DD_ORDERS")
+	assert.NotEmpty(t, view.ID)
+
+	columns := columnMap(view.Columns)
+	require.Contains(t, columns, "ORDER_ID")
+	require.Contains(t, columns, "STATUS")
+}
+
+func TestSchemaCollectionFiltersUseOracleCaseInsensitiveMatching(t *testing.T) {
+	setupSchemaFixtures(t)
+	events := collectSchemaEventsWithConfig(t, `collect_schemas:
+  enabled: true
+  max_tables: 1
+  max_views: 1
+  include_databases: ['^cdb[$]root$']
+  exclude_databases: ['^freepdb']
+  include_schemas: ['^c##dd_schema_test$']
+  exclude_schemas: ['^other$']
+  include_tables: ['^dd_(orders|types|orders_view)$']
+  exclude_tables: ['^dd_types$']
+`)
+	require.NotNil(t, findTable(tableEvents(events), schemaTestUser, "dd_orders"))
+	require.Nil(t, findTable(tableEvents(events), schemaTestUser, "dd_types"))
+	require.NotNil(t, findView(viewEvents(events), schemaTestUser, "dd_orders_view"))
+	for _, event := range events {
+		require.False(t, event.Truncated)
+		for _, container := range event.Metadata {
+			require.Equal(t, "1", container.ID)
+			for _, schema := range container.Schemas {
+				require.Equal(t, strings.ToUpper(schemaTestUser), schema.Name)
+			}
+		}
+	}
+}
+
+func TestSchemaCollectionViewsRespectTableFilters(t *testing.T) {
+	setupSchemaFixtures(t)
+
+	events := collectSchemaEventsWithConfig(t,
+		"collect_schemas:\n  enabled: true\n  collection_interval: 1\n  exclude_tables:\n    - \"^DD_ORDERS_VIEW$\"\n")
+
+	views := viewEvents(events)
+	require.NotEmpty(t, views, "no oracle_views payload was emitted")
+
+	assert.Nil(t, findView(views, schemaTestUser, "dd_orders_view"),
+		"a view matching exclude_tables must be filtered out of the oracle_views payload")
+	assert.NotNil(t, findView(views, schemaTestUser, "dd_reports_view"),
+		"a view not matching exclude_tables must still be collected")
+
+	for _, e := range views {
+		assert.False(t, e.Truncated,
+			"a view removed by exclude_tables must not be reported as a max_views truncation")
+	}
 }
 
 func TestSchemaCollectionMultitenancy(t *testing.T) {
