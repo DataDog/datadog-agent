@@ -55,6 +55,7 @@ func TestSchemaRunDoesNotWaitForConnection(t *testing.T) {
 	defer held.Close()
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	expectSchemaContainerAvailable(dbMock, 3)
 
 	returned := make(chan error, 1)
 	go func() { returned <- c.Run() }()
@@ -81,7 +82,7 @@ func TestSchemaRunTracingWaitsBeforeDisablingTrace(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	db, dbMock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherFunc(func(expected, actual string) error {
-		if strings.Contains(actual, "v$containers") {
+		if strings.Contains(actual, "v$containers") && !strings.Contains(actual, " AND con_id = ") {
 			close(started)
 			<-release
 		}
@@ -99,6 +100,7 @@ func TestSchemaRunTracingWaitsBeforeDisablingTrace(t *testing.T) {
 	prepareSchemaRun(&c)
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	expectSchemaContainerAvailable(dbMock, 3)
 	dbMock.ExpectExec(regexp.QuoteMeta("BEGIN dbms_monitor.session_trace_disable; END;")).WillReturnResult(sqlmock.NewResult(0, 0))
 	returned := make(chan error, 1)
 	go func() { returned <- c.Run() }()
@@ -135,7 +137,7 @@ func TestSchemaRunKeepsReservedConnectionDuringPoolReplacement(t *testing.T) {
 	started := make(chan struct{})
 	release := make(chan struct{})
 	db, dbMock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherFunc(func(expected, actual string) error {
-		if strings.Contains(actual, "v$containers") {
+		if strings.Contains(actual, "v$containers") && !strings.Contains(actual, " AND con_id = ") {
 			close(started)
 			<-release
 		}

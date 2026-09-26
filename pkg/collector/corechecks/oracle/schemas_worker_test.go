@@ -76,6 +76,7 @@ func expectEmptySchemaSnapshot(dbMock sqlmock.Sqlmock) {
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	expectSchemaContainerAvailable(dbMock, 3)
 }
 
 func TestSchemaWorkerPanicReleasesConnection(t *testing.T) {
@@ -185,6 +186,7 @@ func TestSchemaWorkerCopiesMutableInputs(t *testing.T) {
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
 	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows())
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, run.schemaCollection(context.Background()))
 	sender, err := c.GetRawSender()
 	require.NoError(t, err)
@@ -217,6 +219,7 @@ func TestSchemaWorkerUsesReservedConnectionWithoutCommit(t *testing.T) {
 	run.schemaQueryer = conn
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, run.schemaCollection(context.Background()))
 	require.NoError(t, dbMock.ExpectationsWereMet())
 	sender, err := c.GetRawSender()
@@ -270,6 +273,7 @@ func TestSchemaWorkerDetailTimeoutDoesNotCompleteAndNextRunSucceeds(t *testing.T
 
 	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.schemaCollection(context.Background()))
 	require.Len(t, emitted, 1)
 	require.NoError(t, dbMock.ExpectationsWereMet())
@@ -286,6 +290,7 @@ func TestSchemaWorkerQueryTimeoutPreservesOtherContainers(t *testing.T) {
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104).AddRow(4, "APP", 104))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnError(context.DeadlineExceeded)
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
+	expectSchemaContainerAvailable(dbMock, 4)
 	require.ErrorIs(t, c.schemaCollection(context.Background()), context.DeadlineExceeded)
 	require.Len(t, emitted, 1)
 	var event schemaEvent

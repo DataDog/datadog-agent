@@ -7,5 +7,5 @@ features:
     monitors, and emits it for Datadog products to consume. Schema collection
     is disabled by default: set ``collect_schemas.enabled: true`` on an instance that
     also has ``dbm: true`` or ``data_observability.enabled: true``.
-    Collection can be tuned and scoped down through additional ``schemas.*``
+    Collection can be tuned and scoped down through additional ``collect_schemas.*``
     options, such as table/column limits and include/exclude filters.

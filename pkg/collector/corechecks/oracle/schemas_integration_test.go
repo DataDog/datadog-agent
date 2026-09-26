@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,19 @@ import (
 )
 
 const schemaTestUser = "c##dd_schema_test"
+
+func TestSchemaContainerAvailabilityAgainstDatabase(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+	require.NoError(t, c.init())
+	containers, err := c.containerNames(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, containers)
+	for conID := range containers {
+		require.NoError(t, c.validateSchemaContainer(context.Background(), strconv.FormatInt(conID, 10)))
+	}
+	require.ErrorContains(t, c.validateSchemaContainer(context.Background(), "999999"), "no longer available")
+}
 
 func TestSchemaWorkerAgainstDatabase(t *testing.T) {
 	setupSchemaFixtures(t)
@@ -499,6 +513,25 @@ func TestSchemaCollectionColumnDataTypesAndAttributes(t *testing.T) {
 	longRawColumns := columnMap(longRaw.Columns)
 	require.Contains(t, longRawColumns, "LONGRAW_COL")
 	assert.Equal(t, "LONG RAW", longRawColumns["LONGRAW_COL"].DataType)
+}
+
+func TestSchemaCollectionSameNamedIndexesAcrossOwners(t *testing.T) {
+	setupSchemaFixtures(t)
+	c, _ := newSysCheck(t, "", "")
+	defer c.Teardown()
+	require.NoError(t, c.Run())
+	_, err := c.db.Exec(fmt.Sprintf("create index sys.dd_idx_composite on %s.dd_index_test (b)", schemaTestUser))
+	require.NoError(t, err)
+	events := tableEvents(collectSchemaEvents(t))
+	table := findTable(events, schemaTestUser, "dd_index_test")
+	require.NotNil(t, table)
+	var columns [][]indexKeyPart
+	for _, index := range table.Indexes {
+		if strings.EqualFold(index.Name, "dd_idx_composite") {
+			columns = append(columns, index.Columns)
+		}
+	}
+	require.Equal(t, [][]indexKeyPart{columnParts("A", "B"), columnParts("B")}, columns)
 }
 
 func TestSchemaCollectionIndexesAndConstraints(t *testing.T) {
