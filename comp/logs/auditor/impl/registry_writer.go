@@ -27,10 +27,8 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 	}
 	tmpName := f.Name()
 	defer func() {
-		if err != nil {
-			_ = f.Close()
-			_ = os.Remove(tmpName)
-		}
+		_ = f.Close()
+		_ = os.Remove(tmpName)
 	}()
 
 	if _, err = f.Write(data); err != nil {
@@ -39,10 +37,16 @@ func (w *atomicRegistryWriter) WriteRegistry(registryPath string, registryDirPat
 	if err = f.Chmod(0644); err != nil {
 		return err
 	}
+	// Persist the complete file before making it visible at the registry path.
+	// Atomic replacement alone does not guarantee that buffered file contents
+	// survive an abrupt shutdown.
+	if err = f.Sync(); err != nil {
+		return err
+	}
 	if err = f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpName, registryPath)
+	return replaceRegistryFile(tmpName, registryPath)
 }
 
 // nonAtomicRegistryWriter implements direct registry writing without atomic operations
