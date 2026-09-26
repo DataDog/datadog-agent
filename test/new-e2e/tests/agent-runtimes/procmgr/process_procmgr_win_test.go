@@ -35,6 +35,11 @@ const (
 	// Substring of the stale DD_FLEET_POLICIES_DIR value, distinctive enough to find in
 	// process-agent's config output however YAML quotes or escapes the path.
 	staleFleetPoliciesMarker = "procmgr-e2e-stale-fleet-dir"
+
+	// processCmdPort is the process_config.cmd_port default, which the provisioned
+	// datadog.yaml leaves alone. process-agent's `config` subcommands talk to whoever listens
+	// on it.
+	processCmdPort = 6162
 )
 
 type processProcmgrWindowsSuite struct {
@@ -262,6 +267,23 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	// holds only if the merged value reached the child's environment and took effect.
 	processAgentCLI := agentBin(installRoot, "process-agent.exe")
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		// A process-agent that outlived the stop keeps the port, so config get would read
+		// its level instead of the respawned one's.
+		desc, err := host.Execute(procmgrCmd(cli, "describe "+processProcessName))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		owner, err := host.Execute(psListeningPortOwner(processCmdPort))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		supervised := fieldValue(desc, "PID")
+		if !assert.Equal(ct, supervised, strings.TrimSpace(owner),
+			"port %d should belong to the process-agent dd-procmgr supervises (PID %s): %s",
+			processCmdPort, supervised, desc) {
+			return
+		}
+
 		out, err := host.Execute(fmt.Sprintf(`& "%s" config get log_level`, processAgentCLI))
 		if !assert.NoError(ct, err) {
 			return
@@ -410,6 +432,12 @@ func psClearServiceEnvironment(service string) string {
 func psSelectStringLines(path, pattern string) string {
 	return `$ErrorActionPreference='Stop'; (Select-String -LiteralPath ` + psSingleQuote(path) +
 		` -Pattern ` + psSingleQuote(pattern) + ` | ForEach-Object { $_.Line }) -join [Environment]::NewLine`
+}
+
+// psListeningPortOwner prints the PIDs listening on port, comma-separated, or nothing when
+// the port is free.
+func psListeningPortOwner(port int) string {
+	return fmt.Sprintf(`$ErrorActionPreference='Stop'; (Get-NetTCPConnection -LocalPort %d -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique) -join ','`, port)
 }
 
 func psReadFileBase64(path string) string {
