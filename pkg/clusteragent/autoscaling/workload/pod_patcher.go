@@ -9,6 +9,7 @@ package workload
 
 import (
 	"context"
+	"encoding/json"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,6 +112,15 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range constrainedVertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
+	}
+
+	// Record the applied runtime values per container so the vertical controller can skip
+	// unnecessary rollouts when runtime values have not changed.
+	annotationPatched, err := setRuntimeValuesAnnotation(pod, constrainedVertical.ContainerResources)
+	if err != nil {
+		log.Warnf("Autoscaler %s: failed to set runtime values annotation for POD %s/%s: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
+	} else {
+		patched = patched || annotationPatched
 	}
 
 	return patched, nil
@@ -233,6 +243,36 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 	}
 
 	return false
+}
+
+// setRuntimeValuesAnnotation writes a JSON-encoded map[containerName]DatadogPodAutoscalerContainerRuntimeValues
+// annotation on the pod. This lets the vertical controller compare the recommended runtime values against
+// what is already running on each pod.
+// Returns true if the annotation was created or updated, false if it was already up to date.
+func setRuntimeValuesAnnotation(pod *corev1.Pod, containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (bool, error) {
+	runtimeValues := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues)
+	for _, cr := range containerResources {
+		if cr.Runtime != nil {
+			runtimeValues[cr.Name] = *cr.Runtime
+		}
+	}
+	if len(runtimeValues) == 0 {
+		if _, exists := pod.Annotations[model.RuntimeValuesAnnotation]; exists {
+			delete(pod.Annotations, model.RuntimeValuesAnnotation)
+			return true, nil
+		}
+		return false, nil
+	}
+	encoded, err := json.Marshal(runtimeValues)
+	if err != nil {
+		return false, err
+	}
+	value := string(encoded)
+	if pod.Annotations[model.RuntimeValuesAnnotation] == value {
+		return false, nil
+	}
+	pod.Annotations[model.RuntimeValuesAnnotation] = value
+	return true, nil
 }
 
 func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
