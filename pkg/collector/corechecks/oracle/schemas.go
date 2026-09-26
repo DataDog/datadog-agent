@@ -12,6 +12,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -193,7 +194,7 @@ FROM cdb_tab_cols c WHERE /*RELATIONS*/`
 // Oracle represents function-based index expressions as hidden SYS_NC%$ virtual columns.
 // CDB_IND_COLUMNS exposes only the generated name, while CDB_TAB_COLS exposes the expression.
 // CDB_IND_EXPRESSIONS cannot be used because its CDB_ variant omits COLUMN_EXPRESSION.
-const indexesQuery = `SELECT i.con_id, i.table_owner, i.table_name, i.index_name, i.uniqueness, i.index_type,
+const indexesQuery = `SELECT i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, i.uniqueness, i.index_type,
 	ic.column_name, /*EXPRESSION_COL*/ AS column_expression
 FROM cdb_indexes i
 JOIN cdb_ind_columns ic
@@ -202,7 +203,7 @@ LEFT JOIN cdb_tab_cols tc
 	ON tc.con_id = ic.con_id AND tc.owner = ic.table_owner AND tc.table_name = ic.table_name
 	AND tc.column_name = ic.column_name AND ic.column_name LIKE 'SYS\_NC%' ESCAPE '\'
 WHERE /*RELATIONS*/
-ORDER BY i.con_id, i.table_owner, i.table_name, i.index_name, ic.column_position`
+ORDER BY i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, ic.column_position`
 
 // generated = 'USER NAME' excludes Oracle's system-generated NOT NULL checks, which would
 // duplicate column nullability metadata.
@@ -236,7 +237,10 @@ const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), N
 	NVL(staleness, '-'), last_refresh_date
 FROM cdb_mviews WHERE /*RELATIONS*/`
 
-const containerNamesQuery = `SELECT con_id, name FROM v$containers WHERE 1=1`
+// CDB_* views omit closed or restricted PDBs; those are not empty databases.
+const containerNamesQuery = `SELECT con_id, name FROM v$containers
+WHERE open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricted, 'NO') = 'NO'
+AND EXISTS (SELECT 1 FROM cdb_users u WHERE u.con_id = v$containers.con_id AND u.username = 'SYS')`
 
 // total_views is aliased to total_tables for the shared row scanner.
 const viewsQueryTemplate = `WITH ranked_views AS (
@@ -401,6 +405,7 @@ type indexKeyPart struct {
 }
 
 type indexInfo struct {
+	owner   string
 	Name    string         `json:"name"`
 	Unique  bool           `json:"is_unique"`
 	Type    string         `json:"index_type,omitempty"`
@@ -532,6 +537,7 @@ type schemaSnapshot struct {
 
 type schemaSnapshotCoordinator struct {
 	emit      payloadEmitter
+	validate  func(string) error
 	snapshots map[string]*schemaSnapshot
 	order     []string
 	err       error
@@ -579,25 +585,33 @@ func (c *schemaSnapshotCoordinator) emitEvent(event schemaEvent) {
 }
 
 func (c *schemaSnapshotCoordinator) complete() error {
+	var err error
 	for _, containerID := range c.order {
-		c.completeContainerID(containerID)
+		err = errors.Join(err, c.completeContainerID(containerID))
 	}
-	return c.err
+	return errors.Join(err, c.err)
 }
 
 func (c *schemaSnapshotCoordinator) completeContainer(conID int64) error {
-	c.completeContainerID(strconv.FormatInt(conID, 10))
-	return c.err
+	return errors.Join(c.completeContainerID(strconv.FormatInt(conID, 10)), c.err)
 }
 
-func (c *schemaSnapshotCoordinator) completeContainerID(containerID string) {
+func (c *schemaSnapshotCoordinator) completeContainerID(containerID string) error {
 	snapshot := c.snapshots[containerID]
 	if snapshot == nil || snapshot.pending == nil {
-		return
+		return nil
+	}
+	if c.validate != nil {
+		if err := c.validate(containerID); err != nil {
+			c.emitEvent(*snapshot.pending)
+			snapshot.pending = nil
+			return err
+		}
 	}
 	snapshot.pending.CollectionPayloadsCount = snapshot.count
 	c.emitEvent(*snapshot.pending)
 	snapshot.pending = nil
+	return c.err
 }
 
 func (c *schemaSnapshotCoordinator) hasContainer(conID int64) bool {
@@ -969,9 +983,6 @@ type ownerKey struct {
 }
 
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
-	// Without database filters, owners can supply container IDs missing from the name lookup.
-	filterDatabases := len(c.config.Schemas.IncludeDatabases) > 0 || len(c.config.Schemas.ExcludeDatabases) > 0
-
 	owners := make(map[ownerKey]string)
 	names := make(map[string]struct{})
 	query := schemaOwnersQuery + regexSQLClauses("username", c.config.Schemas.IncludeSchemas, c.config.Schemas.ExcludeSchemas)
@@ -984,10 +995,8 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		if err := rows.Scan(&conID, &name, &userID); err != nil {
 			return fmt.Errorf("failed to scan schema owner: %w", err)
 		}
-		if filterDatabases {
-			if _, ok := containers[conID]; !ok {
-				return nil
-			}
+		if _, ok := containers[conID]; !ok {
+			return nil
 		}
 		if !schemaOwnerPattern.MatchString(name) {
 			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
@@ -1220,6 +1229,30 @@ func constraintType(t string) string {
 	}
 }
 
+func (c *Check) validateSchemaContainer(ctx context.Context, containerID string) error {
+	conID, err := strconv.ParseInt(containerID, 10, 64)
+	if err != nil {
+		return err
+	}
+	available := false
+	query := containerNamesQuery + fmt.Sprintf(" AND con_id = %d", conID)
+	if err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return err
+		}
+		available = true
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to validate container %d: %w", conID, err)
+	}
+	if !available {
+		return fmt.Errorf("container %d is no longer available for schema collection", conID)
+	}
+	return nil
+}
+
 func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	names := make(map[int64]string)
 	query := containerNamesQuery + regexSQLClauses("name", c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases)
@@ -1334,7 +1367,9 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		return nil
 	})
 
-	c.queryDetails(ctx, "column comments", columnCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+	commentFilters := columnFilterChunks(allowedColumns,
+		relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, "column_name")
+	c.queryDetailFilters(ctx, "column comments", columnCommentsQuery, commentFilters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, column, comment string
 		if err := rows.Scan(&conID, &owner, &table, &column, &comment); err != nil {
@@ -1371,17 +1406,17 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	indexesQueryResolved := strings.Replace(indexesQuery, "/*EXPRESSION_COL*/", c.indexExpressionColumn(), 1)
 	c.queryDetails(ctx, "indexes", indexesQueryResolved, allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
-		var owner, table, name, uniqueness, indexType, column string
+		var owner, table, indexOwner, name, uniqueness, indexType, column string
 		var expression sql.NullString
-		if err := rows.Scan(&conID, &owner, &table, &name, &uniqueness, &indexType, &column, &expression); err != nil {
+		if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column, &expression); err != nil {
 			return err
 		}
 		d := at(conID, owner, table)
 		var idx *indexInfo
-		if n := len(d.Indexes); n > 0 && d.Indexes[n-1].Name == name {
+		if n := len(d.Indexes); n > 0 && d.Indexes[n-1].owner == indexOwner && d.Indexes[n-1].Name == name {
 			idx = d.Indexes[n-1]
 		} else {
-			idx = &indexInfo{Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
+			idx = &indexInfo{owner: indexOwner, Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
 			d.Indexes = append(d.Indexes, idx)
 		}
 		if expression.Valid {
@@ -1451,7 +1486,12 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 			}
 		}
 	}
-	filters := referencedConstraintFilters(referenced)
+	referencedKeys := make(map[tableKey]struct{}, len(referenced))
+	for key := range referenced {
+		referencedKeys[tableKey{conID: key.conID, owner: key.owner, table: key.name}] = struct{}{}
+	}
+	filters := relationFilterChunks(referencedKeys,
+		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.constraint_name"})
 	c.queryDetailFilters(ctx, "referenced constraints", referencedConstraintsQuery, filters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, table, column string
@@ -1548,36 +1588,6 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	}
 
 	return details
-}
-
-func referencedConstraintFilters(referenced map[constraintKey][]*constraintInfo) []string {
-	keys := make([]constraintKey, 0, len(referenced))
-	for key := range referenced {
-		keys = append(keys, key)
-	}
-	sort.Slice(keys, func(i, j int) bool {
-		if keys[i].conID != keys[j].conID {
-			return keys[i].conID < keys[j].conID
-		}
-		if keys[i].owner != keys[j].owner {
-			return keys[i].owner < keys[j].owner
-		}
-		return keys[i].name < keys[j].name
-	})
-	var filters []string
-	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
-		end := start + maxSchemaRelationsPerQuery
-		if end > len(keys) {
-			end = len(keys)
-		}
-		parts := make([]string, 0, end-start)
-		for _, key := range keys[start:end] {
-			parts = append(parts, fmt.Sprintf("(c.con_id = %d AND c.owner = '%s' AND c.constraint_name = '%s')",
-				key.conID, escapeSQLLiteral(key.owner), escapeSQLLiteral(key.name)))
-		}
-		filters = append(filters, "("+strings.Join(parts, " OR ")+")")
-	}
-	return filters
 }
 
 func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners map[ownerKey]string, tableFilters string, maxTables int) ([]tableKey, map[int64]struct{}, error) {
@@ -1777,6 +1787,9 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		sender.EventPlatformEvent(payload, "dbm-metadata")
 	}
 	coordinator := newSchemaSnapshotCoordinator(emit)
+	coordinator.validate = func(containerID string) error {
+		return c.validateSchemaContainer(ctx, containerID)
+	}
 
 	if len(names) == 0 {
 		log.Debugf("%s no user schemas to collect, sending empty snapshot", c.logPrompt)

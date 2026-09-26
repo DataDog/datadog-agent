@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/benbjohnson/clock"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
@@ -71,6 +72,123 @@ func TestSchemaCollectionNoOwnersSkips(t *testing.T) {
 	require.NoError(t, c.schemaCollection(ctx))
 	assert.Equal(t, 2, ctx.deadlines, "container and owner queries must each create their own timeout")
 	assert.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func expectSchemaContainerAvailable(dbMock sqlmock.Sqlmock, conID int64) {
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + fmt.Sprintf(" AND con_id = %d", conID))).
+		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(conID, "PDB"))
+}
+
+func TestSchemaCollectionUnavailableContainerDoesNotComplete(t *testing.T) {
+	for _, hasOwners := range []bool{false, true} {
+		for _, queryFails := range []bool{false, true} {
+			t.Run(fmt.Sprintf("owners_%t_query_error_%t", hasOwners, queryFails), func(t *testing.T) {
+				c, _, dbMock, cleanup := newSchemaCheck(t)
+				defer cleanup()
+				views := false
+				c.config.Schemas.CollectViews = &views
+				dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+					sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
+				owners := sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"})
+				if hasOwners {
+					owners.AddRow(3, "APP", 104)
+				}
+				dbMock.ExpectQuery("cdb_users").WillReturnRows(owners)
+				if hasOwners {
+					dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(
+						sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"}))
+				}
+				query := dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = 3"))
+				if queryFails {
+					query.WillReturnError(errors.New("availability check failed"))
+				} else {
+					query.WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+				}
+				err := c.SchemaCollection()
+				if queryFails {
+					require.ErrorContains(t, err, "availability check failed")
+				} else {
+					require.ErrorContains(t, err, "no longer available")
+				}
+				sender, err := c.GetRawSender()
+				require.NoError(t, err)
+				mockSender, ok := sender.(*mocksender.MockSender)
+				require.True(t, ok)
+				for _, call := range mockSender.Calls {
+					if call.Method == "EventPlatformEvent" {
+						var event schemaEvent
+						require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+						require.Zero(t, event.CollectionPayloadsCount)
+					}
+				}
+				require.NoError(t, dbMock.ExpectationsWereMet())
+			})
+		}
+	}
+}
+
+func TestSchemaCollectionEmptyContainerValidationFailureDoesNotBlockNext(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB1").AddRow(4, "PDB2"))
+	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = 3")).WillReturnError(context.DeadlineExceeded)
+	expectSchemaContainerAvailable(dbMock, 4)
+	require.ErrorIs(t, c.SchemaCollection(), context.DeadlineExceeded)
+	sender, err := c.GetRawSender()
+	require.NoError(t, err)
+	mockSender, ok := sender.(*mocksender.MockSender)
+	require.True(t, ok)
+	var completed []string
+	for _, call := range mockSender.Calls {
+		if call.Method == "EventPlatformEvent" {
+			var event schemaEvent
+			require.NoError(t, json.Unmarshal(call.Arguments.Get(0).([]byte), &event))
+			if event.CollectionPayloadsCount > 0 {
+				completed = append(completed, event.Metadata[0].ID)
+			}
+		}
+	}
+	require.Equal(t, []string{"4"}, completed)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestSchemaSnapshotValidationFailureKeepsOtherContainers(t *testing.T) {
+	var events []schemaEvent
+	coordinator := newSchemaSnapshotCoordinator(func(payload []byte) {
+		var event schemaEvent
+		require.NoError(t, json.Unmarshal(payload, &event))
+		events = append(events, event)
+	})
+	unavailable := errors.New("PDB closed")
+	coordinator.validate = func(id string) error {
+		if id == "3" {
+			return unavailable
+		}
+		return nil
+	}
+	for _, id := range []string{"3", "4"} {
+		coordinator.add(schemaEvent{CollectionStartedAt: 123, Metadata: []containerObject{{ID: id}}})
+	}
+	require.ErrorIs(t, coordinator.complete(), unavailable)
+	require.Len(t, events, 2)
+	require.Zero(t, events[0].CollectionPayloadsCount)
+	require.Equal(t, 1, events[1].CollectionPayloadsCount)
+	require.NoError(t, coordinator.complete())
+	require.Len(t, events, 2)
+}
+
+func TestContainerNamesExcludesUnavailablePDBs(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	dbMock.ExpectQuery(`SELECT con_id, name FROM v\$containers WHERE open_mode IN \('READ WRITE', 'READ ONLY'\) AND NVL\(restricted, 'NO'\) = 'NO'`).
+		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "OPEN_PDB"))
+	names, err := c.containerNames(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, map[int64]string{3: "OPEN_PDB"}, names)
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestDataTypeRendering(t *testing.T) {
@@ -355,6 +473,7 @@ func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP1000", "T2"))
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP0000", "T1", 0))
 
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 	assert.NoError(t, dbMock.ExpectationsWereMet())
 
@@ -602,6 +721,7 @@ func TestSchemaCollectionEmitsOnDbmMetadata(t *testing.T) {
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(mainRows)
 
 	// Leave detail queries unprimed to simulate missing grants.
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 
 	sender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
@@ -661,16 +781,56 @@ func TestContainerNamesUsePdbName(t *testing.T) {
 	assert.Equal(t, "free.7", payloads[2].Metadata[0].Name, "unknown container falls back to con_id")
 }
 
+func TestTableDetailsIndexesGroupByOwnerAndName(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	dbMock.MatchExpectationsInOrder(false)
+	dbMock.ExpectQuery(`(?s)SELECT i.con_id, i.table_owner, i.table_name, i.owner,.*ORDER BY i.con_id, i.table_owner, i.table_name, i.owner, i.index_name, ic.column_position`).
+		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
+			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C1", nil).
+			AddRow(3, "APP", "T", "A", "IDX", "UNIQUE", "NORMAL", "C2", nil).
+			AddRow(3, "APP", "T", "B", "IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC1$", "LOWER(C3)"))
+	key := tableKey{conID: 3, owner: "APP", table: "T"}
+	details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
+	require.Contains(t, details, key)
+	indexes := details[key].Indexes
+	require.Len(t, indexes, 2)
+	require.Equal(t, "IDX", indexes[0].Name)
+	require.Equal(t, "IDX", indexes[1].Name)
+	require.True(t, indexes[0].Unique)
+	require.False(t, indexes[1].Unique)
+	require.Equal(t, columnParts("C1", "C2"), indexes[0].Columns)
+	require.Equal(t, []indexKeyPart{{Expression: "LOWER(C3)"}}, indexes[1].Columns)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
+func TestColumnCommentsOnlyQuerySelectedColumns(t *testing.T) {
+	c, _, dbMock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	dbMock.MatchExpectationsInOrder(false)
+	key := tableKey{conID: 3, owner: "APP", table: "T"}
+	allowedColumns := map[columnKey]struct{}{
+		{tableKey: key, column: "C1"}: {},
+	}
+	dbMock.ExpectQuery(`(?s)FROM cdb_col_comments.*con_id = 3 AND owner = 'APP' AND table_name = 'T' AND column_name IN \('C1'\)`).
+		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "COMMENTS"}).
+			AddRow(3, "APP", "T", "C1", "Selected column"))
+	details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, allowedColumns)
+	require.Contains(t, details, key)
+	require.Equal(t, map[string]string{"C1": "Selected column"}, details[key].ColumnComments)
+	require.NoError(t, dbMock.ExpectationsWereMet())
+}
+
 func TestTableDetailsIndexesGroupByName(t *testing.T) {
 	c, _, dbMock, closeDB := newSchemaCheck(t)
 	defer closeDB()
 
 	dbMock.MatchExpectationsInOrder(false)
 	dbMock.ExpectQuery(`(?s)cdb_indexes.*i\.con_id = 3 AND i\.table_owner = 'APP' AND i\.table_name IN \('ORDERS'\)`).WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
-			AddRow(3, "APP", "ORDERS", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "STATUS", nil).
-			AddRow(3, "APP", "ORDERS", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "CREATED_AT", nil).
-			AddRow(3, "APP", "ORDERS", "ORDERS_STATUS_IDX", "NONUNIQUE", "NORMAL", "STATUS", nil))
+		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "STATUS", nil).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_COMPOSITE_IDX", "UNIQUE", "NORMAL", "CREATED_AT", nil).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_STATUS_IDX", "NONUNIQUE", "NORMAL", "STATUS", nil))
 
 	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
 	details := c.tableDetails(context.Background(), allowed, nil)
@@ -739,10 +899,10 @@ func TestTableDetailsIndexesFunctionBasedSubstitutesExpression(t *testing.T) {
 
 	dbMock.MatchExpectationsInOrder(false)
 	dbMock.ExpectQuery("cdb_indexes").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
-			AddRow(3, "APP", "ORDERS", "ORDERS_FBI_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00004$", `UPPER("STATUS")`).
-			AddRow(3, "APP", "ORDERS", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "CUSTOMER_ID", nil).
-			AddRow(3, "APP", "ORDERS", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00005$", `UPPER("STATUS")`))
+		sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME", "COLUMN_EXPRESSION"}).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00004$", `UPPER("STATUS")`).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "CUSTOMER_ID", nil).
+			AddRow(3, "APP", "ORDERS", "APP", "ORDERS_FBI_COMPOSITE_IDX", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00005$", `UPPER("STATUS")`))
 
 	allowed := map[tableKey]struct{}{{conID: 3, owner: "APP", table: "ORDERS"}: {}}
 	details := c.tableDetails(context.Background(), allowed, nil)
@@ -834,7 +994,7 @@ func TestTableDetailsResolvesForeignKeyToSelectedTableOutsidePage(t *testing.T) 
 		}).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "ORDER_ID", nil).
 			AddRow(3, "APP", "ORDER_ITEMS", "ITEMS_FK", "R", "APP", "ORDERS_PK", "LINE_NO", nil))
-	dbMock.ExpectQuery(`(?s)cdb_constraints c.*c\.constraint_name = 'ORDERS_PK'`).WillReturnRows(
+	dbMock.ExpectQuery(`(?s)cdb_constraints c.*c\.con_id = 3 AND c\.owner = 'APP' AND c\.constraint_name IN \('ORDERS_PK'\)`).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "CONSTRAINT_NAME", "TABLE_NAME", "COLUMN_NAME"}).
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "ORDER_ID").
 			AddRow(3, "APP", "ORDERS_PK", "ORDERS", "LINE_NO"))
@@ -1229,7 +1389,7 @@ func TestSchemaOwnersBatchesBeyondMaxSchemaOwners(t *testing.T) {
 	}
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(rows)
 
-	owners, names, err := c.schemaOwners(context.Background(), map[int64]string{})
+	owners, names, err := c.schemaOwners(context.Background(), map[int64]string{3: "APP_PDB"})
 	require.NoError(t, err)
 	assert.Len(t, names, total, "every owner beyond the 1000-item IN-list cap must still be returned")
 	assert.Len(t, owners, total)
@@ -1622,7 +1782,7 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	c.config.Schemas.IncludeTables = []string{"^ORD"}
 	c.config.Schemas.ExcludeTables = []string{"_STAGING$"}
 
-	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}))
+	dbMock.ExpectQuery(`v\$containers`).WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 
@@ -1632,6 +1792,7 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 	dbMock.ExpectQuery(regexp.QuoteMeta(expectedFilter)).WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}))
 
+	expectSchemaContainerAvailable(dbMock, 3)
 	require.NoError(t, c.SchemaCollection())
 	assert.NoError(t, dbMock.ExpectationsWereMet(), "the query actually sent to Oracle must carry the substituted REGEXP_LIKE filter")
 }
@@ -1695,6 +1856,9 @@ func TestSchemaSnapshotAfterDisappearedPage(t *testing.T) {
 				lastPage.WillReturnError(context.DeadlineExceeded)
 			case "row_error":
 				lastPage.WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP", "T100", 0).RowError(0, context.DeadlineExceeded))
+			}
+			if outcome == "all_gone" || outcome == "capped" {
+				expectSchemaContainerAvailable(dbMock, 3)
 			}
 			err = c.SchemaCollection()
 			if outcome == "all_gone" || outcome == "capped" {
