@@ -173,6 +173,7 @@ rust_test(
     compile_data = [
         "//cmd/agent/subcommands/run:dependent_services_windows.go",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/user/windows:user.go",
         "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
     ],
