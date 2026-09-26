@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/dpi"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -48,6 +49,8 @@ type StateNetFlow struct {
 	samplinglock *sync.RWMutex
 	sampling     map[string]producer.SamplingRateSystem
 
+	appMapper *dpi.ApplicationMapper
+
 	Config       *producer.ProducerConfig
 	configMapped *producer.ProducerConfigMapped
 
@@ -59,11 +62,12 @@ type StateNetFlow struct {
 }
 
 // NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer
-func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool) *StateNetFlow {
+func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool, enableDPI bool) *StateNetFlow {
 	return &StateNetFlow{
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
 		sampling:           make(map[string]producer.SamplingRateSystem),
+		appMapper:          dpi.CreateApplicationMapper(enableDPI),
 		mappedFieldsConfig: mapFieldsConfig(mappingConfs, enableBiflowParsing),
 	}
 }
@@ -128,6 +132,8 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 		s.Logger.Errorf("failed to process additional fields %s", err)
 	}
 
+	dpiFields := dpi.ProcessMessageApplicationNames(msgDec, key, s.appMapper)
+
 	for i, fmsg := range flowMessageSet {
 		fmsg.TimeReceived = ts
 		fmsg.SamplerAddress = samplerAddress
@@ -139,6 +145,14 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 
 		if additionalFields != nil {
 			message.AdditionalFields = additionalFields[i]
+		}
+
+		if dpiFields != nil {
+			if message.AdditionalFields == nil {
+				message.AdditionalFields = dpiFields[i]
+			} else {
+				maps.Copy(message.AdditionalFields, dpiFields[i])
+			}
 		}
 
 		utils.NetFlowTimeStatsSum.With(

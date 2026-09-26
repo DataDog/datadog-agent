@@ -35,6 +35,7 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 		listenerConfig.Namespace,
 		listenerConfig.Mapping,
 		listenerConfig.EnableBiflowParsing,
+		listenerConfig.EnableDPI,
 		flowAgg.GetFlowInChan(),
 		logger,
 		listenerAtomicErr,

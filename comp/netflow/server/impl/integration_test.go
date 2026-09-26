@@ -217,7 +217,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	goflowState.Logger = logrusLogger
 	goflowState.TemplateSystem = templateSystem
 
-	customStateWithoutFields := netflowstate.NewStateNetFlow(nil, false)
+	customStateWithoutFields := netflowstate.NewStateNetFlow(nil, false, false)
 	customStateWithoutFields.Format = formatDriver
 	customStateWithoutFields.Logger = logrusLogger
 	customStateWithoutFields.TemplateSystem = templateSystem
@@ -238,7 +238,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 			Destination: "icmp_type",
 			Type:        common.Hex,
 		},
-	}, false)
+	}, false, false)
 
 	customState.Format = formatDriver
 	customState.Logger = logrusLogger

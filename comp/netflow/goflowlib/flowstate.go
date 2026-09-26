@@ -52,6 +52,7 @@ func StartFlowRoutine(
 	namespace string,
 	fieldMappings []config.Mapping,
 	enableBiflowParsing bool,
+	enableDPI bool,
 	flowInChan chan *common.Flow,
 	logger log.Component,
 	atomicErr *atomic.String,
@@ -70,7 +71,7 @@ func StartFlowRoutine(
 		}
 		defer templateSystem.Close(ctx)
 
-		state := netflowstate.NewStateNetFlow(fieldMappings, enableBiflowParsing)
+		state := netflowstate.NewStateNetFlow(fieldMappings, enableBiflowParsing, enableDPI)
 		state.Format = formatDriver
 		state.Logger = goflowLogger
 		state.TemplateSystem = templateSystem
