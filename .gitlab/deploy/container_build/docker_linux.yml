@@ -545,16 +545,14 @@ docker_build_secret_generic_connector_amd64:
   needs:
     - job: secret_generic_connector-build_amd64
       artifacts: true
-  variables:
-    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_amd64"
+  # No matching gate in static_quality_gates.yml yet, so no STATIC_QUALITY_GATE_NAME
 
 docker_build_secret_generic_connector_arm64:
   extends: [.docker_build_secret_generic_connector, .docker_build_arm64]
   needs:
     - job: secret_generic_connector-build_arm64
       artifacts: true
-  variables:
-    STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
+  # No matching gate in static_quality_gates.yml yet, so no STATIC_QUALITY_GATE_NAME
 
 # FIPS variant: the FIPS binary is CGO/boringcrypto, so it is dynamically linked and needs glibc at
 # runtime - it cannot run on scratch. Build it against the public Ubuntu glibc base via a dedicated build
