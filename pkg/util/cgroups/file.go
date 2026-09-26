@@ -115,6 +115,20 @@ func parseColumnStats(fr fileReader, path string, valueParser func([]string) err
 
 // columns are 0-indexed, we skip malformed lines
 func parse2ColumnStats(fr fileReader, path string, keyColumn, valueColumn int, valueParser func(string, string) error) error {
+	if keyColumn == 0 && valueColumn == 1 {
+		return parseFile(fr, path, func(line string) error {
+			key, rest, ok := strings.Cut(line, spaceSeparator)
+			if !ok {
+				return nil
+			}
+			val, _, _ := strings.Cut(rest, spaceSeparator)
+			if key == "" || val == "" {
+				return nil
+			}
+			return valueParser(key, val)
+		})
+	}
+
 	lastIdx := valueColumn
 	if keyColumn > lastIdx {
 		lastIdx = keyColumn
@@ -134,21 +148,22 @@ func parse2ColumnStats(fr fileReader, path string, keyColumn, valueColumn int, v
 
 // format is "some avg10=0.00 avg60=0.00 avg300=0.00 total=0"
 func parsePSI(fr fileReader, path string, somePsi, fullPsi *PSIStats) error {
-	return parseColumnStats(fr, path, func(fields []string) error {
-		if len(fields) != 5 {
-			reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, line content: %v", path, fields)))
+	return parseFile(fr, path, func(line string) error {
+		psiType, rest, ok := strings.Cut(line, spaceSeparator)
+		if !ok {
+			reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, line content: %s", path, line)))
 			return nil
 		}
 
 		var psiStats *PSIStats
-
-		switch fields[0] {
+		switch psiType {
 		case "some":
 			psiStats = somePsi
 		case "full":
 			psiStats = fullPsi
 		default:
-			reportError(newValueError("", fmt.Errorf("unexpected psi type (some|full) for psi file at: %s, type: %s", path, fields[0])))
+			reportError(newValueError("", fmt.Errorf("unexpected psi type (some|full) for psi file at: %s, type: %s", path, psiType)))
+			return nil
 		}
 
 		// User did not provide stat for this type or unknown PSI type
@@ -156,34 +171,56 @@ func parsePSI(fr fileReader, path string, somePsi, fullPsi *PSIStats) error {
 			return nil
 		}
 
-		for i := 1; i < 5; i++ {
-			parts := strings.Split(fields[i], "=")
-			if len(parts) != 2 {
-				reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, i, fields[i])))
+		fieldCount := 0
+		for len(rest) > 0 {
+			var field string
+			field, rest, _ = strings.Cut(rest, spaceSeparator)
+			if field == "" {
+				continue
+			}
+			fieldCount++
+			key, val, hasEqual := strings.Cut(field, "=")
+			if !hasEqual {
+				reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, fieldCount, field)))
 				continue
 			}
 
-			psi, err := strconv.ParseFloat(parts[1], 64)
-			if err != nil {
-				reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, i, fields[i])))
-				continue
-			}
-
-			switch parts[0] {
+			switch key {
 			case "avg10":
+				psi, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, fieldCount, field)))
+					continue
+				}
 				psiStats.Avg10 = &psi
 			case "avg60":
+				psi, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, fieldCount, field)))
+					continue
+				}
 				psiStats.Avg60 = &psi
 			case "avg300":
+				psi, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, fieldCount, field)))
+					continue
+				}
 				psiStats.Avg300 = &psi
 			case "total":
-				total, err := strconv.ParseUint(parts[1], 10, 64)
+				total, err := strconv.ParseUint(val, 10, 64)
 				if err != nil {
-					reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, i, fields[i])))
+					reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, fieldCount, field)))
 					continue
 				}
 				psiStats.Total = &total
+			default:
+				reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, part: %d, content: %v", path, fieldCount, field)))
 			}
+		}
+
+		if fieldCount != 4 {
+			reportError(newValueError("", fmt.Errorf("unexpected format for psi file at: %s, line content: %s", path, line)))
 		}
 
 		return nil
