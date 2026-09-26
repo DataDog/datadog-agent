@@ -60,9 +60,13 @@ func (s *BaseSuite) restartUnderProcmgr(processName string) {
 	s.assertManagedByProcmgr(processName)
 }
 
-// assertNotRunningUnderProcmgr verifies processName is declared to dd-procmgrd but is not
-// running. The config existing is the point: asserting only that the legacy SCM service is
+// assertNotRunningUnderProcmgr verifies processName is declared to dd-procmgrd but was never
+// started. The config existing is the point: asserting only that the legacy SCM service is
 // stopped would pass for a process procmgr had happily started instead.
+//
+// Created rather than "anything but Running", which a process that started and then exited
+// or failed would also satisfy. A process dd-procmgrd never spawned because its config gate
+// was closed stays in Created, so that is the state the claim actually rests on.
 func (s *BaseSuite) assertNotRunningUnderProcmgr(processName string) {
 	s.T().Helper()
 	s.Require().Host(s.Env().RemoteHost).FileExists(s.procmgrConfigPath(processName),
@@ -70,7 +74,8 @@ func (s *BaseSuite) assertNotRunningUnderProcmgr(processName string) {
 
 	state, err := procmgrDescribeField(s.Env().RemoteHost, s.procmgrCLIPath(), processName, "State")
 	s.Require().NoError(err)
-	s.Require().NotEqual("Running", state, "%s should not be running under dd-procmgrd", processName)
+	s.Require().Equal("Created", state,
+		"%s should never have been started by dd-procmgrd", processName)
 }
 
 // assertNoProcmgrConfig verifies processes.d has no config for processName.

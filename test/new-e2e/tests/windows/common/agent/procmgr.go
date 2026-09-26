@@ -58,14 +58,15 @@ func GetProcmgrProcessState(host *components.RemoteHost, installRoot, processNam
 //
 // Stably matters: a workload that starts and exits shortly after would satisfy a plain
 // "is it Running" check. system-probe does exactly that when it decides no module is
-// enabled, sleeping 5 seconds before exiting 0.
+// enabled, sleeping 5 seconds before exiting 0. The window is several times that sleep so
+// that neither poll jitter nor a lagging state update can land inside it.
 func AssertProcmgrProcessRunning(t *testing.T, host *components.RemoteHost, processName string) {
 	t.Helper()
 	installRoot, err := GetInstallPathFromRegistry(host)
 	require.NoError(t, err, "should find the Agent install path")
 
 	var runningSince time.Time
-	const minRunningDuration = 5 * time.Second
+	const minRunningDuration = 20 * time.Second
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		state, err := GetProcmgrProcessState(host, installRoot, processName)
 		if !assert.NoError(c, err) ||
@@ -80,5 +81,5 @@ func AssertProcmgrProcessRunning(t *testing.T, host *components.RemoteHost, proc
 		// the stability window has to be an assertion rather than a silent early return.
 		assert.GreaterOrEqual(c, time.Since(runningSince), minRunningDuration,
 			"%s has not been running long enough yet", processName)
-	}, 2*time.Minute, 5*time.Second)
+	}, 3*time.Minute, 5*time.Second)
 }
