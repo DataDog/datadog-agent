@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net"
 	"net/netip"
@@ -464,6 +465,16 @@ func (p *EBPFProbe) sanityChecks() error {
 	if p.config.Probe.CapabilitiesMonitoringEnabled && p.config.Probe.CapabilitiesMonitoringPeriod < 1*time.Second {
 		seclog.Warnf("The capabilities monitoring period is too short (minimum is 1 second), setting event_monitoring_config.capabilities_monitoring.period to 1 second")
 		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
+	}
+
+	// without these the initial-user-namespace subsets stay empty, which reads like a process
+	// using no capability that a user namespace would take away rather than like missing data
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
+			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
+		} else if len(missing) > 0 {
+			seclog.Warnf("Capabilities monitoring cannot report which capabilities were used in the initial user namespace on this kernel: %v not available", slices.Sorted(maps.Keys(missing)))
+		}
 	}
 
 	return nil
@@ -2105,6 +2116,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
+		event.ProcessCacheEntry.CapsAttemptedHostUserNS |= event.CapabilitiesUsage.AttemptedHostUserNS
+		event.ProcessCacheEntry.CapsUsedHostUserNS |= event.CapabilitiesUsage.UsedHostUserNS
 	case model.PrCtlEventType:
 		if !p.regularUnmarshalEvent(&event.PrCtl, eventType, offset, dataLen, data) {
 			return false

@@ -616,6 +616,16 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *mode
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
 
+// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities of a capabilities event that were checked against the initial user namespace
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities of a capabilities event that were obtained from the initial user namespace
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
 // ResolveSSHClientIP resolves the ssh username of the event
 func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.SSHSessionContext) net.IPNet {
 	return net.IPNet{} // EBPFLess mode does not support SSH

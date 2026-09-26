@@ -4,11 +4,17 @@
 struct capabilities_context_t {
     u64 cap_as_mask; // bitmask of capabilities that are being checked in the current task context
     u64 override_creds_depth; // depth of override_creds calls; used on kernels where override_creds/revert_creds are still hookable (< 6.13)
+    u64 host_userns_cap_as_mask; // capability parked by a wrapper that targets the initial user namespace, awaiting its security_capable call
+    u64 host_userns_check; // set when the security_capable call in flight was reached through one of those wrappers
 };
 
 struct capabilities_usage_t {
     u64 attempted; // bitmask of the capabilities that a process attempted to use
     u64 used; // bitmask of the capabilities that a process successfully used
+    // A check aimed at the initial user namespace is denied as soon as the task lives in a
+    // descendant one, so these two report what an entry into a user namespace would take away.
+    u64 attempted_host_userns; // subset of attempted that was checked against the initial user namespace
+    u64 used_host_userns; // subset of used that was obtained from the initial user namespace
 };
 
 struct capabilities_usage_key_t {

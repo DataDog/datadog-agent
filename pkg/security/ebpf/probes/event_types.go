@@ -152,6 +152,12 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 					hookFunc("hook_override_creds"),
 					hookFunc("hook_revert_creds"),
 				}},
+				// these only populate the initial-user-namespace subsets: where they cannot be
+				// attached the rest of capabilities monitoring still works, so they are best-effort
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_capable"),
+					hookFunc("hook_netlink_capable"),
+				}},
 			},
 		},
 	}
