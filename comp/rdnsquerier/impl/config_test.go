@@ -9,9 +9,17 @@ import (
 	"testing"
 	"time"
 
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
 )
+
+func testSysprobe(t testing.TB, npmEnabled bool) sysprobeconfig.Component {
+	return sysprobeconfigmock.NewMockWithOverrides(t, map[string]any{
+		"network_config.enabled": npmEnabled,
+	})
+}
 
 func TestConfig(t *testing.T) {
 	var tests = []struct {
@@ -20,7 +28,7 @@ func TestConfig(t *testing.T) {
 		expectedConfig rdnsQuerierConfig
 	}{
 		{
-			name:       "disabled by default",
+			name:       "disabled by default without CNM",
 			configYaml: ``,
 			expectedConfig: rdnsQuerierConfig{
 				enabled:  false,
@@ -106,14 +114,14 @@ network_devices:
 			},
 		},
 		{
-			name: "default config when Network Path Collector is enabled",
+			name: "standard tests without CNM do not enable reverse DNS",
 			configYaml: `
 network_path:
   connections_monitoring:
     enabled: true
 `,
 			expectedConfig: rdnsQuerierConfig{
-				enabled:  true,
+				enabled:  false,
 				workers:  defaultWorkers,
 				chanSize: defaultChanSize,
 				cache: cacheConfig{
@@ -338,18 +346,29 @@ reverse_dns_enrichment:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tt.configYaml)
-			testConfig := newConfig(mockConfig)
+			testConfig := newConfig(mockConfig, testSysprobe(t, false))
 			assert.Equal(t, tt.expectedConfig, *testConfig)
 		})
 	}
 }
 
-func TestConfigEnabledForBasicNetworkPathTests(t *testing.T) {
-	mockConfig := mock.NewFromYAML(t, `
+func TestConfigBasicTestsRequireCNM(t *testing.T) {
+	empty := mock.NewFromYAML(t, ``)
+	assert.False(t, newConfig(empty, testSysprobe(t, false)).enabled)
+	assert.True(t, newConfig(empty, testSysprobe(t, true)).enabled)
+
+	optOut := mock.NewFromYAML(t, `
 network_path:
   connections_monitoring:
-    basic_tests_enabled: true
+    basic_tests_enabled: false
 `)
+	assert.False(t, newConfig(optOut, testSysprobe(t, true)).enabled)
 
-	assert.True(t, newConfig(mockConfig).enabled)
+	standard := mock.NewFromYAML(t, `
+network_path:
+  connections_monitoring:
+    enabled: true
+`)
+	assert.False(t, newConfig(standard, testSysprobe(t, false)).enabled)
+	assert.True(t, newConfig(standard, testSysprobe(t, true)).enabled)
 }

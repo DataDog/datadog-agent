@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -46,16 +47,17 @@ type collectorConfigs struct {
 	sourceProduct                   payload.SourceProduct
 }
 
-func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
+func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Component, logger log.Component) *collectorConfigs {
 	var filterConfigs []connfilter.Config
 	err := structure.UnmarshalKey(agentConfig, "network_path.collector.filters", &filterConfigs)
 	if err != nil {
 		logger.Errorf("Error unmarshalling network_path.collector.filters: %v", err)
 		filterConfigs = nil
 	}
+	cnm := sysprobeConfig.GetBool("network_config.enabled")
 	return &collectorConfigs{
-		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
-		basicTestsEnabled:            agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled"),
+		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled") && cnm,
+		basicTestsEnabled:            agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm,
 		netflowMonitoringEnabled:     agentConfig.GetBool("network_path.netflow_monitoring.enabled"),
 		workers:                      agentConfig.GetInt("network_path.collector.workers"),
 		timeout:                      agentConfig.GetDuration("network_path.collector.timeout") * time.Millisecond,
