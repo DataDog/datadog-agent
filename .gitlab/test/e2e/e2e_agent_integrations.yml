@@ -1,0 +1,22 @@
+---
+# e2e stage - agent integration jobs
+# Owned by: agent-integrations
+
+.on_agentintegrations_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - deps/gstatus/**/*
+        - deps/agent_integrations/**/*
+        - test/new-e2e/tests/agent-integrations/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
+new-e2e-agent-integrations:
+  extends: .new_e2e_template_needs_deb_x64
+  rules:
+    - !reference [.on_agentintegrations_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-integrations
+    TEAM: agent-integrations
+    EXTRA_PARAMS: --skip "Windows"

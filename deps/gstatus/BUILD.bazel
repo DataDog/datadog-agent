@@ -1,50 +1,151 @@
-# dd-compile-policy - make the prebuilt compiler part of the distribution.
+# gstatus - fetched from upstream at build time, not committed.
+#
+# The wheel build config (pyproject.toml), version.py, and the gstatus
+# wrapper script are committed here. The glustercli, glusterlib, and
+# gstatus (__main__.py, __init__.py) source is fetched from upstream
+# via http_archive (see gstatus.MODULE.bazel) and assembled into a wheel
+# at build time.
+#
+# This replaces the old 8.2 MiB PEP 441 zipapp with a ~140 KiB lightweight
+# wheel + wrapper script that runs on the agent's embedded Python.
+# All upstream code is GPLv3 (gstatus) or GPLv2/LGPLv3+ (glustercli).
+# The wrapper script is Apache-2.0 (not a derivative of upstream code).
 
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
-    default_visibility = ["//packages:__subpackages__"],
+    default_visibility = [
+        "//deps/agent_integrations:__pkg__",
+        "//packages:__subpackages__",
+    ],
 )
 
 license(
     name = "license",
-    license_kinds = ["@rules_license//licenses/spdx:GPL-3.0"],
-    license_text = "LICENSE",
+    # glusterlib and __main__.py (from gstatus) are GPLv3; glustercli is
+    # GPLv2/LGPLv3+. The combined work is GPLv3 (the most restrictive).
+    license_kinds = ["@rules_license//licenses/spdx:GPL-3.0-only"],
+    license_text = "@gstatus_source//:LICENSE",
     visibility = ["//visibility:public"],
 )
 
-# Change #!* to #!/opt/datadog-agent/embedded/bin/python
-# This is not quite portable to different installation directories.
-# If that ever becomes a need, the solution is to make the install dir
-# a config_flag, then grab the flag value in the substitution.  See ABLD-302.
-genrule(
-    name = "fix_shebang",
-    srcs = ["@gstatus_binary//file"],
-    outs = ["gstatus"],
-    cmd = "sed -e '1s@.*@#!/opt/datadog-agent/embedded/bin/python@' $(location @gstatus_binary//file:file) >$@",
-    target_compatible_with = ["@platforms//os:linux"],
+# Stage glustercli source files from the fetched glustercli-python repo.
+# We exclude glustercli/metrics/ (gstatus never imports it).
+copy_to_directory(
+    name = "glustercli_srcs",
+    srcs = ["@glustercli_python//:all_files"],
+    out = "glustercli_srcs_dir",
+    include_external_repositories = ["*glustercli_python*"],
+    include_srcs_patterns = [
+        "glustercli/__init__.py",
+        "glustercli/cli/**",
+    ],
 )
 
+# Stage glusterlib source files from the fetched gstatus repo.
+# root_paths strips the "gstatus/" prefix so files land at glusterlib/...
+copy_to_directory(
+    name = "glusterlib_srcs",
+    srcs = ["@gstatus_source//:all_files"],
+    out = "glusterlib_srcs_dir",
+    include_external_repositories = ["*gstatus_source*"],
+    include_srcs_patterns = [
+        "glusterlib/**",
+    ],
+    root_paths = ["gstatus"],
+)
+
+# Stage gstatus package files (__main__.py, __init__.py) from the fetched
+# gstatus repo. These land at gstatus/... (keeping the gstatus/ prefix
+# since __main__.py imports `import version as gstatus_version` which
+# resolves to gstatus/version.py when the package is installed).
+copy_to_directory(
+    name = "gstatus_pkg_srcs",
+    srcs = ["@gstatus_source//:all_files"],
+    out = "gstatus_pkg_srcs_dir",
+    include_external_repositories = ["*gstatus_source*"],
+    include_srcs_patterns = [
+        "gstatus/__init__.py",
+        "gstatus/__main__.py",
+    ],
+)
+
+# Merge all staged sources + pyproject.toml + committed version.py into a
+# single flat directory that hatchling can build from.
+# version.py is placed at the top level (not under gstatus/) because the
+# upstream __main__.py does `import version as gstatus_version` which
+# expects a top-level version module.
+copy_to_directory(
+    name = "wheel_src",
+    srcs = [
+        "pyproject.toml",
+        "version.py",
+        ":glustercli_srcs",
+        ":glusterlib_srcs",
+        ":gstatus_pkg_srcs",
+    ],
+    out = "wheel_src_dir",
+    replace_prefixes = {
+        "glustercli_srcs_dir/": "",
+        "glusterlib_srcs_dir/": "",
+        "gstatus_pkg_srcs_dir/": "",
+    },
+)
+
+# Build the wheel using hatchling.
+run_binary(
+    name = "gstatus_wheel",
+    srcs = [":wheel_src"],
+    outs = ["datadog_gstatus-1.0.9-py3-none-any.whl"],
+    args = [
+        "--src",
+        "$(location :wheel_src)",
+        "--output-dir",
+        "$(@D)",
+    ],
+    tool = "//deps/agent_integrations:build_wheel_tool",
+)
+
+# gstatus entry-point wrapper script. This is a thin Apache-2.0 wrapper
+# that runs the upstream (unmodified) __main__.py via runpy. It is not
+# a derivative work of the GPLv3 upstream code.
 pkg_files(
     name = "bin_files",
-    srcs = [":gstatus"],
+    srcs = ["gstatus_wrapper.py"],
     attributes = pkg_attributes(
         group = "root",
-        # Must be writable for signing script to work.
         mode = "0755",
         owner = "root",
     ),
     prefix = "embedded/sbin",
+    renames = {
+        "gstatus_wrapper.py": "gstatus",
+    },
 )
 
 pkg_files(
     name = "license_file",
-    srcs = [":LICENSE"],
+    srcs = ["@gstatus_source//:LICENSE"],
     prefix = "LICENSES",
     renames = {
-        "LICENSE": "gstatus-GPL-3.0",
+        "@gstatus_source//:LICENSE": "gstatus-GPL-3.0",
+    },
+)
+
+pkg_files(
+    name = "glustercli_license_files",
+    srcs = [
+        "@glustercli_python//:COPYING-GPLV2",
+        "@glustercli_python//:COPYING-LGPLV3",
+    ],
+    prefix = "LICENSES",
+    renames = {
+        "@glustercli_python//:COPYING-GPLV2": "glustercli-COPYING-GPLV2",
+        "@glustercli_python//:COPYING-LGPLV3": "glustercli-COPYING-LGPLV3",
     },
 )
 
@@ -52,6 +153,7 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         ":bin_files",
+        ":glustercli_license_files",
         ":license_file",
     ],
 )
