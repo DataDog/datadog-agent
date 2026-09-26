@@ -48,7 +48,7 @@ write_source_file(
     [
         run_binary(
             name = "backend_{}_schema_gen".format(os),
-            srcs = ["//pkg/security/serializers:serializers_sources"],
+            srcs = ["//pkg/security/serializers:serializers_go_files"],
             outs = ["backend_{0}_schema_gen/backend_{0}.schema.json".format(os)],
             args = [
                 "-serializers-dir=pkg/security/serializers",

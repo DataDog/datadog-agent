@@ -1,13 +1,15 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
+load("@rules_go//go:def.bzl", "go_library", "go_source")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson", "easyjson_stubs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:go_split_generated *_easyjson.go
 
 easyjson(
     name = "serializers_linux_easyjson",
     src = "serializers_linux.go",
     build_tags = "linux",
     output = "serializers_linux_easyjson.go",
-    package = ":serializers",
+    package = ":serializers_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/serializers",
     visibility = ["//pkg/security:__pkg__"],
 )
@@ -19,26 +21,88 @@ easyjson(
     src = "serializers_base.go",
     build_tags = "linux",
     output = "serializers_base_linux_easyjson.go",
-    package = ":serializers",
+    package = ":serializers_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/serializers",
     visibility = ["//pkg/security:__pkg__"],
+)
+
+easyjson_stubs(
+    name = "serializers_easyjson_stubs",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/serializers",
+    sources = ":serializers_sources",
+    stubs = [
+        ":serializers_base_linux_easyjson_stub",
+        ":serializers_linux_easyjson_stub",
+    ],
 )
 
 go_library(
     name = "serializers",
     srcs = [
+        "serializers_base_linux_easyjson.go",
+        "serializers_linux_easyjson.go",
+    ],
+    embed = [":serializers_sources"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/serializers",
+    visibility = ["//visibility:public"],
+)
+
+# Expose all .go sources so //pkg/security/generators/backend_doc can read
+# them via AddGoComments when running as a Bazel run_binary tool.
+filegroup(
+    name = "serializers_go_files",
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ),
+    visibility = [
+        "//docs/cloud-workload-security:__pkg__",
+        "//pkg/security/generators/backend_doc:__pkg__",
+    ],
+)
+
+dd_agent_go_test(
+    name = "serializers_test",
+    srcs = ["serializers_linux_test.go"],
+    embed = [":serializers"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/model/utils",
+            "//pkg/security/secl/schemas",
+            "//pkg/security/utils",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_xeipuuv_gojsonschema//:gojsonschema",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/model/utils",
+            "//pkg/security/secl/schemas",
+            "//pkg/security/utils",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_xeipuuv_gojsonschema//:gojsonschema",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_source(
+    name = "serializers_sources",
+    srcs = [
         "deserializers.go",
         "helpers.go",
         "patcher.go",
         "serializers_base.go",
-        "serializers_base_linux_easyjson.go",
         "serializers_linux.go",
-        "serializers_linux_easyjson.go",
         "serializers_others.go",
         "serializers_windows.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/security/serializers",
-    visibility = ["//visibility:public"],
     deps = [
         "//pkg/security/secl/model",
     ] + select({
@@ -156,51 +220,6 @@ go_library(
             "//pkg/security/utils",
             "//pkg/util/scrubber",
             "@com_github_google_gopacket//:gopacket",
-        ],
-        "//conditions:default": [],
-    }),
-)
-
-# Expose all .go sources so //pkg/security/generators/backend_doc can read
-# them via AddGoComments when running as a Bazel run_binary tool.
-filegroup(
-    name = "serializers_sources",
-    srcs = glob(
-        ["*.go"],
-        exclude = ["*_test.go"],
-    ),
-    visibility = [
-        "//docs/cloud-workload-security:__pkg__",
-        "//pkg/security/generators/backend_doc:__pkg__",
-    ],
-)
-
-dd_agent_go_test(
-    name = "serializers_test",
-    srcs = ["serializers_linux_test.go"],
-    embed = [":serializers"],
-    deps = select({
-        "@rules_go//go/platform:android": [
-            "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
-            "//pkg/security/secl/model",
-            "//pkg/security/secl/model/utils",
-            "//pkg/security/secl/schemas",
-            "//pkg/security/utils",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-            "@com_github_xeipuuv_gojsonschema//:gojsonschema",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/security/events",
-            "//pkg/security/secl/compiler/eval",
-            "//pkg/security/secl/model",
-            "//pkg/security/secl/model/utils",
-            "//pkg/security/secl/schemas",
-            "//pkg/security/utils",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
-            "@com_github_xeipuuv_gojsonschema//:gojsonschema",
         ],
         "//conditions:default": [],
     }),
