@@ -1790,6 +1790,7 @@ type ContainerImageMetadata struct {
 	OSVersion    string
 	Architecture string
 	Variant      string
+	Created      time.Time
 	Layers       []ContainerImageLayer
 	SBOM         *CompressedSBOM
 }
@@ -1888,6 +1889,7 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "OS Version:", i.OSVersion)
 		_, _ = fmt.Fprintln(&sb, "Architecture:", i.Architecture)
 		_, _ = fmt.Fprintln(&sb, "Variant:", i.Variant)
+		_, _ = fmt.Fprintln(&sb, "Created:", i.Created)
 
 		_, _ = fmt.Fprintln(&sb, "----------- SBOM -----------")
 		if i.SBOM != nil {

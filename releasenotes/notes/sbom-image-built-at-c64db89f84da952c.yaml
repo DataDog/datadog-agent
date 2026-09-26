@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Container image SBOMs now carry a ``datadog:image:Created`` property on
+    their root component, holding the ``created`` field of the OCI image
+    config in RFC 3339 form.
+  - |
+    The ``built_at`` time reported for a container image is now the
+    ``created`` field of its OCI image config. It was the timestamp of the
+    last layer history entry. An image config may omit ``created``, and such
+    an image reports an empty build time.
