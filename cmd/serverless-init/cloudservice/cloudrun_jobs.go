@@ -10,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
@@ -57,11 +58,25 @@ type CloudRunJobs struct {
 	jobSpan    *pb.Span
 	traceAgent TraceAgent
 	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
+
+	metadataOnce sync.Once
+	metadata     map[string]string
+}
+
+// resolveMetadata fetches the GCP metadata-service values once and caches them.
+// GetTags and GetInventoryData both trigger it, so exactly one lookup round
+// happens regardless of call order. The cached map is read-only; callers that
+// mutate clone it.
+func (c *CloudRunJobs) resolveMetadata() map[string]string {
+	c.metadataOnce.Do(func() {
+		c.metadata = metadataHelperFunc(GetDefaultConfig(), CloudRunJob)
+	})
+	return c.metadata
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
 func (c *CloudRunJobs) GetTags() map[string]string {
-	tags := metadataHelperFunc(GetDefaultConfig(), CloudRunJob)
+	tags := maps.Clone(c.resolveMetadata())
 	tags["origin"] = CloudRunJobsOrigin
 	tags["_dd.origin"] = CloudRunJobsOrigin
 
@@ -92,8 +107,53 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 		tags[cloudRunJobTagPrefix+taskCountTag] = taskCountVal
 	}
 
-	tags[cloudRunJobTagPrefix+resourceNameTag] = fmt.Sprintf("projects/%s/locations/%s/jobs/%s", tags["project_id"], tags["location"], jobNameVal)
+	if id := cloudRunJobCCRID(tags["project_id"], tags["location"], jobNameVal); id != "" {
+		tags[cloudRunJobTagPrefix+resourceNameTag] = id
+	}
 	return tags
+}
+
+// cloudRunJobCCRID builds the job-level Canonical Cloud Resource ID.
+func cloudRunJobCCRID(project, region, job string) string {
+	if project == "" || region == "" || job == "" {
+		return ""
+	}
+	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
+}
+
+// cloudRunJobExecutionCCRID builds the regional execution identity. The job is
+// required inventory metadata even though it is not part of the execution path.
+//
+// Tasks of one execution share this id: task index, attempt and instance
+// metadata must not split the execution's inventory identity.
+func cloudRunJobExecutionCCRID(project, region, job, execution string) string {
+	if project == "" || region == "" || job == "" || execution == "" {
+		return ""
+	}
+	return fmt.Sprintf("projects/%s/locations/%s/executions/%s", project, region, execution)
+}
+
+func (c *CloudRunJobs) CanCollectInventory() bool {
+	return c.GetInventoryData().ResourceID != ""
+}
+
+// GetInventoryData derives the inventory metadata fields for Cloud Run Jobs.
+// The execution is the resource_id and the job is its semantic parent, whose
+// ID is not a prefix of the execution ID.
+func (c *CloudRunJobs) GetInventoryData() InventoryData {
+	metadata := c.resolveMetadata()
+	project := metadata[projectID]
+	region := metadata[location]
+	job := os.Getenv(cloudRunJobNameEnvVar)
+
+	return InventoryData{
+		WorkloadType:     workloadTypeCloudRunJob,
+		ResourceID:       cloudRunInventoryID(cloudRunJobExecutionCCRID(project, region, job, os.Getenv(cloudRunExecutionEnvVar))),
+		ParentResourceID: cloudRunInventoryID(cloudRunJobCCRID(project, region, job)),
+		ResourceName:     job,
+		Region:           region,
+		GCPProjectID:     project,
+	}
 }
 
 func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {

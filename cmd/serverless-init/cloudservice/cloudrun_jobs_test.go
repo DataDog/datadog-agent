@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"runtime"
 	"testing"
@@ -54,7 +55,7 @@ func skipOnWindows(t *testing.T) {
 	}
 }
 
-func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
+func TestCloudRunJobsGetTagsWithEnvironmentVariables(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
 
@@ -88,6 +89,85 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 		"gcrj.task_count":     "5",
 		"gcrj.resource_name":  "projects/test_project/locations/test_region/jobs/test_job",
 	}, tags)
+}
+
+func TestCloudRunJobsGetInventoryData(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"container_id": "test_container",
+			"location":     "test_region",
+			"project_id":   "test_project",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "test_job")
+	t.Setenv("CLOUD_RUN_EXECUTION", "test_execution")
+
+	inv := service.GetInventoryData()
+
+	jobInventoryID := "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job"
+	assert.Equal(t, InventoryData{
+		WorkloadType:     workloadTypeCloudRunJob,
+		ResourceID:       "//run.googleapis.com/projects/test_project/locations/test_region/executions/test_execution",
+		ParentResourceID: jobInventoryID,
+		ResourceName:     "test_job",
+		Region:           "test_region",
+		GCPProjectID:     "test_project",
+	}, inv)
+}
+
+// TestCloudRunJobsGetInventoryDataMissingExecution pins that the resource_id
+// is unavailable rather than falling back to a job or dangling path segment.
+func TestCloudRunJobsGetInventoryDataMissingExecution(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{
+			"location":   "test_region",
+			"project_id": "test_project",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "test_job")
+	os.Unsetenv("CLOUD_RUN_EXECUTION")
+
+	inv := service.GetInventoryData()
+
+	jobInventoryID := "//run.googleapis.com/projects/test_project/locations/test_region/jobs/test_job"
+	assert.Empty(t, inv.ResourceID)
+	assert.Equal(t, jobInventoryID, inv.ParentResourceID)
+}
+
+func TestCloudRunJobExecutionIdentity(t *testing.T) {
+	saved := metadataHelperFunc
+	t.Cleanup(func() { metadataHelperFunc = saved })
+	instance := "first-instance"
+	metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string {
+		return map[string]string{projectID: "project", location: "region", containerID: instance}
+	}
+	t.Setenv(cloudRunJobNameEnvVar, "unknown")
+	t.Setenv(cloudRunExecutionEnvVar, "execution")
+	t.Setenv(cloudRunTaskIndexEnvVar, "0")
+	t.Setenv(cloudRunTaskAttemptEnvVar, "0")
+	t.Setenv(cloudRunTaskCountEnvVar, "2")
+	first := (&CloudRunJobs{}).GetInventoryData()
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/execution", first.ResourceID)
+	require.Equal(t, "//run.googleapis.com/projects/project/locations/region/jobs/unknown", first.ParentResourceID)
+	t.Setenv(cloudRunTaskIndexEnvVar, "1")
+	t.Setenv(cloudRunTaskAttemptEnvVar, "2")
+	instance = "next-instance"
+	service := &CloudRunJobs{}
+	assert.Equal(t, first, service.GetInventoryData())
+	t.Setenv(cloudRunExecutionEnvVar, "next-execution")
+	next := service.GetInventoryData()
+	assert.Equal(t, "//run.googleapis.com/projects/project/locations/region/executions/next-execution", next.ResourceID)
+	assert.NotEqual(t, first.ResourceID, next.ResourceID)
+	assert.Equal(t, first.ParentResourceID, next.ParentResourceID)
+	assert.Equal(t, first.ResourceName, next.ResourceName)
 }
 
 func TestCloudRunJobsGetEnhancedMetricTags(t *testing.T) {
