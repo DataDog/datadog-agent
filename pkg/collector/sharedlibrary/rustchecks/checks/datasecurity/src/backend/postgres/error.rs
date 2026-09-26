@@ -54,9 +54,7 @@ fn describe(state: &SqlState) -> &'static str {
             Some("08") => "connection failure",
             Some("42") => "invalid query",
             Some("53") => "insufficient resources (e.g. too many connections)",
-            _ => {
-                "please investigate using the SQLSTATE code"
-            }
+            _ => "please investigate using the SQLSTATE code",
         },
     }
 }
