@@ -6,6 +6,7 @@
 package npcollectorimpl
 
 import (
+	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -65,7 +66,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		storeConfig: pathteststore.Config{
 			ContextsLimit:    agentConfig.GetInt("network_path.collector.pathtest_contexts_limit"),
 			TTL:              agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
-			Interval:         agentConfig.GetDuration("network_path.collector.pathtest_interval"),
+			Interval:         pathtestInterval(agentConfig, logger),
 			MaxPerMinute:     agentConfig.GetInt("network_path.collector.pathtest_max_per_minute"),
 			MaxBurstDuration: agentConfig.GetDuration("network_path.collector.pathtest_max_burst_duration"),
 		},
@@ -88,6 +89,19 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		ddSite:                          agentConfig.GetString("site"),
 		sourceProduct:                   payload.GetSourceProduct(agentConfig.GetString("infrastructure_mode")),
 	}
+}
+
+func pathtestInterval(agentConfig config.Component, logger log.Component) time.Duration {
+	const secondsKey = "network_path.collector.pathtest_interval_sec"
+	const legacyKey = "network_path.collector.pathtest_interval"
+	if agentConfig.IsConfigured(secondsKey) {
+		seconds := agentConfig.GetInt64(secondsKey)
+		if seconds > 0 && seconds <= math.MaxInt64/int64(time.Second) {
+			return time.Duration(seconds) * time.Second
+		}
+		logger.Warnf("%s must be a positive integer no greater than %d; falling back to %s", secondsKey, math.MaxInt64/int64(time.Second), legacyKey)
+	}
+	return agentConfig.GetDuration(legacyKey)
 }
 
 // networkPathCollectorEnabled checks if Network Path Collector should be enabled

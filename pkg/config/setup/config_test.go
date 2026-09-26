@@ -721,6 +721,8 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
 	assert.Equal(t, 70*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
 	assert.Equal(t, 30*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 1800, config.GetInt("network_path.collector.pathtest_interval_sec"))
+	assert.False(t, config.IsConfigured("network_path.collector.pathtest_interval_sec"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
