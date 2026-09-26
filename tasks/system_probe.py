@@ -87,7 +87,12 @@ arch_mapping = {
     "aarch64": "arm64",  # linux
     "arm64": "arm64",  # darwin
 }
-CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
+# Mirrors the default in `get_build_flags`: GOARCH is how a cross build picks its
+# target, and the two have to agree. Defaulting to the host here while GOARCH says
+# otherwise leaves `get_build_flags` thinking the build is native, so it never sets
+# CGO_ENABLED -- and Go turns cgo off by default for a cross build, which drops
+# every cgo file on the floor as an inscrutable pile of undefined symbols.
+CURRENT_ARCH = arch_mapping.get(os.getenv("GOARCH") or platform.machine(), "x64")
 # system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
 # this version should be kept in sync with the one in the agent omnibus build
 LIBPCAP_VERSION = "1.10.5"
