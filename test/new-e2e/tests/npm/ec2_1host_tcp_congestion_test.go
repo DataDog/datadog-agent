@@ -89,14 +89,30 @@ func (v *ec2TCPCongestionSuite) BeforeTest(suiteName, testName string) {
 	v.BaseSuite.BeforeTest(suiteName, testName)
 	host := v.Env().RemoteHost
 	// Kill client traffic generators, server helper processes, and tc rules from previous tests.
-	// Do NOT kill iperf3 on server — it's the persistent -s -D listener.
-	host.MustExecute("docker exec tcp-congestion-client killall -9 iperf3 nc dd 2>/dev/null; " +
-		"docker exec tcp-congestion-server killall -9 python3 2>/dev/null; " +
+	// pkill, not killall: the ubuntu:22.04 containers ship procps (pgrep/pkill) but not
+	// psmisc (killall), so killall silently fails here.
+	host.MustExecute("docker exec tcp-congestion-client pkill -9 -x iperf3 2>/dev/null; " +
+		"docker exec tcp-congestion-client pkill -9 -x nc 2>/dev/null; " +
+		"docker exec tcp-congestion-client pkill -9 -x dd 2>/dev/null; " +
+		"docker exec tcp-congestion-server pkill -9 -x python3 2>/dev/null; " +
 		"docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null; " +
 		"docker exec tcp-congestion-server tc qdisc del dev eth0 root 2>/dev/null; " +
 		"true")
-	// Restart iperf3 server if it died (e.g. crashed during a previous test).
-	host.MustExecute("docker exec tcp-congestion-server pgrep iperf3 >/dev/null 2>&1 || docker exec -d tcp-congestion-server iperf3 -s -p 5201")
+	// Restart the iperf3 server from scratch before every test. Tests usually
+	// succeed while their `iperf3 -t 60` client is still mid-session, so this
+	// kill aborts the server's current session; a still-finishing
+	// or wedged single-session server can then reject the next test's client
+	// (observed as a failed cookie exchange and a data connection that never
+	// transfers). Kill the daemon, wait for port 5201 to be released (waiting on
+	// the port rather than pgrep because a killed daemonized process can linger
+	// as a zombie that pgrep still reports), start a fresh listener, and wait
+	// until it accepts connections again.
+	host.MustExecute("docker exec tcp-congestion-server pkill -9 -x iperf3 2>/dev/null; true")
+	if _, err := host.Execute("timeout 15 bash -c 'while docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'"); err != nil {
+		v.T().Fatalf("iperf3 server port 5201 still in use 15s after killing it, cannot restart listener: %v", err)
+	}
+	host.MustExecute("docker exec -d tcp-congestion-server iperf3 -s -p 5201")
+	host.MustExecute("timeout 30 bash -c 'until docker exec tcp-congestion-server nc -z localhost 5201 2>/dev/null; do sleep 0.5; done'")
 	if !v.BaseSuite.IsDevMode() {
 		v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	}
@@ -217,7 +233,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ZeroWindowProbes() {
 	// Start slow-reader on server port 9999
 	host.MustExecute(fmt.Sprintf(`docker exec -d tcp-congestion-server python3 -c "%s"`, slowReaderScript))
 	t.Cleanup(func() {
-		host.MustExecute("docker exec tcp-congestion-server killall -9 python3 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-server pkill -9 -x python3 2>/dev/null || true")
 	})
 
 	// Wait for the slow-reader to be listening
@@ -226,7 +242,7 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_ZeroWindowProbes() {
 	// Client floods data to the slow reader — send blocks once receive buffer fills
 	host.MustExecute("docker exec -d tcp-congestion-client bash -c 'dd if=/dev/zero bs=64k count=10000 2>/dev/null | nc 172.28.0.10 9999'")
 	t.Cleanup(func() {
-		host.MustExecute("docker exec tcp-congestion-client killall -9 nc dd 2>/dev/null || true")
+		host.MustExecute("docker exec tcp-congestion-client pkill -9 -x nc 2>/dev/null; docker exec tcp-congestion-client pkill -9 -x dd 2>/dev/null || true")
 	})
 
 	v.pollForTCPCongestionSignal("LastTcpProbe0Count > 0", func(conn *agentmodel.Connection) bool {
@@ -252,13 +268,23 @@ func (v *ec2TCPCongestionSuite) TestTCPCongestion_Reordering() {
 // TestTCPCongestion_ECN validates ECN negotiation and CE-marked segment delivery.
 // Both containers have tcp_ecn=1 set at startup via docker-compose sysctls.
 // The netem ecn flag marks ECN-capable packets with CE instead of dropping them.
+// The iperf3 session is established BEFORE applying netem: if the data
+// connection's SYN is lost to the 10% random loss, the kernel retransmits the
+// SYN without the ECE/CWR ECN-negotiation bits (RFC 3168 fallback,
+// net.ipv4.tcp_ecn_fallback), the connection then negotiates without ECN,
+// its data packets are never marked ECN-capable at the IP layer, and netem's
+// ecn option drops them instead of CE-marking them — LastTcpDeliveredCe stays
+// 0 and the test flakes.
+// With a loss-free handshake both connections negotiate ECN deterministically.
 func (v *ec2TCPCongestionSuite) TestTCPCongestion_ECN() {
 	host := v.Env().RemoteHost
+	v.startIperf3Client("")
+	// Wait for both iperf3 connections (control + data) to be established.
+	waitForTCPEstablishedConnections(v.T(), host, "tcp-congestion-client", 5201, 2, 30*time.Second)
 	host.MustExecute("docker exec tcp-congestion-client tc qdisc add dev eth0 root netem loss 10% ecn")
 	v.T().Cleanup(func() {
 		host.MustExecute("docker exec tcp-congestion-client tc qdisc del dev eth0 root 2>/dev/null || true")
 	})
-	v.startIperf3Client("")
 
 	v.pollForTCPCongestionSignal("TcpEcnNegotiated", func(conn *agentmodel.Connection) bool {
 		return conn.TcpEcnNegotiated
