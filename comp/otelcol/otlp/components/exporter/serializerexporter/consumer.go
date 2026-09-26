@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"slices"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -23,9 +21,9 @@ import (
 
 	"github.com/tinylib/msgp/msgp"
 
+	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -89,9 +87,9 @@ type SerializerConsumer interface {
 	otlpmetrics.Consumer
 	Send(s serializer.MetricSerializer) error
 	addRuntimeTelemetryMetric(hostname string, languageTags []string)
-	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge)
+	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge, wi workloadIdentity)
 	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge)
-	addRunningMetric(hostname string)
+	addRunningMetric(hostname string, wi workloadIdentity)
 }
 
 type serializerConsumer struct {
@@ -102,7 +100,6 @@ type serializerConsumer struct {
 	apmReceiverAddr string
 	ipath           ingestionPath
 	hosts           map[string]struct{}
-	fargateTagSets  map[tagSetKey][]string
 	buildInfo       component.BuildInfo
 	// standalone reports whether otel-agent is running standalone (DD_OTEL_STANDALONE=true),
 	// as opposed to embedded/connected to the core Agent. Only used to gate addRunningMetric.
@@ -196,7 +193,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 }
 
 // addTelemetryMetric to know if an Agent is using OTLP metrics.
-func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge) {
+func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge, wi workloadIdentity) {
 	timestamp := float64(time.Now().Unix())
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
@@ -217,14 +214,8 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 		for host := range c.hosts {
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
-		for _, tags := range c.fargateTagSets {
-			prefix := string(source.AWSECSFargateKind) + ":"
-			idx := slices.IndexFunc(tags, func(t string) bool { return strings.HasPrefix(t, prefix) })
-			if idx == -1 {
-				continue
-			}
-			taskArn := strings.TrimPrefix(tags[idx], prefix)
-			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
+		if wi.fargateTaskARN != "" {
+			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", wi.fargateTaskARN)
 		}
 	case agentOTLPIngest:
 		coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, agentHostname)
@@ -337,17 +328,6 @@ func (c *serializerConsumer) ConsumeHost(host string) {
 	c.hosts[host] = struct{}{}
 }
 
-// ConsumeTagSet implements the metrics.TagSetConsumer interface.
-func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
-	if metricSuffix != "fargate" {
-		return
-	}
-	sorted := slices.Clone(tags)
-	slices.Sort(sorted)
-	dedupKey := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
-	c.fargateTagSets[dedupKey] = sorted
-}
-
 // addRunningMetric emits the otel.ddot_collector.metrics.running billing metric,
 // mirroring otel.datadog_exporter.metrics.running (emitted for the ossCollector
 // path by collectorConsumer), but only for the ddot ingestion path while
@@ -360,14 +340,30 @@ func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
 // as a signal that some host-attributed metric was seen this cycle, never as
 // the tag value, so the billing host tag stays stable regardless of what
 // hostname OTel telemetry happens to report.
-func (c *serializerConsumer) addRunningMetric(hostname string) {
+//
+// On ECS Fargate or Azure Container Apps, wi identifies the workload and the
+// metric is tagged with the task ARN or container app identity instead of a
+// hostname, since those workloads have no host identity.
+func (c *serializerConsumer) addRunningMetric(hostname string, wi workloadIdentity) {
 	if c.ipath != ddot || !c.standalone {
+		return
+	}
+	if len(c.hosts) == 0 {
 		return
 	}
 	timestamp := float64(time.Now().Unix())
 	buildTags := tagsFromBuildInfo(c.buildInfo)
 
-	if len(c.hosts) > 0 {
+	switch {
+	case wi.fargateTaskARN != "":
+		c.series = append(c.series, ddotFargateRunningMetric(wi.fargateTaskARN, timestamp, buildTags))
+	case wi.aca != nil:
+		if serie := ddotAzureContainerAppsRunningMetric(wi.aca, timestamp, buildTags); serie != nil {
+			c.series = append(c.series, serie)
+			return
+		}
+		c.series = append(c.series, ddotRunningMetric(hostname, timestamp, buildTags))
+	default:
 		c.series = append(c.series, ddotRunningMetric(hostname, timestamp, buildTags))
 	}
 }
@@ -382,6 +378,51 @@ func ddotRunningMetric(hostname string, timestamp float64, tags []string) *metri
 		Host:   hostname,
 		MType:  metrics.APIGaugeType,
 		Tags:   tagset.CompositeTagsFromSlice(tags),
+		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
+}
+
+// ddotFargateRunningMetric creates a built-in metric to report that the DDOT
+// collector is running in an ECS Fargate task. The task is identified by its ARN
+// rather than a hostname, since Fargate tasks have no host identity.
+func ddotFargateRunningMetric(taskARN string, timestamp float64, tags []string) *metrics.Serie {
+	allTags := append([]string{taggertags.TaskARN + ":" + taskARN}, tags...)
+	return &metrics.Serie{
+		Name:   "otel.ddot_collector.metrics.running.fargate",
+		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		MType:  metrics.APIGaugeType,
+		Tags:   tagset.CompositeTagsFromSlice(allTags),
+		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
+	}
+}
+
+// ddotAzureContainerAppsRunningMetric creates a built-in metric tagged with the Azure
+// Container Apps replica, app name, subscription ID and resource group instead of a
+// hostname, since Azure Container Apps replicas have no host identity. Tag keys match
+// the ones used by the community DD exporter's
+// otel.datadog_exporter.metrics.running.azurecontainerapps metric.
+// It returns nil unless name, subscriptionID and resourceGroup are all present, matching
+// the DD exporter's behavior of never emitting this billing metric for a
+// partially-identified resource.
+func ddotAzureContainerAppsRunningMetric(aca *acaIdentity, timestamp float64, tags []string) *metrics.Serie {
+	if aca.name == "" || aca.subscriptionID == "" || aca.resourceGroup == "" {
+		return nil
+	}
+
+	allTags := append([]string{
+		"name:" + aca.name,
+		"subscription_id:" + aca.subscriptionID,
+		"resource_group:" + aca.resourceGroup,
+	}, tags...)
+	if aca.replica != "" {
+		allTags = append(allTags, "replica:"+aca.replica)
+	}
+
+	return &metrics.Serie{
+		Name:   "otel.ddot_collector.metrics.running.azurecontainerapps",
+		Points: []metrics.Point{{Ts: timestamp, Value: 1.0}},
+		MType:  metrics.APIGaugeType,
+		Tags:   tagset.CompositeTagsFromSlice(allTags),
 		Source: metrics.MetricSourceOpenTelemetryCollectorUnknown,
 	}
 }
