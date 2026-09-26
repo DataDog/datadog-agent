@@ -689,6 +689,20 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 	assert.Equal(v1, v2)
 }
 
+func TestGetOriginConfiguredTagsAppearOnce(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Tags: []string{"team:infra", "env:prod"},
+	})
+	mockJournal := &MockJournal{m: &sync.Mutex{}}
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeRegistry := auditorMock.NewMockAuditor()
+	tailer := NewTailer(source, make(chan *message.Message, 1), mockJournal, true, fakeTagger, fakeRegistry)
+	entry := &sdjournal.JournalEntry{Fields: map[string]string{"MESSAGE": "hello"}}
+
+	tags := tailer.getOrigin(entry).Tags()
+	assert.Equal(t, []string{"team:infra", "env:prod"}, tags)
+}
+
 func TestExpectedTagDuration(t *testing.T) {
 	mockConfig := configmock.New(t)
 

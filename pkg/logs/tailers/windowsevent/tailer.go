@@ -162,11 +162,8 @@ func (t *Tailer) forwardMessages() {
 			// This preserves all bookmark information and is more efficient
 			msg := decodedMessage
 
-			// Update tags to include source config tags
 			if msg.Origin != nil {
-				// Combine tags from multiple sources: parsing extra tags and source config tags
-				tags := append(msg.ParsingExtra.Tags, t.source.Config.Tags...)
-				msg.Origin.SetTags(tags)
+				msg.Origin.SetTags(msg.ParsingExtra.Tags)
 			}
 
 			t.outputChan <- msg
