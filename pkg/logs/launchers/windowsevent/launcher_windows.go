@@ -22,7 +22,7 @@ import (
 */
 
 var (
-	modWinEvtAPI = windows.NewLazyDLL("wevtapi.dll")
+	modWinEvtAPI = windows.NewLazySystemDLL("wevtapi.dll")
 
 	procEvtClose           = modWinEvtAPI.NewProc("EvtClose")
 	procEvtOpenChannelEnum = modWinEvtAPI.NewProc("EvtOpenChannelEnum")

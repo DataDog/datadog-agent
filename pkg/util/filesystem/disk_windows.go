@@ -19,7 +19,7 @@ type Disk struct {
 
 // NewDisk creates a new instance of Disk
 func NewDisk() Disk {
-	modkernel32 := windows.NewLazyDLL("kernel32.dll")
+	modkernel32 := windows.NewLazySystemDLL("kernel32.dll")
 	return Disk{
 		procGetDiskFreeSpaceExW: modkernel32.NewProc("GetDiskFreeSpaceExW"),
 	}
