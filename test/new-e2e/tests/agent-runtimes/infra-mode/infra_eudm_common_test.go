@@ -97,9 +97,9 @@ func (s *eudmSuite) TestEUDMHostTags() {
 	// Restart the agent to reset the host metadata backoff
 	var err error
 	if s.descriptor.Family() == e2eos.WindowsFamily {
-		err = svcmanager.NewWindows(s.Env().RemoteHost).Restart("datadogagent")
+		_, err = svcmanager.NewWindows(s.Env().RemoteHost).Restart("datadogagent")
 	} else {
-		err = svcmanager.NewSystemctl(s.Env().RemoteHost).Restart("datadog-agent")
+		_, err = svcmanager.NewSystemctl(s.Env().RemoteHost).Restart("datadog-agent")
 	}
 	require.NoError(s.T(), err, "failed to restart datadog-agent service")
 
