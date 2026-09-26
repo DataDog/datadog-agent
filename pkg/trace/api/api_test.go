@@ -17,9 +17,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -33,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -902,6 +905,50 @@ func TestReceiverV1DecodingError(t *testing.T) {
 	resp.Body.Close()
 	assert.Equal(400, resp.StatusCode)
 	assert.EqualValues(traceCount, r.Stats.GetTagStats(info.Tags{EndpointVersion: "v1.0"}).TracesDropped.DecodingError.Load())
+}
+
+func TestReceiverTagStatsBoundsKeyLength(t *testing.T) {
+	r := newTestReceiverFromConfig(newTestReceiverConfig())
+
+	tagStatsFor := func(t *testing.T, lang, tracerVersion, service string) *info.TagStats {
+		t.Helper()
+		req, err := http.NewRequest("POST", "/v0.4/traces", nil)
+		require.NoError(t, err)
+		req.Header.Set(header.Lang, lang)
+		req.Header.Set(header.TracerVersion, tracerVersion)
+		return r.tagStats(v04, req, service)
+	}
+
+	t.Run("longValuesTruncated", func(t *testing.T) {
+		// header values are bounded only by the size of the request headers and
+		// the service by the size of the payload, so without this a single
+		// request could hold a megabyte of strings in the stats map and in
+		// every metric tag derived from it
+		ts := tagStatsFor(t, strings.Repeat("a", 4096), strings.Repeat("b", 4096), strings.Repeat("c", 4096))
+
+		assert.Len(t, ts.Lang, maxMetaValueLen)
+		assert.Len(t, ts.TracerVersion, maxMetaValueLen)
+		assert.Len(t, ts.Service, normalizeutil.MaxServiceLen)
+	})
+
+	t.Run("shortValuesUnchanged", func(t *testing.T) {
+		// what every real tracer reports must go through untouched
+		ts := tagStatsFor(t, "go", "v2.1.0", "my-service")
+
+		assert.Equal(t, "go", ts.Lang)
+		assert.Equal(t, "v2.1.0", ts.TracerVersion)
+		assert.Equal(t, "my-service", ts.Service)
+	})
+
+	t.Run("truncationKeepsValidUTF8", func(t *testing.T) {
+		// the limit can fall in the middle of a multi-byte character; the
+		// values end up in metric tags and logs, so they must stay valid
+		ts := tagStatsFor(t, strings.Repeat("é", 4096), "", strings.Repeat("é", 4096))
+
+		assert.True(t, utf8.ValidString(ts.Lang), "lang is not valid UTF-8")
+		assert.True(t, utf8.ValidString(ts.Service), "service is not valid UTF-8")
+		assert.LessOrEqual(t, len(ts.Lang), maxMetaValueLen)
+	})
 }
 
 func FuzzHandleTracesV1NoPanic(f *testing.F) {
