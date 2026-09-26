@@ -196,6 +196,9 @@ pub struct ProcessConfig {
     pub condition_path_exists: Option<String>,
     #[serde(default)]
     pub condition_config_any: Vec<ConditionConfigFile>,
+    /// Keys that must all be false for the process to start. Vetoes the any-of above.
+    #[serde(default)]
+    pub condition_config_none: Vec<ConditionConfigFile>,
     pub stop_timeout: Option<u64>,
     #[serde(default = "default_restart")]
     pub restart: RestartPolicy,
@@ -232,6 +235,7 @@ impl Default for ProcessConfig {
             auto_start: true,
             condition_path_exists: None,
             condition_config_any: Vec::new(),
+            condition_config_none: Vec::new(),
             stop_timeout: None,
             restart: RestartPolicy::Never,
             restart_sec: None,

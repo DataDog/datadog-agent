@@ -3,11 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Optional `condition_config_any` gates for processes.d definitions.
+//! Optional `condition_config_any` and `condition_config_none` gates for processes.d
+//! definitions.
 //!
 //! Mirrors the Windows legacy SCM startup checks in
 //! `cmd/agent/subcommands/run/dependent_services_windows.go`: start only when any
 //! configured key evaluates to true. A default install leaves every gate open.
+//!
+//! `condition_config_none` is the veto, for keys that have to be false rather than true.
+//! It cannot be expressed as an any-of term, and it is per entry because the same key can
+//! be a reason for one process to run and a reason for another not to.
 //!
 //! # Resolution order
 //!
@@ -101,6 +106,7 @@ enum GatedKey {
     WindowsCrashDetection,
     RuntimeSecurity,
     SoftwareInventory,
+    SystemProbeExternal,
 }
 
 struct GatedKeySpec {
@@ -123,6 +129,7 @@ const SYSTEM_PROBE_CONFIG_KEY: &str = "system_probe_config.enabled";
 const WINDOWS_CRASH_DETECTION_KEY: &str = "windows_crash_detection.enabled";
 const RUNTIME_SECURITY_KEY: &str = "runtime_security_config.enabled";
 const SOFTWARE_INVENTORY_KEY: &str = "software_inventory.enabled";
+const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -187,6 +194,15 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
+    // Only ever named by a `condition_config_none`, since it has to be false for
+    // system-probe to run. `derived_enabled` reads it too, which covers the derived term
+    // on its own; the veto is what covers the literal terms beside it.
+    GatedKeySpec {
+        kind: GatedKey::SystemProbeExternal,
+        key: SYSTEM_PROBE_EXTERNAL_KEY,
+        default: false,
+        fleet_policy_file: SYSPROBE_POLICY,
+    },
 ];
 
 /// Every key a `condition_config_any` gate can evaluate.
@@ -205,6 +221,16 @@ pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
     evaluate(conditions, HostOs::CURRENT)
 }
 
+/// Returns true when `conditions` is empty or every `(path, key)` pair is disabled.
+///
+/// The veto half of the gate. An any-of cannot express "this key must be false", and
+/// such a key cannot be folded in beside keys that only have to be true: one term
+/// enabling the entry would defeat it. Scoping the veto to the entry is the point, since
+/// the same key may be read by another entry that has to keep running.
+pub fn condition_config_none_met(conditions: &[ConditionConfigFile]) -> bool {
+    evaluate_none(conditions, HostOs::CURRENT)
+}
+
 fn evaluate(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
     if conditions.is_empty() {
         return true;
@@ -218,15 +244,40 @@ fn evaluate(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
         }
         file.keys
             .iter()
-            .any(|key| gated_key_enabled(&path, key, &mut yaml, os))
+            .any(|key| gated_key_enabled(ANY_LABEL, &path, key, &mut yaml, os))
     })
 }
 
-fn gated_key_enabled(path: &str, key: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
+fn evaluate_none(conditions: &[ConditionConfigFile], os: HostOs) -> bool {
+    if conditions.is_empty() {
+        return true;
+    }
+
+    let mut yaml = YamlCache::default();
+    !conditions.iter().any(|file| {
+        let path = expand_env_vars(&file.path);
+        if file.keys.is_empty() {
+            log::warn!("condition_config_none: {path} lists no keys, so it vetoes nothing");
+        }
+        file.keys
+            .iter()
+            .any(|key| gated_key_enabled(NONE_LABEL, &path, key, &mut yaml, os))
+    })
+}
+
+const ANY_LABEL: &str = "condition_config_any";
+const NONE_LABEL: &str = "condition_config_none";
+
+/// An unknown key resolves false, which is restrictive for an any-of (the term can never
+/// open the gate) and permissive for a veto (it can never close it). Neither direction is
+/// safe on its own, so the miss is not the remedy: it warns on every evaluation, and the
+/// `fleet_*_template` tests assert the shipped templates name nothing outside
+/// [`GATED_KEY_SPECS`].
+fn gated_key_enabled(label: &str, path: &str, key: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
     match GATED_KEY_SPECS.iter().find(|spec| spec.key == key) {
         Some(spec) => spec.enabled(path, yaml, os),
         None => {
-            log::warn!("condition_config_any: unknown config key {key} in {path}");
+            log::warn!("{label}: unknown config key {key} in {path}");
             false
         }
     }
@@ -703,6 +754,18 @@ process_config:
             evaluate(conditions, self.os)
         }
 
+        /// True when nothing in `conditions` vetoes the entry.
+        fn veto_clear(&self, conditions: &[ConditionConfigFile]) -> bool {
+            evaluate_none(conditions, self.os)
+        }
+
+        fn veto_clear_for(&self, path: &str, key: &str) -> bool {
+            self.veto_clear(&[ConditionConfigFile {
+                path: path.to_owned(),
+                keys: vec![key.to_owned()],
+            }])
+        }
+
         fn key(&self, path: &str, key: &str) -> bool {
             self.met(&[ConditionConfigFile {
                 path: path.to_owned(),
@@ -853,6 +916,74 @@ process_config:
         );
         fx.env("DD_CONF_DIR", &conf_dir);
         fx.assert_key("${DD_CONF_DIR}/datadog.yaml", PROCESS_COLLECTION_KEY, true);
+    }
+
+    #[test]
+    fn empty_veto_is_clear() {
+        assert!(condition_config_none_met(&[]));
+    }
+
+    #[test]
+    fn veto_fires_when_its_key_is_true() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("system_probe_config:\n  external: true\n");
+        assert!(!fx.veto_clear_for(&sysprobe, SYSTEM_PROBE_EXTERNAL_KEY));
+    }
+
+    /// Both ways of not setting it: written false, and absent so the schema default of
+    /// false applies. An install that never heard of the key must not be vetoed.
+    #[test]
+    fn veto_is_clear_when_its_key_is_false_or_absent() {
+        for body in [
+            "system_probe_config:\n  external: false\n",
+            "# nothing set\n",
+        ] {
+            let fx = Gate::new();
+            let sysprobe = fx.sysprobe(body);
+            assert!(
+                fx.veto_clear_for(&sysprobe, SYSTEM_PROBE_EXTERNAL_KEY),
+                "vetoed on {body:?}"
+            );
+        }
+    }
+
+    /// An unknown key resolves false, so it cannot veto. That is the safe direction: a
+    /// key the daemon does not understand must not be what stops a workload running.
+    #[test]
+    fn unknown_veto_key_leaves_the_veto_clear() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("not_a_gate:\n  enabled: true\n");
+        assert!(fx.veto_clear_for(&sysprobe, "not_a_gate.enabled"));
+    }
+
+    /// `startSystemProbe` returns ErrNotEnabled when `external` is set, whatever the
+    /// modules say, so the derived key has to agree.
+    #[test]
+    fn external_system_probe_closes_the_derived_key() {
+        let fx = Gate::new();
+        let sysprobe = fx
+            .sysprobe("system_probe_config:\n  external: true\nnetwork_config:\n  enabled: true\n");
+        fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, false);
+    }
+
+    #[test]
+    fn env_external_system_probe_closes_the_derived_key() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("network_config:\n  enabled: true\n");
+        fx.env("DD_SYSTEM_PROBE_EXTERNAL", "true");
+        fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, false);
+    }
+
+    /// The blast radius of the fold-in. `derived_enabled` backs the process-agent gate
+    /// too, and process-agent has to keep running against an external system-probe, so
+    /// the literal keys beside the derived one must stay open. That is also why the veto
+    /// has to be per entry rather than per key.
+    #[test]
+    fn external_system_probe_leaves_the_network_key_open() {
+        let fx = Gate::new();
+        let sysprobe = fx
+            .sysprobe("system_probe_config:\n  external: true\nnetwork_config:\n  enabled: true\n");
+        fx.assert_key(&sysprobe, NETWORK_CONFIG_KEY, true);
     }
 
     #[test]

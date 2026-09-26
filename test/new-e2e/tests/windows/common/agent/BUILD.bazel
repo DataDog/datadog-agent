@@ -7,6 +7,7 @@ go_library(
         "agent.go",
         "agent_install_params.go",
         "package.go",
+        "procmgr.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent",
     visibility = ["//visibility:public"],

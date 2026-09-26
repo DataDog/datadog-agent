@@ -69,6 +69,11 @@ const ENV_BINDINGS: &[EnvBinding] = &[
         key: "system_probe_config.enabled",
         env_vars: &["DD_SYSTEM_PROBE_ENABLED"],
     },
+    // Not DD_SYSTEM_PROBE_CONFIG_EXTERNAL, which is what the key name would suggest.
+    EnvBinding {
+        key: "system_probe_config.external",
+        env_vars: &["DD_SYSTEM_PROBE_EXTERNAL"],
+    },
     EnvBinding {
         key: "service_monitoring_config.enabled",
         env_vars: &["DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED"],

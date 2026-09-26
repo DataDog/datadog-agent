@@ -7,7 +7,6 @@ package installtest
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -15,8 +14,6 @@ import (
 
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -189,15 +186,17 @@ func (s *testNPMInstallSuite) enableNPM() {
 func (s *testNPMInstallSuite) testNPMFunctional() {
 	host := s.Env().RemoteHost
 	s.Run("npm running", func() {
-		// services are running
-		expectedServices := []string{"datadog-system-probe", "ddnpm"}
-		for _, serviceName := range expectedServices {
-			s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-				status, err := windowsCommon.GetServiceStatus(host, serviceName)
-				require.NoError(c, err)
-				assert.Equal(c, "Running", status, "%s should be running", serviceName)
-			}, 1*time.Minute, 1*time.Second, "%s should be running", serviceName)
-		}
+		windowsCommon.AssertServiceState(s.T(), host, procmgrServiceName, "Running")
+		windowsCommon.AssertServiceState(s.T(), host, "ddnpm", "Running")
+
+		// dd-procmgr supervises system-probe, so the legacy SCM service stays stopped and
+		// the running instance has to be asserted on the procmgr side. Neither the stopped
+		// service nor ddnpm would catch a system-probe that procmgr failed to start: the
+		// driver stays loaded across a system-probe exit, and on the upgrade scenarios it
+		// may already be loaded from the pre-upgrade Agent.
+		windowsCommon.AssertServiceState(s.T(), host, "datadog-system-probe", "Stopped")
+
+		windowsAgent.AssertProcmgrProcessRunning(s.T(), host, "datadog-agent-sysprobe")
 	})
 	s.Run("agent npm status", func() {
 		client := s.NewTestClientForHost(host)
