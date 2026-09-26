@@ -158,6 +158,7 @@ func deepCopyFileEvent(fieldToCopy FileEvent) FileEvent {
 func deepCopyTracer(fieldToCopy Tracer) Tracer {
 	copied := Tracer{}
 	copied.Metadata = deepCopyTracerMetadata(fieldToCopy.Metadata)
+	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.Trace = deepCopySpanContext(fieldToCopy.Trace)
 	return copied
 }
@@ -172,7 +173,6 @@ func deepCopyTracerMetadata(fieldToCopy tracermetadata.TracerMetadata) tracermet
 	copied.ServiceEnv = fieldToCopy.ServiceEnv
 	copied.ServiceName = fieldToCopy.ServiceName
 	copied.ServiceVersion = fieldToCopy.ServiceVersion
-	copied.ThreadlocalAttributeKeys = deepCopystringArr(fieldToCopy.ThreadlocalAttributeKeys)
 	copied.TracerLanguage = fieldToCopy.TracerLanguage
 	copied.TracerVersion = fieldToCopy.TracerVersion
 	return copied
@@ -286,6 +286,7 @@ func deepCopySecurityProfileContext(fieldToCopy SecurityProfileContext) Security
 	copied.EventTypeState = fieldToCopy.EventTypeState
 	copied.EventTypes = deepCopyEventTypeArr(fieldToCopy.EventTypes)
 	copied.Name = fieldToCopy.Name
+	copied.ProfileAlreadySent = fieldToCopy.ProfileAlreadySent
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	copied.Version = fieldToCopy.Version
 	return copied

@@ -156,6 +156,8 @@ type SecurityProfileContext struct {
 	Tags           []string                   `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
 	EventTypes     []EventType                `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
 	EventTypeState EventFilteringProfileState `field:"-"`           // State of the event type in this profile
+	// ProfileAlreadySent is true when the profile had already been persisted to the backend at the time this event was emitted
+	ProfileAlreadySent bool `field:"-"`
 }
 
 // IPPortContext is used to hold an IP and Port
@@ -209,6 +211,11 @@ type SpanContext struct {
 type Tracer struct {
 	Metadata tracermetadata.TracerMetadata
 	Trace    SpanContext
+	// ThreadlocalAttributeKeys is the ordered list of attribute key names the
+	// process published in its OTel process context (OTEP 4947). The key indices
+	// of a thread context record index into it to resolve the full attribute
+	// name.
+	ThreadlocalAttributeKeys []string
 }
 
 // RuleContext defines a rule context
@@ -725,12 +732,13 @@ func (de *DNSEvent) Matches(new *DNSEvent) bool {
 
 // IMDSEvent represents an IMDS event
 type IMDSEvent struct {
-	Type          string `field:"type"`           // SECLDoc[type] Definition:`the type of IMDS event`
-	CloudProvider string `field:"cloud_provider"` // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
-	URL           string `field:"url"`            // SECLDoc[url] Definition:`the queried IMDS URL`
-	Host          string `field:"host"`           // SECLDoc[host] Definition:`the host of the HTTP protocol`
-	UserAgent     string `field:"user_agent"`     // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
-	Server        string `field:"server"`         // SECLDoc[server] Definition:`the server header of a response`
+	Type             string `field:"type"`              // SECLDoc[type] Definition:`the type of IMDS event`
+	CloudProvider    string `field:"cloud_provider"`    // SECLDoc[cloud_provider] Definition:`the intended cloud provider of the IMDS event`
+	URL              string `field:"url"`               // SECLDoc[url] Definition:`the queried IMDS URL`
+	Host             string `field:"host"`              // SECLDoc[host] Definition:`the host of the HTTP protocol`
+	UserAgent        string `field:"user_agent"`        // SECLDoc[user_agent] Definition:`the user agent of the HTTP client`
+	Server           string `field:"server"`            // SECLDoc[server] Definition:`the server header of a response`
+	CredentialSource uint32 `field:"credential_source"` // SECLDoc[credential_source] Definition:`the credential endpoint that served the IMDS event` Constants:`Credential sources`
 
 	// The fields below are optional and cloud specific fields
 	AWS AWSIMDSEvent `field:"aws"` // SECLDoc[aws] Definition:`the AWS specific data parsed from the IMDS event`
@@ -745,8 +753,8 @@ type AWSIMDSEvent struct {
 // AWSSecurityCredentials is used to parse the fields that are none to be free of credentials or secrets
 type AWSSecurityCredentials struct {
 	Code        string    `field:"-" json:"Code"`
-	Type        string    `field:"type" json:"Type"` // SECLDoc[type] Definition:`the security credentials type`
-	AccessKeyID string    `field:"-" json:"AccessKeyId"`
+	Type        string    `field:"type" json:"Type"`                 // SECLDoc[type] Definition:`The security credentials type`
+	AccessKeyID string    `field:"access_key_id" json:"AccessKeyId"` // SECLDoc[access_key_id] Definition:`The access key ID of the security credentials in the IMDS answer`
 	LastUpdated string    `field:"-" json:"LastUpdated"`
 	Expiration  time.Time `field:"-"`
 

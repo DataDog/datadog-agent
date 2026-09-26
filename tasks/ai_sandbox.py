@@ -23,16 +23,6 @@ CLI_PACKAGE = "./cmd/ai-sandbox"
 CLI_BIN = "bin/ai-sandbox"
 
 
-def _load_e2e_local_config():
-    """Load ~/.test_infra_config.yaml lazily; return the Config or None."""
-    try:
-        from tasks.e2e_framework import config as e2e_config
-
-        return e2e_config.get_local_config()
-    except Exception:
-        return None
-
-
 @task(
     auto_shortflags=False,
     help={
@@ -96,15 +86,12 @@ def run(
         joined = " or ".join(cred_vars)
         print(color_message(f"WARNING: none of {joined} is set; {tool} will likely fail to authenticate", Color.ORANGE))
 
-    env_vars = {}
-    # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set, mirroring
-    # new-e2e-tests.run, so developers don't need it in their shell rc.
-    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ:
-        from tasks.e2e_framework.config import get_pulumi_passphrase
+    # Pulls PULUMI_CONFIG_PASSPHRASE out of the local config when the environment doesn't
+    # already carry one, mirroring new-e2e-tests.run, so developers don't need it in
+    # their shell rc.
+    from tasks.e2e_framework import tool as e2e_tool
 
-        passphrase = get_pulumi_passphrase(_load_e2e_local_config())
-        if passphrase:
-            env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+    env_vars = e2e_tool.pulumi_env(skip_update_check=False)
 
     # Resolve paths to absolute so they are independent of the binary's working directory.
     local_output_dir = str(Path(local_output_dir).expanduser().absolute())

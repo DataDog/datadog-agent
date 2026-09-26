@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -117,14 +118,19 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 		}
 
+		// Cluster check runners aren't scheduled on a specific node and don't have a
+		// reachable local kubelet, so skip the node-label based auto discovery to avoid
+		// noisy "Impossible to reach Kubelet" warnings.
 		var clusterName string
-		nodeInfo, err := hostinfo.NewNodeInfo()
-		if err != nil {
-			log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-		} else {
-			clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
+		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
+			nodeInfo, err := hostinfo.NewNodeInfo()
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+			} else {
+				clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
+				if err != nil {
+					log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
+				}
 			}
 		}
 		if len(clusterName) > 0 {

@@ -137,9 +137,7 @@ func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 }
 
 func TestLogPatternExtractorTelemetryTracksActivePatterns(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -205,9 +203,7 @@ func TestLogPatternExtractor_ZeroConfigAppliesGCDefaults(t *testing.T) {
 }
 
 func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.SetObserverTelemetry(newObserverTelemetry(telComp))
@@ -353,9 +349,7 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 }
 
 func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	// Configure tight cap with MinClusterSizeBeforeEmit=1 so each new shape
 	// emits a metric (and therefore a context entry) on its first appearance.
@@ -399,6 +393,8 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 
 	require.Equal(t, 1, e.taggedClusterer.NumSubClusterers(), "single tag group across all messages")
 	require.Len(t, e.taggedClusterer.GetAllClusters(), 2, "cap holds at MaxPatternsPerGroup=2")
+	require.Len(t, e.taggedClusterer.patternEntries, 2)
+	require.Len(t, e.taggedClusterer.patternTouches, 2)
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue(),
 		"active-pattern telemetry should track the LRU-bounded resident set")
 }
@@ -443,7 +439,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 // TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
 // the structural leak is fixed: when the extractor's LRU evicts a cluster,
 // the engine no longer just drops its contextRefs entry — it also calls
-// storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
+// storage.RemoveSeriesByKeys so the per-series tags slice + bucket data
 // + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
 // grew monotonically for the lifetime of the agent, regardless of LRU caps.
 func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
@@ -623,4 +619,92 @@ func (s *statelessTestDetector) Name() string { return s.name }
 func (*statelessTestDetector) Ready() bool    { return true }
 func (s *statelessTestDetector) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
+}
+
+func TestLogPatternExtractor_TotalPatternLimit(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MaxPatterns = 2
+	cfg.MinClusterSizeBeforeEmit = 1
+	e := NewLogPatternExtractor(cfg)
+	process := func(service, message string, sec int64) observerdef.LogMetricsExtractorOutput {
+		return e.ProcessLog(&mockLogView{content: message, tags: []string{"service:" + service}, timestampMs: sec * 1000})
+	}
+	a := process("a", "WARN alpha", 1000)
+	b := process("b", "WARN beta gamma", 1001)
+	process("a", "WARN alpha", 1002) // Refresh the first pattern across groups.
+	c := process("c", "WARN x y z w", 1003)
+	require.Equal(t, []string{b.Metrics[0].Name}, c.EvictedMetricNames)
+	require.Len(t, e.taggedClusterer.GetAllClusters(), 2)
+	require.Equal(t, 2, e.activePatternCount)
+	// A timestamp older than every resident pattern must still preserve its output.
+	d := process("d", "WARN another shape", 999)
+	require.Equal(t, []string{a.Metrics[0].Name}, d.EvictedMetricNames)
+	require.Len(t, e.taggedClusterer.patternEntries, 2)
+	for i := 0; i < 100; i++ {
+		process("d", "WARN another shape", 1004)
+	}
+	require.Len(t, e.taggedClusterer.patternTouches, 2)
+	e.taggedClusterer.GarbageCollectBefore(1005)
+	require.Empty(t, e.taggedClusterer.patternEntries)
+	require.Empty(t, e.taggedClusterer.patternTouches)
+	process("a", "WARN alpha", 1006)
+	require.Len(t, e.taggedClusterer.patternEntries, 1)
+	e.Reset()
+	require.Empty(t, e.taggedClusterer.GetAllClusters())
+	require.Empty(t, e.taggedClusterer.patternEntries)
+}
+
+func TestLogPatternExtractor_TotalLimitBeforeEmission(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MaxPatterns = 1
+	e := NewLogPatternExtractor(cfg)
+	for _, service := range []string{"a", "b", "c"} {
+		result := e.ProcessLog(&mockLogView{content: "WARN alpha", tags: []string{"service:" + service}, timestampMs: 1000000})
+		require.Empty(t, result.Metrics)
+		require.Len(t, e.taggedClusterer.GetAllClusters(), 1)
+		require.Equal(t, 1, e.activePatternCount)
+	}
+}
+
+func TestEngine_LogPatternTotalLimitFreesStorage(t *testing.T) {
+	cfg := DefaultLogPatternExtractorConfig()
+	cfg.MinClusterSizeBeforeEmit = 1
+	cfg.MaxPatterns = 2
+	cfg.MaxTagGroups = -1
+	extractor := NewLogPatternExtractor(cfg)
+
+	storage := newTimeSeriesStorage()
+	e := newEngine(engineConfig{
+		storage:    storage,
+		extractors: []observerdef.LogMetricsExtractor{extractor},
+	})
+
+	tags := []string{"service:api"}
+	msgs := []string{
+		"WARN alpha",
+		"WARN beta gamma",
+		"WARN x y z w",
+	}
+
+	for i, m := range msgs {
+		e.IngestLog("src", &logObs{
+			content:     m,
+			status:      "warn",
+			tags:        append([]string{"env:" + m}, tags...),
+			timestampMs: int64(1_000_000 + i*1_000),
+		})
+	}
+
+	// Without the storage-side eviction, count would be 3 (every shape ever
+	// seen leaves a series behind). With it, the LRU eviction during the 3rd
+	// ingest removes cluster #1 from storage before cluster #3's series is
+	// added, so count is 2.
+	require.Equal(t, 2, storage.TotalSeriesCount(),
+		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
+
+	// Surviving series must have context stored on them.
+	for _, meta := range storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
+		require.NotNil(t, storage.GetContext(meta.Ref),
+			"surviving series must have inline MetricContext (ref=%d)", meta.Ref)
+	}
 }

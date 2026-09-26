@@ -11,7 +11,12 @@ on it:
 Handle → Storage → Detect → Correlate → Report
 ```
 
-Data enters through lightweight **Handles** (non-blocking, copy-on-send).
+Data enters through lightweight **Handles** (non-blocking scalar snapshot on
+send). Metric handles reject name/source/host-only processing rules before
+enqueueing, retain immutable resolved-tag views, and defer tag materialization,
+tag-dependent filtering, muting, and canonicalization to the dispatch
+goroutine; log handles still copy caller-owned content and tags before
+enqueueing.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
@@ -34,7 +39,7 @@ and the testbench use the same engine.
 | `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
-| `impl/storage.go` | In-memory columnar time-series storage (1s buckets, read-time aggregation) |
+| `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
 | `impl/scheduler.go` | Scheduling policy: when to advance analysis |
 | `impl/observer.go` | Fx component: lifecycle, channel loop, handle creation, log tap |
 | `impl/component_catalog.go` | Registry of all detectors, correlators, extractors |
@@ -62,6 +67,15 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+`anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
+patterns across all tag groups (default 3,000). This includes patterns below
+the metric emission threshold. Non-positive values use the default. Capacity
+eviction removes the least recently seen existing pattern and sends its metric
+name through engine cleanup. The internal per-group and tag-group safeguards
+still apply. This setting does not limit `log_metrics_extractor` outputs; the
+shared storage series budget remains separate.
+
 
 The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
 
@@ -120,7 +134,11 @@ writing. Detectors can pick any aggregation without re-ingesting data.
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to a buffered channel. If the channel is full,
-observations are silently dropped. Analysis never back-pressures data ingestion.
+observations are dropped and counted in Observer telemetry. Analysis never
+back-pressures data ingestion.
+The agent-internal log tap likewise uses a bounded non-blocking handoff before
+performing processing rules, rate limiting, allocation, and `ObserveLog` work,
+so it does not run those operations under the global Agent logger lock.
 
 ### Metric ingestion gate
 
@@ -156,6 +174,19 @@ e.emitter.reset()
 
 The scorer uses a different path (`EpisodeStarted` / `EpisodeEnded` events) and does
 not embed a `correlationEmitter`.
+
+### Detector-output deduplication vs replay history
+
+The engine deduplicates detector outputs across advances before feeding them to
+correlators. Live mode keeps only a fixed-size dedup cache;
+it does not retain full raw anomalies because reporters receive advance-local
+anomalies and correlator events directly. `StorageConfig.TrackAnomalyHistory` is
+false by default and is enabled only by testbench/replay configuration so
+`StateView.Anomalies` can display the complete finite replay. Do not couple a new
+production consumer to raw anomaly history; add an explicitly bounded diagnostic
+surface if that use case emerges. Route every storage-series removal through the
+engine cleanup path so ref-backed dedup entries are removed too; dedup eviction is
+reported by `observer.anomaly_dedup.evicted{reason}`.
 
 ## Common Pitfalls
 

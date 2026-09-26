@@ -154,6 +154,18 @@ func TestDDOTSeriesV3RespectsExplicitOptOut(t *testing.T) {
 	assert.False(t, present, "explicit enabled=false must not be overridden by the per-endpoint opt-in")
 }
 
+// TestDDOTSketchesV3BetaShadowDisabled verifies DDOT opts out of the v3beta sketches
+// shadow, which defaults to a non-zero sample rate in the core Agent. SourceAgentRuntime
+// outranks SourceEnvVar, so a colocated core Agent's DD_ env vars cannot re-enable it.
+func TestDDOTSketchesV3BetaShadowDisabled(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SKETCHES_SHADOW_SAMPLE_RATE", "1")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_default.yaml"})
+	require.NoError(t, err)
+
+	assert.Zero(t, c.GetFloat64("serializer_experimental_use_v3_api.sketches.shadow_sample_rate"))
+}
+
 func (suite *ConfigTestSuite) TestAgentConfig() {
 	t := suite.T()
 	fileName := "testdata/config.yaml"
@@ -480,6 +492,53 @@ func (suite *ConfigTestSuite) TestNilDDAPISection() {
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
 	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDDAPISectionWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_nil_api.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestDDAPIBlockAbsentWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_no_api_block.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDatadogExporter() {
+	t := suite.T()
+	fileName := "testdata/config_nil_datadog_exporter.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.com", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestNilDatadogExporterWithDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	fileName := "testdata/config_nil_datadog_exporter.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+	assert.Equal(t, "https://agent-http-intake.logs.datadoghq.eu", c.Get("logs_config.logs_dd_url"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
 }
 
 func (suite *ConfigTestSuite) TestMalformedDDAPISection() {

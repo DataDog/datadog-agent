@@ -52,6 +52,7 @@ var datadogAgentPackage = hooks{
 
 	preStartExperiment:    preStartExperimentDatadogAgent,
 	postStartExperiment:   postStartExperimentDatadogAgent,
+	preStopExperiment:     preStopExperimentDatadogAgent,
 	postStopExperiment:    postStopExperimentDatadogAgent,
 	postPromoteExperiment: postPromoteExperimentDatadogAgent,
 
@@ -143,14 +144,10 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		}
 	}
 
-	if err := ensureADPProcmgrConfig(); err != nil {
-		return fmt.Errorf("failed to write ADP process manager config: %w", err)
-	}
-	if err := ensurePARProcmgrConfig(); err != nil {
-		return fmt.Errorf("failed to write PAR process manager config: %w", err)
-	}
-	if err := ensurePARExecutorProcmgrConfig(); err != nil {
-		return fmt.Errorf("failed to write PAR executor process manager config: %w", err)
+	for _, cfg := range procmgrConfigs {
+		if err := ensureProcmgrConfig(cfg); err != nil {
+			return fmt.Errorf("failed to write %s process manager config: %w", cfg.label, err)
+		}
 	}
 
 	// No need to explicitly start the Agent here
@@ -203,47 +200,32 @@ func resolveDatadogProgramFilesInstallRoot() (string, error) {
 	return installRoot, nil
 }
 
-func ensureADPProcmgrConfig() error {
-	installRoot, err := resolveDatadogProgramFilesInstallRoot()
-	if err != nil {
-		return err
-	}
-
-	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WriteADPProcmgrConfig(installRoot)
-	}
-	if err := processmanager.RemoveADPProcmgrConfig(installRoot); err != nil {
-		log.Warnf("ADP: could not remove stale process manager config: %v", err)
-	}
-	return nil
+// procmgrConfig is a processes.d definition managed at install time.
+type procmgrConfig struct {
+	label  string
+	write  func(installRoot string) error
+	remove func(installRoot string) error
 }
 
-func ensurePARProcmgrConfig() error {
-	installRoot, err := resolveDatadogProgramFilesInstallRoot()
-	if err != nil {
-		return err
-	}
-
-	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WritePARProcmgrConfig(installRoot)
-	}
-	if err := processmanager.RemovePARProcmgrConfig(installRoot); err != nil {
-		log.Warnf("PAR: could not remove stale process manager config: %v", err)
-	}
-	return nil
+var procmgrConfigs = []procmgrConfig{
+	{"ADP", processmanager.WriteADPProcmgrConfig, processmanager.RemoveADPProcmgrConfig},
+	{"PAR", processmanager.WritePARProcmgrConfig, processmanager.RemovePARProcmgrConfig},
+	{"PAR executor", processmanager.WritePARExecutorProcmgrConfig, processmanager.RemovePARExecutorProcmgrConfig},
+	{"PAR control plane", processmanager.WritePARControlProcmgrConfig, processmanager.RemovePARControlProcmgrConfig},
+	{"process-agent", processmanager.WriteProcessProcmgrConfig, processmanager.RemoveProcessProcmgrConfig},
 }
 
-func ensurePARExecutorProcmgrConfig() error {
+func ensureProcmgrConfig(cfg procmgrConfig) error {
 	installRoot, err := resolveDatadogProgramFilesInstallRoot()
 	if err != nil {
 		return err
 	}
 
 	if env.FromEnv().ProcessManagerEnabled {
-		return processmanager.WritePARExecutorProcmgrConfig(installRoot)
+		return cfg.write(installRoot)
 	}
-	if err := processmanager.RemovePARExecutorProcmgrConfig(installRoot); err != nil {
-		log.Warnf("PAR executor: could not remove stale process manager config: %v", err)
+	if err := cfg.remove(installRoot); err != nil {
+		log.Warnf("%s: could not remove stale process manager config: %v", cfg.label, err)
 	}
 	return nil
 }
@@ -359,6 +341,15 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 	return nil
 }
 
+// preStopExperimentDatadogAgent checks the rollback MSI before state changes.
+func preStopExperimentDatadogAgent(_ HookContext) error {
+	_, err := msi.FindAgentMSI(filepath.Join(paths.PackagesPath, agentPackage, "stable"), env.FromEnv().FIPSMode)
+	if err != nil {
+		return fmt.Errorf("invalid rollback MSI: %w", err)
+	}
+	return nil
+}
+
 // postStopExperimentDatadogAgent stops the watchdog and launches a new process to stop the experiment.
 func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 	// set watchdog stop to make sure the watchdog stops
@@ -376,6 +367,10 @@ func postStopExperimentDatadogAgent(ctx HookContext) (err error) {
 //   - be run from a copy of the installer, not from the install path,
 //     to avoid locking the executable
 func postStopExperimentDatadogAgentBackground(ctx context.Context) (err error) {
+	// Recheck before uninstalling the running Agent.
+	if err := preStopExperimentDatadogAgent(HookContext{Context: ctx}); err != nil {
+		return err
+	}
 	// must get env before uninstalling the Agent since it may read from the registry
 	env := getenv()
 	hookCtx := HookContext{Context: ctx, PackagePath: paths.DatadogProgramFilesDir}
@@ -541,7 +536,7 @@ func installAgentPackage(ctx context.Context, env *env.Env, target string, args 
 
 	opts := []msi.MsiexecOption{
 		msi.Install(),
-		msi.WithMsiFromPackagePath(target, agentPackage),
+		msi.WithMsiFromPackagePath(target, agentPackage, env.FIPSMode),
 		msi.WithLogFile(logFile),
 	}
 	// msi.Cmd() places typed properties after raw args on the command line regardless of
@@ -620,7 +615,7 @@ func removeAgentIfInstalled(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to stop all Agent services: %w", err)
 	}
-	return removeProductIfInstalled(ctx, "Datadog Agent")
+	return removeProductIfInstalled(ctx, msi.AgentProductName(getenv().FIPSMode))
 }
 
 func removeAgentIfInstalledAndRestartOnFailure(ctx context.Context) (err error) {
@@ -996,10 +991,11 @@ func postPromoteConfigExperimentDatadogAgentBackground(ctx context.Context) erro
 // This helps ensure the MSI is available even when the original path is a temp dir, which is common
 // with remote deployment scripts, or the Windows installer cache was removed for some reason.
 func updateRegistryInstallSource() error {
-	msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+	fipsMode := getenv().FIPSMode
+	msiName := msi.AgentMSIName(version.AgentPackageVersion, fipsMode)
 
 	stablePath := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
-	err := msi.SetSourceList("Datadog Agent", stablePath, msiName)
+	err := msi.SetSourceList(msi.AgentProductName(fipsMode), stablePath, msiName)
 	if err != nil {
 		return fmt.Errorf("failed to update MSI source list: %w", err)
 	}

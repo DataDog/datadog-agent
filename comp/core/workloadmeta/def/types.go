@@ -544,10 +544,24 @@ type ContainerAllocatedResource struct {
 
 	// ID is the unique ID of the resource, the format depends on the provider
 	ID string
+
+	// PoolName is the DRA pool the device was allocated from (DRA only).
+	PoolName string
+
+	// CdiDevices are the fully-qualified CDI device names for the allocated
+	// resource (DRA only), e.g. "k8s.gpu.nvidia.com/claim=<uid>-gpu-0".
+	CdiDevices []string
 }
 
 func (c ContainerAllocatedResource) String() string {
-	return fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+	s := fmt.Sprintf("Name: %s, ID: %s", c.Name, c.ID)
+	if c.PoolName != "" {
+		s += ", Pool: " + c.PoolName
+	}
+	if len(c.CdiDevices) > 0 {
+		s += ", CDI Devices: " + strings.Join(c.CdiDevices, " ")
+	}
+	return s
 }
 
 // OrchestratorContainer is a reference to a Container with
@@ -657,9 +671,11 @@ type Container struct {
 	// PodResources API to query that data.
 	ResolvedAllocatedResources []ContainerAllocatedResource
 	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
-	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
-	// Note: Currently only reliably populated in ECS environments, where it is extracted
-	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
+	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", "MIG-xxxxxxxx-..."]
+	// On ECS it is extracted from the NVIDIA_VISIBLE_DEVICES environment
+	// variable. On Kubernetes with DRA (Dynamic Resource Allocation), it is
+	// populated node-locally by resolving the container's CDI device
+	// allocations to NVML UUIDs (physical GPUs and MIG instances).
 	GPUDeviceIDs []string `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
@@ -2340,6 +2356,11 @@ type GPU struct {
 
 	// ChildrenGPUUUIDs is the UUIDs of the child GPU devices. Empty slice if the device does not have children.
 	ChildrenGPUUUIDs []string
+
+	// MIGProfile is the canonical MIG profile name of the device (e.g. "1g.35gb"),
+	// as reported by the driver for the device's GPU instance. Empty for physical
+	// devices and for MIG devices on drivers that do not expose the profile name.
+	MIGProfile string
 }
 
 var _ Entity = &GPU{}

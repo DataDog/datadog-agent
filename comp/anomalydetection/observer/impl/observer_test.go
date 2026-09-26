@@ -44,6 +44,7 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
+	storageCfg.TrackAnomalyHistory = true
 	obs.Reset(settings, storageCfg)
 
 	scorer := obs.engine.scorer
@@ -104,9 +105,7 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 }
 
 func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) {
-	telComp := telemetryimpl.GetCompatComponent()
-	telComp.Reset()
-	t.Cleanup(telComp.Reset)
+	telComp := telemetryimpl.NewMock(t)
 
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
@@ -128,12 +127,20 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 	})
 
 	// The first observation creates a series but does not advance analysis.
-	obs.obsCh <- observation{source: "ns", metric: &metricObs{name: "requests", value: 1, timestamp: 0}}
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 1},
+		hasMetric: true,
+	}
 	obs.Flush()
 	requireSeriesCountTelemetry(t, telComp, 0)
 
 	// A later observation advances analysis and publishes the current count.
-	obs.obsCh <- observation{source: "ns", metric: &metricObs{name: "requests", value: 1, timestamp: 2}}
+	obs.obsCh <- observation{
+		source:    "ns",
+		metric:    metricHandoff{name: "requests", value: 1, timestamp: 2},
+		hasMetric: true,
+	}
 	obs.Flush()
 	requireSeriesCountTelemetry(t, telComp, 1)
 
@@ -155,7 +162,7 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 
 func requireSeriesCountTelemetry(t *testing.T, telemetryComp telemetry.Component, want float64) {
 	t.Helper()
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 	for _, family := range metricFamilies {
 		if family.GetName() != "observer__"+telemetrySeriesCount {

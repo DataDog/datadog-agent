@@ -64,6 +64,57 @@ func TestCloudProviderAliases(t *testing.T) {
 	assert.Contains(t, []string{"detector1", "detector3"}, cloudprovider)
 }
 
+// TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner ensures
+// that GetHostAliases never invokes the "kubelet" or "kubernetes" detectors
+// on a Cluster Checks Runner, since CCRs are Deployment replicas (not
+// DaemonSets) and can never reach a local kubelet.
+func TestCloudProviderAliasesSkipsKubeletDependentDetectorsOnCLCRunner(t *testing.T) {
+	origDetectors := hostAliasesDetectors
+	defer func() { hostAliasesDetectors = origDetectors }()
+
+	config := configmock.New(t)
+	config.SetInTest("clc_runner_enabled", true)
+	config.SetInTest("config_providers", []map[string]interface{}{{"name": "clusterchecks"}})
+
+	kubeletCalled := false
+	kubernetesDetectorCalled := false
+	otherDetectorCalled := false
+
+	hostAliasesDetectors = []cloudProviderAliasesDetector{
+		{
+			name:            "kubelet",
+			requiresKubelet: true,
+			callback: func(_ context.Context) ([]string, error) {
+				kubeletCalled = true
+				return []string{"kubelet-alias"}, nil
+			},
+		},
+		{
+			name:            "kubernetes",
+			requiresKubelet: true,
+			callback: func(_ context.Context) ([]string, error) {
+				kubernetesDetectorCalled = true
+				return []string{"kubernetes-alias"}, nil
+			},
+		},
+		{
+			name:       "other",
+			isCloudEnv: true,
+			callback: func(_ context.Context) ([]string, error) {
+				otherDetectorCalled = true
+				return []string{"other-alias"}, nil
+			},
+		},
+	}
+
+	aliases, cloudprovider := GetHostAliases(context.TODO())
+	assert.False(t, kubeletCalled, "kubelet host alias detector should be skipped on a Cluster Checks Runner")
+	assert.False(t, kubernetesDetectorCalled, "kubernetes host alias detector should be skipped on a Cluster Checks Runner")
+	assert.True(t, otherDetectorCalled, "non-kubelet-dependent host alias detectors should still run on a Cluster Checks Runner")
+	assert.Equal(t, []string{"other-alias"}, aliases)
+	assert.Equal(t, "other", cloudprovider)
+}
+
 func TestCloudProviderHostCCRID(t *testing.T) {
 	origDetectors := hostCCRIDDetectors
 	defer func() { hostCCRIDDetectors = origDetectors }()

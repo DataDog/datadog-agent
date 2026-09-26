@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build linux
+
 package providers
 
 import (
@@ -219,7 +221,7 @@ func checkFileReadable(logPath string) error {
 	// Check readability with the privileged logs client to match what the
 	// log tailer uses.  That client can use the privileged logs module in
 	// system-probe if it is available.
-	file, err := privilegedlogsclient.Open(logPath)
+	file, err := privilegedlogsclient.OpenNoFollow(logPath)
 	if err != nil {
 		log.Infof("Discovered log file %s could not be opened: %v", logPath, err)
 		return err

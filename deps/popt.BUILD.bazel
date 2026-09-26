@@ -1,9 +1,25 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
-package(default_package_metadata = [":license"])
+package(default_package_metadata = [":package_metadata"])
+
+VERSION = "1.19"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-{version}.tar.gz",
+        package = "popt",
+        version = VERSION,
+    ),
+)
 
 license(
     name = "license",
@@ -22,9 +38,6 @@ cc_library(
         "src/poptint.h",
         "src/poptparse.c",
         "src/system.h",
-    ],
-    textual_hdrs = [
-        "src/lookup3.c",
     ],
     hdrs = [
         "src/popt.h",
@@ -55,15 +68,15 @@ cc_library(
         'POPT_SYSCONFDIR=\\"/etc/\\"',
     ],
     strip_include_prefix = "src",
-    visibility = ["//visibility:public"],
     target_compatible_with = ["@platforms//os:linux"],
+    textual_hdrs = [
+        "src/lookup3.c",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "popt",
-    deps = [
-        ":libpopt",
-    ],
     additional_linker_inputs = [
         "src/libpopt.vers",
     ],
@@ -72,19 +85,23 @@ cc_shared_library(
         "-Wl,--version-script=$(location src/libpopt.vers)",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        ":libpopt",
+    ],
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = glob(["src/popt.h"]),
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "popt_pkg",
+    dest_dir = "embedded/lib",
     input = ":popt",
-    version = "0.0.2",
     installed_files = [":hdr_files"],
+    version = "0.0.2",
     visibility = ["//visibility:public"],
 )
 
@@ -93,6 +110,8 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )

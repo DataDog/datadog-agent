@@ -8,10 +8,11 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ALLOWED_REPO_NIGHTLY_BRANCHES
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.libs.releasing.json import get_current_milestone
 from tasks.libs.releasing.version import query_version
 from tasks.schema.generate import schema_codegen
@@ -19,7 +20,7 @@ from tasks.schema.generate import schema_codegen
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
-PPROFILE_MAX_VERSION = "v0.158.0"
+PPROFILE_MAX_VERSION = "v0.159.0"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
@@ -32,9 +33,9 @@ def _get_profiler_agent_version(ctx):
     Two deployment contexts are handled:
       - Nightly (same condition as nightly relenv trigger):
           DDR_WORKFLOW_ID set + CI_COMMIT_BRANCH == "main" + BUCKET_BRANCH in nightly set
-          → "7.79.0-nightly_git.101.89faa04"
+          → "7.79.0-nightly-git.101.89faa04"
       - Dev branch (BUCKET_BRANCH == "dev", covers both branch standalone and devtest):
-          → "7.79.0-devel_git.101.89faa04.<branch_slug>"
+          → "7.79.0-devel-git.101.89faa04.<branch_slug>"
 
     Returns None for stable/beta/release builds and local builds.
     """
@@ -54,15 +55,15 @@ def _get_profiler_agent_version(ctx):
     version, pre, commits, git_sha, _ = query_version(ctx, major_version=major_version)
 
     if is_nightly:
-        return f"{version}-nightly_git.{commits}.{git_sha}"
+        return f"{version}-nightly-git.{commits}.{git_sha}"
 
     branch = os.environ.get("CI_COMMIT_REF_SLUG")
     pre_label = pre if pre else "devel"
-    return f"{version}-{pre_label}_git.{commits}.{git_sha}.{branch}"
+    return f"{version}-{pre_label}-git.{commits}.{git_sha}.{branch}"
 
 
 @task
-def build(ctx):
+def build(ctx, enable_bazel=False):
     """
     Build the host profiler
     """
@@ -70,30 +71,31 @@ def build(ctx):
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
-    env = {"GO111MODULE": "on"}
-    build_tags = get_default_build_tags(build="host-profiler")
-    ldflags = get_version_ldflags(ctx)
-    if profiler_version := _get_profiler_agent_version(ctx):
-        ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
-    if os.environ.get("DELVE"):
-        gcflags = "all=-N -l"
-    else:
-        gcflags = ""
-
     # generate windows resources
     if sys.platform == 'win32':
         raise Exit("Windows is not supported for host-profiler")
 
-    go_build(
-        ctx,
-        f"{REPO_PATH}/cmd/host-profiler",
-        mod="readonly",
-        build_tags=build_tags,
-        ldflags=ldflags,
-        gcflags=gcflags,
-        bin_path=BIN_PATH,
-        env=env,
-    )
+    if enable_bazel:
+        args = []
+        if profiler_version := _get_profiler_agent_version(ctx):
+            args.append(f"--repo_env=FORCE_AGENT_VERSION={profiler_version}")
+        build_binary_with_bazel("//cmd/host-profiler:host-profiler", args=args, bin_path=BIN_PATH)
+    else:
+        build_tags = get_default_build_tags(build="host-profiler")
+        ldflags, gcflags, env = get_build_flags(ctx)
+        if profiler_version := _get_profiler_agent_version(ctx):
+            ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
+
+        go_build(
+            ctx,
+            f"{REPO_PATH}/cmd/host-profiler",
+            mod="readonly",
+            build_tags=build_tags,
+            ldflags=ldflags,
+            gcflags=gcflags,
+            bin_path=BIN_PATH,
+            env=env,
+        )
 
     dist_folder = os.path.join(BIN_DIR, "dist")
     if os.path.exists(dist_folder):

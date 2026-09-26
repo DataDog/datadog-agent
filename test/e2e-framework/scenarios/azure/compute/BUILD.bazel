@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "compute",
@@ -19,5 +20,17 @@ go_library(
         "//test/e2e-framework/resources/azure",
         "//test/e2e-framework/resources/azure/compute",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+dd_agent_go_test(
+    name = "compute_test",
+    srcs = ["os_resolver_test.go"],
+    embed = [":compute"],
+    deps = [
+        "//test/e2e-framework/components/os",
+        "//test/e2e-framework/resources/azure",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

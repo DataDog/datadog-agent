@@ -902,6 +902,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "server is the server header of a response"
                 },
+                "credential_source": {
+                    "type": "string",
+                    "description": "credential_source is the credential endpoint that served the IMDS event"
+                },
                 "aws": {
                     "$ref": "#/$defs/AWSIMDSEvent",
                     "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -1954,6 +1958,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "event_type_state": {
                     "type": "string",
                     "description": "State of the event type in this profile"
+                },
+                "profile_already_sent": {
+                    "type": "boolean",
+                    "description": "True if the profile had already been persisted to the backend when this event was emitted"
                 }
             },
             "additionalProperties": false,
@@ -1963,7 +1971,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "version",
                 "tags",
                 "event_in_profile",
-                "event_type_state"
+                "event_type_state",
+                "profile_already_sent"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
@@ -2308,7 +2317,7 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "metadata": {
                     "$ref": "#/$defs/TracerMetadata",
-                    "description": "Metadata from APM tracer instrumentation (for example, schema version, language,\nversion, or thread-local attribute keys)."
+                    "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
                 }
             },
             "additionalProperties": false,
@@ -2349,12 +2358,6 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "logs_collected": {
                     "type": "boolean"
-                },
-                "threadlocal_attribute_keys": {
-                    "items": {
-                        "type": "string"
-                    },
-                    "type": "array"
                 }
             },
             "additionalProperties": false,
@@ -2365,6 +2368,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "tracer_version",
                 "hostname"
             ]
+        },
+        "UnshareEvent": {
+            "properties": {
+                "flags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Namespace flags requested by the unshare call"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "UnshareEventSerializer serializes an unshare event"
         },
         "UserContext": {
             "properties": {
@@ -2577,6 +2594,9 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "socket": {
             "$ref": "#/$defs/SocketEvent"
+        },
+        "unshare": {
+            "$ref": "#/$defs/UnshareEvent"
         }
     },
     "additionalProperties": false,
@@ -2631,6 +2651,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
 | `socket` | $ref | Please see [SocketEvent](#socketevent) |
+| `unshare` | $ref | Please see [UnshareEvent](#unshareevent) |
 
 ## `AWSIMDSEvent`
 
@@ -3935,6 +3956,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "server is the server header of a response"
         },
+        "credential_source": {
+            "type": "string",
+            "description": "credential_source is the credential endpoint that served the IMDS event"
+        },
         "aws": {
             "$ref": "#/$defs/AWSIMDSEvent",
             "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -3959,6 +3984,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `host` | host is the host of the HTTP protocol |
 | `user_agent` | user_agent is the user agent of the HTTP client |
 | `server` | server is the server header of a response |
+| `credential_source` | credential_source is the credential endpoint that served the IMDS event |
 | `aws` | AWS holds the AWS specific data parsed from the IMDS event |
 
 | References |
@@ -5490,6 +5516,10 @@ ancestor lineage to find the same value. |
         "event_type_state": {
             "type": "string",
             "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+            "type": "boolean",
+            "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
     },
     "additionalProperties": false,
@@ -5499,7 +5529,8 @@ ancestor lineage to find the same value. |
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -5513,6 +5544,7 @@ ancestor lineage to find the same value. |
 | `tags` | List of tags associated to this profile |
 | `event_in_profile` | True if the corresponding event is part of this profile |
 | `event_type_state` | State of the event type in this profile |
+| `profile_already_sent` | True if the profile had already been persisted to the backend when this event was emitted |
 
 
 ## `SetSockOptEvent`
@@ -6038,7 +6070,7 @@ ancestor lineage to find the same value. |
         },
         "metadata": {
             "$ref": "#/$defs/TracerMetadata",
-            "description": "Metadata from APM tracer instrumentation (for example, schema version, language,\nversion, or thread-local attribute keys)."
+            "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
         }
     },
     "additionalProperties": false,
@@ -6051,8 +6083,8 @@ ancestor lineage to find the same value. |
 | Field | Description |
 | ----- | ----------- |
 | `trace` | Captured APM span context for this process. |
-| `metadata` | Metadata from APM tracer instrumentation (for example, schema version, language,
-version, or thread-local attribute keys). |
+| `metadata` | Metadata from APM tracer instrumentation (for example, schema version,
+language, or version). |
 
 | References |
 | ---------- |
@@ -6097,12 +6129,6 @@ version, or thread-local attribute keys). |
         },
         "logs_collected": {
             "type": "boolean"
-        },
-        "threadlocal_attribute_keys": {
-            "items": {
-                "type": "string"
-            },
-            "type": "array"
         }
     },
     "additionalProperties": false,
@@ -6117,6 +6143,32 @@ version, or thread-local attribute keys). |
 
 {{< /code-block >}}
 
+
+
+## `UnshareEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "flags": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Namespace flags requested by the unshare call"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "UnshareEventSerializer serializes an unshare event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `flags` | Namespace flags requested by the unshare call |
 
 
 ## `UserContext`

@@ -3,6 +3,7 @@
 
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 
 #define PTRACE_RATE_LIMITER_RATE 100
@@ -73,26 +74,31 @@ int hook_arch_ptrace(ctx_t *ctx) {
     return ptrace_check_attach_common((struct task_struct *)CTX_PARM1(ctx));
 }
 
-int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
+int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;
     }
 
-    struct ptrace_event_t event = {
-        .syscall.retval = retval,
-        .request = syscall->ptrace.request,
-        .pid = syscall->ptrace.pid,
-        .addr = syscall->ptrace.addr,
-        .ns_pid = syscall->ptrace.ns_pid,
-    };
+    struct ptrace_event_t *event = SPAN_FILL_EVENT(struct ptrace_event_t, EVENT_PTRACE);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->request = syscall->ptrace.request;
+    event->pid = syscall->ptrace.pid;
+    event->addr = syscall->ptrace.addr;
+    event->ns_pid = syscall->ptrace.ns_pid;
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_PTRACE, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
+}
+
+int __attribute__((always_inline)) sys_ptrace_ret(void *ctx, int retval) {
+    return sys_ptrace_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 
 HOOK_SYSCALL_EXIT(ptrace) {
@@ -100,7 +106,7 @@ HOOK_SYSCALL_EXIT(ptrace) {
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_ptrace_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_ptrace_ret(args, args->ret);
+    return sys_ptrace_ret_impl(args, args->ret, TRACEPOINT_TYPE);
 }
 
 #endif

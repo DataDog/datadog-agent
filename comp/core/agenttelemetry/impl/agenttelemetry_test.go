@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/stretchr/testify/assert"
@@ -230,6 +231,18 @@ func compileTestMetric(t *testing.T, preserveTags []string, aggregateTotal bool)
 	}
 	require.NoError(t, compileConfig(&Config{Profiles: []*Profile{profile}}))
 	return profile, &profile.Metric.Metrics[0]
+}
+
+type constMetricCollector struct {
+	desc        *prometheus.Desc
+	value       float64
+	labelValues []string
+}
+
+func (c *constMetricCollector) Describe(chan<- *prometheus.Desc) {}
+
+func (c *constMetricCollector) Collect(ch chan<- prometheus.Metric) {
+	ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, c.value, c.labelValues...)
 }
 
 func makeTelMock(t *testing.T) telemetry.Component {
@@ -2738,7 +2751,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
 }
 
-func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.T) {
+func TestAggregatesCoreAndRemoteAgentSeriesOfSameMetric(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -2746,10 +2759,9 @@ func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.
         - name: points
           metric:
             metrics:
-              - name: point.sent
+              - name: points.sent
                 aggregate_tags:
                   - domain
-                  - remote_agent
     `
 
 	// setup and initiate atel
@@ -2759,12 +2771,19 @@ func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	corePointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain"}, "", telemetry.Options{DefaultMetric: true})
-	adpPointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain", "remote_agent"}, "", telemetry.Options{DefaultMetric: false})
+	corePointSent := tel.NewGauge("points", "sent", []string{"domain"}, "Number of points successfully sent to the intake")
 	corePointSent.Set(5, "https://api.datadoghq.com")
-	adpPointSent.Set(400, "https://api.datadoghq.com", "agent-data-plane")
 
-	metrics, ok := getPayloadFilteredMetricList(a, "point.sent")
+	// Remote agent telemetry reaches the registry through an unchecked collector, which is how it can
+	// carry a wider label set than the Core Agent's own series of the same metric family.
+	tel.RegisterCollector(&constMetricCollector{
+		desc: prometheus.NewDesc("points__sent", "Number of points successfully sent to the intake",
+			[]string{"domain", "emitter"}, nil),
+		value:       400,
+		labelValues: []string{"https://api.datadoghq.com", "agent-data-plane"},
+	})
+
+	metrics, ok := getPayloadFilteredMetricList(a, "points.sent")
 	require.True(t, ok)
 	require.Len(t, metrics, 2)
 
@@ -2773,14 +2792,14 @@ func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.
 	assert.Equal(t, 5.0, coreMetric.Value)
 
 	adpMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{
-		"domain":       "https://api.datadoghq.com",
-		"remote_agent": "agent-data-plane",
+		"domain":  "https://api.datadoghq.com",
+		"emitter": "agent-data-plane",
 	})
 	require.True(t, ok)
 	assert.Equal(t, 400.0, adpMetric.Value)
 }
 
-func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
+func TestExportsEveryMetricFamilyListedByAProfile(t *testing.T) {
 	var c = `
     agent_telemetry:
       enabled: true
@@ -2799,8 +2818,8 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	a := getTestAtel(t, tel, c, s, nil, r)
 	require.True(t, a.enabled)
 
-	gaugeFooBar := tel.NewGaugeWithOpts("foo", "bar", nil, "", telemetry.Options{DefaultMetric: false})
-	gaugeBarFoo := tel.NewGaugeWithOpts("bar", "foo", nil, "", telemetry.Options{DefaultMetric: true})
+	gaugeFooBar := tel.NewGauge("foo", "bar", nil, "foo bar help")
+	gaugeBarFoo := tel.NewGauge("bar", "foo", nil, "bar foo help")
 	gaugeFooBar.Set(10)
 	gaugeBarFoo.Set(20)
 
@@ -2818,8 +2837,8 @@ func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 func TestDefaultProfilesExportRARClientByteCounters(t *testing.T) {
 	config := getCommonYAMLConfig(true, "")
 	tel := makeTelMock(t)
-	counter := tel.NewCounter("dogstatsd_client", "bytes_sent", []string{"emitter"}, "")
-	counter.Add(100, "agent-data-plane")
+	counter := tel.NewCounter("dogstatsd_client", "bytes_sent", []string{"client", "client_transport", "emitter"}, "")
+	counter.Add(100, "go", "uds", "agent-data-plane")
 
 	sender := &senderMock{}
 	runner := newRunnerMock()
@@ -2834,7 +2853,7 @@ func TestDefaultProfilesExportRARClientByteCounters(t *testing.T) {
 	require.Len(t, sender.sentMetrics[0].metrics, 1)
 	metric := sender.sentMetrics[0].metrics[0]
 	assert.Equal(t, 100.0, metric.GetCounter().GetValue())
-	assert.Equal(t, map[string]string{"emitter": "agent-data-plane"}, metricLabels(metric))
+	assert.Equal(t, map[string]string{"client": "go", "client_transport": "uds", "emitter": "agent-data-plane"}, metricLabels(metric))
 }
 
 func TestDefaultProfilesExportRARTransactionSuccessCounters(t *testing.T) {
@@ -2913,14 +2932,14 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 	}{
 		{name: "dogstatsd.udp_packets_bytes"},
 		{name: "dogstatsd.uds_packets_bytes"},
-		{name: "dogstatsd_client.bytes_sent"},
-		{name: "dogstatsd_client.bytes_dropped"},
-		{name: "dogstatsd_client.bytes_dropped_queue"},
-		{name: "dogstatsd_client.bytes_dropped_writer"},
+		{name: "dogstatsd_client.bytes_sent", preserveTags: []string{"client", "client_transport"}},
+		{name: "dogstatsd_client.bytes_dropped", preserveTags: []string{"client", "client_transport"}},
+		{name: "dogstatsd_client.bytes_dropped_queue", preserveTags: []string{"client", "client_transport"}},
+		{name: "dogstatsd_client.bytes_dropped_writer", preserveTags: []string{"client", "client_transport"}},
 		{name: "logs.bytes_sent", aggregateTotal: true},
 		{name: "logs.encoded_bytes_sent", preserveTags: []string{"compression_kind"}, aggregateTotal: true},
-		{name: "point.sent", preserveTags: []string{"domain"}},
-		{name: "point.dropped", preserveTags: []string{"domain"}},
+		{name: "points.sent", preserveTags: []string{"domain"}},
+		{name: "points.dropped", preserveTags: []string{"domain"}},
 		{name: "transactions.input_count", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.input_bytes", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.success", preserveTags: []string{"domain", "endpoint", "proto_version"}, aggregateTotal: false},
@@ -2965,8 +2984,10 @@ func TestInstrumentationControllerMetricsInClusterAgentProfile(t *testing.T) {
 // three metrics, and a metric missing from this allowlist is dropped rather than shipped.
 // The label allowlists matter just as much: an unlisted label is stripped and its
 // timeseries summed into the others, which would collapse every distinct finding into one
-// meaningless number. The matching tripwire on the producing side is
-// TestFindingsAreAllowlisted in comp/dataplane/preflightmode/impl.
+// meaningless number — and for source_file/source_line, every log site a finding was
+// reported from into one. The matching tripwires on the producing side are
+// TestFindingsAreAllowlisted and TestTelemetryNamesAreStable in
+// comp/dataplane/preflightmode/impl.
 func TestDataPlanePreflightModeProfile(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, defaultProfiles)
 	atCfg, err := parseConfig(cfg)
@@ -2984,7 +3005,7 @@ func TestDataPlanePreflightModeProfile(t *testing.T) {
 
 	wantTags := map[string][]string{
 		"data_plane.preflight_mode_result":           {"result"},
-		"data_plane.preflight_mode_finding":          {"finding"},
+		"data_plane.preflight_mode_finding":          {"finding", "source_file", "source_line"},
 		"data_plane.preflight_mode_duration_seconds": nil,
 	}
 

@@ -16,6 +16,8 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -62,6 +64,13 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 	var collectorMetadata provider.CollectorMetadata
 
 	if !env.IsFeaturePresent(env.Kubernetes) {
+		return collectorMetadata, provider.ErrPermaFail
+	}
+
+	// Cluster Checks Runners have no reachable local Kubelet: never let this
+	// collector be retried, otherwise the background collector discovery
+	// ticker will hammer the kubelet client forever and spam WARN logs.
+	if helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		return collectorMetadata, provider.ErrPermaFail
 	}
 

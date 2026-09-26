@@ -891,6 +891,10 @@
           "type": "string",
           "description": "server is the server header of a response"
         },
+        "credential_source": {
+          "type": "string",
+          "description": "credential_source is the credential endpoint that served the IMDS event"
+        },
         "aws": {
           "$ref": "#/$defs/AWSIMDSEvent",
           "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -1943,6 +1947,10 @@
         "event_type_state": {
           "type": "string",
           "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+          "type": "boolean",
+          "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
       },
       "additionalProperties": false,
@@ -1952,7 +1960,8 @@
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
@@ -2297,7 +2306,7 @@
         },
         "metadata": {
           "$ref": "#/$defs/TracerMetadata",
-          "description": "Metadata from APM tracer instrumentation (for example, schema version, language,\nversion, or thread-local attribute keys)."
+          "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
         }
       },
       "additionalProperties": false,
@@ -2338,12 +2347,6 @@
         },
         "logs_collected": {
           "type": "boolean"
-        },
-        "threadlocal_attribute_keys": {
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
         }
       },
       "additionalProperties": false,
@@ -2354,6 +2357,20 @@
         "tracer_version",
         "hostname"
       ]
+    },
+    "UnshareEvent": {
+      "properties": {
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Namespace flags requested by the unshare call"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "UnshareEventSerializer serializes an unshare event"
     },
     "UserContext": {
       "properties": {
@@ -2566,6 +2583,9 @@
     },
     "socket": {
       "$ref": "#/$defs/SocketEvent"
+    },
+    "unshare": {
+      "$ref": "#/$defs/UnshareEvent"
     }
   },
   "additionalProperties": false,

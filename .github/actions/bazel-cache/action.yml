@@ -20,5 +20,6 @@ runs:
         path: |
           .cache/bazel/*/cache
           .cache/go
+          .cache/golangci-lint
           .cache/ms-go
           .cache/pip

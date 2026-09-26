@@ -14,7 +14,7 @@ from invoke.tasks import task
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -47,6 +47,8 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
 CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
+BAZEL_TARGET = "//cmd/security-agent:security-agent"
+
 
 @task(iterable=["build_tags"])
 def build(
@@ -58,10 +60,25 @@ def build(
     go_mod="readonly",
     static=False,
     fips_mode=False,
+    enable_bazel=False,
 ):
     """
     Build the security agent
     """
+
+    if enable_bazel:
+        if build_tags:
+            raise NotImplementedError("--enable-bazel does not support --build-tags.")
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if install_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path.")
+        if static:
+            raise NotImplementedError("--enable-bazel does not support --static.")
+
+        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 
@@ -149,11 +166,11 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
 
 @task()
-def gen_mocks(ctx):
+def gen_mocks(_):
     """
     Generate mocks.
     """
-    ctx.run("mockery")
+    bazel("run", "//internal/tools:mockery")
 
 
 @task
@@ -208,19 +225,28 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
 
 def build_go_syscall_tester(ctx, build_dir, arch: str | Arch = CURRENT_ARCH):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
-    syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
     arch = Arch.from_str(arch)
     _, _, env = get_build_flags(ctx, arch=arch)
 
-    go_build(
-        ctx,
-        f"{syscall_tester_go_dir}/syscall_go_tester.go",
-        build_tags=["syscalltesters", "osusergo", "netgo"],
-        ldflags="-extldflags=-static",
-        bin_path=syscall_tester_exe_file,
-        env=env,
-    )
-    return syscall_tester_exe_file
+    testers = {
+        "syscall_go_tester": f"{syscall_tester_go_dir}/syscall_go_tester.go",
+        "span_go_tester": f"{syscall_tester_go_dir}/span/span_go_tester.go",
+    }
+
+    exe_files = []
+    for name, source in testers.items():
+        exe_file = os.path.join(build_dir, name)
+        go_build(
+            ctx,
+            source,
+            build_tags=["syscalltesters", "osusergo", "netgo"],
+            ldflags="-extldflags=-static",
+            bin_path=exe_file,
+            env=env,
+        )
+        exe_files.append(exe_file)
+
+    return exe_files
 
 
 def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=None, static=True, compiler='clang'):
@@ -262,6 +288,41 @@ def ninja_syscall_tester(ctx, build_dir, static=True, compiler='clang'):
     )
 
 
+OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifacts"
+
+
+# The OTel TLS testers go through Bazel rather than the ninja rules above so
+# they link against the hermetic crosstool-NG sysroot: glibc 2.23, of which only
+# 2.17 symbols end up referenced. The host toolchain would link them against the
+# build image's glibc instead, which is newer than every KMT host and than the
+# ubuntu:20.04 image RunMultiMode's docker leg uses, and every dynamically
+# linked variant would then be skipped outside the newest legs.
+#
+# musl is covered by TestResolveOTelTLSMuslDTV in
+# pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
+# changes is the DTV layout its libc reports, which is resolved entirely in
+# user space and needs neither eBPF nor a VM.
+def build_otel_tls_artifacts(build_dir, arch: Arch):
+    if arch.is_cross_compiling():
+        # Both crosstool-NG toolchains are exec_compatible_with their own CPU,
+        # so there is no toolchain that targets the other architecture.
+        print("Skipping the OTel TLS glibc testers while cross-compiling")
+        return
+
+    bazel("build", OTEL_TLS_BAZEL_TARGET)
+
+    # The filegroup is the one list of artifacts; asking Bazel for its files
+    # keeps this from drifting from the BUILD file.
+    execroot = bazel("info", "execution_root", capture_output=True).strip()
+    artifacts = bazel("cquery", "--output=files", OTEL_TLS_BAZEL_TARGET, capture_output=True).split()
+
+    for artifact in artifacts:
+        src = os.path.join(execroot, artifact)
+        dst = os.path.join(build_dir, os.path.basename(artifact))
+        shutil.copy2(src, dst)
+        os.chmod(dst, 0o755)
+
+
 def create_dir_if_needed(dir):
     try:
         os.makedirs(dir)
@@ -290,6 +351,7 @@ def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
     ctx.run(f"ninja -f {nf_path}")
+    build_otel_tls_artifacts(build_dir, arch)
     build_go_syscall_tester(ctx, build_dir, arch=arch)
 
 
@@ -357,7 +419,7 @@ def build_functional_tests(
         results, _ = run_golangci_lint(ctx, base_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
-            if result.exited != 0:
+            if result.returncode != 0:
                 raise Exit(code=1)
         print("golangci-lint found no issues")
 
@@ -501,51 +563,10 @@ def generate_cws_documentation(ctx):
 
 
 @task
-def cws_go_generate(ctx, verbose=False):
-    # TODO: remove once Bazel is used to build the Agent
-    schema_codegen(ctx)
-
-    # run different `go generate` for pkg/security/secl and pkg/security
-    ctx.run("go install golang.org/x/tools/cmd/stringer@v0.44.0")
-    ctx.run("go install github.com/mailru/easyjson/easyjson@v0.9.1")
-    # CWS codegens migrated to Bazel keep their //go:generate directives so a future
-    # Gazelle extension can pick them up; we just skip them in `go generate` here.
-    # See ABLD-420.
-    bazel("run", "//pkg/security/secl/compiler/eval:eval_operators")
-    bazel("run", "//pkg/security/secl/model:consts_map_names_linux")
-    bazel("run", "//pkg/security/secl/model:accessors_unix")
-    bazel("run", "//pkg/security/secl/model:accessors_windows")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_unix")
-    bazel("run", "//pkg/security/secl/model:event_deep_copy_windows")
-    bazel("run", "//docs/cloud-workload-security:secl_linux")
-    bazel("run", "//docs/cloud-workload-security:secl_windows")
-    skip = "operators|bpf_maps_generator|accessors|event_deep_copy"
-    with ctx.cd("./pkg/security/secl"):
-        if sys.platform == "linux":
-            ctx.run(f"GOOS=windows go generate -run=-tag.+windows -skip='{skip}' ./...")
-        elif is_windows:
-            ctx.run(f'set "GOOS=linux" && go generate -run=-tag.+unix -skip="{skip}" ./...')
-        cmd = f"go generate -skip='{skip}'"
-        if verbose:
-            cmd += " -v"
-        ctx.run(cmd + " ./...")
-
-    if sys.platform == "linux":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_linux_easyjson.mock",
-            "./pkg/security/serializers/serializers_linux_easyjson.go",
-        )
-
-    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
-    ctx.run("go generate ./pkg/security/probe/custom_events.go")
-    ctx.run(f"go generate -skip='{skip}' -tags=bpf,cws_go_generate ./pkg/security/...")
-
-    # synchronize the seclwin package from the secl package
-    bazel("run", "//pkg/security/seclwin:sync")
-    bazel("run", "//pkg/security/seclwin/model:sync")
-
-    # generate documentation
-    generate_cws_documentation(ctx)
+def cws_go_generate(ctx):
+    # CWS codegens keep their //go:generate directives so a future Gazelle
+    # extension can emit the matching Bazel targets from them (ABLD-475).
+    bazel("run", "//pkg/security:cws_codegen")
 
 
 @task
@@ -663,45 +684,19 @@ def get_git_dirty_files():
     return paths
 
 
-class FailingTask:
-    def __init__(self, name, dirty_files):
-        self.name = name
-        self.dirty_files = dirty_files
-
-
 @task
 def go_generate_check(ctx):
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
 
-    tasks = [
-        [cws_go_generate],
-        [generate_cws_proto],
-        [gen_mocks],
-    ]
-    failing_tasks = []
-    previous_dirty = set()
-
-    for task_entry in tasks:
-        task, args = task_entry[0], task_entry[1:]
-        task(ctx, *args)
-        # when running a non-interactive session, python may buffer too much data and thus mix stderr and stdout
-        # this is especially visible in the Gitlab job logs
-        # we flush to ensure correct separation between steps
-        sys.stdout.flush()
-        sys.stderr.flush()
-        dirty_files = [f for f in get_git_dirty_files() if f not in previous_dirty]
-        if dirty_files:
-            failing_tasks.append(FailingTask(task.__name__, dirty_files))
-
-        previous_dirty.update(dirty_files)
-
-    if failing_tasks:
-        for ft in failing_tasks:
-            task = ft.name.replace("_", "-")
-            print(f"Task `dda inv security-agent.{task}` resulted in dirty files, please re-run it:")
-            for file in ft.dirty_files:
-                print(f"* {file}")
+    # The other CWS generated files are guarded by their Bazel diff tests;
+    # mockery has none yet.
+    gen_mocks(ctx)
+    dirty_files = get_git_dirty_files()
+    if dirty_files:
+        print("Task `dda inv security-agent.gen-mocks` resulted in dirty files, please re-run it:")
+        for file in dirty_files:
+            print(f"* {file}")
         raise Exit(code=1)
 
 

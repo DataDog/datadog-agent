@@ -16,7 +16,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// team: q-branch
+// team: agent-anomaly-detection
 
 // Component is the recorder middleware component.
 // It wraps observer handles to intercept and optionally record observations.

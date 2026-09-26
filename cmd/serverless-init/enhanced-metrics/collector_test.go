@@ -52,7 +52,7 @@ func TestCollectorSendsMetricsOnStartIntervalAndStop(t *testing.T) {
 
 	c := &Collector{
 		metricAgent:        mockAgent,
-		cgroupReader:       mockReader,
+		cpuStatsProvider:   &cgroupCPUStatsProvider{reader: mockReader},
 		usageMetricSuffix:  "instance",
 		collectionInterval: 100 * time.Millisecond,
 		cancelFunc:         func() {},
@@ -75,10 +75,7 @@ func TestCollectorSendsMetricsOnStartIntervalAndStop(t *testing.T) {
 
 func TestCollectorConvertToServerlessContainerStats(t *testing.T) {
 	collectionTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	mockReader := &mockCgroupReader{cgroup: &cgroups.MockCgroup{}, version: 1}
-	c := &Collector{
-		cgroupReader: mockReader,
-	}
+	c := &Collector{}
 
 	stats := &cgroups.Stats{
 		CPU: &cgroups.CPUStats{
@@ -95,8 +92,7 @@ func TestCollectorConvertToServerlessContainerStats(t *testing.T) {
 
 func TestCollectorConvertToServerlessContainerStatsNilCPU(t *testing.T) {
 	collectionTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	mockReader := &mockCgroupReader{cgroup: &cgroups.MockCgroup{}, version: 1}
-	c := &Collector{cgroupReader: mockReader}
+	c := &Collector{}
 
 	// Simulate partial cgroup failure: CPU controller failed, Memory succeeded
 	stats := &cgroups.Stats{
@@ -294,7 +290,7 @@ func TestCollectorSendsUsageMetricOnCgroupFailure(t *testing.T) {
 	c := &Collector{
 		metricAgent:       mockAgent,
 		metricSource:      metrics.MetricSourceGoogleCloudRunEnhanced,
-		cgroupReader:      mockReader,
+		cpuStatsProvider:  &cgroupCPUStatsProvider{reader: mockReader},
 		metricPrefix:      "gcp.run.container.enhanced.",
 		usageMetricSuffix: "instance",
 		previousRateStats: NullServerlessRateStats,
@@ -320,4 +316,28 @@ func TestNewCollectorNilMetricAgent(t *testing.T) {
 	c, err = NewCollector(typedNil, metrics.MetricSourceGoogleCloudRunEnhanced, "gcp.run.", "instance", time.Second)
 	assert.Nil(t, c)
 	assert.Error(t, err)
+}
+
+// TestCollectorUsageMetricNilTagsFuncSendsNoExtraTags verifies that the usage
+// metric is sent without any extra tags — pinning today's behavior.
+func TestCollectorUsageMetricNilTagsFuncSendsNoExtraTags(t *testing.T) {
+	mockAgent := new(mockEnhancedMetricSender)
+	mockAgent.On("AddEnhancedUsageMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	mockReader := &mockCgroupReader{refreshErr: errors.New("cgroup failure"), version: 1}
+
+	c := &Collector{
+		metricAgent:       mockAgent,
+		metricSource:      metrics.MetricSourceGoogleCloudRunEnhanced,
+		cpuStatsProvider:  &cgroupCPUStatsProvider{reader: mockReader},
+		metricPrefix:      "gcp.run.container.enhanced.",
+		usageMetricSuffix: "instance",
+		previousRateStats: NullServerlessRateStats,
+	}
+
+	c.collect()
+
+	mockAgent.AssertCalled(t, "AddEnhancedUsageMetric",
+		"gcp.run.container.enhanced.instance", float64(1),
+		metrics.MetricSourceGoogleCloudRunEnhanced, mock.Anything, []string(nil))
 }

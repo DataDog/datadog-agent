@@ -4,7 +4,7 @@ A bundle is defined in a dedicated package named `comp/<bundleName>`. The packag
 
 * Extensive package-level documentation. This should define:
     * The purpose of the bundle
-    * What components are and are not included in the bundle. Components might be omitted in the interest of binary size, as discussed in the [component overview](../../components/overview.md).
+    * What components are and are not included in the bundle. Components might be omitted in the interest of binary size, as discussed in the [component overview](../../../../doc/architecture/components/index.md).
     * Which components are automatically instantiated.
     * Which other _bundles_ this bundle depends on. Bundle dependencies are always expressed at a bundle level.
 * A team-name comment of the form `// team: <teamname>`. This is used to generate CODEOWNERS information.
@@ -13,7 +13,7 @@ A bundle is defined in a dedicated package named `comp/<bundleName>`. The packag
 
 Typically, a bundle will automatically instantiate the top-level components that represent the bundle's purpose. For example, the trace-agent bundle `comp/trace` might automatically instantiate `comp/trace/agent`.
 
-You can use the `dda inv components.new-bundle comp/<bundleName>` [command](../../setup/required.md#tooling) to generate a pre-filled `bundle.go` file for the given bundle.
+You can use the `dda inv components.new-bundle comp/<bundleName>` [command](../../../../doc/setup/required.md#tooling) to generate a pre-filled `bundle.go` file for the given bundle.
 
 ## Bundle Parameters
 

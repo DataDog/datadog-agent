@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Handle is the lightweight observation interface passed to other components.
@@ -32,13 +33,17 @@ type HandleFunc func(name string) Handle
 
 // MetricView provides read-only access to a metric sample.
 //
-// This interface exists to prevent data races. The underlying metric data may be
-// reused immediately after ObserveMetric returns, so implementations must not
-// store the MetricView itself. Copy any needed values synchronously.
+// MetricView is valid only for the duration of ObserveMetric. Implementations
+// must copy values they need before returning, except for GetTags, whose
+// backing-storage lifetime is documented below.
 type MetricView interface {
 	GetName() string
 	GetValue() float64
-	GetRawTags() []string
+	// GetTags returns the final tags used by the metrics pipeline for this sample.
+	// Its backing slices must remain immutable and valid after ObserveMetric returns.
+	GetTags() tagset.CompositeTags
+	// GetHost returns the host dimension carried separately from metric tags.
+	GetHost() string
 	// GetTimestampUnix returns the sample timestamp in Unix seconds.
 	GetTimestampUnix() int64
 	GetSampleRate() float64
@@ -84,6 +89,7 @@ type LogObserver interface {
 type MetricOutput struct {
 	Name    string
 	Value   float64
+	Host    string
 	Tags    []string
 	Context *MetricContext // optional; stored on the series for anomaly enrichment
 }
@@ -106,6 +112,8 @@ type SeriesDescriptor struct {
 	Namespace string
 	// Name is the base metric name (e.g. "log.pattern.<hash>.count", "cpu.user").
 	Name string
+	// Host is the host dimension carried separately from Tags.
+	Host string
 	// Tags are the series-level tags (e.g. ["host:web-1", "env:prod"]).
 	Tags []string
 	// Aggregate is the aggregation applied when reading the series.
@@ -127,14 +135,18 @@ func (sd SeriesDescriptor) String() string {
 // DisplayName returns a display string with tags (e.g. "cpu.user:avg{host:web-1}").
 func (sd SeriesDescriptor) DisplayName() string {
 	base := sd.String()
-	if len(sd.Tags) == 0 {
+	tags := sd.Tags
+	if sd.Host != "" && !containsTag(tags, "host:"+sd.Host) {
+		tags = append([]string{"host:" + sd.Host}, tags...)
+	}
+	if len(tags) == 0 {
 		return base
 	}
-	return base + "{" + strings.Join(sd.Tags, ",") + "}"
+	return base + "{" + strings.Join(tags, ",") + "}"
 }
 
 // Key returns a stable string suitable for use as a map key.
-// Format: "namespace|name:agg|tag1,tag2,..."
+// Format: "namespace|name:agg|host|tag1,tag2,...".
 func (sd SeriesDescriptor) Key() string {
 	aggStr := AggregateString(sd.Aggregate)
 	var tagStr string
@@ -144,7 +156,16 @@ func (sd SeriesDescriptor) Key() string {
 		sort.Strings(sorted)
 		tagStr = strings.Join(sorted, ",")
 	}
-	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + tagStr
+	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + tagStr
+}
+
+func containsTag(tags []string, tag string) bool {
+	for _, candidate := range tags {
+		if candidate == tag {
+			return true
+		}
+	}
+	return false
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.
@@ -250,6 +271,7 @@ type ReportOutput struct {
 type Series struct {
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 	Points    []Point
 }
@@ -436,7 +458,8 @@ type ActiveCorrelation struct {
 // RawAnomalyState provides read access to raw anomalies before correlation processing.
 // Used by test bench reporters to display individual detector outputs.
 type RawAnomalyState interface {
-	// RawAnomalies returns all anomalies detected by detector implementations.
+	// RawAnomalies returns retained detector output when replay/debug history is enabled.
+	// Live production observers deliberately retain no full anomaly history.
 	RawAnomalies() []Anomaly
 }
 
@@ -451,6 +474,7 @@ const AgentNamespace = "agent"
 // SeriesFilter specifies criteria for selecting series.
 type SeriesFilter struct {
 	Namespace   string            // exact match (empty = any)
+	Host        string            // exact match (empty = any)
 	NamePattern string            // prefix match (empty = any)
 	TagMatchers map[string]string // required tag key=value pairs
 	// ExcludeNamespaces skips series whose namespace is in this list. It is only
@@ -471,6 +495,7 @@ type SeriesMeta struct {
 	Ref       SeriesRef
 	Namespace string
 	Name      string
+	Host      string
 	Tags      []string
 }
 
