@@ -572,7 +572,6 @@ func TestDDOTRunningMetricForPayloadContents(t *testing.T) {
 					apmReceiverAddr: apmReceiverAddr,
 					ipath:           ddot,
 					hosts:           make(map[string]struct{}),
-					fargateTagSets:  make(map[tagSetKey][]string),
 					buildInfo:       buildInfo,
 					standalone:      true,
 				}
