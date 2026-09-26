@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Network Device Monitoring: the Agent can now schedule SNMP checks from
+    Remote Configuration. Set ``network_devices.remote_config.enabled`` to
+    ``true`` to subscribe. The credentials the delivered instances reference by
+    name are read from the ``conf.d/snmp.d/credentials/*.yaml`` files Fleet
+    Automation writes.
