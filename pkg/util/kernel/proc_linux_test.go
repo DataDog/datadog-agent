@@ -160,3 +160,46 @@ func TestFindMemFdFilePath(t *testing.T) {
 	_, found = findMemFdFilePath(os.Getpid(), "/proc", "dd_test_memfd_absent")
 	require.False(t, found)
 }
+
+func TestIsZombiePid(t *testing.T) {
+	cases := []struct {
+		name     string
+		status   string
+		expected bool
+	}{
+		{
+			name:     "Running",
+			status:   "Name:\tsleep\nState:\tR (running)\nPid:\t1234\n",
+			expected: false,
+		},
+		{
+			name:     "Sleeping",
+			status:   "Name:\tsleep\nState:\tS (sleeping)\nPid:\t1234\n",
+			expected: false,
+		},
+		{
+			name:     "Zombie",
+			status:   "Name:\tsleep\nState:\tZ (zombie)\nPid:\t1234\n",
+			expected: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			procRoot := t.TempDir()
+			pidDir := filepath.Join(procRoot, "1234")
+			require.NoError(t, os.MkdirAll(pidDir, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(pidDir, "status"), []byte(tc.status), 0o644))
+
+			zombie, err := IsZombiePid(procRoot, 1234)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, zombie)
+		})
+	}
+
+	t.Run("NonExistentPid", func(t *testing.T) {
+		procRoot := t.TempDir()
+		_, err := IsZombiePid(procRoot, 9999)
+		require.Error(t, err)
+	})
+}
