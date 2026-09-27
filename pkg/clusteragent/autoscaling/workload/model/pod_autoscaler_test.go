@@ -1188,6 +1188,40 @@ func TestSetActiveScalingValues_NilSource_ClearsVertical(t *testing.T) {
 			"applyVerticalConstraints(burstable=false) to early-return and suppress the rollout")
 }
 
+// TestSetActiveScalingValues_NilSource_ForcedFallback verifies that while the fallback is forced,
+// a nil horizontal source no longer retains product values, which would otherwise keep being
+// applied, but still retains a previously active local recommendation.
+func TestSetActiveScalingValues_NilSource_ForcedFallback(t *testing.T) {
+	for _, source := range []datadoghqcommon.DatadogPodAutoscalerValueSource{
+		datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+	} {
+		t.Run(string(source), func(t *testing.T) {
+			pai := FakePodAutoscalerInternal{
+				Namespace: "ns",
+				Name:      "dpa",
+				ScalingValues: ScalingValues{Horizontal: &HorizontalScalingValues{
+					Source:    source,
+					Timestamp: time.Now(),
+					Replicas:  10,
+				}},
+			}.Build()
+
+			pai.SetActiveScalingValues(time.Now(), nil, nil)
+			require.NotNil(t, pai.ScalingValues().Horizontal, "without the annotation, current values are retained")
+
+			pai.UpdateOpsAnnotations(map[string]string{ForceFallbackAnnotationKey: "true"})
+			pai.SetActiveScalingValues(time.Now(), nil, nil)
+			if source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
+				require.NotNil(t, pai.ScalingValues().Horizontal)
+				assert.Equal(t, int32(10), pai.ScalingValues().Horizontal.Replicas)
+			} else {
+				assert.Nil(t, pai.ScalingValues().Horizontal)
+			}
+		})
+	}
+}
+
 func BenchmarkUpdateFromPodAutoscaler(b *testing.B) {
 	dpa := &datadoghq.DatadogPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{

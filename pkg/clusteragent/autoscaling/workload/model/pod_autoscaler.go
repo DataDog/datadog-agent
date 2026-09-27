@@ -420,6 +420,15 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 	// Update scaling values
 	p.scalingValues.Horizontal = selectScalingValues(horizontalActiveSource).Horizontal
 
+	// A nil source retains the previous active values, which may be a product recommendation.
+	// While the fallback is forced but no local values are usable yet, keeping it would let the
+	// horizontal controller keep applying it (e.g. finishing a rate-limited scale-up), so only
+	// a previously applied local recommendation is retained.
+	if horizontalActiveSource == nil && p.fallbackForced &&
+		p.scalingValues.Horizontal != nil && p.scalingValues.Horizontal.Source != datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
+		p.scalingValues.Horizontal = nil
+	}
+
 	// selectScalingValues(nil) returns p.scalingValues — a self-assignment that would
 	// keep any previously-constrained vertical value (including a burstable sentinel)
 	// alive across cycles. When the backend stops emitting a vertical recommendation,

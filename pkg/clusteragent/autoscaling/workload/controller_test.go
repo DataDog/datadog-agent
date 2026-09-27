@@ -1388,7 +1388,7 @@ func TestGetActiveScalingSourcesOpsAnnotations(t *testing.T) {
 
 		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
 		assert.Nil(t, horizontalSource,
-			"the local recommender polls periodically: hold current values rather than using product values the operator asked to stop trusting")
+			"the local recommender polls periodically: select no source rather than product values the operator asked to stop trusting (SetActiveScalingValues then drops retained product values)")
 	})
 }
 

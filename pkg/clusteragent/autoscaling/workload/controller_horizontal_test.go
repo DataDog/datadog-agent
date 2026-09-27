@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	v2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1589,4 +1590,56 @@ func TestIsApplyModeAllowedPaused(t *testing.T) {
 		allowed, _ := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
 		assert.False(t, allowed, "pause must not be bypassable by omitting applyPolicy")
 	})
+}
+
+// TestHorizontalControllerForceFallbackWithoutLocalValues runs source selection followed by the
+// horizontal sync, as a reconcile does, for an autoscaler whose active values come from the
+// product when the fallback gets forced before any usable local values exist.
+func TestHorizontalControllerForceFallbackWithoutLocalValues(t *testing.T) {
+	testTime := time.Now()
+	f := newHorizontalControllerFixture(t, testTime)
+
+	expectedGVK := schema.GroupVersionKind{
+		Group:   "apps",
+		Version: "v1",
+		Kind:    "Deployment",
+	}
+	productValues := &model.HorizontalScalingValues{
+		Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		Timestamp: testTime.Add(-30 * time.Second),
+		Replicas:  10,
+	}
+	fakePai := model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "test",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name:       "test",
+				Kind:       expectedGVK.Kind,
+				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
+			},
+		},
+		CreationTimestamp: testTime.Add(-time.Hour),
+		// A product recommendation is active and not yet reached (e.g. limited by a scale-up rule).
+		MainScalingValues: model.ScalingValues{Horizontal: productValues},
+		ScalingValues:     model.ScalingValues{Horizontal: productValues},
+		TargetGVK:         expectedGVK,
+		CurrentReplicas:   pointer.Ptr[int32](5),
+	}
+	autoscalerInternal := fakePai.Build()
+	autoscalerInternal.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+
+	horizontalSource, verticalSource := getActiveScalingSources(f.clock.Now(), &autoscalerInternal)
+	autoscalerInternal.SetActiveScalingValues(f.clock.Now(), horizontalSource, verticalSource)
+
+	f.scaler.mockGet(fakePai, 5, 5, nil)
+	scale, gr, scaleErr := f.scaler.get(context.Background(), fakePai.Namespace, fakePai.Name, expectedGVK)
+	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: fakePai.Name, Namespace: fakePai.Namespace}}
+	result, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
+
+	require.NoError(t, err)
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.Nil(t, autoscalerInternal.ScalingValues().Horizontal,
+		"the product recommendation must not stay active once the operator forced the fallback")
+	f.scaler.AssertNumberOfCalls(t, "update", 0)
 }
