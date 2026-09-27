@@ -325,13 +325,27 @@ def tidy_all(ctx):
 
 
 @task
-def tidy(ctx, verbose: bool = False):
+def tidy(ctx, verbose: bool = False, time: bool = False):
+    """
+    time: report how long each of tidy's subtasks took.
+    """
     _check_valid_mods()
-    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose)
+    timings = []
+    (_bazel_tidy if shutil.which("bazel") else _go_only_tidy)(ctx, verbose, timings if time else None)
+    for result in sorted(timings, reverse=True):
+        print(f"{result.duration:6.2f}s  {result.name}", file=sys.stderr)
 
 
-def _go_only_tidy(ctx, verbose: bool):
-    ctx.run("go work sync")
+def _timed_step(name, timings, f):
+    if timings is None:
+        return f()
+    result, timing = TimedOperationResult.run(f, name, name)
+    timings.append(timing)
+    return result
+
+
+def _go_only_tidy(ctx, verbose: bool, timings=None):
+    _timed_step("go work sync", timings, lambda: ctx.run("go work sync"))
 
     if os.name != 'nt':  # not windows
         import resource
@@ -345,35 +359,52 @@ def _go_only_tidy(ctx, verbose: bool):
 
     # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
     verbosity = "-x" if verbose else ""
-    promises = []
-    for mod in get_default_modules().values():
-        with ctx.cd(mod.full_path()):
-            # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
-            promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 
-    for promise in promises:
-        promise.join()
+    def _tidy_all_modules():
+        promises = []
+        for mod in get_default_modules().values():
+            with ctx.cd(mod.full_path()):
+                # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
+                promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
+
+        for promise in promises:
+            promise.join()
+
+    _timed_step("go mod tidy (all modules)", timings, _tidy_all_modules)
 
     print("Done - " + bazel_not_found_message("orange"), file=sys.stderr)
 
 
-def _bazel_tidy(ctx, verbose: bool):
+def _bazel_tidy(ctx, verbose: bool, timings=None):
     # 1. deps/go.MODULE.bazel ↺ (prune stale use_repo declarations to not hinder next `bazel` commands)
-    bazel("mod", "--ui_event_filters=-DEBUG", "tidy")  # inhibit `No sum for … found` (go_mod_tidy_all will fix it)
+    # inhibit `No sum for … found` (go_mod_tidy_all will fix it)
+    _timed_step("bazel mod tidy (prune)", timings, lambda: bazel("mod", "--ui_event_filters=-DEBUG", "tidy"))
     # 2. go.work + **/go.mod -> **/go.mod (sync each workspace module's deps to the workspace build list)
-    bazel("run", "//:go", "work", "sync")
+    _timed_step("bazel run //:go work sync", timings, lambda: bazel("run", "//:go", "work", "sync"))
     # 3. **/*.go + **/go.mod -> **/go.mod, **/go.sum (reconcile each module's requirements with its actual imports)
-    bazel("run", "//:go_mod_tidy_all", *(("--", "-x") if verbose else ()))
+    _timed_step(
+        "bazel run //:go_mod_tidy_all",
+        timings,
+        lambda: bazel("run", "//:go_mod_tidy_all", *(("--", "-x") if verbose else ())),
+    )
     # 4. go.work + **/go.mod -> deps/go.MODULE.bazel (update use_repo declarations)
-    bazel("mod", "tidy")
+    _timed_step("bazel mod tidy", timings, lambda: bazel("mod", "tidy"))
     # 5. deps/go.MODULE.bazel + /BUILD.bazel + **/*.go + **/go.mod -> **/BUILD.bazel (infer build rules from Go source)
-    bazel("run", "//:gazelle")
+    _timed_step("bazel run //:gazelle", timings, lambda: bazel("run", "//:gazelle"))
     # 6. regenerate agent payload version file from go.mod
-    bazel("run", "//tasks:write_agent_payload_version")
+    _timed_step(
+        "bazel run //tasks:write_agent_payload_version",
+        timings,
+        lambda: bazel("run", "//tasks:write_agent_payload_version"),
+    )
     # 7. regenerate test/new-e2e/tests/test_binaries.bzl
     from tasks.new_e2e_tests import write_test_binaries_bzl
 
-    write_test_binaries_bzl(ctx)
+    _timed_step(
+        "write test binaries",
+        timings,
+        lambda: write_test_binaries_bzl(ctx),
+    )
 
 
 @task(autoprint=True)
