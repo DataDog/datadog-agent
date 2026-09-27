@@ -37,27 +37,41 @@ func (s *BaseSuite) assertManagedByProcmgr(processName string) {
 
 // restartUnderProcmgr cycles a supervised process so it rereads its configuration.
 //
-// dd-procmgr has no restart command, and its stop returns once the stop is requested rather
-// than once the child is gone, so the intermediate Stopped state has to be waited for
-// explicitly. The explicit start is not subject to the process's config gate, which only
-// governs auto-start and reload.
+// dd-procmgr has no restart command, so this is a stop followed by a start. The explicit start
+// is not subject to the process's config gate, which only governs auto-start and reload.
 func (s *BaseSuite) restartUnderProcmgr(processName string) {
 	s.T().Helper()
-	cli := s.procmgrCLIPath()
+	s.procmgrCommandUntilState(processName, "stop", "Stopped")
+	s.procmgrCommandUntilState(processName, "start", "Running")
+	s.assertManagedByProcmgr(processName)
+}
 
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`& '%s' stop %s`, strings.ReplaceAll(cli, `'`, `''`), processName))
-	s.Require().NoErrorf(err, "failed to stop %s under dd-procmgrd", processName)
+// procmgrCommandUntilState issues `dd-procmgr <verb> <processName>` until dd-procmgrd reports
+// wantState.
+//
+// Retrying rather than requiring the first request to succeed: these commands travel over
+// dd-procmgrd's local gRPC channel, which has been seen aborting a call mid-flight, and the
+// state dd-procmgrd reports afterwards is the only thing the test actually depends on.
+func (s *BaseSuite) procmgrCommandUntilState(processName, verb, wantState string) {
+	s.T().Helper()
+	cli := s.procmgrCLIPath()
+	command := fmt.Sprintf(`& '%s' %s %s`, strings.ReplaceAll(cli, `'`, `''`), verb, processName)
+
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		state, err := windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, cli, processName, "State")
+		if err != nil || state != wantState {
+			// dd-procmgr rejects a verb the state has already reached, so this only runs while
+			// the process still needs it, or while the state cannot be read at all.
+			if _, execErr := s.Env().RemoteHost.Execute(command); execErr != nil {
+				s.T().Logf("dd-procmgr %s %s failed: %v", verb, processName, execErr)
+			}
+			state, err = windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, cli, processName, "State")
+		}
 		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Equal(c, "Stopped", state, "%s should have stopped under dd-procmgrd", processName)
-	}, 1*time.Minute, 2*time.Second)
-
-	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf(`& '%s' start %s`, strings.ReplaceAll(cli, `'`, `''`), processName))
-	s.Require().NoErrorf(err, "failed to start %s under dd-procmgrd", processName)
-	s.assertManagedByProcmgr(processName)
+		assert.Equalf(c, wantState, state, "%s should be %s under dd-procmgrd", processName, wantState)
+	}, 2*time.Minute, 5*time.Second)
 }
 
 // assertNotRunningUnderProcmgr verifies processName is declared to dd-procmgrd but was never
@@ -72,8 +86,16 @@ func (s *BaseSuite) assertNotRunningUnderProcmgr(processName string) {
 	s.Require().Host(s.Env().RemoteHost).FileExists(s.procmgrConfigPath(processName),
 		"%s should have a processes.d config", processName)
 
-	state, err := windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, s.procmgrCLIPath(), processName, "State")
-	s.Require().NoError(err)
+	// Only the read is retried, so a dd-procmgrd channel that aborts a call does not read as a
+	// verdict on the state. The state itself gets one chance: Created is not a stage anything
+	// passes through, so a retry could only mask a process that was started and stopped again.
+	var state string
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		var err error
+		state, err = windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, s.procmgrCLIPath(), processName, "State")
+		assert.NoError(c, err)
+	}, 1*time.Minute, 5*time.Second, "should be able to read the %s state from dd-procmgrd", processName)
+
 	s.Require().Equal("Created", state,
 		"%s should never have been started by dd-procmgrd", processName)
 }
