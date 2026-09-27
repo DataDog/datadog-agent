@@ -608,6 +608,8 @@ DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/consta
 
 @task
 def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
@@ -615,6 +617,8 @@ def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONS
 
 @task
 def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
