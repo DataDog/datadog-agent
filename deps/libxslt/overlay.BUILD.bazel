@@ -1,29 +1,12 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 XSLT_VERSION = "1.1.45"
-
 EXSLT_VERSION = "0.8.25"
-
-package(default_package_metadata = [":package_metadata"])
-
-package_metadata(
-    name = "package_metadata",
-    attributes = [
-        ":license",
-    ],
-    purl = purl_for_generic(
-        download_url = "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.45.tar.xz",
-        package = "libxslt",
-        version = XSLT_VERSION,
-    ),
-)
 
 license(
     name = "license",
@@ -44,6 +27,7 @@ copy_file(
 
 expand_template(
     name = "xsltconfig_h",
+    template = "libxslt/xsltconfig.h.in",
     out = "libxslt/xsltconfig.h",
     substitutions = {
         "@VERSION@": XSLT_VERSION,
@@ -55,7 +39,6 @@ expand_template(
         "@WITH_PROFILER@": "0",
         "@WITH_MODULES@": "0",
     },
-    template = "libxslt/xsltconfig.h.in",
 )
 
 _PUBLIC_XSLT_HDRS = [
@@ -85,6 +68,7 @@ _PUBLIC_XSLT_HDRS = [
 
 cc_library(
     name = "libxslt",
+    hdrs = _PUBLIC_XSLT_HDRS,
     srcs = [
         "libxslt/attributes.c",
         "libxslt/attrvt.c",
@@ -94,7 +78,6 @@ cc_library(
         "libxslt/functions.c",
         "libxslt/imports.c",
         "libxslt/keys.c",
-        "libxslt/libxslt.h",
         "libxslt/namespaces.c",
         "libxslt/numbers.c",
         "libxslt/pattern.c",
@@ -106,35 +89,35 @@ cc_library(
         "libxslt/xslt.c",
         "libxslt/xsltlocale.c",
         "libxslt/xsltutils.c",
+        "libxslt/libxslt.h",
         ":copy_config_h",
-    ],
-    hdrs = _PUBLIC_XSLT_HDRS,
-    copts = [
-        "-O2",
     ],
     includes = [
         ".",
+    ],
+    deps = [
+        "@libxml2",
+    ],
+    copts = [
+        "-O2",
     ],
     local_defines = [
         "HAVE_CONFIG_H",
         "NDEBUG",
     ],
     visibility = ["//visibility:public"],
-    deps = [
-        "@libxml2",
-    ],
 )
 
 cc_shared_library(
     name = "xslt",
-    additional_linker_inputs = ["libxslt/libxslt.syms"],
+    deps = [":libxslt"],
     # Ensure we don't statically link with libxml2
     dynamic_deps = ["@libxml2//:xml2_pkg"],
+    additional_linker_inputs = ["libxslt/libxslt.syms"],
     user_link_flags = [
         "-Wl,--version-script=$(location libxslt/libxslt.syms)",
     ],
     visibility = ["//visibility:public"],
-    deps = [":libxslt"],
 )
 
 pkg_files(
@@ -145,15 +128,16 @@ pkg_files(
 
 dd_cc_packaged(
     name = "xslt_pkg",
-    dest_dir = "embedded/lib",
     input = ":xslt",
-    installed_files = [":xslt_headers"],
+    dest_dir = "embedded/lib",
     version = XSLT_VERSION,
+    installed_files = [":xslt_headers"],
     visibility = ["//visibility:public"],
 )
 
 expand_template(
     name = "exsltconfig_h",
+    template = "libexslt/exsltconfig.h.in",
     out = "libexslt/exsltconfig.h",
     substitutions = {
         "@VERSION@": EXSLT_VERSION,
@@ -161,7 +145,6 @@ expand_template(
         "@LIBEXSLT_VERSION_EXTRA@": "",
         "@WITH_CRYPTO@": "0",
     },
-    template = "libexslt/exsltconfig.h.in",
 )
 
 _PUBLIC_EXSLT_HDRS = [
@@ -172,6 +155,7 @@ _PUBLIC_EXSLT_HDRS = [
 
 cc_library(
     name = "libexslt",
+    hdrs = _PUBLIC_EXSLT_HDRS,
     srcs = [
         "libexslt/common.c",
         "libexslt/crypto.c",
@@ -185,32 +169,28 @@ cc_library(
         "libexslt/sets.c",
         "libexslt/strings.c",
     ],
-    hdrs = _PUBLIC_EXSLT_HDRS,
-    copts = [
-        "-O2",
-    ],
     includes = [
         ".",
+    ],
+    deps = [
+        "@libxml2",
+        ":libxslt",
+    ],
+    copts = [
+        "-O2",
     ],
     local_defines = [
         "HAVE_CONFIG_H",
         "NDEBUG",
     ],
     visibility = ["//visibility:public"],
-    deps = [
-        ":libxslt",
-        "@libxml2",
-    ],
 )
 
 cc_shared_library(
     name = "exslt",
-    dynamic_deps = [
-        "@libxml2//:xml2_pkg",
-        ":xslt_pkg",
-    ],
-    visibility = ["//visibility:public"],
     deps = [":libexslt"],
+    dynamic_deps = ["@libxml2//:xml2_pkg", ":xslt_pkg"],
+    visibility = ["//visibility:public"],
 )
 
 pkg_files(
@@ -221,21 +201,18 @@ pkg_files(
 
 dd_cc_packaged(
     name = "exslt_pkg",
-    dest_dir = "embedded/lib",
     input = ":exslt",
-    installed_files = [":exslt_headers"],
+    dest_dir = "embedded/lib",
     version = "0.8.25",
+    installed_files = [":exslt_headers"],
     visibility = ["//visibility:public"],
 )
 
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        ":exslt_headers",
         ":xslt_headers",
+        ":exslt_headers",
     ],
-    visibility = [
-        "@@//deps/openscap:__pkg__",
-        "@@//packages:__subpackages__",
-    ],
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
