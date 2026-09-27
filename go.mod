@@ -243,7 +243,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
-	github.com/bmatcuk/doublestar/v4 v4.10.0
+	github.com/bmatcuk/doublestar/v4 v4.10.1
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
@@ -252,7 +252,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.11.1
-	github.com/containerd/containerd/v2 v2.2.8
+	github.com/containerd/containerd/v2 v2.2.9
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
 	github.com/containernetworking/cni v1.3.1
@@ -283,7 +283,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gocomply/scap v0.1.3
 	github.com/godbus/dbus/v5 v5.2.2
-	github.com/godror/godror v0.51.4
+	github.com/godror/godror v0.51.5
 	github.com/gofrs/flock v0.13.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.1

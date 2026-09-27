@@ -11,12 +11,60 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
+
+// readMSIProductName reads ProductName without installing the package.
+func readMSIProductName(filename string) (string, error) {
+	filenamePtr, err := windows.UTF16PtrFromString(filename)
+	if err != nil {
+		return "", err
+	}
+	// MSI handles must be closed on the thread that created them.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	dll := windows.NewLazySystemDLL("msi.dll")
+	closeHandle := dll.NewProc("MsiCloseHandle")
+	var database, view, record uint32
+	ret, _, _ := dll.NewProc("MsiOpenDatabaseW").Call(
+		uintptr(unsafe.Pointer(filenamePtr)), 0, uintptr(unsafe.Pointer(&database)), // MSIDBOPEN_READONLY
+	)
+	if ret != 0 {
+		return "", fmt.Errorf("open MSI database: %w", windows.Errno(ret))
+	}
+	defer func() { _, _, _ = closeHandle.Call(uintptr(database)) }()
+
+	query := windows.StringToUTF16Ptr("SELECT `Value` FROM `Property` WHERE `Property` = 'ProductName'")
+	ret, _, _ = dll.NewProc("MsiDatabaseOpenViewW").Call(uintptr(database), uintptr(unsafe.Pointer(query)), uintptr(unsafe.Pointer(&view)))
+	if ret != 0 {
+		return "", fmt.Errorf("open MSI product query: %w", windows.Errno(ret))
+	}
+	defer func() { _, _, _ = closeHandle.Call(uintptr(view)) }()
+	ret, _, _ = dll.NewProc("MsiViewExecute").Call(uintptr(view), 0)
+	if ret != 0 {
+		return "", fmt.Errorf("execute MSI product query: %w", windows.Errno(ret))
+	}
+	ret, _, _ = dll.NewProc("MsiViewFetch").Call(uintptr(view), uintptr(unsafe.Pointer(&record)))
+	if ret != 0 {
+		return "", fmt.Errorf("fetch MSI product: %w", windows.Errno(ret))
+	}
+	defer func() { _, _, _ = closeHandle.Call(uintptr(record)) }()
+
+	var product [256]uint16
+	size := uint32(len(product))
+	ret, _, _ = dll.NewProc("MsiRecordGetStringW").Call(uintptr(record), 1, uintptr(unsafe.Pointer(&product[0])), uintptr(unsafe.Pointer(&size)))
+	if ret != 0 {
+		return "", fmt.Errorf("read MSI ProductName: %w", windows.Errno(ret))
+	}
+	return windows.UTF16ToString(product[:]), nil
+}
 
 // Product represents a software from the Windows Registry
 type Product struct {

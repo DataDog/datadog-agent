@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add Fleet-managed upgrades and rollback for Windows FIPS Agents.
