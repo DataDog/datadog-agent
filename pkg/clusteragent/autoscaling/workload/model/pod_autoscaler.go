@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -82,6 +83,12 @@ type PodAutoscalerInternal struct {
 
 	// previewOptions holds the parsed preview feature flags from the DPA annotations
 	previewOptions previewOptions
+
+	// paused is set from the pause annotation on the DPA object
+	paused bool
+
+	// fallbackForced is set from the force-fallback annotation on the DPA object
+	fallbackForced bool
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
@@ -261,6 +268,51 @@ func parsePreviewAnnotationString(raw string) previewOptions {
 	return opts
 }
 
+// UpdateOpsAnnotations parses the operational override annotations (pause, force-fallback).
+// Unlike the spec, these annotations are user-owned whatever the ownership model is, so the
+// controller applies them on every sync for every owner, outside the owner-specific logic.
+func (p *PodAutoscalerInternal) UpdateOpsAnnotations(annotations map[string]string) {
+	p.paused = parseOpsBoolAnnotation(annotations, PauseAnnotationKey)
+	p.fallbackForced = parseOpsBoolAnnotation(annotations, ForceFallbackAnnotationKey)
+}
+
+// parseOpsBoolAnnotation parses a boolean operational annotation. An annotation that is
+// absent, empty or not a valid boolean is treated as not set.
+func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
+	value, err := strconv.ParseBool(annotations[key])
+	if err != nil {
+		return false
+	}
+
+	return value
+}
+
+// IsPaused returns true if every action of the autoscaler is paused.
+func (p *PodAutoscalerInternal) IsPaused() bool {
+	return p.paused
+}
+
+// IsFallbackForced returns true if the local recommender is forced as the active source.
+func (p *PodAutoscalerInternal) IsFallbackForced() bool {
+	return p.fallbackForced
+}
+
+// EffectiveApplyMode returns the apply mode to enforce, which is the spec apply mode unless
+// the autoscaler is paused. Routing pause through the apply mode keeps a single gate for all
+// actions instead of a separate check at each call site.
+func (p *PodAutoscalerInternal) EffectiveApplyMode() datadoghq.DatadogPodAutoscalerApplyMode {
+	if p.paused {
+		return datadoghq.DatadogPodAutoscalerApplyModePreview
+	}
+
+	spec := p.Spec()
+	if spec == nil || spec.ApplyPolicy == nil || spec.ApplyPolicy.Mode == "" {
+		return datadoghq.DatadogPodAutoscalerApplyModeApply
+	}
+
+	return spec.ApplyPolicy.Mode
+}
+
 // setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
 // to keep them in sync. Passing an empty string removes the annotation.
 func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
@@ -322,6 +374,9 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	// without branching on profile-managed vs standalone.
 	// For profile-managed DPAs, UpdateFromProfile() will overwrite this with the profile value.
 	p.previewOptions = parsePreviewAnnotationString(podAutoscaler.Annotations[PreviewAnnotationKey])
+	// Covers object creation. On sync the controller calls UpdateOpsAnnotations for every
+	// owner, as this function only runs for local-owner DPAs.
+	p.UpdateOpsAnnotations(podAutoscaler.Annotations)
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -1088,6 +1143,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition:   nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply:                nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition:    nil,
+		DatadogPodAutoscalerPausedCondition:                                    nil,
 	}
 
 	if currentStatus != nil {
@@ -1111,6 +1167,14 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "Target has been scaled to 0 replicas", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
 	} else {
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
+	}
+
+	// Building paused condition, the visible proof that the pause annotation was read whatever
+	// the ownership model is. Only surfaced while paused: the overwhelming majority of
+	// autoscalers are not, and an always-present "Paused: False" would add noise to every
+	// object for no signal.
+	if p.paused {
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", "", currentTime, DatadogPodAutoscalerPausedCondition, existingConditions))
 	}
 
 	// Building errors related to compute recommendations

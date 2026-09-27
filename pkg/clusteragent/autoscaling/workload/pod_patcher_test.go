@@ -1041,6 +1041,86 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 	}
 }
 
+// TestPatcherApplyRecommendationsPaused covers the admission path for a paused autoscaler.
+// ApplyRecommendations deliberately rewrites container resources even when the recommendation
+// annotation already matches, to undo manual pod edits. While paused that rewrite must not
+// happen, otherwise a user editing the target workload would see every replacement pod come
+// back with the recommended resources.
+func TestPatcherApplyRecommendationsPaused(t *testing.T) {
+	newStore := func(paused bool) *store {
+		s := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
+		item, _ := s.Get("ns1/autoscaler1")
+		pai := model.FakePodAutoscalerInternal{
+			Namespace: "ns1",
+			Name:      "autoscaler1",
+			Spec: &datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: autoscalingv2.CrossVersionObjectReference{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+					Name:       "test-deployment",
+				},
+			},
+			ScalingValues: model.ScalingValues{
+				Vertical: &model.VerticalScalingValues{
+					Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ResourcesHash: "version1",
+					ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+						{Name: "container1", Requests: corev1.ResourceList{"cpu": resource.MustParse("500m")}},
+					},
+				},
+			},
+		}.Build()
+		if paused {
+			pai.UpdateOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+		}
+		item.Upsert(pai, "")
+		return s
+	}
+
+	// The user set 250m by hand; the recommendation says 500m.
+	newPod := func() *corev1.Pod {
+		return &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: "ns1",
+				Name:      "pod1",
+				OwnerReferences: []metav1.OwnerReference{{
+					Kind:       "ReplicaSet",
+					Name:       "test-deployment-968f49d86",
+					APIVersion: "apps/v1",
+				}},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{
+					Name: "container1",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{"cpu": resource.MustParse("250m")},
+					},
+				}},
+			},
+		}
+	}
+
+	t.Run("not paused rewrites the manual value", func(t *testing.T) {
+		pod := newPod()
+		_, err := NewPodPatcher(newStore(false), nil, nil).ApplyRecommendations(pod)
+		require.NoError(t, err)
+		assert.Equal(t, "500m", pod.Spec.Containers[0].Resources.Requests.Cpu().String(),
+			"baseline: without pause the webhook reverts the manual edit")
+	})
+
+	t.Run("paused keeps the manual value", func(t *testing.T) {
+		pod := newPod()
+		_, err := NewPodPatcher(newStore(true), nil, nil).ApplyRecommendations(pod)
+		require.NoError(t, err)
+		assert.Equal(t, "250m", pod.Spec.Containers[0].Resources.Requests.Cpu().String(),
+			"a paused autoscaler must leave the user's resources alone")
+		// Ownership stays visible so the pod can still be traced back to its autoscaler,
+		// but the recommendation is not stamped since it was not applied.
+		assert.Equal(t, "ns1/autoscaler1", pod.Annotations[model.AutoscalerIDAnnotation])
+		assert.NotContains(t, pod.Annotations, model.RecommendationIDAnnotation)
+	})
+}
+
 func TestFindAutoscaler(t *testing.T) {
 	tests := []struct {
 		name                 string

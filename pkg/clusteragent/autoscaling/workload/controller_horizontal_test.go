@@ -1544,3 +1544,49 @@ func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T)
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
 }
+
+// TestIsApplyModeAllowedPaused verifies the final horizontal gate refuses to act while paused,
+// including on autoscalers that have no applyPolicy at all.
+func TestIsApplyModeAllowedPaused(t *testing.T) {
+	newInternal := func(applyPolicy *datadoghq.DatadogPodAutoscalerApplyPolicy, paused bool) model.PodAutoscalerInternal {
+		pai := model.FakePodAutoscalerInternal{
+			Namespace: "default",
+			Name:      "dpa-0",
+			Spec: &datadoghq.DatadogPodAutoscalerSpec{
+				ApplyPolicy: applyPolicy,
+			},
+		}.Build()
+		if paused {
+			pai.UpdateOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+		}
+		return pai
+	}
+
+	applyPolicy := &datadoghq.DatadogPodAutoscalerApplyPolicy{Mode: datadoghq.DatadogPodAutoscalerApplyModeApply}
+
+	t.Run("allowed when not paused", func(t *testing.T) {
+		pai := newInternal(applyPolicy, false)
+		allowed, reason := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
+		assert.True(t, allowed)
+		assert.Empty(t, reason)
+	})
+
+	t.Run("allowed when no apply policy is set", func(t *testing.T) {
+		pai := newInternal(nil, false)
+		allowed, _ := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
+		assert.True(t, allowed, "an absent applyPolicy must keep defaulting to Apply")
+	})
+
+	t.Run("refused when paused", func(t *testing.T) {
+		pai := newInternal(applyPolicy, true)
+		allowed, reason := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
+		assert.False(t, allowed)
+		assert.Contains(t, reason, "paused")
+	})
+
+	t.Run("refused when paused without an apply policy", func(t *testing.T) {
+		pai := newInternal(nil, true)
+		allowed, _ := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
+		assert.False(t, allowed, "pause must not be bypassable by omitting applyPolicy")
+	})
+}

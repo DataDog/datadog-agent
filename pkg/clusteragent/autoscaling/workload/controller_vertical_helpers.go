@@ -119,6 +119,10 @@ func getVerticalPatchingStrategy(autoscalerInternal *model.PodAutoscalerInternal
 		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "no scaling values available"
 	}
 
+	if autoscalerInternal.IsPaused() {
+		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "vertical scaling paused by the pause annotation"
+	}
+
 	// By default, policy is to allow all
 	if autoscalerInternal.Spec().ApplyPolicy == nil {
 		return datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, ""

@@ -45,9 +45,14 @@ func TestProcessScaleUp(t *testing.T) {
 	// setup store
 	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	item1, _ := store.Get("default/autoscaler1")
-	item1.Upsert(newAutoscaler(true), "")
+	item1.Upsert(newAutoscaler("autoscaler1", true), "")
 	item2, _ := store.Get("default/autoscaler2")
-	item2.Upsert(newAutoscaler(false), "")
+	item2.Upsert(newAutoscaler("autoscaler2", false), "")
+	// Fallback disabled in the spec, but an operator forced it through the annotation.
+	item3, _ := store.Get("default/autoscaler3")
+	forced := newAutoscaler("autoscaler3", false)
+	forced.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+	item3.Upsert(forced, "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)
@@ -80,6 +85,12 @@ func TestProcessScaleUp(t *testing.T) {
 	pai2, found := store.Peek("default/autoscaler2")
 	assert.True(t, found)
 	assert.Nil(t, pai2.FallbackScalingValues().Horizontal)
+
+	// check that forcing the fallback produces values even though the spec disabled it,
+	// otherwise the override would silently do nothing on exactly those autoscalers.
+	pai3, found := store.Peek("default/autoscaler3")
+	assert.True(t, found)
+	assert.NotNil(t, pai3.FallbackScalingValues().Horizontal)
 
 	resetWorkloadMetricStore()
 }
@@ -125,9 +136,9 @@ func TestProcessScaleDown(t *testing.T) {
 	// setup store
 	store := autoscalingstore.NewStore[model.PodAutoscalerInternal]()
 	item1, _ := store.Get("default/autoscaler1")
-	item1.Upsert(newAutoscaler(true), "")
+	item1.Upsert(newAutoscaler("autoscaler1", true), "")
 	item2, _ := store.Get("default/autoscaler2")
-	item2.Upsert(newAutoscaler(false), "")
+	item2.Upsert(newAutoscaler("autoscaler2", false), "")
 
 	// setup loadstore
 	lStore := loadstore.GetWorkloadMetricStore(ctx)

@@ -71,6 +71,11 @@ func (r *Recommender) process(ctx context.Context) {
 	}
 
 	localFallbackFilter := func(podAutoscaler model.PodAutoscalerInternal) bool {
+		// An operator forcing the fallback needs local values even on autoscalers that opted
+		// out, otherwise the override would silently do nothing.
+		if podAutoscaler.IsFallbackForced() {
+			return true
+		}
 		// Only return false if Fallback exists and Horizontal.Enabled is explicitly set to false
 		if podAutoscaler.Spec().Fallback != nil && !podAutoscaler.Spec().Fallback.Horizontal.Enabled {
 			return false
