@@ -28,11 +28,18 @@ package_metadata(
     attributes = [
         ":license",
     ],
-    purl = purl_for_generic(
-        download_url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{version}_amd64.deb",
-        package = "msodbcsql18",
-        version = VERSION,
-    ),
+    purl = select({
+        "//:linux_x86_64": purl_for_generic(
+            download_url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{version}_amd64.deb",
+            package = "msodbcsql18",
+            version = VERSION,
+        ),
+        "//:linux_arm64": purl_for_generic(
+            download_url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{version}_arm64.deb",
+            package = "msodbcsql18",
+            version = VERSION,
+        ),
+    }),
 )
 
 # I couldn't find a license kind in sdpx
