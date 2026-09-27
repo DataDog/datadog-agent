@@ -1916,7 +1916,6 @@ A thread joined an existing namespace
 
 | Property | Definition |
 | -------- | ------------- |
-| [`setns.fd`](#setns-fd-doc) | File descriptor of the namespace the thread requested to join |
 | [`setns.mntns`](#setns-mntns-doc) | MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
 | [`setns.netns`](#setns-netns-doc) | NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
 | [`setns.nstype`](#setns-nstype-doc) | Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined |
@@ -4786,13 +4785,6 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
-
-
-
-### `setns.fd` {#setns-fd-doc}
-Type: int
-
-Definition: File descriptor of the namespace the thread requested to join
 
 
 

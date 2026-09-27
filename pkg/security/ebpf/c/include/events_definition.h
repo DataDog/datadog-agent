@@ -621,7 +621,6 @@ struct setns_event_t {
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
-    s32 fd;
     s32 nstype;
     u32 mntns_id;
     u32 netns_id;

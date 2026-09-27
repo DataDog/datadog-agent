@@ -2130,12 +2130,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		switch key {
-		case "fd":
-			if in.IsNull() {
-				in.Skip()
-			} else {
-				out.FD = int(in.Int())
-			}
 		case "nstype":
 			if in.IsNull() {
 				in.Skip()
@@ -2169,13 +2163,8 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers14(
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"fd\":"
-		out.RawString(prefix[1:])
-		out.Int(int(in.FD))
-	}
-	{
 		const prefix string = ",\"nstype\":"
-		out.RawString(prefix)
+		out.RawString(prefix[1:])
 		out.String(string(in.NSType))
 	}
 	if in.MntNS != 0 {

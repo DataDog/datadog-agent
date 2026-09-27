@@ -704,8 +704,6 @@ type UnshareEventSerializer struct {
 // SetNSEventSerializer serializes a setns event
 // easyjson:json
 type SetNSEventSerializer struct {
-	// File descriptor of the namespace the thread requested to join
-	FD int `json:"fd"`
 	// Namespace types the thread joined, ANY if the type couldn't be determined
 	NSType string `json:"nstype"`
 	// Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved
@@ -1654,7 +1652,6 @@ func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
 
 func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
 	return &SetNSEventSerializer{
-		FD:     e.SetNS.FD,
 		NSType: model.NamespaceType(e.SetNS.NSType).String(),
 		MntNS:  e.SetNS.MntNS,
 		NetNS:  e.SetNS.NetNS,

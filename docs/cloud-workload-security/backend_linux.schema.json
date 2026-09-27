@@ -1967,10 +1967,6 @@
     },
     "SetNSEvent": {
       "properties": {
-        "fd": {
-          "type": "integer",
-          "description": "File descriptor of the namespace the thread requested to join"
-        },
         "nstype": {
           "type": "string",
           "description": "Namespace types the thread joined, ANY if the type couldn't be determined"
@@ -1987,7 +1983,6 @@
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "fd",
         "nstype"
       ],
       "description": "SetNSEventSerializer serializes a setns event"

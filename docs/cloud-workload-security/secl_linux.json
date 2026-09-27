@@ -7837,11 +7837,6 @@
       "experimental": false,
       "properties": [
         {
-          "name": "setns.fd",
-          "definition": "File descriptor of the namespace the thread requested to join",
-          "property_doc_link": "setns-fd-doc"
-        },
-        {
           "name": "setns.mntns",
           "definition": "MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
           "property_doc_link": "setns-mntns-doc"
@@ -16910,18 +16905,6 @@
       "definition": "New group of the process",
       "prefixes": [
         "setgid"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "setns.fd",
-      "link": "setns-fd-doc",
-      "type": "int",
-      "definition": "File descriptor of the namespace the thread requested to join",
-      "prefixes": [
-        "setns"
       ],
       "constants": "",
       "constants_link": "",

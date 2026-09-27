@@ -85,11 +85,7 @@ struct syscall_cache_t {
         } setrlimit;
 
         struct {
-            s32 fd;
             s32 nstype;
-            // namespaces of the calling thread once the new nsproxy is committed, resolved by
-            // hook_switch_task_namespaces. Left to 0 when the kernel commits no nsproxy at all
-            // (CLONE_NEWUSER only) or when the offsets are unavailable.
             u32 mntns_id;
             u32 netns_id;
             // namespace types the kernel actually installed, accumulated by the per-namespace

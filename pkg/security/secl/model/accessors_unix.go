@@ -22830,17 +22830,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
-	case "setns.fd":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.SetNS.FD
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
 	case "setns.mntns":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -39218,7 +39207,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
-		"setns.fd",
 		"setns.mntns",
 		"setns.netns",
 		"setns.nstype",
@@ -43075,8 +43063,6 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", false, nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", false, nil
-	case "setns.fd":
-		return "setns", reflect.Int, "int", false, nil
 	case "setns.mntns":
 		return "setns", reflect.Int, "int", false, nil
 	case "setns.netns":
@@ -48826,8 +48812,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("setgid.gid", &ev.SetGID.GID, value)
 	case "setgid.group":
 		return ev.setStringFieldValue("setgid.group", &ev.SetGID.Group, value)
-	case "setns.fd":
-		return ev.setIntFieldValue("setns.fd", &ev.SetNS.FD, value)
 	case "setns.mntns":
 		return ev.setUint32FieldValue("setns.mntns", &ev.SetNS.MntNS, value)
 	case "setns.netns":
