@@ -1185,7 +1185,7 @@ type SetrlimitEvent struct {
 type SetNSEvent struct {
 	SyscallEvent
 	FD     int    `field:"fd"`     // SECLDoc[fd] Definition:`File descriptor of the namespace the thread requested to join`
-	NSType int    `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Namespace types`
+	NSType int    `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Clone flags`
 	MntNS  uint32 `field:"mntns"`  // SECLDoc[mntns] Definition:`MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
 	NetNS  uint32 `field:"netns"`  // SECLDoc[netns] Definition:`NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
 }
