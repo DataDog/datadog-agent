@@ -23,6 +23,13 @@ import (
 // instrument-start command.
 var launcherPreloadPath = filepath.Join(injectOCIPath, "stable", "inject", "launcher.preload.so")
 
+func launcherPreloadPathFor(arch e2eos.Architecture) string {
+	if arch == e2eos.AMD64Arch {
+		return strings.Replace(launcherPreloadPath, "/launcher.preload.so", "/$LIB/launcher.preload.so", 1)
+	}
+	return launcherPreloadPath
+}
+
 // crashyConstructorUnconditionalSrc is a tiny C source compiled into a shared
 // library whose ELF constructor calls _exit(1) unconditionally — regardless of
 // whether the lib is loaded via LD_PRELOAD env var or /etc/ld.so.preload.
@@ -153,7 +160,7 @@ func (s *packageApmInjectSuite) TestSystemdServiceReboot() {
 
 	// End-to-end check: the tracer is injected into a freshly-spawned process
 	// and the resulting trace lands in fakeintake.
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
@@ -206,8 +213,8 @@ func (s *packageApmInjectSuite) TestOlderAgentAPMInjectService() {
 	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
 	preload, err := s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
-	require.Contains(s.T(), string(preload), launcherPreloadPath)
-	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	require.Contains(s.T(), string(preload), launcherPreloadPathFor(s.arch))
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncherFor(s.arch))
 
 	oldInstallerPath := "/opt/datadog-packages/datadog-agent/stable/embedded/bin/installer"
 	help, err := host.Execute("sudo " + oldInstallerPath + " apm --help")
@@ -293,8 +300,8 @@ func (s *packageApmInjectSuite) TestAgentDowngradeReinstallsAPMInject() {
 	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")
 	preload, err := s.host.ReadFile("/etc/ld.so.preload")
 	require.NoError(s.T(), err)
-	require.Contains(s.T(), string(preload), launcherPreloadPath)
-	require.NotContains(s.T(), string(preload), injectTmpfsLauncher)
+	require.Contains(s.T(), string(preload), launcherPreloadPathFor(s.arch))
+	require.NotContains(s.T(), string(preload), injectTmpfsLauncherFor(s.arch))
 
 	s.reboot()
 	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service", "datadog-agent.service", "datadog-agent-trace.service")

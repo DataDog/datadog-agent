@@ -146,7 +146,10 @@ ENV JAVA_TOOL_OPTIONS="${WITH_JMX_FIPS:+--module-path=/opt/bouncycastle-fips -Dj
 # S6 entrypoint, service definitions, healthcheck probe
 COPY s6-services /etc/services.d/
 COPY cont-init.d /etc/cont-init.d/
-COPY probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
+COPY probe.sh par-probe.sh initlog.sh secrets-helper/readsecret.py secrets-helper/readsecret.sh secrets-helper/readsecret_multiple_providers.sh /
+
+# dd-procmgrd process definitions
+COPY --chmod=644 processes.d /opt/datadog-agent/processes.d/
 
 ##########################################################
 #  Preparation stage: extract Agent package and cleanup  #
@@ -216,10 +219,10 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && install -o dd-agent -g root -m 0440 /dev/null /opt/datadog-agent/.dd-agent-identity \
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
-  && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog && mkdir -p /opt/datadog-agent/run \
-  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
-  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /opt/datadog-agent/run \
-  && chmod 755 /probe.sh /initlog.sh \
+  && rm /var/run && mkdir -p /var/run/s6 /var/run/datadog /var/run/datadog-procmgrd /opt/datadog-agent/run \
+  && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
+  && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
+  && chmod 755 /probe.sh /par-probe.sh /initlog.sh \
   && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh /opt/datadog-agent/embedded/bin/secret-generic-connector \
   # Keep the PAR config read-only, but group-readable so init containers can
@@ -245,8 +248,13 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN apt-get purge -y adduser \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN apt-get purge -y adduser passwd \
+  # Keep license/copyright attribution (/usr/share/doc/*/copyright, /usr/share/common-licenses),
+  # drop the rest of the package documentation (changelogs, READMEs, etc.)
+  && find /usr/share/doc -mindepth 1 -type f ! -name 'copyright*' -delete \
+  && find /usr/share/doc -mindepth 1 -type d -empty -delete \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl \
+    /usr/share/man /usr/share/info /usr/share/lintian /usr/share/bash-completion
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Enable FIPS if needed

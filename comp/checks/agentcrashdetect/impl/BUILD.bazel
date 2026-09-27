@@ -22,7 +22,7 @@ go_library(
             "//pkg/util/crashreport",
             "//pkg/util/log",
             "//pkg/util/option",
-            "@in_yaml_go_yaml_v2//:yaml",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],

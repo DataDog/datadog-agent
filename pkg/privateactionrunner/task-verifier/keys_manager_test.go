@@ -71,3 +71,40 @@ func TestKeysManagerReturnsDirectorProofForKeyTarget(t *testing.T) {
 	assert.Equal(t, rcClient.proof.TargetPath, proof.TargetPath)
 	assert.Equal(t, rcClient.proof.TargetFile, proof.TargetFile)
 }
+
+func TestEagerKeysManagerReturnsDirectorProofAfterProviderAttached(t *testing.T) {
+	const targetPath = "datadog/42/AP_RUNNER_KEYS/key-1/config"
+	public, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	der, err := x509.MarshalPKIXPublicKey(public)
+	require.NoError(t, err)
+	rawKey, err := json.Marshal(types.RawKey{
+		KeyType: types.KeyTypeED25519,
+		Key:     pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}),
+	})
+	require.NoError(t, err)
+
+	rcClient := &proofRCClient{proof: state.ConfigTUFProof{
+		Roots:      [][]byte{[]byte("root-2")},
+		Targets:    []byte("targets"),
+		TargetPath: targetPath,
+		TargetFile: rawKey,
+	}}
+	manager, callback := NewKeyManagerWithCallback()
+	callback(map[string]state.RawConfig{
+		targetPath: {
+			Config: rawKey,
+			Metadata: state.Metadata{
+				ID:      "key-1",
+				Product: state.ProductActionPlatformRunnerKeys,
+			},
+		},
+	}, func(string, state.ApplyStatus) {})
+
+	SetProofProvider(manager, rcClient)
+
+	key, proof := manager.GetKey("key-1")
+	require.NotNil(t, key)
+	require.NotNil(t, proof)
+	assert.Equal(t, rcClient.proof.TargetPath, proof.TargetPath)
+}

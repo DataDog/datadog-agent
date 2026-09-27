@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -160,8 +161,8 @@ func requiresReinstallForPreload(preload string, tmpfsCompatible bool) bool {
 	if tmpfsCompatible {
 		return false
 	}
-	tmpfsLauncher := filepath.Join(defaultTmpfsInjectDir, "launcher.preload.so")
-	return slices.Contains(strings.Fields(preload), tmpfsLauncher)
+	tmpfsLauncherMatcher := regexp.MustCompile("^" + tmpfsLauncherPattern(defaultTmpfsInjectDir) + "$")
+	return slices.ContainsFunc(strings.Fields(preload), tmpfsLauncherMatcher.MatchString)
 }
 
 // Setup writes the embedded service file, enables it for future boots, and

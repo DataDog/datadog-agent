@@ -1,4 +1,4 @@
-//! SDS scanning: parse rules and run the dd-sds scanner over query results.
+//! SDS scanning: parse rules and run the dd-sds scanner over query rows.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -7,11 +7,12 @@ use anyhow::{Context, Result};
 use dd_sds::{
     Path, PathSegment, RootRuleConfig, RuleConfig, RuleMatch, Scanner as SdsScanner, ScannerBuilder,
 };
-use serde_json::Value;
 
+use crate::backend::ScanData;
 use crate::proto::TableMatch as Match;
 
 mod rule;
+mod scan_data_event;
 pub use rule::ScanningRule;
 
 #[cfg(test)]
@@ -36,28 +37,25 @@ impl Scanner {
             .collect();
 
         let scanner = ScannerBuilder::new(&scanner_rules)
+            // Skip Index segments so scopes match Field(column name).
+            .with_implicit_wildcard_indexes_for_scopes(true)
             .build()
             .context("failed to build sds scanner")?;
         Ok(Self { scanner, rule_ids })
     }
 
-    /// Scans `{ column: [values] }` and returns one `Match` per (column, rule).
-    pub fn scan(&self, data: Value) -> Result<Vec<Match>> {
-        let mut event = data;
+    /// Scans `data` as one SDS [`Event`] and returns one `Match` per (column, rule).
+    pub fn scan(&self, data: &mut ScanData) -> Result<Vec<Match>> {
         let hits = self
             .scanner
-            .scan(&mut event)
+            .scan(data)
             .context("failed to scan query result")?;
 
         aggregate_matches(&self.rule_ids, &hits)
     }
 }
 
-/// Groups hits into `(column, rule)` pairs and counts matched rows and total
-/// matches.
 fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Match>> {
-    // For each (column, rule): the distinct matched row paths and the total
-    // number of matches (a single row may contain several matches).
     let mut buckets: HashMap<(&str, usize), (HashSet<&Path>, i64)> = HashMap::new();
     for hit in hits {
         let (paths, count_matches) = buckets
@@ -67,11 +65,9 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Matc
         *count_matches += 1;
     }
 
-    // Convert to matches.
     buckets
         .into_iter()
         .map(|((column, rule_index), (paths, count_matches))| {
-            // return an error if the rule index is unknown.
             let rule_id = rule_ids
                 .get(rule_index)
                 .cloned()
@@ -87,11 +83,11 @@ fn aggregate_matches(rule_ids: &[String], hits: &[RuleMatch]) -> Result<Vec<Matc
         .collect()
 }
 
-/// Column name = the path's leading field segment.
-/// - `[Field("email"), Index(3)]` -> `"email"`
-/// - `[Field("foo[bar]"), Index(0)]` -> `"foo[bar]"`
+/// Column name = the path's field segment.
+/// - `[Index(0), Index(1), Field("email")]` -> `"email"`
+/// - `[Index(0), Index(0), Field("foo[bar]")]` -> `"foo[bar]"`
 fn column_name_from_path<'p>(path: &'p Path<'_>) -> &'p str {
-    match path.segments.first() {
+    match path.segments.last() {
         Some(PathSegment::Field(field)) => field.as_ref(),
         _ => "",
     }

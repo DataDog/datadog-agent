@@ -288,6 +288,7 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPodLogs"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
 		// common actions should also be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
@@ -658,18 +659,6 @@ private_action_runner:
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 	assert.Nil(t, cfg.RShellAllowedSystemServices)
 	assert.False(t, cfg.RShellDisableDetailedTelemetry)
-	assert.True(t, cfg.AgentSecretManagementEnabled)
-}
-
-func TestFromDDConfigPARAgentSecretManagementDisabled(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARAgentSecretManagementEnabled, false)
-
-	cfg, err := FromDDConfig(mockConfig, nil)
-	require.NoError(t, err)
-	assert.False(t, cfg.AgentSecretManagementEnabled)
 }
 
 func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetryUnset(t *testing.T) {

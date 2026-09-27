@@ -159,7 +159,7 @@
 .docker_build_agent7:
   extends: [.docker_build_job_definition, .docker_build_artifact]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
@@ -193,7 +193,7 @@ single_machine_performance-full-amd64-a7:
   extends: .docker_publish_job_definition
   stage: container_build
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     # Always publish SMP images on main (needed for baseline comparisons)
     - !reference [.on_main_or_release_branch]
     # On dev branches, only publish when artifact-impacting files change.
@@ -345,7 +345,7 @@ docker_build_host_profiler_standalone_arm64:
       --transform 's|\.example||' \
       etc/datadog-agent/otel-config.yaml.example
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/otel-agent
@@ -430,7 +430,7 @@ docker_build_agent7_fips_full_arm64:
 .docker_build_cluster_agent:
   extends: .docker_build_job_definition
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cluster-agent

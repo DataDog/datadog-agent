@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
@@ -82,6 +82,57 @@ var extendedCollectors = map[string]string{
 	"jobs":         "batch/v1, Resource=jobs_extended",
 	"nodes":        "core/v1, Resource=nodes_extended",
 	"pods":         "core/v1, Resource=pods_extended",
+}
+
+// DRA resources are enabled like any other resource, by listing them in the
+// check's collectors, one name per resource. They are resolved here rather
+// than through collectorNameReplacement because their GVR is not a constant:
+// the group reached v1 only in Kubernetes 1.34, clusters in the field still
+// serve a beta version, and DeviceTaintRule graduated later still (on 1.36,
+// claims are at v1 while devicetaintrules is only at v1beta2).
+const (
+	draResourceClaims   = "resourceclaims"
+	draResourceSlices   = "resourceslices"
+	draDeviceTaintRules = "devicetaintrules"
+)
+
+// splitDRACollectors removes the DRA resource names from collectors and
+// returns which of them were requested. Passed through as-is they would name
+// no registered store, and WithEnabledResources fails the whole check instance
+// on an unknown name -- every KSM metric, not only DRA.
+func splitDRACollectors(collectors []string) ([]string, map[string]bool) {
+	requested := map[string]bool{}
+	remaining := make([]string, 0, len(collectors))
+	for _, c := range collectors {
+		switch c {
+		case draResourceClaims, draResourceSlices, draDeviceTaintRules:
+			requested[c] = true
+		default:
+			remaining = append(remaining, c)
+		}
+	}
+	return remaining, requested
+}
+
+// draCollectors returns the store keys for the requested DRA resources the
+// cluster serves. They must match the keys the factories register under
+// (util.GVRFromType(factory.Name(), factory.ExpectedType())), so each uses the
+// version negotiated for that resource: claims and slices share apiVersion,
+// devicetaintrules has its own. An empty version means not served.
+func draCollectors(requested map[string]bool, apiVersion, taintAPIVersion string) []string {
+	var collectors []string
+	if apiVersion != "" {
+		gv := customresources.DRAGroup + "/" + apiVersion
+		for _, r := range []string{draResourceClaims, draResourceSlices} {
+			if requested[r] {
+				collectors = append(collectors, gv+", Resource="+r)
+			}
+		}
+	}
+	if requested[draDeviceTaintRules] && taintAPIVersion != "" {
+		collectors = append(collectors, customresources.DRAGroup+"/"+taintAPIVersion+", Resource="+draDeviceTaintRules)
+	}
+	return collectors
 }
 
 // collectorNameReplacement contains a mapping of collector names as they would appear in the KSM config to what
@@ -214,6 +265,16 @@ type KSMConfig struct {
 	// labels_mapper:
 	//   namespace: kube_namespace
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
+
+	// DRADeviceClasses restricts DRA collection to claims requesting one of
+	// these DeviceClasses. Empty means every claim is counted, including those
+	// of non-accelerator drivers. Filtering is by DeviceClass, not driver: the
+	// names coincide for NVIDIA but diverge in general. Only meaningful when
+	// "resourceclaims" is listed in collectors.
+	// Example:
+	// dra_device_classes:
+	//   - gpu.nvidia.com
+	DRADeviceClasses []string `yaml:"dra_device_classes"`
 
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
 	// It is also enriched in `initTags` with `kube_cluster_name` and global tags.
@@ -414,6 +475,10 @@ func (k *KSMCheck) buildStores() error {
 	switch k.instance.PodCollectionMode {
 	case nodeKubeletPodCollection:
 		// Pods come from the kubelet, nothing API-server related to set up.
+		// This mode runs on every node agent, so it must not collect
+		// cluster-scoped resources such as the DRA ones -- each node would
+		// report the whole cluster's claims and slices. Those belong to the
+		// cluster-side companion instance (cluster_unassigned).
 		collectors = []string{"pods"}
 		k.setupLabelsAndAnnotationsAsTagsFunc()
 	case clusterAggregatesOnlyPodCollection:
@@ -508,8 +573,12 @@ func (k *KSMCheck) buildStores() error {
 
 	// Enable exposing resource annotations explicitly for kube_<resource>_annotations metadata metrics.
 	// Equivalent to configuring --metric-annotations-allowlist.
+	// cr.collectors carries the resolved store keys: DRA names from the
+	// config (e.g. "devicetaintrules") are already expanded to their full
+	// GVR form there, while the local collectors slice still has the short
+	// names — the KSM builder validates these keys against store names.
 	allowedAnnotations := map[string][]string{}
-	for _, collector := range collectors {
+	for _, collector := range cr.collectors {
 		// Any annotation can be used for label joins.
 		allowedAnnotations[collector] = []string{"*"}
 	}
@@ -519,7 +588,7 @@ func (k *KSMCheck) buildStores() error {
 	// Enable exposing resource labels explicitly for kube_<resource>_labels metadata metrics.
 	// Equivalent to configuring --metric-labels-allowlist.
 	allowedLabels := map[string][]string{}
-	for _, collector := range collectors {
+	for _, collector := range cr.collectors {
 		// Any label can be used for label joins.
 		allowedLabels[collector] = []string{"*"}
 	}
@@ -619,7 +688,14 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		}
 	}
 
+	// DRA names are resolved below, against the versions the cluster serves;
+	// see splitDRACollectors for why they cannot stay in the list as-is.
+	collectors, draRequested := splitDRACollectors(collectors)
+
 	if k.instance.PodCollectionMode == nodeKubeletPodCollection {
+		// collectors is always just "pods" here (see Configure): this mode
+		// runs per node and leaves cluster-scoped resources, DRA included, to
+		// the cluster-side instance.
 		return customResources{
 			collectors: collectors,
 			factories: []customresource.RegistryFactory{
@@ -660,6 +736,33 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 		customresources.NewStatefulSetRolloutFactory(c, k.rolloutTracker),
 		customresources.NewDaemonSetRolloutFactory(c, k.rolloutTracker),
 		customresources.NewControllerRevisionRolloutFactory(c, k.rolloutTracker),
+	}
+
+	// Register a DRA factory only for a resource that was both requested and
+	// is served at a version this code understands. Anything else would enable
+	// a store with no factory behind it. A name for a resource the cluster does
+	// not serve at all never reaches here: filterUnknownCollectors drops it.
+	if len(draRequested) > 0 {
+		draAPIVersion := customresources.DRAAPIVersion(resources)
+		draTaintAPIVersion := customresources.DeviceTaintRuleAPIVersion(resources)
+
+		if draAPIVersion == "" && (draRequested[draResourceClaims] || draRequested[draResourceSlices]) {
+			log.Infof("resourceclaims/resourceslices are listed in collectors but this cluster serves no known %s API version (supported: %s); skipping them", customresources.DRAGroup, strings.Join(customresources.DRASupportedVersions(), ", "))
+		}
+		if draAPIVersion != "" && draRequested[draResourceClaims] {
+			factories = append(factories, customresources.NewResourceClaimFactory(c, draAPIVersion, k.instance.DRADeviceClasses))
+		}
+		if draAPIVersion != "" && draRequested[draResourceSlices] {
+			factories = append(factories, customresources.NewResourceSliceFactory(c, draAPIVersion))
+		}
+		if draRequested[draDeviceTaintRules] {
+			if draTaintAPIVersion != "" {
+				factories = append(factories, customresources.NewDeviceTaintRuleFactory(c, draTaintAPIVersion))
+			} else {
+				log.Infof("devicetaintrules is listed in collectors but this cluster serves no known %s version of it (stable in Kubernetes 1.37); skipping it", customresources.DRAGroup)
+			}
+		}
+		collectors = lo.Uniq(append(collectors, draCollectors(draRequested, draAPIVersion, draTaintAPIVersion)...))
 	}
 
 	factories = manageResourcesReplacement(c, factories, resources)
@@ -934,7 +1037,9 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			}
 			// ignore the metric if it doesn't have a transformer
 			// or if it isn't mapped to a datadog metric name
-			log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("KSM metric '%s' is unknown for the check, ignoring it", metricFamily.Name)
+			}
 		}
 	}
 	for _, aggregator := range k.metricAggregators {
@@ -1274,7 +1379,7 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 	}
 
 	for name, list := range metrics {
-		isMetadataMetric := k.metadataMetricsRegex.MatchString(name)
+		isMetadataMetric := k.shouldDropForMetadata(name)
 		if !k.isKnownMetric(name) && !isMetadataMetric {
 			k.telemetry.incUnknown()
 			continue
@@ -1337,11 +1442,19 @@ func KubeStateMetricsFactoryWithParam(labelsMapper map[string]string, labelJoins
 			LabelsMapper: labelsMapper,
 			LabelJoins:   labelJoins,
 			Namespaces:   []string{},
+			// Use the node_kubelet pod collection mode to avoid leader election
+			PodCollectionMode: "node_kubelet",
+			// Enable telemetry for the benchmark
+			Telemetry: true,
 		},
 		tagger,
 		nil,
 	)
 	check.allStores = allStores
+	// Configure() is skipped here, so initRetry is never set up by SetupRetrier and
+	// would otherwise stay at its zero-value NeedSetup status, making Run() return
+	// immediately with a nil error on every call without processing any metrics.
+	_ = check.initRetry.SetupRetrier(&retry.Config{Strategy: retry.JustTesting})
 	return check
 }
 
@@ -1448,6 +1561,8 @@ func defaultCollectors() []string {
 	if _, found := options.DefaultResources["endpoints"]; !found {
 		collectors = append(collectors, "endpoints")
 	}
+	// DRA collectors are added by discoverCustomResources instead: they depend
+	// on the API version the cluster serves, which is not known here.
 	return collectors
 }
 
@@ -1465,7 +1580,7 @@ func buildDeniedMetricsSet(collectors []string) options.MetricSet {
 		"kube_cronjob_status_active":                       {},
 		"kube_node_status_phase":                           {},
 		"kube_cronjob_spec_starting_deadline_seconds":      {},
-		"kube_job_spec_active_dealine_seconds":             {},
+		"kube_job_spec_active_deadline_seconds":            {},
 		"kube_job_spec_completions":                        {},
 		"kube_job_spec_parallelism":                        {},
 		"kube_job_status_active":                           {},
@@ -1515,30 +1630,41 @@ func ownerTags(kind, name string) ([]string, string) {
 	return []string{tagKey + ":" + name}, ""
 }
 
+var (
+	podLabelsMapperOverride = map[string]string{
+		"phase": "pod_phase",
+	}
+
+	ingressLabelsMapperOverride = map[string]string{
+		"host":         "kube_ingress_host",
+		"path":         "kube_ingress_path",
+		"service_name": "kube_service",
+		"service_port": "kube_service_port",
+	}
+
+	serviceLabelsMapperOverride = map[string]string{
+		"service": "kube_service",
+	}
+)
+
 // labelsMapperOverride allows overriding the default label mapping for
 // a given metric depending on the metric family.
+// The returned map is shared and must not be modified by callers.
 // Current use-cases:
 //   - `phase` tag should be mapped to `pod_phase` on pod metrics only.
 //   - Ingress metrics have generic tag names (host/path/service_name/service_port).
 //     It's important to have them in a dedicated mapper override for ingresses.
 func labelsMapperOverride(metricName string) map[string]string {
 	if strings.HasPrefix(metricName, "kube_pod") {
-		return map[string]string{"phase": "pod_phase"}
+		return podLabelsMapperOverride
 	}
 
 	if strings.HasPrefix(metricName, "kube_ingress") {
-		return map[string]string{
-			"host":         "kube_ingress_host",
-			"path":         "kube_ingress_path",
-			"service_name": "kube_service",
-			"service_port": "kube_service_port",
-		}
+		return ingressLabelsMapperOverride
 	}
 
 	if strings.HasPrefix(metricName, "kube_service") {
-		return map[string]string{
-			"service": "kube_service",
-		}
+		return serviceLabelsMapperOverride
 	}
 	return nil
 }

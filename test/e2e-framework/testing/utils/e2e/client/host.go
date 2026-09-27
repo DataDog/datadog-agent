@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -237,12 +238,7 @@ func (h *Host) CopyFileFromFS(fs fs.FS, src, dst string) {
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
-	file, err := fs.Open(src)
-	if err != nil {
-		h.context.FailNow("%v", err)
-	}
-	defer file.Close()
-	if err = copyFileFromIoReader(sftpClient, file, dst); err != nil {
+	if err := copyFile(sftpClient, fs, src, dst); err != nil {
 		h.context.FailNow("%v", err)
 	}
 }
@@ -253,7 +249,7 @@ func (h *Host) CopyFile(src string, dst string) {
 	dst = h.convertPathSeparator(dst)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
-	if err := copyFile(sftpClient, src, dst); err != nil {
+	if err := copyFile(sftpClient, os.DirFS(filepath.Dir(src)), filepath.Base(src), dst); err != nil {
 		h.context.FailNow("%v", err)
 	}
 }
@@ -264,7 +260,16 @@ func (h *Host) CopyFolder(srcFolder string, dstFolder string) error {
 	dstFolder = h.convertPathSeparator(dstFolder)
 	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
-	return copyFolder(sftpClient, srcFolder, dstFolder)
+	return copyFolder(sftpClient, os.DirFS(srcFolder), ".", dstFolder)
+}
+
+// CopyFolderFromFS create a sftp session and copy a folder from the given filesystem to remote host through SSH
+func (h *Host) CopyFolderFromFS(fs fs.FS, srcFolder string, dstFolder string) error {
+	h.context.Logf("Copying folder from local %s to remote %s", srcFolder, dstFolder)
+	dstFolder = h.convertPathSeparator(dstFolder)
+	sftpClient := h.getSFTPClient()
+	defer sftpClient.Close()
+	return copyFolder(sftpClient, fs, srcFolder, dstFolder)
 }
 
 // FileExists create a sftp session to and returns true if the file exists and is a regular file

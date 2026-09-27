@@ -1,2 +1,4 @@
 [overrides]
 "glob-match" = { origin = "https://github.com/lmapii/globmatch" }
+# crates.io omits homepage/repository; this crate is only used via `openssl`.
+"openssl-macros" = { origin = "https://github.com/sfackler/rust-openssl" }

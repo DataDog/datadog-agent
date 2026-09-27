@@ -85,7 +85,7 @@ func (d *directSenderConsumer) EventTypes() []model.EventType {
 
 // Start implements eventmonitor.EventConsumer
 func (d *directSenderConsumer) Start() error {
-	return nil
+	return d.loadCurrentProcesses()
 }
 
 // Stop implements eventmonitor.EventConsumer

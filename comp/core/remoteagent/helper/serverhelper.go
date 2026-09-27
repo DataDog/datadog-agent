@@ -144,9 +144,30 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		})
 	}
 
+	streamSessionIDInterceptor := func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		remoteAgentServer.sessionIDMutex.RLock()
+		sessionID := remoteAgentServer.sessionID
+		remoteAgentServer.sessionIDMutex.RUnlock()
+		if sessionID == "" {
+			return errors.New("remote agent is not registered yet")
+		}
+		if err := stream.SetHeader(metadata.New(map[string]string{"session_id": sessionID})); err != nil {
+			return err
+		}
+		return handler(srv, stream)
+	}
+
+	chainedStreamInterceptor := func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		authHandler := grpc_auth.StreamServerInterceptor(grpcutil.StaticAuthInterceptor(remoteAgentServer.ipcComp.GetAuthToken()))
+		return authHandler(srv, stream, info, func(srv any, stream grpc.ServerStream) error {
+			return streamSessionIDInterceptor(srv, stream, info, handler)
+		})
+	}
+
 	serverOpts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(remoteAgentServer.ipcComp.GetTLSServerConfig())),
 		grpc.UnaryInterceptor(chainedInterceptor),
+		grpc.StreamInterceptor(chainedStreamInterceptor),
 	}
 
 	remoteAgentServer.grpcServer = grpc.NewServer(serverOpts...)

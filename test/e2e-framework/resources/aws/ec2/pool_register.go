@@ -49,6 +49,22 @@ func RegisterPoolMember(e aws.Environment, name string, instanceID pulumi.String
 		return pulumi.StringOutput{}, err
 	}
 
+	if err := TagPoolMember(e, name, instanceID, username, opts...); err != nil {
+		return pulumi.StringOutput{}, err
+	}
+
+	return ami.ID().ToStringOutput(), nil
+}
+
+// TagPoolMember declares the pool identity tags (dd:macos-e2e-pool-instance,
+// dd:macos-e2e-pool-owner, Name) as their own aws:ec2/tag:Tag resources, keyed by the
+// same name/slug pair RegisterPoolMember uses. Call this on every run that keeps an
+// existing pool member (imported or freshly registered) with the same name argument:
+// these tags live outside the Instance resource's own tags attribute, so a run that
+// omits this call has Pulumi see them as no longer declared and delete them, even
+// though the imported Instance's own IgnoreChanges(["tags", ...]) leaves its attribute
+// alone.
+func TagPoolMember(e aws.Environment, name string, instanceID pulumi.StringOutput, username string, opts ...pulumi.ResourceOption) error {
 	values := map[string]string{
 		pool.PoolTagKey:          pool.PoolTagValue,
 		pool.OwnerUsernameTagKey: username,
@@ -60,9 +76,9 @@ func RegisterPoolMember(e aws.Environment, name string, instanceID pulumi.String
 			Key:        pulumi.String(t.key),
 			Value:      pulumi.String(values[t.key]),
 		}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS))...); err != nil {
-			return pulumi.StringOutput{}, err
+			return err
 		}
 	}
 
-	return ami.ID().ToStringOutput(), nil
+	return nil
 }

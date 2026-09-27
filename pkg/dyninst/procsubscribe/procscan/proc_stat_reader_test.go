@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +34,47 @@ func TestStartTimeTicksFromProcStat(t *testing.T) {
 			require.Equal(t, tc.expected.startTime, got)
 		})
 	}
+}
+
+func TestReadBootTime(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		stat     string
+		expected time.Time
+	}{
+		{
+			name:     "btime",
+			stat:     "cpu 1 2 3\nbtime 1700000000\nprocesses 42\n",
+			expected: time.Unix(1700000000, 0),
+		},
+		{
+			name: "no btime",
+			stat: "cpu 1 2 3\nprocesses 42\n",
+		},
+		{
+			name: "unparseable btime",
+			stat: "btime later\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			procRoot := t.TempDir()
+			require.NoError(t, os.WriteFile(
+				filepath.Join(procRoot, "stat"), []byte(tc.stat), 0o644,
+			))
+			got, err := readBootTime(procRoot)
+			if tc.expected.IsZero() {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.True(t, tc.expected.Equal(got))
+		})
+	}
+
+	t.Run("no stat file", func(t *testing.T) {
+		_, err := readBootTime(t.TempDir())
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
 }
 
 func BenchmarkStartTimeReader_Read(b *testing.B) {

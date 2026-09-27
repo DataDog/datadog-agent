@@ -36,6 +36,7 @@ def build(
     skip_assets=False,
     policies_version=None,
     force_policies_clone=True,
+    enable_bazel=False,
 ):
     """
     Build Cluster Agent
@@ -43,6 +44,12 @@ def build(
      Example invokation:
         dda inv cluster-agent.build
     """
+    if enable_bazel:
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+
     build_common(
         ctx,
         BIN_PATH,
@@ -55,6 +62,7 @@ def build(
         development,
         skip_assets,
         cover=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        enable_bazel=enable_bazel,
     )
 
     if policies_version is None:

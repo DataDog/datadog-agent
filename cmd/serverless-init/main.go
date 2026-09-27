@@ -25,7 +25,7 @@ import (
 	healthprobeDef "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobeFx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -208,6 +208,10 @@ func preloadEarly() {
 	// hardcodes forceFlushAll=false on ticks, so bucket-aligned flushes during
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
+
+	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
+	setOverride("data_plane.enabled", false)
+	setOverride("data_plane.dogstatsd.enabled", false)
 }
 
 // setOverride sets key to val with SourceAgentRuntime priority, logging a

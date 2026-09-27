@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/agentdiscovery"
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
@@ -78,6 +79,35 @@ func NewServer(handler http.Handler) *httptest.Server {
 	})
 
 	return httptest.NewServer(handlerWitHeader)
+}
+
+// newSeriesServer answers each series endpoint with its own body. getMetric fetches
+// /api/v1/series, /api/v2/series and /api/intake/metrics/v3/series in a single call, and each
+// aggregator only understands its own wire format, so a server that replies with one shared
+// body would hand two of the three something they cannot parse.
+func newSeriesServer(byEndpoint map[string][]byte) *httptest.Server {
+	return NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if body, ok := byEndpoint[r.URL.Query().Get("endpoint")]; ok {
+			w.Write(body)
+			return
+		}
+		w.Write([]byte(`{"payloads":[]}`))
+	}))
+}
+
+// newRawPayloadsResponse renders one uncompressed payload as a /fakeintake/payloads response.
+func newRawPayloadsResponse(t *testing.T, contentType string, data []byte) []byte {
+	t.Helper()
+
+	response, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+		Payloads: []api.Payload{{
+			Timestamp:   time.Now(),
+			Data:        data,
+			ContentType: contentType,
+		}},
+	})
+	require.NoError(t, err)
+	return response
 }
 
 func newAgentDiscoveryPayloadData(t *testing.T, payloads ...*agentdiscovery.AgentDiscoveryPayload) []byte {
@@ -139,6 +169,18 @@ func TestClient(t *testing.T) {
 		assert.Nil(t, payloads)
 	})
 
+	t.Run("getFakePayloads should time out a hung request", func(t *testing.T) {
+		ts := NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			<-r.Context().Done()
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL, WithGetBackoffRetries(1), WithGetTimeout(10*time.Millisecond))
+		payloads, err := client.getFakePayloads("/foo/bar")
+		require.Error(t, err)
+		assert.Nil(t, payloads)
+	})
+
 	t.Run("getMetrics", func(t *testing.T) {
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write(apiV2SeriesResponse)
@@ -155,9 +197,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getMetric", func(t *testing.T) {
-		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write(apiV2SeriesResponse)
-		}))
+		ts := newSeriesServer(map[string][]byte{metricsEndpoint: apiV2SeriesResponse})
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
@@ -167,10 +207,22 @@ func TestClient(t *testing.T) {
 		assert.Empty(t, aggregator.FilterByTags(metrics, []string{"totoro"}))
 	})
 
+	t.Run("getMetric merges the v1 series endpoint", func(t *testing.T) {
+		body := `{"series":[{"metric":"e2e.v1.gauge","points":[[1697177070,3]],"tags":["version:7.46.0"],"host":"my-host","type":"gauge","interval":10}]}`
+		ts := newSeriesServer(map[string][]byte{
+			metricsV1Endpoint: newRawPayloadsResponse(t, "application/json", []byte(body)),
+		})
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		metrics, err := client.getMetric("e2e.v1.gauge")
+		require.NoError(t, err)
+		require.Len(t, metrics, 1)
+		assert.NotEmpty(t, aggregator.FilterByTags(metrics, []string{"version:7.46.0"}))
+	})
+
 	t.Run("FilterMetrics", func(t *testing.T) {
-		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write(apiV2SeriesResponse)
-		}))
+		ts := newSeriesServer(map[string][]byte{metricsEndpoint: apiV2SeriesResponse})
 		defer ts.Close()
 
 		client := NewClient(ts.URL)
@@ -663,6 +715,55 @@ func TestClient(t *testing.T) {
 		require.Len(t, payloads[0].ConfigFiles, 1)
 		assert.Equal(t, "/usr/local/etc/redis/redis.conf", payloads[0].ConfigFiles[0].Path)
 		assert.Equal(t, agentdiscovery.AgentDiscoveryConfigFilePayloadFormat_PAYLOAD_FORMAT_REDIS_CONF, payloads[0].ConfigFiles[0].PayloadFormat)
+	})
+
+	t.Run("GetSDSResults", func(t *testing.T) {
+		collectedTime := time.Unix(1_700_000_000, 0).UTC()
+		msg := &sds.SdsResultPayload{
+			Timestamp: 1_700_000_000_000,
+			Resource: &sds.SdsResultPayload_Resource{
+				Type: "postgres_table",
+				Name: "inst.app.public.users",
+			},
+			RuleIds: []string{"email"},
+			ScanResults: []*sds.SdsResultPayload_ScanResult{{
+				ScanMetadata: &sds.SdsResultPayload_ScanMetadata{
+					ScanTaskMetadata: &sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata{
+						TaskId:    "task-1",
+						SubTaskId: "sub-1",
+						Status:    sds.SdsResultPayload_ScanMetadata_ScanTaskMetadata_SUCCESS,
+					},
+				},
+			}},
+		}
+		data, err := proto.Marshal(msg)
+		require.NoError(t, err)
+
+		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			payloads := []api.Payload{
+				{
+					Data:        []byte("{}"),
+					Encoding:    "application/json",
+					ContentType: "application/json",
+				},
+				{Data: data, Timestamp: collectedTime},
+			}
+			resp, err := json.Marshal(api.APIFakeIntakePayloadsRawGETResponse{
+				Payloads: payloads,
+			})
+			require.NoError(t, err)
+			w.Write(resp)
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		payloads, err := client.GetSDSResults()
+		require.NoError(t, err)
+		require.Len(t, payloads, 1)
+		assert.True(t, client.sdsResultAggregator.ContainsPayloadName("task-1:sub-1"))
+		assert.Empty(t, payloads[0].GetTags())
+		assert.Equal(t, collectedTime, payloads[0].GetCollectedTime())
+		require.True(t, proto.Equal(msg, &payloads[0].SdsResultPayload))
 	})
 
 	t.Run("getNDMFlows", func(t *testing.T) {

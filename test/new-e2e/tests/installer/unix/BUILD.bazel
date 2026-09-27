@@ -31,6 +31,7 @@ dd_agent_go_test(
         "upgrade_scenario_test.go",
     ],
     embed = [":unix"],
+    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/scenarios/aws/ec2",

@@ -11,6 +11,9 @@ load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
+# List of targets/filegroups that need to be installed to {install_dir} for
+# the omnibus build to succeed.
+# This is meant to be removed once the migration is complete
 pkg_filegroup(
     name = "all_files",
     srcs = [
@@ -47,16 +50,17 @@ pkg_filegroup(
         "//conditions:default": [],
     }) + select({
         "@platforms//os:macos": [
+            ":collected_libs",
             "//deps/agent_data_plane:all_files",
         ],
         "//conditions:default": [],
     }) + select({
         "@platforms//os:windows": [
-            ":collected_openssl_win",
             "//deps/agent_data_plane:all_files",
             "//deps/compile_policy:all_files",
             "//deps/security_agent_policies:all_files",
             "//packages/windows:all_files",
+            "@openssl//:windows_pkg",
         ],
         "//conditions:default": [],
     }),
@@ -71,27 +75,44 @@ dd_collect_dependencies(
     name = "_collected_libs",
     srcs = select({
         "//packages/agent:linux_default": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/security-agent",
+            "//cmd/trace-agent",
             "//deps/msodbcsql18:installed_libs",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
             "@krb5//:installed_libs",
-            "@openscap//:openscap_pkg",
-            "@openscap//:openscap_sce_pkg",
         ],
         "//packages/agent:linux_fips": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/security-agent",
+            "//cmd/trace-agent",
             "//deps/msodbcsql18:installed_libs",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
             "@krb5//:installed_libs",
-            "@openscap//:openscap_pkg",
-            "@openscap//:openscap_sce_pkg",
         ],
         "//packages/agent:linux_heroku": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/trace-agent",
             "@curl//:curl_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
+        ],
+        "@platforms//os:macos": [
+            "//cmd/agent",
+            "//cmd/privateactionrunner",
+            "//cmd/process-agent",
+            "//cmd/security-agent",
+            "//cmd/trace-agent",
         ],
         "//conditions:default": [],
     }),
@@ -100,24 +121,6 @@ dd_collect_dependencies(
 pkg_filegroup(
     name = "collected_libs",
     srcs = [":_collected_libs"],
-    prefix = "embedded",
-)
-
-dd_collect_dependencies(
-    name = "_collected_openssl_win",
-    srcs = select({
-        "@platforms//os:windows": ["@openssl//:libcrypto_shared_pkg"],
-        "//conditions:default": [],
-    }),
-)
-
-pkg_filegroup(
-    name = "collected_openssl_win",
-    srcs = [":_collected_openssl_win"],
-    prefix = select({
-        "@platforms//os:windows": "embedded3",
-        "//conditions:default": "embedded",
-    }),
 )
 
 package_licenses(
