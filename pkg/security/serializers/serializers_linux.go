@@ -706,10 +706,31 @@ type UnshareEventSerializer struct {
 type SetNSEventSerializer struct {
 	// Namespace types the thread joined, ANY if the type couldn't be determined
 	NSType string `json:"nstype"`
-	// Mount namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved
+	// Namespace IDs of the thread once the syscall returned
+	NamespaceIDsSerializer
+	// Namespace IDs of the thread before the syscall
+	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
+}
+
+// NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved
+// easyjson:json
+type NamespaceIDsSerializer struct {
+	// Mount namespace ID
 	MntNS uint32 `json:"mntns,omitempty"`
-	// Network namespace ID of the thread once the syscall returned, omitted if it couldn't be resolved
+	// Network namespace ID
 	NetNS uint32 `json:"netns,omitempty"`
+	// ID of the PID namespace future children are created in (pid_for_children)
+	PIDNS uint32 `json:"pidns,omitempty"`
+	// User namespace ID
+	UserNS uint32 `json:"userns,omitempty"`
+	// UTS namespace ID
+	UTSNS uint32 `json:"utsns,omitempty"`
+	// IPC namespace ID
+	IPCNS uint32 `json:"ipcns,omitempty"`
+	// Cgroup namespace ID
+	CgroupNS uint32 `json:"cgroupns,omitempty"`
+	// Time namespace ID
+	TimeNS uint32 `json:"timens,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -1651,10 +1672,11 @@ func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
 }
 
 func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
+	previous := NamespaceIDsSerializer(e.SetNS.Previous)
 	return &SetNSEventSerializer{
-		NSType: model.NamespaceType(e.SetNS.NSType).String(),
-		MntNS:  e.SetNS.MntNS,
-		NetNS:  e.SetNS.NetNS,
+		NSType:                 model.NamespaceType(e.SetNS.NSType).String(),
+		NamespaceIDsSerializer: NamespaceIDsSerializer(e.SetNS.NamespaceIDs),
+		Previous:               &previous,
 	}
 }
 

@@ -1184,9 +1184,22 @@ type SetrlimitEvent struct {
 // SetNSEvent represents a setns event
 type SetNSEvent struct {
 	SyscallEvent
-	NSType int    `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Clone flags`
-	MntNS  uint32 `field:"mntns"`  // SECLDoc[mntns] Definition:`MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
-	NetNS  uint32 `field:"netns"`  // SECLDoc[netns] Definition:`NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved`
+	NSType int `field:"nstype"` // SECLDoc[nstype] Definition:`Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined` Constants:`Clone flags`
+	NamespaceIDs
+	Previous NamespaceIDs `field:"previous"` // SECLDoc[previous] Definition:`Namespace IDs of the thread before the syscall`
+}
+
+// NamespaceIDs holds the namespace IDs of a thread, as listed in /proc/<tid>/ns/. An ID is 0 if it
+// couldn't be resolved.
+type NamespaceIDs struct {
+	MntNS    uint32 `field:"mntns"`    // SECLDoc[mntns] Definition:`Mount namespace ID, 0 if it couldn't be resolved`
+	NetNS    uint32 `field:"netns"`    // SECLDoc[netns] Definition:`Network namespace ID, 0 if it couldn't be resolved`
+	PIDNS    uint32 `field:"pidns"`    // SECLDoc[pidns] Definition:`ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved`
+	UserNS   uint32 `field:"userns"`   // SECLDoc[userns] Definition:`User namespace ID, 0 if it couldn't be resolved`
+	UTSNS    uint32 `field:"utsns"`    // SECLDoc[utsns] Definition:`UTS namespace ID, 0 if it couldn't be resolved`
+	IPCNS    uint32 `field:"ipcns"`    // SECLDoc[ipcns] Definition:`IPC namespace ID, 0 if it couldn't be resolved`
+	CgroupNS uint32 `field:"cgroupns"` // SECLDoc[cgroupns] Definition:`Cgroup namespace ID, 0 if it couldn't be resolved`
+	TimeNS   uint32 `field:"timens"`   // SECLDoc[timens] Definition:`Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6`
 }
 
 // SetSockOptEvent represents a set socket option event

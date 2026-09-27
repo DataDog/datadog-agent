@@ -7837,14 +7837,24 @@
       "experimental": false,
       "properties": [
         {
+          "name": "setns.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
           "name": "setns.mntns",
-          "definition": "MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
-          "property_doc_link": "setns-mntns-doc"
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
         },
         {
           "name": "setns.netns",
-          "definition": "NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
-          "property_doc_link": "setns-netns-doc"
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
         },
         {
           "name": "setns.nstype",
@@ -7852,9 +7862,69 @@
           "property_doc_link": "setns-nstype-doc"
         },
         {
+          "name": "setns.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.previous.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
+          "name": "setns.previous.mntns",
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
+        },
+        {
+          "name": "setns.previous.netns",
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
+        },
+        {
+          "name": "setns.previous.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.previous.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.previous.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
+        },
+        {
           "name": "setns.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setns.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
         }
       ]
     },
@@ -12491,6 +12561,19 @@
       "examples": []
     },
     {
+      "name": "*.cgroupns",
+      "link": "common-namespaceids-cgroupns-doc",
+      "type": "int",
+      "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.change_time",
       "link": "common-filefields-change_time-doc",
       "type": "int",
@@ -13559,6 +13642,19 @@
       "examples": []
     },
     {
+      "name": "*.ipcns",
+      "link": "common-namespaceids-ipcns-doc",
+      "type": "int",
+      "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.is_exec",
       "link": "common-process-is_exec-doc",
       "type": "bool",
@@ -13891,6 +13987,19 @@
         "unlink.file.path",
         "utimes.file.name",
         "utimes.file.path"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.mntns",
+      "link": "common-namespaceids-mntns-doc",
+      "type": "int",
+      "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -14281,6 +14390,19 @@
           "description": "Matches the execution of any file named apt."
         }
       ]
+    },
+    {
+      "name": "*.netns",
+      "link": "common-namespaceids-netns-doc",
+      "type": "int",
+      "definition": "Network namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
     },
     {
       "name": "*.netns",
@@ -14838,6 +14960,19 @@
       "examples": []
     },
     {
+      "name": "*.pidns",
+      "link": "common-namespaceids-pidns-doc",
+      "type": "int",
+      "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.port",
       "link": "common-ipportcontext-port-doc",
       "type": "int",
@@ -15233,6 +15368,19 @@
       "examples": []
     },
     {
+      "name": "*.timens",
+      "link": "common-namespaceids-timens-doc",
+      "type": "int",
+      "definition": "Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.tty_name",
       "link": "common-process-tty_name-doc",
       "type": "string",
@@ -15452,6 +15600,32 @@
         "splice.file",
         "unlink.file",
         "utimes.file"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.userns",
+      "link": "common-namespaceids-userns-doc",
+      "type": "int",
+      "definition": "User namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.utsns",
+      "link": "common-namespaceids-utsns-doc",
+      "type": "int",
+      "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -16905,30 +17079,6 @@
       "definition": "New group of the process",
       "prefixes": [
         "setgid"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "setns.mntns",
-      "link": "setns-mntns-doc",
-      "type": "int",
-      "definition": "MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
-      "prefixes": [
-        "setns"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "setns.netns",
-      "link": "setns-netns-doc",
-      "type": "int",
-      "definition": "NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved",
-      "prefixes": [
-        "setns"
       ],
       "constants": "",
       "constants_link": "",

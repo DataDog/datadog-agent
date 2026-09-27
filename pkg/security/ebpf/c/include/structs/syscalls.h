@@ -86,8 +86,7 @@ struct syscall_cache_t {
 
         struct {
             s32 nstype;
-            u32 mntns_id;
-            u32 netns_id;
+            struct namespace_ids_t before;
             // namespace types the kernel actually installed, accumulated by the per-namespace
             // *_install hooks. Internal: it is merged into nstype before the event is sent, so
             // that the reported type stays meaningful when the caller passed a nstype of 0.

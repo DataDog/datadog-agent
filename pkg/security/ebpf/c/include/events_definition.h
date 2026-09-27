@@ -618,12 +618,13 @@ struct setns_event_t {
     struct kevent_t event;
     struct process_context_t process;
     struct span_context_t span;
+    struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct syscall_t syscall;
 
     s32 nstype;
-    u32 mntns_id;
-    u32 netns_id;
+    struct namespace_ids_t before;
+    struct namespace_ids_t after;
 };
 
 struct setsockopt_event_t {
@@ -757,6 +758,7 @@ union event_t {
     struct network_flow_monitor_event_t network_flow_monitor;
     struct sysctl_event_t sysctl;
     struct setrlimit_event_t setrlimit;
+    struct setns_event_t setns;
     struct setsockopt_event_t setsockopt;
     struct capabilities_event_t capabilities;
     struct prctl_event_t prctl;

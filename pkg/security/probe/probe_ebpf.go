@@ -3971,6 +3971,28 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyMntNs, "struct nsproxy", "mnt_ns")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyNetNs, "struct nsproxy", "net_ns")
 
+	// setns namespace IDs. They are read through struct ns_common, so on older kernels the pointers
+	// to the namespaces are left unresolved as well, which makes the IDs report 0 instead of garbage
+	if kv.Code >= kernel.Kernel3_19 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructNsproxy, "struct task_struct", "nsproxy")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyPidNsForChildren, "struct nsproxy", "pid_ns_for_children")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyUtsNs, "struct nsproxy", "uts_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyIpcNs, "struct nsproxy", "ipc_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCredStructUserNs, "struct cred", "user_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNamePidNamespaceNs, "struct pid_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUtsNamespaceNs, "struct uts_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIpcNamespaceNs, "struct ipc_namespace", "ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUserNamespaceNs, "struct user_namespace", "ns")
+	}
+	if kv.Code >= kernel.Kernel4_6 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyCgroupNs, "struct nsproxy", "cgroup_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCgroupNamespaceNs, "struct cgroup_namespace", "ns")
+	}
+	if kv.Code >= kernel.Kernel5_6 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyTimeNs, "struct nsproxy", "time_ns")
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTimeNamespaceNs, "struct time_namespace", "ns")
+	}
+
 	if kv.Code >= kernel.Kernel6_8 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
 	}
