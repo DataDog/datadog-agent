@@ -735,8 +735,9 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues != nil && isTimestampStale(currentTime, currentHorizontalScalingValues.Timestamp, staleTimestampThreshold)) ||
 		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp(), staleTimestampThreshold)) {
 
-		// If local fallback values are usable, activate local fallback
-		if fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
+		// If local fallback values are usable, activate local fallback. Values left over from a
+		// removed force-fallback annotation are not usable when the spec disables the fallback.
+		if podAutoscalerInternal.IsLocalFallbackEnabled() && fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
 			return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerLocalValueSource), activeVerticalSource
 		}
 	}

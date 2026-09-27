@@ -1643,3 +1643,78 @@ func TestHorizontalControllerForceFallbackWithoutLocalValues(t *testing.T) {
 		"the product recommendation must not stay active once the operator forced the fallback")
 	f.scaler.AssertNumberOfCalls(t, "update", 0)
 }
+
+// TestHorizontalControllerForceFallbackRemovedWithFallbackDisabled covers the transition out of a
+// forced fallback on an autoscaler whose spec disables the fallback: local values computed while
+// the annotation was set must stop being applied once it is removed, even if product values are
+// still stale.
+func TestHorizontalControllerForceFallbackRemovedWithFallbackDisabled(t *testing.T) {
+	testTime := time.Now()
+	f := newHorizontalControllerFixture(t, testTime)
+
+	expectedGVK := schema.GroupVersionKind{
+		Group:   "apps",
+		Version: "v1",
+		Kind:    "Deployment",
+	}
+	localValues := &model.HorizontalScalingValues{
+		Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+		Timestamp: testTime.Add(-30 * time.Second),
+		Replicas:  10,
+	}
+	fakePai := model.FakePodAutoscalerInternal{
+		Namespace: "default",
+		Name:      "test",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name:       "test",
+				Kind:       expectedGVK.Kind,
+				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
+			},
+			Fallback: &datadoghq.DatadogFallbackPolicy{
+				Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+					Enabled: false,
+					Triggers: datadoghq.HorizontalFallbackTriggers{
+						StaleRecommendationThresholdSeconds: 600,
+					},
+				},
+			},
+		},
+		CreationTimestamp: testTime.Add(-time.Hour),
+		// Product values are stale, which triggers the fallback path in source selection, and the
+		// local values computed while the fallback was forced are still fresh.
+		MainScalingValues: model.ScalingValues{Horizontal: &model.HorizontalScalingValues{
+			Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+			Timestamp: testTime.Add(-time.Hour),
+			Replicas:  3,
+		}},
+		FallbackScalingValues: model.ScalingValues{Horizontal: localValues},
+		ScalingValues:         model.ScalingValues{Horizontal: localValues},
+		TargetGVK:             expectedGVK,
+		CurrentReplicas:       pointer.Ptr[int32](5),
+	}
+	autoscalerInternal := fakePai.Build()
+
+	// While forced, the local values are selected despite the spec.
+	autoscalerInternal.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+	horizontalSource, _ := getActiveScalingSources(f.clock.Now(), &autoscalerInternal)
+	require.NotNil(t, horizontalSource)
+	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, *horizontalSource)
+
+	// Once the annotation is removed, they are neither selected nor retained, so nothing is applied.
+	autoscalerInternal.UpdateOpsAnnotations(map[string]string{})
+	horizontalSource, verticalSource := getActiveScalingSources(f.clock.Now(), &autoscalerInternal)
+	assert.Nil(t, horizontalSource, "local values must not be selected when the spec disables the fallback")
+	autoscalerInternal.SetActiveScalingValues(f.clock.Now(), horizontalSource, verticalSource)
+
+	f.scaler.mockGet(fakePai, 5, 5, nil)
+	scale, gr, scaleErr := f.scaler.get(context.Background(), fakePai.Namespace, fakePai.Name, expectedGVK)
+	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: fakePai.Name, Namespace: fakePai.Namespace}}
+	result, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
+
+	require.NoError(t, err)
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.Nil(t, autoscalerInternal.ScalingValues().Horizontal,
+		"local values must not stay active once the force-fallback annotation is removed")
+	f.scaler.AssertNumberOfCalls(t, "update", 0)
+}

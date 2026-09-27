@@ -1188,6 +1188,35 @@ func TestSetActiveScalingValues_NilSource_ClearsVertical(t *testing.T) {
 			"applyVerticalConstraints(burstable=false) to early-return and suppress the rollout")
 }
 
+func TestIsLocalFallbackEnabled(t *testing.T) {
+	disabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: false}}
+	enabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: true}}
+
+	for _, tt := range []struct {
+		name     string
+		fallback *datadoghq.DatadogFallbackPolicy
+		forced   bool
+		expected bool
+	}{
+		{name: "no fallback policy", expected: true},
+		{name: "fallback enabled", fallback: enabled, expected: true},
+		{name: "fallback disabled", fallback: disabled, expected: false},
+		{name: "fallback disabled but forced", fallback: disabled, forced: true, expected: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := FakePodAutoscalerInternal{
+				Namespace: "ns",
+				Name:      "dpa",
+				Spec:      &datadoghq.DatadogPodAutoscalerSpec{Fallback: tt.fallback},
+			}.Build()
+			if tt.forced {
+				pai.UpdateOpsAnnotations(map[string]string{ForceFallbackAnnotationKey: "true"})
+			}
+			assert.Equal(t, tt.expected, pai.IsLocalFallbackEnabled())
+		})
+	}
+}
+
 // TestSetActiveScalingValues_NilSource_ForcedFallback verifies that while the fallback is forced,
 // a nil horizontal source no longer retains product values, which would otherwise keep being
 // applied, but still retains a previously active local recommendation.

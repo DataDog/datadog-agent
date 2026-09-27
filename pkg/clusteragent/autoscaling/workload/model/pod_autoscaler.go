@@ -297,6 +297,17 @@ func (p *PodAutoscalerInternal) IsFallbackForced() bool {
 	return p.fallbackForced
 }
 
+// IsLocalFallbackEnabled returns true if local recommendations may be computed and used, which
+// is the case unless the spec explicitly disables the horizontal fallback. Forcing the fallback
+// overrides the spec, otherwise the override would silently do nothing.
+func (p *PodAutoscalerInternal) IsLocalFallbackEnabled() bool {
+	if p.fallbackForced {
+		return true
+	}
+	spec := p.Spec()
+	return spec == nil || spec.Fallback == nil || spec.Fallback.Horizontal.Enabled
+}
+
 // EffectiveApplyMode returns the apply mode to enforce, which is the spec apply mode unless
 // the autoscaler is paused. Routing pause through the apply mode keeps a single gate for all
 // actions instead of a separate check at each call site.
@@ -426,6 +437,13 @@ func (p *PodAutoscalerInternal) SetActiveScalingValues(currentTime time.Time, ho
 	// a previously applied local recommendation is retained.
 	if horizontalActiveSource == nil && p.fallbackForced &&
 		p.scalingValues.Horizontal != nil && p.scalingValues.Horizontal.Source != datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
+		p.scalingValues.Horizontal = nil
+	}
+
+	// Conversely, local values can outlive a removed force-fallback annotation on an autoscaler
+	// whose spec disables the fallback: they must not keep being applied once it is lifted.
+	if horizontalActiveSource == nil && !p.IsLocalFallbackEnabled() &&
+		p.scalingValues.Horizontal != nil && p.scalingValues.Horizontal.Source == datadoghqcommon.DatadogPodAutoscalerLocalValueSource {
 		p.scalingValues.Horizontal = nil
 	}
 
