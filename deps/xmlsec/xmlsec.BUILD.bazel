@@ -210,8 +210,8 @@ pkg_files(
 
 dd_cc_packaged(
     name = "xmlsec1_pkg",
-    input = ":xmlsec1",
     dest_dir = "embedded/lib",
+    input = ":xmlsec1",
     installed_files = [":headers_files"],
     version = VERSION,
     visibility = ["//visibility:public"],
@@ -219,8 +219,8 @@ dd_cc_packaged(
 
 dd_cc_packaged(
     name = "xmlsec1-openssl_pkg",
-    input = ":xmlsec1-openssl",
     dest_dir = "embedded/lib",
+    input = ":xmlsec1-openssl",
     installed_files = [":openssl_headers_files"],
     version = VERSION,
     visibility = ["//visibility:public"],

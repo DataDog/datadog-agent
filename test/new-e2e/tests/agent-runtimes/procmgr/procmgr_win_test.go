@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -164,7 +165,7 @@ func (s *procmgrWindowsSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// dd-procmgr-service is DEMAND_START; start it explicitly before tests.
-	s.Env().RemoteHost.MustExecute(`powershell -Command "Start-Service dd-procmgr-service"`)
+	require.NoError(s.T(), windowsCommon.StartService(s.Env().RemoteHost, "dd-procmgr-service"))
 
 	if s.hasCLI {
 		require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
