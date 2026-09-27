@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    The ``datasecurity`` check scanning rule patterns are now scrubbed from
+    logs, flares, ``agent configcheck``, and the reported integration configuration.

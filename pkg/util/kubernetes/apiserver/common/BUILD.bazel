@@ -8,6 +8,7 @@ go_library(
         "common_linux.go",
         "common_nolinux.go",
         "feature_gate.go",
+        "metrics.go",
         "version.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common",
@@ -41,8 +42,10 @@ dd_agent_go_test(
     srcs = [
         "common_test.go",
         "feature_gate_test.go",
+        "metrics_test.go",
         "version_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":common"],
     gotags_sets = [[
         "cel",
@@ -55,7 +58,9 @@ dd_agent_go_test(
     deps = [
         "//pkg/util/cache",
         "//pkg/util/kubernetes/apiserver/common/namespace",
+        "//pkg/util/prometheus",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/errors",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
