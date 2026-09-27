@@ -118,6 +118,63 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 	}, true
 }
 
+// IsGCPServerless reports whether the resource declares a Cloud Run or Cloud
+// Functions platform, including incomplete identities and out-of-scope jobs.
+// Such resources must not fall back to the Collector's host identity.
+func IsGCPServerless(attrs pcommon.Map) bool {
+	platform, _ := attrs.Get(string(conventions.CloudPlatformKey))
+	return platform.Str() == conventions.CloudPlatformGCPCloudFunctions.Value.AsString() ||
+		platform.Str() == conventions.CloudPlatformGCPCloudRun.Value.AsString()
+}
+
+func gcpServerlessSourceFromAttributes(attrs pcommon.Map) (source.Source, bool) {
+	platform, _ := attrs.Get(string(conventions.CloudPlatformKey))
+	var kind source.Kind
+	switch platform.Str() {
+	case conventions.CloudPlatformGCPCloudFunctions.Value.AsString():
+		// Functions take precedence over their underlying Cloud Run service.
+		kind = source.GCPCloudFunctionsKind
+	case conventions.CloudPlatformGCPCloudRun.Value.AsString():
+		kind = source.GCPCloudRunKind
+	default:
+		return source.Source{}, false
+	}
+
+	// A job must not inherit service running-metric attribution, even when its
+	// job attributes are empty or a revision was added manually. Worker pools have the
+	// same resource shape as services and cannot be distinguished here.
+	for _, key := range []string{"gcp.cloud_run.job.execution", "gcp.cloud_run.job.task_index"} {
+		if _, ok := attrs.Get(key); ok {
+			return source.Source{}, false
+		}
+	}
+
+	dims := make(map[string]string, 5)
+	for otelKey, ddKey := range map[string]string{
+		string(conventions.CloudAccountIDKey): "project_id",
+		string(conventions.CloudRegionKey):    "location",
+		string(conventions.FaaSNameKey):       "service_name",
+		string(conventions.FaaSInstanceKey):   "instance",
+	} {
+		value, ok := attrs.Get(otelKey)
+		if !ok || value.Type() != pcommon.ValueTypeStr || value.Str() == "" {
+			return source.Source{}, false
+		}
+		dims[ddKey] = value.Str()
+	}
+	if revision, ok := attrs.Get(string(conventions.FaaSVersionKey)); ok && revision.Str() != "" {
+		dims["revision_name"] = revision.Str()
+	}
+	return source.Source{
+		Kind:       kind,
+		Identifier: dims["instance"], //nolint:staticcheck // Populate the legacy field during the SourceIdentifier migration.
+		SourceIdentifier: source.SourceIdentifier{
+			Primary:    dims["instance"],
+			Dimensions: dims,
+		},
+	}, true
+}
+
 func getClusterName(attrs pcommon.Map) (string, bool) {
 	if k8sClusterName, ok := attrs.Get(string(conventions.K8SClusterNameKey)); ok {
 		return k8sClusterName.Str(), true
@@ -249,6 +306,10 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 				},
 			},
 		}, true
+	}
+
+	if IsGCPServerless(attrs) {
+		return gcpServerlessSourceFromAttributes(attrs)
 	}
 
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {

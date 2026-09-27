@@ -36,13 +36,30 @@
 """Agent specific BUILD file for zlib."""
 
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
-    default_package_metadata = [":license"],
+    default_package_metadata = [":package_metadata"],
     default_visibility = ["@@//packages:__subpackages__"],
+)
+
+# Keep aligned with deps/repos.MODULE.bazel
+VERSION = "1.3.1"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/madler/zlib/releases/download/v{version}/zlib-{version}.tar.gz",
+        package = "zlib",
+        version = VERSION,
+    ),
 )
 
 license(
@@ -119,9 +136,9 @@ cc_library(
 
 cc_shared_library(
     name = "z",
+    visibility = ["//visibility:public"],
     win_def_file = "win32/zlib.def",
     deps = [":zlib"],
-    visibility = ["//visibility:public"],
 )
 
 pkg_files(
@@ -132,10 +149,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "z_pkg",
-    input = ":z",
     dest_dir = "embedded/lib",
-    version = "1.3.1",
+    input = ":z",
     installed_files = [":hdr_files"],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 

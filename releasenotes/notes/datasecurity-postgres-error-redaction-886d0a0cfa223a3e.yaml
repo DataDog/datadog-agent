@@ -1,0 +1,6 @@
+---
+security:
+  - |
+    Data security PostgreSQL scans no longer log or report raw PostgreSQL error
+    messages, which could contain scanned values. Server errors are reported by
+    their SQLSTATE code and client errors by a generic message.

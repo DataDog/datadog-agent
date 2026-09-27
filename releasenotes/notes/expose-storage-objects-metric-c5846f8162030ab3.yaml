@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Expose a new metric ``kube_apiserver.storage_objects``, tagged by ``resource``, that reports the number of
+    objects of each resource type (including custom resources) currently held in the Kubernetes API server's
+    underlying storage.
