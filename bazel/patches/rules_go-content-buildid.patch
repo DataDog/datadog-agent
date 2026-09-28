@@ -1,12 +1,11 @@
 diff --git a/go/private/actions/link.bzl b/go/private/actions/link.bzl
-index fe7cd922..35eb7af7 100644
+index 1df51d6e..9c916482 100644
 --- a/go/private/actions/link.bzl
 +++ b/go/private/actions/link.bzl
-@@ -212,9 +212,6 @@ def emit_link(
-     builder_args.add("-p", archive.data.importmap)
-     tool_args.add_all(gc_linkopts)
-     tool_args.add_all(go.toolchain.flags.link)
--
+@@ -218,8 +218,6 @@ def emit_link(
+     if go.mode.goos == "darwin" and sdk_version and sdk_version[:2] >= (1, 27) and go.macos_minimum_os:
+         tool_args.add("-macos", go.macos_minimum_os)
+
 -    # Do not remove, somehow this is needed when building for darwin/arm only.
 -    tool_args.add("-buildid=redacted")
      if go.mode.strip:
