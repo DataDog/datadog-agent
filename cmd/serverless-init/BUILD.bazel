@@ -1066,6 +1066,7 @@ go_binary(
 dd_agent_go_test(
     name = "serverless-init_test",
     srcs = [
+        "inventory_containerapp_test.go",
         "inventory_disabled_test.go",
         "main_test.go",
     ],
