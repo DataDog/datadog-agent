@@ -203,6 +203,16 @@ func (s *testNPMInstallSuite) testNPMFunctional() {
 		windowsCommon.AssertServiceState(s.T(), host, "datadog-system-probe", "Stopped")
 
 		windowsAgent.AssertProcmgrProcessRunning(s.T(), host, "datadog-agent-sysprobe")
+
+		// The legacy SCM service was registered as LocalSystem, and system-probe needs that
+		// to reconfigure and start the driver services through the SCM. Under dd-procmgrd
+		// the account comes from the privileged spawn profile inheriting the supervisor
+		// token instead, so the only thing that shows it survived the migration is the
+		// token the child actually holds.
+		owner, err := windowsProcessOwnerByName(host, "system-probe.exe")
+		s.Require().NoError(err)
+		s.Assert().Contains(owner, "NT AUTHORITY/SYSTEM",
+			"system-probe should run as LocalSystem under dd-procmgrd")
 	})
 	s.Run("agent npm status", func() {
 		client := s.NewTestClientForHost(host)
