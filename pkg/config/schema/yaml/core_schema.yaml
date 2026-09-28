@@ -3061,7 +3061,7 @@ properties:
   autoconf_config_files_num_workers:
     node_type: setting
     type: integer
-    default: 1
+    default: 4
     visibility: public
     description: |-
       Number of goroutines used to read and parse integration configuration files
