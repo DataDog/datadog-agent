@@ -2574,3 +2574,27 @@ func TestDRACollectorsUseTheNegotiatedTaintRuleVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestApiResourceAvailable(t *testing.T) {
+	resources := []*apiv1.APIResourceList{
+		{
+			GroupVersion: "autoscaling/v2",
+			APIResources: []apiv1.APIResource{
+				{Kind: "HorizontalPodAutoscaler"},
+			},
+		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []apiv1.APIResource{
+				{Kind: "Deployment"},
+			},
+		},
+	}
+
+	assert.True(t, apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler"))
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2beta2", "HorizontalPodAutoscaler"),
+		"a different group/version for the same kind must not match")
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2", "Deployment"),
+		"a different kind under the same group/version must not match")
+	assert.False(t, apiResourceAvailable(nil, "autoscaling/v2", "HorizontalPodAutoscaler"))
+}
