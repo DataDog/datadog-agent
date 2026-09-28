@@ -116,7 +116,6 @@
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
           FIPS_INPUT_FILE=$(resolve_artifact "FIPS agent" "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-*${ARCH}.tar.xz" "ddot") || exit 1
           FIPS_INPUT_DIR="/tmp/input_fips_${ARCH}"
-          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${FIPS_INPUT_DIR}/${INSTALL_DIR}/embedded/bin/installer --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           FIPS_INPUT_FILE=$(resolve_artifact "FIPS installer" "${OMNIBUS_PACKAGE_DIR}datadog-fips-installer-*${ARCH}.tar.xz") || exit 1
@@ -128,6 +127,15 @@
           mkdir -p ${FIPS_INPUT_DIR}
           echo "Extracting FIPS ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
           tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
+          if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+            # Bootstrap runs before the target payload exists. Use the existing stable
+            # FIPS runtime, whose canonical path survives deb/rpm-to-OCI promotion.
+            # Do not change the payload's installer: it must use its own version's libs.
+            FIPS_INSTALLER_LAYER="${FIPS_INPUT_DIR}/installer.layer"
+            cp "${FIPS_INPUT_DIR}/${INSTALL_DIR}/embedded/bin/installer" "${FIPS_INSTALLER_LAYER}"
+            patchelf --set-rpath /opt/datadog-packages/datadog-agent/stable/embedded/lib "${FIPS_INSTALLER_LAYER}"
+            FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${FIPS_INSTALLER_LAYER} --extension ddot=${DDOT_FIPS_EXTENSION_DIR}"
+          fi
           echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
           datadog-package create \
             --version ${PACKAGE_VERSION} \
