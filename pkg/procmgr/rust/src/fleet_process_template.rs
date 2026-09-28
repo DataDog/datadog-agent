@@ -8,21 +8,15 @@
 //! renders it. The gate is evaluated against the Windows schema defaults, which is why
 //! these tests only run on Windows.
 
-use crate::config::{ProcessConfig, load_configs};
+use crate::config::ProcessConfig;
 use crate::config_gate::{condition_config_any_met, test_env_guard};
+use crate::fleet_template_support::{INSTALL_DIR, scm_service_keys, sorted, write_gated_files};
 use crate::spawn::DATADOG_AGENT_PROCESS;
 use std::path::Path;
 
 const PROCESS_TEMPLATE: &str = include_str!(
     "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-process-windows.yaml.tmpl"
 );
-
-/// The legacy SCM service definition the template transcribes. Parsed rather than
-/// duplicated so that editing the SCM key list without editing the template fails here.
-const SCM_SERVICES_GO: &str =
-    include_str!("../../../../cmd/agent/subcommands/run/dependent_services_windows.go");
-
-const INSTALL_DIR: &str = "C:/Program Files/Datadog/Datadog Agent";
 
 /// Gate keys all absent, so each one falls through to the Agent's schema default.
 const EMPTY_AGENT_YAML: &str = "api_key: 0000001\n";
@@ -60,7 +54,7 @@ fn fleet_process_template_declares_legacy_scm_gate() {
         "the Agent suppresses the legacy SCM service whenever this entry is installed"
     );
 
-    let (core_keys, sysprobe_keys) = scm_process_keys();
+    let (core_keys, sysprobe_keys) = scm_service_keys("process");
     let gate = &config.condition_config_any;
     assert_eq!(
         gate.len(),
@@ -129,74 +123,6 @@ fn fleet_process_template_gate_closed_when_collection_disabled() {
     assert!(!condition_config_any_met(&gate));
 }
 
-fn write_gated_files(etc: &Path, agent_yaml: &str, sysprobe_yaml: &str) {
-    std::fs::write(etc.join("datadog.yaml"), agent_yaml).expect("write datadog.yaml");
-    std::fs::write(etc.join("system-probe.yaml"), sysprobe_yaml).expect("write system-probe.yaml");
-}
-
-/// Render the shipped `.tmpl` the way `renderConfig` does at install time, with `etc` as
-/// the data root, and load it through the same catalog loader the daemon uses.
 fn load_template(etc: &Path) -> ProcessConfig {
-    let rendered = PROCESS_TEMPLATE
-        .replace("{{.InstallDir}}", INSTALL_DIR)
-        .replace("{{.EtcDir}}", &etc.display().to_string());
-    assert!(
-        !rendered.contains("{{"),
-        "the installer only substitutes InstallDir and EtcDir, so the template must use no \
-         other placeholder:\n{rendered}"
-    );
-
-    let catalog = tempfile::tempdir().expect("tempdir");
-    std::fs::write(
-        catalog.path().join(format!("{DATADOG_AGENT_PROCESS}.yaml")),
-        rendered,
-    )
-    .expect("write yaml");
-    let mut definitions = load_configs(catalog.path()).expect("load catalog");
-    assert_eq!(definitions.len(), 1, "expected exactly one process");
-    definitions.remove(0).config
-}
-
-fn sorted(keys: &[String]) -> Vec<String> {
-    let mut sorted = keys.to_vec();
-    sorted.sort();
-    sorted
-}
-
-/// The `configKeys` of the legacy SCM `process` service, sorted and split by the config
-/// file each key is read from: `(coreConf keys, sysprobeConf keys)`. A Go map literal has
-/// no meaningful order, so only the sets are compared.
-fn scm_process_keys() -> (Vec<String>, Vec<String>) {
-    let definition = SCM_SERVICES_GO
-        .find("name: \"process\",")
-        .map(|start| &SCM_SERVICES_GO[start..])
-        .expect("no `name: \"process\"` service definition in dependent_services_windows.go");
-    let map = definition
-        .find("configKeys: map[string]model.Reader{")
-        .map(|start| &definition[start..])
-        .expect("the SCM process service has no configKeys map");
-    let body = &map[..map.find("},").expect("unterminated configKeys map")];
-
-    let mut core = Vec::new();
-    let mut sysprobe = Vec::new();
-    for line in body.lines().skip(1) {
-        let Some(key) = line.split('"').nth(1) else {
-            continue;
-        };
-        if line.contains("sysprobeConf") {
-            sysprobe.push(key.to_owned());
-        } else if line.contains("coreConf") {
-            core.push(key.to_owned());
-        } else {
-            panic!(
-                "cannot tell which config file `{}` is read from",
-                line.trim()
-            );
-        }
-    }
-    assert!(
-        !core.is_empty() && !sysprobe.is_empty(),
-        "parsed an implausible SCM key split: core={core:?} sysprobe={sysprobe:?}"
-    );
-    (sorted(&core), sorted(&sysprobe))
+    crate::fleet_template_support::load_template(PROCESS_TEMPLATE, DATADOG_AGENT_PROCESS, etc)
 }
