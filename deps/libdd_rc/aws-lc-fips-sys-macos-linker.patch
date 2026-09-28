@@ -54,3 +54,13 @@ index 36ea768..2e9d2de 100644
          if is_fips_build() {
              unsafe {
                  env::set_var("GOFLAGS", "-buildvcs=false");
+@@ -150,4 +183,9 @@ impl CmakeBuilder {
+         let mut cmake_cfg = self.get_cmake_config();
++        if is_fips_build() {
++            if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
++                cmake_cfg.define("GO_EXECUTABLE", go_executable);
++            }
++        }
+         if let Some(generator) = optional_env_optional_crate_target("CMAKE_GENERATOR") {
+             set_env("CMAKE_GENERATOR", generator);
+         }

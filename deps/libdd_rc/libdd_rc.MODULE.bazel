@@ -45,16 +45,26 @@ alias(
     visibility = ["//visibility:public"],
 )
 """,
+    build_script_env = {
+        "GO_EXECUTABLE": "$(execpath @go_work_sdk//:bin/go)",
+    },
     build_script_env_select = {
         "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
+    build_script_tools = [
+        "@go_work_sdk//:bin/go",
+        "@go_work_sdk//:files",
+    ],
     crate = "aws-lc-fips-sys",
     patch_args = ["-p1"],
     patches = ["//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch"],
 )
+
+inject_repo(crate, "go_work_sdk")
+
 use_repo(crate, "libdd_rc_crates")
 
 http_archive(
