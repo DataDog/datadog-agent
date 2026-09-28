@@ -77,10 +77,12 @@ func packageCheck(d distro) probe {
 	if d.family == debian {
 		// telnet is baked into the Debian/Ubuntu e2e AMI (ami-builder
 		// provision-e2e-apt.sh), so the "broken" (non-compliant) state is
-		// already the machine's boot state; only the "fixed" transition
-		// needs a command, and removal needs no network access.
+		// already the machine's boot state on a fresh host and needs no
+		// network access. The dpkg check only falls back to a network
+		// install if a retry reuses a host where the fixed step below
+		// already removed the package.
 		return probe{"package", rule,
-			"true",
+			"dpkg -s telnet >/dev/null 2>&1 || (sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y telnet)",
 			"sudo DEBIAN_FRONTEND=noninteractive apt-get remove -y telnet"}
 	}
 	return probe{"package", rule, "sudo dnf install -y telnet", "sudo dnf remove -y telnet"}

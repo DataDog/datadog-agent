@@ -7,6 +7,7 @@ package ec2docker
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
@@ -80,6 +81,21 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.DockerHostOutp
 	if params.agentOptions != nil {
 		params.agentOptions = append(params.agentOptions, dockeragentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		if params.testingWorkload {
+			// The Ubuntu e2e AMI bakes in redis-server, auto-started and bound to
+			// :6379. Stop and disable it so the redis container below can claim the
+			// port during docker-compose up. `|| true` keeps this idempotent on
+			// hosts where redis-server is absent.
+			stopRedisServer, err := host.OS.Runner().Command(
+				"stop-redis-server",
+				&command.Args{
+					Create: pulumi.String("systemctl disable --now redis-server || true"),
+					Sudo:   true,
+				},
+			)
+			if err != nil {
+				return err
+			}
+			params.agentOptions = append(params.agentOptions, dockeragentparams.WithPulumiDependsOn(utils.PulumiDependsOn(stopRedisServer)))
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithExtraComposeManifest(redis.DockerComposeManifest.Name, redis.DockerComposeManifest.Content))
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithExtraComposeManifest(dogstatsd.DockerComposeManifest.Name, dogstatsd.DockerComposeManifest.Content))
 			params.agentOptions = append(params.agentOptions, dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{"HOST_IP": host.Address}))
