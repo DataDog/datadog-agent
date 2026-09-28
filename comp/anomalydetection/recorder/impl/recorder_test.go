@@ -8,6 +8,9 @@
 package recorderimpl
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -70,6 +73,20 @@ func (h *recorderTestInnerHandle) ObserveLog(observer.LogView) {
 	}
 }
 
+func TestRecorderDisabledProvidesNoComponentOrWriters(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "recordings")
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":    false,
+		"anomaly_detection.recording.output_dir": outputDir,
+	})
+	provided, err := NewComponent(Requires{Config: cfg})
+	require.NoError(t, err)
+	_, present := provided.Comp.Get()
+	require.False(t, present)
+	_, err = os.Stat(outputDir)
+	require.True(t, errors.Is(err, os.ErrNotExist))
+}
+
 func TestRecorderMiddlewareRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
@@ -80,7 +97,9 @@ func TestRecorderMiddlewareRoundTrip(t *testing.T) {
 	})
 	provided, err := NewComponent(Requires{Config: cfg})
 	require.NoError(t, err)
-	r := provided.Comp.(*recorderImpl)
+	comp, present := provided.Comp.Get()
+	require.True(t, present)
+	r := comp.(*recorderImpl)
 	require.Equal(t, 30*time.Second, r.metricParquetWriter.flushInterval)
 	require.Equal(t, 2*time.Hour, r.metricParquetWriter.retentionDuration)
 

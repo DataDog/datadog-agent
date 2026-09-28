@@ -9,7 +9,6 @@
 package fx
 
 import (
-	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	recorderimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -18,6 +17,5 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(recorderimpl.NewComponent),
-		fxutil.ProvideOptional[recorder.Component](),
 	)
 }

@@ -18,6 +18,7 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the dependencies for the recorder component.
@@ -27,22 +28,20 @@ type Requires struct {
 
 // Provides defines the output of the recorder component.
 type Provides struct {
-	Comp recorderdef.Component
+	Comp option.Option[recorderdef.Component]
 }
 
 // NewComponent creates a new recorder component.
 func NewComponent(req Requires) (Provides, error) {
-	r := &recorderImpl{}
-
 	if !req.Config.GetBool("anomaly_detection.recording.enabled") {
 		logging.Debug("recorder disabled (anomaly_detection.recording.enabled=false)")
-		r.recordingDisabled = true
-		return Provides{Comp: r}, nil
+		return Provides{Comp: option.None[recorderdef.Component]()}, nil
 	}
 
+	r := &recorderImpl{}
 	parquetDir := req.Config.GetString("anomaly_detection.recording.output_dir")
 	if parquetDir == "" {
-		return Provides{Comp: r}, errors.New("anomaly_detection.recording.output_dir not set")
+		return Provides{}, errors.New("anomaly_detection.recording.output_dir not set")
 	}
 
 	flushInterval := time.Duration(req.Config.GetInt("anomaly_detection.recording.flush_interval")) * time.Second
@@ -57,23 +56,22 @@ func NewComponent(req Requires) (Provides, error) {
 
 	writer, err := newMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		return Provides{Comp: r}, fmt.Errorf("creating metrics parquet writer: %w", err)
+		return Provides{}, fmt.Errorf("creating metrics parquet writer: %w", err)
 	}
 	r.metricParquetWriter = writer
 	logging.Infof("recorder metrics writer started: dir=%s", parquetDir)
 
 	logWriter, err := newLogParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		return Provides{Comp: r}, fmt.Errorf("creating log parquet writer: %w", err)
+		return Provides{}, fmt.Errorf("creating log parquet writer: %w", err)
 	}
 	r.logParquetWriter = logWriter
 	logging.Infof("recorder log writer started: dir=%s", parquetDir)
 
-	return Provides{Comp: r}, nil
+	return Provides{Comp: option.New[recorderdef.Component](r)}, nil
 }
 
 type recorderImpl struct {
-	recordingDisabled   bool
 	metricParquetWriter *metricParquetWriter
 	logParquetWriter    *logParquetWriter
 }
@@ -82,9 +80,6 @@ type recorderImpl struct {
 func (r *recorderImpl) GetHandle(handleFunc observer.HandleFunc) observer.HandleFunc {
 	return func(name string) observer.Handle {
 		innerHandle := handleFunc(name)
-		if r.recordingDisabled {
-			return innerHandle
-		}
 		logging.Infof("recorder: getting handle for %s", name)
 		return &recordingHandle{inner: innerHandle, recorder: r, name: name}
 	}

@@ -8,6 +8,9 @@
 package fx
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,4 +29,24 @@ func TestRecorderModuleGraph(t *testing.T) {
 		fx.Invoke(func(_ option.Option[recorder.Component]) {}),
 	)
 	require.NoError(t, err)
+}
+
+func TestRecorderModuleDisabledProvidesNone(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "recordings")
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":    false,
+		"anomaly_detection.recording.output_dir": outputDir,
+	})
+	var provided option.Option[recorder.Component]
+	app := fx.New(
+		fx.NopLogger,
+		Module().Option,
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Populate(&provided),
+	)
+	require.NoError(t, app.Err())
+	_, present := provided.Get()
+	require.False(t, present)
+	_, err := os.Stat(outputDir)
+	require.True(t, errors.Is(err, os.ErrNotExist))
 }
