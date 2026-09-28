@@ -181,19 +181,27 @@ func redactSecretValues(args []string, patterns []procutil.DataScrubberPattern) 
 	wasValue := make([]bool, len(args))
 
 	for i, arg := range classified {
-		if wasValue[i] || !arg.namesSecret {
+		if !arg.namesSecret {
 			continue
 		}
 		if arg.hasInlineValue {
-			args[i] = arg.flag + arg.delimiter + redactedValue
+			// Unless this element is itself a redacted value now, in which case its classification
+			// describes text that is gone and rebuilding from it would restore part of the secret.
+			if !wasValue[i] {
+				args[i] = arg.flag + arg.delimiter + redactedValue
+			}
 			continue
 		}
-		// The value is the following element, as in ["--password", "s3cret"]. All of it goes:
-		// a flag that takes no value is worth losing to a redaction, a credential is not worth
-		// risking on a guess about what a value looks like. A flag is the exception, because
-		// ["--password", "--api-key", "s3cret"] is a flag that took no value followed by one that
-		// did, and consuming "--api-key" here would leave its own value untouched below.
-		if i+1 < len(args) && !classified[i+1].isFlag {
+		// The value is the following element, as in ["--password", "s3cret"], and all of it goes
+		// whatever it looks like: a value is not disqualified from being one by starting with a
+		// dash or a slash, and "--password /etc/creds" is an ordinary way to write one. A flag
+		// that took no value is worth losing to a redaction, a credential is not worth risking on
+		// a guess.
+		//
+		// Only an argument spelled as a flag is read as taking a separate value. That keeps a
+		// value that happens to name a secret, "separate-token-secret" say, from swallowing the
+		// unrelated argument behind it.
+		if arg.isFlag && i+1 < len(args) {
 			args[i+1] = redactedValue
 			wasValue[i+1] = true
 		}
@@ -224,9 +232,12 @@ func classifyArguments(args []string, patterns []procutil.DataScrubberPattern) [
 	return classified
 }
 
-// looksLikeFlag reports whether an argument is written the way a flag is written. It says nothing
-// about whether the flag names a secret: "password=x" carries a secret without being spelled as a
-// flag, and is redacted on its own token rather than by consuming the argument after it.
+// looksLikeFlag reports whether an argument is written the way a flag is written, which is what
+// decides whether it can carry its value in the argument after it.
+//
+// It says nothing about whether an argument names a secret, and nothing about whether one is a
+// value: "password=x" carries a secret without being spelled as a flag, and is redacted on its own
+// token, while "/etc/creds" is a perfectly ordinary value that happens to start with a slash.
 //
 // Both prefixes count, because procutil recognizes the Windows "/p" and "/rp" spellings alongside
 // dashed ones.

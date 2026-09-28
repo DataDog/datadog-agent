@@ -333,7 +333,19 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 			// the placeholder instead of "--api-key", leaving the real credential in the flare.
 			name: "a secret flag following another does not lose its own value",
 			args: []string{"--password", "--api-key", "leaked-by-adjacency"},
-			want: []string{"--password", "--api-key", wantRedacted},
+			want: []string{"--password", wantRedacted, wantRedacted},
+		},
+		{
+			// A value is not disqualified from being one by starting with a dash or a slash. Paths
+			// are ordinary values, and a token can start with either.
+			name: "a secret value spelled like a flag is still a value",
+			args: []string{"--password", "/etc/datadog-agent/leaked-by-slash"},
+			want: []string{"--password", wantRedacted},
+		},
+		{
+			name: "a secret value starting with a dash is still a value",
+			args: []string{"--api-key", "-leaked-by-dash"},
+			want: []string{"--api-key", wantRedacted},
 		},
 		{
 			// The value itself names a secret. Classifying every element before rewriting any of
