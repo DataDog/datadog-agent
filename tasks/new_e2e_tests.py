@@ -439,6 +439,32 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
     return go_timeout
 
 
+def _plan_next_attempt(
+    failing: set[tuple[str, str]],
+    known_flaky: set[tuple[str, str]],
+    remaining_tries: int,
+) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
+    """Plan the next retry attempt from the tests that failed on the current one.
+
+    Args:
+        failing: leaf tests that failed on the current attempt.
+        known_flaky: tests flagged flaky by the washer; only those that also
+            failed are affected by the plan.
+        remaining_tries: retry attempts left after the current attempt.
+
+    Returns:
+        (to_retry, to_teardown): the failed tests to rerun on the next attempt,
+        and the failed tests whose stacks were kept by E2E_SKIP_DELETE_ON_FAILURE
+        and must be torn down by the E2E_TEARDOWN_ONLY pass. Both are empty on
+        the final attempt, whose failures destroy their own stacks.
+    """
+    if remaining_tries <= 0:
+        return set(), set()
+    known_flaky_failures = failing & known_flaky
+    to_retry = failing - known_flaky_failures
+    return to_retry, known_flaky_failures
+
+
 @task(
     iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
@@ -788,24 +814,23 @@ def run(
                 (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
             )
 
-            # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
-            # By using an `intersection` we ensure that we only get tests that have actually failed.
-            known_flaky_failures = failed_tests.intersection(
-                {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
-            )
+            # `get_flaky_failures` can return tests that did not fail (it infers failing parents from
+            # their children); `_plan_next_attempt` only keeps the ones that actually failed.
+            known_flaky = {
+                (package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests
+            }
 
-            # Retry any failed tests that are not known to be flaky
-            to_retry = failed_tests - known_flaky_failures
+            to_retry, attempt_teardown = _plan_next_attempt(failed_tests, known_flaky, remaining_tries)
 
-            if known_flaky_failures:
+            if attempt_teardown:
                 print(
                     color_message(
-                        f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
+                        f"{len(attempt_teardown)} tests failed but are known flaky. They will not be retried !",
                         "yellow",
                     )
                 )
                 # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
-                to_teardown.update(known_flaky_failures)
+                to_teardown.update(attempt_teardown)
 
             if to_retry:
                 failed_tests_printout = '\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))
