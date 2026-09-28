@@ -275,9 +275,6 @@ func (d *dispatcher) add(config integration.Config) bool {
 		nodeCount := len(d.store.nodes)
 		d.store.RUnlock()
 		if nodeCount > 0 {
-			// Nodes are reporting but none is eligible for this check: its
-			// runner group is likely entirely down. Dangling will re-dispatch
-			// it as soon as an eligible worker appears.
 			log.Warnf("No eligible node to dispatch %s:%s on (%d workers reporting), will retry later", config.Name, config.Digest(), nodeCount)
 			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
 		} else {
@@ -414,11 +411,8 @@ func (d *dispatcher) run(ctx context.Context) {
 			if d.advancedDispatching.Load() {
 				d.rebalance(false)
 			} else {
-				// Mixed pool (node agents present): advanced dispatching is
-				// disabled so the utilization rebalance never runs. Instead, run
-				// the bounded repair pass that moves cluster checks back onto
-				// their runner group after the group recovered from a full
-				// outage (checks had fallen back to unrestricted workers).
+				// Mixed pool: advanced dispatching is off, so run the repair pass
+				// to move configs back onto their runner group.
 				d.repairMisplacedConfigs()
 			}
 		}

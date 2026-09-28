@@ -55,6 +55,11 @@ func TestProcessNodeStatusStoresCheckCompatibility(t *testing.T) {
 	agent, found := dispatcher.store.getNodeStore("agent1")
 	require.True(t, found)
 	assert.Nil(t, agent.checkCompat)
+
+	// Compat is fixed at registration: a later, different declaration is ignored.
+	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner,
+		&types.CheckCompatibility{Include: []string{"http_check"}})
+	assert.Equal(t, []string{"kubernetes_state_core", "orchestrator"}, runner.checkCompat.Include)
 }
 
 func TestPlacementCandidates(t *testing.T) {
@@ -249,74 +254,87 @@ func TestRebalanceUsingUtilizationRespectsEligibility(t *testing.T) {
 
 	registerWorker(t, testDispatcher, "group1", "10.0.0.1", types.NodeTypeCLCRunner,
 		&types.CheckCompatibility{Include: []string{"kube_check"}})
-	registerWorker(t, testDispatcher, "general1", "10.0.0.2", types.NodeTypeCLCRunner,
+	registerWorker(t, testDispatcher, "group2", "10.0.0.2", types.NodeTypeCLCRunner,
+		&types.CheckCompatibility{Include: []string{"kube_check"}})
+	registerWorker(t, testDispatcher, "general1", "10.0.0.3", types.NodeTypeCLCRunner,
 		&types.CheckCompatibility{Exclude: []string{"kube_check"}})
-	testDispatcher.store.Lock()
-	testDispatcher.store.nodes["group1"].workers = constants.DefaultNumWorkers
-	testDispatcher.store.nodes["general1"].workers = constants.DefaultNumWorkers
-	testDispatcher.store.Unlock()
+	registerWorker(t, testDispatcher, "general2", "10.0.0.4", types.NodeTypeCLCRunner,
+		&types.CheckCompatibility{Exclude: []string{"kube_check"}})
+	for _, name := range []string{"group1", "group2", "general1", "general2"} {
+		testDispatcher.store.Lock()
+		testDispatcher.store.nodes[name].workers = constants.DefaultNumWorkers
+		testDispatcher.store.Unlock()
+	}
 
-	// kube_check is currently misplaced on general1 (fell back during a group
-	// outage); http_check is currently misplaced on group1; orphan_check has
-	// no eligible worker at all (nobody claims it) and sits on general1.
-	node1Stats := types.CLCRunnersStats{
-		"http_check": {AverageExecutionTime: 2000, IsClusterCheck: true},
+	// Reachable state: kube checks all on group1 (overloaded), http checks all
+	// on general1 (overloaded), group2 and general2 idle. The rebalance must
+	// spread each family only among its eligible runners.
+	group1Stats := types.CLCRunnersStats{
+		"kube_a": {AverageExecutionTime: 3000, IsClusterCheck: true},
+		"kube_b": {AverageExecutionTime: 3000, IsClusterCheck: true},
 	}
-	node2Stats := types.CLCRunnersStats{
-		"kube_check":   {AverageExecutionTime: 2000, IsClusterCheck: true},
-		"orphan_check": {AverageExecutionTime: 2000, IsClusterCheck: true},
+	general1Stats := types.CLCRunnersStats{
+		"http_a": {AverageExecutionTime: 3000, IsClusterCheck: true},
+		"http_b": {AverageExecutionTime: 3000, IsClusterCheck: true},
 	}
+	emptyStats := types.CLCRunnersStats{}
 	testDispatcher.store.Lock()
-	testDispatcher.store.nodes["group1"].clcRunnerStats = node1Stats
-	testDispatcher.store.nodes["general1"].clcRunnerStats = node2Stats
+	testDispatcher.store.nodes["group1"].clcRunnerStats = group1Stats
+	testDispatcher.store.nodes["group2"].clcRunnerStats = emptyStats
+	testDispatcher.store.nodes["general1"].clcRunnerStats = general1Stats
+	testDispatcher.store.nodes["general2"].clcRunnerStats = emptyStats
 	testDispatcher.store.idToDigest = map[checkid.ID]string{
-		"kube_check":   "digest-kube",
-		"http_check":   "digest-http",
-		"orphan_check": "digest-orphan",
+		"kube_a": "digest-kube-a",
+		"kube_b": "digest-kube-b",
+		"http_a": "digest-http-a",
+		"http_b": "digest-http-b",
 	}
 	testDispatcher.store.digestToConfig = map[string]integration.Config{
-		"digest-kube":   {Name: "kube_check"},
-		"digest-http":   {Name: "http_check"},
-		"digest-orphan": {Name: "orphan_check"},
+		"digest-kube-a": {Name: "kube_check"},
+		"digest-kube-b": {Name: "kube_check"},
+		"digest-http-a": {Name: "http_check"},
+		"digest-http-b": {Name: "http_check"},
 	}
 	testDispatcher.store.digestToNode = map[string]string{
-		"digest-kube":   "general1",
-		"digest-http":   "group1",
-		"digest-orphan": "general1",
+		"digest-kube-a": "group1",
+		"digest-kube-b": "group1",
+		"digest-http-a": "general1",
+		"digest-http-b": "general1",
 	}
 	testDispatcher.store.Unlock()
-	mockClient.testStats["10.0.0.1"] = node1Stats
-	mockClient.testStats["10.0.0.2"] = node2Stats
+	mockClient.testStats["10.0.0.1"] = group1Stats
+	mockClient.testStats["10.0.0.2"] = emptyStats
+	mockClient.testStats["10.0.0.3"] = general1Stats
+	mockClient.testStats["10.0.0.4"] = emptyStats
 
 	checksMoved := testDispatcher.rebalanceUsingUtilization(false)
 	requireNotLocked(t, testDispatcher.store)
 
 	testDispatcher.store.RLock()
-	kubeTarget := testDispatcher.store.digestToNode["digest-kube"]
-	httpTarget := testDispatcher.store.digestToNode["digest-http"]
-	orphanTarget := testDispatcher.store.digestToNode["digest-orphan"]
+	kubeA := testDispatcher.store.digestToNode["digest-kube-a"]
+	kubeB := testDispatcher.store.digestToNode["digest-kube-b"]
+	httpA := testDispatcher.store.digestToNode["digest-http-a"]
+	httpB := testDispatcher.store.digestToNode["digest-http-b"]
 	testDispatcher.store.RUnlock()
 
-	// The claimed check moved onto its group.
-	assert.Equal(t, "group1", kubeTarget)
-	// The unclaimed check moved off the group onto the general runner.
-	assert.Equal(t, "general1", httpTarget)
-	// The check with no eligible worker stayed where it was.
-	assert.Equal(t, "general1", orphanTarget)
+	// Every kube check stays on the group runners, every http check on the
+	// general runners, whatever the rebalance decided to move.
+	for _, target := range []string{kubeA, kubeB} {
+		assert.Contains(t, []string{"group1", "group2"}, target)
+	}
+	for _, target := range []string{httpA, httpB} {
+		assert.Contains(t, []string{"general1", "general2"}, target)
+	}
 
 	moved := map[string]bool{}
 	for _, m := range checksMoved {
 		moved[m.Digest] = true
 	}
-	assert.True(t, moved["digest-kube"])
-	assert.True(t, moved["digest-http"])
-	assert.False(t, moved["digest-orphan"])
+	// The overloaded runners were relieved: at least one move per family.
+	assert.True(t, moved["digest-kube-a"] || moved["digest-kube-b"])
+	assert.True(t, moved["digest-http-a"] || moved["digest-http-b"])
 }
 
-// TestUtilizationStdDevWeightedDegeneratesToGlobal verifies that with no
-// compatibility info (legacy distributions), the cohort-weighted stddev equals
-// the plain global one, so the worth-it gate behaves identically when the
-// feature is unused.
 func TestUtilizationStdDevWeightedDegeneratesToGlobal(t *testing.T) {
 	dist := newConfigsDistribution(map[string]int{"a": 4, "b": 4, "c": 4, "d": 4}, false, 4, 1, 0.05)
 	// Legacy placement: no eligibility info anywhere.

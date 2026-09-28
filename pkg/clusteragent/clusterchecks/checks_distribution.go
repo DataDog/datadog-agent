@@ -83,13 +83,6 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 	}
 }
 
-// leastBusyRunner returns the runner with the lowest utilization among all
-// the runners of the distribution. See leastBusyRunnerIn for the full
-// semantics; this variant considers every runner (no eligibility filter).
-func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64) string {
-	return distribution.leastBusyRunnerIn(nil, preferredRunner, excludeRunner, workersNeeded)
-}
-
 // leastBusyRunnerIn returns the runner with the lowest utilization among the
 // eligible runners. If eligible is nil, every runner is considered. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
@@ -315,24 +308,13 @@ func (distribution *configsDistribution) utilizationStdDev() float64 {
 	return math.Sqrt(variance)
 }
 
-// utilizationStdDevWeighted is the compatibility-aware replacement for
-// utilizationStdDev when rebalancing runner pools that declare check
-// compatibility. Configs are partitioned into eligibility cohorts (by their
-// candidate runner set); the stddev of each cohort is computed over the
-// utilization of the runners in that cohort's candidate set, and the result
-// is the average weighted by the number of configs in each cohort.
-//
-// A single global stddev would fight isolation: a deliberately skewed group
-// (e.g. one runner group claiming all the heavy checks) reads as a large
-// global deviation that rebalancing can never "fix" without breaking the
-// declarations, so the worth-it gate would either never fire or endlessly
-// churn. Per-cohort stddev measures balance within each candidate pool, which
-// is the thing the rebalance can actually improve.
-//
-// Cohort "" (no compatibility info, e.g. callers building distributions the
-// legacy way) spans all runners of the distribution, so with no compatibility
-// declared anywhere the result degrades to the plain utilizationStdDev over
-// all runners and existing behavior is preserved.
+// utilizationStdDevWeighted is the compatibility-aware variant of
+// utilizationStdDev: configs are partitioned into eligibility cohorts (by
+// their candidate runner set), each cohort's stddev is computed over its
+// candidate runners, and the result is the config-count-weighted average.
+// A single global stddev would fight isolation (a deliberately skewed group
+// reads as a fixable imbalance). Cohort "" spans all runners, so with no
+// compatibility declared the result degrades to the plain utilizationStdDev.
 func (distribution *configsDistribution) utilizationStdDevWeighted() float64 {
 	cohortRunners := map[string]map[string]struct{}{} // cohort key -> runner names
 	cohortConfigs := map[string]int{}

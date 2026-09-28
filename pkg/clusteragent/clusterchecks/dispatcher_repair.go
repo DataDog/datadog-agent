@@ -15,38 +15,21 @@ import (
 )
 
 // misplacedConfig describes a dispatched config sitting on an unrestricted
-// worker while eligible restricted workers are live, i.e. a check that fell
-// back to the general pool during a runner group outage and was never moved
-// back.
+// worker while eligible restricted workers are live.
 type misplacedConfig struct {
 	digest   string
 	srcNode  string
 	destNode string
 }
 
-// repairMisplacedConfigs moves dispatched cluster check configs that
-// previously fell back to unrestricted workers (e.g. while their dedicated
-// runner group was entirely down) back onto an eligible restricted worker,
-// now that one is live again.
-//
-// It runs only in mixed pools, where advanced dispatching is disabled: the
-// presence of node agents turns the utilization rebalance off entirely, so
-// without this pass a config that fell back to a node agent during a group
-// outage would stay there indefinitely. (In runner-only pools the
-// compatibility-aware utilization rebalance already re-places configs onto
-// their group.)
-//
-// The pass is deliberately conservative and bounded:
-//   - only configs whose current holder is unrestricted (no declared
-//     compatibility) AND whose placement candidates include at least one
-//     restricted worker are touched; every other config is left alone;
-//   - the destination is the eligible restricted worker with the fewest
-//     dispatched configs;
-//   - it runs at most once per rebalance_period (10m by default), which is the
-//     natural churn bound — each move is a check unschedule/schedule on the
-//     worker, so we do not want this to follow a flapping group. A hysteresis
-//     knob (e.g. requiring the group healthy for N minutes before reclaiming)
-//     can be added later if group flapping turns out to be an issue.
+// repairMisplacedConfigs moves configs that fell back to unrestricted
+// workers (e.g. during a runner group outage) back onto an eligible
+// restricted worker. It runs only in mixed pools, where the utilization
+// rebalance never runs (node agents disable advanced dispatching); in
+// runner-only pools the compat-aware rebalance already re-places configs.
+// Bounded by construction: it only touches configs held by unrestricted
+// workers whose group has a live eligible worker, and runs at most once per
+// rebalance_period.
 func (d *dispatcher) repairMisplacedConfigs() {
 	moves := d.collectMisplacedConfigs()
 
@@ -92,11 +75,9 @@ func (d *dispatcher) collectMisplacedConfigs() []misplacedConfig {
 		}
 
 		candidates := d.candidatesFromStore(config.Name)
-		// candidates already applies the preference rule: when any restricted
-		// worker is eligible, only restricted workers are returned. A
-		// non-empty result therefore means a restricted worker can run the
-		// check; an empty or unrestricted-only result means the group is still
-		// down and the fallback placement is correct.
+		// candidates applies the preference rule: non-empty means an eligible
+		// restricted worker is live; empty or unrestricted-only means the
+		// fallback placement is still correct.
 		if len(candidates) == 0 {
 			continue
 		}
@@ -140,10 +121,9 @@ func leastChecksNode(nodes map[string]*nodeStore, names []string) string {
 	return selected
 }
 
-// repairMoveConfig reassigns a config from one node to another, without the
-// runner-stats requirements of moveConfig: the source is typically a node
-// agent, which does not expose CLC runner stats, so stats are moved on a
-// best-effort basis only. Must not be called with the store locked.
+// repairMoveConfig reassigns a config between nodes without the runner-stats
+// requirements of moveConfig (node agents expose no runner stats).
+// Must not be called with the store locked.
 func (d *dispatcher) repairMoveConfig(src, dest, digest string) error {
 	if src == dest {
 		return nil

@@ -5818,30 +5818,6 @@ properties:
     - golang_type:duration
     comment: If not zero, the agent will log a warning if a check is running for longer
       than this timeout
-  clc_runner_checks_exclude:
-    node_type: setting
-    type: array
-    default: []
-    items:
-      type: string
-    tags:
-    - full-agent-only:true
-    comment: |-
-      (Experimental) Check names this agent refuses to run as cluster checks,
-      advertised to the Cluster Agent in the status POST. Subtracted after
-      clc_runner_checks_include. Leave empty for no restriction.
-  clc_runner_checks_include:
-    node_type: setting
-    type: array
-    default: []
-    items:
-      type: string
-    tags:
-    - full-agent-only:true
-    comment: |-
-      (Experimental) Exclusive list of check names this agent runs as cluster
-      checks, advertised to the Cluster Agent in the status POST. When empty,
-      the agent is unrestricted and accepts any dispatched cluster check.
   clc_runner_enabled:
     node_type: setting
     type: boolean
@@ -5950,11 +5926,8 @@ properties:
           type: string
         tags:
         - full-agent-only:true
-        comment: |-
-          (Experimental) Preferred spelling of clc_runner_checks_exclude: check
-          names this agent refuses to run as cluster checks, advertised to the
-          Cluster Agent in the status POST. Takes precedence over the
-          non-experimental key when both are set.
+        comment: Experimental. Check names this agent refuses to run as cluster
+          checks, advertised to the Cluster Agent in the status POST.
       clc_runner_checks_include:
         node_type: setting
         type: array
@@ -5963,12 +5936,9 @@ properties:
           type: string
         tags:
         - full-agent-only:true
-        comment: |-
-          (Experimental) Preferred spelling of clc_runner_checks_include:
-          exclusive list of check names this agent runs as cluster checks,
-          advertised to the Cluster Agent in the status POST. When empty, the
-          agent is unrestricted and accepts any dispatched cluster check.
-          Takes precedence over the non-experimental key when both are set.
+        comment: Experimental. Exclusive list of check names this agent runs as
+          cluster checks, advertised to the Cluster Agent in the status POST.
+          When empty, the agent is unrestricted.
   cluster_trust_chain:
     node_type: section
     type: object

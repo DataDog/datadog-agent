@@ -57,7 +57,11 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	defer node.Unlock()
 	node.heartbeat = timestampNow()
 	node.nodetype = status.NodeType
-	node.checkCompat = status.CheckCompatibility
+	// Compat is fixed at registration: a worker's declared check list never
+	// changes over its lifetime, later values are ignored.
+	if node.checkCompat == nil {
+		node.checkCompat = status.CheckCompatibility
+	}
 
 	// Check if we need to disable advanced dispatching when node agents join
 	if d.advancedDispatching.Load() && status.NodeType == types.NodeTypeNodeAgent {
@@ -108,25 +112,12 @@ func (d *dispatcher) getNodeToScheduleCheck(checkName string) string {
 	return d.getNodeWithLessChecks(checkName)
 }
 
-// placementCandidates returns the names of the live workers a check with the
-// given name may be dispatched to, applying the compatibility declarations
-// advertised by the workers:
-//
-//   - eligible workers are the ones whose check compatibility admits the check
-//     name (isEligible); a worker that declared no compatibility (nil) is
-//     unrestricted and eligible for everything.
-//   - among the eligible workers, if any restricted worker (one that declared
-//     a non-nil compatibility) is eligible, only those are returned: checks
-//     claimed by dedicated runner groups stay on them, and unrestricted
-//     workers (e.g. node agents in a mixed pool) only receive the check as a
-//     fallback, when no eligible restricted worker is live. This makes group
-//     loss availability-safe: the check degrades to the general pool rather
-//     than dangling, and is moved back by repairMisplacedConfigs once the
-//     group is live again.
-//
-// The returned list is sorted for determinism. An empty result means no
-// worker is eligible; the caller should let the config dangle so it is
-// re-dispatched as soon as an eligible worker appears.
+// placementCandidates returns the live workers a check with the given name
+// may be dispatched to, sorted for determinism. Eligible restricted workers
+// (compat-declaring) take precedence over unrestricted ones, so a check
+// claimed by a runner group stays on it and only falls back to the general
+// pool when no eligible group worker is live. Empty means no worker is
+// eligible: the caller should let the config dangle.
 func (d *dispatcher) placementCandidates(checkName string) []string {
 	d.store.RLock()
 	defer d.store.RUnlock()
@@ -153,8 +144,7 @@ func (d *dispatcher) candidatesFromStore(checkName string) []string {
 	}
 
 	// Restricted workers that admit the check take precedence over
-	// unrestricted ones: only fall back to the general pool when no
-	// compat-declaring worker can run the check.
+	// unrestricted ones.
 	if len(restricted) > 0 {
 		sort.Strings(restricted)
 		return restricted
@@ -198,10 +188,9 @@ func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
 	return selectedNode
 }
 
-// anyCompatDeclared returns whether at least one live worker advertised a
-// check compatibility in its status POST. When false, no compatibility
-// filtering applies anywhere and dispatching/rebalancing behave exactly as
-// before the feature existed.
+// anyCompatDeclared returns whether any live worker advertised a check
+// compatibility. When false, dispatching behaves exactly as before the
+// feature existed.
 func (d *dispatcher) anyCompatDeclared() bool {
 	d.store.RLock()
 	defer d.store.RUnlock()

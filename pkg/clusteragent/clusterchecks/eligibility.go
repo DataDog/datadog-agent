@@ -13,10 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-// isEligible returns true if a worker advertising the given compatibility is
-// allowed to run a check with the given name. A nil compat means the worker
-// is unrestricted. If compat.Include is non-empty, checkName must appear in
-// it; compat.Exclude is always subtracted afterward.
+// isEligible returns whether a worker advertising the given compatibility
+// may run a check with the given name. nil compat means unrestricted.
 func isEligible(compat *types.CheckCompatibility, checkName string) bool {
 	if compat == nil {
 		return true

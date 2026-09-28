@@ -20,8 +20,6 @@ func TestCheckCompatibilityFromConfig(t *testing.T) {
 	// and reset the keys explicitly between the cases instead of recreating it.
 	cfg := configmock.New(t)
 	reset := func() {
-		cfg.SetInTest("clc_runner_checks_include", []string{})
-		cfg.SetInTest("clc_runner_checks_exclude", []string{})
 		cfg.SetInTest("experimental.clc_runner_checks_include", []string{})
 		cfg.SetInTest("experimental.clc_runner_checks_exclude", []string{})
 	}
@@ -30,10 +28,9 @@ func TestCheckCompatibilityFromConfig(t *testing.T) {
 	// Nothing set: unrestricted (nil).
 	assert.Nil(t, checkCompatibilityFromConfig(cfg))
 
-	// Plain alias keys, the spelling the operator emits today
-	// (DD_CLC_RUNNER_CHECKS_INCLUDE/EXCLUDE).
-	cfg.SetInTest("clc_runner_checks_include", []string{"kubernetes_state_core", "orchestrator"})
-	cfg.SetInTest("clc_runner_checks_exclude", []string{"http_check"})
+	// DD_EXPERIMENTAL_CLC_RUNNER_CHECKS_* env vars bind to these keys.
+	cfg.SetInTest("experimental.clc_runner_checks_include", []string{"kubernetes_state_core", "orchestrator"})
+	cfg.SetInTest("experimental.clc_runner_checks_exclude", []string{"http_check"})
 	compat := checkCompatibilityFromConfig(cfg)
 	require.NotNil(t, compat)
 	assert.Equal(t, []string{"kubernetes_state_core", "orchestrator"}, compat.Include)
@@ -41,24 +38,13 @@ func TestCheckCompatibilityFromConfig(t *testing.T) {
 	reset()
 
 	// Comma-joined values bound as a single list element (the DD_ env binder
-	// splits []string on spaces, so the operator's comma-joined env var lands
-	// as one element): the compat parser must expand it into individual check
-	// names.
-	cfg.SetInTest("clc_runner_checks_include", []string{"kubernetes_state_core,orchestrator, kube_apiserver_metrics"})
-	cfg.SetInTest("clc_runner_checks_exclude", []string{"http_check, ,redisdb"})
+	// splits []string on spaces): expanded into individual check names.
+	cfg.SetInTest("experimental.clc_runner_checks_include", []string{"kubernetes_state_core,orchestrator, kube_apiserver_metrics"})
+	cfg.SetInTest("experimental.clc_runner_checks_exclude", []string{"http_check, ,redisdb"})
 	compat = checkCompatibilityFromConfig(cfg)
 	require.NotNil(t, compat)
 	assert.Equal(t, []string{"kubernetes_state_core", "orchestrator", "kube_apiserver_metrics"}, compat.Include)
 	assert.Equal(t, []string{"http_check", "redisdb"}, compat.Exclude)
-	reset()
-
-	// Experimental keys (DD_EXPERIMENTAL_CLC_RUNNER_CHECKS_*) win over the
-	// aliases when both are set.
-	cfg.SetInTest("clc_runner_checks_include", []string{"from-alias"})
-	cfg.SetInTest("experimental.clc_runner_checks_include", []string{"from-experimental"})
-	compat = checkCompatibilityFromConfig(cfg)
-	require.NotNil(t, compat)
-	assert.Equal(t, []string{"from-experimental"}, compat.Include)
 	reset()
 
 	// Only the experimental exclude key set.

@@ -85,9 +85,7 @@ func NewClusterChecksConfigProvider(providerConfig *constants.ConfigurationProvi
 		c.nodeType = types.NodeTypeNodeAgent
 	}
 
-	// Read the check compatibility declarations. They apply to any worker
-	// running this provider (node agents included), not only dedicated
-	// cluster check runners.
+	// Check compatibility declarations, advertised to the Cluster Agent.
 	c.checkCompat = checkCompatibilityFromConfig(pkgconfigsetup.Datadog())
 	if c.checkCompat != nil {
 		log.Infof("Advertising cluster check compatibility: include=%v exclude=%v", c.checkCompat.Include, c.checkCompat.Exclude)
@@ -131,9 +129,7 @@ func (c *ClusterChecksConfigProvider) withinDegradedModePeriod() bool {
 	return withinDegradedModePeriod(c.heartbeat.Load(), c.degradedDuration)
 }
 
-// newNodeStatus builds the NodeStatus sent with every status POST, including
-// the worker's advertised check compatibility (nil when unrestricted, which
-// the Cluster Agent reads as "accepts any cluster check").
+// newNodeStatus builds the NodeStatus sent with every status POST.
 func (c *ClusterChecksConfigProvider) newNodeStatus(lastChange int64) types.NodeStatus {
 	return types.NodeStatus{
 		LastChange:         lastChange,
@@ -143,10 +139,8 @@ func (c *ClusterChecksConfigProvider) newNodeStatus(lastChange int64) types.Node
 }
 
 // splitCompatEntries expands a config-provided string slice into individual
-// check names. The agent's DD_ environment binder splits []string values on
-// spaces, while some emitters (notably the operator's runner-group env vars)
-// join check names with commas; accept both by splitting every element on
-// commas as well, trimming whitespace and dropping empty entries.
+// check names. The DD_ env binder splits []string on spaces, while emitters
+// may join names with commas; accept both.
 func splitCompatEntries(values []string) []string {
 	if len(values) == 0 {
 		return nil
@@ -163,24 +157,12 @@ func splitCompatEntries(values []string) []string {
 	return out
 }
 
-// checkCompatibilityFromConfig derives the worker's advertised check
-// compatibility from the configuration. The experimental.* keys are the
-// preferred, DD_EXPERIMENTAL_-prefixed spelling; the plain clc_runner_checks_*
-// keys are the alias currently emitted by the operator and win only when the
-// experimental key is unset. Both empty means unrestricted (nil).
+// checkCompatibilityFromConfig derives the advertised check compatibility
+// from the experimental.clc_runner_checks_* config keys
+// (DD_EXPERIMENTAL_CLC_RUNNER_CHECKS_*). Both empty means unrestricted (nil).
 func checkCompatibilityFromConfig(config pkgconfigmodel.Reader) *types.CheckCompatibility {
-	include := config.GetStringSlice("experimental.clc_runner_checks_include")
-	if len(include) == 0 {
-		include = config.GetStringSlice("clc_runner_checks_include")
-	}
-
-	exclude := config.GetStringSlice("experimental.clc_runner_checks_exclude")
-	if len(exclude) == 0 {
-		exclude = config.GetStringSlice("clc_runner_checks_exclude")
-	}
-
-	include = splitCompatEntries(include)
-	exclude = splitCompatEntries(exclude)
+	include := splitCompatEntries(config.GetStringSlice("experimental.clc_runner_checks_include"))
+	exclude := splitCompatEntries(config.GetStringSlice("experimental.clc_runner_checks_exclude"))
 
 	if len(include) == 0 && len(exclude) == 0 {
 		return nil

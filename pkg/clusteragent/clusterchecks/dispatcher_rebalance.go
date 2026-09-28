@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"sort"
 	"time"
 
@@ -257,12 +256,10 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	return result
 }
 
-// useUtilizationRebalance picks the rebalance algorithm. The utilization
-// algorithm is the only compatibility-aware one: the busyness algorithm can
-// move checks onto workers that refuse them, so when any runner declares a
-// check compatibility the utilization algorithm is used regardless of the
-// cluster_checks.rebalance_with_utilization setting (first-iteration stance;
-// the busyness algorithm may be deprecated outright later).
+// useUtilizationRebalance picks the rebalance algorithm: the utilization one
+// is the only compatibility-aware one (busyness can move checks onto workers
+// that refuse them), so compat declarations force it regardless of the
+// cluster_checks.rebalance_with_utilization setting.
 func (d *dispatcher) useUtilizationRebalance() bool {
 	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
 		return true
@@ -442,19 +439,15 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// We don't calculate the optimal distribution, so it might be worse than
 	// the current one or not good enough so that it's worth it to schedule and
 	// unschedule checks. When that's the case, return without moving any
-	// checks. The stddev is compatibility-aware (per-cohort, weighted), so an
-	// intentionally skewed runner group does not read as a global imbalance.
-	//
-	// The gate is bypassed when the current distribution holds misplaced
-	// configs (a config sitting on a runner that is not eligible for it, e.g.
-	// after its runner group recovered from an outage): repairing those is a
-	// correctness fix, not a balance optimization, so it must not be blocked
-	// by the improvement threshold.
+	// checks. The stddev is per-cohort (see utilizationStdDevWeighted), so a
+	// deliberately skewed runner group does not read as a global imbalance.
+	// Misplaced configs bypass the improvement gate: repairing them is a
+	// correctness fix, not a balance optimization.
 	currentUtilizationStdDev := currentConfigsDistribution.utilizationStdDevWeighted()
 	proposedUtilizationStdDev := proposedDistribution.utilizationStdDevWeighted()
 	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
 
-	if force || hasIneligiblePlacement(currentConfigsDistribution) || rebalanceIsWorthIt(currentConfigsDistribution, proposedDistribution, minPercImprovement) {
+	if force || rebalanceIsWorthIt(currentConfigsDistribution, proposedDistribution, minPercImprovement) {
 
 		jsonDistribution, _ := json.Marshal(proposedDistribution)
 
@@ -581,24 +574,6 @@ func setPredictedUtilization(distribution configsDistribution) {
 	for runnerName, runnerStatus := range distribution.Runners {
 		predictedUtilization.Set(runnerStatus.utilization(), runnerName, le.JoinLeaderValue)
 	}
-}
-
-// hasIneligiblePlacement reports whether any config in the distribution sits
-// on a runner that is not eligible for it per the compatibility declarations
-// (a misplaced config). Configs with no eligibility info (legacy) and configs
-// with no eligible worker at all (nothing to repair, they are pinned) do not
-// count. Purely additive: with no compatibility declared anywhere this is
-// always false.
-func hasIneligiblePlacement(distribution configsDistribution) bool {
-	for _, config := range distribution.Configs {
-		if len(config.EligibleRunners) == 0 {
-			continue
-		}
-		if !slices.Contains(config.EligibleRunners, config.Runner) {
-			return true
-		}
-	}
-	return false
 }
 
 func rebalanceIsWorthIt(currentDistribution configsDistribution, proposedDistribution configsDistribution, minPercImprovement int) bool {
