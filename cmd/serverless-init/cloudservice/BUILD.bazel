@@ -34,6 +34,7 @@ go_library(
 dd_agent_go_test(
     name = "cloudservice_test",
     srcs = [
+        "appservice_inventory_test.go",
         "appservice_test.go",
         "cloudrun_inventory_test.go",
         "cloudrun_jobs_inventory_test.go",

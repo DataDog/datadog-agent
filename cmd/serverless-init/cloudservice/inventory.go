@@ -10,6 +10,8 @@ const (
 	workloadTypeCloudRunFunction  = "cloud_run_function"
 	workloadTypeCloudRunJob       = "cloud_run_job"
 	workloadTypeAzureContainerApp = "azure_container_app"
+	workloadTypeAzureAppService   = "azure_app_service"
+	workloadTypeAzureFunction     = "azure_function"
 )
 
 // InventoryData holds the per-platform serverless fields that feed the
@@ -49,9 +51,6 @@ type InventoryData struct {
 
 func (l *LocalService) CanCollectInventory() bool       { return true }
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
-
-func (a *AppService) CanCollectInventory() bool       { return false }
-func (a *AppService) GetInventoryData() InventoryData { return InventoryData{} }
 
 func (m *MicroVM) CanCollectInventory() bool       { return false }
 func (m *MicroVM) GetInventoryData() InventoryData { return InventoryData{} }
