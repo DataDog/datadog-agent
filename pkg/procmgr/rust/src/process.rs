@@ -52,8 +52,12 @@ impl RestartTracker {
     }
 
     fn is_burst_limited(&self, burst: u32, interval: Duration) -> bool {
-        let cutoff = Instant::now() - interval;
-        let recent = self.timestamps.iter().filter(|t| **t > cutoff).count() as u32;
+        // An `Instant` is measured from boot, so an interval longer than the current uptime
+        // has no representable cutoff. Everything recorded so far is inside that window.
+        let recent = match Instant::now().checked_sub(interval) {
+            Some(cutoff) => self.timestamps.iter().filter(|t| **t > cutoff).count(),
+            None => self.timestamps.len(),
+        } as u32;
         recent >= burst
     }
 
@@ -1109,6 +1113,30 @@ pub mod tests {
         assert!(
             proc.restarts.is_burst_limited(burst, interval),
             "should be limited after 3 restarts"
+        );
+    }
+
+    /// An `Instant` is measured from boot, so an interval longer than the host's uptime has
+    /// no representable cutoff. Subtracting it used to panic, which on Windows hit every
+    /// host booted less than `start_limit_interval_sec` ago.
+    #[test]
+    fn test_burst_interval_longer_than_uptime() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.start_limit_burst = Some(2);
+        let mut proc = ManagedProcess::new_config("uptime".into(), test_helpers::test_uuid(), cfg);
+        let burst = proc.config.burst_limit();
+
+        assert!(!proc.restarts.is_burst_limited(burst, Duration::MAX));
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!(!proc.restarts.is_burst_limited(burst, Duration::MAX));
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!(
+            proc.restarts.is_burst_limited(burst, Duration::MAX),
+            "the whole history counts when the window starts before boot"
         );
     }
 
