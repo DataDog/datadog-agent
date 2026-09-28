@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -246,6 +247,7 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event, scrubber *utils.Scrubber
 
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
+		m.logAbnormalPath(event, pathErr)
 		m.ebpfProbe.probe.DispatchCustomEvent(
 			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, scrubber, pathErr.Err, opts),
 		)
@@ -263,4 +265,25 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event, scrubber *utils.Scrubber
 			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, scrubber, event.Error, opts),
 		)
 	}
+}
+
+func (m *EBPFMonitors) logAbnormalPath(event *model.Event, pathErr *path.ErrPathResolution) {
+	var (
+		pid, tid          uint32
+		comm, execPath    string
+		containerID       string
+		ancestorExecPaths []string
+	)
+	if pc := event.ProcessContext; pc != nil {
+		pid, tid = pc.Pid, pc.Tid
+		comm = pc.Comm
+		execPath = pc.FileEvent.PathnameStr
+		containerID = string(pc.ContainerContext.ContainerID)
+		for ancestor := pc.Ancestor; ancestor != nil && len(ancestorExecPaths) < 5; ancestor = ancestor.Ancestor {
+			ancestorExecPaths = append(ancestorExecPaths, ancestor.FileEvent.PathnameStr)
+		}
+	}
+
+	seclog.Warnf("abnormal path: event_type=%s pid=%d tid=%d comm=%q exec_path=%q container_id=%q ancestors=%q error=%v",
+		event.GetEventType(), pid, tid, comm, execPath, containerID, ancestorExecPaths, pathErr.Err)
 }
