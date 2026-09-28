@@ -2,21 +2,28 @@ diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
 index 36ea768..910fb28 100644
 --- a/builder/cmake_builder.rs
 +++ b/builder/cmake_builder.rs
-@@ -7,8 +7,8 @@ use crate::{
-     allow_prebuilt_nasm, cargo_env, effective_target, emit_warning, execute_command,
+@@ -8,7 +8,7 @@ use crate::{
      get_crate_cflags, is_crt_static, is_fips_build, is_fips_crate, is_no_asm,
      is_no_pregenerated_src, is_small, optional_env, optional_env_optional_crate_target, sanitizer,
--    set_env, set_env_for_target, should_build_jitter_entropy, target, target_arch, target_env,
+     set_env, set_env_for_target, should_build_jitter_entropy, target, target_arch, target_env,
 -    target_is_msvc, target_os, test_clang_cl_command, test_nasm_command, use_prebuilt_nasm,
-+    set_env, set_env_for_target, should_build_jitter_entropy, target, target_arch, target_env,
 +    target_is_msvc, target_os, target_vendor, test_clang_cl_command, test_nasm_command, use_prebuilt_nasm,
      OutputLibType,
  };
  use std::collections::HashMap;
-@@ -107,7 +107,33 @@ impl CmakeBuilder {
+@@ -101,3 +101,10 @@ impl CmakeBuilder {
+     fn get_cmake_config(&self) -> cmake::Config {
+-        cmake::Config::new(&self.manifest_dir)
++        let mut config = cmake::Config::new(&self.manifest_dir);
++        if is_fips_build() && target_vendor() == "apple" {
++            // `cmake` reapplies the Bazel compiler tool's environment when it
++            // launches CMake, so override the hermetic LLVM library path here.
++            // Otherwise Apple's linker loads Bazel's incompatible libc++.
++            config.env("DYLD_LIBRARY_PATH", "");
++        }
++        config
      }
- 
-     #[allow(clippy::too_many_lines)]
+@@ -135,2 +142,20 @@ impl CmakeBuilder {
      fn prepare_cmake_build(&self) -> cmake::Config {
 +        // Bazel's macOS C++ toolchain selects ld64.lld through LDFLAGS. That
 +        // linker rejects an __eh_frame relocation emitted by the validated
@@ -24,14 +31,6 @@ index 36ea768..910fb28 100644
 +        // Use Apple's system linker for this dylib while retaining the rest of
 +        // the Bazel-provided link flags and SDK configuration.
 +        if is_fips_build() && target_vendor() == "apple" {
-+            // Bazel also places its hermetic LLVM libc++ on DYLD_LIBRARY_PATH.
-+            // Apple's linker is built against the system libc++; allowing the
-+            // hermetic library to interpose makes ld fail to start due to ABI
-+            // mismatches (for example, a missing ___cxa_demangle symbol).
-+            unsafe {
-+                env::remove_var("DYLD_LIBRARY_PATH");
-+            }
-+
 +            if let Ok(ldflags) = env::var("LDFLAGS") {
 +                let ldflags = ldflags
 +                    .split_whitespace()
