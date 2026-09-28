@@ -164,9 +164,9 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 
 		require.Equal(t, 1, logs.Len())
 		entry := logs.All()[0]
-		assert.Contains(t, entry.Message, "bucket count too high")
+		assert.Contains(t, entry.Message, "too many observations")
 		assert.Equal(t, "test.histogram", entry.ContextMap()["metric name"])
-		assert.Equal(t, sketchMax+1, entry.ContextMap()["bucket count"])
+		assert.Equal(t, sketchMax+1, entry.ContextMap()["count"])
 		assert.Equal(t, sketchMax, entry.ContextMap()["limit"])
 	})
 
@@ -316,5 +316,66 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		assert.Empty(t, consumer.data.Metrics.TimeSeries)
+	})
+}
+
+// TestDefaultMapperSketchCapacityAcrossBuckets covers a point whose declared
+// Count is a lie: OTLP requires Count to equal the sum of the buckets, but
+// nothing enforces it, and it is the sum that decides how many bins the sketch
+// allocates.
+func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
+	distributions := translatorConfig{
+		HistMode:                  HistogramModeDistributions,
+		SendHistogramAggregations: true,
+	}
+	sketchMax := sketchMaxObservationCount
+
+	t.Run("explicit bounds buckets summing above the limit", func(t *testing.T) {
+		core, logs := observer.New(zapcore.WarnLevel)
+		m := newDefaultMapper(newTTLCache(1800, 3600), zap.New(core), distributions)
+
+		slice := pmetric.NewHistogramDataPointSlice()
+		dp := slice.AppendEmpty()
+		dp.SetCount(1)
+		dp.SetSum(1)
+		dp.ExplicitBounds().Append(1, 2)
+		dp.BucketCounts().Append(sketchMax, sketchMax, sketchMax)
+		dp.SetTimestamp(pcommon.Timestamp(1_000_000_000))
+
+		consumer := newTestConsumer()
+		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, true))
+
+		assert.Empty(t, consumer.data.Metrics.Sketches)
+		assert.Equal(t, 1, logs.Len())
+	})
+
+	t.Run("exponential buckets summing above the limit", func(t *testing.T) {
+		core, logs := observer.New(zapcore.WarnLevel)
+		m := newDefaultMapper(newTTLCache(1800, 3600), zap.New(core), distributions)
+
+		slice := pmetric.NewExponentialHistogramDataPointSlice()
+		dp := slice.AppendEmpty()
+		dp.SetCount(1)
+		dp.SetSum(1)
+		dp.Positive().BucketCounts().Append(sketchMax, sketchMax)
+		dp.SetTimestamp(pcommon.Timestamp(1_000_000_000))
+
+		consumer := newTestConsumer()
+		m.MapExponentialHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.exp_histogram"}, slice, true)
+
+		assert.Empty(t, consumer.data.Metrics.Sketches)
+		assert.Equal(t, 1, logs.Len())
+	})
+
+	t.Run("exponential zero count plus buckets summing above the limit", func(t *testing.T) {
+		dp := pmetric.NewExponentialHistogramDataPoint()
+		dp.SetCount(1)
+		dp.SetZeroCount(sketchMax)
+		dp.Positive().BucketCounts().Append(1)
+
+		reason, _, drop := validateExpHistogramDataPoint(dp, sketchMaxObservationCount)
+
+		assert.True(t, drop)
+		assert.Equal(t, dropReasonBucketCountTooHigh, reason)
 	})
 }

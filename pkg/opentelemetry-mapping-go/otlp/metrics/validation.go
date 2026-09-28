@@ -55,43 +55,42 @@ func validateExpHistogramDataPoint(dp pmetric.ExponentialHistogramDataPoint, max
 		return dropReasonNoRecordedValue, 0, true
 	}
 
+	// An early exit on the count the point claims to carry. The buckets are summed
+	// below regardless: OTLP requires Count to equal their sum, but nothing
+	// enforces it, and it is the sum that decides how many bins the sketch builds.
 	if dp.Count() > maxObservationCount {
 		return dropReasonBucketCountTooHigh, dp.Count(), true
 	}
 
-	// Observations live in three separate places, all of which reach the sketch.
-	if dp.ZeroCount() > maxObservationCount {
-		return dropReasonBucketCountTooHigh, dp.ZeroCount(), true
+	// Observations live in three separate places, and all of them end up in the
+	// same sketch, so the bound is on their total rather than on each bucket.
+	total := dp.ZeroCount()
+	if total > maxObservationCount {
+		return dropReasonBucketCountTooHigh, total, true
 	}
 
-	if count, ok := firstCountAbove(dp.Positive().BucketCounts(), maxObservationCount); ok {
-		return dropReasonBucketCountTooHigh, count, true
-	}
-
-	if count, ok := firstCountAbove(dp.Negative().BucketCounts(), maxObservationCount); ok {
-		return dropReasonBucketCountTooHigh, count, true
-	}
-
-	return "", 0, false
-}
-
-// firstCountAbove returns the first bucket count greater than maxCount, if any.
-// It indexes the slice rather than calling AsRaw, which would copy every bucket
-// of every data point.
-func firstCountAbove(counts pcommon.UInt64Slice, maxCount uint64) (uint64, bool) {
-	for i := 0; i < counts.Len(); i++ {
-		if count := counts.At(i); count > maxCount {
-			return count, true
+	for _, counts := range [2]pcommon.UInt64Slice{dp.Positive().BucketCounts(), dp.Negative().BucketCounts()} {
+		for i := 0; i < counts.Len(); i++ {
+			count := counts.At(i)
+			// total is at most maxObservationCount here, so the subtraction cannot wrap.
+			// Comparing this way also catches a sum that would overflow a uint64.
+			if count > maxObservationCount-total {
+				return dropReasonBucketCountTooHigh, count, true
+			}
+			total += count
 		}
 	}
 
-	return 0, false
+	return "", 0, false
 }
 
 // warnDroppedDataPoint logs a dropped histogram data point. Only
 // dropReasonBucketCountTooHigh is logged, and at most once per metric name: it
 // means the sender is producing implausible input, whereas the other reasons are
 // benign or high-volume and stay as silent as they were before this guard.
+//
+// badCount is the count that could not be accommodated: the total the point
+// carries, or the bucket count that pushed that total past the limit.
 func warnDroppedDataPoint(logger *zap.Logger, warned *sync.Map, metricName, reason string, badCount, maxObservationCount uint64) {
 	if reason != dropReasonBucketCountTooHigh {
 		return
@@ -102,9 +101,9 @@ func warnDroppedDataPoint(logger *zap.Logger, warned *sync.Map, metricName, reas
 		return
 	}
 
-	logger.Warn("Dropped histogram data point: bucket count too high",
+	logger.Warn("Dropped histogram data point: too many observations for a distribution",
 		zap.String("metric name", metricName),
-		zap.Uint64("bucket count", badCount),
+		zap.Uint64("count", badCount),
 		zap.Uint64("limit", maxObservationCount),
 	)
 }

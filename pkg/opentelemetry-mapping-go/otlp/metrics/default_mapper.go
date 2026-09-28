@@ -395,12 +395,21 @@ func (m *defaultMapper) getSketchBuckets(
 	var minBound, maxBound float64
 	var minBoundSet bool
 
-	// A count above what the sketch can represent makes the whole sketch unusable:
-	// insertCounts expands it into one bin per 65535 observations before trimLeft
-	// caps the result. The loop below still runs to completion when that happens,
-	// so that every bucket's entry in the delta cache stays up to date and the next
-	// point is not computed against a stale value.
+	// More observations than the sketch can represent make the whole sketch
+	// unusable: insertCounts expands a count into one bin per 65535 observations,
+	// and trimLeft does not give the budget back once the bins are full, so the bin
+	// count grows with every oversized bucket.
+	//
+	// What is bounded below is the running total of what is actually inserted, not
+	// each bucket on its own: the counts of all buckets land in the same sketch, and
+	// the Count the point declares is no help — OTLP requires it to equal their sum,
+	// but nothing enforces that. histInfo.count is only an early exit.
+	//
+	// The loop still runs to completion once the sketch is abandoned, so that every
+	// bucket's entry in the delta cache stays up to date and the next point is not
+	// computed against a stale value.
 	var badCount uint64
+	var inserted float64
 	dropSketch := exceedsSketchCapacity(float64(histInfo.count), sketchMaxObservationCount)
 	if dropSketch {
 		badCount = histInfo.count
@@ -439,27 +448,24 @@ func (m *defaultMapper) getSketchBuckets(
 		var nonZeroBucket bool
 		if delta {
 			nonZeroBucket = count > 0
-			if exceedsSketchCapacity(float64(count), sketchMaxObservationCount) {
-				if !dropSketch {
+			if !dropSketch {
+				inserted += float64(count)
+				if exceedsSketchCapacity(inserted, sketchMaxObservationCount) {
 					dropSketch, badCount = true, count
-				}
-			} else if !dropSketch {
-				err := as.InsertInterpolate(lowerBound, upperBound, uint(count))
-				if err != nil {
+				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(count)); err != nil {
 					return err
 				}
 			}
 		} else if dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
 			nonZeroBucket = dx > 0
-			// dx, not count: a cumulative point carries lifetime counts, while only the
-			// difference from the previous point is inserted.
-			if exceedsSketchCapacity(dx, sketchMaxObservationCount) {
-				if !dropSketch {
-					dropSketch, badCount = true, uint64(dx)
-				}
-			} else if !dropSketch {
-				err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
-				if err != nil {
+			if !dropSketch {
+				// dx, not count: a cumulative point carries lifetime counts, while only
+				// the difference from the previous point is inserted. A negative dx (a
+				// counter reset) inserts nothing, so it adds nothing to the total.
+				inserted += math.Max(dx, 0)
+				if exceedsSketchCapacity(inserted, sketchMaxObservationCount) {
+					dropSketch, badCount = true, uint64(math.Max(dx, 0))
+				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(dx)); err != nil {
 					return err
 				}
 			}
