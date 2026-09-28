@@ -95,6 +95,9 @@ type Config struct {
 	// StreamParquet ingests globally ordered parquet data without retaining raw rows.
 	// It is intended for one-shot headless runs, which do not need interactive reruns.
 	StreamParquet bool
+	// IncludeDetectorAnomalies retains every detector return value before downstream
+	// filtering so headless output can compare detector behavior directly.
+	IncludeDetectorAnomalies bool
 }
 
 // ScenarioInfo describes an available scenario.
@@ -700,7 +703,7 @@ func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
 // anomaly and correlation history accumulation enabled (disabled in live mode
 // because production reporters consume advance-local events directly).
-func unboundedStorageCfg() observerimpl.StorageConfig {
+func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
 	cfg.InactiveSeriesTTLSeconds = 0
@@ -708,18 +711,20 @@ func unboundedStorageCfg() observerimpl.StorageConfig {
 	cfg.MaxCorrelations = -1           // unlimited — testbench must show all patterns
 	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
 	cfg.TrackAnomalyHistory = true     // retain raw detector output for replay UI / output
+	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
 	return cfg
 }
 
 // streamingStorageCfg uses the production point-retention and series limits,
 // but disables inactivity eviction so headless output retains complete scenario state.
-func streamingStorageCfg() observerimpl.StorageConfig {
+func streamingStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.InactiveSeriesTTLSeconds = 0
 	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	cfg.TrackAnomalyHistory = true
+	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
 	return cfg
 }
 
@@ -730,9 +735,9 @@ func (tb *Bench) resetAllState() {
 	tb.baselineWindowEndSec = 0
 	tb.baselineMutedSeries = nil
 	tb.baselineMu.Unlock()
-	storageCfg := unboundedStorageCfg()
+	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg()
+		storageCfg = streamingStorageCfg(tb.config.IncludeDetectorAnomalies)
 	}
 	tb.debug.Reset(tb.settings, storageCfg)
 }
@@ -862,7 +867,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() {
 	// Reset engine with current settings (clears all storage).
-	tb.debug.Reset(tb.settings, unboundedStorageCfg())
+	tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies))
 
 	// Re-feed parquet metrics synchronously into the fresh storage.
 	tb.feedRawMetrics()

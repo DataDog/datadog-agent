@@ -11,13 +11,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -41,7 +45,9 @@ type collector struct {
 	catalog                            workloadmeta.AgentType
 	store                              workloadmeta.Component
 	seenUUIDs                          map[string]struct{}
-	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
+	seenPIDsToGPUs                     map[int][]string    // PID -> GPU UUIDs
+	seenContainerGPUs                  map[string]struct{} // container IDs that still hold a DRA claim (for retraction)
+	publishedContainerGPUs             map[string][]string // container IDs -> GPU UUIDs successfully published (for partial-resolution guard)
 	reportedDriverNotLoaded            bool
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
@@ -88,6 +94,7 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		}
 	case *ddnvml.MIGDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+		gpuDeviceInfo.MIGProfile = d.Profile
 		if d.Parent != nil {
 			gpuDeviceInfo.ParentGPUUUID = d.Parent.UUID
 		}
@@ -230,6 +237,8 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		catalog:                 workloadmeta.NodeAgent,
 		seenUUIDs:               map[string]struct{}{},
 		seenPIDsToGPUs:          make(map[int][]string),
+		seenContainerGPUs:       make(map[string]struct{}),
+		publishedContainerGPUs:  make(map[string][]string),
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
@@ -363,6 +372,8 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
+		events = append(events, c.createContainerGPUEvents(deviceCache)...)
+
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
 
@@ -437,6 +448,535 @@ func (c *collector) createProcessEvents(pidToGPUs map[int][]string) []workloadme
 	c.seenPIDsToGPUs = pidToGPUs
 
 	return events
+}
+
+// cdiSpecDirs and migMinorsPath are variables so tests can point them at
+// fixtures; the node-local chain reads real files and is otherwise untestable.
+//
+// CDI specs are written by the DRA driver into the host's /var/run/cdi, which
+// is a real directory on disk rather than a kernel filesystem -- so a
+// containerized Agent only sees it through a mount. The standard deployment
+// mounts the host's /var/run at /host/var/run (Dockerfiles/manifests/agent.yaml),
+// so that prefix is tried first and works with no extra wiring; the bare path
+// covers a host-installed Agent and deployments that bind /var/run/cdi
+// directly. migMinorsPath needs no prefix: /proc/driver is a procfs entry
+// owned by the nvidia driver and is visible in any procfs instance, including
+// the container's own.
+// nvidiaDRADriver is the DRA driver name for NVIDIA GPUs; only its CDI
+// device names can be resolved by this collector.
+const nvidiaDRADriver = "gpu.nvidia.com"
+
+var (
+	cdiSpecDirs   = []string{"/host/var/run/cdi", "/var/run/cdi"}
+	migMinorsPath = "/proc/driver/nvidia-caps/mig-minors"
+)
+
+// createContainerGPUEvents publishes the Container<->GPU edge for DRA-allocated
+// devices, resolving each container's CDI device nodes to NVML UUIDs. It
+// repairs the container->device edge that the regex guess in
+// pkg/gpu/containers cannot make on a DRA node, where the allocated device name
+// is pool-scoped ("gpu-0-mig-1g18gb-19-0") rather than an NVML index or UUID.
+func (c *collector) createContainerGPUEvents(deviceCache ddnvml.DeviceCache) []workloadmeta.CollectorEvent {
+	var events []workloadmeta.CollectorEvent
+	// Containers that still claim a DRA device, whether or not this pull could
+	// resolve it. Retraction keys off this rather than off resolution success:
+	// a transient read failure would otherwise unset the mapping and set it
+	// again on the next pull, flapping the pod tags on the device's metrics.
+	claiming := make(map[string]struct{})
+	published := make(map[string][]string)
+
+	for _, container := range c.store.ListContainers() {
+		// One event per container, not per device: workloadmeta replaces the
+		// per-source entity on each Set, so emitting one event per device would
+		// leave only the last device's UUID on a container holding several.
+		var uuids []string
+		var hasCDIDevices bool
+		allResolved := true
+		for _, res := range container.ResolvedAllocatedResources {
+			// Only NVIDIA DRA resources carry CDI device names that this
+			// resolver can handle. A container claiming both a GPU and a
+			// non-NVIDIA DRA device (e.g. a SmartNIC) must not have its GPU
+			// attribution suppressed by the other device's resolution failure.
+			if res.Name != nvidiaDRADriver {
+				continue
+			}
+			// An NVIDIA DRA resource with no CDI device names cannot be
+			// resolved by this chain. It must count as unresolved, or the
+			// subset produced by the other resources would be treated as
+			// complete and silently drop the CDI-less allocation's
+			// attribution.
+			if len(res.CdiDevices) == 0 {
+				allResolved = false
+				continue
+			}
+			for _, cdiName := range res.CdiDevices {
+				hasCDIDevices = true
+				resolved := c.resolveCDIToGPUs(deviceCache, cdiName)
+				if len(resolved) == 0 {
+					allResolved = false
+				}
+				for _, uuid := range resolved {
+					if !slices.Contains(uuids, uuid) {
+						uuids = append(uuids, uuid)
+					}
+				}
+			}
+		}
+		if hasCDIDevices {
+			claiming[container.ID] = struct{}{}
+		}
+		if len(uuids) == 0 {
+			continue
+		}
+		if !allResolved {
+			// Partial resolution: a container that already has a mapping from
+			// a previous pull keeps it -- the partial set would replace it and
+			// drop the other device's attribution. A newly observed container
+			// publishes what resolved: having some attribution is better than
+			// none, and the downstream partial-match path can retain the
+			// matched GPUs while reporting an error for the unresolved
+			// allocation.
+			if prior, hadPriorMapping := c.publishedContainerGPUs[container.ID]; hadPriorMapping {
+				// A previously published partial mapping may grow: if this
+				// pull resolved every UUID the old mapping had, publish the
+				// new (larger or equal) set. Skip only when a previously
+				// resolved UUID disappeared -- the partial set would shrink
+				// the mapping and drop a device that was attributed before.
+				skip := false
+				for _, prev := range prior {
+					if !slices.Contains(uuids, prev) {
+						skip = true
+						break
+					}
+				}
+				if skip {
+					continue
+				}
+			}
+		}
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNVML,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   container.ID,
+				},
+				GPUDeviceIDs: uuids,
+			},
+		})
+		published[container.ID] = uuids
+	}
+
+	// Retract the mapping for containers that are gone, or that no longer hold
+	// a DRA device. Because the entity is published under SourceNVML,
+	// workloadmeta keeps it alive after every other source has unset it, so
+	// without this the entity survives the container: it never leaves the
+	// store, the tagger never expires its tags, and
+	// ListContainersWithFilter(HasGPUs) keeps returning it -- so when the
+	// device is reallocated its metrics carry the dead pod's tags too.
+	for id := range c.seenContainerGPUs {
+		if _, stillClaiming := claiming[id]; stillClaiming {
+			continue
+		}
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNVML,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   id,
+				},
+			},
+		})
+	}
+	c.seenContainerGPUs = claiming
+	// publishedContainerGPUs is merged, not replaced: a partial resolution
+	// that skips publication must not erase the record that a previous pull
+	// published this container -- that record is what prevents the next
+	// partial pull from replacing the old complete mapping. Entries are
+	// dropped only when the container stops claiming (retracted above).
+	for id, uuids := range published {
+		c.publishedContainerGPUs[id] = uuids
+	}
+	for id := range c.publishedContainerGPUs {
+		if _, stillClaiming := claiming[id]; !stillClaiming {
+			delete(c.publishedContainerGPUs, id)
+		}
+	}
+
+	return events
+}
+
+// resolveCDIToGPUs resolves a fully-qualified CDI device name (e.g.
+// "k8s.gpu.nvidia.com/claim=<uid>-gpu-0-mig-...") to the UUIDs of the NVML
+// devices it pins, via the node-local chain: CDI spec device nodes -> either a
+// physical device (/dev/nvidiaN, whole-card claim) or mig-minors -> (gpu, gi,
+// ci) -> NVML MIG device.
+func (c *collector) resolveCDIToGPUs(deviceCache ddnvml.DeviceCache, cdiName string) []string {
+	// The CDI name is "<vendor>/claim=<uid>-<device>"; the spec file is keyed
+	// by the UID and the entry inside it by the whole "<uid>-<device>" string.
+	deviceKey := cdiDeviceKey(cdiName)
+	claimUID := cdiClaimUID(deviceKey)
+	if claimUID == "" {
+		if logLimiter.ShouldLog() {
+			log.Debugf("DRA: cannot extract claim UID from CDI device name %q", cdiName)
+		}
+		return nil
+	}
+
+	nodes, err := cdiDeviceNodes(claimUID, deviceKey)
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Debugf("DRA: cannot read CDI spec for claim %s: %s", claimUID, err)
+		}
+		return nil
+	}
+	if len(nodes) == 0 {
+		if logLimiter.ShouldLog() {
+			log.Debugf("DRA: no nvidia device nodes in CDI spec for claim %s", claimUID)
+		}
+		return nil
+	}
+
+	// A MIG entry pins the parent card's device node as well as the capability
+	// devices, because the container needs access to the card its instance
+	// lives on. That parent is access, not an allocation: resolving it as a
+	// whole card would tie the container to every other workload on the card,
+	// and would do so silently -- with a plausible UUID rather than an error --
+	// whenever the MIG hop below fails.
+	migEntry := false
+	for _, node := range nodes {
+		if isMIGCapabilityDevice(node.path) {
+			migEntry = true
+			break
+		}
+	}
+	deviceType := "whole-card"
+	if migEntry {
+		deviceType = "MIG"
+	}
+	log.Debugf("DRA: claim %s device %s: %d device nodes (%s)", claimUID, deviceKey, len(nodes), deviceType)
+
+	var uuids []string
+	var capMinors []int
+	for _, node := range nodes {
+		// A whole-card claim pins /dev/nvidiaN, whose N is the device minor
+		// number -- not the NVML enumeration index, and the two can differ.
+		// resolvePhysicalUUID matches on MinorNumber accordingly.
+		if minor, ok := physicalDeviceMinor(node.path); ok {
+			if migEntry {
+				continue // the parent of this entry's MIG instance
+			}
+			if uuid, ok := resolvePhysicalUUID(deviceCache, minor); ok {
+				uuids = append(uuids, uuid)
+			} else if logLimiter.ShouldLog() {
+				log.Debugf("DRA: NVML has no physical device with minor number %d (claim %s)", minor, claimUID)
+			}
+			continue
+		}
+		if !isMIGCapabilityDevice(node.path) {
+			continue
+		}
+		if node.minor < 0 {
+			// Without the minor this container cannot be attributed at all.
+			log.Warnf("DRA: no minor for capability device %s in CDI spec for claim %s; the MIG container will not be attributed", node.path, claimUID)
+			continue
+		}
+		capMinors = append(capMinors, node.minor)
+	}
+
+	// MIG: map the capability minors to (gpu, gi, ci) tuples, then to UUIDs.
+	for _, inst := range migMinorsToInstances(capMinors) {
+		uuid, ok := resolveMIGUUID(deviceCache, inst.gpu, inst.gi, inst.ci)
+		if !ok {
+			if logLimiter.ShouldLog() {
+				log.Debugf("DRA: NVML has no MIG device for gpu%d/gi%d/ci%d (claim %s)", inst.gpu, inst.gi, inst.ci, claimUID)
+			}
+			continue
+		}
+		uuids = append(uuids, uuid)
+	}
+
+	if len(uuids) == 0 {
+		return nil
+	}
+	resolutionType := "whole-card"
+	if migEntry {
+		resolutionType = fmt.Sprintf("MIG cap_minors=%v", capMinors)
+	}
+	log.Debugf("DRA: resolved %s [%s] -> %v (claim %s)", cdiName, resolutionType, uuids, claimUID)
+	return uuids
+}
+
+// isMIGCapabilityDevice reports whether a device-node path is a MIG capability
+// device. The check is anchored on the directory rather than on the substring
+// "nvidia-cap": /dev/nvidia-caps-imex-channels/channelN also contains it, and
+// IMEX channel minors are numbered in a different space, so treating one as a
+// capability minor can resolve to a MIG instance the container does not own.
+func isMIGCapabilityDevice(path string) bool {
+	return strings.HasPrefix(path, "/dev/nvidia-caps/nvidia-cap")
+}
+
+// cdiDeviceKey returns the part of a CDI device name after "claim=", which is
+// both the "<uid>-<device>" key the spec file uses for its device entries and
+// the string cdiClaimUID reads the UID out of.
+func cdiDeviceKey(cdiName string) string {
+	const marker = "claim="
+	i := strings.Index(cdiName, marker)
+	if i < 0 {
+		return ""
+	}
+	return cdiName[i+len(marker):]
+}
+
+// cdiClaimUID extracts the claim UID from a CDI device key of the form
+// "<uid>-gpu-0-mig-...".
+//
+// The UID is a Kubernetes UUID and therefore contains hyphens
+// ("c8593c85-440d-4156-b199-aea592ff83df"), so it cannot be split off at the
+// first hyphen -- doing so yields only the first 8 characters and the spec file
+// lookup then misses. A UUID is always 36 characters, and the driver appends
+// "-<device-name>" after it.
+func cdiClaimUID(deviceKey string) string {
+	const uuidLen = 36
+	if len(deviceKey) < uuidLen {
+		return ""
+	}
+	uid := deviceKey[:uuidLen]
+	// The UID is interpolated into a file path below. It comes from kubelet, so
+	// this is a sanity check rather than a trust boundary, but a path separator
+	// here would escape the spec directory.
+	if strings.ContainsAny(uid, `/\`) {
+		return ""
+	}
+	return uid
+}
+
+// cdiDeviceNode is one device node pinned by a CDI spec.
+type cdiDeviceNode struct {
+	path  string
+	minor int
+}
+
+// cdiSpec is the part of a CDI specification this code reads. CDI is a
+// standardised format, so the field names are a contract rather than an
+// observation; everything not needed here is left out deliberately.
+type cdiSpec struct {
+	Devices []struct {
+		Name           string `yaml:"name"`
+		ContainerEdits struct {
+			DeviceNodes []struct {
+				Path  string `yaml:"path"`
+				Minor *int   `yaml:"minor"`
+			} `yaml:"deviceNodes"`
+		} `yaml:"containerEdits"`
+	} `yaml:"devices"`
+}
+
+// cdiDeviceNodes reads the CDI spec for a claim and returns the nvidia device
+// nodes pinned by one device entry. Spec path:
+// <cdiSpecDir>/k8s.gpu.nvidia.com-claim_<uid>.yaml.
+//
+// A claim holding several devices lists them all in one file, so the entry is
+// selected by name: reading every node in the file would attribute all of the
+// claim's devices to any container holding one of them.
+func cdiDeviceNodes(claimUID, deviceKey string) ([]cdiDeviceNode, error) {
+	name := fmt.Sprintf("k8s.gpu.nvidia.com-claim_%s.yaml", claimUID)
+	var data []byte
+	var err error
+	for _, dir := range cdiSpecDirs {
+		data, err = os.ReadFile(filepath.Join(dir, name))
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	nodes, ok := parseCDISpec(data, deviceKey)
+	if !ok {
+		if logLimiter.ShouldLog() {
+			log.Warnf("DRA: could not read device %q out of the CDI spec for claim %s (unsupported format or entry not found); not attributing", deviceKey, claimUID)
+		}
+		return nil, nil
+	}
+	return nodes, nil
+}
+
+// parseCDISpec returns the nvidia device nodes of one device entry. It reports
+// false when the document does not parse, does not contain the named entry, or
+// contains it with no nvidia device node.
+func parseCDISpec(data []byte, deviceKey string) ([]cdiDeviceNode, bool) {
+	var spec cdiSpec
+	if err := yaml.Unmarshal(data, &spec); err != nil {
+		return nil, false
+	}
+
+	for _, device := range spec.Devices {
+		if device.Name != deviceKey {
+			continue
+		}
+		var nodes []cdiDeviceNode
+		for _, dn := range device.ContainerEdits.DeviceNodes {
+			if !strings.Contains(dn.Path, "/dev/nvidia") {
+				continue
+			}
+			node := cdiDeviceNode{path: dn.Path, minor: -1}
+			if dn.Minor != nil {
+				node.minor = *dn.Minor
+			}
+			nodes = append(nodes, node)
+		}
+		return nodes, len(nodes) > 0
+	}
+	return nil, false
+}
+
+// physicalDeviceMinor returns the minor number for a /dev/nvidiaN device node
+// path -- N is the minor, not NVML's enumeration index. Capability devices
+// (/dev/nvidia-caps/nvidia-capN) and control nodes (/dev/nvidiactl,
+// /dev/nvidia-uvm) are not physical devices.
+func physicalDeviceMinor(path string) (int, bool) {
+	const prefix = "/dev/nvidia"
+	if !strings.HasPrefix(path, prefix) {
+		return 0, false
+	}
+	index, err := strconv.Atoi(path[len(prefix):])
+	if err != nil {
+		return 0, false
+	}
+	return index, true
+}
+
+// migInstance identifies one MIG compute instance.
+type migInstance struct {
+	gpu, gi, ci int
+}
+
+// migMinorsToInstances maps capability device minors to MIG instances using
+// mig-minors, whose lines look like "gpu0/gi11/ci0/access 103".
+//
+// A MIG instance is pinned by two capability devices -- the GPU instance's
+// ("gpu0/gi11/access") and the compute instance's ("gpu0/gi11/ci0/access") --
+// and only the latter carries a full tuple, so lines without a "ci" component
+// are skipped. Returning every instance rather than one keeps a claim holding
+// several MIG devices from collapsing onto whichever the scan happened to see
+// last.
+func migMinorsToInstances(minors []int) []migInstance {
+	if len(minors) == 0 {
+		return nil
+	}
+	data, err := os.ReadFile(migMinorsPath)
+	if err != nil {
+		return nil
+	}
+
+	var instances []migInstance
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		minor, err := strconv.Atoi(fields[1])
+		if err != nil || !slices.Contains(minors, minor) {
+			continue
+		}
+
+		// Only the compute-instance entry carries the full tuple; the GPU
+		// instance's own entry ("gpu0/gi11/access") has no ci and is skipped.
+		gpu, gi, ci := -1, -1, -1
+		for _, part := range strings.Split(fields[0], "/") {
+			switch {
+			case strings.HasPrefix(part, "gpu"):
+				if v, err := strconv.Atoi(strings.TrimPrefix(part, "gpu")); err == nil {
+					gpu = v
+				}
+			case strings.HasPrefix(part, "gi"):
+				if v, err := strconv.Atoi(strings.TrimPrefix(part, "gi")); err == nil {
+					gi = v
+				}
+			case strings.HasPrefix(part, "ci"):
+				if v, err := strconv.Atoi(strings.TrimPrefix(part, "ci")); err == nil {
+					ci = v
+				}
+			}
+		}
+		if gpu < 0 || gi < 0 || ci < 0 {
+			continue
+		}
+		inst := migInstance{gpu: gpu, gi: gi, ci: ci}
+		if !slices.Contains(instances, inst) {
+			instances = append(instances, inst)
+		}
+	}
+	return instances
+}
+
+// resolvePhysicalUUID returns the UUID of the physical device owning a
+// /dev/nvidiaN minor number.
+//
+// Matching is on MinorNumber, which is what the device-node path encodes.
+// Index is a separate NVML concept: the two agree on ordinary configurations
+// but nothing guarantees it, and matching on the wrong one resolves to another
+// card silently, with a plausible UUID. A device whose driver did not expose a
+// minor (-1, the API is non-critical) is skipped rather than compared against
+// its index, so an unavailable API yields no attribution instead of a
+// confidently wrong one.
+func resolvePhysicalUUID(deviceCache ddnvml.DeviceCache, minor int) (string, bool) {
+	all, err := deviceCache.All()
+	if err != nil {
+		return "", false
+	}
+	for _, dev := range all {
+		physical, ok := dev.(*ddnvml.PhysicalDevice)
+		if ok && physical.MinorNumber >= 0 && physical.MinorNumber == minor {
+			return physical.GetDeviceInfo().UUID, true
+		}
+	}
+	return "", false
+}
+
+// resolveMIGUUID resolves (gpu, gi, ci) to a MIG device UUID via NVML.
+func resolveMIGUUID(deviceCache ddnvml.DeviceCache, gpu, gi, ci int) (string, bool) {
+	all, err := deviceCache.All()
+	if err != nil {
+		return "", false
+	}
+	for _, dev := range all {
+		physical, ok := dev.(*ddnvml.PhysicalDevice)
+		if !ok || physical.MinorNumber != gpu {
+			continue
+		}
+		// A GPU instance can hold several compute instances (e.g. 3g.71gb split
+		// into 3x 1c.3g); matching on the GPU instance alone would attribute
+		// every one of those containers to whichever CI NVML enumerates first.
+		var giMatches []*ddnvml.MIGDevice
+		for _, mig := range physical.MIGChildren {
+			if mig.MIGInstanceID == gi {
+				giMatches = append(giMatches, mig)
+			}
+		}
+		for _, mig := range giMatches {
+			if mig.ComputeInstanceID == ci {
+				return mig.GetDeviceInfo().UUID, true
+			}
+		}
+		// ComputeInstanceID is -1 when the non-critical API was unavailable, so
+		// no CI comparison is possible. Falling back to the GI is correct only
+		// while it identifies one device -- the 1-CI-per-GI case, which is every
+		// 1g/2g profile. With several, the GI is ambiguous and any pick is a
+		// guess, so return nothing rather than tag containers with each other's
+		// instances.
+		if len(giMatches) == 1 && giMatches[0].ComputeInstanceID < 0 {
+			return giMatches[0].GetDeviceInfo().UUID, true
+		}
+		if len(giMatches) > 1 && logLimiter.ShouldLog() {
+			log.Debugf("DRA: gpu%d/gi%d holds %d compute instances and NVML did not expose their IDs; not attributing ci%d", gpu, gi, len(giMatches), ci)
+		}
+	}
+	return "", false
 }
 
 func (c *collector) GetID() string {

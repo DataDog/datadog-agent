@@ -14,11 +14,10 @@ from things we have:
 
 """
 
-load("@agent_volatile//:env_vars.bzl", "env_vars")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
-load("@dd_release_json//:release_json.bzl", "release_json")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
 load("@rules_pkg//pkg:providers.bzl", "PackageVariablesInfo")
+load("//bazel/rules/variables:variables.bzl", "DdBuildTimeInfo", "compute_version_variables")
 
 # Map of architecture names we might see into those we need to use in package names
 _arch_names = {
@@ -57,6 +56,7 @@ And other thing which might be useful:
 - cpu: raw cpu name from CC toolchain.
 - libc: raw libc name from CC toolchain.
 - milestone: Next product milestone version.
+- install_dir: value of the //:install_dir flag.
 """
 
 def make_version():
@@ -64,16 +64,21 @@ def make_version():
 
     Use PACKAGE_VERSION, if it is availble, otherwise guess from release.json
 
+    This is called directly from BUILD.bazel files (e.g. `version = make_version()`
+    on pkg_deb/pkg_rpm targets), so it runs at loading time and cannot depend on a
+    rule's ctx. It uses compute_version_variables() from //bazel/rules/variables,
+    the same computation the package_name_variables rule depends on via its
+    _variables attr.
+
     Returns:
        version (str)
     """
-    if env_vars.PACKAGE_VERSION:
-        return env_vars.PACKAGE_VERSION.replace("-", "~")
-
-    milestone = release_json.get("current_milestone")
+    common = compute_version_variables()
+    if common["build_version"] != "_build_version_unset_":
+        return common["build_version"].replace("-", "~")
 
     # 'localbuild' is just a placeholder choice for now.
-    return milestone + "~localbuild"
+    return common["milestone"] + "~localbuild"
 
 def _extract_arch(ctx, cpu, style):
     """Extract the arch part from a os/arch pair."""
@@ -107,13 +112,15 @@ def _inject_flavor(name, flavor):
     return "%s-%s-%s" % (words[0], flavor, "-".join(words[1:]))
 
 def _package_name_variables_impl(ctx):
+    common = ctx.attr._variables[DdBuildTimeInfo].values
+
     values = {}
 
     flavor = ctx.attr._flavor[BuildSettingInfo].value
     values["product_name"] = _inject_flavor(ctx.attr.product_name, flavor)
     values["version"] = make_version()
-    values["base_branch"] = release_json.get("base_branch")
-    values["milestone"] = release_json.get("current_milestone")
+    values["base_branch"] = common["base_branch"]
+    values["milestone"] = common["milestone"]
 
     # Package names often like to know what they are compiled for
     cc_toolchain = find_cc_toolchain(ctx)
@@ -123,6 +130,7 @@ def _package_name_variables_impl(ctx):
     values["compiler"] = cc_toolchain.compiler
     values["libc"] = cc_toolchain.libc
     values["compilation_mode"] = ctx.var.get("COMPILATION_MODE")
+    values["install_dir"] = ctx.attr._install_dir[BuildSettingInfo].value
 
     # For initial testing: buildifier: disable=print
     # print(json.encode_indent(values))
@@ -138,6 +146,8 @@ package_name_variables = rule(
             default = "datadog-agent",
         ),
         "_flavor": attr.label(default = "//packages/agent:flavor"),
+        "_install_dir": attr.label(default = "//:install_dir"),
+        "_variables": attr.label(default = "//bazel/rules/variables"),
     },
     toolchains = use_cc_toolchain(),
 )

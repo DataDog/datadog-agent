@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
@@ -93,6 +93,12 @@ func newConfig(deps dependencies) (*cfg, error) {
 		// Feature detection still needs to run here since LoadDatadog (which
 		// normally triggers it) is skipped on this path.
 		pkgconfigenv.DetectFeatures(config)
+
+		if deps.Params.configLoadSecurityAgent {
+			if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
+				return &cfg{Config: config}, err
+			}
+		}
 
 		return &cfg{Config: config}, nil
 	}

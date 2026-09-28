@@ -119,7 +119,7 @@
       {
         "description": "DBMON-6923: paused pending a product decision on Oracle version support",
         "matchManagers": ["gomod"],
-        "matchDepNames": ["github.com/godror/godror", "github.com/sijms/go-ora{,/v*}"],
+        "matchDepNames": ["github.com/sijms/go-ora{,/v*}"],
         "enabled": false
       },
       {
@@ -147,6 +147,11 @@
         "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
         "groupName": "aws-sdk-go-v2"
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchDepNames": ["github.com/pulumi/pulumi-azure-native-sdk{,/**}"],
+        "groupName": "pulumi-azure-native-sdk"
       },
       {
         "matchManagers": ["gomod"],

@@ -20,7 +20,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/util/log",
         "//pkg/util/prometheus",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_utils//ptr",
     ],
 )

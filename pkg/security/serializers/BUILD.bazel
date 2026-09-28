@@ -1,5 +1,28 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+easyjson(
+    name = "serializers_linux_easyjson",
+    src = "serializers_linux.go",
+    build_tags = "linux",
+    output = "serializers_linux_easyjson.go",
+    package = ":serializers",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/serializers",
+    visibility = ["//pkg/security:__pkg__"],
+)
+
+# The second //go:generate directive in serializers_linux.go generates from
+# serializers_base.go, so the annotated file and the output name diverge here.
+easyjson(
+    name = "serializers_base_linux_easyjson",
+    src = "serializers_base.go",
+    build_tags = "linux",
+    output = "serializers_base_linux_easyjson.go",
+    package = ":serializers",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/serializers",
+    visibility = ["//pkg/security:__pkg__"],
+)
 
 go_library(
     name = "serializers",
@@ -142,7 +165,10 @@ go_library(
 # them via AddGoComments when running as a Bazel run_binary tool.
 filegroup(
     name = "serializers_sources",
-    srcs = glob(["*.go"]),
+    srcs = glob(
+        ["*.go"],
+        exclude = ["*_test.go"],
+    ),
     visibility = [
         "//docs/cloud-workload-security:__pkg__",
         "//pkg/security/generators/backend_doc:__pkg__",

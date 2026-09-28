@@ -45,7 +45,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"regexp"
 	"strings"
@@ -64,6 +63,7 @@ import (
 )
 
 const (
+	defaultGetTimeout            = 15 * time.Second
 	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
 	metricsV1Endpoint            = "/api/v1/series"
@@ -78,6 +78,7 @@ const (
 	containersEndpoint           = "/api/v1/container"
 	processDiscoveryEndpoint     = "/api/v1/discovery"
 	agentDiscoveryEndpoint       = "/api/v2/agentdiscovery"
+	sdsResultEndpoint            = "/api/v2/sdsresult"
 	containerImageEndpoint       = "/api/v2/contimage"
 	containerLifecycleEndpoint   = "/api/v2/contlcycle"
 	sbomEndpoint                 = "/api/v2/sbom"
@@ -122,6 +123,13 @@ func WithGetBackoffRetries(retries uint) Option {
 	}
 }
 
+// WithGetTimeout sets the timeout for each request to fakeintake.
+func WithGetTimeout(timeout time.Duration) Option {
+	return func(c *Client) {
+		c.httpClient.Timeout = timeout
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
 	fakeintakeID            string
@@ -132,6 +140,7 @@ type Client struct {
 	// Get retry parameters
 	getBackoffRetries uint
 	getBackoffDelay   time.Duration
+	httpClient        *http.Client
 
 	metricAggregator               aggregator.MetricAggregator
 	metricAggregatorV1             aggregator.MetricAggregator
@@ -145,6 +154,7 @@ type Client struct {
 	containerAggregator            aggregator.ContainerAggregator
 	processDiscoveryAggregator     aggregator.ProcessDiscoveryAggregator
 	agentDiscoveryAggregator       aggregator.AgentDiscoveryAggregator
+	sdsResultAggregator            aggregator.SDSResultAggregator
 	containerImageAggregator       aggregator.ContainerImageAggregator
 	containerLifecycleAggregator   aggregator.ContainerLifecycleAggregator
 	sbomAggregator                 aggregator.SBOMAggregator
@@ -170,6 +180,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		fakeintakeIDMutex:              sync.RWMutex{},
 		getBackoffRetries:              4,
 		getBackoffDelay:                5 * time.Second,
+		httpClient:                     &http.Client{Timeout: defaultGetTimeout},
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		metricAggregatorV1:             aggregator.NewMetricAggregatorV1(),
@@ -183,6 +194,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		containerAggregator:            aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator:     aggregator.NewProcessDiscoveryAggregator(),
 		agentDiscoveryAggregator:       aggregator.NewAgentDiscoveryAggregator(),
+		sdsResultAggregator:            aggregator.NewSDSResultAggregator(),
 		containerImageAggregator:       aggregator.NewContainerImageAggregator(),
 		containerLifecycleAggregator:   aggregator.NewContainerLifecycleAggregator(),
 		sbomAggregator:                 aggregator.NewSBOMAggregator(),
@@ -282,6 +294,14 @@ func (c *Client) getAgentDiscoveryPayloads() error {
 		return err
 	}
 	return c.agentDiscoveryAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getSDSResults() error {
+	payloads, err := c.getFakePayloads(sdsResultEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.sdsResultAggregator.UnmarshallPayloads(payloads)
 }
 
 func (c *Client) getContainerImages() error {
@@ -571,7 +591,7 @@ func (c *Client) GetComplianceFindings() ([]*ComplianceFinding, error) {
 // GetServerHealth fetches fakeintake health status and returns an error if
 // fakeintake is unhealthy
 func (c *Client) GetServerHealth() error {
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/health")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/fakeintake/health")
 	if err != nil {
 		return err
 	}
@@ -592,7 +612,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 		return err
 	}
 
-	resp, err := http.Post(route, "application/json", buf)
+	resp, err := c.httpClient.Post(route, "application/json", buf)
 	if err != nil {
 		return err
 	}
@@ -606,7 +626,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 
 // GetLastAPIKey returns the last apiKey sent with a payload to the intake
 func (c *Client) GetLastAPIKey() (string, error) {
-	resp, err := http.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
 	if err != nil {
 		return "", err
 	}
@@ -842,12 +862,13 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.apmStatsAggregator.Reset()
 	c.traceAggregator.Reset()
 	c.agentDiscoveryAggregator.Reset()
+	c.sdsResultAggregator.Reset()
 	c.agentTelemetryLogAggregator.Reset()
 	return nil
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
+	resp, err := c.httpClient.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
 	if err != nil {
 		return err
 	}
@@ -978,6 +999,21 @@ func (c *Client) GetAgentDiscoveryPayloads() ([]*aggregator.AgentDiscoveryPayloa
 	var payloads []*aggregator.AgentDiscoveryPayload
 	for _, name := range c.agentDiscoveryAggregator.GetNames() {
 		payloads = append(payloads, c.agentDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+
+	return payloads, nil
+}
+
+// GetSDSResults fetches fakeintake on `/api/v2/sdsresult` and returns all received
+// sds-result payloads.
+func (c *Client) GetSDSResults() ([]*aggregator.SDSResultPayload, error) {
+	if err := c.getSDSResults(); err != nil {
+		return nil, err
+	}
+
+	var payloads []*aggregator.SDSResultPayload
+	for _, name := range c.sdsResultAggregator.GetNames() {
+		payloads = append(payloads, c.sdsResultAggregator.GetPayloadsByName(name)...)
 	}
 
 	return payloads, nil
@@ -1135,7 +1171,7 @@ func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestP
 
 func (c *Client) get(route string) ([]byte, error) {
 	body, err := backoff.Retry(context.Background(), func() ([]byte, error) {
-		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		tmpResp, err := c.httpClient.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
 		if err != nil {
 			return nil, err
 		}
@@ -1169,9 +1205,6 @@ func (c *Client) get(route string) ([]byte, error) {
 
 		return io.ReadAll(tmpResp.Body)
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(c.getBackoffDelay)), backoff.WithMaxTries(c.getBackoffRetries))
-	if err, ok := err.(net.Error); ok && err.Timeout() {
-		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
-	}
 	return body, err
 }
 
