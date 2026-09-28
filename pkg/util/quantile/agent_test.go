@@ -275,3 +275,26 @@ func TestAgentInterpolationBoundedKeys(t *testing.T) {
 		})
 	}
 }
+
+// TestAgentInsertSampleRateExpandsBins covers the non-OTLP side of the same
+// vector: a client-supplied dogstatsd @rate becomes a count of 1/sampleRate,
+// which appendSafe then expands into bins. Guarding this entry point is tracked
+// separately from the OTLP mapper guard, since it would change dogstatsd
+// behaviour rather than OTel behaviour.
+//
+// The sample rate has to sit inside the dangerous band: below ~1.1e-19 the
+// float-to-uint conversion saturates and the count lands back on the
+// single-bin branch, so such values would prove nothing.
+func TestAgentInsertSampleRateExpandsBins(t *testing.T) {
+	// A variable, not a constant: Insert truncates 1/sampleRate in float64, which
+	// for 1e-9 yields 999999999 rather than 1e9. Exact constant arithmetic would
+	// hide that.
+	sampleRate := 1e-9
+
+	a := &Agent{}
+	a.Insert(1, sampleRate)
+
+	require.Equal(t, int64(1/sampleRate), a.Sketch.Basic.Cnt)
+	require.Greater(t, len(a.Sketch.bins), Default().binLimit,
+		"a single sample expanded past the binLimit budget")
+}

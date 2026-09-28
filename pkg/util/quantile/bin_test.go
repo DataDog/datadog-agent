@@ -60,3 +60,28 @@ func TestBin_incrSafe(t *testing.T) {
 		})
 	}
 }
+
+// TestAppendSafeCountValueDrivesBinCount pins down why a large bucket count is a
+// memory hazard and not just a precision one: appendSafe splits a single count
+// into ceil(n/maxBinWidth) bins, so both the allocation and the loop scale with
+// the *value* of the count, independently of how many distinct keys there are.
+//
+// 1<<30 is used rather than a larger value because n is an int, which is 32 bits
+// wide on the 32-bit build targets.
+func TestAppendSafeCountValueDrivesBinCount(t *testing.T) {
+	const (
+		n = 1 << 30
+		// 65535*16384 = 1073725440, leaving a remainder bin of 16384.
+		wantBins = 16385
+	)
+
+	bins := appendSafe(nil, 42, n)
+
+	if got := len(bins); got != wantBins {
+		t.Errorf("appendSafe(nil, 42, %d) produced %d bins, want %d", n, got, wantBins)
+	}
+
+	if got := binList(bins).nSum(); got != n {
+		t.Errorf("appendSafe(nil, 42, %d) holds a total count of %d, want %d", n, got, n)
+	}
+}

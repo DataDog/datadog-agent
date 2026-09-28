@@ -220,3 +220,20 @@ func TestCols(t *testing.T) {
 		assert.Equal(t, n, tt.n, "values don't match")
 	}
 }
+
+// TestInsertCountsAboveMaxCount records what a count above Config.MaxCount()
+// actually costs. The count itself survives — trimLeft folds the trimmed mass
+// into overflow bins — but the sketch silently outgrows its binLimit budget and
+// the low tail loses resolution, with no error, log or telemetry anywhere.
+func TestInsertCountsAboveMaxCount(t *testing.T) {
+	c := Default()
+	require.Equal(t, defaultBinLimit*math.MaxUint16, c.MaxCount())
+
+	n := c.MaxCount() + 1
+	s := &sparseStore{}
+	s.insertCounts(c, []KeyCount{{k: 42, n: uint(n)}})
+
+	assert.Equal(t, n, s.count)
+	assert.Equal(t, n, s.bins.nSum(), "trimLeft preserves the inserted count")
+	assert.Greater(t, len(s.bins), c.binLimit, "the sketch outgrows its binLimit budget")
+}
