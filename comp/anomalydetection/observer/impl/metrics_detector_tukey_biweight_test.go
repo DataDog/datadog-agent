@@ -264,7 +264,9 @@ func TestTukeyBiweight_FiresOnLevelShift(t *testing.T) {
 	require.NotEmpty(t, result.Anomalies, "level shift must produce at least one anomaly")
 
 	first := result.Anomalies[0]
-	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
+	title, description := observer.FormatAnomaly(first)
+	assert.Equal(t, "Tukey biweight: metric:avg", title)
+	assert.Contains(t, description, "above biweight baseline")
 	assert.Equal(t, "tukey_biweight", first.DetectorName)
 	require.NotNil(t, first.Score, "anomaly must carry a score")
 	assert.GreaterOrEqual(t, *first.Score, 5.0, "z-derived score should clear the threshold")

@@ -193,7 +193,6 @@ func TestBuildChangeMetadataFormatsAnomalyInventory(t *testing.T) {
 	source := observerdef.SeriesDescriptor{Namespace: "dogstatsd", Name: "cpu.user", Host: "web-1", Tags: []string{"env:prod"}, Aggregate: observerdef.AggregateAverage}
 	c := observerdef.ActiveCorrelation{Pattern: "p", Anomalies: []observerdef.Anomaly{{
 		Source: source, DetectorName: "scanmw", Timestamp: 42,
-		Title: "stale title", Description: "stale description",
 		DebugInfo: &observerdef.AnomalyDebugInfo{BaselineMedian: 10, CurrentValue: 25, PValue: 1e-8, EffectSize: 0.85, DeviationSigma: 5},
 	}}}
 

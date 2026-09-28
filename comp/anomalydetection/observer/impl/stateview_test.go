@@ -139,7 +139,6 @@ func TestStateView_DetectorOutputAnomaliesRetainsPrePipelineResults(t *testing.T
 	anomaly := observerdef.Anomaly{
 		Source:    observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
 		Timestamp: 100,
-		Title:     "cpu changed",
 	}
 	detector := &outputDetector{name: "detector_a", anomalies: []observerdef.Anomaly{anomaly}}
 	e := newEngine(engineConfig{
@@ -183,7 +182,6 @@ func TestLiveAnomalyTrackingIsBoundedAndDoesNotRetainHistory(t *testing.T) {
 			Source:       observerdef.SeriesDescriptor{Name: "cpu"},
 			SourceRef:    &observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
 			DetectorName: "detector",
-			Title:        "spike",
 			Timestamp:    timestamp,
 		}
 	}
@@ -241,7 +239,6 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 		Source:       observerdef.SeriesDescriptor{Namespace: "logs", Name: "pattern.count"},
 		SourceRef:    &observerdef.QueryHandle{Ref: series.Ref, Aggregate: observerdef.AggregateAverage},
 		DetectorName: "detector",
-		Title:        "spike",
 		Timestamp:    100,
 	}
 	if !e.acceptAnomaly(anomaly) {
@@ -259,7 +256,6 @@ func TestLiveAnomalyDedupExpiresByEffectiveSeriesRetention(t *testing.T) {
 	withoutSourceRef := observerdef.Anomaly{
 		Source:       observerdef.SeriesDescriptor{Name: "rrcf.score"},
 		DetectorName: "rrcf",
-		Title:        "spike",
 		Timestamp:    200,
 	}
 	if !e.acceptAnomaly(withoutSourceRef) {

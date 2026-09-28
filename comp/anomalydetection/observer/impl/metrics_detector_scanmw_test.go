@@ -45,8 +45,9 @@ func TestScanMW_DetectsStepChange(t *testing.T) {
 	result := d.Detect(storage, 40)
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
-	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
-	assert.Contains(t, result.Anomalies[0].Title, "ScanMW")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "ScanMW changepoint: metric:avg", title)
+	assert.Contains(t, description, "increased")
 	require.NotNil(t, result.Anomalies[0].DebugInfo)
 	assert.Positive(t, result.Anomalies[0].DebugInfo.PValue)
 	assert.NotZero(t, result.Anomalies[0].DebugInfo.EffectSize)
@@ -65,8 +66,9 @@ func TestScanMW_DetectsDownwardStepChange(t *testing.T) {
 	}
 	result := d.Detect(storage, 40)
 	require.NotEmpty(t, result.Anomalies)
-	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
-	assert.Contains(t, result.Anomalies[0].Description, "decreased")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "ScanMW changepoint: metric:avg", title)
+	assert.Contains(t, description, "decreased")
 }
 
 func TestScanMW_IncrementalAdvance(t *testing.T) {

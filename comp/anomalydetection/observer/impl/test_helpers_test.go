@@ -7,22 +7,10 @@ package observerimpl
 
 import (
 	"fmt"
-	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
-
-func assertLazyAnomalyTextMatchesEager(t *testing.T, anomalies []observerdef.Anomaly) {
-	t.Helper()
-	for _, anomaly := range anomalies {
-		title, description := observerdef.FormatAnomaly(anomaly)
-		if title != anomaly.Title || description != anomaly.Description {
-			t.Errorf("%s text at %d: formatted (%q, %q), eager (%q, %q)",
-				anomaly.DetectorName, anomaly.Timestamp, title, description, anomaly.Title, anomaly.Description)
-		}
-	}
-}
 
 // sampleNoSource implements MetricView only — no sourceProvider.
 type sampleNoSource struct{ name string }
@@ -128,7 +116,6 @@ func (d *dynamicAnomalyDetector) Detect(_ observerdef.StorageReader, dataTime in
 			{
 				Source:       observerdef.SeriesDescriptor{Name: fmt.Sprintf("%s%d", d.prefix, d.currentIndex), Aggregate: observerdef.AggregateAverage},
 				DetectorName: d.Name(),
-				Title:        fmt.Sprintf("anomaly_%d", d.currentIndex),
 				Timestamp:    dataTime,
 			},
 		},

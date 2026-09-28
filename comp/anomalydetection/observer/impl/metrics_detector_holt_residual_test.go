@@ -102,9 +102,10 @@ func TestHoltResidual_RampWithSpike_FiresOnce(t *testing.T) {
 	require.Len(t, result.Anomalies, 1, "exactly one fire expected for a 2-point spike on a clean ramp")
 
 	a := result.Anomalies[0]
-	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
 	assert.Equal(t, "holt_residual", a.DetectorName)
-	assert.Contains(t, a.Title, "Holt residual")
+	title, description := observer.FormatAnomaly(a)
+	assert.Equal(t, "Holt residual: metric:avg", title)
+	assert.Contains(t, description, "deviated from forecast")
 	require.NotNil(t, a.Score)
 	assert.Greater(t, *a.Score, 4.5, "score should clear the |z| threshold")
 	assert.NotNil(t, a.SourceRef, "SourceRef must be populated for downstream correlators")

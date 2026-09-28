@@ -51,7 +51,6 @@ func makeTestAnomaly(name string, ts int64) observer.Anomaly {
 		Source:       observer.SeriesDescriptor{Namespace: "ns", Name: name, Aggregate: observer.AggregateAverage},
 		DetectorName: "scanmw",
 		Timestamp:    ts,
-		Description:  name + " changed",
 	}
 }
 

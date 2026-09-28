@@ -53,7 +53,7 @@ func TestAnomalyAPIEndpointsRenderTextAndKeepSourceMetadata(t *testing.T) {
 	source := observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu.user", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"}), Aggregate: observerdef.AggregateAverage}
 	anomaly := observerdef.Anomaly{
 		Source: source, SourceRef: &observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage},
-		DetectorName: "scanmw", Timestamp: 50, Title: "stale title", Description: "stale description",
+		DetectorName: "scanmw", Timestamp: 50,
 		DebugInfo: &observerdef.AnomalyDebugInfo{BaselineMedian: 10, CurrentValue: 25, PValue: 1e-8, EffectSize: 0.85, DeviationSigma: 5},
 	}
 	state := anomalyAPIStateView{

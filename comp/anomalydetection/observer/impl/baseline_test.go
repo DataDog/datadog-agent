@@ -48,7 +48,6 @@ func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64
 		Source:       d.source,
 		DetectorName: d.name,
 		Timestamp:    dataSec,
-		Title:        "anomaly",
 	}
 	if d.includeSource {
 		anomaly.SourceRef = &observerdef.QueryHandle{Ref: d.ref, Aggregate: AggregateAverage}
@@ -67,7 +66,6 @@ func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int6
 			Source:       observerdef.SeriesDescriptor{Namespace: d.namespace, Name: d.name, Aggregate: AggregateAverage},
 			DetectorName: "always_firing",
 			Timestamp:    dataTime,
-			Title:        "anomaly",
 			SourceRef:    &observerdef.QueryHandle{Ref: d.ref, Aggregate: AggregateAverage},
 		}},
 	}
@@ -419,7 +417,6 @@ func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int
 			Source:       observerdef.SeriesDescriptor{Namespace: meta.Namespace, Name: meta.Name, Host: meta.Host, Tags: meta.Tags, Aggregate: AggregateAverage},
 			DetectorName: "storage_aware",
 			Timestamp:    dataTime,
-			Title:        "anomaly",
 			SourceRef:    &observerdef.QueryHandle{Ref: meta.Ref, Aggregate: AggregateAverage},
 		})
 	}

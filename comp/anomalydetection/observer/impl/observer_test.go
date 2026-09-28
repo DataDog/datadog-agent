@@ -63,9 +63,7 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
 		anomalies: []observerdef.Anomaly{{
-			Title:       "spike",
-			Description: "detected spike",
-			Timestamp:   100,
+			Timestamp: 100,
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 
@@ -85,9 +83,7 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
 		anomalies: []observerdef.Anomaly{{
-			Title:       "spike",
-			Description: "detected spike",
-			Timestamp:   100,
+			Timestamp: 100,
 		}},
 	}, []observerdef.Aggregate{observerdef.AggregateAverage})
 

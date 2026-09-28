@@ -28,7 +28,6 @@ type anomalyDedupKey struct {
 	hasSourceRef    bool
 	detectorName    string
 	timestamp       int64
-	title           string
 }
 
 const (
@@ -74,7 +73,6 @@ func anomalyDedupKeyFor(anomaly observerdef.Anomaly) anomalyDedupKey {
 	key := anomalyDedupKey{
 		detectorName: anomaly.DetectorName,
 		timestamp:    anomaly.Timestamp,
-		title:        anomaly.Title,
 	}
 	if anomaly.SourceRef != nil {
 		key.sourceRef = anomaly.SourceRef.Ref

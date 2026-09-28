@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -342,24 +341,15 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	}
 
 	changePtTime := points[bestK].Timestamp
-	direction := "increased"
-	if postMedian < preMedian {
-		direction = "decreased"
-	}
-
 	score := -math.Log10(pValue)
 	if math.IsInf(score, 1) {
 		score = 300.0
 	}
 
-	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
-		Type:         observer.AnomalyTypeMetric,
-		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
-		DetectorName: d.Name(),
-		Title:        "ScanWelch changepoint: " + seriesName,
-		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, t=%.2f, p=%.2e, effect=%.2f, %.1f MADs)",
-			seriesName, direction, preMedian, postMedian, bestTAbs, pValue, effectSize, deviation),
+		Type:                observer.AnomalyTypeMetric,
+		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
+		DetectorName:        d.Name(),
 		Timestamp:           changePtTime,
 		Score:               &score,
 		SamplingIntervalSec: d.workspace.medianPointInterval(points),

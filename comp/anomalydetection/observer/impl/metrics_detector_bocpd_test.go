@@ -101,8 +101,9 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 	result := d.Detect(storage, 40)
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
-	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
-	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "BOCPD changepoint detected: test.metric:avg", title)
+	assert.Contains(t, description, "exceeded threshold")
 	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21))
 }
 
@@ -120,9 +121,9 @@ func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 	result := d.Detect(storage, 50)
 
 	require.NotEmpty(t, result.Anomalies, "should detect downward step change")
-	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
-	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
-	assert.Contains(t, result.Anomalies[0].Description, "exceeded threshold")
+	title, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Equal(t, "BOCPD changepoint detected: test.metric:avg", title)
+	assert.Contains(t, description, "exceeded threshold")
 }
 
 func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
@@ -148,8 +149,8 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 	result := d.Detect(storage, 60)
 
 	require.NotEmpty(t, result.Anomalies, "should detect sustained shift")
-	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
-	assert.Contains(t, result.Anomalies[0].Description, "short-run posterior mass")
+	_, description := observer.FormatAnomaly(result.Anomalies[0])
+	assert.Contains(t, description, "short-run posterior mass")
 }
 
 func TestBOCPDDetector_SustainedIncidentEmitsOnce(t *testing.T) {
@@ -519,13 +520,15 @@ func TestBOCPDDebugInfoRetainsTriggerEvidence(t *testing.T) {
 	assert.Equal(t, 0.2, shortRun.DebugInfo.BOCPDChangePointProb)
 	assert.Equal(t, 0.7, shortRun.DebugInfo.BOCPDShortRunMass)
 	assert.Equal(t, b.config.ShortRunLength, shortRun.DebugInfo.BOCPDShortRunLength)
-	assertLazyAnomalyTextMatchesEager(t, []observer.Anomaly{*shortRun})
+	_, shortRunDescription := observer.FormatAnomaly(*shortRun)
+	assert.Contains(t, shortRunDescription, "short-run posterior mass")
 
 	changePoint := b.makeAnomaly(state, point, series, observer.AggregateAverage, b.config.CPThreshold, 0.7)
 	require.NotNil(t, changePoint)
 	require.NotNil(t, changePoint.DebugInfo)
 	assert.Equal(t, observer.BOCPDTriggerChangePointProbability, changePoint.DebugInfo.BOCPDTrigger)
-	assertLazyAnomalyTextMatchesEager(t, []observer.Anomaly{*changePoint})
+	_, changePointDescription := observer.FormatAnomaly(*changePoint)
+	assert.Contains(t, changePointDescription, "changepoint probability")
 }
 
 func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {
