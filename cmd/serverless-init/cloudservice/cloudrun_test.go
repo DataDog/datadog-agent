@@ -386,15 +386,19 @@ func TestCloudRunFunctionInventoryIndependentOfFunctionTarget(t *testing.T) {
 func TestCloudRunMissingIdentity(t *testing.T) {
 	saved := metadataHelperFunc
 	t.Cleanup(func() { metadataHelperFunc = saved })
-	for _, kind := range []CloudRunType{CloudRunService, CloudRunFunction} {
+	for _, kind := range []CloudRunType{CloudRunService, CloudRunFunction, CloudRunJob} {
 		t.Run(string(kind), func(t *testing.T) {
 			env := map[string]string{
 				ServiceNameEnvVar: "unknown", revisionNameEnvVar: "revision", functionTargetEnvVar: "target",
+				cloudRunJobNameEnvVar: "job", cloudRunExecutionEnvVar: "execution",
 			}
 			for key, value := range env {
 				t.Setenv(key, value)
 			}
 			keys := []string{projectID, location, ServiceNameEnvVar, revisionNameEnvVar}
+			if kind == CloudRunJob {
+				keys = []string{projectID, location, cloudRunJobNameEnvVar, cloudRunExecutionEnvVar}
+			}
 			for _, missing := range append([]string{"none", containerID, functionTargetEnvVar}, keys...) {
 				t.Run(missing, func(t *testing.T) {
 					values := map[string]string{projectID: "unknown", location: "region", containerID: "instance"}
@@ -404,6 +408,9 @@ func TestCloudRunMissingIdentity(t *testing.T) {
 					}
 					metadataHelperFunc = func(*GCPConfig, CloudRunType) map[string]string { return values }
 					var service CloudService = &CloudRun{isFunction: kind == CloudRunFunction}
+					if kind == CloudRunJob {
+						service = &CloudRunJobs{}
+					}
 					id := service.GetInventoryData().ResourceID
 					if missing == "none" || missing == containerID || missing == functionTargetEnvVar {
 						assert.NotEmpty(t, id)
