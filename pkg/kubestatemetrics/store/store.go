@@ -225,10 +225,23 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	mRes := make(map[string][]DDMetricsFam)
+	// The first pass is to presize the result map and the per-name slices.
+	familyCounts := make(map[string]int)
+	for _, metricFamList := range s.metrics {
+		for _, metricFam := range metricFamList {
+			if !familyFilter(metricFam) {
+				continue
+			}
+			if len(metricFam.ListMetrics) == 0 {
+				continue
+			}
+			familyCounts[metricFam.Name]++
+		}
+	}
+
+	mRes := make(map[string][]DDMetricsFam, len(familyCounts))
 
 	// Iterate through all metrics with filters
-	// Preallocate metric slices to avoid growth reallocations
 	for _, metricFamList := range s.metrics {
 		for _, metricFam := range metricFamList {
 			if !familyFilter(metricFam) {
@@ -250,13 +263,20 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 				resMetric = append(resMetric, metric)
 			}
 
-			if len(resMetric) > 0 {
-				mRes[metricFam.Name] = append(mRes[metricFam.Name], DDMetricsFam{
-					ListMetrics: resMetric,
-					Type:        metricFam.Type,
-					Name:        metricFam.Name,
-				})
+			// Skip families where all metrics were filtered out
+			if len(resMetric) == 0 {
+				continue
 			}
+
+			fams, found := mRes[metricFam.Name]
+			if !found {
+				fams = make([]DDMetricsFam, 0, familyCounts[metricFam.Name])
+			}
+			mRes[metricFam.Name] = append(fams, DDMetricsFam{
+				ListMetrics: resMetric,
+				Type:        metricFam.Type,
+				Name:        metricFam.Name,
+			})
 		}
 	}
 
