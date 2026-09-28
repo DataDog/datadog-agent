@@ -95,37 +95,28 @@ func (h *GetPodLogsHandler) maskSequences(logs string) (string, error) {
 		return "", fmt.Errorf("could not load global log processing rules: %w", err)
 	}
 
-	content := applyMaskSequencesPerEntry([]byte(logs), rules)
-	if int64(len(content)) > maxPodLogsBytes {
+	masked := make([]byte, 0, len(logs))
+	for entry := range bytes.Lines([]byte(logs)) {
+		messageEnd := len(entry)
+		if entry[messageEnd-1] == '\n' {
+			messageEnd--
+			if messageEnd > 0 && entry[messageEnd-1] == '\r' {
+				messageEnd--
+			}
+		}
+
+		message := entry[:messageEnd]
+		for _, rule := range rules {
+			message, _ = logsconfig.ApplyMaskSequence(message, rule)
+		}
+		masked = append(masked, message...)
+		masked = append(masked, entry[messageEnd:]...)
+	}
+
+	if int64(len(masked)) > maxPodLogsBytes {
 		return "", fmt.Errorf("masked pod logs exceed the %d byte output limit", maxPodLogsBytes)
 	}
-	return string(content), nil
-}
-
-func applyMaskSequencesPerEntry(content []byte, rules []*logsconfig.ProcessingRule) []byte {
-	masked := make([]byte, 0, len(content))
-	for len(content) > 0 {
-		entry := content
-		lineEnding := ""
-		if newline := bytes.IndexByte(content, '\n'); newline >= 0 {
-			entry = content[:newline]
-			content = content[newline+1:]
-			lineEnding = "\n"
-			if len(entry) > 0 && entry[len(entry)-1] == '\r' {
-				entry = entry[:len(entry)-1]
-				lineEnding = "\r\n"
-			}
-		} else {
-			content = nil
-		}
-
-		for _, rule := range rules {
-			entry, _ = logsconfig.ApplyMaskSequence(entry, rule)
-		}
-		masked = append(masked, entry...)
-		masked = append(masked, lineEnding...)
-	}
-	return masked
+	return string(masked), nil
 }
 
 func (inputs GetPodLogsInputs) validate() error {
