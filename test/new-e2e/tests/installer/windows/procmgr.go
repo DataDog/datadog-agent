@@ -8,14 +8,12 @@
 package installer
 
 import (
-	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
@@ -36,7 +34,7 @@ func (s *BaseSuite) assertManagedByProcmgr(processName string) {
 	var runningSince time.Time
 	const minRunningDuration = 5 * time.Second
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		state, err := procmgrDescribeField(s.Env().RemoteHost, cli, processName, "State")
+		state, err := windowscommon.ProcmgrDescribeField(s.Env().RemoteHost, cli, processName, "State")
 		if !assert.NoError(c, err) ||
 			!assert.Equal(c, "Running", state, "%s should be running under dd-procmgrd", processName) {
 			runningSince = time.Time{}
@@ -72,19 +70,4 @@ func (s *BaseSuite) procmgrCLIPath() string {
 
 func (s *BaseSuite) procmgrConfigPath(processName string) string {
 	return filepath.Join(s.procmgrInstallRoot(), "processes.d", processName+".yaml")
-}
-
-// procmgrDescribeField runs dd-procmgr describe for processName and returns the value of field.
-func procmgrDescribeField(host *components.RemoteHost, cli, processName, field string) (string, error) {
-	cmd := fmt.Sprintf(`& '%s' describe %s`, strings.ReplaceAll(cli, `'`, `''`), processName)
-	out, err := host.Execute(cmd)
-	if err != nil {
-		return "", fmt.Errorf("dd-procmgr describe %s failed: %w, output: %s", processName, err, strings.TrimSpace(out))
-	}
-	for _, line := range strings.Split(out, "\n") {
-		if value, ok := strings.CutPrefix(strings.TrimSpace(line), field+":"); ok {
-			return strings.TrimSpace(value), nil
-		}
-	}
-	return "", fmt.Errorf("field %q not found in dd-procmgr describe %s output: %s", field, processName, strings.TrimSpace(out))
 }
