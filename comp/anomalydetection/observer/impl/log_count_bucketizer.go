@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -46,7 +47,7 @@ type logCountBucketSeries struct {
 	namespace string
 	name      string
 	host      string
-	tags      []string
+	tags      tagset.CompositeTags
 	seriesKey uint64
 	context   *observerdef.MetricContext
 	anchor    int64
@@ -96,7 +97,7 @@ func (b *materializedLogCountBucketizer) observe(
 	metric observerdef.MetricOutput,
 	host string,
 	timestamp int64,
-	tags []string,
+	tags tagset.CompositeTags,
 	seriesKey uint64,
 ) bool {
 	state := b.series[seriesKey]
@@ -117,7 +118,7 @@ func (b *materializedLogCountBucketizer) observe(
 			namespace:    namespace,
 			name:         metric.Name,
 			host:         host,
-			tags:         append([]string(nil), tags...),
+			tags:         tags,
 			seriesKey:    seriesKey,
 			context:      metric.Context,
 			anchor:       timestamp,
@@ -158,7 +159,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.AddWithKeyAndHost(
+				result := storage.AddWithKeyAndHostComposite(
 					state.namespace,
 					state.name,
 					state.host,
