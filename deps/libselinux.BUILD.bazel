@@ -22,7 +22,7 @@ package_metadata(
     ],
     purl = purl_for_generic(
         download_url = "https://github.com/SELinuxProject/selinux/releases/download/{version}/libselinux-{version}.tar.gz",
-        package = "attr",
+        package = "libselinux",
         version = VERSION,
     ),
 )
