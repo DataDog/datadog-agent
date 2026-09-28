@@ -104,17 +104,29 @@ func (c *Collector) Report(ctx context.Context) SupportReport {
 		report.Services = append(report.Services, c.collectService(ctx, service, processes))
 	}
 
-	report.Scrub()
+	report.Scrub(ScrubOptions{})
 
 	return report
 }
 
-// Scrub redacts secrets the report carries. Report calls it, but anything that writes a report to
-// a file or sends it anywhere has to call it too: a report assembled any other way, in a test or
-// by a future caller, has not been through it, and the point of failure is a leaked credential.
-// It is safe to call more than once.
-func (r *SupportReport) Scrub() {
-	scrubProcessArgs(r.Processes)
+// ScrubOptions carries the operator's process-argument privacy settings. This package does not
+// read the Agent config, so a caller that can has to pass them in: an operator who declared a word
+// sensitive, or asked for arguments to be stripped outright, means it for a flare as well.
+type ScrubOptions struct {
+	// CustomSensitiveWords extends the default word list, from
+	// process_config.custom_sensitive_words.
+	CustomSensitiveWords []string
+	// StripArguments drops every argument rather than redacting individual values, from
+	// process_config.strip_proc_arguments.
+	StripArguments bool
+}
+
+// Scrub redacts secrets the report carries. Report calls it with default options, but anything that
+// writes a report to a file or sends it anywhere has to call it too, with the operator's settings:
+// a report assembled any other way, in a test or by a future caller, has not been through it, and
+// the cost of missing it is a leaked credential. It is safe to call more than once.
+func (r *SupportReport) Scrub(opts ScrubOptions) {
+	scrubProcessArgs(r.Processes, opts)
 }
 
 // redactedValue replaces an argument value whose flag names a secret. It matches the placeholder
@@ -133,8 +145,24 @@ const redactedValue = "********"
 // on spaces and re-tokenizes it: that splits a Windows path such as
 // "C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe" into fragments, and this
 // report exists to be read by a person.
-func scrubProcessArgs(processes []ProcessSnapshot) {
+func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
+	if opts.StripArguments {
+		for i := range processes {
+			processes[i].Args = nil
+		}
+		return
+	}
+
 	scrubber := redact.NewDefaultDataScrubber()
+	if len(opts.CustomSensitiveWords) > 0 {
+		// Lowercased because ContainsSensitiveWord lowercases what it is given and compares
+		// against these literally, so a word declared as "MySecret" would never match.
+		words := make([]string, 0, len(opts.CustomSensitiveWords))
+		for _, word := range opts.CustomSensitiveWords {
+			words = append(words, strings.ToLower(word))
+		}
+		scrubber.AddCustomSensitiveWords(words)
+	}
 
 	for i := range processes {
 		args := processes[i].Args

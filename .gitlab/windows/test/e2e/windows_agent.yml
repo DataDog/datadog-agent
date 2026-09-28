@@ -39,6 +39,7 @@ new-e2e-agent-subcommands-windows:
           # changes and not only when the tests themselves do.
           - pkg/flare/**/*
           - comp/procmgr/**/*
+          - pkg/procmgr/**/*
           - test/new-e2e/tests/agent-subcommands/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]

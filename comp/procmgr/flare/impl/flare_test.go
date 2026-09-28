@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 )
@@ -140,4 +141,43 @@ func TestFillFlareScrubsSecretPassedAsSeparateArgument(t *testing.T) {
 	assert.NotContains(t, string(raw), "hunter2-not-in-a-flare",
 		"a secret in its own argv token must be redacted before the report is serialized")
 	assert.Contains(t, string(raw), "--verbose", "non-sensitive arguments should survive")
+}
+
+// An operator who set process_config.strip_proc_arguments does not want process arguments leaving
+// the host, and a flare is no exception.
+func TestFillFlareHonoursStripProcArguments(t *testing.T) {
+	p := &procmgrFlare{
+		reporter: fakeReporter{report: coat.SupportReport{
+			Daemon: coat.DaemonSnapshot{Reachable: true, Ready: true},
+			Processes: []coat.ProcessSnapshot{{
+				Name:    "datadog-agent-process",
+				State:   coat.ProcessStateRunning,
+				Command: "/opt/datadog-agent/embedded/bin/process-agent",
+				Args:    []string{"--config", "/etc/datadog-agent/datadog.yaml"},
+			}},
+		}},
+		scrub: coat.ScrubOptions{StripArguments: true},
+	}
+
+	mock := helpers.NewFlareBuilderMock(t, false)
+	require.NoError(t, p.fillFlare(context.Background(), mock))
+
+	raw, err := os.ReadFile(filepath.Join(mock.Root, flareFile))
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "--config", "no argument should reach the flare")
+	assert.Contains(t, string(raw), "process-agent",
+		"the process is still reported, only its arguments are withheld")
+}
+
+// Pins the setting names against the real config, so a typo cannot silently disable redaction the
+// operator asked for.
+func TestScrubOptionsComeFromAgentConfig(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetInTest("process_config.custom_sensitive_words", []string{"passphrase"})
+	cfg.SetInTest("process_config.strip_proc_arguments", true)
+
+	opts := scrubOptionsFromConfig(cfg)
+
+	assert.Equal(t, []string{"passphrase"}, opts.CustomSensitiveWords)
+	assert.True(t, opts.StripArguments)
 }

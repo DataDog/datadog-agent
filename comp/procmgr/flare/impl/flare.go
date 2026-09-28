@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	config "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 )
@@ -23,6 +24,19 @@ import (
 // flareFile is where the supervision dump lands in the archive. dd-procmgr.log is not written
 // here: it already reaches logs/ through the flare's log directory sweep.
 const flareFile = "procmgr/state.json"
+
+// These are the process-agent settings for process-argument privacy. An operator who set either
+// one means it for a flare too, so they are honoured here rather than only where process metadata
+// is collected.
+const (
+	customSensitiveWordsSetting = "process_config.custom_sensitive_words"
+	stripProcArgumentsSetting   = "process_config.strip_proc_arguments"
+)
+
+// Requires specifies the dependencies of the constructor.
+type Requires struct {
+	Config config.Component
+}
 
 // Provides specifies the types returned by the constructor.
 type Provides struct {
@@ -37,15 +51,23 @@ type reporter interface {
 
 type procmgrFlare struct {
 	reporter reporter
+	scrub    coat.ScrubOptions
 }
 
 // NewComponent returns a flare provider that dumps dd-procmgrd supervision state.
-func NewComponent() Provides {
-	return newProvides(coat.NewCollector())
+func NewComponent(reqs Requires) Provides {
+	return newProvides(coat.NewCollector(), scrubOptionsFromConfig(reqs.Config))
 }
 
-func newProvides(r reporter) Provides {
-	p := &procmgrFlare{reporter: r}
+func scrubOptionsFromConfig(cfg config.Component) coat.ScrubOptions {
+	return coat.ScrubOptions{
+		CustomSensitiveWords: cfg.GetStringSlice(customSensitiveWordsSetting),
+		StripArguments:       cfg.GetBool(stripProcArgumentsSetting),
+	}
+}
+
+func newProvides(r reporter, scrub coat.ScrubOptions) Provides {
+	p := &procmgrFlare{reporter: r, scrub: scrub}
 	return Provides{FlareProvider: flaretypes.NewProvider(p.fillFlare)}
 }
 
@@ -57,7 +79,7 @@ func (p *procmgrFlare) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder
 
 	// AddFile scrubs too, but line by line, which cannot pair a "--password" argument with its
 	// value on the next line of a JSON array. Scrub here, where the argv is still a slice.
-	report.Scrub()
+	report.Scrub(p.scrub)
 
 	content, err := marshalReport(report)
 	if err != nil {

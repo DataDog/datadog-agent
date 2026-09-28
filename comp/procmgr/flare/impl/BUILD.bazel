@@ -7,6 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/procmgr/flare/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/config",
         "//comp/core/flare/types",
         "//pkg/procmgr/coat",
     ],
@@ -17,6 +18,7 @@ dd_agent_go_test(
     srcs = ["flare_test.go"],
     embed = [":impl"],
     deps = [
+        "//comp/core/config",
         "//comp/core/flare/helpers",
         "//pkg/procmgr/coat",
         "@com_github_stretchr_testify//assert",

@@ -266,9 +266,9 @@ func TestReportRedactsSecretArguments(t *testing.T) {
 func TestScrubProcessArgsIsIdempotent(t *testing.T) {
 	processes := []ProcessSnapshot{{Args: []string{"--password", "s3cret", "--verbose"}}}
 
-	scrubProcessArgs(processes)
+	scrubProcessArgs(processes, ScrubOptions{})
 	once := append([]string{}, processes[0].Args...)
-	scrubProcessArgs(processes)
+	scrubProcessArgs(processes, ScrubOptions{})
 
 	assert.Equal(t, once, processes[0].Args)
 	assert.Equal(t, []string{"--password", redactedValue, "--verbose"}, processes[0].Args)
@@ -315,8 +315,34 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			processes := []ProcessSnapshot{{Args: append([]string{}, test.args...)}}
-			scrubProcessArgs(processes)
+			scrubProcessArgs(processes, ScrubOptions{})
 			assert.Equal(t, test.want, processes[0].Args)
 		})
 	}
+}
+
+// An operator who declared a word sensitive, or asked for arguments to be stripped, meant it for
+// flares as well: these settings live in the Agent config, which coat does not read, so they have
+// to arrive as options.
+func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
+	t.Run("custom sensitive words extend the default list", func(t *testing.T) {
+		processes := []ProcessSnapshot{{Args: []string{"--tenant-passphrase", "operator-declared-this-secret"}}}
+
+		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
+
+		assert.Equal(t, []string{"--tenant-passphrase", redactedValue}, processes[0].Args,
+			"a declared word must match regardless of the case it was written in")
+	})
+
+	t.Run("stripping drops every argument", func(t *testing.T) {
+		processes := []ProcessSnapshot{{
+			Command: "/opt/datadog-agent/embedded/bin/process-agent",
+			Args:    []string{"--config", "/etc/datadog-agent/datadog.yaml"},
+		}}
+
+		scrubProcessArgs(processes, ScrubOptions{StripArguments: true})
+
+		assert.Nil(t, processes[0].Args, "no argument should survive, not even a harmless one")
+		assert.NotEmpty(t, processes[0].Command, "the executable is not an argument and stays")
+	})
 }
