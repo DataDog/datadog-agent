@@ -61,6 +61,9 @@ func newStreamComponent(t *testing.T, postgresConfigs []integration.Config) (*co
 		rcclient:      rc,
 		activeConfigs: make(map[string]activeConfigEntry),
 		managedBases:  make(map[string]*managedBaseEntry),
+		tasks:         make(map[string]*trackedTask),
+		taskChanges:   newTaskChangesQueue(),
+		now:           time.Now,
 	}
 	return c, rc
 }
