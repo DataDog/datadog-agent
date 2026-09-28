@@ -36,7 +36,7 @@ go_library(
         "//comp/aggregator/dogstatsdclienttelemetry/fx",
         "//comp/anomalydetection/logssource/fx",
         "//comp/anomalydetection/observer/fx",
-        "//comp/anomalydetection/recorder/fx-noop",
+        "//comp/anomalydetection/recorder/fx",
         "//comp/anomalydetection/reporter/fx",
         "//comp/api/api/apiimpl",
         "//comp/api/api/def",

@@ -40,8 +40,10 @@ comp/anomalydetection/
     reporter.allium      ← behavioral spec for reporter payloads
   recorder/
     def/
-    fx-noop/             ← noop wired in production agent
-    impl-noop/           ← noop implementation (full parquet impl planned)
+    fx/                  ← tagged Agent wiring (no-op in ordinary builds)
+    fx-noop/             ← explicit no-op wiring for the testbench
+    impl/                ← Parquet metrics/logs recorder (anomalydetection_recorder tag)
+    impl-noop/           ← no-op implementation
 ```
 
 ## Agent Wiring
@@ -53,9 +55,14 @@ Wired in `cmd/agent/subcommands/run/command.go`:
 | Observer | `observer/fx` | Analysis pipeline (`python` build tag) |
 | Log source | `logssource/fx` | Container + kubelet logs (`python` tag) |
 | Reporter | `reporter/fx` | Stdout reporter + optional event reporter |
-| Recorder | `recorder/fx-noop` | No-op (parquet middleware not shipped yet) |
+| Recorder | `recorder/fx` | Parquet metrics/logs recording with `anomalydetection_recorder` + `python` tags; no-op otherwise |
 
 **IoT / `!python` builds** use no-op `observer/fx` and `logssource/fx` modules.
+
+Build the recorder Agent with
+`dda inv agent.build --extra-build-tags=anomalydetection_recorder`.
+Recording then requires `anomaly_detection.recording.enabled=true` at runtime.
+Ordinary Agent builds use the no-op `recorder/fx` variant.
 
 **Testbench** (`internal/qbranch/anomalydetection-testbench/`) wires
 `observer/fx`, `recorder/fx-noop`, and `reporter/fx-testbench`. It replays
@@ -213,7 +220,7 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.anomaly_scorer.output.correlation_event_threshold` | `high` | Lowest scorer severity that opens a correlation episode (`medium` or `high`) |
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
-| `anomaly_detection.recording.enabled` | `false` | Reserved for Parquet recording; production currently wires a no-op recorder |
+| `anomaly_detection.recording.enabled` | `false` | Runtime opt-in for Parquet recording in tagged Agent builds |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
 | `anomaly_detection.logs.time_buckets.enabled` | `false` | Materialize fixed-width count buckets for log-derived `.count` series |
