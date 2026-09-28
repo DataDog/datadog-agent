@@ -8,8 +8,8 @@ cloud.google.com/go/auth/oauth2adapt v0.2.8 h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIi
 cloud.google.com/go/auth/oauth2adapt v0.2.8/go.mod h1:XQ9y31RkqZCcwJWNSx2Xvric3RrU88hAYYbjDWYDL+c=
 cloud.google.com/go/compute v1.69.0 h1:5L0YnInNWpXm7k1UVfhiykSiGUuogRdxHedjaBUHtMs=
 cloud.google.com/go/compute v1.69.0/go.mod h1:X+MMKM2m3aZ73tAf+KCOlsxiw9gvjCga5nuToQDeAXw=
-cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdBtwLoEkH9Zs=
-cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
+cloud.google.com/go/compute/metadata v0.9.1 h1:CTE1OWBQ0vnF5uHwdFAQJvMQ0Fi/KRcqqKTo9V0F8Ik=
+cloud.google.com/go/compute/metadata v0.9.1/go.mod h1:NtnlvB6X3t4R6xSWyVX/ZWk493PCxGQlhI/iqxh4M8I=
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
@@ -218,8 +218,8 @@ github.com/docker/go-metrics v0.0.1/go.mod h1:cG1hvH2utMXtqgqqYE9plW6lDxS3/5ayHz
 github.com/docker/go-units v0.5.0 h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4=
 github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
-github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
-github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
+github.com/dustin/go-humanize v1.1.0 h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2xWg=
+github.com/dustin/go-humanize v1.1.0/go.mod h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=
 github.com/ebitengine/purego v0.10.2 h1:W809HbnvzAxgdm+aOvlSekrM16wGCdT/e76+9tS7gzE=
 github.com/ebitengine/purego v0.10.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/emicklei/go-restful/v3 v3.13.0 h1:C4Bl2xDndpU6nJ4bc1jXd+uTmYPVUwkD6bFY/oTyCes=
@@ -539,8 +539,8 @@ github.com/prometheus/procfs v0.22.0 h1:6q9+/JL9IKAPbCmBrv9n5O5Ty3NKnciV5X7YGw0o
 github.com/prometheus/procfs v0.22.0/go.mod h1:CvmFr/GVhIjIvWJZW3tgkODBQMRIf0EyWMQLHCHab58=
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 h1:vkHw5I/plNdTr435cARxCW6q9gc0S/Yxz7Mkd38pOb0=
 github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231/go.mod h1:murToZ2N9hNJzewjHBgfFdXhZKjY3z5cYC1VXk+lbFE=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0 h1:CfM61uNvAnaZnRGRR9Lzr0bzoDiyh2rzL7F43mBCCWY=
-github.com/pulumi/pulumi-aws/sdk/v7 v7.46.0/go.mod h1:5p7rb57CpZOvFIpcE4fa99ASf1ZuCcKfc+4vt8nsj7k=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.47.0 h1:t8JIUaDpwJVhDzGsC/dkGOwJTy9Qhl0T12v1RNi8JME=
+github.com/pulumi/pulumi-aws/sdk/v7 v7.47.0/go.mod h1:5p7rb57CpZOvFIpcE4fa99ASf1ZuCcKfc+4vt8nsj7k=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0 h1:KDrkwdt/wFQZ1AEFRzGQ0Mo4Qoa9AuTbt5AdyLpM/b4=
 github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0/go.mod h1:6YCxvGh70KupvbhPIQX+Amzsxz8qBzhyoXO5AD3AxXE=
 github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.28.0 h1:7kES4A3eRQsx6jCsZeX+VRY+yvc0xX/docyTpCYVdi8=
@@ -747,8 +747,8 @@ go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development v0.4.0/go.m
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.4.0 h1:rLHkdB6eHDiRSIoz0cvNuTJsVJBxaL6IyS1e9BSaXLY=
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.4.0/go.mod h1:BrX0dmOGsMuWNXXbFafTD7Gb6F3yK+2czVQ6+c24Cnk=
 go.uber.org/atomic v1.9.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
-go.uber.org/atomic v1.11.0 h1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=
-go.uber.org/atomic v1.11.0/go.mod h1:LUxbIzbOniOlMKjJjyPfpl4v+PKK2cNJn91OQbhoJI0=
+go.uber.org/atomic v1.12.0 h1:BvcXdFKuviU4fTL/f+SxdQ5qJX/Jix8pAkgdUcb3XOE=
+go.uber.org/atomic v1.12.0/go.mod h1:I6c4cg+6HCxRjfjSsYtApoFILnpc0CGUdGkXVqbYVNk=
 go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
 go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
 go.uber.org/mock v0.6.0 h1:hyF9dfmbgIX5EfOdasqLsWD6xqpNZlXblLB/Dbnwv3Y=

@@ -713,6 +713,7 @@ func TestLogsConfigFieldCoverage(t *testing.T) {
 
 		// File-only fields not relevant to container-sourced file tailing
 		"ExcludePaths": "file wildcard exclusion, not applicable to container log paths",
+		"NoFollow":     "internal process_log policy; container sources cannot originate it",
 
 		// Integration metadata (set by integration config loader, not user config)
 		"IntegrationName":        "integration loader metadata",
