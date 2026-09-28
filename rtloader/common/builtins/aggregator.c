@@ -11,6 +11,7 @@ static cb_submit_metric_t cb_submit_metric = NULL;
 static cb_submit_service_check_t cb_submit_service_check = NULL;
 static cb_submit_event_t cb_submit_event = NULL;
 static cb_submit_histogram_bucket_t cb_submit_histogram_bucket = NULL;
+static cb_submit_histogram_bucket_multi_t cb_submit_histogram_bucket_multi = NULL;
 static cb_submit_event_platform_event_t cb_submit_event_platform_event = NULL;
 
 // forward declarations
@@ -18,6 +19,7 @@ static PyObject *submit_metric(PyObject *self, PyObject *args);
 static PyObject *submit_service_check(PyObject *self, PyObject *args);
 static PyObject *submit_event(PyObject *self, PyObject *args);
 static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args);
+static PyObject *submit_histogram_bucket_multi(PyObject *self, PyObject *args);
 static PyObject *submit_event_platform_event(PyObject *self, PyObject *args);
 
 static PyMethodDef methods[] = {
@@ -25,6 +27,8 @@ static PyMethodDef methods[] = {
     { "submit_service_check", (PyCFunction)submit_service_check, METH_VARARGS, "Submit service checks." },
     { "submit_event", (PyCFunction)submit_event, METH_VARARGS, "Submit events." },
     { "submit_histogram_bucket", (PyCFunction)submit_histogram_bucket, METH_VARARGS, "Submit histogram bucket." },
+    { "submit_histogram_bucket_multi", (PyCFunction)submit_histogram_bucket_multi, METH_VARARGS,
+      "Submit histogram bucket that shares its context with the other buckets of its histogram." },
     { "submit_event_platform_event", (PyCFunction)submit_event_platform_event, METH_VARARGS, "Submit event platform event." },
     { NULL, NULL } // guards
 };
@@ -78,6 +82,11 @@ void _set_submit_event_cb(cb_submit_event_t cb)
 void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb)
 {
     cb_submit_histogram_bucket = cb;
+}
+
+void _set_submit_histogram_bucket_multi_cb(cb_submit_histogram_bucket_multi_t cb)
+{
+    cb_submit_histogram_bucket_multi = cb;
 }
 
 void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb)
@@ -367,9 +376,19 @@ gstate_cleanup:
     return retval;
 }
 
-static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
+/*! \fn submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb)
+    \brief A helper function that parses the arguments of a histogram bucket submission and
+    passes them to the given callback.
+    \param args A PyObject * pointer to the python args.
+    \param cb The callback that receives the bucket.
+    \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
+
+    `submit_histogram_bucket` and `submit_histogram_bucket_multi` take the same arguments and only
+    differ in the callback they use. The function is static and not in the builtin's API.
+*/
+static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb)
 {
-    if (cb_submit_histogram_bucket == NULL) {
+    if (cb == NULL) {
         Py_RETURN_NONE;
     }
 
@@ -395,7 +414,7 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
-    cb_submit_histogram_bucket(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
+    cb(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
 
     free_tags(tags);
 
@@ -405,6 +424,26 @@ static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
 error:
     PyGILState_Release(gstate);
     return NULL;
+}
+
+static PyObject *submit_histogram_bucket(PyObject *self, PyObject *args)
+{
+    return submit_histogram_bucket_with_cb(args, cb_submit_histogram_bucket);
+}
+
+/*! \fn submit_histogram_bucket_multi(PyObject *self, PyObject *args)
+    \brief Aggregator builtin class method for submitting a histogram bucket that shares its context
+    (name, tags and hostname) with the other buckets of its histogram.
+    \param self A PyObject * pointer to self - the aggregator module.
+    \param args A PyObject * pointer to the python args.
+    \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
+
+    Takes the same arguments as `submit_histogram_bucket`. Its callback tracks bucket state by context
+    and bounds, so the bucket bounds don't need to be encoded in the tags.
+*/
+static PyObject *submit_histogram_bucket_multi(PyObject *self, PyObject *args)
+{
+    return submit_histogram_bucket_with_cb(args, cb_submit_histogram_bucket_multi);
 }
 
 static PyObject *submit_event_platform_event(PyObject *self, PyObject *args)

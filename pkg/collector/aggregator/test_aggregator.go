@@ -315,29 +315,42 @@ func testSubmitEvent(t *testing.T) {
 }
 
 func testSubmitHistogramBucket(t *testing.T) {
-	sender := mocksender.NewMockSender(t, checkid.ID("testID"))
-	logReceiver := option.None[integrations.Component]()
-	tagger := nooptagger.NewComponent()
-	filterStore := workloadfilterfxmock.SetupMockFilter(t)
-	release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
-	defer release()
+	cases := []struct {
+		name   string
+		submit func(*C.char, *C.char, C.longlong, C.float, C.float, C.int, *C.char, **C.char, C.bool)
+		method string
+	}{
+		{"SubmitHistogramBucket", SubmitHistogramBucket, "OpenmetricsBucket"},
+		{"SubmitHistogramBucketMulti", SubmitHistogramBucketMulti, "HistogramBucket"},
+	}
 
-	sender.SetupAcceptAll()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sender := mocksender.NewMockSender(t, checkid.ID("testID"))
+			logReceiver := option.None[integrations.Component]()
+			tagger := nooptagger.NewComponent()
+			filterStore := workloadfilterfxmock.SetupMockFilter(t)
+			release := ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
+			defer release()
 
-	cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
-	SubmitHistogramBucket(
-		C.CString("testID"),
-		C.CString("test_histogram"),
-		C.longlong(42),
-		C.float(1.0),
-		C.float(2.0),
-		C.int(1),
-		C.CString("my_hostname"),
-		&cTags[0],
-		true,
-	)
+			sender.SetupAcceptAll()
 
-	sender.AssertOpenmetricsBucket(t, "OpenmetricsBucket", "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"}, true)
+			cTags := []*C.char{C.CString("tag1"), C.CString("tag2"), nil}
+			tc.submit(
+				C.CString("testID"),
+				C.CString("test_histogram"),
+				C.longlong(42),
+				C.float(1.0),
+				C.float(2.0),
+				C.int(1),
+				C.CString("my_hostname"),
+				&cTags[0],
+				true,
+			)
+
+			sender.AssertHistogramBucket(t, tc.method, "test_histogram", 42, 1.0, 2.0, true, "my_hostname", []string{"tag1", "tag2"}, true)
+		})
+	}
 }
 
 func testSubmitEventPlatformEvent(t *testing.T) {

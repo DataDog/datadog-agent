@@ -24,15 +24,17 @@ extern void SubmitMetric(char *, metric_type_t, char *, double, char **, char *,
 extern void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 extern void SubmitEvent(char *, event_t *);
 extern void SubmitHistogramBucket(char *, char *, long long, float, float, int, char *, char **, bool);
+extern void SubmitHistogramBucketMulti(char *, char *, long long, float, float, int, char *, char **, bool);
 extern void SubmitEventPlatformEvent(char *, char *, int, char *);
 extern void LogMsg(char *, int);
 
-static void *submitMetricPtr(void)             { return (void *)SubmitMetric; }
-static void *submitServiceCheckPtr(void)       { return (void *)SubmitServiceCheck; }
-static void *submitEventPtr(void)              { return (void *)SubmitEvent; }
-static void *submitHistogramBucketPtr(void)    { return (void *)SubmitHistogramBucket; }
-static void *submitEventPlatformEventPtr(void) { return (void *)SubmitEventPlatformEvent; }
-static void *logMsgPtr(void)                   { return (void *)LogMsg; }
+static void *submitMetricPtr(void)               { return (void *)SubmitMetric; }
+static void *submitServiceCheckPtr(void)         { return (void *)SubmitServiceCheck; }
+static void *submitEventPtr(void)                { return (void *)SubmitEvent; }
+static void *submitHistogramBucketPtr(void)      { return (void *)SubmitHistogramBucket; }
+static void *submitHistogramBucketMultiPtr(void) { return (void *)SubmitHistogramBucketMulti; }
+static void *submitEventPlatformEventPtr(void)   { return (void *)SubmitEventPlatformEvent; }
+static void *logMsgPtr(void)                     { return (void *)LogMsg; }
 */
 import "C"
 
@@ -40,22 +42,24 @@ import "C"
 // function pointers, so consumers can register them without referencing these
 // cross-package symbols in their own cgo preambles.
 type Callbacks struct {
-	Metric             unsafe.Pointer
-	ServiceCheck       unsafe.Pointer
-	Event              unsafe.Pointer
-	HistogramBucket    unsafe.Pointer
-	EventPlatformEvent unsafe.Pointer
-	LogMsg             unsafe.Pointer
+	Metric               unsafe.Pointer
+	ServiceCheck         unsafe.Pointer
+	Event                unsafe.Pointer
+	HistogramBucket      unsafe.Pointer
+	HistogramBucketMulti unsafe.Pointer
+	EventPlatformEvent   unsafe.Pointer
+	LogMsg               unsafe.Pointer
 }
 
 // GetCallbacks returns the submit callback pointers owned by this package.
 func GetCallbacks() Callbacks {
 	return Callbacks{
-		Metric:             unsafe.Pointer(C.submitMetricPtr()),
-		ServiceCheck:       unsafe.Pointer(C.submitServiceCheckPtr()),
-		Event:              unsafe.Pointer(C.submitEventPtr()),
-		HistogramBucket:    unsafe.Pointer(C.submitHistogramBucketPtr()),
-		EventPlatformEvent: unsafe.Pointer(C.submitEventPlatformEventPtr()),
-		LogMsg:             unsafe.Pointer(C.logMsgPtr()),
+		Metric:               unsafe.Pointer(C.submitMetricPtr()),
+		ServiceCheck:         unsafe.Pointer(C.submitServiceCheckPtr()),
+		Event:                unsafe.Pointer(C.submitEventPtr()),
+		HistogramBucket:      unsafe.Pointer(C.submitHistogramBucketPtr()),
+		HistogramBucketMulti: unsafe.Pointer(C.submitHistogramBucketMultiPtr()),
+		EventPlatformEvent:   unsafe.Pointer(C.submitEventPlatformEventPtr()),
+		LogMsg:               unsafe.Pointer(C.logMsgPtr()),
 	}
 }
