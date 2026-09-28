@@ -20,4 +20,26 @@ services:
       NGINX_HTTP_PORT_NUMBER_FILE: /run/secrets/http-port
       NGINX_PASSWORD: must-not-be-forwarded
     volumes:
-      - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}:/etc/nginx/conf.d:ro
+      # Replace the image's default.conf (which owns port 80) with a server
+      # exposing stub_status, so the nginx auto-conf's discovery probe can
+      # validate a candidate check instance.
+      - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}/nginx-status.conf:/etc/nginx/conf.d/default.conf:ro
+
+  nginx-configfilesdiscovery-default:
+    image: ${DD_REGISTRY:-docker.io}/library/nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901
+    container_name: nginx-configfilesdiscovery-default
+    # No command override: the image's default CMD ("nginx -g daemon off;")
+    # is the realistic deployment scenario, so config file discovery must
+    # fall back to the compiled-in default path with no explicit -c.
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}/nginx-default.conf:/etc/nginx/nginx.conf:ro
+
+  nginx-configfilesdiscovery-explicit:
+    image: ${DD_REGISTRY:-docker.io}/library/nginx:1.27.3-alpine@sha256:679a5fd058f6ca754a561846fe27927e408074431d63556e8fc588fc38be6901
+    container_name: nginx-configfilesdiscovery-explicit
+    command:
+      - nginx
+      - -c
+      - /configfilesdiscovery/nginx-explicit.conf
+    volumes:
+      - ${CONFIG_FILES_DISCOVERY_NGINX_CONFIG_DIR}:/configfilesdiscovery:ro

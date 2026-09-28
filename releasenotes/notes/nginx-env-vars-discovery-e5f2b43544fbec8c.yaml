@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Config Files Discovery now collects selected non-secret environment
+    variables from NGINX containers discovered through Autodiscovery.
