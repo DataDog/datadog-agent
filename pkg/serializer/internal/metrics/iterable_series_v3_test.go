@@ -8,6 +8,7 @@
 package metrics
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 	"testing"
@@ -600,6 +601,24 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 		// originRef
 		24<<3 | 2, 1, 4, 2, 0, 2, 2,
 	}, pipelineContext.payloads[0].GetContent())
+}
+
+func TestPayloadsBuilderV3_PreservesEmptySketch(t *testing.T) {
+	pipelineConfig := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+	pipelineContext := &PipelineContext{}
+	pb, err := newPayloadsBuilderV3(
+		1000, 1000, 1000, noopimpl.New(), pipelineConfig, pipelineContext)
+	require.NoError(t, err)
+
+	empty := &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{Name: "empty-sketch"},
+	}
+	require.NoError(t, pb.writeSketch(empty))
+	require.NoError(t, pb.finishPayload())
+
+	require.Len(t, pipelineContext.payloads, 1)
+	require.Zero(t, pipelineContext.payloads[0].GetPointCount())
+	require.True(t, bytes.Contains(pipelineContext.payloads[0].GetContent(), []byte("empty-sketch")))
 }
 
 func pointsOf(ts int64, v ...float64) []metrics.SketchPoint {
