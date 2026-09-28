@@ -140,6 +140,7 @@ func TestFillFlareScrubsSecretPassedAsSeparateArgument(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "hunter2-not-in-a-flare",
 		"a secret in its own argv token must be redacted before the report is serialized")
+	assert.Contains(t, string(raw), "********", "the value is replaced, not dropped silently")
 	assert.Contains(t, string(raw), "--verbose", "non-sensitive arguments should survive")
 }
 

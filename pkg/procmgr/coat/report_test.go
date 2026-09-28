@@ -11,17 +11,20 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
-// redactedValue is the placeholder procutil substitutes for a secret. It belongs to procutil, not
-// to this package, so the assertions below are pinning that behaviour rather than a contract of
-// our own. procutil does not export it, which is why it is spelled out.
-const redactedValue = "********"
+// wantRedacted is the placeholder these tests expect a secret to be replaced with. It deliberately
+// restates the value rather than reading the production constant: a test that asserts against the
+// constant it is checking passes whatever that constant is changed to. Spelled once because eight
+// asterisks cannot be counted by eye, so repeating the literal invites a seven-asterisk typo.
+const wantRedacted = "********"
 
 func writeProcmgrConfigFixture(t *testing.T, root string, service MigratableService) {
 	t.Helper()
@@ -257,32 +260,29 @@ func TestReportRedactsSecretArguments(t *testing.T) {
 
 	proc := reportProcessByName(t, collector.Report(context.Background()), "datadog-agent-process")
 
-	assert.NotContains(t, proc.Args, "separate-token-secret",
-		"a value in its own argv token must be redacted, the flare's line-based scrubber cannot pair it")
-	assert.NotContains(t, proc.Args, "--api_key=inline-secret")
-	assert.Contains(t, proc.Args, "--api_key="+redactedValue)
+	// Asserted as the whole argv rather than as absences: NotContains compares whole elements, so a
+	// value that leaked only part of itself, which is how this went wrong before, would satisfy it.
+	assert.Equal(t, []string{
+		"--password", wantRedacted,
+		"--api_key=" + wantRedacted,
+		"--config", `C:\Program Files\Datadog\datadog.yaml`,
+	}, proc.Args, "both spellings are redacted and nothing around them is disturbed")
 
 	// The command is never part of what gets scrubbed, so it survives intact even here, where a
 	// redaction did happen. Its arguments are a different matter: see the test below.
 	assert.Equal(t, windowsCommand, proc.Command, "the executable path must survive intact")
 }
 
-// Redacting anything makes procutil re-split the whole command line on spaces, so an argument that
-// held a space arrives as several. Only a command line that carried a secret pays that, and the
-// alternative is leaving the secret in place.
-func TestScrubProcessArgsKeepsSpacedValuesWhenNothingIsSecret(t *testing.T) {
+// Redacting one value must not disturb the arguments around it. Scrubbing the command line as a
+// single joined string cost exactly this, because it re-split every element on spaces.
+func TestScrubProcessArgsLeavesSurroundingArgumentsIntact(t *testing.T) {
 	path := `C:\Program Files\Datadog\datadog.yaml`
+	processes := []ProcessSnapshot{{Args: []string{"--password", "s3cret", "--config", path}}}
 
-	intact := []ProcessSnapshot{{Args: []string{"--config", path}}}
-	scrubProcessArgs(intact, ScrubOptions{})
-	assert.Equal(t, []string{"--config", path}, intact[0].Args,
-		"with nothing to redact the arguments must come back untouched")
+	scrubProcessArgs(processes, ScrubOptions{})
 
-	alongsideSecret := []ProcessSnapshot{{Args: []string{"--password", "s3cret", "--config", path}}}
-	scrubProcessArgs(alongsideSecret, ScrubOptions{})
-	assert.NotContains(t, alongsideSecret[0].Args, "s3cret")
-	assert.Contains(t, strings.Join(alongsideSecret[0].Args, " "), path,
-		"the path is still readable in the command line, even though it is split across elements")
+	assert.Equal(t, []string{"--password", wantRedacted, "--config", path}, processes[0].Args,
+		"a path holding spaces stays one argument even when something else was redacted")
 }
 
 func TestScrubProcessArgsIsIdempotent(t *testing.T) {
@@ -293,7 +293,7 @@ func TestScrubProcessArgsIsIdempotent(t *testing.T) {
 	scrubProcessArgs(processes, ScrubOptions{})
 
 	assert.Equal(t, once, processes[0].Args)
-	assert.Equal(t, []string{"--password", redactedValue, "--verbose"}, processes[0].Args)
+	assert.Equal(t, []string{"--password", wantRedacted, "--verbose"}, processes[0].Args)
 }
 
 // The shared word list spells these with underscores, but command lines just as often use hyphens,
@@ -308,17 +308,24 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 		{
 			name: "hyphenated flag with a separate value",
 			args: []string{"--api-key", "leaked-by-spelling"},
-			want: []string{"--api-key", redactedValue},
+			want: []string{"--api-key", wantRedacted},
 		},
 		{
 			name: "colon delimiter keeps the value in the same token",
 			args: []string{"--password:leaked-by-delimiter", "--verbose"},
-			want: []string{"--password:" + redactedValue, "--verbose"},
+			want: []string{"--password:" + wantRedacted, "--verbose"},
 		},
 		{
 			name: "uppercase flag",
 			args: []string{"--AUTH-TOKEN=leaked-by-case"},
-			want: []string{"--AUTH-TOKEN=" + redactedValue},
+			want: []string{"--AUTH-TOKEN=" + wantRedacted},
+		},
+		{
+			// Everything after the flag goes, not just the first word of it. Handing the command
+			// line to procutil.ScrubCommand would keep "with spaces" here.
+			name: "a secret value containing spaces is redacted whole",
+			args: []string{"--password", "secret with spaces"},
+			want: []string{"--password", wantRedacted},
 		},
 		{
 			name: "a value holding a Windows path is not a flag",
@@ -330,7 +337,7 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 			// entry is an easy thing to do.
 			name: "flag and value in one token separated by a space",
 			args: []string{"--password leaked-by-space"},
-			want: []string{"--password", redactedValue},
+			want: []string{"--password " + wantRedacted},
 		},
 	}
 
@@ -352,7 +359,7 @@ func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
 
 		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
 
-		assert.Equal(t, []string{"--passphrase", redactedValue}, processes[0].Args)
+		assert.Equal(t, []string{"--passphrase", wantRedacted}, processes[0].Args)
 	})
 
 	t.Run("a declared wildcard matches a prefixed flag", func(t *testing.T) {
@@ -360,7 +367,7 @@ func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
 
 		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"*token*"}})
 
-		assert.Equal(t, []string{"--tenant-token", redactedValue}, processes[0].Args,
+		assert.Equal(t, []string{"--tenant-token", wantRedacted}, processes[0].Args,
 			"wildcards are how operators declare a family of flags, so they have to be honoured")
 	})
 
@@ -375,4 +382,31 @@ func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
 		assert.Nil(t, processes[0].Args, "no argument should survive, not even a harmless one")
 		assert.NotEmpty(t, processes[0].Command, "the executable is not an argument and stays")
 	})
+}
+
+// namesSecret probes procutil's patterns with a synthetic "<flag>=x", which assumes the shape of the
+// regexes procutil compiles. Nothing in procutil promises that shape. If it changed, the probe would
+// stop matching, every flag would look harmless and secrets would reach flares with all the tests
+// above still green. Cross-check the two so that change breaks the build instead, and confirm the
+// placeholder we write is the one procutil substitutes, since procutil does not export it.
+func TestNamesSecretAgreesWithProcutil(t *testing.T) {
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(slices.Clone(hyphenSpelledSecretWords))
+
+	for _, flag := range []string{
+		"--password", "--api_key", "--api-key", "--auth_token", "--AUTH-TOKEN",
+		"--config", "--verbose", "--sysprobe-config",
+	} {
+		t.Run(flag, func(t *testing.T) {
+			scrubbed, procutilRedacted := scrubber.ScrubCommand([]string{"agent", flag, "a-value"})
+
+			assert.Equal(t, procutilRedacted, namesSecret(scrubber.SensitivePatterns, flag),
+				"our decision about this flag must match what procutil itself would redact")
+
+			if procutilRedacted {
+				assert.Contains(t, scrubbed, wantRedacted,
+					"procutil's placeholder must still be the one this package writes")
+			}
+		})
+	}
 }

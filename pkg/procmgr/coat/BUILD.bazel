@@ -129,6 +129,7 @@ dd_agent_go_test(
     ],
     embed = [":coat"],
     deps = [
+        "//pkg/process/procutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

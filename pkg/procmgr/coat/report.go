@@ -8,7 +8,8 @@ package coat
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -68,7 +69,7 @@ func (c *Collector) Report(ctx context.Context) SupportReport {
 	ctx, cancel := clientContext(ctx)
 	defer cancel()
 
-	report := SupportReport{
+	out := SupportReport{
 		CollectedAt: time.Now().UTC(),
 		SocketPath:  procmgrSocketPath(),
 		Processes:   []ProcessSnapshot{},
@@ -80,32 +81,32 @@ func (c *Collector) Report(ctx context.Context) SupportReport {
 
 	sess, err := c.client.Connect(ctx)
 	if err != nil {
-		report.DaemonError = fmt.Sprintf("connect to dd-procmgrd: %v", err)
+		out.DaemonError = fmt.Sprintf("connect to dd-procmgrd: %v", err)
 	} else {
 		defer func() { _ = sess.Disconnect() }()
 
 		daemon, err := sess.Status(ctx)
 		if err != nil {
-			report.DaemonError = fmt.Sprintf("dd-procmgrd status: %v", err)
+			out.DaemonError = fmt.Sprintf("dd-procmgrd status: %v", err)
 		} else {
-			report.Daemon = daemon
+			out.Daemon = daemon
 			processes, err = sess.List(ctx)
 			if err != nil {
 				processes = map[string]ProcessSnapshot{}
-				report.ProcessesError = fmt.Sprintf("dd-procmgrd list: %v", err)
+				out.ProcessesError = fmt.Sprintf("dd-procmgrd list: %v", err)
 			} else {
-				report.Processes, report.Warnings = describeAll(ctx, sess, processes)
+				out.Processes, out.Warnings = describeAll(ctx, sess, processes)
 			}
 		}
 	}
 
 	for _, service := range migratableServices {
-		report.Services = append(report.Services, c.collectService(ctx, service, processes))
+		out.Services = append(out.Services, c.collectService(ctx, service, processes))
 	}
 
-	report.Scrub(ScrubOptions{})
+	out.Scrub(ScrubOptions{})
 
-	return report
+	return out
 }
 
 // ScrubOptions carries the operator's process-argument privacy settings. This package does not
@@ -128,11 +129,9 @@ func (r *SupportReport) Scrub(opts ScrubOptions) {
 	scrubProcessArgs(r.Processes, opts)
 }
 
-// argvSentinel stands in for the executable at the head of a command line. procutil's patterns
-// require a space or a dash before a flag, which the first element of a joined command line does
-// not have, so process-agent satisfies them by passing the executable as element 0. Passing a
-// sentinel instead keeps a Command holding spaces out of the re-split below.
-const argvSentinel = "dd-procmgr-argv"
+// redactedValue replaces a secret. It matches the placeholder procutil substitutes, so redactions
+// look the same wherever support reads them.
+const redactedValue = "********"
 
 // hyphenSpelledSecretWords covers the hyphenated spellings of words procutil's defaults only list
 // with underscores, so "--api-key" is recognized as readily as "--api_key". They are expressed in
@@ -146,10 +145,9 @@ var hyphenSpelledSecretWords = []string{"*api*key*", "*auth*token*", "*access*to
 // no longer on the same line, so the pairing that identifies the value as a secret is gone. Here is
 // the last point where it is still visible.
 //
-// procutil does the matching, which is the same implementation process-agent applies to the
-// cmdlines it reports. That buys the wildcard custom words operators can configure, the
-// platform-specific flags ("/p" and "/rp" on Windows), quoted values and case insensitivity,
-// none of which a hand-written matcher here would keep up with.
+// procutil decides which flags name a secret, which is the same judgement process-agent applies to
+// the cmdlines it reports: wildcard custom words, the platform-specific flags ("/p" and "/rp" on
+// Windows) and case insensitivity all come from there rather than from anything written here.
 func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 	if opts.StripArguments {
 		for i := range processes {
@@ -159,21 +157,69 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 	}
 
 	scrubber := procutil.NewDefaultDataScrubber()
-	scrubber.AddCustomSensitiveWords(append(hyphenSpelledSecretWords, opts.CustomSensitiveWords...))
+	scrubber.AddCustomSensitiveWords(slices.Concat(hyphenSpelledSecretWords, opts.CustomSensitiveWords))
 
 	for i := range processes {
-		if len(processes[i].Args) == 0 {
+		redactSecretValues(processes[i].Args, scrubber.SensitivePatterns)
+	}
+}
+
+// redactSecretValues rewrites, in place, the value of every argument whose flag names a secret.
+//
+// It works per argv element rather than handing the command line to procutil.ScrubCommand: that call
+// joins the argv on spaces, and its unquoted-value pattern stops at the first space, so a value like
+// "secret with spaces" would keep everything after "secret". Element boundaries are known here, and
+// throwing them away loses information that cannot be recovered.
+func redactSecretValues(args []string, patterns []procutil.DataScrubberPattern) {
+	for i, arg := range args {
+		flag, delimiter, hasInlineValue := splitArgument(arg)
+		if !namesSecret(patterns, flag) {
 			continue
 		}
-
-		cmdline := append([]string{argvSentinel}, processes[i].Args...)
-		if scrubbed, changed := scrubber.ScrubCommand(cmdline); changed {
-			// procutil re-splits on spaces once it has redacted something, so an argument that
-			// held a space arrives as several. That only happens to a command line that carried a
-			// secret, and the alternative is leaving the secret in place.
-			processes[i].Args = scrubbed[1:]
+		if hasInlineValue {
+			args[i] = flag + delimiter + redactedValue
+			continue
+		}
+		// The value is the following element, as in ["--password", "s3cret"]. All of it goes:
+		// a flag that takes no value is worth losing to a redaction, a credential is not worth
+		// risking on a guess about what a value looks like.
+		if i+1 < len(args) {
+			args[i+1] = redactedValue
 		}
 	}
+}
+
+// argumentDelimiters are the characters that can separate a flag from its value inside a single
+// argument token. Missing one is worse than useless: the value stays intact and the unrelated
+// argument that follows gets redacted in its place. Whitespace is included because procmgr reads
+// args from a YAML list, where writing a flag and its value as one entry is an easy thing to do.
+const argumentDelimiters = "=: \t"
+
+// splitArgument separates the flag in an argument from a value carried in the same token.
+//
+// A token with no flag, such as a bare "C:\Program Files\Datadog\datadog.yaml", splits at its
+// first delimiter into a harmless "C" that names no secret, so paths pass through untouched.
+func splitArgument(arg string) (flag, delimiter string, hasInlineValue bool) {
+	i := strings.IndexAny(arg, argumentDelimiters)
+	if i < 0 {
+		return arg, "", false
+	}
+	return arg[:i], arg[i : i+1], true
+}
+
+// namesSecret reports whether a flag names a secret, according to procutil's compiled patterns.
+//
+// Those patterns describe a whole "flag delimiter value" sequence, so the flag is probed inside the
+// smallest one that can match: a leading space, the flag, and a stand-in value. The leading space
+// matters because the patterns require a space or a dash ahead of the flag.
+func namesSecret(patterns []procutil.DataScrubberPattern, flag string) bool {
+	probe := " " + flag + "=x"
+	for _, pattern := range patterns {
+		if pattern.Re.MatchString(probe) {
+			return true
+		}
+	}
+	return false
 }
 
 // describeAll enriches each listed process with the fields only Describe carries, above all
@@ -184,7 +230,7 @@ func describeAll(ctx context.Context, sess ProcmgrSession, processes map[string]
 	for name := range processes {
 		names = append(names, name)
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 
 	out := make([]ProcessSnapshot, 0, len(names))
 	var warnings []string
