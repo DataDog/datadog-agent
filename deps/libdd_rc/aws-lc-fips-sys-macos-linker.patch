@@ -13,7 +13,7 @@ index 36ea768..910fb28 100644
      OutputLibType,
  };
  use std::collections::HashMap;
-@@ -107,7 +107,25 @@ impl CmakeBuilder {
+@@ -107,7 +107,33 @@ impl CmakeBuilder {
      }
  
      #[allow(clippy::too_many_lines)]
@@ -24,6 +24,14 @@ index 36ea768..910fb28 100644
 +        // Use Apple's system linker for this dylib while retaining the rest of
 +        // the Bazel-provided link flags and SDK configuration.
 +        if is_fips_build() && target_vendor() == "apple" {
++            // Bazel also places its hermetic LLVM libc++ on DYLD_LIBRARY_PATH.
++            // Apple's linker is built against the system libc++; allowing the
++            // hermetic library to interpose makes ld fail to start due to ABI
++            // mismatches (for example, a missing ___cxa_demangle symbol).
++            unsafe {
++                env::remove_var("DYLD_LIBRARY_PATH");
++            }
++
 +            if let Ok(ldflags) = env::var("LDFLAGS") {
 +                let ldflags = ldflags
 +                    .split_whitespace()
