@@ -10,36 +10,54 @@ package awsimds
 import (
 	"errors"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
-const dialTimeout = 1 * time.Second
+// requestTimeout is a var (not const) so tests can shorten it.
+var requestTimeout = 2 * time.Second
+
+// tokenTTLHeader and tokenTTLHeaderValue mirror the request the Agent's own IMDSv2
+// client sends when resolving the EC2 hostname.
+const (
+	tokenTTLHeader      = "X-aws-ec2-metadata-token-ttl-seconds"
+	tokenTTLHeaderValue = "21600"
+)
 
 // Check detects if the AWS IMDSv2 endpoint is unreachable from inside a container
-// due to the default hop limit of 1. The check works by attempting a TCP connection
-// to the metadata endpoint: a timeout (as opposed to "no route to host") indicates
-// that a route exists but packets are dropped by the EC2 hypervisor because the TTL
-// expires after the container-to-host hop.
+// due to the default hop limit of 1. The check works by issuing the same token PUT
+// request the Agent needs for IMDSv2: AWS's HttpPutResponseHopLimit setting only
+// constrains the TTL of that request's *response*, not the TCP handshake, so the
+// handshake always completes even when the hop limit is too low — only reading the
+// response then hangs until it times out. A plain TCP dial can never observe this.
 func Check() ([]runnerdef.IssueReport, error) {
 	// Only relevant when running inside a container
 	if !isContainerized() {
 		return nil, nil
 	}
 
-	conn, err := net.DialTimeout("tcp", imdsAddress, dialTimeout)
+	req, err := http.NewRequest(http.MethodPut, "http://"+imdsAddress+"/latest/api/token", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set(tokenTTLHeader, tokenTTLHeaderValue)
+
+	client := &http.Client{Timeout: requestTimeout}
+	resp, err := client.Do(req)
 	if err == nil {
-		// Connection succeeded - IMDS is reachable, no hop limit issue
-		conn.Close()
+		// Response received (regardless of status code) - IMDS is reachable, no hop limit issue
+		resp.Body.Close()
 		return nil, nil
 	}
 
-	// A timeout indicates the address is routable (i.e. we are on AWS) but packets
-	// are being dropped before reaching the endpoint - the classic hop limit symptom.
-	// Other errors (EHOSTUNREACH, ENETUNREACH, ECONNREFUSED) mean IMDS is simply not
-	// present on this host, so we do not report an issue.
+	// A timeout indicates the address is routable (i.e. we are on AWS) and the TCP
+	// handshake succeeded, but the token response is being dropped before reaching
+	// us - the classic hop limit symptom. Other errors (EHOSTUNREACH, ENETUNREACH,
+	// ECONNREFUSED) mean IMDS is simply not present on this host, so we do not
+	// report an issue.
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
 		return []runnerdef.IssueReport{
@@ -57,13 +75,15 @@ func Check() ([]runnerdef.IssueReport, error) {
 	return nil, nil
 }
 
+// containerMarkerPaths is a var (not const) so tests can point it at a temp file.
+var containerMarkerPaths = []string{"/.dockerenv", "/run/.containerenv"}
+
 // isContainerized checks if the agent is running inside a container
 func isContainerized() bool {
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return true
-	}
-	if _, err := os.Stat("/run/.containerenv"); err == nil {
-		return true
+	for _, p := range containerMarkerPaths {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
 	}
 	return false
 }
