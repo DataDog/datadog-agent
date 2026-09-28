@@ -7,6 +7,7 @@ package foldspace
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -105,4 +106,30 @@ func TestDDURLOverridesMainOnly(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "foldspace.internal:9999", dest.Senders[0].Address)
 	assert.Equal(t, "extra.example:443", dest.Senders[1].Address)
+}
+
+func TestStreamLifetimeIgnoresConnectionReset(t *testing.T) {
+	build := func(t *testing.T, reset time.Duration) time.Duration {
+		cfg := configmock.New(t)
+		cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 32)
+		cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+
+		main := config.NewMockEndpointWithOptions(map[string]interface{}{
+			"host": "main.example", "port": 443, "is_reliable": true,
+		})
+		main.ConnectionResetInterval = reset
+		endpoints := config.NewMockEndpoints([]config.Endpoint{main})
+		endpoints.Main = main
+
+		dest, err := BuildDestinationConfig(cfg, endpoints)
+		require.NoError(t, err)
+		return dest.Core.StreamLifetime
+	}
+
+	// connection_reset_interval governs HTTP connection recycling, which shares
+	// neither its cost nor its bound with ending an interning epoch. Whatever it
+	// is set to, the stream lifetime is the library's.
+	assert.Equal(t, defaultStreamLifetime, build(t, 0))
+	assert.Equal(t, defaultStreamLifetime, build(t, 30*time.Second))
+	assert.Equal(t, defaultStreamLifetime, build(t, 900*time.Second))
 }
