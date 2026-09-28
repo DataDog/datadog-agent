@@ -14,31 +14,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func writeODBCDrivers(t *testing.T, packagePath string) (msDriver, tdsDriver string) {
+const odbcInstTemplate = "[FreeTDS]\nDriver=/opt/datadog-agent/embedded/lib/libtdsodbc.so\n\n" +
+	"[ODBC Driver 18 for SQL Server]\nDriver=/opt/datadog-agent/embedded/msodbcsql/lib64/libmsodbcsql-18.5.so.1.1\n"
+
+func writeODBCPackage(t *testing.T, packagePath string, withTemplate bool) (expected string) {
 	t.Helper()
-	msDriver = filepath.Join(packagePath, "embedded", "msodbcsql", "lib64", "libmsodbcsql-18.5.so.1.1")
-	tdsDriver = filepath.Join(packagePath, "embedded", "lib", "libtdsodbc.so")
+	msDriver := filepath.Join(packagePath, "embedded", "msodbcsql", "lib64", "libmsodbcsql-18.5.so.1.1")
+	tdsDriver := filepath.Join(packagePath, "embedded", "lib", "libtdsodbc.so")
 	for _, driver := range []string{msDriver, tdsDriver} {
 		require.NoError(t, os.MkdirAll(filepath.Dir(driver), 0755))
 		require.NoError(t, os.WriteFile(driver, nil, 0644))
 	}
-	return msDriver, tdsDriver
+	if withTemplate {
+		templatePath := filepath.Join(packagePath, "embedded", "share", "odbc", "odbcinst.ini")
+		require.NoError(t, os.MkdirAll(filepath.Dir(templatePath), 0755))
+		require.NoError(t, os.WriteFile(templatePath, []byte(odbcInstTemplate), 0644))
+	}
+	return "[FreeTDS]\nDriver=" + tdsDriver + "\n\n[ODBC Driver 18 for SQL Server]\nDriver=" + msDriver + "\n"
 }
 
-func TestEnsureODBCDriverConfigWritesDefault(t *testing.T) {
+func TestEnsureODBCDriverConfigWritesFromTemplate(t *testing.T) {
 	packagePath := t.TempDir()
-	msDriver, tdsDriver := writeODBCDrivers(t, packagePath)
+	expected := writeODBCPackage(t, packagePath, true)
 
 	require.NoError(t, ensureODBCDriverConfig(packagePath))
 
 	content, err := os.ReadFile(filepath.Join(packagePath, "embedded", "etc", "odbcinst.ini"))
 	require.NoError(t, err)
-	assert.Equal(t, defaultODBCInst(msDriver, tdsDriver), string(content))
+	assert.Equal(t, expected, string(content))
+}
+
+func TestEnsureODBCDriverConfigSkipsWithoutTemplate(t *testing.T) {
+	packagePath := t.TempDir()
+	writeODBCPackage(t, packagePath, false)
+
+	require.NoError(t, ensureODBCDriverConfig(packagePath))
+
+	assert.NoFileExists(t, filepath.Join(packagePath, "embedded", "etc", "odbcinst.ini"))
 }
 
 func TestEnsureODBCDriverConfigResolvesSymlinkedPackagePath(t *testing.T) {
 	realPath := t.TempDir()
-	msDriver, tdsDriver := writeODBCDrivers(t, realPath)
+	expected := writeODBCPackage(t, realPath, true)
 	linkPath := filepath.Join(t.TempDir(), "stable")
 	require.NoError(t, os.Symlink(realPath, linkPath))
 
@@ -46,7 +63,7 @@ func TestEnsureODBCDriverConfigResolvesSymlinkedPackagePath(t *testing.T) {
 
 	content, err := os.ReadFile(filepath.Join(realPath, "embedded", "etc", "odbcinst.ini"))
 	require.NoError(t, err)
-	assert.Equal(t, defaultODBCInst(msDriver, tdsDriver), string(content))
+	assert.Equal(t, expected, string(content))
 }
 
 func TestRewriteODBCInst(t *testing.T) {

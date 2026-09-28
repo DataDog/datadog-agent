@@ -17,10 +17,10 @@ const (
 	freeTDSSection      = "FreeTDS"
 )
 
-// ensureODBCDriverConfig writes embedded/etc/odbcinst.ini for the drivers in
-// packagePath, or repoints Driver paths that refer to another Datadog install,
-// since Fleet Automation deletes /opt/datadog-agent after an upgrade. Drivers
-// outside a Datadog install are left in place.
+// ensureODBCDriverConfig writes embedded/etc/odbcinst.ini from the packaged
+// embedded/share/odbc template, or repoints Driver paths that refer to another
+// Datadog install, since Fleet Automation deletes /opt/datadog-agent after an
+// upgrade. Drivers outside a Datadog install are left in place.
 func ensureODBCDriverConfig(packagePath string) error {
 	// stable and experiment are symlinks. Driver paths must use the versioned
 	// directory so they keep pointing at this tree after the symlink moves.
@@ -44,8 +44,19 @@ func ensureODBCDriverConfig(packagePath string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read %s: %w", configPath, err)
 	}
+	existing := string(content)
+	if strings.TrimSpace(existing) == "" {
+		templatePath := filepath.Join(packagePath, "embedded", "share", "odbc", "odbcinst.ini")
+		content, err = os.ReadFile(templatePath)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", templatePath, err)
+		}
+	}
 	updated := rewriteODBCInst(string(content), packagePath, msDriver, tdsDriver, fileExists)
-	if err == nil && updated == string(content) {
+	if updated == existing {
 		return nil
 	}
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
@@ -63,10 +74,6 @@ func fileExists(path string) bool {
 }
 
 func rewriteODBCInst(content, packagePath, msDriver, tdsDriver string, exists func(string) bool) string {
-	if strings.TrimSpace(content) == "" {
-		return defaultODBCInst(msDriver, tdsDriver)
-	}
-
 	lines := strings.Split(content, "\n")
 	section := ""
 	for i, line := range lines {
@@ -128,24 +135,4 @@ func splitINIValue(line string) (string, string, bool) {
 		return "", "", false
 	}
 	return strings.TrimSpace(key), strings.TrimSpace(value), true
-}
-
-func defaultODBCInst(msDriver, tdsDriver string) string {
-	var b strings.Builder
-	if tdsDriver != "" {
-		b.WriteString("[ODBC Drivers]\n")
-		b.WriteString("FreeTDS=Installed\n\n")
-		b.WriteString("[FreeTDS]\n")
-		b.WriteString("Driver=" + tdsDriver + "\n")
-	}
-	if msDriver != "" {
-		if b.Len() > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString("[ODBC Driver 18 for SQL Server]\n")
-		b.WriteString("Description=Microsoft ODBC Driver 18 for SQL Server\n")
-		b.WriteString("Driver=" + msDriver + "\n")
-		b.WriteString("UsageCount=1\n")
-	}
-	return b.String()
 }

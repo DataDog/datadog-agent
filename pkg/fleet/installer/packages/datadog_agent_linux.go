@@ -1198,7 +1198,6 @@ func saveODBCConfig(packagePath string) error {
 
 // restoreODBCConfig restores the ODBC configuration files from the temporary
 // directory into the new package's embedded/etc/ directory after an upgrade.
-// Sections added to a newer Agent's default odbcinst.ini are not merged in.
 func restoreODBCConfig(packagePath string) error {
 	for _, filename := range odbcConfigFiles {
 		src := filepath.Join(paths.RootTmpDir, filename)

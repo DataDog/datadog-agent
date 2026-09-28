@@ -95,9 +95,10 @@ pkg_files(
     prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
 )
 
-# Read-only default for installs that skip the installer hook, such as the
-# Docker image. Keep it out of embedded/etc: users edit odbcinst.ini there, and
-# a package-owned copy would be overwritten by deb/rpm upgrades.
+# Default driver registration. The installer hook copies it into embedded/etc
+# with paths for the running install; the Docker image skips the hook and reads
+# it here. Keep it out of embedded/etc: users edit odbcinst.ini there, and a
+# package-owned copy would be overwritten by deb/rpm upgrades.
 genrule(
     name = "odbcinst_ini_file",
     outs = ["odbcinst.ini"],
