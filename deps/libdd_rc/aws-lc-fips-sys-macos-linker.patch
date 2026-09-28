@@ -1,5 +1,5 @@
 diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
-index 36ea768..910fb28 100644
+index 36ea768..2e9d2de 100644
 --- a/builder/cmake_builder.rs
 +++ b/builder/cmake_builder.rs
 @@ -8,7 +8,7 @@ use crate::{
@@ -7,23 +7,33 @@ index 36ea768..910fb28 100644
      is_no_pregenerated_src, is_small, optional_env, optional_env_optional_crate_target, sanitizer,
      set_env, set_env_for_target, should_build_jitter_entropy, target, target_arch, target_env,
 -    target_is_msvc, target_os, test_clang_cl_command, test_nasm_command, use_prebuilt_nasm,
-+    target_is_msvc, target_os, target_vendor, test_clang_cl_command, test_nasm_command, use_prebuilt_nasm,
-     OutputLibType,
+-    OutputLibType,
++    target_is_msvc, target_os, target_vendor, test_clang_cl_command, test_nasm_command,
++    use_prebuilt_nasm, OutputLibType,
  };
  use std::collections::HashMap;
-@@ -101,3 +101,10 @@ impl CmakeBuilder {
+@@ -101,3 +101,19 @@ impl CmakeBuilder {
      fn get_cmake_config(&self) -> cmake::Config {
 -        cmake::Config::new(&self.manifest_dir)
 +        let mut config = cmake::Config::new(&self.manifest_dir);
 +        if is_fips_build() && target_vendor() == "apple" {
-+            // `cmake` reapplies the Bazel compiler tool's environment when it
-+            // launches CMake, so override the hermetic LLVM library path here.
-+            // Otherwise Apple's linker loads Bazel's incompatible libc++.
-+            config.env("DYLD_LIBRARY_PATH", "");
++            // Bazel's hermetic LLVM driver brings its bundled libc++ into the
++            // Apple linker process. Xcode's linker expects the host libc++ and
++            // aborts before CMake's compiler check with a missing
++            // `___cxa_demangle` symbol. Keep the Bazel-provided target, SDK,
++            // resource-dir, and hardening flags, but use Apple's compiler
++            // drivers for this CMake sub-build so Apple's linker runs with its
++            // matching host runtime.
++            let mut c_config = cc::Build::new();
++            c_config.compiler("/usr/bin/clang");
++            config.init_c_cfg(c_config);
++            let mut cxx_config = cc::Build::new();
++            cxx_config.cpp(true).compiler("/usr/bin/clang++");
++            config.init_cxx_cfg(cxx_config);
 +        }
 +        config
      }
-@@ -135,2 +142,20 @@ impl CmakeBuilder {
+@@ -135,4 +152,20 @@ impl CmakeBuilder {
      fn prepare_cmake_build(&self) -> cmake::Config {
 +        // Bazel's macOS C++ toolchain selects ld64.lld through LDFLAGS. That
 +        // linker rejects an __eh_frame relocation emitted by the validated
@@ -34,9 +44,7 @@ index 36ea768..910fb28 100644
 +            if let Ok(ldflags) = env::var("LDFLAGS") {
 +                let ldflags = ldflags
 +                    .split_whitespace()
-+                    .filter(|flag| {
-+                        *flag != "-fuse-ld=lld" && *flag != "--ld-path=ld64.lld"
-+                    })
++                    .filter(|flag| *flag != "-fuse-ld=lld" && *flag != "--ld-path=ld64.lld")
 +                    .collect::<Vec<_>>()
 +                    .join(" ");
 +                set_env("LDFLAGS", ldflags);
