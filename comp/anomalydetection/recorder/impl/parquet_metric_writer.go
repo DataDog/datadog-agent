@@ -18,7 +18,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/compress"
 
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 )
 
 // metricParquetWriter writes observer metrics to parquet files created on each flush.
@@ -80,7 +80,7 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 	}
 	pw.start()
 
-	pkglog.Infof("Parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
+	logging.Infof("Parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
 	return pw, nil
 }
 

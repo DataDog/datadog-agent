@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
+
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
@@ -56,7 +58,7 @@ func newParquetReader(dirPath string) (*parquetMetricReader, error) {
 	for _, filePath := range parquetFiles {
 		metrics, err := readParquetFile(filePath)
 		if err != nil {
-			fmt.Printf("[parquet-reader] Skipping %s: %v\n", filePath, err)
+			logging.Warnf("recorder: skipping %s: %v", filePath, err)
 			continue
 		}
 		allMetrics = append(allMetrics, metrics...)
@@ -125,7 +127,7 @@ func findParquetFiles(dirPath string) ([]string, error) {
 		name := info.Name()
 		if !info.IsDir() && strings.HasPrefix(name, "observer-metrics-") && strings.HasSuffix(name, ".parquet") {
 			if info.Size() < minParquetFileSize {
-				fmt.Printf("[parquet-reader] Skipping %s: file too small (%d bytes)\n", path, info.Size())
+				logging.Warnf("recorder: skipping %s: file too small (%d bytes)", path, info.Size())
 				return nil
 			}
 			files = append(files, path)

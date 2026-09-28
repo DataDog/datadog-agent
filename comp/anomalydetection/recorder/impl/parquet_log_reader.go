@@ -19,8 +19,8 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/file"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // LogParquetReader reads log data from parquet files.
@@ -74,27 +74,27 @@ func (r *LogParquetReader) ReadAll() []recorderdef.LogData {
 func (r *LogParquetReader) readFile(filePath string, logs *[]recorderdef.LogData) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		pkglog.Warnf("Failed to open log parquet file %s: %v", filePath, err)
+		logging.Warnf("Failed to open log parquet file %s: %v", filePath, err)
 		return
 	}
 	defer f.Close()
 
 	pf, err := file.NewParquetReader(f)
 	if err != nil {
-		pkglog.Warnf("Failed to create parquet reader for %s: %v", filePath, err)
+		logging.Warnf("Failed to create parquet reader for %s: %v", filePath, err)
 		return
 	}
 	defer pf.Close()
 
 	reader, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
 	if err != nil {
-		pkglog.Warnf("Failed to create arrow reader for %s: %v", filePath, err)
+		logging.Warnf("Failed to create arrow reader for %s: %v", filePath, err)
 		return
 	}
 
 	table, err := reader.ReadTable(context.TODO())
 	if err != nil {
-		pkglog.Warnf("Failed to read table from %s: %v", filePath, err)
+		logging.Warnf("Failed to read table from %s: %v", filePath, err)
 		return
 	}
 	defer table.Release()

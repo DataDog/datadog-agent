@@ -19,7 +19,7 @@ import (
 	"github.com/apache/arrow-go/v18/parquet"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 )
 
 // batchBuilder builds an Arrow record from accumulated data.
@@ -84,7 +84,7 @@ func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
 		return fmt.Errorf("closing parquet writer: %w", err)
 	}
 
-	pkglog.Debugf("Wrote parquet file: %s (%d rows)", filePath, record.NumRows())
+	logging.Debugf("Wrote parquet file: %s (%d rows)", filePath, record.NumRows())
 	return nil
 }
 
@@ -105,7 +105,7 @@ func (b *parquetWriter) flush() {
 	defer record.Release()
 
 	if err := b.writeRecord(record); err != nil {
-		pkglog.Errorf("Failed to flush %s to parquet: %v", b.filePrefix, err)
+		logging.Errorf("Failed to flush %s to parquet: %v", b.filePrefix, err)
 	}
 }
 
@@ -141,7 +141,7 @@ func (b *parquetWriter) cleanupLoop() {
 func (b *parquetWriter) cleanup() {
 	entries, err := os.ReadDir(b.outputDir)
 	if err != nil {
-		pkglog.Warnf("Failed to read parquet output directory for cleanup: %v", err)
+		logging.Warnf("Failed to read parquet output directory for cleanup: %v", err)
 		return
 	}
 
@@ -157,22 +157,22 @@ func (b *parquetWriter) cleanup() {
 		filePath := filepath.Join(b.outputDir, entry.Name())
 		info, err := entry.Info()
 		if err != nil {
-			pkglog.Warnf("Failed to get file info for %s: %v", filePath, err)
+			logging.Warnf("Failed to get file info for %s: %v", filePath, err)
 			continue
 		}
 
 		if info.ModTime().Before(cutoff) {
 			if err := os.Remove(filePath); err != nil {
-				pkglog.Warnf("Failed to remove old parquet file %s: %v", filePath, err)
+				logging.Warnf("Failed to remove old parquet file %s: %v", filePath, err)
 			} else {
 				removed++
-				pkglog.Debugf("Removed old parquet file: %s", filePath)
+				logging.Debugf("Removed old parquet file: %s", filePath)
 			}
 		}
 	}
 
 	if removed > 0 {
-		pkglog.Infof("Cleaned up %d old %s parquet file(s)", removed, b.filePrefix)
+		logging.Infof("Cleaned up %d old %s parquet file(s)", removed, b.filePrefix)
 	}
 }
 
