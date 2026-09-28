@@ -38,8 +38,8 @@ GPU e2e tests are located in `test/new-e2e/tests/gpu/` and verify GPU monitoring
 The host provisioner (`gpuHostProvisioner`):
 1. Creates EC2 GPU instance (g4dn.xlarge)
 2. Validates GPU devices are present
-3. Installs ECR credentials helper
-4. Installs Docker
+3. Configures ECR authentication using the pre-baked credentials helper
+4. Configures pre-baked Docker
 5. Pre-pulls test images
 6. Validates Docker can run CUDA workloads
 7. Installs Datadog agent
@@ -49,8 +49,8 @@ The host provisioner (`gpuHostProvisioner`):
 The Kubernetes provisioner (`gpuK8sProvisioner`):
 1. Creates EC2 GPU instance
 2. Validates GPU devices
-3. Installs ECR credentials helper
-4. **Installs Docker** (required for pre-pulling CUDA image)
+3. Configures ECR authentication using the pre-baked credentials helper
+4. **Configures pre-baked Docker** (required for pre-pulling CUDA image)
 5. **Pre-pulls CUDA sanity check image** (avoids ECR auth issues)
 6. Creates Kind cluster with NVIDIA GPU operator
 7. Deploys Datadog agent via Helm
@@ -112,7 +112,6 @@ gpuSystemUbuntu2204: {
     ami:                          "ami-03ee78da2beb5b622",
     os:                           os.Ubuntu2204,
     cudaSanityCheckImage:         "nvidia/cuda:12.6.3-base-ubuntu22.04",
-    hasEcrCredentialsHelper:      false, // needs to be installed
     hasAllNVMLCriticalAPIs:       true,
     supportsSystemProbeComponent: true,
 }

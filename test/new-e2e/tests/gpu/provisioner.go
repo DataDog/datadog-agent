@@ -49,10 +49,6 @@ type systemData struct {
 	// AMI.
 	cudaSanityCheckImage string
 
-	// hasEcrCredentialsHelper is true if the system has the ECR credentials helper installed
-	// or if it needs to be installed from the repos
-	hasEcrCredentialsHelper bool
-
 	// hasAllNVMLCriticalAPIs is true if the system has all the critical APIs in NVML
 	// that we need to run the GPU check.
 	hasAllNVMLCriticalAPIs bool
@@ -191,17 +187,8 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
 
-		// TEMPORARY: install runtime deps missing from GPU AMIs. Remove once
-		// GPU-e2e AMI variants ship with these tools pre-baked. See runtime_installs.go.
-		runtimeDeps, err := installGPURuntimeDeps(&awsEnv, host)
-		if err != nil {
-			return fmt.Errorf("installGPURuntimeDeps: %w", err)
-		}
-
-		// Set up Docker (after GPU devices are validated). Docker, jq, the ECR
-		// credential helper, and docker-compose all come from runtimeDeps above;
-		// GPU AMIs are bare CUDA images without these tools pre-baked.
-		dockerManager, err := docker.NewAWSManager(&awsEnv, host, utils.PulumiDependsOn(runtimeDeps))
+		// Docker and its supporting tools are pre-baked into the GPU image.
+		dockerManager, err := docker.NewAWSManager(&awsEnv, host)
 		if err != nil {
 			return fmt.Errorf("docker.NewAWSManager: %w", err)
 		}
@@ -260,14 +247,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("ec2.NewVM: %w", err)
 		}
 
-		// TEMPORARY: install runtime deps missing from GPU AMIs. Remove once
-		// GPU-e2e AMI variants ship with these tools pre-baked. See runtime_installs.go.
-		runtimeDeps, err := installGPURuntimeDeps(&awsEnv, host)
-		if err != nil {
-			return fmt.Errorf("installGPURuntimeDeps: %w", err)
-		}
-
-		installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host, utils.PulumiDependsOn(runtimeDeps))
+		ecrConfigCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
 		if err != nil {
 			return fmt.Errorf("docker.SetupECRDockerAuth %w", err)
 		}
@@ -284,7 +264,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("installGPUKind: %w", err)
 		}
 
-		deps := append(validateDevices, installEcrCredsHelperCmd, kindInstall)
+		deps := append(validateDevices, ecrConfigCmd, kindInstall)
 
 		clusterOpts := nvidia.NewKindClusterOptions(
 			nvidia.WithKubeVersion(awsEnv.KubernetesVersion()),
