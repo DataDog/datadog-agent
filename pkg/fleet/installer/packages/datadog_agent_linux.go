@@ -128,6 +128,7 @@ var (
 	agentPackageUninstallPaths = file.Paths{
 		"processes.d",
 		"embedded/ssl/fipsmodule.cnf",
+		"embedded/etc/odbcinst.ini",
 		"run",
 		".pre_python_installed_packages.txt",
 		".post_python_installed_packages.txt",
