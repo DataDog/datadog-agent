@@ -4133,7 +4133,9 @@
 
 <h1 id="how-to-run-unit-tests">How to run unit tests<a class="headerlink" href="#how-to-run-unit-tests" title="Permanent link">&para;</a></h1>
 <hr />
-<p>The <code>dda inv test</code> command runs Go tests and is a thin wrapper around <a href="https://github.com/gotestyourself/gotestsum">gotestsum</a>.</p>
+<p>The <code>dda inv test</code> command runs Go tests. It's implementation is transitioning from being a thin wrapper around <a href="https://github.com/gotestyourself/gotestsum">gotestsum</a> to wrapping Bazel instead.
+On Linux, <code>dda inv test</code> uses Bazel, <code>dda inv test-legacy</code> still being available for the <code>gotestsum</code> wrapper for
+transitional purposes. On all other platforms, <code>dda inv test</code> uses <code>gotestsum</code>, the Bazel version being available under <code>dda inv test-new</code> instead.</p>
 <h2 id="test-selection">Test selection<a class="headerlink" href="#test-selection" title="Permanent link">&para;</a></h2>
 <p>The Go module to test may be selected with the <code>-m</code>/<code>--module</code> flag using a relative path, defaulting to <code>.</code>.</p>
 <p>The <code>-t</code>/<code>--targets</code> flag is used to select the targets to test using a comma-separated list of relative paths within the given module. For example, the following command runs tests for the <code>pkg/collector/check</code> and <code>pkg/aggregator</code> root packages.</p>
