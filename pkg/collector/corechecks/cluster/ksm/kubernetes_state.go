@@ -343,7 +343,6 @@ type KSMCheck struct {
 	metricNamesMapper          map[string]string
 	metricAggregators          map[string]metricAggregator
 	metricTransformers         map[string]metricTransformerFunc
-	metadataMetricsRegex       *regexp.Regexp
 	initRetry                  retry.Retrier
 	workloadmetaStore          workloadmeta.Component
 	rolloutTracker             *customresources.RolloutTracker
@@ -830,11 +829,13 @@ func manageResourcesReplacement(c *apiserver.APIClient, factories []customresour
 	return factories
 }
 
-func (k *KSMCheck) shouldDropForMetadata(name string) bool {
+// shouldDropForMetadata reports whether name is a metadata-only metric.
+// Metadata metrics are useful for label joins but shouldn't be submitted unless they're customresource metrics.
+func shouldDropForMetadata(name string) bool {
 	if strings.HasPrefix(name, "kube_customresource") {
 		return false
 	}
-	return k.metadataMetricsRegex.MatchString(name)
+	return strings.HasSuffix(name, "_labels") || strings.HasSuffix(name, "_info") || strings.HasSuffix(name, "_status_reason")
 }
 
 // Run runs the KSM check
@@ -1030,7 +1031,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if _, found := k.metricAggregators[metricFamily.Name]; found {
 				continue
 			}
-			if k.shouldDropForMetadata(metricFamily.Name) {
+			if shouldDropForMetadata(metricFamily.Name) {
 				// metadata metrics are only used by the check for label joins
 				// they shouldn't be forwarded to Datadog unless they're customresource metrics
 				continue
@@ -1379,7 +1380,7 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 	}
 
 	for name, list := range metrics {
-		isMetadataMetric := k.shouldDropForMetadata(name)
+		isMetadataMetric := shouldDropForMetadata(name)
 		if !k.isKnownMetric(name) && !isMetadataMetric {
 			k.telemetry.incUnknown()
 			continue
@@ -1472,10 +1473,6 @@ func newKSMCheck(base core.CheckBase, instance *KSMConfig, tagger tagger.Compone
 		workloadmetaStore:          wmeta,
 		rolloutTracker:             customresources.NewRolloutTracker(),
 		namespaceTagsErrorLogLimit: log.NewLogLimit(10, 10*time.Minute),
-
-		// metadata metrics are useful for label joins
-		// but shouldn't be submitted to Datadog
-		metadataMetricsRegex: regexp.MustCompile(".*_(info|labels|status_reason)"),
 	}
 
 	// Initialize metricTransformers after k is created since it needs a reference to k

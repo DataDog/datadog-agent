@@ -201,7 +201,8 @@ type Bench struct {
 	// API server
 	api *BenchAPI
 
-	replayStats *ReplayStats
+	replayStats        *ReplayStats
+	replayKeyGenerator *observerimpl.SliceKeyGenerator
 
 	streamInputMetricsCount int64
 	streamInputMetricSeries map[uint64]struct{}
@@ -239,6 +240,7 @@ func New(obs observerdef.Component, debug observerimpl.DebugView, sseAccess test
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 		sseStop:                stop,
+		replayKeyGenerator:     observerimpl.NewSliceKeyGenerator(),
 	}
 
 	if sseAccess != nil {
@@ -548,7 +550,7 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 			tb.streamInputMetricsCount++
 			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
 
-			tb.debug.IngestMetricSync("parquet", &view)
+			tb.debug.IngestMetricSync("parquet", &view, tb.parquetMetricContextKey(&view))
 			return nil
 		}
 
@@ -588,7 +590,7 @@ func (tb *Bench) extendStreamBounds(startSec, endSec int64) {
 // component toggle).
 func (tb *Bench) feedRawMetrics() {
 	for _, m := range tb.rawMetrics {
-		tb.debug.IngestMetricSync("parquet", m)
+		tb.debug.IngestMetricSync("parquet", m, tb.parquetMetricContextKey(m))
 	}
 
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
@@ -682,6 +684,10 @@ func metricSeriesHash(name, host string, sortedTags []string) uint64 {
 		add(tag)
 	}
 	return hash
+}
+
+func (tb *Bench) parquetMetricContextKey(metric *parquetMetricView) uint64 {
+	return uint64(tb.replayKeyGenerator.Generate(metric.name, metric.host, metric.tags))
 }
 
 func (m *parquetMetricView) GetName() string   { return m.name }
