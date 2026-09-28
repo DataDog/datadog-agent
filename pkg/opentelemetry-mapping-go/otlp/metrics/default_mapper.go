@@ -33,10 +33,10 @@ import (
 // defaultMapper is the default implementation of the mapper interface.
 // It provides the standard mapping logic for converting OTLP metrics to Datadog format.
 type defaultMapper struct {
-	prevPts              *ttlCache
-	logger               *zap.Logger
-	cfg                  translatorConfig
-	warnedRateAttrErrors sync.Map
+	prevPts       *ttlCache
+	logger        *zap.Logger
+	cfg           translatorConfig
+	warnedMetrics sync.Map
 }
 
 // newDefaultMapper creates a new defaultMapper with the given dependencies.
@@ -57,7 +57,7 @@ func (m *defaultMapper) MapNumberMetrics(
 	dt DataType,
 	slice pmetric.NumberDataPointSlice,
 ) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedRateAttrErrors)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedMetrics)
 }
 
 // MapHistogramMetrics maps double histogram metrics slices to Datadog metrics
@@ -82,8 +82,8 @@ func (m *defaultMapper) MapHistogramMetrics(
 ) error {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
-		if p.Flags().NoRecordedValue() {
-			// No recorded value, skip.
+		if reason, badCount, drop := validateHistogramDataPoint(p, sketchMaxObservationCount); drop {
+			warnDroppedDataPoint(m.logger, &m.warnedMetrics, dims.name, reason, badCount, sketchMaxObservationCount)
 			continue
 		}
 
@@ -242,6 +242,11 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
+		if reason, badCount, drop := validateExpHistogramDataPoint(p, sketchMaxObservationCount); drop {
+			warnDroppedDataPoint(m.logger, &m.warnedMetrics, dims.name, reason, badCount, sketchMaxObservationCount)
+			continue
+		}
+
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
 		pointDims := dims.WithAttributeMap(p.Attributes())

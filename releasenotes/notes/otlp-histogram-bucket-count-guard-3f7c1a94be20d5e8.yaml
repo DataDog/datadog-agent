@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    OTLP: histogram and exponential histogram data points carrying bucket counts
+    above what a distribution can represent are now dropped, with a warning
+    naming the metric and the offending count. Such a point used to be converted
+    anyway, expanding into one sketch bin per 65535 observations while the sketch
+    was being built — enough to exhaust the Agent's memory — and, past the
+    representable count, silently distorting the lower percentiles of the
+    resulting distribution.
+  - |
+    OTLP: exponential histogram data points flagged as having no recorded value
+    are now skipped, as explicit bounds histogram data points already were.
