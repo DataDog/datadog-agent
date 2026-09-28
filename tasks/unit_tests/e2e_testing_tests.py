@@ -10,6 +10,7 @@ from tasks.new_e2e_tests import (
     GO_TEST_MIN_TIMEOUT_SECONDS,
     _compute_go_test_timeout,
     _format_go_duration,
+    _plan_next_attempt,
     post_process_output,
     pretty_print_logs,
     write_result_to_log_files,
@@ -265,3 +266,43 @@ class TestComputeGoTestTimeout(unittest.TestCase):
         self.assertEqual(_format_go_duration(60), "0h1m0s")
         self.assertEqual(_format_go_duration(0), "0h0m0s")
         self.assertEqual(_format_go_duration(-10), "0h0m0s")
+
+
+class TestPlanNextAttempt(unittest.TestCase):
+    """Pin the retry-loop decision now living in _plan_next_attempt."""
+
+    def test_retries_failures_not_known_flaky(self):
+        failing = {("pkg1", "TestA"), ("pkg1", "TestB")}
+        to_retry, to_teardown = _plan_next_attempt(failing, set(), remaining_tries=2)
+        self.assertSetEqual(to_retry, failing)
+        self.assertSetEqual(to_teardown, set())
+
+    def test_known_flaky_failures_are_scheduled_for_teardown(self):
+        failing = {("pkg1", "TestA"), ("pkg1", "TestB")}
+        # TestFlakyButPassing is flagged flaky but did not fail: it must not appear in the plan.
+        known_flaky = {("pkg1", "TestB"), ("pkg2", "TestFlakyButPassing")}
+        to_retry, to_teardown = _plan_next_attempt(failing, known_flaky, remaining_tries=2)
+        self.assertSetEqual(to_retry, {("pkg1", "TestA")})
+        self.assertSetEqual(to_teardown, {("pkg1", "TestB")})
+
+    def test_only_flaky_failures_leave_nothing_to_retry(self):
+        # The loop breaks when there is nothing to retry, even if tries remain.
+        failing = {("pkg1", "TestB")}
+        known_flaky = {("pkg1", "TestB")}
+        to_retry, to_teardown = _plan_next_attempt(failing, known_flaky, remaining_tries=3)
+        self.assertSetEqual(to_retry, set())
+        self.assertSetEqual(to_teardown, {("pkg1", "TestB")})
+
+    def test_no_failures(self):
+        known_flaky = {("pkg1", "TestFlakyButPassing")}
+        to_retry, to_teardown = _plan_next_attempt(set(), known_flaky, remaining_tries=2)
+        self.assertSetEqual(to_retry, set())
+        self.assertSetEqual(to_teardown, set())
+
+    def test_final_attempt_makes_no_decision(self):
+        # The last attempt runs without E2E_SKIP_DELETE_ON_FAILURE, so its failures
+        # destroy their own stacks and the plan is empty.
+        failing = {("pkg1", "TestA")}
+        to_retry, to_teardown = _plan_next_attempt(failing, set(), remaining_tries=0)
+        self.assertSetEqual(to_retry, set())
+        self.assertSetEqual(to_teardown, set())
