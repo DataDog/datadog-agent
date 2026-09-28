@@ -39,6 +39,39 @@ func TestRRCFResolveAllKeysGroupsUnorderedCompositeTags(t *testing.T) {
 	}
 }
 
+func TestRRCFScoreAndDetectKeepsScoringWithoutAnomalies(t *testing.T) {
+	config := RRCFConfig{
+		NumTrees:       8,
+		TreeSize:       4,
+		ShingleSize:    1,
+		ThresholdSigma: 0.1,
+		Metrics:        []RRCFMetricDef{{Namespace: "test", Name: "metric"}},
+	}
+	detector := NewRRCFDetector(config)
+	shingles := make([]shingle, 20)
+	for i := range shingles {
+		shingles[i] = shingle{endTimestamp: int64(i + 1), vector: []float64{float64(i % 5)}}
+	}
+	shingles[len(shingles)-1].vector[0] = 1000
+
+	result := detector.scoreAndDetect(shingles, shingles[len(shingles)-1].endTimestamp)
+	if len(result.Anomalies) != 0 {
+		t.Fatalf("expected no RRCF anomalies, got %d", len(result.Anomalies))
+	}
+	if detector.totalScored != len(shingles) || len(detector.allScores) != len(shingles) {
+		t.Fatalf("expected all %d shingles scored, got total=%d history=%d", len(shingles), detector.totalScored, len(detector.allScores))
+	}
+	if got := len(detector.recentScores); got != len(shingles)-config.TreeSize {
+		t.Fatalf("expected %d rolling scores after warmup, got %d", len(shingles)-config.TreeSize, got)
+	}
+	if !detector.Ready() || detector.dynamicThreshold() <= 0 {
+		t.Fatal("expected a ready model with a positive rolling threshold")
+	}
+	if detector.allScores[len(shingles)-1].Timestamp != shingles[len(shingles)-1].endTimestamp {
+		t.Fatal("expected score history to retain the final shingle timestamp")
+	}
+}
+
 func TestRCTree_EmptyTree(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 	tree := newRCTree(rng)

@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
 	"log"
 	"math"
 	"sort"
@@ -182,7 +181,7 @@ func (r *RRCFDetector) SetObserverTelemetry(t *observerTelemetry) {
 }
 
 // Detect implements Detector. It queries storage for system metrics,
-// builds multivariate shingles, and detects anomalies using RRCF.
+// builds multivariate shingles, and scores them using RRCF.
 func (r *RRCFDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	// Step 0: Resolve all metric keys to the same tag set (on first call)
 	if !r.resolveAllKeys(storage) {
@@ -211,7 +210,7 @@ func (r *RRCFDetector) Detect(storage observer.StorageReader, dataTime int64) ob
 
 	r.shingleCount += len(shingles)
 
-	// Step 4: Score shingles with RRCF and detect anomalies
+	// Step 4: Score shingles with RRCF
 	return r.scoreAndDetect(shingles, dataTime)
 }
 
@@ -433,11 +432,8 @@ func (r *RRCFDetector) buildShingles(aligned []timestampedVector) []shingle {
 	return result
 }
 
-// scoreAndDetect scores shingles using RRCF and returns anomalies and telemetry.
-// Uses rolling z-score thresholding: after a warmup period (TreeSize points), a point
-// is anomalous if its score exceeds mean + ThresholdSigma*stddev of the recent window.
+// scoreAndDetect scores shingles using RRCF and updates rolling threshold telemetry.
 func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.DetectionResult {
-	var anomalies []observer.Anomaly
 	warmup := r.config.TreeSize
 
 	for _, s := range shingles {
@@ -474,26 +470,10 @@ func (r *RRCFDetector) scoreAndDetect(shingles []shingle, _ int64) observer.Dete
 			r.recentScores = r.recentScores[1:]
 		}
 
-		if r.config.ThresholdSigma > 0 && threshold > 0 && score > threshold {
-			anomaly := observer.Anomaly{
-				Source:       observer.SeriesDescriptor{Namespace: "rrcf", Name: "score"},
-				DetectorName: r.Name(),
-				Title:        "RRCF multivariate anomaly",
-				Description:  fmt.Sprintf("Unusual system metric combination (CoDisp=%.1f, threshold=%.1f)", score, threshold),
-				Timestamp:    s.endTimestamp,
-				DebugInfo: &observer.AnomalyDebugInfo{
-					CurrentValue:   score,
-					Threshold:      threshold,
-					DeviationSigma: (score - r.rollingMean()) / math.Max(r.rollingStddev(), 1),
-				},
-			}
-			anomalies = append(anomalies, anomaly)
-		}
 	}
 
-	return observer.DetectionResult{
-		Anomalies: anomalies,
-	}
+	// NOTE(anomalydetection): We don't use RRCF in production, disabling anomalies since we will remove soon RRCF
+	return observer.DetectionResult{}
 }
 
 // dynamicThreshold returns mean + ThresholdSigma*stddev of the recent score window.
