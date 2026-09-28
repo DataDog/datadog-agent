@@ -227,3 +227,49 @@ func TestReportMarshalsToReadableJSON(t *testing.T) {
 	assert.Contains(t, string(raw), `"uptime_seconds":90`, "keys must be snake_case for support readability")
 	assert.Contains(t, string(raw), `"management_mode"`)
 }
+
+func TestReportRedactsSecretArguments(t *testing.T) {
+	windowsCommand := `C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe`
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning},
+		},
+		details: map[string]ProcessSnapshot{
+			"datadog-agent-process": {
+				Name:    "datadog-agent-process",
+				State:   ProcessStateRunning,
+				Command: windowsCommand,
+				Args: []string{
+					"--password", "separate-token-secret",
+					"--api_key=inline-secret",
+					"--config", `C:\Program Files\Datadog\datadog.yaml`,
+				},
+			},
+		},
+	})
+
+	proc := reportProcessByName(t, collector.Report(context.Background()), "datadog-agent-process")
+
+	assert.NotContains(t, proc.Args, "separate-token-secret",
+		"a value in its own argv token must be redacted, the flare's line-based scrubber cannot pair it")
+	assert.NotContains(t, proc.Args, "--api_key=inline-secret")
+	assert.Contains(t, proc.Args, "--api_key="+redactedValue)
+
+	// Not mangling these is why the pairing is done here rather than through
+	// redact.ScrubSimpleCommand, which would re-tokenize both on their spaces.
+	assert.Equal(t, windowsCommand, proc.Command, "the executable path must survive intact")
+	assert.Contains(t, proc.Args, `C:\Program Files\Datadog\datadog.yaml`,
+		"a non-sensitive value containing spaces must survive intact")
+}
+
+func TestScrubProcessArgsIsIdempotent(t *testing.T) {
+	processes := []ProcessSnapshot{{Args: []string{"--password", "s3cret", "--verbose"}}}
+
+	scrubProcessArgs(processes)
+	once := append([]string{}, processes[0].Args...)
+	scrubProcessArgs(processes)
+
+	assert.Equal(t, once, processes[0].Args)
+	assert.Equal(t, []string{"--password", redactedValue, "--verbose"}, processes[0].Args)
+}

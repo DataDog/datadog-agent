@@ -118,3 +118,26 @@ func TestFillFlareScrubsProcessArguments(t *testing.T) {
 	assert.NotContains(t, string(raw), "abcdef0123456789abcdef0123456789",
 		"process arguments reach the flare and must go through the scrubbing AddFile")
 }
+
+// A secret passed as its own argv token is the harder case: the flare's scrubber works line by
+// line, and each element of an args array is serialized onto its own line, so by the time it runs
+// the value has been separated from the flag that gives it away.
+func TestFillFlareScrubsSecretPassedAsSeparateArgument(t *testing.T) {
+	mock, _ := fillFlareWith(t, coat.SupportReport{
+		Daemon: coat.DaemonSnapshot{Reachable: true, Ready: true},
+		Processes: []coat.ProcessSnapshot{
+			{
+				Name:    "datadog-agent-process",
+				State:   coat.ProcessStateRunning,
+				Command: "/opt/datadog-agent/embedded/bin/process-agent",
+				Args:    []string{"--password", "hunter2-not-in-a-flare", "--verbose"},
+			},
+		},
+	})
+
+	raw, err := os.ReadFile(filepath.Join(mock.Root, flareFile))
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), "hunter2-not-in-a-flare",
+		"a secret in its own argv token must be redacted before the report is serialized")
+	assert.Contains(t, string(raw), "--verbose", "non-sensitive arguments should survive")
+}

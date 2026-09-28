@@ -28,6 +28,7 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//pkg/proto/pbgo/procmgr",
+        "//pkg/redact",
         "//pkg/util/log",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",

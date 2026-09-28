@@ -9,7 +9,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/redact"
 )
 
 // SupportReport is a point-in-time dump of dd-procmgrd state, written into flares so a support
@@ -101,7 +104,57 @@ func (c *Collector) Report(ctx context.Context) SupportReport {
 		report.Services = append(report.Services, c.collectService(ctx, service, processes))
 	}
 
+	report.Scrub()
+
 	return report
+}
+
+// Scrub redacts secrets the report carries. Report calls it, but anything that writes a report to
+// a file or sends it anywhere has to call it too: a report assembled any other way, in a test or
+// by a future caller, has not been through it, and the point of failure is a leaked credential.
+// It is safe to call more than once.
+func (r *SupportReport) Scrub() {
+	scrubProcessArgs(r.Processes)
+}
+
+// redactedValue replaces an argument value whose flag names a secret. It matches the placeholder
+// the process-agent scrubber uses, so redactions look the same across support output.
+const redactedValue = "********"
+
+// scrubProcessArgs redacts secret values in the command lines of supervised processes.
+//
+// The scrubber a flare applies on the way out works line by line, and every element of an args
+// array is serialized onto a line of its own. By the time it runs, "--password" and its value are
+// no longer on the same line, so the pairing that identifies the value as a secret is gone. Here
+// is the last point where it is still visible. Anything where flag and value share a token, like
+// "--api_key=abc", stays covered by that outer scrubber as well.
+//
+// This pairs tokens directly rather than calling redact.ScrubSimpleCommand, which joins the argv
+// on spaces and re-tokenizes it: that splits a Windows path such as
+// "C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe" into fragments, and this
+// report exists to be read by a person.
+func scrubProcessArgs(processes []ProcessSnapshot) {
+	scrubber := redact.NewDefaultDataScrubber()
+
+	for i := range processes {
+		args := processes[i].Args
+		for j, arg := range args {
+			flag, _, hasInlineValue := strings.Cut(arg, "=")
+			if !scrubber.ContainsSensitiveWord(flag) {
+				continue
+			}
+			if hasInlineValue {
+				args[j] = flag + "=" + redactedValue
+				continue
+			}
+			// The value is the following token, as in ["--password", "s3cret"]. It is redacted
+			// unconditionally: a flag that takes no value is worth losing to a redaction, a
+			// credential is not worth risking on a guess about what a value looks like.
+			if j+1 < len(args) {
+				args[j+1] = redactedValue
+			}
+		}
+	}
 }
 
 // describeAll enriches each listed process with the fields only Describe carries, above all

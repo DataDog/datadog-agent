@@ -55,12 +55,15 @@ func newProvides(r reporter) Provides {
 func (p *procmgrFlare) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	report := p.reporter.Report(ctx)
 
+	// AddFile scrubs too, but line by line, which cannot pair a "--password" argument with its
+	// value on the next line of a JSON array. Scrub here, where the argv is still a slice.
+	report.Scrub()
+
 	content, err := marshalReport(report)
 	if err != nil {
 		return fb.AddFile(flareFile, []byte(fmt.Sprintf("could not serialize dd-procmgrd state: %v", err)))
 	}
 
-	// AddFile scrubs, which matters here: the report carries process command lines and paths.
 	return fb.AddFile(flareFile, content)
 }
 
