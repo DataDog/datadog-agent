@@ -352,8 +352,10 @@ func toProtoResolvedAllocatedResources(resources []workloadmeta.ContainerAllocat
 	var protoResolvedAllocatedResources []*pb.ContainerAllocatedResource
 	for _, resource := range resources {
 		protoResolvedAllocatedResources = append(protoResolvedAllocatedResources, &pb.ContainerAllocatedResource{
-			Name: resource.Name,
-			ID:   resource.ID,
+			Name:       resource.Name,
+			ID:         resource.ID,
+			PoolName:   resource.PoolName,
+			CdiDevices: resource.CdiDevices,
 		})
 	}
 
@@ -971,8 +973,10 @@ func toWorkloadmetaResolvedAllocatedResources(protoResolvedAllocatedResources []
 	var resources []workloadmeta.ContainerAllocatedResource
 	for _, protoResource := range protoResolvedAllocatedResources {
 		resources = append(resources, workloadmeta.ContainerAllocatedResource{
-			Name: protoResource.Name,
-			ID:   protoResource.ID,
+			Name:       protoResource.Name,
+			ID:         protoResource.ID,
+			PoolName:   protoResource.PoolName,
+			CdiDevices: protoResource.CdiDevices,
 		})
 	}
 

@@ -10,6 +10,7 @@ package sbom
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	sbomtelemetry "github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -97,6 +99,15 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
 			log.Debugf("SBOM event sent with %d entities", len(entities))
+
+			for _, entity := range entities {
+				sbomtelemetry.SBOMEntitiesSent.Inc(
+					strings.ToLower(entity.Type.String()),
+					strings.ToLower(entity.Status.String()),
+					strconv.FormatBool(entity.Heartbeat),
+					strconv.FormatBool(sbom.IsEnriched(entity.GetCyclonedx())),
+				)
+			}
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		containerFilter:       filterStore.GetContainerSBOMFilters(),
