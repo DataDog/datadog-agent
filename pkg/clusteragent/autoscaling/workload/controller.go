@@ -270,11 +270,9 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		return autoscaling.NoRequeue, nil
 	}
 
-	// Operational annotations must work whatever the owner, to act locally during an incident.
-	// UpdateFromPodAutoscaler covers local-owner DPAs; read them here for the others.
-	if podAutoscaler.Spec.Owner != datadoghqcommon.DatadogPodAutoscalerLocalOwner || podAutoscalerInternal.IsProfileManaged() {
-		podAutoscalerInternal.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
-	}
+	// Operational annotations are read for every owner, before the ownership-specific sync, so an
+	// operator can act locally during an incident even on a remote or profile-managed DPA.
+	podAutoscalerInternal.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
 
 	// Object is present in both our store and Kubernetes, we need to sync depending on ownership.
 	// Implement info sync based on ownership.

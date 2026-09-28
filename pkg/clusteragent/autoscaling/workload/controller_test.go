@@ -118,6 +118,39 @@ func newFakePodAutoscaler(ns, name string, gen int64, creationTimestamp time.Tim
 	return
 }
 
+// TestOpsAnnotationsReadAtCreation verifies the operational annotations are read whenever the
+// internal object is built from Kubernetes, whatever the owner: at creation on the leader (which
+// does not requeue), and on every event on followers, which serve the admission webhook.
+func TestOpsAnnotationsReadAtCreation(t *testing.T) {
+	for _, leader := range []bool{true, false} {
+		for _, owner := range []datadoghqcommon.DatadogPodAutoscalerOwner{
+			datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+			datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		} {
+			t.Run(fmt.Sprintf("%s/leader=%t", owner, leader), func(t *testing.T) {
+				f := newFixture(t, time.Now())
+				dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{Kind: "Deployment", Name: "app-0", APIVersion: "apps/v1"},
+					Owner:     owner,
+				}
+				dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-0", 1, time.Time{}, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+				annotations := map[string]string{model.PauseAnnotationKey: "true", model.ForceFallbackAnnotationKey: "true"}
+				dpa.SetAnnotations(annotations)
+				dpaTyped.Annotations = annotations
+				f.InformerObjects = append(f.InformerObjects, dpa)
+				f.Objects = append(f.Objects, dpaTyped)
+
+				f.RunControllerSync(leader, "default/dpa-0")
+
+				dpaInternal, found := f.store.Peek("default/dpa-0")
+				require.True(t, found)
+				assert.True(t, dpaInternal.IsPaused())
+				assert.True(t, dpaInternal.IsFallbackForced())
+			})
+		}
+	}
+}
+
 func TestLeaderCreateDeleteLocal(t *testing.T) {
 	testTime := time.Now()
 	f := newFixture(t, testTime)

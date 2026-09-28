@@ -1072,29 +1072,6 @@ func TestUpdateFromOpsAnnotations(t *testing.T) {
 	}
 }
 
-// TestOpsAnnotationsReadAtCreation verifies the annotations are read when the internal object is
-// created from Kubernetes, whatever the owner: the controller only reads them again on later syncs.
-func TestOpsAnnotationsReadAtCreation(t *testing.T) {
-	for _, owner := range []datadoghqcommon.DatadogPodAutoscalerOwner{
-		datadoghqcommon.DatadogPodAutoscalerLocalOwner,
-		datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
-	} {
-		t.Run(string(owner), func(t *testing.T) {
-			pai := NewPodAutoscalerInternal(&datadoghq.DatadogPodAutoscaler{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "dpa",
-					Namespace:   "default",
-					Annotations: map[string]string{PauseAnnotationKey: "true", ForceFallbackAnnotationKey: "true"},
-				},
-				Spec: datadoghq.DatadogPodAutoscalerSpec{Owner: owner},
-			})
-
-			assert.True(t, pai.IsPaused())
-			assert.True(t, pai.IsFallbackForced())
-		})
-	}
-}
-
 // TestUpdateFromOpsAnnotationsClearedOnRemoval verifies that removing the annotations resumes the
 // autoscaler, i.e. that the parsed state is not sticky.
 func TestUpdateFromOpsAnnotationsClearedOnRemoval(t *testing.T) {

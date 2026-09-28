@@ -207,6 +207,7 @@ func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) Pod
 		name:      podAutoscaler.Name,
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
+	pai.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
 
 	return pai
@@ -268,31 +269,6 @@ func parsePreviewAnnotationString(raw string) previewOptions {
 	return opts
 }
 
-// parseOpsBoolAnnotation parses a boolean operational annotation. An absent or invalid value
-// is treated as not set.
-func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
-	value, err := strconv.ParseBool(annotations[key])
-	if err != nil {
-		return false
-	}
-
-	return value
-}
-
-// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
-// to keep them in sync. Passing an empty string removes the annotation.
-func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
-	if previewAnnotation == "" {
-		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
-	} else {
-		if p.upstreamCR.Annotations == nil {
-			p.upstreamCR.Annotations = make(map[string]string)
-		}
-		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
-	}
-	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
-}
-
 // UpdateFromProfile updates the spec from a profile template while preserving scaling state.
 // previewAnnotation is the raw value of the profile's preview annotation (e.g.
 // `{"burstable":true}`), stored in a dedicated field rather than written to upstreamCR,
@@ -340,11 +316,12 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	// without branching on profile-managed vs standalone.
 	// For profile-managed DPAs, UpdateFromProfile() will overwrite this with the profile value.
 	p.previewOptions = parsePreviewAnnotationString(podAutoscaler.Annotations[PreviewAnnotationKey])
-	p.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
 }
 
 // UpdateFromOpsAnnotations updates the PodAutoscalerInternal from the operational annotations
-// (pause, force-fallback). They are set by the user on the Kubernetes object whatever the owner.
+// (pause, force-fallback). They are set by the user on the Kubernetes object whatever the owner,
+// so they are read separately from UpdateFromPodAutoscaler, which the leader only calls for
+// local owners once the object exists.
 func (p *PodAutoscalerInternal) UpdateFromOpsAnnotations(annotations map[string]string) {
 	p.paused = parseOpsBoolAnnotation(annotations, PauseAnnotationKey)
 	p.fallbackForced = parseOpsBoolAnnotation(annotations, ForceFallbackAnnotationKey)
@@ -1276,6 +1253,32 @@ func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.
 }
 
 // Private helpers
+
+// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
+// to keep them in sync. Passing an empty string removes the annotation.
+func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
+	if previewAnnotation == "" {
+		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
+	} else {
+		if p.upstreamCR.Annotations == nil {
+			p.upstreamCR.Annotations = make(map[string]string)
+		}
+		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
+	}
+	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
+}
+
+// parseOpsBoolAnnotation parses a boolean operational annotation. An absent or invalid value
+// is treated as not set.
+func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
+	value, err := strconv.ParseBool(annotations[key])
+	if err != nil {
+		return false
+	}
+
+	return value
+}
+
 func (p *PodAutoscalerInternal) updateCustomRecommenderConfiguration(annotations map[string]string) {
 	annotation, err := parseCustomConfigurationAnnotation(annotations)
 	if err != nil {
