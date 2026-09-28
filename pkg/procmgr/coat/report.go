@@ -9,10 +9,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/redact"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 )
 
 // SupportReport is a point-in-time dump of dd-procmgrd state, written into flares so a support
@@ -129,22 +128,28 @@ func (r *SupportReport) Scrub(opts ScrubOptions) {
 	scrubProcessArgs(r.Processes, opts)
 }
 
-// redactedValue replaces an argument value whose flag names a secret. It matches the placeholder
-// the process-agent scrubber uses, so redactions look the same across support output.
-const redactedValue = "********"
+// argvSentinel stands in for the executable at the head of a command line. procutil's patterns
+// require a space or a dash before a flag, which the first element of a joined command line does
+// not have, so process-agent satisfies them by passing the executable as element 0. Passing a
+// sentinel instead keeps a Command holding spaces out of the re-split below.
+const argvSentinel = "dd-procmgr-argv"
+
+// hyphenSpelledSecretWords covers the hyphenated spellings of words procutil's defaults only list
+// with underscores, so "--api-key" is recognized as readily as "--api_key". They are expressed in
+// procutil's own wildcard syntax, which keeps this a list of data rather than matching logic.
+var hyphenSpelledSecretWords = []string{"*api*key*", "*auth*token*", "*access*token*"}
 
 // scrubProcessArgs redacts secret values in the command lines of supervised processes.
 //
 // The scrubber a flare applies on the way out works line by line, and every element of an args
 // array is serialized onto a line of its own. By the time it runs, "--password" and its value are
-// no longer on the same line, so the pairing that identifies the value as a secret is gone. Here
-// is the last point where it is still visible. Anything where flag and value share a token, like
-// "--api_key=abc", stays covered by that outer scrubber as well.
+// no longer on the same line, so the pairing that identifies the value as a secret is gone. Here is
+// the last point where it is still visible.
 //
-// This pairs tokens directly rather than calling redact.ScrubSimpleCommand, which joins the argv
-// on spaces and re-tokenizes it: that splits a Windows path such as
-// "C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe" into fragments, and this
-// report exists to be read by a person.
+// procutil does the matching, which is the same implementation process-agent applies to the
+// cmdlines it reports. That buys the wildcard custom words operators can configure, the
+// platform-specific flags ("/p" and "/rp" on Windows), quoted values and case insensitivity,
+// none of which a hand-written matcher here would keep up with.
 func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 	if opts.StripArguments {
 		for i := range processes {
@@ -153,61 +158,22 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 		return
 	}
 
-	scrubber := redact.NewDefaultDataScrubber()
-	if len(opts.CustomSensitiveWords) > 0 {
-		// Lowercased because ContainsSensitiveWord lowercases what it is given and compares
-		// against these literally, so a word declared as "MySecret" would never match.
-		words := make([]string, 0, len(opts.CustomSensitiveWords))
-		for _, word := range opts.CustomSensitiveWords {
-			words = append(words, strings.ToLower(word))
-		}
-		scrubber.AddCustomSensitiveWords(words)
-	}
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(append(hyphenSpelledSecretWords, opts.CustomSensitiveWords...))
 
 	for i := range processes {
-		args := processes[i].Args
-		for j, arg := range args {
-			flag, delimiter, hasInlineValue := splitArgument(arg)
-			if !namesSecret(scrubber, flag) {
-				continue
-			}
-			if hasInlineValue {
-				args[j] = flag + delimiter + redactedValue
-				continue
-			}
-			// The value is the following token, as in ["--password", "s3cret"]. It is redacted
-			// unconditionally: a flag that takes no value is worth losing to a redaction, a
-			// credential is not worth risking on a guess about what a value looks like.
-			if j+1 < len(args) {
-				args[j+1] = redactedValue
-			}
+		if len(processes[i].Args) == 0 {
+			continue
+		}
+
+		cmdline := append([]string{argvSentinel}, processes[i].Args...)
+		if scrubbed, changed := scrubber.ScrubCommand(cmdline); changed {
+			// procutil re-splits on spaces once it has redacted something, so an argument that
+			// held a space arrives as several. That only happens to a command line that carried a
+			// secret, and the alternative is leaving the secret in place.
+			processes[i].Args = scrubbed[1:]
 		}
 	}
-}
-
-// argumentDelimiters are the characters that can separate a flag from its value inside a single
-// argument token. Missing one is worse than useless: the value stays intact and the unrelated
-// argument that follows gets redacted in its place. Whitespace is included because procmgr reads
-// args from a YAML list, where writing a flag and its value as one entry is an easy thing to do.
-const argumentDelimiters = "=: \t"
-
-// splitArgument separates the flag in an argument from a value carried in the same token.
-//
-// A token with no flag, such as a bare "C:\Program Files\Datadog\datadog.yaml", splits at its
-// first delimiter into a harmless "C" that names no secret, so paths pass through untouched.
-func splitArgument(arg string) (flag, delimiter string, hasInlineValue bool) {
-	i := strings.IndexAny(arg, argumentDelimiters)
-	if i < 0 {
-		return arg, "", false
-	}
-	return arg[:i], arg[i : i+1], true
-}
-
-// namesSecret reports whether a flag names a secret. Hyphens become underscores first: the shared
-// word list spells these "api_key" and "auth_token", while command lines just as often write
-// "--api-key" and "--auth-token", which no literal match on that list would catch.
-func namesSecret(scrubber *redact.DataScrubber, flag string) bool {
-	return scrubber.ContainsSensitiveWord(strings.ReplaceAll(flag, "-", "_"))
 }
 
 // describeAll enriches each listed process with the fields only Describe carries, above all

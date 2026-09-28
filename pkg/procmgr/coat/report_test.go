@@ -11,11 +11,17 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// redactedValue is the placeholder procutil substitutes for a secret. It belongs to procutil, not
+// to this package, so the assertions below are pinning that behaviour rather than a contract of
+// our own. procutil does not export it, which is why it is spelled out.
+const redactedValue = "********"
 
 func writeProcmgrConfigFixture(t *testing.T, root string, service MigratableService) {
 	t.Helper()
@@ -256,11 +262,27 @@ func TestReportRedactsSecretArguments(t *testing.T) {
 	assert.NotContains(t, proc.Args, "--api_key=inline-secret")
 	assert.Contains(t, proc.Args, "--api_key="+redactedValue)
 
-	// Not mangling these is why the pairing is done here rather than through
-	// redact.ScrubSimpleCommand, which would re-tokenize both on their spaces.
+	// The command is never part of what gets scrubbed, so it survives intact even here, where a
+	// redaction did happen. Its arguments are a different matter: see the test below.
 	assert.Equal(t, windowsCommand, proc.Command, "the executable path must survive intact")
-	assert.Contains(t, proc.Args, `C:\Program Files\Datadog\datadog.yaml`,
-		"a non-sensitive value containing spaces must survive intact")
+}
+
+// Redacting anything makes procutil re-split the whole command line on spaces, so an argument that
+// held a space arrives as several. Only a command line that carried a secret pays that, and the
+// alternative is leaving the secret in place.
+func TestScrubProcessArgsKeepsSpacedValuesWhenNothingIsSecret(t *testing.T) {
+	path := `C:\Program Files\Datadog\datadog.yaml`
+
+	intact := []ProcessSnapshot{{Args: []string{"--config", path}}}
+	scrubProcessArgs(intact, ScrubOptions{})
+	assert.Equal(t, []string{"--config", path}, intact[0].Args,
+		"with nothing to redact the arguments must come back untouched")
+
+	alongsideSecret := []ProcessSnapshot{{Args: []string{"--password", "s3cret", "--config", path}}}
+	scrubProcessArgs(alongsideSecret, ScrubOptions{})
+	assert.NotContains(t, alongsideSecret[0].Args, "s3cret")
+	assert.Contains(t, strings.Join(alongsideSecret[0].Args, " "), path,
+		"the path is still readable in the command line, even though it is split across elements")
 }
 
 func TestScrubProcessArgsIsIdempotent(t *testing.T) {
@@ -308,7 +330,7 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 			// entry is an easy thing to do.
 			name: "flag and value in one token separated by a space",
 			args: []string{"--password leaked-by-space"},
-			want: []string{"--password " + redactedValue},
+			want: []string{"--password", redactedValue},
 		},
 	}
 
@@ -325,13 +347,21 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 // flares as well: these settings live in the Agent config, which coat does not read, so they have
 // to arrive as options.
 func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
-	t.Run("custom sensitive words extend the default list", func(t *testing.T) {
-		processes := []ProcessSnapshot{{Args: []string{"--tenant-passphrase", "operator-declared-this-secret"}}}
+	t.Run("a declared word matches whatever case it was written in", func(t *testing.T) {
+		processes := []ProcessSnapshot{{Args: []string{"--passphrase", "operator-declared-this-secret"}}}
 
 		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
 
-		assert.Equal(t, []string{"--tenant-passphrase", redactedValue}, processes[0].Args,
-			"a declared word must match regardless of the case it was written in")
+		assert.Equal(t, []string{"--passphrase", redactedValue}, processes[0].Args)
+	})
+
+	t.Run("a declared wildcard matches a prefixed flag", func(t *testing.T) {
+		processes := []ProcessSnapshot{{Args: []string{"--tenant-token", "operator-declared-this-secret"}}}
+
+		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"*token*"}})
+
+		assert.Equal(t, []string{"--tenant-token", redactedValue}, processes[0].Args,
+			"wildcards are how operators declare a family of flags, so they have to be honoured")
 	})
 
 	t.Run("stripping drops every argument", func(t *testing.T) {

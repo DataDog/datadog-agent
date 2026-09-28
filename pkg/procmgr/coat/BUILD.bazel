@@ -27,8 +27,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
+        "//pkg/process/procutil",
         "//pkg/proto/pbgo/procmgr",
-        "//pkg/redact",
         "//pkg/util/log",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
