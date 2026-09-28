@@ -65,6 +65,18 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 		}
 		comp.opts = utils.MergeOptions(comp.opts, utils.PulumiDependsOn(composeCmd))
 
+		// Inject the internal registry hosting the workload app images so that
+		// compose files using ${DD_APPS_REGISTRY:-ghcr.io/datadog} pull the apps
+		// from the internal registry (agent-qa ECR, GCP Artifact Registry, Azure
+		// ACR depending on the cloud) when one is available. Environments without
+		// an internal registry (local runs, which report "none") keep the
+		// default public ghcr.io.
+		if reg := e.InternalRegistry(); reg != "" && reg != "none" {
+			comp.defaultEnvVars = pulumi.StringMap{
+				"DD_APPS_REGISTRY": pulumi.String(reg),
+			}
+		}
+
 		return nil
 	}, opts...)
 }
@@ -78,7 +90,9 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 // When ImagePullRegistry is configured, DD_REGISTRY is automatically injected into every
 // ComposeStrUp call so that compose files using ${DD_REGISTRY:-docker.io} pull from the
 // ECR pull-through cache for Docker Hub images. Callers may still override DD_REGISTRY by
-// passing it explicitly in their envVars map.
+// passing it explicitly in their envVars map. DD_APPS_REGISTRY (the internal registry
+// hosting the workload app images, set by NewManager) is injected the same way so compose
+// files using ${DD_APPS_REGISTRY:-ghcr.io/datadog} pull the workload apps from ECR.
 func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOption) (*Manager, error) {
 	ecrCreds, err := SetupECRDockerAuth(e.CommonNamer().WithPrefix("docker"), host, opts...)
 	if err != nil {
@@ -89,9 +103,10 @@ func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceO
 		return nil, err
 	}
 	if reg := e.ImagePullRegistry(); reg != "" {
-		mgr.defaultEnvVars = pulumi.StringMap{
-			"DD_REGISTRY": pulumi.String(strings.SplitN(reg, ",", 2)[0] + "/dockerhub"),
+		if mgr.defaultEnvVars == nil {
+			mgr.defaultEnvVars = pulumi.StringMap{}
 		}
+		mgr.defaultEnvVars["DD_REGISTRY"] = pulumi.String(strings.SplitN(reg, ",", 2)[0] + "/dockerhub")
 	}
 	return mgr, nil
 }
