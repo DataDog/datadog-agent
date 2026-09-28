@@ -156,11 +156,42 @@ func (sd SeriesDescriptor) DisplayName() string {
 	return b.String()
 }
 
-// Key returns a stable string suitable for use as a map key.
+// Key returns a stable string suitable for use as a map key. Tags are
+// unordered, so visit them in lexical order without flattening or copying the
+// read-only CompositeTags view. Duplicate tags do not change identity.
 // Format: "namespace|name:agg|host|tag1,tag2,...".
 func (sd SeriesDescriptor) Key() string {
-	aggStr := AggregateString(sd.Aggregate)
-	return sd.Namespace + "|" + sd.Name + ":" + aggStr + "|" + sd.Host + "|" + sd.Tags.Join(",")
+	var b strings.Builder
+	b.WriteString(sd.Namespace)
+	b.WriteByte('|')
+	b.WriteString(sd.Name)
+	b.WriteByte(':')
+	b.WriteString(AggregateString(sd.Aggregate))
+	b.WriteByte('|')
+	b.WriteString(sd.Host)
+	b.WriteByte('|')
+	var previous string
+	havePrevious := false
+	for {
+		var next string
+		found := false
+		sd.Tags.ForEach(func(tag string) {
+			if (!havePrevious || tag > previous) && (!found || tag < next) {
+				next = tag
+				found = true
+			}
+		})
+		if !found {
+			break
+		}
+		if havePrevious {
+			b.WriteByte(',')
+		}
+		b.WriteString(next)
+		previous = next
+		havePrevious = true
+	}
+	return b.String()
 }
 
 // SeriesRef is a compact numeric handle for a stored time series.

@@ -14,7 +14,6 @@ import (
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -137,7 +136,7 @@ type timeSeriesStorage struct {
 	tagIntern map[uint64]*tagInternEntry
 	// tagInternKeyGenerator owns scratch used only for storage misses while
 	// calculating a tag-set fingerprint. Storage mutation is serialized by mu.
-	tagInternKeyGenerator *ckey.SliceKeyGenerator
+	tagInternKeyGenerator *SliceKeyGenerator
 }
 
 // tagInternEntry is the value stored in timeSeriesStorage.tagIntern.
@@ -331,7 +330,7 @@ func newTimeSeriesStorageWith(cfg StorageConfig) *timeSeriesStorage {
 		seriesIDStats:         make(map[observer.SeriesRef]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
-		tagInternKeyGenerator: ckey.NewSliceKeyGenerator(),
+		tagInternKeyGenerator: NewSliceKeyGenerator(),
 	}
 }
 
@@ -353,9 +352,11 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 }
 
 // AddWithKeyAndHost inserts a point using a series key already computed by the
-// caller. The key must be derived from namespace, name, host, and tags.
+// caller. The key must be derived from namespace, name, host, and tags. Unlike
+// the CompositeTags path, this legacy []string boundary copies caller-owned
+// tags before storage may retain them.
 func (s *timeSeriesStorage) AddWithKeyAndHost(namespace, name, host string, value float64, timestamp int64, tags []string, key uint64) AddResult {
-	return s.AddWithKeyAndHostComposite(namespace, name, host, value, timestamp, tagset.CompositeTagsFromSlice(tags), key)
+	return s.AddWithKeyAndHostComposite(namespace, name, host, value, timestamp, tagset.CompositeTagsFromSlice(copyTags(tags)), key)
 }
 
 // AddWithKeyAndHostComposite inserts a point using immutable composite tags.
@@ -670,7 +671,7 @@ func (s *timeSeriesStorage) TagInternedCount() int {
 // contextKeyForIdentity derives a key for raw storage/query callers that start
 // from a metric identity rather than a precomputed metrics-pipeline key.
 func contextKeyForIdentity(name, host string, tags []string) uint64 {
-	contextKey := ckey.NewSliceKeyGenerator().Generate(name, host, tags)
+	contextKey := NewSliceKeyGenerator().Generate(name, host, tags)
 	return uint64(contextKey)
 }
 
@@ -679,7 +680,7 @@ func storageKeyForIdentity(namespace, name, host string, tags []string) uint64 {
 }
 
 func storageKeyForCompositeIdentity(namespace, name, host string, tags tagset.CompositeTags) uint64 {
-	contextKey := ckey.NewSliceKeyGenerator().GenerateComposite(name, host, tags)
+	contextKey := NewSliceKeyGenerator().GenerateComposite(name, host, tags)
 	return storageKeyForContextKey(namespace, uint64(contextKey))
 }
 

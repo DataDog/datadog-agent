@@ -34,3 +34,14 @@ func (g *SliceKeyGenerator) Generate(name, hostname string, tags []string) ckey.
 	g.tags.Reset()
 	return key
 }
+
+// GenerateComposite returns the context key for a read-only composite tag view
+// without flattening or mutating its backing slices.
+func (g *SliceKeyGenerator) GenerateComposite(name, hostname string, tags tagset.CompositeTags) ckey.ContextKey {
+	tags1, tags2 := tags.UnsafeGet()
+	g.tags.Append(tags1...)
+	g.tags.Append(tags2...)
+	key := g.generator.Generate(name, hostname, g.tags)
+	g.tags.Reset()
+	return key
+}

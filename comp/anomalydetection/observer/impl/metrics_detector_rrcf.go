@@ -12,7 +12,6 @@ import (
 	"sort"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -252,7 +251,7 @@ func (r *RRCFDetector) resolveAllKeys(storage observer.StorageReader) bool {
 	// deliberately excluded: RRCF aligns distinct configured metric names that
 	// describe the same entity. ckey treats tags as unordered and ignores
 	// duplicates, matching the metrics pipeline identity semantics.
-	groupKeyGenerator := ckey.NewSliceKeyGenerator()
+	groupKeyGenerator := NewSliceKeyGenerator()
 	tagSig := func(host string, tags tagset.CompositeTags) uint64 {
 		return uint64(groupKeyGenerator.GenerateComposite("", host, tags))
 	}

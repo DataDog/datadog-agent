@@ -81,6 +81,21 @@ func TestTimeSeriesStorage_AddWithKeyAndHost(t *testing.T) {
 	assert.Equal(t, key, storedKey)
 }
 
+func TestTimeSeriesStorage_AddWithKeyAndHostCopiesRawTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	key := testStorageKeyForIdentity("dogstatsd", "metric.a", "host-a", tags)
+	result := s.AddWithKeyAndHost("dogstatsd", "metric.a", "host-a", 1, 100, tags, key)
+	tags[0] = "env:dev"
+
+	meta := s.GetSeriesMeta(result.Ref)
+	require.NotNil(t, meta)
+	assert.Equal(t, "env:prod", meta.Tags.Join(","))
+	series := s.GetSeriesRange(result.Ref, 0, 100, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, "env:prod", series.Tags.Join(","))
+}
+
 func TestSeriesKeyHashIncludesNamespace(t *testing.T) {
 	tags := []string{"env:prod"}
 	assert.NotEqual(t,
@@ -130,6 +145,19 @@ func TestTimeSeriesStorage_AddWithKeyAndHostSeparatesIdenticalMetricAndTags(t *t
 	assert.Equal(t, "host-a", ranged.Host)
 	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
 	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
+}
+
+func TestSeriesDescriptorKeyIgnoresTagOrderAndDuplicates(t *testing.T) {
+	base := observer.SeriesDescriptor{
+		Namespace: "test", Name: "my.metric", Host: "host-a", Aggregate: AggregateAverage,
+		Tags: tagset.NewCompositeTags([]string{"region:us", "env:prod"}, []string{"service:web"}),
+	}
+	permuted := base
+	permuted.Tags = tagset.NewCompositeTags([]string{"service:web", "env:prod"}, []string{"region:us", "env:prod"})
+	assert.Equal(t, "test|my.metric:avg|host-a|env:prod,region:us,service:web", base.Key())
+	assert.Equal(t, base.Key(), permuted.Key())
+	permuted.Host = "host-b"
+	assert.NotEqual(t, base.Key(), permuted.Key())
 }
 
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
@@ -1006,7 +1034,7 @@ func TestTimeSeriesStorage_TagIntern_SharedSlice(t *testing.T) {
 	tags2, _ := stats2.Tags.UnsafeGet()
 	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(tags1)))
 	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(tags2)))
-	assert.Equal(t, ptr1, ptr2, "storage must retain the immutable caller-owned tag view")
+	assert.Equal(t, ptr1, ptr2, "storage should intern equivalent copied raw tags")
 }
 
 func TestTimeSeriesStorage_TagIntern_Eviction(t *testing.T) {

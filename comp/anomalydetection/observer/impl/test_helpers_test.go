@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -43,11 +42,11 @@ func testContextKeyFor(sample observerdef.MetricView) uint64 {
 }
 
 func testContextKeyForIdentity(name, host string, tags []string) uint64 {
-	return uint64(ckey.NewSliceKeyGenerator().Generate(name, host, tags))
+	return uint64(NewSliceKeyGenerator().Generate(name, host, tags))
 }
 
 func testContextKeyForCompositeIdentity(name, host string, tags tagset.CompositeTags) uint64 {
-	return uint64(ckey.NewSliceKeyGenerator().GenerateComposite(name, host, tags))
+	return uint64(NewSliceKeyGenerator().GenerateComposite(name, host, tags))
 }
 
 func testCompositeTags(tags []string) tagset.CompositeTags {
