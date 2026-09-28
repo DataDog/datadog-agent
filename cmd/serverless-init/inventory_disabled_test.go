@@ -62,10 +62,6 @@ func TestInventoryUnsupportedWorkloadsDisabled(t *testing.T) {
 				"WEBSITE_OWNER_NAME": "test-subscription+webspace", "WEBSITE_RESOURCE_GROUP": "test-group",
 			},
 		},
-		{
-			name: "microvm",
-			env:  map[string]string{"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1:123456789012:microvm-image:test-image"},
-		},
 	} {
 		t.Run(platform.name, func(t *testing.T) {
 			for _, key := range []string{

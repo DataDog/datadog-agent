@@ -5,6 +5,14 @@
 
 package cloudservice
 
+import (
+	"os"
+
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
+)
+
+const workloadTypeAWSMicroVM = "aws_lambda_microvm"
+
 // InventoryData holds the per-platform serverless fields that feed the
 // serverless-init inventory metadata payload. Each CloudService implementation
 // derives these from its own environment so the payload builder stays thin and
@@ -55,5 +63,29 @@ func (c *ContainerApp) GetInventoryData() InventoryData { return InventoryData{}
 func (a *AppService) CanCollectInventory() bool       { return false }
 func (a *AppService) GetInventoryData() InventoryData { return InventoryData{} }
 
-func (m *MicroVM) CanCollectInventory() bool       { return false }
-func (m *MicroVM) GetInventoryData() InventoryData { return InventoryData{} }
+// MicroVM identity is supplied by lifecycle hooks after component construction.
+func (m *MicroVM) CanCollectInventory() bool { return true }
+
+// GetInventoryData returns the inventory metadata fields for AWS MicroVM,
+// derived from the image ARN env var. The image is the stable parent every
+// instance runs from, so it is the ParentResourceID.
+//
+// The per-instance MicroVM id is not known at derivation time (the platform
+// only delivers it in the /run lifecycle hook body), so ResourceID starts as
+// the image ARN and narrows to the instance id at submission time. That keeps
+// resource_id populated for a payload built before the first /run.
+func (m *MicroVM) GetInventoryData() InventoryData {
+	arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar)
+	if arn == "" {
+		return InventoryData{WorkloadType: workloadTypeAWSMicroVM}
+	}
+	region, accountID, imageName := parseMicroVMARN(arn)
+	return InventoryData{
+		WorkloadType:     workloadTypeAWSMicroVM,
+		ResourceID:       arn,
+		ParentResourceID: arn,
+		ResourceName:     imageName,
+		Region:           region,
+		AWSAccountID:     accountID,
+	}
+}
