@@ -74,8 +74,8 @@ type Profile struct {
 	// SecurityContexts holds the declared SecurityContexts observed for this
 	// image, keyed by workload-template slot.
 	SecurityContexts map[securitycontext.Key]*securitycontext.SecurityContext
-	selector cgroupModel.WorkloadSelector
-	tags     []string
+	selector         cgroupModel.WorkloadSelector
+	tags             []string
 
 	versionContexts map[string]*VersionContext
 
@@ -117,7 +117,6 @@ func (p *Profile) SaveSecurityContext(key securitycontext.Key, sc *securityconte
 	}
 	p.SecurityContexts[key] = sc
 }
-
 
 // Disable disables the profile and drops its activity tree to free the memory it held.
 func (p *Profile) Disable() {

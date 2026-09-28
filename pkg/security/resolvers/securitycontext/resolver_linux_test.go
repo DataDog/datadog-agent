@@ -454,4 +454,3 @@ func TestWorkloadmetaResolver_KeyFallsBackWhenReplicaSetIsNotDeploymentManaged(t
 		ContainerName: "worker",
 	}, key)
 }
-

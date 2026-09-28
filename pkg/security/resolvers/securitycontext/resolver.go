@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 // Package securitycontext resolves the declared container security context for a workload.
 package securitycontext
 
@@ -62,4 +64,3 @@ type Resolver interface {
 	// profile, reading Localhost profiles from disk. Returns nil for other types.
 	ResolveSeccompFilter(profile *SeccompProfile) (*SeccompFilterResult, error)
 }
-

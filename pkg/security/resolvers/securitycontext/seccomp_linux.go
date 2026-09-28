@@ -9,6 +9,7 @@ package securitycontext
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,7 +80,7 @@ type ociSeccompArg struct {
 // referenced by localhostPath (relative to the kubelet seccomp root).
 func readLocalhostSeccompProfile(localhostPath string) (*SeccompFilterResult, error) {
 	if localhostPath == "" {
-		return nil, fmt.Errorf("empty localhost profile path")
+		return nil, errors.New("empty localhost profile path")
 	}
 	path := seccompProfilePath(localhostPath)
 	data, err := os.ReadFile(path)
