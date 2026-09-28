@@ -13,9 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-//go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/tracer.c pkg/ebpf/bytecode/build/runtime/tracer.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/tracer.c pkg/ebpf/bytecode/runtime/tracer.go runtime
-
 func getRuntimeCompiledTracer(config *config.Config) (runtime.CompiledOutput, error) {
 	return runtime.Tracer.Compile(&config.Config, getCFlags(config))
 }
