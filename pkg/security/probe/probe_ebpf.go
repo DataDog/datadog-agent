@@ -224,6 +224,10 @@ type EBPFProbe struct {
 	// stats tick can log only the delta. Debug aid, see logExecKeyRepairs.
 	lastExecKeyRepairs atomic.Uint64
 
+	// lastExecEntryMismatches is the same for the route counters. Debug aid, see
+	// logExecEntryMismatches.
+	lastExecEntryMismatches atomic.Uint64
+
 	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
 	// container, so the debug log below reports only transitions instead of one line
 	// per exec. Debug aid, see setProcessContext.
@@ -1294,6 +1298,7 @@ func (p *EBPFProbe) SendStats() error {
 	// rate is observable at all -- without it a clean run cannot be told apart from a run
 	// with no exposure.
 	p.logExecKeyRepairs()
+	p.logExecEntryMismatches()
 
 	p.processKiller.SendStats(p.statsdClient)
 
@@ -1648,6 +1653,31 @@ func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
 		d.EntryIno, d.EntryMountID, d.Flags&execDiagHasDentry != 0,
 		uint32(d.OpenPIDTGID>>32), uint32(d.OpenPIDTGID), d.OpenCtxID,
 		d.Flags&execDiagHasOpenStamp != 0, route, verdict)
+}
+
+// logExecEntryMismatches reports how often send_exec_event popped an entry that did not
+// belong to the execve it was reporting, split by which lookup produced it. Reported on the
+// stats tick rather than from the zero-key log, so it stays readable whether or not the
+// repair is enabled and whether or not any test fails.
+func (p *EBPFProbe) logExecEntryMismatches() {
+	m, _, err := p.Manager.Get().GetMap("exec_entry_mismatch")
+	if err != nil || m == nil {
+		return
+	}
+
+	var direct, impersonated uint64
+	if err := m.Lookup(uint32(0), &direct); err != nil {
+		return
+	}
+	if err := m.Lookup(uint32(1), &impersonated); err != nil {
+		return
+	}
+
+	total := direct + impersonated
+	if prev := p.lastExecEntryMismatches.Swap(total); prev != total {
+		seclog.Warnf("exec syscall cache entry did not belong to the execve being reported: %d via our own pid_tgid (a later cache_syscall replaced it), %d via exec_pid_transfer (impersonation aliased another task)",
+			direct, impersonated)
+	}
 }
 
 // logExecKeyRepairs reports how many exec events needed their path_key recovered from the

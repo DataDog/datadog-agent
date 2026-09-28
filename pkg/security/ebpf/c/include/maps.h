@@ -87,6 +87,12 @@ BPF_LRU_MAP(exec_zero_key_diag, u32, struct exec_zero_key_diag_t, 1024)
 // Standalone because the recovery makes the key non-zero, so nothing on the zero-key
 // path would ever read a flag recorded there.
 BPF_ARRAY_MAP(exec_key_repaired, u64, 1)
+// Counts the execs whose popped entry did not belong to the execve being reported, split by
+// which lookup produced it. Standalone and unconditional: gating a diagnostic behind the
+// anomaly it describes has already made two of them unreadable.
+//   slot 0: found under our own pid_tgid, so a later cache_syscall replaced the entry
+//   slot 1: found via exec_pid_transfer, so the impersonation fallback aliased another task
+BPF_ARRAY_MAP(exec_entry_mismatch, u64, 2)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)

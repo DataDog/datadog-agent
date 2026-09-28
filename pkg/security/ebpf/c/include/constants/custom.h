@@ -178,6 +178,11 @@ enum CREDENTIAL_SOURCE {
         O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
 #endif
 
+// Set to 1 to re-enable the exec path_key repair in send_exec_event. Kept off while the
+// route counters are being measured: a repaired key is no longer zero, so userspace never
+// logs the verdict that carries the route and the ctx_ids for that sample.
+#define EXEC_KEY_REPAIR_ENABLED 0
+
 #define MAX_SYSCALL_CTX_ENTRIES 8192
 #define MAX_SYSCALL_ARG_MAX_SIZE 128
 #define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_ARG_MAX_SIZE * 3 + 4 + 1 // id + types octet + 3 args

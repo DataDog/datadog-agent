@@ -873,6 +873,17 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         diag.flags |= EXEC_DIAG_HAS_ENTRY_STAMP;
     }
 
+    // Count the mismatch itself, before and independently of any repair: this is the
+    // measurement that says which route delivers the foreign entry, and it has to survive
+    // the repair being enabled or disabled.
+    if (stamped_ctx_id != 0 && syscall->ctx_id != stamped_ctx_id) {
+        u32 slot = (route_flags & EXEC_DIAG_ROUTE_IMPERSONATED) ? 1 : 0;
+        u64 *mismatch = bpf_map_lookup_elem(&exec_entry_mismatch, &slot);
+        if (mismatch != NULL) {
+            __sync_fetch_and_add(mismatch, 1);
+        }
+    }
+
     struct exec_open_stamp_t *open_stamp = bpf_map_lookup_elem(&exec_dentry_open_stamp, &tgid);
     if (open_stamp != NULL) {
         diag.open_pid_tgid = open_stamp->pid_tgid;
@@ -880,8 +891,10 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         diag.flags |= EXEC_DIAG_HAS_OPEN_STAMP;
 
         // only repair when the stamp is demonstrably the right execve and the popped entry
-        // is demonstrably not, so a correct entry is never overwritten
-        if (stamped_ctx_id != 0 && open_stamp->ctx_id == stamped_ctx_id && syscall->ctx_id != stamped_ctx_id) {
+        // is demonstrably not, so a correct entry is never overwritten.
+        // Off while measuring: repairing makes the key non-zero, which stops userspace
+        // logging the zero-key verdict that carries the per-sample route and ctx_ids.
+        if (EXEC_KEY_REPAIR_ENABLED && stamped_ctx_id != 0 && open_stamp->ctx_id == stamped_ctx_id && syscall->ctx_id != stamped_ctx_id) {
             pc.entry.executable.path_key.ino = open_stamp->ino;
             pc.entry.executable.path_key.mount_id = open_stamp->mount_id;
             pc.entry.executable.path_key.path_id = open_stamp->path_id;
