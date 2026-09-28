@@ -8,6 +8,7 @@
 package recorderimpl
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,7 +34,7 @@ type batchBuilder interface {
 // Files are only created when there is data to write; empty files are never produced.
 type parquetWriter struct {
 	outputDir         string
-	filePrefix        string // used for naming: <filePrefix>-<timestamp>Z.parquet
+	filePrefix        string // used for naming: <filePrefix>-<timestamp>Z[_<sequence>].parquet
 	schema            *arrow.Schema
 	writerProps       *parquet.WriterProperties
 	builder           batchBuilder
@@ -44,6 +45,7 @@ type parquetWriter struct {
 	closeErr          error
 	mu                sync.Mutex
 	workers           sync.WaitGroup
+	now               func() time.Time
 }
 
 // start launches the background flush and cleanup goroutines.
@@ -56,17 +58,29 @@ func (b *parquetWriter) start() {
 	}
 }
 
-// writeRecord creates a timestamped parquet file, writes the record, and closes it atomically.
+// writeRecord creates a uniquely named timestamped parquet file and writes the record.
 // Only called when there is data; no file is created for empty batches.
 // Must be called with b.mu held.
 func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
-	timestamp := time.Now().UTC().Format("20060102-150405")
-	filename := fmt.Sprintf("%s-%sZ.parquet", b.filePrefix, timestamp)
-	filePath := filepath.Join(b.outputDir, filename)
-
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("creating parquet file %s: %w", filePath, err)
+	timestamp := b.now().UTC().Format("20060102-150405")
+	baseName := fmt.Sprintf("%s-%sZ", b.filePrefix, timestamp)
+	var file *os.File
+	var filePath string
+	for sequence := 0; ; sequence++ {
+		filename := baseName + ".parquet"
+		if sequence > 0 {
+			filename = fmt.Sprintf("%s_%09d.parquet", baseName, sequence)
+		}
+		filePath = filepath.Join(b.outputDir, filename)
+		var err error
+		file, err = os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("creating parquet file %s: %w", filePath, err)
+		}
+		break
 	}
 
 	// WithStoreSchema embeds the Arrow schema into Parquet metadata,

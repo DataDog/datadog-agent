@@ -39,6 +39,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "parquet_bloom_test.go",
+        "parquet_writer_collision_test.go",
         "parquet_writer_lifecycle_test.go",
         "recorder_test.go",
     ],
