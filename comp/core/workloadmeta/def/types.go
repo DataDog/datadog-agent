@@ -800,10 +800,6 @@ type PodSecurityContext struct {
 }
 
 // ContainerSecurityContext is the Security Context of a Container.
-//
-// The three *bool fields keep Kubernetes' tri-state semantics: nil means the
-// pod spec left the field unset (kubelet/PSA falls back to pod- or
-// admission-level defaults), which is different from an explicit false.
 type ContainerSecurityContext struct {
 	*Capabilities
 	Privileged               bool

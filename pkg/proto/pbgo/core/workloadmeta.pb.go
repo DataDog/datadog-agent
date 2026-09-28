@@ -1429,15 +1429,13 @@ func (x *SeccompProfile) GetLocalhostProfile() string {
 }
 
 type ContainerSecurityContext struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Capabilities   *Capabilities          `protobuf:"bytes,1,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
-	Privileged     bool                   `protobuf:"varint,2,opt,name=privileged,proto3" json:"privileged,omitempty"`
-	SeccompProfile *SeccompProfile        `protobuf:"bytes,3,opt,name=seccompProfile,proto3" json:"seccompProfile,omitempty"`
-	// Kubernetes tri-state fields: absent = unset in the pod spec, which is
-	// semantically distinct from an explicit false value.
-	RunAsNonRoot             *bool `protobuf:"varint,4,opt,name=runAsNonRoot,proto3,oneof" json:"runAsNonRoot,omitempty"`
-	AllowPrivilegeEscalation *bool `protobuf:"varint,5,opt,name=allowPrivilegeEscalation,proto3,oneof" json:"allowPrivilegeEscalation,omitempty"`
-	ReadOnlyRootFilesystem   *bool `protobuf:"varint,6,opt,name=readOnlyRootFilesystem,proto3,oneof" json:"readOnlyRootFilesystem,omitempty"`
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	Capabilities             *Capabilities          `protobuf:"bytes,1,opt,name=capabilities,proto3" json:"capabilities,omitempty"`
+	Privileged               bool                   `protobuf:"varint,2,opt,name=privileged,proto3" json:"privileged,omitempty"`
+	SeccompProfile           *SeccompProfile        `protobuf:"bytes,3,opt,name=seccompProfile,proto3" json:"seccompProfile,omitempty"`
+	RunAsNonRoot             *bool                  `protobuf:"varint,4,opt,name=runAsNonRoot,proto3,oneof" json:"runAsNonRoot,omitempty"`
+	AllowPrivilegeEscalation *bool                  `protobuf:"varint,5,opt,name=allowPrivilegeEscalation,proto3,oneof" json:"allowPrivilegeEscalation,omitempty"`
+	ReadOnlyRootFilesystem   *bool                  `protobuf:"varint,6,opt,name=readOnlyRootFilesystem,proto3,oneof" json:"readOnlyRootFilesystem,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
