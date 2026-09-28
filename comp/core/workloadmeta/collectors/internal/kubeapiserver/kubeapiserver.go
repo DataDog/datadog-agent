@@ -244,7 +244,12 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	} else {
 		for _, gvr := range gvrs {
 			reflector, store := newMetadataStore(wlmetaStore, c.config, metadataclient, gvr)
-			objectStores = append(objectStores, store)
+			// The csidrivers RBAC may be missing with older Helm charts or
+			// Operators. It must not block readiness: without data, the
+			// AutoProvider falls back to init containers.
+			if gvr.Group != "storage.k8s.io" || gvr.Resource != "csidrivers" {
+				objectStores = append(objectStores, store)
+			}
 			go reflector.Run(ctx.Done())
 		}
 	}
