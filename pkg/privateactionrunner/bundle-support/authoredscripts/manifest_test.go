@@ -30,9 +30,7 @@ const validManifest = `
 func writeManifest(t *testing.T, contents string) string {
 	t.Helper()
 	artifactDirectory := t.TempDir()
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	require.NoError(t, os.MkdirAll(scriptDir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, manifestFile), []byte(contents), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, manifestFile), []byte(contents), 0o644))
 	return artifactDirectory
 }
 

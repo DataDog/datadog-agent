@@ -19,7 +19,6 @@ import (
 
 const (
 	manifestSchemaVersion    = "v1"
-	scriptDirectory          = "script"
 	manifestFile             = "metadata.json"
 	maxManifestSize          = 1 << 20
 	environmentKindValue     = "value"
@@ -65,7 +64,7 @@ type Dependency struct {
 // loadManifest reads and validates the metadata.json manifest for an authored-script
 // package that has already been downloaded and extracted to artifactDirectory.
 func loadManifest(artifactDirectory string) (*Manifest, error) {
-	file, err := openPackageFile(artifactDirectory, filepath.Join(scriptDirectory, manifestFile))
+	file, err := openPackageFile(artifactDirectory, manifestFile)
 	if err != nil {
 		return nil, fmt.Errorf("could not open authored-script manifest: %w", err)
 	}

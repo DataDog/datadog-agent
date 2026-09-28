@@ -33,9 +33,9 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 
 	manifestCommand := manifest.Command.Entrypoint
 	if !filepath.IsLocal(manifestCommand) {
-		return nil, fmt.Errorf("invalid authored-script command path %q: path must be local to the script directory", manifestCommand)
+		return nil, fmt.Errorf("invalid authored-script command path %q: path must be local to the package directory", manifestCommand)
 	}
-	commandPath, err := resolvePackageFile(artifact.Directory, filepath.Join(scriptDirectory, manifestCommand))
+	commandPath, err := resolvePackageFile(artifact.Directory, manifestCommand)
 	if err != nil {
 		return nil, fmt.Errorf("invalid authored-script command: %w", err)
 	}
@@ -46,7 +46,7 @@ func LoadPackage(fqn string, descriptor Descriptor, artifact LocalArtifact) (*Pa
 		if !isDependencyName(dependency.Name) {
 			return nil, fmt.Errorf("invalid authored-script dependency name %q: name must be a single path component", dependency.Name)
 		}
-		toolPath, err := resolvePackageFile(artifact.Directory, filepath.Join(scriptDirectory, dependency.Name))
+		toolPath, err := resolvePackageFile(artifact.Directory, dependency.Name)
 		if err != nil {
 			return nil, fmt.Errorf("invalid authored-script dependency %q: %w", dependency.Name, err)
 		}

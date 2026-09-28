@@ -33,11 +33,10 @@ func TestLoadPackage_WithFlatExtractedDependencies(t *testing.T) {
 }
 `
 	artifactDirectory := writeManifest(t, contents)
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	commandPath := filepath.Join(scriptDir, "run.sh")
+	commandPath := filepath.Join(artifactDirectory, "run.sh")
 	require.NoError(t, os.WriteFile(commandPath, []byte("#!/bin/sh\n"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, "helm"), []byte("helm"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, "jq"), []byte("jq"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, "helm"), []byte("helm"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, "jq"), []byte("jq"), 0o755))
 	descriptor := Descriptor{
 		FQN:     fqn,
 		Package: fqn,
@@ -50,19 +49,18 @@ func TestLoadPackage_WithFlatExtractedDependencies(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{commandPath}, pkg.Command)
 	assert.Equal(t, []string{
-		filepath.Join(scriptDir, "helm"),
-		filepath.Join(scriptDir, "jq"),
+		filepath.Join(artifactDirectory, "helm"),
+		filepath.Join(artifactDirectory, "jq"),
 	}, pkg.ToolPaths)
 }
 
 func TestLoadPackage_RejectsEscapingSymlinkCommand(t *testing.T) {
 	const fqn = "com.datadoghq.authoredscripts.echo"
 	artifactDirectory := writeManifest(t, validManifest)
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
 	externalDirectory := t.TempDir()
 	externalCommand := filepath.Join(externalDirectory, "run.sh")
 	require.NoError(t, os.WriteFile(externalCommand, []byte("#!/bin/sh\n"), 0o755))
-	if err := os.Symlink(externalCommand, filepath.Join(scriptDir, "run.sh")); err != nil {
+	if err := os.Symlink(externalCommand, filepath.Join(artifactDirectory, "run.sh")); err != nil {
 		t.Skipf("cannot create symlink: %v", err)
 	}
 	descriptor := Descriptor{FQN: fqn, Package: fqn, Version: "0.0.1"}
@@ -101,8 +99,7 @@ func TestLoadPackage_RejectsDependencyPathComponents(t *testing.T) {
 }
 `
 	artifactDirectory := writeManifest(t, contents)
-	scriptDir := filepath.Join(artifactDirectory, scriptDirectory)
-	require.NoError(t, os.WriteFile(filepath.Join(scriptDir, "run.sh"), []byte("#!/bin/sh\n"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, "run.sh"), []byte("#!/bin/sh\n"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(artifactDirectory, "helm"), []byte("helm"), 0o755))
 	descriptor := Descriptor{FQN: fqn, Package: fqn, Version: "0.0.1"}
 

@@ -40,7 +40,7 @@ func TestNewMaterializer(t *testing.T) {
 	t.Run("variant includes platform and flavor", func(t *testing.T) {
 		materializer, err := NewMaterializer(&installerenv.Env{FIPSMode: true}, http.DefaultClient)
 		require.NoError(t, err)
-		assert.Equal(t, strings.Join([]string{materializationLayoutVersion, runtime.GOOS, runtime.GOARCH, "fips"}, "-"), materializer.MaterializationID())
+		assert.Equal(t, strings.Join([]string{"datadog-package-v2", runtime.GOOS, runtime.GOARCH, "fips"}, "-"), materializer.MaterializationID())
 	})
 }
 
@@ -61,6 +61,28 @@ func TestMaterializerMaterialize(t *testing.T) {
 
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(destination, "executable.sh"))
+	require.NoError(t, err)
+}
+
+func TestMaterializerMaterializeWithExtension(t *testing.T) {
+	server := fixtures.NewServer(t)
+	packageURL := server.PackageURL(fixtures.FixtureSimpleV1WithExtension)
+	digest := packageURL[strings.LastIndex(packageURL, "@sha256:")+len("@sha256:"):]
+	materializer, err := NewMaterializer(&installerenv.Env{}, server.Client())
+	require.NoError(t, err)
+	destination := t.TempDir()
+
+	err = materializer.Materialize(context.Background(), authoredscripts.Descriptor{
+		Package: fixtures.FixtureSimpleV1WithExtension.Package,
+		Version: fixtures.FixtureSimpleV1WithExtension.Version,
+		URL:     packageURL,
+		SHA256:  digest,
+	}, destination)
+
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(destination, "executable.sh"))
+	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(destination, "extension.sh"))
 	require.NoError(t, err)
 }
 

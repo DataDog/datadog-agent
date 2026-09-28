@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/authoredscripts"
 )
 
-const materializationLayoutVersion = "datadog-package-v1"
+const materializationLayoutVersion = "datadog-package-v2"
 
 // Materializer materializes authored-script packages from OCI images.
 type Materializer struct {
@@ -64,7 +64,8 @@ func (m *Materializer) MaterializationID() string {
 	return m.materializationID
 }
 
-// Materialize downloads and extracts the main Datadog Package layer.
+// Materialize downloads an authored-script package and extracts its script and
+// dependency layers into a flat package directory.
 func (m *Materializer) Materialize(ctx context.Context, descriptor authoredscripts.Descriptor, destination string) error {
 	if destination == "" {
 		return errors.New("authored-script OCI destination is required")
@@ -84,7 +85,10 @@ func (m *Materializer) Materialize(ctx context.Context, descriptor authoredscrip
 		return fmt.Errorf("OCI package version %q does not match catalog version %q", downloadedPackage.Version, descriptor.Version)
 	}
 	if err := downloadedPackage.ExtractLayers(ctx, fleetoci.DatadogPackageLayerMediaType, destination); err != nil {
-		return fmt.Errorf("could not extract authored-script OCI package: %w", err)
+		return fmt.Errorf("could not extract authored-script OCI package layer: %w", err)
+	}
+	if err := downloadedPackage.ExtractLayers(ctx, fleetoci.DatadogPackageExtensionLayerMediaType, destination); err != nil {
+		return fmt.Errorf("could not extract authored-script OCI dependency layers: %w", err)
 	}
 	return nil
 }

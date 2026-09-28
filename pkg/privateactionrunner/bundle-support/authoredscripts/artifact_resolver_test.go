@@ -42,10 +42,6 @@ func (m *testPackageMaterializer) Materialize(_ context.Context, descriptor Desc
 		return m.materializeErr
 	}
 
-	scriptDir := filepath.Join(destination, scriptDirectory)
-	if err := os.MkdirAll(scriptDir, 0o700); err != nil {
-		return err
-	}
 	manifest := fmt.Sprintf(`{
   "schema-version": "v1",
   "version": %q,
@@ -53,10 +49,10 @@ func (m *testPackageMaterializer) Materialize(_ context.Context, descriptor Desc
   "command": {"entrypoint": "run.sh"}
 }
 `, descriptor.Version, descriptor.FQN)
-	if err := os.WriteFile(filepath.Join(scriptDir, manifestFile), []byte(manifest), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(destination, manifestFile), []byte(manifest), 0o600); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(scriptDir, "run.sh"), []byte("#!/bin/sh\n"), 0o700)
+	return os.WriteFile(filepath.Join(destination, "run.sh"), []byte("#!/bin/sh\n"), 0o700)
 }
 
 func (m *testPackageMaterializer) materializationCount() int {
@@ -104,7 +100,7 @@ func TestArtifactResolverResolveRepairsInvalidArtifact(t *testing.T) {
 
 	artifact, err := resolver.Resolve(context.Background(), descriptor)
 	require.NoError(t, err)
-	require.NoError(t, os.Remove(filepath.Join(artifact.Directory, scriptDirectory, "run.sh")))
+	require.NoError(t, os.Remove(filepath.Join(artifact.Directory, "run.sh")))
 
 	repaired, err := resolver.Resolve(context.Background(), descriptor)
 	require.NoError(t, err)
