@@ -23,6 +23,9 @@ const (
 	defaultPipelineDepth   = 8
 	defaultStateRequest    = 5 * 1024 * 1024
 	defaultShutdownTimeout = 15 * time.Second
+	// Mirrors the library's own stream lifetime, since a zero value there means
+	// rotate on every open rather than use the default.
+	defaultStreamLifetime = 15 * time.Minute
 )
 
 // SenderSpec is one foldspace sender derived from a logs endpoint.
@@ -46,6 +49,10 @@ type DestinationConfig struct {
 	StateRequestBytes int
 	DualShip          bool
 	SkippedMRF        int
+	// BatchWait bounds how long a partial batch is held. The core seals on record
+	// count and content size; without a time bound a partial batch waits for
+	// enough further records to seal it, however long that takes.
+	BatchWait time.Duration
 }
 
 // ErrWindowing is returned when max_inflight_payloads is below S × pipeline_depth.
@@ -157,6 +164,18 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	if maxPayload <= 0 {
 		maxPayload = 1024 * 1024
 	}
+	batchWait := endpoints.BatchWait
+	if batchWait <= 0 {
+		batchWait = 5 * time.Second
+	}
+
+	// Stream rotation is not connection recycling. A rotation ends an interning
+	// epoch, so its cost is re-sending every live string and its bound is what the
+	// intake enforces; connection_reset_interval answers none of that, and its
+	// zero value means "never" where a zero lifetime here means "rotate on every
+	// open". Nothing in the logs endpoint configures this, so use the lifetime the
+	// library chose for itself.
+	streamLifetime := defaultStreamLifetime
 
 	return &DestinationConfig{
 		Senders: senders,
@@ -172,7 +191,7 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 			ReconnectBackoffFactor: uint32(cfg.GetInt("logs_config.sender_backoff_factor")),
 			ReconnectBackoffCap:    time.Duration(cfg.GetFloat64("logs_config.sender_backoff_max") * float64(time.Second)),
 			DrainTimeout:           5 * time.Second,
-			StreamLifetime:         endpoints.Main.ConnectionResetInterval,
+			StreamLifetime:         streamLifetime,
 			FirstPayloadBatchID:    1,
 			SnapshotBatchID:        0,
 		},
@@ -182,6 +201,7 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 		StateRequestBytes: stateBytes,
 		DualShip:          cfg.GetBool("logs_config.foldspace.dual_ship"),
 		SkippedMRF:        skippedMRF,
+		BatchWait:         batchWait,
 	}, nil
 }
 
