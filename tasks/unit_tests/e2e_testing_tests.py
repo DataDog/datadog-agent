@@ -7,10 +7,15 @@ from unittest.mock import MagicMock, patch
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.new_e2e_tests import (
     DEFAULT_GO_TEST_TIMEOUT,
+    DEFAULT_TEARDOWN_BUDGET_SECONDS,
     GO_TEST_MIN_TIMEOUT_SECONDS,
+    MIN_RETRY_ATTEMPT_SECONDS,
     _compute_go_test_timeout,
     _format_go_duration,
+    _has_time_for_retry,
+    _parse_go_duration_seconds,
     _plan_next_attempt,
+    _teardown_budget_seconds,
     post_process_output,
     pretty_print_logs,
     write_result_to_log_files,
@@ -306,3 +311,98 @@ class TestPlanNextAttempt(unittest.TestCase):
         to_retry, to_teardown = _plan_next_attempt(failing, set(), remaining_tries=0)
         self.assertSetEqual(to_retry, set())
         self.assertSetEqual(to_teardown, set())
+
+    def test_no_time_sends_all_failures_to_teardown(self):
+        failing = {("pkg1", "TestA"), ("pkg1", "TestB")}
+        known_flaky = {("pkg1", "TestB"), ("pkg2", "TestFlakyButPassing")}
+        to_retry, to_teardown = _plan_next_attempt(failing, known_flaky, remaining_tries=2, has_time=False)
+        # All kept stacks are torn down, flaky or not: an attempt that cannot finish
+        # before the deadline would only eat into the teardown budget.
+        self.assertSetEqual(to_retry, set())
+        self.assertSetEqual(to_teardown, failing)
+
+    def test_has_time_true_keeps_retry_plan(self):
+        failing = {("pkg1", "TestA"), ("pkg1", "TestB")}
+        known_flaky = {("pkg1", "TestB")}
+        to_retry, to_teardown = _plan_next_attempt(failing, known_flaky, remaining_tries=2, has_time=True)
+        self.assertSetEqual(to_retry, {("pkg1", "TestA")})
+        self.assertSetEqual(to_teardown, {("pkg1", "TestB")})
+
+
+class TestHasTimeForRetry(unittest.TestCase):
+    def test_exact_threshold_has_time(self):
+        budget = 300
+        # useful time = timeout - budget = MIN_RETRY_ATTEMPT_SECONDS exactly
+        boundary = budget + MIN_RETRY_ATTEMPT_SECONDS
+        self.assertTrue(_has_time_for_retry(_format_go_duration(boundary), budget))
+
+    def test_just_below_threshold_has_no_time(self):
+        budget = 300
+        self.assertFalse(_has_time_for_retry(_format_go_duration(budget + MIN_RETRY_ATTEMPT_SECONDS - 1), budget))
+
+    def test_large_timeout_has_time(self):
+        self.assertTrue(_has_time_for_retry("1h55m0s", 300))
+
+    def test_budget_eats_the_margin(self):
+        # 20m timeout - 15m budget = 5m < MIN_RETRY_ATTEMPT_SECONDS
+        self.assertFalse(_has_time_for_retry("0h20m0s", 900))
+
+    def test_default_timeout_has_time(self):
+        self.assertTrue(_has_time_for_retry(DEFAULT_GO_TEST_TIMEOUT, 300))
+
+    def test_unparseable_timeout_keeps_retry(self):
+        self.assertTrue(_has_time_for_retry("garbage", 300))
+
+
+class TestTeardownBudgetSeconds(unittest.TestCase):
+    _BUDGET_VAR = "E2E_TEARDOWN_BUDGET"
+
+    def setUp(self):
+        self._saved = os.environ.pop(self._BUDGET_VAR, None)
+
+    def tearDown(self):
+        if self._saved is None:
+            os.environ.pop(self._BUDGET_VAR, None)
+        else:
+            os.environ[self._BUDGET_VAR] = self._saved
+
+    def test_unset_returns_default(self):
+        self.assertEqual(_teardown_budget_seconds(), DEFAULT_TEARDOWN_BUDGET_SECONDS)
+
+    def test_go_duration_values(self):
+        for value, expected in [("10m", 600), ("1h30m", 5400), ("90s", 90), ("0.5h", 1800)]:
+            with self.subTest(value=value):
+                os.environ[self._BUDGET_VAR] = value
+                self.assertEqual(_teardown_budget_seconds(), expected)
+
+    def test_invalid_value_falls_back_to_default(self):
+        os.environ[self._BUDGET_VAR] = "not-a-duration"
+        self.assertEqual(_teardown_budget_seconds(), DEFAULT_TEARDOWN_BUDGET_SECONDS)
+
+    def test_non_positive_value_falls_back_to_default(self):
+        for value in ["0s", "-5m"]:
+            with self.subTest(value=value):
+                os.environ[self._BUDGET_VAR] = value
+                self.assertEqual(_teardown_budget_seconds(), DEFAULT_TEARDOWN_BUDGET_SECONDS)
+
+
+class TestParseGoDurationSeconds(unittest.TestCase):
+    def test_valid_durations(self):
+        for value, expected in [
+            ("4h", 14400),
+            ("1h55m0s", 6900),
+            ("1h30m", 5400),
+            ("90s", 90),
+            ("0.5h", 1800),
+            ("5m", 300),
+        ]:
+            with self.subTest(value=value):
+                self.assertEqual(_parse_go_duration_seconds(value), expected)
+
+    def test_sub_second_values_truncate_to_zero(self):
+        self.assertEqual(_parse_go_duration_seconds("300ms"), 0)
+
+    def test_invalid_durations(self):
+        for value in ["", "nope", "5", "5x", "-5m", "1h 30m", "m"]:
+            with self.subTest(value=value):
+                self.assertIsNone(_parse_go_duration_seconds(value))
