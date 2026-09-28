@@ -104,7 +104,8 @@ type Requires struct {
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
 	// Capabilities is optional. When absent the component uses standard
-	// full-agent behavior; an embedder (serverless-init) supplies it to adapt
+	// full-agent behavior; an embedder (such as serverless-init or the AAS
+	// extension) supplies it to adapt
 	// cross-process enrichment, on-start submission, and the payload uuid to a
 	// divergent environment. See iainterface.Capabilities.
 	Capabilities *iainterface.Capabilities `optional:"true"`
@@ -136,6 +137,9 @@ func NewComponent(deps Requires) Provides {
 	if deps.Capabilities != nil {
 		ia.skipCrossProcessEnrichment = deps.Capabilities.SkipCrossProcessEnrichment
 		ia.payloadUUID = deps.Capabilities.PayloadUUID
+		if deps.Capabilities.ForceEnabled {
+			ia.InventoryPayload.Enabled = true
+		}
 	}
 
 	if ia.Enabled {
