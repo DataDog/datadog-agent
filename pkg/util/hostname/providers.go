@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	configProviderName  = hostnameinterface.ConfigProvider
-	fargateProviderName = hostnameinterface.FargateProvider
+	configProviderName           = hostnameinterface.ConfigProvider
+	fargateProviderName          = hostnameinterface.FargateProvider
+	eudmSerialNumberProviderName = hostnameinterface.EUDMSerialNumberProvider
 )
 
 var (
@@ -94,6 +95,13 @@ var (
 		expvarName:       "azure",
 	}
 
+	eudmSerialNumberProvider = provider{
+		name:             eudmSerialNumberProviderName,
+		cb:               fromEUDMSerialNumber,
+		stopIfSuccessful: true,
+		expvarName:       "eudm_serial_number",
+	}
+
 	// The following providers are coupled. Their behavior changes depending on the result of the previous provider.
 	// Therefore 'stopIfSuccessful' is set to false.
 	fqdnProvider = provider{
@@ -140,6 +148,7 @@ var (
 // * Fargate/Sidecar (strips hostname for Fargate and managed instances in sidecar mode)
 // * GCE
 // * Azure
+// * EUDM serial number (only fires when infrastructure_mode is end_user_device)
 // * FQDN
 // * container (kube_apiserver, Docker, kubelet)
 // * OS hostname
@@ -151,6 +160,7 @@ func getProviderCatalog(legacyHostnameResolution bool) []provider {
 		fargateProvider,
 		gceProvider,
 		azureProvider,
+		eudmSerialNumberProvider,
 		fqdnProvider,
 		containerProvider,
 		osProvider,

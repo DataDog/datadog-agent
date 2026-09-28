@@ -20,6 +20,7 @@ import (
 	utilsort "github.com/DataDog/datadog-agent/pkg/util/sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/alibaba"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
@@ -121,8 +122,45 @@ func getValidHostAliases(_ context.Context) ([]string, error) {
 	return aliases, nil
 }
 
+// infrastructureModeEndUserDevice mirrors the value used across other
+// EUDM-gated consumers (e.g. comp/metadata/host/impl/hosttags); there is no
+// shared exported constant for it in the codebase.
+const infrastructureModeEndUserDevice = "end_user_device"
+
+// getEUDMDeviceAliases returns Host Resolver aliases for end-user-device
+// hosts. The device/OS hostname is deliberately not used here since it has
+// no uniqueness guarantee; instead this aliases on the Agent's per-install
+// UUID (stable machine id/GUID, already shipped in every metadata payload)
+// and, when the host happens to be cloud-hosted (e.g. a VDI session), the
+// EC2 instance id, since both are already device-unique identifiers.
+func getEUDMDeviceAliases(ctx context.Context) ([]string, error) {
+	if configsetup.Datadog().GetString("infrastructure_mode") != infrastructureModeEndUserDevice {
+		return nil, nil
+	}
+
+	aliases := []string{}
+	if id := uuid.GetUUID(); id != "" {
+		if err := validate.ValidHostname(id); err == nil {
+			aliases = append(aliases, id)
+		} else {
+			log.Warnf("skipping invalid EUDM host alias (agent uuid) '%s': %s", id, err)
+		}
+	}
+
+	if instanceID, err := ec2.GetInstanceID(ctx); err == nil && instanceID != "" {
+		if err := validate.ValidHostname(instanceID); err == nil {
+			aliases = append(aliases, instanceID)
+		} else {
+			log.Warnf("skipping invalid EUDM host alias (ec2 instance id) '%s': %s", instanceID, err)
+		}
+	}
+
+	return aliases, nil
+}
+
 var hostAliasesDetectors = []cloudProviderAliasesDetector{
 	{name: "config", callback: getValidHostAliases},
+	{name: "eudm", callback: getEUDMDeviceAliases},
 	{name: alibaba.CloudProviderName, isCloudEnv: true, callback: alibaba.GetHostAliases},
 	{name: ec2.CloudProviderName, isCloudEnv: true, callback: ec2.GetHostAliases},
 	{name: azure.CloudProviderName, isCloudEnv: true, callback: azure.GetHostAliases},

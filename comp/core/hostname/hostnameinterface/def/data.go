@@ -13,6 +13,10 @@ const (
 
 	// FargateProvider is the default provider value from Fargate
 	FargateProvider = "fargate"
+
+	// EUDMSerialNumberProvider is the provider value when the hostname was derived from the
+	// device's serial number on an end-user-device (infrastructure_mode: end_user_device) host
+	EUDMSerialNumberProvider = "eudm_serial_number"
 )
 
 // FromConfiguration returns true if the hostname was found through the configuration file
@@ -23,4 +27,10 @@ func (h Data) FromConfiguration() bool {
 // FromFargate returns true if the hostname was found through Fargate
 func (h Data) FromFargate() bool {
 	return h.Provider == FargateProvider
+}
+
+// FromEUDMSerialNumber returns true if the hostname was derived from the device's serial
+// number on an end-user-device host
+func (h Data) FromEUDMSerialNumber() bool {
+	return h.Provider == EUDMSerialNumberProvider
 }
