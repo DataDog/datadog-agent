@@ -180,10 +180,10 @@ index b4f4263d..ef9362fb 100644
      srcs = ["configurable_attribute_bad_test.go"],
 diff --git a/tests/core/go_binary/buildid_test.go b/tests/core/go_binary/buildid_test.go
 new file mode 100644
-index 00000000..9edeb03f
+index 00000000..d7d1d1ac
 --- /dev/null
 +++ b/tests/core/go_binary/buildid_test.go
-@@ -0,0 +1,159 @@
+@@ -0,0 +1,160 @@
 +// Copyright 2026 The Bazel Authors. All rights reserved.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -243,6 +243,7 @@ index 00000000..9edeb03f
 +
 +-- src/BUILD.bazel --
 +load("@io_bazel_rules_go//go:def.bzl", "go_binary")
++load("@rules_cc//cc:cc_library.bzl", "cc_library")
 +
 +go_binary(
 +    name = "pure",
