@@ -30,3 +30,23 @@ package_aix-ppc64:
     expire_in: 2 weeks
     paths:
       - "$CI_PROJECT_DIR/*.bff"
+
+deploy_packages_aix-ppc64:
+  stage: deploy_packages
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/gitlab_agent_deploy$CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX:$CI_IMAGE_GITLAB_AGENT_DEPLOY
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: package_aix-ppc64
+      artifacts: true
+  rules:
+    !reference [.manual]
+  script:
+    - |
+      shopt -s nullglob
+      bff_files=("$CI_PROJECT_DIR"/datadog-agent-*.aix.ppc64.bff)
+      if [ "${#bff_files[@]}" -ne 1 ]; then
+        echo "Expected exactly one AIX BFF artifact, found ${#bff_files[@]}" >&2
+        printf '  %s\n' "${bff_files[@]}" >&2
+        exit 1
+      fi
+      $S3_CP_CMD --content-type "application/octet-stream" "${bff_files[0]}" "${S3_RELEASE_ARTIFACTS_URI}/bff/ppc64/"
