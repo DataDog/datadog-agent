@@ -29,6 +29,9 @@ type DriverOptions struct {
 	ConnectTimeout    time.Duration
 	ShutdownTimeout   time.Duration
 	StateRequestBytes int
+	// BatchWait is how often ingest seals whatever the core is holding, bounding
+	// how long a partial batch waits when no further records arrive to fill it.
+	BatchWait time.Duration
 	// DualShip, when true, never writes the auditor sink and drops on Refused
 	// instead of waiting for capacity.
 	DualShip bool
@@ -47,6 +50,7 @@ type Driver struct {
 	pipelineDepth   int
 	connectTimeout  time.Duration
 	shutdownTimeout time.Duration
+	batchWait       time.Duration
 	dualShip        bool
 
 	pending    *pendingTable
@@ -94,6 +98,9 @@ func NewDriver(opts DriverOptions) *Driver {
 	if opts.ShutdownTimeout <= 0 {
 		opts.ShutdownTimeout = 15 * time.Second
 	}
+	if opts.BatchWait <= 0 {
+		opts.BatchWait = 5 * time.Second
+	}
 	if opts.PipelineMonitor == nil {
 		opts.PipelineMonitor = metrics.NewNoopPipelineMonitor("foldspace")
 	}
@@ -110,6 +117,7 @@ func NewDriver(opts DriverOptions) *Driver {
 		pipelineDepth:   opts.PipelineDepth,
 		connectTimeout:  opts.ConnectTimeout,
 		shutdownTimeout: opts.ShutdownTimeout,
+		batchWait:       opts.BatchWait,
 		dualShip:        opts.DualShip,
 		pending:         newPendingTable(),
 		startNanos:      time.Now().UnixNano(),
@@ -214,8 +222,26 @@ func (d *Driver) Stop() {
 func (d *Driver) ingestLoop() {
 	defer close(d.ingestDone)
 	defer d.wg.Done()
-	for msg := range d.input {
-		d.offer(msg)
+
+	// The core seals a batch on record count and content size, so a partial batch
+	// left by a lull has nothing to complete it. Seal on a timer as well, matching
+	// the primary destination's batch strategy. Flush belongs to the ingest
+	// region, so this goroutine is the only one permitted to call it.
+	ticker := time.NewTicker(d.batchWait)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case msg, ok := <-d.input:
+			if !ok {
+				return
+			}
+			d.offer(msg)
+		case <-ticker.C:
+			// A refused flush needs no handling here: the next tick retries it.
+			_, progress := d.core.Flush()
+			d.dispatch(progress)
+		}
 	}
 }
 
@@ -277,7 +303,12 @@ func (d *Driver) ackTooLarge(id uint64) {
 func (d *Driver) senderLoop(sender SenderID) {
 	defer d.wg.Done()
 
-	sem := make(chan struct{}, d.pipelineDepth)
+	// Unacked sends are bounded by the core's max_inflight_payloads, which refuses
+	// admission past it, so there is no second bound here. One would have to be at
+	// least as large to be harmless and could only deadlock if it were smaller:
+	// sends happen on this goroutine, and it is also the only consumer of acks, so
+	// blocking a send to wait for an ack waits for something this goroutine is the
+	// one responsible for delivering.
 	acks := make(chan streamAck, d.pipelineDepth*2)
 	timers := make(chan scheduledTimer, 4)
 
@@ -343,13 +374,7 @@ func (d *Driver) senderLoop(sender SenderID) {
 					}
 					data := append([]byte(nil), effect.Batch.Bytes()...)
 					effect.Batch.Release()
-					select {
-					case sem <- struct{}{}:
-					case <-d.stop:
-						return
-					}
 					if err := current.Send(context.Background(), effect.BatchID, data); err != nil {
-						<-sem
 						progress := d.core.HandleStreamError(sender, effect.Stream, err.Error())
 						d.dispatch(progress)
 						stopRecv()
@@ -388,10 +413,6 @@ func (d *Driver) senderLoop(sender SenderID) {
 				stopRecv()
 				drainEffects()
 				continue
-			}
-			select {
-			case <-sem:
-			default:
 			}
 			progress := d.core.HandleAck(sender, a.stream, a.id, a.status)
 			d.dispatch(progress)
