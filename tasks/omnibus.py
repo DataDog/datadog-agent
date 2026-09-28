@@ -863,7 +863,7 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux", sear
     # Collect mime types for all files inside the Agent installation, or inside
     # search_root when callers want to scope the files to patch while keeping
     # install_path as the absolute path prefix to replace.
-    # preserve_rpath names one binary that must keep its link-time library path.
+    # Leave the named binary's library path unchanged.
     search_root = search_root or install_path
     files = ctx.run(rf"find {search_root} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
     for line in files.splitlines():

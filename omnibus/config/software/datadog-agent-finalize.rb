@@ -177,16 +177,12 @@ build do
 
             # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
             if install_dir.include?("/opt/datadog-packages")
-              # The daemon retains real root IDs but drops its effective IDs to dd-agent.
-              # Its children run with AT_SECURE, so the relative RPATH under /opt is not
-              # sufficient. Preserve the link-time path to this installer's own FIPS libraries:
-              # promotion removes /opt/datadog-agent, and an experiment must not load the
-              # stable version's libraries. OCI packaging prepares a separate bootstrap
-              # copy, which runs before this version's directory has been extracted.
+              # FIPS installer children run with different real/effective IDs and need an absolute library path.
+              # Keep this version's libraries; promotion deletes /opt/datadog-agent.
               installer_bin = "#{install_dir}/embedded/bin/installer"
               preserve_installer_rpath = fips_mode? && File.exist?(installer_bin)
               rpath_args = preserve_installer_rpath ? " --preserve-rpath #{installer_bin}" : ""
-              # The healthcheck will fail as the other binaries' rpaths don't contain install_dir
+              # The healthcheck will fail as the rpath doesn't contain install_dir
               command "inv omnibus.rpath-edit #{install_dir} #{install_dir}#{rpath_args}", cwd: Dir.pwd
               if preserve_installer_rpath
                 command "test \"$(patchelf --print-rpath #{installer_bin})\" = '#{install_dir}/embedded/lib'"

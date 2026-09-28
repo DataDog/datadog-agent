@@ -180,8 +180,7 @@ func (s *upgradeScenarioSuite) TestFipsUpgradeFromDebRPM() {
 	state := s.host.State()
 	state.AssertPathDoesNotExist("/opt/datadog-agent")
 
-	// Root-only status checks miss secure-loader failures in children of the
-	// daemon, which retains real root IDs but drops its effective IDs to dd-agent.
+	// Match the daemon's user IDs; running as root would hide this library-loading failure.
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		output := s.Env().RemoteHost.MustExecuteOn(c,
 			"sudo setpriv --ruid 0 --euid dd-agent --rgid 0 --egid dd-agent --clear-groups "+
@@ -192,9 +191,7 @@ func (s *upgradeScenarioSuite) TestFipsUpgradeFromDebRPM() {
 		assert.Empty(c, states.States["datadog-agent"].Experiment)
 	}, time.Minute, time.Second)
 
-	// Exercise the actual bootstrap layer again without the legacy directory.
-	// Reusing the stable version must reach the repository's normal rejection,
-	// rather than failing to initialize the temporary FIPS installer.
+	// A second attempt must reach the same-version check, not crash while loading FIPS libraries.
 	s.setCatalog(s.testCatalog())
 	_, err = s.startExperiment(datadogAgent, s.pipelineAgentVersion)
 	require.Error(s.T(), err)
