@@ -30,13 +30,6 @@ func TestInventoryUnsupportedWorkloadsDisabled(t *testing.T) {
 		env  map[string]string
 	}{
 		{
-			name: "azure_container_app",
-			env: map[string]string{
-				"CONTAINER_APP_NAME": "test-app", "CONTAINER_APP_REVISION": "test-revision",
-				"DD_AZURE_SUBSCRIPTION_ID": "test-subscription", "DD_AZURE_RESOURCE_GROUP": "test-group",
-			},
-		},
-		{
 			name: "azure_app_service",
 			env: map[string]string{
 				"WEBSITE_STACK": "NODE", "WEBSITE_SITE_NAME": "test-site",

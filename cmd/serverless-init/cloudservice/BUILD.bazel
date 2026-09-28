@@ -39,6 +39,7 @@ dd_agent_go_test(
         "cloudrun_jobs_inventory_test.go",
         "cloudrun_jobs_test.go",
         "cloudrun_test.go",
+        "containerapp_inventory_test.go",
         "containerapp_test.go",
         "microvm_test.go",
         "service_test.go",

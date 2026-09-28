@@ -6,9 +6,10 @@
 package cloudservice
 
 const (
-	workloadTypeCloudRunService  = "cloud_run_service"
-	workloadTypeCloudRunFunction = "cloud_run_function"
-	workloadTypeCloudRunJob      = "cloud_run_job"
+	workloadTypeCloudRunService   = "cloud_run_service"
+	workloadTypeCloudRunFunction  = "cloud_run_function"
+	workloadTypeCloudRunJob       = "cloud_run_job"
+	workloadTypeAzureContainerApp = "azure_container_app"
 )
 
 // InventoryData holds the per-platform serverless fields that feed the
@@ -48,9 +49,6 @@ type InventoryData struct {
 
 func (l *LocalService) CanCollectInventory() bool       { return true }
 func (l *LocalService) GetInventoryData() InventoryData { return InventoryData{} }
-
-func (c *ContainerApp) CanCollectInventory() bool       { return false }
-func (c *ContainerApp) GetInventoryData() InventoryData { return InventoryData{} }
 
 func (a *AppService) CanCollectInventory() bool       { return false }
 func (a *AppService) GetInventoryData() InventoryData { return InventoryData{} }
