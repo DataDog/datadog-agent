@@ -578,7 +578,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, true, serviceExtractor, nil, taggerMock, now)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, false, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -720,30 +720,53 @@ func TestProcessCheckZombieConfigControlsAggregation(t *testing.T) {
 			statsByPID := map[int32]*procutil.Stats{1: parent.Stats, 2: zombie1.Stats, 3: zombie2.Stats}
 			mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPID, statsByPID)
 
+			wantPIDs := []int32{parent.Pid}
 			var wantRealtimeState map[int32]*procutil.Stats
+			if !tc.ignoreZombies {
+				wantPIDs = append(wantPIDs, zombie1.Pid, zombie2.Pid)
+			}
 			if tc.collectRealtime {
 				wantRealtimeState = map[int32]*procutil.Stats{parent.Pid: parent.Stats}
+				if !tc.ignoreZombies {
+					wantRealtimeState[zombie1.Pid] = zombie1.Stats
+					wantRealtimeState[zombie2.Pid] = zombie2.Stats
+				}
 			}
 			first, err := processCheck.run(0, tc.collectRealtime)
 			require.NoError(t, err)
 			assert.Equal(t, CombinedRunResult{}, first)
-			assert.ElementsMatch(t, []int32{parent.Pid}, processCheck.lastPIDs)
+			assert.ElementsMatch(t, wantPIDs, processCheck.lastPIDs)
 			assert.Equal(t, wantRealtimeState, processCheck.realtimeLastProcs)
 
 			processCheck.clock.(*clock.Mock).Add(10 * time.Second)
 			actual, err := processCheck.run(0, tc.collectRealtime)
 			require.NoError(t, err)
-			require.Len(t, actual.Payloads(), 1)
-			payload := actual.Payloads()[0].(*model.CollectorProc)
-			require.Len(t, payload.Processes, 1)
-			assert.Equal(t, parent.Pid, payload.Processes[0].Pid)
-			assert.Equal(t, !tc.ignoreZombies, payload.Processes[0].HasZombieAggregation)
+			require.NotEmpty(t, actual.Payloads())
+			var payloadProcesses []*model.Process
+			for _, body := range actual.Payloads() {
+				payload := body.(*model.CollectorProc)
+				payloadProcesses = append(payloadProcesses, payload.Processes...)
+			}
+			require.Len(t, payloadProcesses, len(wantPIDs))
+			payloadByPID := make(map[int32]*model.Process, len(payloadProcesses))
+			for _, process := range payloadProcesses {
+				payloadByPID[process.Pid] = process
+			}
+			parentProcess := payloadByPID[parent.Pid]
+			require.NotNil(t, parentProcess)
+			assert.Equal(t, !tc.ignoreZombies, parentProcess.HasZombieAggregation)
 			wantZombieCount := uint32(2)
 			if tc.ignoreZombies {
 				wantZombieCount = 0
 			}
-			assert.Equal(t, wantZombieCount, payload.Processes[0].ZombieChildrenCount)
-			assert.Zero(t, payload.Processes[0].ZombieNetRate)
+			assert.Equal(t, wantZombieCount, parentProcess.ZombieChildrenCount)
+			assert.Zero(t, parentProcess.ZombieNetRate)
+			if !tc.ignoreZombies {
+				require.NotNil(t, payloadByPID[zombie1.Pid])
+				require.NotNil(t, payloadByPID[zombie2.Pid])
+				assert.Equal(t, model.ProcessState_Z, payloadByPID[zombie1.Pid].State)
+				assert.Equal(t, model.ProcessState_Z, payloadByPID[zombie2.Pid].State)
+			}
 			assert.Equal(t, wantRealtimeState, processCheck.realtimeLastProcs)
 
 			if !tc.collectRealtime {
@@ -752,9 +775,19 @@ func TestProcessCheckZombieConfigControlsAggregation(t *testing.T) {
 			}
 			require.Len(t, actual.RealtimePayloads(), 1)
 			realtimePayload := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
-			require.Len(t, realtimePayload.Stats, 1)
-			assert.Equal(t, parent.Pid, realtimePayload.Stats[0].Pid)
-			assert.NotEqual(t, model.ProcessState_Z, realtimePayload.Stats[0].ProcessState)
+			require.Len(t, realtimePayload.Stats, len(wantPIDs))
+			realtimeByPID := make(map[int32]*model.ProcessStat, len(realtimePayload.Stats))
+			for _, stats := range realtimePayload.Stats {
+				realtimeByPID[stats.Pid] = stats
+			}
+			require.NotNil(t, realtimeByPID[parent.Pid])
+			assert.NotEqual(t, model.ProcessState_Z, realtimeByPID[parent.Pid].ProcessState)
+			if !tc.ignoreZombies {
+				require.NotNil(t, realtimeByPID[zombie1.Pid])
+				require.NotNil(t, realtimeByPID[zombie2.Pid])
+				assert.Equal(t, model.ProcessState_Z, realtimeByPID[zombie1.Pid].ProcessState)
+				assert.Equal(t, model.ProcessState_Z, realtimeByPID[zombie2.Pid].ProcessState)
+			}
 		})
 	}
 }
@@ -962,9 +995,9 @@ func TestProcessTaggerIntegration(t *testing.T) {
 		syst2,
 		syst1,
 		lastRun,
-		nil,  // no lookup probe
-		nil,  // no zombie aggregates
-		true, // zombie aggregation enabled
+		nil,   // no lookup probe
+		nil,   // no zombie aggregates
+		false, // zombies are not ignored
 		serviceExtractor,
 		nil, // no GPU tags
 		taggerMock,

@@ -39,7 +39,7 @@ func (p *ProcessCheck) runRealtime(groupID int32) (RunResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	procs = filterRealtimeStats(procs)
+	procs = filterRealtimeStats(procs, p.ignoreZombieProcesses)
 
 	if p.sysprobeClient != nil && p.sysProbeConfig.ProcessModuleEnabled {
 		mergeStatWithSysprobeStats(p.lastPIDs, procs, p.sysprobeClient)
@@ -107,8 +107,7 @@ func fmtProcessStats(
 	chunk := make([]*model.ProcessStat, 0, chunkSize)
 
 	for pid, fp := range procs {
-		// Zombies are reported through parent aggregates, not realtime process records.
-		if fp == nil || fp.IsZombie() {
+		if fp == nil {
 			continue
 		}
 
@@ -164,11 +163,12 @@ func fmtProcessStats(
 	return chunked
 }
 
-// filterRealtimeStats removes nil and zombie entries from realtime process stats.
-func filterRealtimeStats(stats map[int32]*procutil.Stats) map[int32]*procutil.Stats {
+// filterRealtimeStats removes nil entries and, when configured, zombie entries
+// from realtime process stats.
+func filterRealtimeStats(stats map[int32]*procutil.Stats, zombiesIgnored bool) map[int32]*procutil.Stats {
 	filtered := make(map[int32]*procutil.Stats, len(stats))
 	for pid, stat := range stats {
-		if stat == nil || stat.IsZombie() {
+		if stat == nil || (zombiesIgnored && stat.IsZombie()) {
 			continue
 		}
 		filtered[pid] = stat

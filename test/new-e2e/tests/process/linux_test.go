@@ -203,10 +203,10 @@ func (s *linuxTestSuite) TestZombieProcessAggregation() {
 		}, time.Minute, time.Second)
 		return int32(pid)
 	}
-	assertRealtimeExcludesPID := func(pid int32) {
+	assertRealtimeZombieCollection := func(pid int32, wantCollected bool) {
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			check := s.Env().RemoteHost.MustExecuteOn(c, "sudo datadog-agent processchecks rtprocess --json")
-			assertManualRTProcessNotCollected(c, check, pid)
+			assertManualRTProcessCollection(c, check, pid, wantCollected)
 		}, 2*time.Minute, 10*time.Second)
 	}
 
@@ -252,7 +252,7 @@ func (s *linuxTestSuite) TestZombieProcessAggregation() {
 		require.NoError(c, err, "failed to get process payloads from fakeintake")
 		assertZombieAggregationPayloads(c, payloads, parentPID, zombiePID, true)
 	}, 2*time.Minute, 5*time.Second)
-	assertRealtimeExcludesPID(zombiePID)
+	assertRealtimeZombieCollection(zombiePID, true)
 
 	// Preserve the same fixture across the Agent restart and verify the
 	// compatibility mode disables aggregation while continuing to omit zombies.
@@ -268,7 +268,7 @@ func (s *linuxTestSuite) TestZombieProcessAggregation() {
 		require.NoError(c, err, "failed to get process payloads from fakeintake")
 		assertZombieAggregationPayloads(c, payloads, parentPID, zombiePID, false)
 	}, 2*time.Minute, 10*time.Second)
-	assertRealtimeExcludesPID(zombiePID)
+	assertRealtimeZombieCollection(zombiePID, false)
 }
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {

@@ -91,7 +91,7 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 	assert.Equal(t, int32(len(processCheck.hostInfo.SystemInfo.Cpus)), rt.NumCpus)
 }
 
-func TestRunRealtimeFiltersProcessThatBecameZombie(t *testing.T) {
+func TestRunRealtimeEmitsProcessThatBecameZombie(t *testing.T) {
 	processCheck, probe, _ := processCheckWithMocks(t)
 	processCheck.lastPIDs = []int32{1}
 	processCheck.realtimeLastProcs = map[int32]*procutil.Stats{1: makeProcessStats()}
@@ -104,11 +104,15 @@ func TestRunRealtimeFiltersProcessThatBecameZombie(t *testing.T) {
 
 	actual, err := processCheck.runRealtime(0)
 	require.NoError(t, err)
-	assert.Empty(t, actual.RealtimePayloads())
-	assert.Empty(t, processCheck.realtimeLastProcs)
+	require.Len(t, actual.RealtimePayloads(), 1)
+	payload := actual.RealtimePayloads()[0].(*model.CollectorRealTime)
+	require.Len(t, payload.Stats, 1)
+	assert.Equal(t, int32(1), payload.Stats[0].Pid)
+	assert.Equal(t, model.ProcessState_Z, payload.Stats[0].ProcessState)
+	assert.Equal(t, map[int32]*procutil.Stats{1: zombie}, processCheck.realtimeLastProcs)
 }
 
-func TestFmtProcessStatsSkipsZombies(t *testing.T) {
+func TestFmtProcessStatsEmitsZombies(t *testing.T) {
 	live := makeProcessStats()
 	zombie := makeProcessStats()
 	zombie.Status = "Z"
@@ -124,9 +128,13 @@ func TestFmtProcessStatsSkipsZombies(t *testing.T) {
 		time.Now(),
 	)
 	require.Len(t, chunked, 1)
-	require.Len(t, chunked[0], 1)
-	assert.Equal(t, int32(1), chunked[0][0].Pid)
-	assert.NotEqual(t, model.ProcessState_Z, chunked[0][0].ProcessState)
+	require.Len(t, chunked[0], 2)
+	statsByPID := map[int32]*model.ProcessStat{}
+	for _, stats := range chunked[0] {
+		statsByPID[stats.Pid] = stats
+	}
+	assert.NotEqual(t, model.ProcessState_Z, statsByPID[1].ProcessState)
+	assert.Equal(t, model.ProcessState_Z, statsByPID[2].ProcessState)
 
 	allZombies := fmtProcessStats(
 		10,
@@ -138,16 +146,19 @@ func TestFmtProcessStatsSkipsZombies(t *testing.T) {
 		time.Now().Add(-time.Second),
 		time.Now(),
 	)
-	assert.Empty(t, allZombies)
+	require.Len(t, allZombies, 1)
+	require.Len(t, allZombies[0], 1)
+	assert.Equal(t, model.ProcessState_Z, allZombies[0][0].ProcessState)
 }
 
 func TestFilterRealtimeStats(t *testing.T) {
 	live := makeProcessStats()
 	zombie := makeProcessStats()
 	zombie.Status = "Z"
+	stats := map[int32]*procutil.Stats{1: live, 2: zombie, 3: nil}
 
-	filtered := filterRealtimeStats(map[int32]*procutil.Stats{1: live, 2: zombie, 3: nil})
-	assert.Equal(t, map[int32]*procutil.Stats{1: live}, filtered)
+	assert.Equal(t, map[int32]*procutil.Stats{1: live, 2: zombie}, filterRealtimeStats(stats, false))
+	assert.Equal(t, map[int32]*procutil.Stats{1: live}, filterRealtimeStats(stats, true))
 }
 
 // TestFmtProcessStats test the chunking logic of fmtProcessStats
