@@ -743,10 +743,10 @@ platform and then actually executed.
 For Windows, such a generator runs on Linux under `//bazel/tools/wine:wine_run`,
 which uses a pinned Wine (under box64 on aarch64) from its runfiles, never the
 host's. Follow the `backend_windows_schema_gen` pattern: a `go_cross_binary` of
-the generator for `windows_amd64`, and a `select()` on `@platforms//os:windows`
-for the `run_binary`'s `srcs`, `args` and `tool`. `wine_run` only supports Linux
-x86_64 and aarch64 (4K pages), so on macOS such targets are skipped as
-incompatible.
+the generator for `windows_amd64`, a native `run_binary` and a Wine `run_binary`,
+and an `alias` that selects between them on `@platforms//os:windows`. `wine_run`
+only supports Linux x86_64 and aarch64 (4K pages), so on macOS the Wine target
+is skipped as incompatible.
 
 ## Depsets and rule performance
 
