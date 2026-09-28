@@ -17,39 +17,46 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
-//go:embed config/basic_host_traffic_dynamic_path.yaml
-var basicHostTrafficDynamicPathAgentConfig string
+//go:embed config/eudm_host_traffic_dynamic_path.yaml
+var eudmHostTrafficDynamicPathAgentConfig string
 
-type basicHostTrafficDynamicPathSuite struct {
+const eudmHostTrafficSystemProbeConfig = `network_config:
+  enabled: false
+  direct_send: false
+`
+
+type eudmHostTrafficDynamicPathSuite struct {
 	hostTrafficDynamicPathSuite
 }
 
-// TestBasicHostTrafficDynamicPathSuite verifies basic tests from packaged Agent configuration through fakeintake.
-func TestBasicHostTrafficDynamicPathSuite(t *testing.T) {
-	e2e.Run(t, &basicHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("basicHostTrafficDynamicPath", basicHostTrafficDynamicPathAgentConfig, hostTrafficSystemProbeConfig)))
+// TestEUDMHostTrafficDynamicPathSuite verifies default-on EUDM basic tests from packaged Agent configuration through fakeintake.
+func TestEUDMHostTrafficDynamicPathSuite(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &eudmHostTrafficDynamicPathSuite{}, e2e.WithProvisioner(hostTrafficDynamicPathProvisioner("eudmHostTrafficDynamicPath", eudmHostTrafficDynamicPathAgentConfig, eudmHostTrafficSystemProbeConfig)))
 }
 
-func (s *basicHostTrafficDynamicPathSuite) SetupSuite() {
+func (s *eudmHostTrafficDynamicPathSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 	s.ensureCurlInstalled()
 	s.startHostTrafficDNSServer()
 	s.configureAgentResolver()
 	s.assertHostTrafficDomainResolves()
 
-	// direct_send is false, so process-agent owns the selector. Restart it after
-	// infrastructure setup so traffic cannot miss the five-minute bootstrap window.
+	// Restart the process-agent after setup so the first observation window sees
+	// the generated traffic. CNM is off; EUDM must start both network collection
+	// and traceroute for this payload to arrive.
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-process.service")
 	require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 }
 
-func (s *basicHostTrafficDynamicPathSuite) TearDownSuite() {
+func (s *eudmHostTrafficDynamicPathSuite) TearDownSuite() {
 	s.stopHostTrafficGenerator()
 	s.restoreAgentResolver()
 	s.stopHostTrafficDNSServer()
 	s.BaseSuite.TearDownSuite()
 }
 
-func (s *basicHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
+func (s *eudmHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 	fakeintake := s.Env().FakeIntake.Client()
 	s.startHostTrafficGenerator(6 * time.Minute)
 
@@ -59,9 +66,9 @@ func (s *basicHostTrafficDynamicPathSuite) TestHostTrafficDynamicNetworkPath() {
 		require.NotEmpty(c, netpaths, "no network path events")
 
 		match := findHostTrafficNetworkPath(netpaths, hostTrafficRemoteConfigDomain)
-		require.NotNil(c, match, "no basic host-traffic network path event matched %s:80", hostTrafficRemoteConfigDomain)
+		require.NotNil(c, match, "no EUDM basic path matched %s:80", hostTrafficRemoteConfigDomain)
 
-		assert.Equal(c, payload.SourceProductNetworkPath, match.SourceProduct)
+		assert.Equal(c, payload.SourceProductEndUserDevice, match.SourceProduct)
 		assert.Equal(c, payload.TestRunTypeDynamic, match.TestRunType)
 		assert.Equal(c, payload.DynamicTestProfileBasic, match.DynamicTestProfile)
 		assert.Equal(c, payload.DynamicTestClassCore, match.DynamicTestClass)
