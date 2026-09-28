@@ -1896,7 +1896,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
 		require.NoErrorf(c, err, "Failed to query fake intake")
 
-		// We are not expected to see kube_service tag on the Delete event
+		// kube_service is optional: the tagger drops it once the pod stops being
+		// Ready, which can land before or after the Delete event is flushed.
 		expectedPodEventTags := []*regexp.Regexp{
 			regexp.MustCompile(`^domain:deployment$`),
 			regexp.MustCompile(`^kube_deployment:nginx$`),
@@ -1913,6 +1914,10 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			regexp.MustCompile(`^team:contp$`),
 		}
 
+		optionalPodEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^kube_service:nginx$`),
+		}
+
 		foundPodEvent := false
 		foundPodEventWithTags := false
 		var lastTagsErr error
@@ -1921,7 +1926,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			if podEvent := event.GetPod(); podEvent != nil && types.UID(podEvent.GetPodUID()) == nginxPod.UID && event.GetEventType() == contlcycle.Event_Delete {
 				foundPodEvent = true
 
-				err := assertTags(event.GetTags(), expectedPodEventTags, []*regexp.Regexp{}, false)
+				err := assertTags(event.GetTags(), expectedPodEventTags, optionalPodEventTags, false)
 				if err == nil {
 					foundPodEventWithTags = true
 				} else {
