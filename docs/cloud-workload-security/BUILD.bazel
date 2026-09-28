@@ -74,8 +74,8 @@ run_binary(
 run_binary(
     name = "backend_windows_schema_gen_wine",
     srcs = [
-        "//pkg/security/serializers:serializers_sources",
         "//pkg/security/generators/backend_doc:backend_doc_windows",
+        "//pkg/security/serializers:serializers_sources",
     ],
     outs = ["backend_windows_schema_gen_wine/backend_windows.schema.json"],
     args = [
