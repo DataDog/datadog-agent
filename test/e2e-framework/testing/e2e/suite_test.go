@@ -533,29 +533,41 @@ func TestArmDeadlineWatchdog(t *testing.T) {
 	})
 }
 
-// TestDeadlineTeardownCapsTeardownOperations verifies teardown operations run
-// under a context capped at the remaining teardown budget (budget minus the
-// minute reserved for the stackcleaner request), so a slow Diagnose or destroy
-// cannot eat the time the stackcleaner request needs.
+// Teardown must preserve the stackcleaner reserve even after provisioning consumes budget.
 func TestDeadlineTeardownCapsTeardownOperations(t *testing.T) {
 	t.Setenv("REMOTE_STACK_CLEANING", "") // force the local destroy path
 	t.Setenv("E2E_TEARDOWN_BUDGET", "2m")
 
-	p := &testProvisioner{}
-	p.On("ID").Return("test")
-	var destroyCtx context.Context
-	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).
-		Run(func(args mock.Arguments) { destroyCtx = args.Get(0).(context.Context) })
+	for _, tc := range []struct {
+		name      string
+		elapsed   time.Duration
+		remaining time.Duration
+	}{
+		{"no time consumed", 0, time.Minute},
+		{"provisioning consumed time", 30 * time.Second, 30 * time.Second},
+		{"only the reserve remains", 90 * time.Second, -30 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &testProvisioner{}
+			p.On("ID").Return("test")
+			var destroyCtx context.Context
+			p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).
+				Run(func(args mock.Arguments) { destroyCtx = args.Get(0).(context.Context) })
 
-	s := &testNoOpSuite{}
-	s.init([]SuiteOption{WithProvisioner(p)}, s)
-	s.SetT(t)
+			s := &testNoOpSuite{}
+			s.init([]SuiteOption{WithProvisioner(p)}, s)
+			s.SetT(t)
+			now := time.Now()
+			s.e2eDeadline = now.Add(-tc.elapsed)
 
-	s.runDeadlineTeardown(t)
+			s.runDeadlineTeardown(t)
 
-	deadline, ok := destroyCtx.Deadline()
-	require.True(t, ok, "Destroy should run with a deadline-capped context")
-	require.WithinDuration(t, time.Now().Add(time.Minute), deadline, 10*time.Second)
+			require.NotNil(t, destroyCtx)
+			deadline, ok := destroyCtx.Deadline()
+			require.True(t, ok, "Destroy should run with a deadline-capped context")
+			require.Equal(t, now.Add(tc.remaining), deadline)
+		})
+	}
 }
 
 // testDeadlineChildSuite is run by TestDeadlineWatchdogProcess inside a child

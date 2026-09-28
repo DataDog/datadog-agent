@@ -919,15 +919,13 @@ func (bs *BaseSuite[Env]) teardownSuite() {
 
 	ctx, cancel := bs.providerContext(deleteTimeout)
 	defer cancel()
-	if bs.deadlineTeardown.Load() {
-		// Cap teardown operations (Diagnose first, then the destroy loop) so a
-		// slow one cannot use up the time needed to send the stackcleaner
-		// request.
-		if budget := bs.teardownBudget() - time.Minute; budget > 0 {
-			cappedCtx, cappedCancel := context.WithTimeout(ctx, budget)
-			defer cappedCancel()
-			ctx = cappedCtx
-		}
+	if bs.deadlineTeardown.Load() && !bs.e2eDeadline.IsZero() {
+		// Reserve a minute before the Go deadline for stackcleaner requests,
+		// including time already spent waiting for provisioning or suite overrides.
+		deadline := bs.e2eDeadline.Add(bs.teardownBudget() - time.Minute)
+		cappedCtx, cappedCancel := context.WithDeadline(ctx, deadline)
+		defer cappedCancel()
+		ctx = cappedCtx
 	}
 
 	for id, provisioner := range bs.originalProvisioners {
