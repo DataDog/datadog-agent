@@ -138,6 +138,45 @@ func TestGetPodLogsMaskSequences(t *testing.T) {
 	require.Equal(t, "first token=[MASKED]\ndrop this\nsecond token=[MASKED]", logs)
 }
 
+func TestGetPodLogsMaskSequencesAppliesAnchoredRulesPerEntry(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{
+				"type":                "mask_sequences",
+				"name":                "mask_token",
+				"pattern":             `^token=.*$`,
+				"replace_placeholder": "token=[MASKED]",
+			},
+		},
+	})
+
+	handler := newGetPodLogsHandler(config)
+	tests := []struct {
+		name string
+		logs string
+		want string
+	}{
+		{
+			name: "newline-delimited entries",
+			logs: "token=first\ntoken=second\nvisible\n",
+			want: "token=[MASKED]\ntoken=[MASKED]\nvisible\n",
+		},
+		{
+			name: "CRLF-delimited entries without trailing delimiter",
+			logs: "token=first\r\ntoken=second\r\nvisible",
+			want: "token=[MASKED]\r\ntoken=[MASKED]\r\nvisible",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logs, err := handler.maskSequences(test.logs)
+			require.NoError(t, err)
+			require.Equal(t, test.want, logs)
+		})
+	}
+}
+
 func TestGetPodLogsMaskSequencesRejectsInvalidRules(t *testing.T) {
 	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 		"logs_config.processing_rules": []map[string]interface{}{
