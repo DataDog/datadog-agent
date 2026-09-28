@@ -170,7 +170,6 @@ func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 		tags:    []string{"service:api"},
 	})
 	require.Empty(t, out.Metrics)
-	require.Empty(t, out.Telemetry)
 }
 
 func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {

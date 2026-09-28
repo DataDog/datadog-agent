@@ -28,7 +28,7 @@
 --     detectors, correlators, scheduler, storage engine)
 --   - How and when correlators fire CorrelationDetected events (owned by
 --     comp/anomalydetection/observer correlationEmitter)
---   - The shape of upstream signals (metric series, log streams, RRCF) and
+--   - The shape of upstream signals (metric series, log streams) and
 --     how they become Anomaly values
 --   - Event-platform forwarder transport (HTTP delivery, retry, backpressure,
 --     domain selection); the forwarder is treated as an external service

@@ -581,12 +581,6 @@ func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesRef(999), 100)) // non-existent ID
 }
 
-func TestPointCount_ColumnarLayout(t *testing.T) {
-	s := makeRangeStorage()
-	assert.Equal(t, 5, s.PointCount(rangeID))
-	assert.Equal(t, 0, s.PointCount(observer.SeriesRef(999))) // non-existent ID
-}
-
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	s := newTimeSeriesStorage()
 	// Insert out of order — storage keeps buckets sorted.

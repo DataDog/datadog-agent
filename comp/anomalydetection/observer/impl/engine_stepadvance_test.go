@@ -47,8 +47,13 @@ func (d *fixedDetector) Detect(_ observer.StorageReader, _ int64) observer.Detec
 }
 
 func makeTestAnomaly(name string, ts int64) observer.Anomaly {
+	ref := observer.SeriesRef(0)
+	if name == "metric_b" {
+		ref = 1
+	}
 	return observer.Anomaly{
 		Source:       observer.SeriesDescriptor{Namespace: "ns", Name: name, Aggregate: observer.AggregateAverage},
+		SourceRef:    &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage},
 		DetectorName: "scanmw",
 		Timestamp:    ts,
 		Description:  name + " changed",

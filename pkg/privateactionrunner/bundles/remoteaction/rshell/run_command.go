@@ -54,12 +54,15 @@ var statFn = os.Stat
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
-	OperatorAllowedPaths          []string
-	OperatorAllowedCommands       []string
-	OperatorAllowedSystemServices map[string][]string
-	DisableDetailedTelemetry      bool
-	PrivilegedEnabled             bool
-	PrivilegedSocket              string
+	OperatorAllowedPaths              []string
+	OperatorAllowedCommands           []string
+	OperatorAllowedSystemServices     map[string][]string
+	DisableDetailedTelemetry          bool
+	PrivilegedEnabled                 bool
+	PrivilegedSocket                  string
+	OperatorElevatableCommands        []string
+	OperatorAllowedCommandsConfigured bool
+	OperatorAllowedPathsConfigured    bool
 }
 
 // RunCommandHandler implements the runCommand and runRemediationCommand actions.
@@ -88,13 +91,16 @@ type RunCommandHandlerConfig struct {
 // An explicitly configured empty operator list or service map is the
 // kill-switch for that axis.
 type RunCommandHandler struct {
-	operatorAllowedPaths          []string
-	operatorAllowedCommands       []string
-	operatorAllowedSystemServices map[string][]string
-	disableCommandTelemetry       bool
-	mode                          interp.Mode
-	privilegedEnabled             bool
-	privilegedSocket              string
+	operatorAllowedPaths              []string
+	operatorAllowedCommands           []string
+	operatorAllowedSystemServices     map[string][]string
+	disableCommandTelemetry           bool
+	mode                              interp.Mode
+	privilegedEnabled                 bool
+	privilegedSocket                  string
+	operatorElevatableCommands        []string
+	operatorAllowedCommandsConfigured bool
+	operatorAllowedPathsConfigured    bool
 }
 
 // newRunCommandHandler builds a run-command handler and precomputes the
@@ -111,15 +117,22 @@ func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCom
 	slices.Sort(commands)
 	commands = slices.Compact(commands)
 
+	elevatableCommands := slices.Clone(cfg.OperatorElevatableCommands)
+	slices.Sort(elevatableCommands)
+	elevatableCommands = slices.Compact(elevatableCommands)
+
 	services := cloneSystemServiceAllowlist(cfg.OperatorAllowedSystemServices)
 	return &RunCommandHandler{
-		operatorAllowedPaths:          reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
-		operatorAllowedCommands:       commands,
-		operatorAllowedSystemServices: services,
-		disableCommandTelemetry:       cfg.DisableDetailedTelemetry,
-		mode:                          mode,
-		privilegedEnabled:             cfg.PrivilegedEnabled,
-		privilegedSocket:              cfg.PrivilegedSocket,
+		operatorAllowedPaths:              reducePathListToBroadest(cleanPathList(cfg.OperatorAllowedPaths)),
+		operatorAllowedCommands:           commands,
+		operatorAllowedSystemServices:     services,
+		disableCommandTelemetry:           cfg.DisableDetailedTelemetry,
+		mode:                              mode,
+		privilegedEnabled:                 cfg.PrivilegedEnabled,
+		privilegedSocket:                  cfg.PrivilegedSocket,
+		operatorElevatableCommands:        elevatableCommands,
+		operatorAllowedCommandsConfigured: cfg.OperatorAllowedCommandsConfigured,
+		operatorAllowedPathsConfigured:    cfg.OperatorAllowedPathsConfigured,
 	}
 }
 
@@ -378,8 +391,9 @@ func (h *RunCommandHandler) Run(
 }
 
 func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task, inputs RunCommandInputs) (interface{}, error) {
-	log.Infof("rshell runPrivileged (mode=%s): elevatableCommands=%v privilegedEnabled=%v privilegedSocket=%s disableDetailedTelemetry=%v",
-		h.mode, inputs.ElevatableCommands, h.privilegedEnabled, h.privilegedSocket, h.disableCommandTelemetry)
+	agentPolicy := h.buildAgentPolicy()
+	log.Infof("rshell runPrivileged (mode=%s): elevatableCommands=%v privilegedEnabled=%v privilegedSocket=%s disableDetailedTelemetry=%v agentPolicy=%+v",
+		h.mode, inputs.ElevatableCommands, h.privilegedEnabled, h.privilegedSocket, h.disableCommandTelemetry, agentPolicy)
 	if !h.privilegedEnabled {
 		return nil, errors.New("privileged rshell execution is disabled by local configuration")
 	}
@@ -424,12 +438,41 @@ func (h *RunCommandHandler) runPrivileged(ctx context.Context, task *types.Task,
 		}, {
 			ID: verificationKey.ID, Type: privilegedhelper.KeyType(verificationKey.KeyType), PEM: verificationKey.PEM,
 		}},
+		AgentPolicy: agentPolicy,
 	}
 	response, err := (privilegedhelper.Client{SocketPath: h.privilegedSocket}).Execute(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("privileged rshell helper: %w", err)
 	}
 	return &RunCommandOutputs{ExitCode: response.ExitCode, Stdout: response.Stdout, Stderr: response.Stderr, SandboxWarnings: response.SandboxWarnings}, nil
+}
+
+// buildAgentPolicy forwards configured local restrictions.
+func (h *RunCommandHandler) buildAgentPolicy() *privilegedhelper.AgentPolicy {
+	policy := &privilegedhelper.AgentPolicy{}
+	configured := false
+
+	if h.operatorAllowedCommandsConfigured {
+		policy.AllowedCommands = h.operatorAllowedCommands
+		configured = true
+	}
+	if h.operatorAllowedPathsConfigured {
+		policy.AllowedPaths = h.operatorAllowedPaths
+		configured = true
+	}
+	if h.operatorAllowedSystemServices != nil {
+		policy.AllowedSystemServices = h.operatorAllowedSystemServices
+		configured = true
+	}
+	if h.operatorElevatableCommands != nil {
+		policy.ElevatableCommands = h.operatorElevatableCommands
+		configured = true
+	}
+
+	if !configured {
+		return nil
+	}
+	return policy
 }
 
 func backendAllowlistsFromTask(task *types.Task) ([]string, []string, map[string]*structpb.ListValue, error) {

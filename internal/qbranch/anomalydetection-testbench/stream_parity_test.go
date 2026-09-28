@@ -115,7 +115,6 @@ func TestHeadlessDetectorOutputIsEmptyArrayWithoutEmissions(t *testing.T) {
 		IncludeDetectorAnomalies: true,
 		ComponentSettings: observerimpl.ComponentSettings{Enabled: map[string]bool{
 			"bocpd": false,
-			"rrcf":  false,
 		}},
 	})
 

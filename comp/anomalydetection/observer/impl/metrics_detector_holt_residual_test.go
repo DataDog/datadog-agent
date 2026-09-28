@@ -296,8 +296,7 @@ func TestHoltResidual_Name(t *testing.T) {
 
 // TestHoltResidual_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
-// observer.Detector AND observer.SeriesRemover (it is stateful and is NOT
-// listed in statelessDetectorAllowlist).
+// observer.Detector AND observer.SeriesRemover so eviction frees its state.
 func TestHoltResidual_InterfaceContracts(_ *testing.T) {
 	d := NewHoltResidualDetector()
 	var _ observer.Detector = d
