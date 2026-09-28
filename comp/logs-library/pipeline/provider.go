@@ -122,6 +122,7 @@ func NewProvider(
 					ConnectTimeout:    dest.ConnectTimeout,
 					ShutdownTimeout:   dest.ShutdownTimeout,
 					StateRequestBytes: dest.StateRequestBytes,
+					BatchWait:         dest.BatchWait,
 				})
 			}
 		}
