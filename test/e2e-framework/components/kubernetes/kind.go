@@ -100,7 +100,7 @@ func NewKindClusterWithConfig(env config.Env, vm *remote.Host, name, kubeVersion
 			return fmt.Errorf("could not generate kind cluster config: %w", err)
 		}
 
-		kindBinary, kindInstall, err := InstallKindBinary(env, vm, kindVersionConfig.KindVersion, opts...)
+		kindBinary, kindInstall, err := requireKindBinary(env, vm, kindVersionConfig.KindVersion, opts...)
 		if err != nil {
 			return err
 		}
@@ -260,24 +260,16 @@ func NewLocalKindClusterWithConfig(env config.Env, name string, kubeVersion stri
 	}, opts...)
 }
 
-func InstallKindBinary(env config.Env, vm *remote.Host, kindVersion string, opts ...pulumi.ResourceOption) (string, pulumi.Resource, error) {
-	kindArch := vm.OS.Descriptor().Architecture
-	if kindArch == os.AMD64Arch {
-		kindArch = "amd64"
-	}
-
-	kindBinary := "kind"
-	createCmd := fmt.Sprintf(`curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/%s/kind-linux-%s" && sudo install kind /usr/local/bin/kind`, kindVersion, kindArch)
-
-	if bin := KindBinaryName(kindVersion); bin != "" {
-		kindBinary = bin
-		createCmd = fmt.Sprintf(`[ -x /usr/local/bin/%[1]s ] || (curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/%[2]s/kind-linux-%[3]s" && sudo install kind /usr/local/bin/kind && sudo install kind /usr/local/bin/%[1]s)`, bin, kindVersion, kindArch)
+func requireKindBinary(env config.Env, vm *remote.Host, kindVersion string, opts ...pulumi.ResourceOption) (string, pulumi.Resource, error) {
+	kindBinary := KindBinaryName(kindVersion)
+	if kindBinary == "" {
+		return "", nil, fmt.Errorf("no preinstalled kind binary for kind version %s", kindVersion)
 	}
 
 	cmd, err := vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("kind-install"),
 		&command.Args{
-			Create: pulumi.String(createCmd),
+			Create: pulumi.Sprintf("[ -x /usr/local/bin/%s ] || { echo \"kind %s is not preinstalled on this image\" >&2; exit 1; }", kindBinary, kindVersion),
 		},
 		opts...,
 	)
