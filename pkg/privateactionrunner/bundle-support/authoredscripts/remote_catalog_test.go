@@ -7,7 +7,6 @@ package authoredscripts
 
 import (
 	"encoding/json"
-	"errors"
 	"runtime"
 	"testing"
 
@@ -43,27 +42,18 @@ func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 	client := &testCatalogRCClient{}
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
-	if client.subscribeCount != 1 {
-		t.Fatalf("Subscribe() calls = %d, want 1", client.subscribeCount)
-	}
-	if client.product != testCatalogProduct {
-		t.Fatalf("subscribed product = %q, want %q", client.product, testCatalogProduct)
-	}
-	if client.handler == nil {
-		t.Fatal("Subscribe() handler is nil")
-	}
-	if _, err := catalog.Lookup(testCatalogFQN); !errors.Is(err, ErrPackageNotConfigured) {
-		t.Fatalf("Lookup() error = %v, want ErrPackageNotConfigured", err)
-	}
+	require.Equal(t, 1, client.subscribeCount)
+	require.Equal(t, testCatalogProduct, client.product)
+	require.NotNil(t, client.handler)
+	_, err = catalog.Lookup(testCatalogFQN)
+	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
 
 func TestNewRemoteCatalogValidatesDependencies(t *testing.T) {
-	if _, err := NewRemoteCatalog(nil, testCatalogProduct); err == nil {
-		t.Fatal("NewRemoteCatalog() with nil client succeeded")
-	}
-	if _, err := NewRemoteCatalog(&testCatalogRCClient{}, ""); err == nil {
-		t.Fatal("NewRemoteCatalog() with empty product succeeded")
-	}
+	_, err := NewRemoteCatalog(nil, testCatalogProduct)
+	require.Error(t, err)
+	_, err = NewRemoteCatalog(&testCatalogRCClient{}, "")
+	require.Error(t, err)
 }
 
 func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
@@ -89,27 +79,19 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 			Arch:     "not-" + runtime.GOARCH,
 		},
 	}})
-	if status.State != state.ApplyStateAcknowledged {
-		t.Fatalf("apply status = %#v, want acknowledged", status)
-	}
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
 
 	descriptor, err := catalog.Lookup(testCatalogFQN)
 	require.NoError(t, err)
 	want := Descriptor{FQN: testCatalogFQN, Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
-	if descriptor != want {
-		t.Fatalf("Lookup() = %#v, want %#v", descriptor, want)
-	}
-	if _, err := catalog.Lookup("com.datadoghq.authoredscripts.otherAction"); !errors.Is(err, ErrPackageNotConfigured) {
-		t.Fatalf("Lookup() for incompatible package error = %v, want ErrPackageNotConfigured", err)
-	}
+	require.Equal(t, want, descriptor)
+	_, err = catalog.Lookup("com.datadoghq.authoredscripts.otherAction")
+	require.ErrorIs(t, err, ErrPackageNotConfigured)
 
 	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{})
-	if status.State != state.ApplyStateAcknowledged {
-		t.Fatalf("empty snapshot apply status = %#v, want acknowledged", status)
-	}
-	if _, err := catalog.Lookup(testCatalogFQN); !errors.Is(err, ErrPackageNotConfigured) {
-		t.Fatalf("Lookup() after replacement error = %v, want ErrPackageNotConfigured", err)
-	}
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+	_, err = catalog.Lookup(testCatalogFQN)
+	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
 
 func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
@@ -117,22 +99,18 @@ func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 	valid := validRemotePackage()
-	if status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{valid}}); status.State != state.ApplyStateAcknowledged {
-		t.Fatalf("valid apply status = %#v, want acknowledged", status)
-	}
+	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{valid}})
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
 
 	invalid := valid
 	invalid.URL = "oci://registry.example.test/authored-script@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{invalid}})
-	if status.State != state.ApplyStateError || status.Error == "" {
-		t.Fatalf("invalid apply status = %#v, want error", status)
-	}
+	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{invalid}})
+	require.Equal(t, state.ApplyStateError, status.State)
+	require.NotEmpty(t, status.Error)
 
 	descriptor, err := catalog.Lookup(testCatalogFQN)
 	require.NoError(t, err)
-	if descriptor.Version != valid.Version {
-		t.Fatalf("Lookup() version = %q, want preserved version %q", descriptor.Version, valid.Version)
-	}
+	require.Equal(t, valid.Version, descriptor.Version)
 }
 
 func TestRemoteCatalogRejectsMultipleCompatiblePackages(t *testing.T) {
@@ -144,9 +122,8 @@ func TestRemoteCatalogRejectsMultipleCompatiblePackages(t *testing.T) {
 	duplicate.Version = "2.0.0"
 
 	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{pkg, duplicate}})
-	if status.State != state.ApplyStateError || status.Error == "" {
-		t.Fatalf("duplicate apply status = %#v, want error", status)
-	}
+	require.Equal(t, state.ApplyStateError, status.State)
+	require.NotEmpty(t, status.Error)
 }
 
 func validRemotePackage() fleetcatalog.Package {

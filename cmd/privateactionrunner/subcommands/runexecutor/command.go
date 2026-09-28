@@ -9,6 +9,7 @@ package runexecutor
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -41,10 +42,23 @@ import (
 
 type cliParams struct {
 	*command.GlobalParams
+	executorSocket string
+	ipcCertFile    string
+}
+
+func (p *cliParams) configParams() config.Params {
+	options := []func(*config.Params){config.WithExtraConfFiles(p.ExtraConfFilePath)}
+	if p.executorSocket != "" {
+		options = append(options, config.WithCLIOverride(privateactionrunner.PARExecutorSocketPath, p.executorSocket))
+	}
+	if p.ipcCertFile != "" {
+		options = append(options, config.WithCLIOverride("ipc_cert_file_path", p.ipcCertFile))
+	}
+	return config.NewAgentParams(p.ConfFilePath, options...)
 }
 
 // runExecutor runs the private action runner in on-demand executor mode.
-func runExecutor(ctx context.Context, confPath string, extraConfFiles []string) error {
+func runExecutor(ctx context.Context, params *cliParams) error {
 	fxOptions := []fx.Option{
 		fx.Provide(func() context.Context { return ctx }),
 		fx.Invoke(func(shutdowner fx.Shutdowner) {
@@ -54,7 +68,7 @@ func runExecutor(ctx context.Context, confPath string, extraConfFiles []string) 
 			}()
 		}),
 		fx.Supply(core.BundleParams{
-			ConfigParams: config.NewAgentParams(confPath, config.WithExtraConfFiles(extraConfFiles)),
+			ConfigParams: params.configParams(),
 			LogParams:    log.ForDaemon(command.LoggerName, pkgconfigsetup.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
 		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
@@ -97,10 +111,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "run-executor",
 		Short: "Run the Private Action Runner on-demand executor",
 		Long:  `Runs the private-action-runner on-demand executor (split deployment model) in the foreground`,
+		PreRunE: func(cmd *cobra.Command, _ []string) error {
+			for flag, value := range map[string]string{"executor-socket": cliParams.executorSocket, "ipc-cert-file": cliParams.ipcCertFile} {
+				if cmd.Flags().Changed(flag) && value == "" {
+					return fmt.Errorf("--%s must not be empty", flag)
+				}
+			}
+			return nil
+		},
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runExecutor(context.Background(), globalParams.ConfFilePath, cliParams.ExtraConfFilePath)
+			return runExecutor(context.Background(), cliParams)
 		},
 	}
+
+	runExecutorCmd.Flags().StringVar(&cliParams.executorSocket, "executor-socket", "", "executor socket or named pipe supplied by the process manager")
+	runExecutorCmd.Flags().StringVar(&cliParams.ipcCertFile, "ipc-cert-file", "", "shared Agent IPC certificate supplied by the process manager")
 
 	return []*cobra.Command{runExecutorCmd}
 }

@@ -33,7 +33,7 @@ replace (
 require (
 	code.cloudfoundry.org/bbs v1.3.0
 	code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9
-	code.cloudfoundry.org/garden v0.3.0
+	code.cloudfoundry.org/garden v0.4.0
 	code.cloudfoundry.org/lager/v3 v3.87.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
@@ -200,6 +200,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/uuid v0.69.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0
 	github.com/DataDog/datadog-agent/pkg/version v0.82.0
+	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/test/fakeintake v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-api-client-go/v2 v2.65.0
 	github.com/DataDog/datadog-go/v5 v5.9.1
@@ -242,7 +243,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
-	github.com/bmatcuk/doublestar/v4 v4.10.0
+	github.com/bmatcuk/doublestar/v4 v4.10.2
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
@@ -251,7 +252,7 @@ require (
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.1.3
 	github.com/containerd/containerd/api v1.11.1
-	github.com/containerd/containerd/v2 v2.2.8
+	github.com/containerd/containerd/v2 v2.2.9
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.3.0
 	github.com/containernetworking/cni v1.3.1
@@ -262,7 +263,7 @@ require (
 	github.com/cyphar/filepath-securejoin v0.7.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/distribution/reference v0.6.0
-	github.com/dustin/go-humanize v1.0.1
+	github.com/dustin/go-humanize v1.1.0
 	github.com/elastic/go-freelru v0.16.0
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
@@ -282,7 +283,8 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gocomply/scap v0.1.3
 	github.com/godbus/dbus/v5 v5.2.2
-	github.com/godror/godror v0.51.4
+	github.com/godror/godror v0.51.5
+	github.com/gofrs/flock v0.13.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
@@ -295,7 +297,7 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/gosnmp/gosnmp v1.44.0
+	github.com/gosnmp/gosnmp v1.45.0
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.4
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api/v2 v2.0.0
@@ -359,7 +361,7 @@ require (
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/pierrec/lz4/v4 v4.1.29
+	github.com/pierrec/lz4/v4 v4.1.30
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.24.1
@@ -389,9 +391,9 @@ require (
 	github.com/swaggest/jsonschema-go v0.3.79
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.4
-	github.com/twmb/franz-go v1.21.7
-	github.com/twmb/franz-go/pkg/kadm v1.18.0
-	github.com/twmb/franz-go/pkg/kmsg v1.13.1
+	github.com/twmb/franz-go v1.22.0
+	github.com/twmb/franz-go/pkg/kadm v1.19.0
+	github.com/twmb/franz-go/pkg/kmsg v1.14.0
 	github.com/twmb/murmur3 v1.2.0
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
@@ -406,7 +408,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/xor-gate/ar v0.0.0-20170530204233-5c72ae81e2b7
 	github.com/yusufpapurcu/wmi v1.2.4
-	gitlab.com/gitlab-org/api/client-go/v3 v3.10.0
+	gitlab.com/gitlab-org/api/client-go/v3 v3.13.0
 	go.etcd.io/bbolt v1.5.0
 	go.etcd.io/etcd/client/v2 v2.305.33
 	go.mongodb.org/mongo-driver/v2 v2.9.1
@@ -457,9 +459,9 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0
 	go.opentelemetry.io/proto/slim/otlp v1.11.0
 	go.opentelemetry.io/proto/slim/otlp/processcontext/v1development v0.4.0
-	go.temporal.io/api v1.63.5
+	go.temporal.io/api v1.63.6
 	go.temporal.io/sdk v1.49.0
-	go.uber.org/atomic v1.11.0
+	go.uber.org/atomic v1.12.0
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/dig v1.19.0
 	go.uber.org/fx v1.24.0
@@ -485,13 +487,14 @@ require (
 	golang.org/x/text v0.42.0
 	golang.org/x/time v0.15.0
 	golang.org/x/tools v0.50.0
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/grpc/examples v0.0.0-20250407062114-b368379ef8f6
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/ini.v1 v1.67.3
+	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	istio.io/api v1.31.0
-	istio.io/client-go v1.31.0
+	istio.io/api v1.31.1
+	istio.io/client-go v1.31.1
 	k8s.io/api v0.35.5
 	k8s.io/apiextensions-apiserver v0.35.5
 	k8s.io/apimachinery v0.35.6
@@ -522,8 +525,8 @@ require (
 	cloud.google.com/go/auth v0.21.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/cloudsqlconn v1.4.3 // indirect
-	cloud.google.com/go/compute v1.68.0 // indirect
-	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	cloud.google.com/go/compute v1.69.0 // indirect
+	cloud.google.com/go/compute/metadata v0.9.1 // indirect
 	cloud.google.com/go/iam v1.7.0 // indirect
 	cloud.google.com/go/kms v1.31.0 // indirect
 	cloud.google.com/go/longrunning v0.9.0 // indirect
@@ -662,7 +665,7 @@ require (
 	github.com/digitalocean/godo v1.196.0 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
-	github.com/docker/cli v29.8.0+incompatible // indirect
+	github.com/docker/cli v29.8.1+incompatible // indirect
 	github.com/docker/docker v29.3.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
@@ -727,7 +730,6 @@ require (
 	github.com/gocql/gocql v1.6.0 // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/godror/knownpb v0.3.0 // indirect
-	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gofrs/uuid v4.4.0+incompatible // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
@@ -1155,7 +1157,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.8.1 // indirect
 	k8s.io/apiserver v0.35.5 // indirect
 	k8s.io/cloud-provider v0.35.3 // indirect
@@ -1341,7 +1342,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ./pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload
-	github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil => ./pkg/network/protocols/http/testutil
 	github.com/DataDog/datadog-agent/pkg/networkdevice/profile => ./pkg/networkdevice/profile
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload => ./pkg/networkpath/payload
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ./pkg/obfuscate
@@ -1409,6 +1409,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ./pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ./pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ./test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ./test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
