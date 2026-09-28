@@ -26,6 +26,44 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
 }
 
+// Every catalog detector can be enabled through anomaly_detection.detectors.*.
+// Check all of them, including those disabled by default, so a new detector
+// cannot silently use FormatAnomaly's generic fallback when it starts emitting.
+func TestDefaultCatalog_EmittingDetectorsHaveAnomalyFormatter(t *testing.T) {
+	// RRCF remains configurable but currently scores without emitting anomalies.
+	scoreOnly := map[string]bool{"rrcf": true}
+	seenScoreOnly := make(map[string]bool)
+	for _, entry := range defaultCatalog().Entries() {
+		if entry.kind != componentDetector {
+			continue
+		}
+		if scoreOnly[entry.name] {
+			seenScoreOnly[entry.name] = true
+			continue
+		}
+		t.Run(entry.name, func(t *testing.T) {
+			detector, ok := entry.factory(entry.defaultConfig).(interface{ Name() string })
+			require.True(t, ok, "catalog detector must expose its runtime name")
+			require.Equal(t, entry.name, detector.Name())
+
+			anomaly := observerdef.Anomaly{
+				Source:       observerdef.SeriesDescriptor{Name: "metric", Aggregate: observerdef.AggregateAverage},
+				DetectorName: detector.Name(),
+				DebugInfo: &observerdef.AnomalyDebugInfo{
+					BOCPDTrigger: observerdef.BOCPDTriggerChangePointProbability,
+				},
+			}
+			title, description := observerdef.FormatAnomaly(anomaly)
+			require.NotEqual(t, "Anomaly detected: "+detector.Name()+": metric:avg", title,
+				"configurable detector is missing an anomaly formatter")
+			require.NotEmpty(t, description, "configurable detector is missing an anomaly description")
+		})
+	}
+	for name := range scoreOnly {
+		require.True(t, seenScoreOnly[name], "remove obsolete score-only exceptions when a detector leaves the catalog")
+	}
+}
+
 func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
 	found := false
 	for _, entry := range TestbenchCatalogEntries() {
