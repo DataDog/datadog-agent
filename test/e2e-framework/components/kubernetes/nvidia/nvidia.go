@@ -130,7 +130,7 @@ func configureContainerToolkit(env config.Env, vm *remote.Host, clusterOpts *Kin
 // installNvkind installs the nvkind tool with all the necessary requisites
 func installNvkind(env config.Env, vm *remote.Host, kindVersion string, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (command.Command, error) {
 	// kind is a requisite for nvkind, as it calls it under the hood
-	kindInstall, err := kubernetes.InstallKindBinary(env, vm, kindVersion, opts...)
+	_, kindInstall, err := kubernetes.InstallKindBinary(env, vm, kindVersion, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install kind: %w", err)
 	}
