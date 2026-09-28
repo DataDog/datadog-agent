@@ -29,7 +29,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.12.1
-	go.uber.org/atomic v1.11.0
+	go.uber.org/atomic v1.12.0
 	go.uber.org/fx v1.24.0
 	go.uber.org/multierr v1.11.0
 	golang.org/x/sync v0.23.0
