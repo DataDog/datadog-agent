@@ -45,7 +45,6 @@ type cliParams struct {
 
 	checkName string
 	force     bool
-	checkID   string
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent
@@ -90,24 +89,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	rebalanceCmd.Flags().BoolVarP(&cliParams.force, "force", "f", false, "Use to force rebalance")
 
 	cmd.AddCommand(rebalanceCmd)
-
-	isolateCmd := &cobra.Command{
-		Use:   "isolate",
-		Short: "Isolates a single check in the cluster runner",
-		Long:  ``,
-		RunE: func(*cobra.Command, []string) error {
-			globalParams := globalParamsGetter()
-
-			return fxutil.OneShot(isolate,
-				fx.Supply(cliParams),
-				fx.Supply(bundleParams(globalParams)),
-				core.Bundle(),
-				ipcfx.ModuleReadOnly(),
-			)
-		},
-	}
-	isolateCmd.Flags().StringVarP(&cliParams.checkID, "checkID", "", "", "the check ID to isolate")
-	cmd.AddCommand(isolateCmd)
 
 	return cmd
 }
@@ -169,39 +150,5 @@ func rebalance(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) err
 			check.Digest, check.CheckName, check.SourceNodeName, check.DestNodeName)
 	}
 
-	return nil
-}
-
-func isolate(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
-	if cliParams.checkID == "" {
-		return errors.New("checkID must be specified")
-	}
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
-
-	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			err = errors.New(e)
-		}
-
-		fmt.Printf(`
-		Could not reach agent: %v
-		Make sure the agent is running before requesting to isolate a cluster check.
-		Contact support if you continue having issues.`, err)
-
-		return err
-	}
-
-	var response types.IsolateResponse
-
-	json.Unmarshal(r, &response) //nolint:errcheck
-	if response.IsIsolated {
-		fmt.Printf("Check %s isolated successfully on node %s\n", response.CheckID, response.CheckNode)
-	} else {
-		fmt.Printf("Check %s could not be isolated: %s\n", response.CheckID, response.Reason)
-	}
 	return nil
 }
