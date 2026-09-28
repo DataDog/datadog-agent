@@ -286,6 +286,12 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 		)
 	}
 
+	if src, ok := gcpServerlessSourceFromAttributes(attrs); ok {
+		for key, value := range src.SourceIdentifier.Dimensions {
+			tags = append(tags, key+":"+value)
+		}
+	}
+
 	tags = append(tags, processAttributes.extractTags()...)
 	tags = append(tags, systemAttributes.extractTags()...)
 
@@ -760,6 +766,9 @@ func GetSpecifiedKeysFromOTelAttributes(signalAttrs pcommon.Map, resourceAttrs p
 
 // GetHost returns the DD hostname based on OTel resource attributes.
 func GetHost(resourceAttrs pcommon.Map, fallbackHost string) string {
+	if IsGCPServerless(resourceAttrs) {
+		return ""
+	}
 	src, srcok := SourceFromAttrs(resourceAttrs, nil)
 	if !srcok {
 		if v := GetOTelAttrVal(resourceAttrs, false, "_dd.hostname"); v != "" {

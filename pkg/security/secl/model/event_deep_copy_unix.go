@@ -599,6 +599,7 @@ func deepCopySecurityProfileContext(fieldToCopy SecurityProfileContext) Security
 	copied.EventTypeState = fieldToCopy.EventTypeState
 	copied.EventTypes = deepCopyEventTypeArr(fieldToCopy.EventTypes)
 	copied.Name = fieldToCopy.Name
+	copied.ProfileAlreadySent = fieldToCopy.ProfileAlreadySent
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	copied.Version = fieldToCopy.Version
 	return copied
