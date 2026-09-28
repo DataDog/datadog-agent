@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
@@ -619,6 +621,33 @@ func TestPayloadsBuilderV3_PreservesEmptySketch(t *testing.T) {
 	require.Len(t, pipelineContext.payloads, 1)
 	require.Zero(t, pipelineContext.payloads[0].GetPointCount())
 	require.True(t, bytes.Contains(pipelineContext.payloads[0].GetContent(), []byte("empty-sketch")))
+}
+
+func TestSketchPayloadsBuilderV3UsesSketchPayloadSizeLimits(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("serializer_compressor_kind", "zstd")
+	mockConfig.SetInTest("serializer_max_payload_size", 10_000)
+	mockConfig.SetInTest("serializer_max_uncompressed_payload_size", 10_000)
+	// These deliberately cannot hold even the v3 protobuf framing. Sketches must
+	// use the sketch payload limits above, not the smaller series limits.
+	mockConfig.SetInTest("serializer_max_series_payload_size", 1)
+	mockConfig.SetInTest("serializer_max_series_uncompressed_payload_size", 1)
+
+	pipelineConfig := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+	pipelineContext := &PipelineContext{}
+	compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: mockConfig}).Comp
+	pb, err := newSketchPayloadsBuilderV3WithConfig(
+		mockConfig, compressor, pipelineConfig, pipelineContext)
+	require.NoError(t, err)
+
+	sketch := &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{Name: "large-for-series-limit"},
+		Points:               pointsOf(1, 1, 2, 3),
+	}
+	require.NoError(t, pb.writeSketch(sketch))
+	require.NoError(t, pb.finishPayload())
+	require.Len(t, pipelineContext.payloads, 1)
+	require.Equal(t, 1, pipelineContext.payloads[0].GetPointCount())
 }
 
 func pointsOf(ts int64, v ...float64) []metrics.SketchPoint {
