@@ -16,13 +16,15 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-// packageAgentFapolicydSuite runs the same install assertions as packageAgentSuite.TestInstall,
+// packageAgentFapolicydSuite runs the same install assertions as packageBaseSuite.testInstall,
 // but on the "9-fapolicyd" RedHat9 image, which has fapolicyd pre-baked (provision-e2e-rhel-centos.sh).
-// It has its own stack/suite type per test/new-e2e/AGENTS.md so it doesn't share a Pulumi stack
-// with packageAgentSuite, and it lives outside the TestPackages flavor matrix since it only ever
-// targets RedHat9Fapolicyd.
+// It embeds packageBaseSuite directly rather than packageAgentSuite so that it doesn't promote
+// packageAgentSuite's other Test* methods (experiment lifecycle, NSS-user, FIPS, ...) into its own
+// run. It has its own stack/suite type per test/new-e2e/AGENTS.md so it doesn't share a Pulumi
+// stack with packageAgentSuite, and it lives outside the TestPackages flavor matrix since it only
+// ever targets RedHat9Fapolicyd.
 type packageAgentFapolicydSuite struct {
-	packageAgentSuite
+	packageBaseSuite
 }
 
 func TestPackageAgentFapolicyd(t *testing.T) {
@@ -34,9 +36,7 @@ func TestPackageAgentFapolicyd(t *testing.T) {
 
 	method := GetInstallMethodFromEnv(t)
 	suite := &packageAgentFapolicydSuite{
-		packageAgentSuite: packageAgentSuite{
-			packageBaseSuite: newPackageSuite("agent-fapolicyd", e2eos.RedHat9Fapolicyd, e2eos.AMD64Arch, method, awshost.WithRunOptions(ec2.WithoutFakeIntake())),
-		},
+		packageBaseSuite: newPackageSuite("agent-fapolicyd", e2eos.RedHat9Fapolicyd, e2eos.AMD64Arch, method, awshost.WithRunOptions(ec2.WithoutFakeIntake())),
 	}
 
 	opts := []awshost.ProvisionerOption{
@@ -53,5 +53,5 @@ func TestPackageAgentFapolicyd(t *testing.T) {
 }
 
 func (s *packageAgentFapolicydSuite) TestInstallWithFapolicyd() {
-	s.TestInstall()
+	s.testInstall()
 }
