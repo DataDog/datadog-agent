@@ -6,6 +6,7 @@ dd_agent_go_test(
     srcs = [
         "admission_probe_test.go",
         "docker_permission_test.go",
+        "dogstatsd_client_drops_test.go",
         "helpers_test.go",
         "resilience_test.go",
     ],
@@ -14,6 +15,7 @@ dd_agent_go_test(
         "fixtures/admission_probe_helm_values.yaml",
         "fixtures/docker-compose.busybox.yaml",
         "fixtures/docker_permission_agent_config.yaml",
+        "fixtures/dogstatsd_client_telemetry.py",
         "fixtures/resilience_agent_config.yaml",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-health",

@@ -29,6 +29,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -207,7 +208,7 @@ func (f *metricsFilterRules) precheck(name, source, host string) metricFilterPre
 }
 
 // isAllowed returns true if the metric should be ingested.
-// tags must be sorted so the mute hash matches seriesKeyHash in storage.
+// tags must be sorted for rule matching and mute-key construction.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
 	return f.isAllowedWithHost(name, source, "", tags)
 }
@@ -229,12 +230,16 @@ func (f *metricsFilterRules) isAllowedWithHost(name, source, host string, tags [
 }
 
 func (f *metricsFilterRules) isMutedWithHost(name, source, host string, tags []string) bool {
+	return f.isMutedWithKey(source, storageKeyForIdentity(source, name, host, tags))
+}
+
+func (f *metricsFilterRules) isMutedWithKey(source string, key uint64) bool {
 	if f == nil || source == LogMetricsExtractorName {
 		return false
 	}
 
 	if m := f.muted.Load(); m != nil {
-		if _, ok := (*m)[seriesKeyHash(source, name, host, tags)]; ok {
+		if _, ok := (*m)[key]; ok {
 			return true
 		}
 	}
@@ -251,6 +256,18 @@ func (f *metricsFilterRules) isAllowedByRulesFromWithHost(name, source, host str
 	return true
 }
 
+// isAllowedByRulesFromWithHostComposite evaluates tag-aware rules against an
+// immutable CompositeTags view without flattening or sorting it.
+func (f *metricsFilterRules) isAllowedByRulesFromWithHostComposite(name, source, host string, tags tagset.CompositeTags, start int) bool {
+	for _, rule := range f.rules[start:] {
+		if rule.matchesWithHostComposite(name, source, host, tags) {
+			return !rule.exclude
+		}
+	}
+
+	return true
+}
+
 // publishMutedSnapshot atomically publishes an immutable baseline mute union.
 // The engine owns constructing this copy-on-write snapshot; callers and
 // readers must never mutate m after publication.
@@ -260,6 +277,18 @@ func (f *metricsFilterRules) publishMutedSnapshot(m map[uint64]struct{}) {
 
 func (r metricsCompiledRule) matchesWithHost(name, source, host string, tags []string) bool {
 	return r.matchesNameSourceAndHost(name, source, host) && containsAllTagsSorted(tags, r.tags)
+}
+
+func (r metricsCompiledRule) matchesWithHostComposite(name, source, host string, tags tagset.CompositeTags) bool {
+	if !r.matchesNameSourceAndHost(name, source, host) {
+		return false
+	}
+	for _, ruleTag := range r.tags {
+		if !tags.Find(func(tag string) bool { return tag == ruleTag }) {
+			return false
+		}
+	}
+	return true
 }
 
 func (r metricsCompiledRule) matchesNameSourceAndHost(name, source, host string) bool {

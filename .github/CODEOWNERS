@@ -311,6 +311,7 @@
 /cmd/agent/dist/conf.d/telemetry.d/                    @DataDog/fleet-remediation
 /cmd/agent/dist/conf.d/thermal.d/                      @DataDog/windows-products
 /cmd/agent/dist/conf.d/uptime.d/                       @DataDog/agent-runtimes
+/cmd/agent/dist/conf.d/vdi.d/                          @DataDog/windows-products
 /cmd/agent/dist/conf.d/versa.d/                        @DataDog/ndm-integrations
 /cmd/agent/dist/conf.d/win32_event_log.d/              @DataDog/windows-products
 /cmd/agent/dist/conf.d/wincrashdetect.d/               @DataDog/windows-products
@@ -383,18 +384,20 @@
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 /Dockerfiles/manifests/                  @DataDog/container-integrations
 
+/doc/                                                        @DataDog/agent-devx
 /docs/                                                       @DataDog/agent-devx
 /docs/dev/agent_api.md                                       @DataDog/agent-runtimes
 /docs/dev/checks/                                            @DataDog/agent-runtimes
 /docs/cloud-workload-security/                               @DataDog/documentation @DataDog/agent-security
-/docs/public/architecture/components/                        @DataDog/agent-runtimes
-/docs/public/tutorials/components/                           @DataDog/agent-runtimes
+/doc/architecture/components/                                @DataDog/agent-runtimes
+/doc/tutorials/components/                                   @DataDog/agent-runtimes
+/doc/how-to/components/                                      @DataDog/agent-runtimes
 /docs/public/how-to/components/                              @DataDog/agent-runtimes
-/docs/public/guidelines/components.md                        @DataDog/agent-runtimes
-/docs/public/reference/components/                           @DataDog/agent-runtimes
-/docs/public/how-to/run-jmxfetch.md                           @DataDog/agent-runtimes
+/doc/guidelines/components.md                                @DataDog/agent-runtimes
+/doc/reference/components/                                   @DataDog/agent-runtimes
+/doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
 /docs/public/hostname/                                       @DataDog/agent-runtimes
-/docs/public/architecture/dogstatsd/                         @DataDog/agent-metric-pipelines
+/doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-community-eng causes a lot of spam
@@ -668,6 +671,7 @@
 /pkg/collector/corechecks/system/windowscertificate/                  @DataDog/windows-products
 /pkg/collector/corechecks/system/winkmem/                             @DataDog/windows-products
 /pkg/collector/corechecks/system/winproc/                             @DataDog/windows-products
+/pkg/collector/corechecks/vdi/                                        @DataDog/windows-products
 /pkg/collector/corechecks/systemd/                                    @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/                                     @DataDog/agent-runtimes
 /pkg/collector/corechecks/telemetry                                   @DataDog/fleet-remediation
@@ -875,6 +879,7 @@
 /pkg/ssi/                                                             @DataDog/injection-platform
 /pkg/tagger/                                                          @DataDog/container-platform
 /pkg/windowsdriver/                                                   @DataDog/windows-products
+/pkg/zstd/                                                            @DataDog/agent-runtimes
 /comp/core/workloadmeta/collectors/internal/cloudfoundry              @DataDog/agent-integrations
 /comp/core/workloadmeta/collectors/internal/containerd                @DataDog/container-platform @DataDog/container-integrations
 /comp/core/workloadmeta/collectors/internal/crio                      @DataDog/container-platform @DataDog/container-integrations
