@@ -35,7 +35,7 @@ func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 		name:      "requests",
 		value:     42,
 		host:      "host-a",
-		tags:      []string{"service:web", "env:prod"},
+		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"}),
 		timestamp: 123,
 	}
 
@@ -57,7 +57,7 @@ func TestMetricHandoffSnapshotsReusableSampleFields(t *testing.T) {
 	assert.Equal(t, []string{"service:web", "env:prod"}, queued.metric.tags.UnsafeToReadOnlySliceString())
 }
 
-func TestMetricHandoffDefersTagCanonicalization(t *testing.T) {
+func TestMetricHandoffRetainsImmutableCompositeTags(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
 
@@ -65,19 +65,18 @@ func TestMetricHandoffDefersTagCanonicalization(t *testing.T) {
 	h := &handle{ch: ch, source: "check", filter: filter}
 	sample := &metricObs{
 		name:      "requests",
-		tags:      []string{"service:web", "env:prod", "service:web"},
+		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod", "service:web"}),
 		timestamp: 123,
 	}
 
 	require.False(t, h.ObserveMetricAndReportDrop(sample))
 	queued := <-ch
 
-	// The producer only captures the immutable CompositeTags view. Sorting and
-	// the associated allocation happen in the consumer.
-	assert.Equal(t, sample.tags, queued.metric.tags.UnsafeToReadOnlySliceString())
+	// Both stages retain the immutable view without flattening or sorting it.
+	assert.Equal(t, sample.tags, queued.metric.tags)
 	decision := prepareMetricHandoff(queued.source, queued.metric, filter, nil)
 	require.NotNil(t, decision.metric)
-	assert.Equal(t, []string{"env:prod", "service:web", "service:web"}, decision.metric.tags)
+	assert.Equal(t, sample.tags, decision.metric.tags)
 	assert.Equal(t, storageKeyForContextKey(queued.source, queued.metric.contextKey), decision.metric.storageKey)
 }
 
@@ -90,7 +89,7 @@ func TestMetricHandoffDerivesContextKeyFromResolvedIdentity(t *testing.T) {
 	sample := &metricObs{
 		name:      "requests",
 		host:      "host-a",
-		tags:      []string{"service:web", "env:prod", "service:web"},
+		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod", "service:web"}),
 		timestamp: 123,
 	}
 
@@ -139,7 +138,7 @@ func TestMetricHandoffDefersTagDependentRule(t *testing.T) {
 	h := &handle{ch: ch, source: "dogstatsd", filter: filter}
 	sample := &metricObs{
 		name:      "requests",
-		tags:      []string{"service:web", "env:dev"},
+		tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:dev"}),
 		timestamp: 123,
 	}
 
