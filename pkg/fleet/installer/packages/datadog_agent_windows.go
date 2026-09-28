@@ -1067,6 +1067,7 @@ func RestartDatadogAgent(ctx context.Context) error {
 	return windowssvc.NewWinServiceManager().RestartAgentServices(ctx)
 }
 
+// SetProcessManager is not supported on Windows: process manager selection is fixed at install time.
 func SetProcessManager(_ context.Context, _ bool) error {
 	return errors.New("switching the process manager is not supported on Windows")
 }

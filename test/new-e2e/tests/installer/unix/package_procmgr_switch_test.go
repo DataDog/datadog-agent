@@ -76,7 +76,7 @@ func (s *packageProcmgrSwitchSuite) TestProcmgrSwitch() {
 
 func (s *packageProcmgrSwitchSuite) runProcessManagerCommand(subcommand string) {
 	s.waitForInstallerDaemonReady()
-	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer daemon process-manager " + subcommand)
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer process-manager " + subcommand)
 	require.NoError(s.T(), err, "Failed to run process-manager %s: datadog-agent-installer journalctl:\n%s",
 		subcommand,
 		s.Env().RemoteHost.MustExecute("sudo journalctl -xeu datadog-agent-installer.service --no-pager"),

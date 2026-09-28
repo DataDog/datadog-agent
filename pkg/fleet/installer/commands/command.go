@@ -485,7 +485,7 @@ func processManagerCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.enabled", enabled)
-			return i.SetProcessManager(i.ctx, enabled)
+			return packages.SetProcessManager(i.ctx, enabled)
 		},
 	}
 	return cmd

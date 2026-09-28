@@ -1170,19 +1170,51 @@ func RestartDatadogAgent(ctx context.Context) error {
 	return systemd.RestartUnit(ctx, "datadog-agent.service")
 }
 
+const installerUnitName = "datadog-agent-installer.service"
+
+// currentProcessManagerEnabled reads the DD_PROCESS_MANAGER_ENABLED value embedded in the
+// already-deployed installer unit, e.g. `Environment="DD_PROCESS_MANAGER_ENABLED=true"`.
+func currentProcessManagerEnabled(ctx HookContext) (bool, error) {
+	dir, err := unitsPath(ctx)
+	if err != nil {
+		return false, err
+	}
+	content, err := os.ReadFile(filepath.Join(dir, installerUnitName))
+	if err != nil {
+		return false, fmt.Errorf("failed to read %s: %w", installerUnitName, err)
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		if _, value, found := strings.Cut(strings.TrimSpace(line), "DD_PROCESS_MANAGER_ENABLED="); found {
+			return strings.Trim(value, `"`) == "true", nil
+		}
+	}
+	return false, fmt.Errorf("could not find DD_PROCESS_MANAGER_ENABLED in %s", installerUnitName)
+}
+
 // SetProcessManager enable or disable procmgr (custom service manager that replaces systemd for supported processes)
 func SetProcessManager(ctx context.Context, enabled bool) error {
 	var err error
-	hookCtx := HookContext{Context: ctx, PackagePath: filepath.Join(paths.PackagesPath, agentPackage, "stable"), PackageType: PackageTypeOCI}
+
+	pkgType := resolvePackageType(agentPackage)
+	pkgPath := "/opt/datadog-agent"
+	if pkgType == PackageTypeOCI {
+		pkgPath = filepath.Join(paths.PackagesPath, agentPackage, "stable")
+	}
+	hookCtx := HookContext{Context: ctx, Package: agentPackage, PackagePath: pkgPath, PackageType: pkgType}
 	span, hookCtx := hookCtx.StartSpan("set_process_manager")
 	span.SetTag("enabled", enabled)
-	defer func() {
-		span.Finish(err)
-	}()
-
-	if env.FromEnv().ProcessManagerEnabled == enabled {
+	currentEnabled, err := currentProcessManagerEnabled(hookCtx)
+	if err != nil {
+		return fmt.Errorf("failed to resolve current process manager state: %w", err)
+	}
+	if currentEnabled == enabled {
 		log.Infof("process manager is already %t", enabled)
 		return nil
+	}
+
+	// We are not in daemon mode, so we need to set the process manager state in the environment.
+	if err := os.Setenv(env.EnvProcessManagerEnabled, strconv.FormatBool(currentEnabled)); err != nil {
+		return fmt.Errorf("failed to set process manager state: %w", err)
 	}
 
 	state, err := repository.NewRepositories(paths.PackagesPath, nil).GetState(agentPackage)
@@ -1218,6 +1250,11 @@ func SetProcessManager(ctx context.Context, enabled bool) error {
 	}
 
 	pendingActions = append(pendingActions, func() error { return agentService.RestartStable(hookCtx) })
+	if err := agentService.StopStable(hookCtx); err != nil {
+		log.Warnf("failed to stop stable units: %v", err)
+		err = errors.Join(err, unwind())
+		return err
+	}
 	pendingActions = append(pendingActions, func() error { return agentService.EnableStable(hookCtx) })
 	if err := agentService.DisableStable(hookCtx); err != nil {
 		log.Warnf("failed to disable stable units: %v", err)

@@ -76,7 +76,6 @@ type Daemon interface {
 	StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) error
 	StopConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
-	SetProcessManager(ctx context.Context, enabled bool) error
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState(ctx context.Context) (map[string]PackageState, error)
@@ -574,23 +573,6 @@ func (d *daemonImpl) stopConfigExperiment(ctx context.Context, pkg string) (err 
 		return fmt.Errorf("could not stop config experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully stopped config experiment for package %s", pkg)
-	return nil
-}
-
-func (d *daemonImpl) SetProcessManager(ctx context.Context, enabled bool) (err error) {
-	d.m.Lock()
-	defer d.m.Unlock()
-
-	span, ctx := telemetry.StartSpanFromContext(ctx, "set_process_manager")
-	span.SetTag("enabled", enabled)
-	defer func() { span.Finish(err) }()
-
-	log.Infof("Daemon: Setting process manager enabled=%t", enabled)
-	if err = d.installer(d.env).SetProcessManager(ctx, enabled); err != nil {
-		return fmt.Errorf("could not set process manager enabled: %w", err)
-	}
-	d.env.ProcessManagerEnabled = enabled
-	log.Infof("Daemon: Successfully set process manager enabled=%t", enabled)
 	return nil
 }
 
