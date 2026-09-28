@@ -342,6 +342,8 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 			BaselineMAD:    preMAD,
 			CurrentValue:   postMedian,
 			DeviationSigma: deviation,
+			PValue:         bestPValue,
+			EffectSize:     effectSize,
 		},
 	}
 

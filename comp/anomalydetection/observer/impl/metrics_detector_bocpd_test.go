@@ -101,6 +101,7 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 	result := d.Detect(storage, 40)
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
+	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
 	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
 	assert.GreaterOrEqual(t, result.Anomalies[0].Timestamp, int64(21))
 }
@@ -119,6 +120,7 @@ func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 	result := d.Detect(storage, 50)
 
 	require.NotEmpty(t, result.Anomalies, "should detect downward step change")
+	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
 	assert.Contains(t, result.Anomalies[0].Title, "BOCPD")
 	assert.Contains(t, result.Anomalies[0].Description, "exceeded threshold")
 }
@@ -146,6 +148,7 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 	result := d.Detect(storage, 60)
 
 	require.NotEmpty(t, result.Anomalies, "should detect sustained shift")
+	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
 	assert.Contains(t, result.Anomalies[0].Description, "short-run posterior mass")
 }
 
@@ -501,6 +504,28 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestBOCPDDebugInfoRetainsTriggerEvidence(t *testing.T) {
+	b := NewBOCPDDetector(DefaultBOCPDConfig())
+	state := &bocpdSeriesState{baselineMean: 10, baselineStddev: 2}
+	point := observer.Point{Timestamp: 42, Value: 16}
+	series := &observer.Series{Namespace: "ns", Name: "metric"}
+
+	shortRun := b.makeAnomaly(state, point, series, observer.AggregateAverage, 0.2, 0.7)
+	require.NotNil(t, shortRun)
+	require.NotNil(t, shortRun.DebugInfo)
+	assert.Equal(t, observer.BOCPDTriggerShortRunMass, shortRun.DebugInfo.BOCPDTrigger)
+	assert.Equal(t, 0.2, shortRun.DebugInfo.BOCPDChangePointProb)
+	assert.Equal(t, 0.7, shortRun.DebugInfo.BOCPDShortRunMass)
+	assert.Equal(t, b.config.ShortRunLength, shortRun.DebugInfo.BOCPDShortRunLength)
+	assertLazyAnomalyTextMatchesEager(t, []observer.Anomaly{*shortRun})
+
+	changePoint := b.makeAnomaly(state, point, series, observer.AggregateAverage, b.config.CPThreshold, 0.7)
+	require.NotNil(t, changePoint)
+	require.NotNil(t, changePoint.DebugInfo)
+	assert.Equal(t, observer.BOCPDTriggerChangePointProbability, changePoint.DebugInfo.BOCPDTrigger)
+	assertLazyAnomalyTextMatchesEager(t, []observer.Anomaly{*changePoint})
 }
 
 func TestFindingM8_ShortRunMassExcludesCPProb(t *testing.T) {

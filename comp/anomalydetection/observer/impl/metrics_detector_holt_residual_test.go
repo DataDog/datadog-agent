@@ -102,6 +102,7 @@ func TestHoltResidual_RampWithSpike_FiresOnce(t *testing.T) {
 	require.Len(t, result.Anomalies, 1, "exactly one fire expected for a 2-point spike on a clean ramp")
 
 	a := result.Anomalies[0]
+	assertLazyAnomalyTextMatchesEager(t, result.Anomalies)
 	assert.Equal(t, "holt_residual", a.DetectorName)
 	assert.Contains(t, a.Title, "Holt residual")
 	require.NotNil(t, a.Score)
@@ -109,6 +110,10 @@ func TestHoltResidual_RampWithSpike_FiresOnce(t *testing.T) {
 	assert.NotNil(t, a.SourceRef, "SourceRef must be populated for downstream correlators")
 	require.NotNil(t, a.DebugInfo, "DebugInfo must be populated")
 	assert.Equal(t, 4.5, a.DebugInfo.Threshold)
+	assert.NotZero(t, a.DebugInfo.Forecast)
+	assert.NotZero(t, a.DebugInfo.Residual)
+	assert.NotZero(t, a.DebugInfo.HoltLevel)
+	assert.NotZero(t, a.DebugInfo.ValueMADs)
 	// Fire timestamp lands on the second spike point (M=2 confirmation).
 	assert.Equal(t, spikeStart+spikeLen-1, a.Timestamp)
 }

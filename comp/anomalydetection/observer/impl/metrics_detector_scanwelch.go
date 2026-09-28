@@ -368,6 +368,9 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 			BaselineMAD:    preMAD,
 			CurrentValue:   postMedian,
 			DeviationSigma: deviation,
+			PValue:         pValue,
+			EffectSize:     effectSize,
+			TestStatistic:  bestTAbs,
 		},
 	}
 

@@ -1,9 +1,10 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "def",
     srcs = [
         "component.go",
+        "format.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def",
@@ -12,4 +13,10 @@ go_library(
         "//comp/anomalydetection/severityevents/def",
         "//pkg/tagset",
     ],
+)
+
+go_test(
+    name = "def_test",
+    srcs = ["format_test.go"],
+    embed = [":def"],
 )

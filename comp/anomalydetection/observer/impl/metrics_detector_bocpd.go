@@ -461,10 +461,12 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 	deviation := (p.Value - state.baselineMean) / state.baselineStddev
 
 	triggerType := "short-run posterior mass"
+	trigger := observer.BOCPDTriggerShortRunMass
 	triggerValue := shortRunMass
 	triggerThreshold := b.config.CPMassThreshold
 	if cpProb >= b.config.CPThreshold {
 		triggerType = "changepoint probability"
+		trigger = observer.BOCPDTriggerChangePointProbability
 		triggerValue = cpProb
 		triggerThreshold = b.config.CPThreshold
 	}
@@ -479,11 +481,15 @@ func (b *BOCPDDetector) makeAnomaly(state *bocpdSeriesState, p observer.Point, s
 			displayName, triggerType, triggerValue, triggerThreshold, cpProb, b.config.ShortRunLength, shortRunMass),
 		Timestamp: p.Timestamp,
 		DebugInfo: &observer.AnomalyDebugInfo{
-			BaselineMean:   state.baselineMean,
-			BaselineStddev: state.baselineStddev,
-			Threshold:      triggerThreshold,
-			CurrentValue:   p.Value,
-			DeviationSigma: deviation,
+			BaselineMean:         state.baselineMean,
+			BaselineStddev:       state.baselineStddev,
+			Threshold:            triggerThreshold,
+			CurrentValue:         p.Value,
+			DeviationSigma:       deviation,
+			BOCPDTrigger:         trigger,
+			BOCPDChangePointProb: cpProb,
+			BOCPDShortRunMass:    shortRunMass,
+			BOCPDShortRunLength:  b.config.ShortRunLength,
 		},
 	}
 }

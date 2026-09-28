@@ -425,10 +425,12 @@ func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *o
 		Timestamp: dataTime,
 		Score:     &score,
 		DebugInfo: &observer.AnomalyDebugInfo{
-			BaselineMedian: mu,
-			BaselineMAD:    sigma,
-			CurrentValue:   latest,
-			DeviationSigma: zAbs,
+			BaselineMedian:           mu,
+			BaselineMAD:              sigma,
+			CurrentValue:             latest,
+			DeviationSigma:           zAbs,
+			TukeyBiweightSampleCount: n,
+			TukeyBiweightZScore:      z,
 		},
 	}
 	return anomaly, true

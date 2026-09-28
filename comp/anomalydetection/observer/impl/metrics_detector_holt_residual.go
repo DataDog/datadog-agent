@@ -524,6 +524,11 @@ func (d *HoltResidualDetector) processPoint(
 			CurrentValue:   p.Value,
 			DeviationSigma: math.Abs(z),
 			Threshold:      d.ZThreshold,
+			Forecast:       forecast,
+			Residual:       residual,
+			HoltLevel:      state.level,
+			HoltTrend:      state.trend,
+			ValueMADs:      devMAD,
 		},
 	}
 
