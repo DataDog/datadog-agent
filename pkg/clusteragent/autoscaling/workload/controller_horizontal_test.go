@@ -15,7 +15,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	v2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -256,7 +255,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		statusReplicas:  5,
 		recReplicas:     10,
 		scaleReplicas:   5,
-		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled for recommendations from source Autoscaling: applyMode is Preview"),
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
@@ -276,7 +275,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		statusReplicas:  10,
 		recReplicas:     7,
 		scaleReplicas:   10,
-		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled for recommendations from source Autoscaling: applyMode is Preview"),
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
@@ -332,7 +331,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	// 	statusReplicas:  5,
 	// 	recReplicas:     10,
 	// 	scaleReplicas:   5,
-	// 	scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Manual not allowing recommendations from source: Autoscaling"),
+	// 	scaleError:      testutil.NewErrorString("horizontal scaling disabled for recommendations from source Autoscaling: applyMode is Manual"),
 	// })
 	// assert.Equal(t, autoscaling.NoRequeue, result)
 	// assert.NoError(t, err)
@@ -1558,7 +1557,7 @@ func TestIsApplyModeAllowedPaused(t *testing.T) {
 			},
 		}.Build()
 		if paused {
-			pai.UpdateOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+			pai.UpdateFromOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
 		}
 		return pai
 	}
@@ -1590,131 +1589,4 @@ func TestIsApplyModeAllowedPaused(t *testing.T) {
 		allowed, _ := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
 		assert.False(t, allowed, "pause must not be bypassable by omitting applyPolicy")
 	})
-}
-
-// TestHorizontalControllerForceFallbackWithoutLocalValues runs source selection followed by the
-// horizontal sync, as a reconcile does, for an autoscaler whose active values come from the
-// product when the fallback gets forced before any usable local values exist.
-func TestHorizontalControllerForceFallbackWithoutLocalValues(t *testing.T) {
-	testTime := time.Now()
-	f := newHorizontalControllerFixture(t, testTime)
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    "Deployment",
-	}
-	productValues := &model.HorizontalScalingValues{
-		Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-		Timestamp: testTime.Add(-30 * time.Second),
-		Replicas:  10,
-	}
-	fakePai := model.FakePodAutoscalerInternal{
-		Namespace: "default",
-		Name:      "test",
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       "test",
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
-		},
-		CreationTimestamp: testTime.Add(-time.Hour),
-		// A product recommendation is active and not yet reached (e.g. limited by a scale-up rule).
-		MainScalingValues: model.ScalingValues{Horizontal: productValues},
-		ScalingValues:     model.ScalingValues{Horizontal: productValues},
-		TargetGVK:         expectedGVK,
-		CurrentReplicas:   pointer.Ptr[int32](5),
-	}
-	autoscalerInternal := fakePai.Build()
-	autoscalerInternal.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
-
-	horizontalSource, verticalSource := getActiveScalingSources(f.clock.Now(), &autoscalerInternal)
-	autoscalerInternal.SetActiveScalingValues(f.clock.Now(), horizontalSource, verticalSource)
-
-	f.scaler.mockGet(fakePai, 5, 5, nil)
-	scale, gr, scaleErr := f.scaler.get(context.Background(), fakePai.Namespace, fakePai.Name, expectedGVK)
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: fakePai.Name, Namespace: fakePai.Namespace}}
-	result, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
-
-	require.NoError(t, err)
-	assert.Equal(t, autoscaling.NoRequeue, result)
-	assert.Nil(t, autoscalerInternal.ScalingValues().Horizontal,
-		"the product recommendation must not stay active once the operator forced the fallback")
-	f.scaler.AssertNumberOfCalls(t, "update", 0)
-}
-
-// TestHorizontalControllerForceFallbackRemovedWithFallbackDisabled covers the transition out of a
-// forced fallback on an autoscaler whose spec disables the fallback: local values computed while
-// the annotation was set must stop being applied once it is removed, even if product values are
-// still stale.
-func TestHorizontalControllerForceFallbackRemovedWithFallbackDisabled(t *testing.T) {
-	testTime := time.Now()
-	f := newHorizontalControllerFixture(t, testTime)
-
-	expectedGVK := schema.GroupVersionKind{
-		Group:   "apps",
-		Version: "v1",
-		Kind:    "Deployment",
-	}
-	localValues := &model.HorizontalScalingValues{
-		Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
-		Timestamp: testTime.Add(-30 * time.Second),
-		Replicas:  10,
-	}
-	fakePai := model.FakePodAutoscalerInternal{
-		Namespace: "default",
-		Name:      "test",
-		Spec: &datadoghq.DatadogPodAutoscalerSpec{
-			TargetRef: v2.CrossVersionObjectReference{
-				Name:       "test",
-				Kind:       expectedGVK.Kind,
-				APIVersion: expectedGVK.Group + "/" + expectedGVK.Version,
-			},
-			Fallback: &datadoghq.DatadogFallbackPolicy{
-				Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
-					Enabled: false,
-					Triggers: datadoghq.HorizontalFallbackTriggers{
-						StaleRecommendationThresholdSeconds: 600,
-					},
-				},
-			},
-		},
-		CreationTimestamp: testTime.Add(-time.Hour),
-		// Product values are stale, which triggers the fallback path in source selection, and the
-		// local values computed while the fallback was forced are still fresh.
-		MainScalingValues: model.ScalingValues{Horizontal: &model.HorizontalScalingValues{
-			Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
-			Timestamp: testTime.Add(-time.Hour),
-			Replicas:  3,
-		}},
-		FallbackScalingValues: model.ScalingValues{Horizontal: localValues},
-		ScalingValues:         model.ScalingValues{Horizontal: localValues},
-		TargetGVK:             expectedGVK,
-		CurrentReplicas:       pointer.Ptr[int32](5),
-	}
-	autoscalerInternal := fakePai.Build()
-
-	// While forced, the local values are selected despite the spec.
-	autoscalerInternal.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
-	horizontalSource, _ := getActiveScalingSources(f.clock.Now(), &autoscalerInternal)
-	require.NotNil(t, horizontalSource)
-	assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, *horizontalSource)
-
-	// Once the annotation is removed, they are neither selected nor retained, so nothing is applied.
-	autoscalerInternal.UpdateOpsAnnotations(map[string]string{})
-	horizontalSource, verticalSource := getActiveScalingSources(f.clock.Now(), &autoscalerInternal)
-	assert.Nil(t, horizontalSource, "local values must not be selected when the spec disables the fallback")
-	autoscalerInternal.SetActiveScalingValues(f.clock.Now(), horizontalSource, verticalSource)
-
-	f.scaler.mockGet(fakePai, 5, 5, nil)
-	scale, gr, scaleErr := f.scaler.get(context.Background(), fakePai.Namespace, fakePai.Name, expectedGVK)
-	fakeAutoscaler := &datadoghq.DatadogPodAutoscaler{ObjectMeta: metav1.ObjectMeta{Name: fakePai.Name, Namespace: fakePai.Namespace}}
-	result, err := f.controller.sync(context.Background(), fakeAutoscaler, &autoscalerInternal, scale, gr, scaleErr)
-
-	require.NoError(t, err)
-	assert.Equal(t, autoscaling.NoRequeue, result)
-	assert.Nil(t, autoscalerInternal.ScalingValues().Horizontal,
-		"local values must not stay active once the force-fallback annotation is removed")
-	f.scaler.AssertNumberOfCalls(t, "update", 0)
 }

@@ -1254,8 +1254,7 @@ func TestOpsAnnotationsHonouredForEveryOwner(t *testing.T) {
 				CurrentReplicas: pointer.Ptr[int32](4),
 				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
 					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
-					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionTrue, "", "", testTime),
-					condition(model.DatadogPodAutoscalerPausedCondition, corev1.ConditionTrue, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionFalse, model.LocallyPausedReason, "Autoscaling locally paused by the "+model.PauseAnnotationKey+" annotation", testTime),
 					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
 					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
 					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
@@ -1308,14 +1307,41 @@ func TestGetActiveScalingSourcesOpsAnnotations(t *testing.T) {
 		},
 	}
 
-	t.Run("pause suppresses the local fallback", func(t *testing.T) {
+	t.Run("pause does not change source selection", func(t *testing.T) {
 		dpai := staleMainFreshFallback.Build()
-		dpai.UpdateOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
 
 		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
 		require.NotNil(t, horizontalSource)
-		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource, *horizontalSource,
-			"a paused autoscaler must not switch to local values, it applies nothing at all")
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, *horizontalSource,
+			"pause is enforced where actions are applied, not in source selection")
+	})
+
+	t.Run("force-fallback with the fallback disabled behaves like stale recommendations", func(t *testing.T) {
+		dpai := model.FakePodAutoscalerInternal{
+			Namespace: "default",
+			Name:      "dpa-0",
+			Spec: &datadoghq.DatadogPodAutoscalerSpec{
+				Fallback: &datadoghq.DatadogFallbackPolicy{
+					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+						Enabled:  false,
+						Triggers: datadoghq.HorizontalFallbackTriggers{StaleRecommendationThresholdSeconds: 600},
+					},
+				},
+			},
+			CreationTimestamp: currentTime.Add(-60 * time.Minute),
+			MainScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					Timestamp: currentTime,
+				},
+			},
+		}.Build()
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+
+		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
+		assert.Nil(t, horizontalSource,
+			"like stale recommendations with the fallback disabled: no local values, so current values are held")
 	})
 
 	t.Run("force-fallback wins over fresh product values", func(t *testing.T) {
@@ -1337,7 +1363,7 @@ func TestGetActiveScalingSourcesOpsAnnotations(t *testing.T) {
 				},
 			},
 		}.Build()
-		dpai.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
 
 		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
 		require.NotNil(t, horizontalSource)
@@ -1364,7 +1390,7 @@ func TestGetActiveScalingSourcesOpsAnnotations(t *testing.T) {
 				},
 			},
 		}.Build()
-		dpai.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
 
 		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
 		assert.Nil(t, horizontalSource,
@@ -1384,11 +1410,11 @@ func TestGetActiveScalingSourcesOpsAnnotations(t *testing.T) {
 				},
 			},
 		}.Build()
-		dpai.UpdateOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
 
 		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
 		assert.Nil(t, horizontalSource,
-			"the local recommender polls periodically: select no source rather than product values the operator asked to stop trusting (SetActiveScalingValues then drops retained product values)")
+			"the local recommender polls periodically: hold current values rather than using product values the operator asked to stop trusting")
 	})
 }
 

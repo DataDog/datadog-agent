@@ -1225,7 +1225,7 @@ func TestGetVerticalPatchingStrategyPaused(t *testing.T) {
 			},
 		}.Build()
 		if paused {
-			pai.UpdateOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+			pai.UpdateFromOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
 		}
 		return pai
 	}

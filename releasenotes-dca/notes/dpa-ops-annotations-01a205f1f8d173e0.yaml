@@ -1,22 +1,8 @@
 ---
 features:
   - |
-    Added two operational annotations on ``DatadogPodAutoscaler`` objects, letting an operator
-    override autoscaling behaviour during an incident without editing the object ``spec``.
-
-    ``autoscaling.datadoghq.com/pause: "true"`` stops the autoscaler from taking any action:
-    no horizontal scaling, no vertical rollout or in-place resize, and no pod resource patching
-    by the admission controller. While paused, manual changes made to the target workload, such
-    as ``spec.replicas`` or container resources, are left untouched. The autoscaler keeps
-    computing and reporting recommendations, and reports a ``Paused`` status condition. Removing
-    the annotation resumes the autoscaler, which converges back to its recommendation under the
-    workload's configured ``applyPolicy``.
-
-    ``autoscaling.datadoghq.com/force-fallback: "true"`` makes the autoscaler use the in-cluster
-    local recommender as its active source, even when recommendations from Datadog are recent.
-    This is intended for cases where the received recommendations cannot be trusted. Setting the
-    value to ``false``, or removing the annotation, restores the default behaviour where the
-    local fallback only engages once recommendations become stale. Note that it does not disable
-    the local fallback, which remains controlled by ``spec.fallback.horizontal.enabled``.
-
-    A value that is not a valid boolean is ignored, as if the annotation were absent.
+    Added the ``autoscaling.datadoghq.com/pause`` and ``autoscaling.datadoghq.com/force-fallback``
+    annotations on ``DatadogPodAutoscaler`` objects, to act on an autoscaler during an incident
+    without editing its ``spec``, whatever its owner. ``pause`` stops all actions of the
+    autoscaler, and ``force-fallback`` triggers the local fallback as if recommendations from
+    Datadog were stale.

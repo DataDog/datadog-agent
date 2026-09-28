@@ -298,12 +298,8 @@ func isApplyModeAllowed(autoscalerInternal *model.PodAutoscalerInternal, source 
 		return false, "pod autoscaling hasn't been initialized yet"
 	}
 
-	if autoscalerInternal.IsPaused() {
-		return false, "horizontal scaling paused by the pause annotation"
-	}
-
-	if !model.ApplyModeAllowSource(autoscalerInternal.EffectiveApplyMode(), source) {
-		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerInternal.EffectiveApplyMode(), source)
+	if allowed, reason := autoscalerInternal.CanApply(); !allowed {
+		return false, fmt.Sprintf("horizontal scaling disabled for recommendations from source %s: %s", source, reason)
 	}
 
 	return true, ""

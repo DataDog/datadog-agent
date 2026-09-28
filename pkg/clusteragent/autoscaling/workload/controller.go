@@ -270,7 +270,11 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		return autoscaling.NoRequeue, nil
 	}
 
-	podAutoscalerInternal.UpdateOpsAnnotations(podAutoscaler.Annotations)
+	// Operational annotations must work whatever the owner, to act locally during an incident.
+	// UpdateFromPodAutoscaler covers local-owner DPAs; read them here for the others.
+	if podAutoscaler.Spec.Owner != datadoghqcommon.DatadogPodAutoscalerLocalOwner || podAutoscalerInternal.IsProfileManaged() {
+		podAutoscalerInternal.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
+	}
 
 	// Object is present in both our store and Kubernetes, we need to sync depending on ownership.
 	// Implement info sync based on ownership.
@@ -691,12 +695,6 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 		activeVerticalSource = pointer.Ptr(podAutoscalerInternal.MainScalingValues().Vertical.Source)
 	}
 
-	// While paused nothing is applied, so the local fallback must not engage either: keep
-	// reporting product values and leave the workload alone.
-	if podAutoscalerInternal.IsPaused() {
-		return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), activeVerticalSource
-	}
-
 	// Check if horizontal scaling is disabled; if disabled, always use main values as source
 	if podAutoscalerInternal.Spec().ApplyPolicy != nil {
 		scaleUpPolicy := podAutoscalerInternal.Spec().ApplyPolicy.ScaleUp
@@ -716,8 +714,7 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 		staleTimestampThreshold = time.Second * time.Duration(int64(podAutoscalerInternal.Spec().Fallback.Horizontal.Triggers.StaleRecommendationThresholdSeconds))
 	}
 
-	// An operator can force the fallback through an annotation, which makes the staleness
-	// triggers below irrelevant: product values are not to be trusted whatever their age.
+	// Forcing the fallback is handled like product values going stale.
 	fallbackForced := podAutoscalerInternal.IsFallbackForced()
 
 	// If main scaling values are not stale, use those
@@ -735,9 +732,8 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues != nil && isTimestampStale(currentTime, currentHorizontalScalingValues.Timestamp, staleTimestampThreshold)) ||
 		(mainHorizontalScalingValues == nil && currentHorizontalScalingValues == nil && isTimestampStale(currentTime, podAutoscalerInternal.CreationTimestamp(), staleTimestampThreshold)) {
 
-		// If local fallback values are usable, activate local fallback. Values left over from a
-		// removed force-fallback annotation are not usable when the spec disables the fallback.
-		if podAutoscalerInternal.IsLocalFallbackEnabled() && fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
+		// If local fallback values are usable, activate local fallback
+		if fallbackHorizontalScalingValues != nil && !isTimestampStale(currentTime, fallbackHorizontalScalingValues.Timestamp, staleTimestampThreshold) {
 			return pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerLocalValueSource), activeVerticalSource
 		}
 	}
