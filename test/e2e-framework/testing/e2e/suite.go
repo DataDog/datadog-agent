@@ -708,6 +708,8 @@ func (bs *BaseSuite[Env]) armDeadlineWatchdog(t *testing.T, budget time.Duration
 	bs.suiteT = t
 	bs.e2eDeadline = deadline.Add(-budget)
 	if !time.Now().Before(bs.e2eDeadline) {
+		// A previous attempt may have retained this suite's stacks.
+		defer bs.runDeadlineTeardown(t)
 		t.Fatalf("not enough time left before the go test deadline: e2e deadline %s has passed (teardown budget %s)", bs.e2eDeadline.Format(time.RFC3339), budget)
 	}
 	bs.deadlineTimer = time.AfterFunc(time.Until(bs.e2eDeadline), bs.teardownOnDeadline)

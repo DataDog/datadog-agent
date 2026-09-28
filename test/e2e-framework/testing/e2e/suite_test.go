@@ -591,6 +591,16 @@ func (s *testDeadlineChildSuite) TearDownSuite() {
 
 func (s *testDeadlineChildSuite) TestNoOp() {}
 
+type testDeadlineGuardSuite struct {
+	testDeadlineChildSuite
+}
+
+func (s *testDeadlineGuardSuite) TearDownSuite() {
+	// Arm through the CI gate, then use the fake provisioner to observe retained-stack cleanup.
+	s.T().Setenv("REMOTE_STACK_CLEANING", "")
+	s.testDeadlineChildSuite.TearDownSuite()
+}
+
 type testDeadlineSleepSuite struct {
 	testDeadlineChildSuite
 }
@@ -617,7 +627,7 @@ func TestDeadlineWatchdogProcess(t *testing.T) {
 		extraEnv    []string
 	}{
 		// 1000h never fits before any deadline, so the guard always fires.
-		{name: "guard", budget: "1000h", goTestFlags: []string{"-test.timeout=10m"}},
+		{name: "guard", budget: "1000h", goTestFlags: []string{"-test.timeout=10m"}, extraEnv: []string{"E2E_SKIP_DELETE_ON_FAILURE=true"}},
 		{name: "watchdog", budget: "5s", goTestFlags: []string{"-test.timeout=10s"}},
 		{name: "teardown-only", budget: "1000h", goTestFlags: []string{"-test.timeout=10m"}, extraEnv: []string{"E2E_TEARDOWN_ONLY=true"}},
 		// -test.timeout=0 means no go test deadline: the watchdog must not arm
@@ -652,6 +662,8 @@ func TestDeadlineWatchdogProcess(t *testing.T) {
 				require.Error(subT, err, "child should fail: %s", out)
 				require.Contains(subT, string(out), "not enough time left before the go test deadline")
 				require.NoFileExists(subT, marker("provisioned"), "the guard must fail before provisioning")
+				require.FileExists(subT, marker("destroyed"), "the guard must clean up retained stacks")
+				require.FileExists(subT, marker("teardown-done"), "guard cleanup must finish before exit")
 			case "watchdog":
 				require.Error(subT, err, "child should fail: %s", out)
 				require.Contains(subT, string(out), "e2e deadline reached while running")
@@ -677,8 +689,16 @@ func deadlineWatchdogScenario(t *testing.T) {
 	p.On("ID").Return("test")
 	p.On("Provision", mock.Anything, mock.Anything, mock.Anything).Return(makeTestEnvResources(), nil).
 		Run(func(mock.Arguments) { _ = os.WriteFile(filepath.Join(dir, "provisioned"), []byte("done"), 0o644) })
-	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil).
+		Run(func(mock.Arguments) { _ = os.WriteFile(filepath.Join(dir, "destroyed"), []byte("done"), 0o644) })
 
+	if os.Getenv("E2E_DEADLINE_TEST_SCENARIO") == "guard" {
+		s := &testDeadlineGuardSuite{testDeadlineChildSuite{dir: dir}}
+		firstFail := "Initial provisioning SetupSuite"
+		s.firstFailTest.Store(&firstFail)
+		Run(t, s, WithProvisioner(p))
+		return
+	}
 	if os.Getenv("E2E_DEADLINE_TEST_SCENARIO") == "watchdog" {
 		Run(t, &testDeadlineSleepSuite{testDeadlineChildSuite{dir: dir}}, WithProvisioner(p))
 		return
