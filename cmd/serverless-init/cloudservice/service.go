@@ -98,6 +98,14 @@ type CloudService interface {
 	// RunSidecar; in init-container mode it spawns the user app via RunInit.
 	// MicroVM overrides this to pass its child handle so /ready reflects liveness.
 	Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error
+
+	// GetInventoryData returns the per-platform serverless fields for the
+	// inventory metadata payload. Each implementation resolves its own facts, so
+	// it does not depend on GetTags having run first.
+	GetInventoryData() InventoryData
+
+	// CanCollectInventory reports whether the platform permits inventory collection.
+	CanCollectInventory() bool
 }
 
 //nolint:revive // TODO(SERV) Fix revive linter
