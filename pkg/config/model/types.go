@@ -109,6 +109,17 @@ type ConfigTypeConversion struct {
 	ToType   string `json:"to_type"`
 }
 
+// ConfigFallback describes an invalid-input replacement chosen by a consumer.
+// Reason and ReplacementSetting are controlled text; DefaultValue must be a code-defined scalar, never a configured value.
+type ConfigFallback struct {
+	Key                string `json:"key"`
+	Consumer           string `json:"consumer"`
+	Source             Source `json:"source"`
+	Reason             string `json:"reason"`
+	DefaultValue       any    `json:"default_value,omitempty"`
+	ReplacementSetting string `json:"replacement_setting,omitempty"`
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
@@ -176,6 +187,10 @@ type Reader interface {
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
 	GetConfigTypeConversions() []ConfigTypeConversion
+	// Fallback records describe current consumer choices, not configuration values.
+	GetConfigFallbacks() []ConfigFallback
+	RecordConfigFallback(ConfigFallback)
+	ClearConfigFallback(key, consumer string)
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string

@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Agent Health now explains when the Agent replaces an invalid TLS or log
+    compression setting, or system-probe replaces an invalid socket or supported
+    connection limit. Reports identify the replacement default or the setting
+    used to calculate it, with instructions to correct the configuration.

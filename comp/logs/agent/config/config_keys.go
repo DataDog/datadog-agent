@@ -122,6 +122,11 @@ func (l *LogsConfigKeys) httpConnectivityRetryIntervalMax() time.Duration {
 }
 
 func (l *LogsConfigKeys) compressionKind() string {
+	kind, _ := l.compressionKindWithFallback()
+	return kind
+}
+
+func (l *LogsConfigKeys) compressionKindWithFallback() (string, *pkgconfigmodel.ConfigFallback) {
 	configKey := l.getConfigKey("compression_kind")
 	compressionKind := l.getConfig().GetString(configKey)
 
@@ -129,16 +134,19 @@ func (l *LogsConfigKeys) compressionKind() string {
 	if len(endpoints) > 0 {
 		if !l.config.IsConfigured(configKey) {
 			log.Debugf("Additional endpoints detected, pipeline: %s falling back to gzip compression for compatibility", l.prefix)
-			return GzipCompressionKind
+			return GzipCompressionKind, nil
 		}
 	}
 
 	if compressionKind == ZstdCompressionKind || compressionKind == GzipCompressionKind {
-		return compressionKind
+		return compressionKind, nil
 	}
 
 	log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, constants.DefaultLogCompressionKind)
-	return constants.DefaultLogCompressionKind
+	return constants.DefaultLogCompressionKind, &pkgconfigmodel.ConfigFallback{
+		Key: configKey, Source: l.config.GetSource(configKey), Consumer: "logs",
+		Reason: "must be gzip or zstd", DefaultValue: constants.DefaultLogCompressionKind,
+	}
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/dustin/go-humanize/english"
@@ -54,13 +55,13 @@ func (*conversionModule) BuildIssue(ctx map[string]string) (*healthplatform.Issu
 }
 
 func (m *conversionModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicHealthCheck {
-	return &runnerdef.BuiltInPeriodicHealthCheck{BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
+	return &runnerdef.BuiltInPeriodicHealthCheck{Interval: time.Minute, BuiltInHealthCheck: runnerdef.BuiltInHealthCheck{
 		Source: ConversionIssueID,
 		Fn: func() ([]runnerdef.IssueReport, error) {
 			if !m.deps.Config.GetBool("health_platform.invalidconfig_check.enabled") {
 				return nil, nil
 			}
-			conversions := m.deps.Config.GetConfigTypeConversions()
+			conversions := FilterConfigConversions(m.deps.Config.GetConfigTypeConversions(), m.deps.Config.GetConfigFallbacks())
 			if len(conversions) == 0 {
 				return nil, nil
 			}

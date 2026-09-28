@@ -33,6 +33,21 @@ func TestEmptyProxy(t *testing.T) {
 	assert.Nil(t, proxyURL)
 }
 
+func TestTLSFallbackDecision(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("min_tls_version", "PRIVATE_INVALID_TLS", pkgconfigmodel.SourceFile)
+	transport, fallback := CreateHTTPTransportWithFallback(cfg)
+	require.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
+	require.NotNil(t, fallback)
+	require.Equal(t, "tlsv1.2", fallback.DefaultValue)
+	require.NotContains(t, fallback.Reason, "PRIVATE_INVALID_TLS")
+	require.Empty(t, cfg.GetConfigFallbacks(), "creating a diagnostic transport is not evidence of an active consumer")
+	cfg.Set("min_tls_version", "tlsv1.3", pkgconfigmodel.SourceFile)
+	transport, fallback = CreateHTTPTransportWithFallback(cfg)
+	require.Equal(t, uint16(tls.VersionTLS13), transport.TLSClientConfig.MinVersion)
+	require.Nil(t, fallback)
+}
+
 func TestHTTPProxy(t *testing.T) {
 	setupTest(t)
 
@@ -264,7 +279,7 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 				if test.minTLSVersion != "" {
 					cfg.SetInTest("min_tls_version", test.minTLSVersion)
 				}
-				got := minTLSVersionFromConfig(cfg)
+				got, _ := minTLSVersionFromConfig(cfg)
 				require.Equal(t, test.expect, got)
 			})
 	}

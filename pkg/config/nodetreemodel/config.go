@@ -59,6 +59,7 @@ var splitKeyFunc = splitKey
 // - contains metadata about known keys, env var support
 type ntmConfig struct {
 	sync.RWMutex
+	fallbacks map[[2]string]model.ConfigFallback
 
 	// ready is whether the schema has been built, which marks the config as ready for use
 	ready *atomic.Bool

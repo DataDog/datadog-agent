@@ -39,7 +39,7 @@ func logSafeURLString(url *url.URL) string {
 // config, accounting for defaults and deprecated configuration parameters.
 //
 // The returned result is one of the `tls.VersionTLSxxx` constants.
-func minTLSVersionFromConfig(cfg pkgconfigmodel.Reader) uint16 {
+func minTLSVersionFromConfig(cfg pkgconfigmodel.Reader) (uint16, *pkgconfigmodel.ConfigFallback) {
 	var min uint16
 	minTLSVersion := cfg.GetString("min_tls_version")
 	switch strings.ToLower(minTLSVersion) {
@@ -55,13 +55,24 @@ func minTLSVersionFromConfig(cfg pkgconfigmodel.Reader) uint16 {
 		min = tls.VersionTLS12
 		if minTLSVersion != "" {
 			log.Warnf("Invalid `min_tls_version` %#v; using default", minTLSVersion)
+			return min, &pkgconfigmodel.ConfigFallback{
+				Key: "min_tls_version", Source: cfg.GetSource("min_tls_version"),
+				Reason: "must be tlsv1.0, tlsv1.1, tlsv1.2, or tlsv1.3", DefaultValue: "tlsv1.2",
+			}
 		}
 	}
-	return min
+	return min, nil
 }
 
 // CreateHTTPTransport creates an *http.Transport for use in the agent
 func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*http.Transport)) *http.Transport {
+	transport, _ := CreateHTTPTransportWithFallback(cfg, transportOptions...)
+	return transport
+}
+
+// CreateHTTPTransportWithFallback also returns the TLS fallback decision for an adopting consumer to report.
+// Merely constructing a transport (for example for diagnostics) does not publish a Health observation.
+func CreateHTTPTransportWithFallback(cfg pkgconfigmodel.Reader, transportOptions ...func(*http.Transport)) (*http.Transport, *pkgconfigmodel.ConfigFallback) {
 	// It’s OK to reuse the same file for all the http.Transport objects we create
 	// because all the writes to that file are protected by a global mutex.
 	// See https://github.com/golang/go/blob/go1.17.3/src/crypto/tls/common.go#L1316-L1318
@@ -81,7 +92,8 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*ht
 		InsecureSkipVerify: cfg.GetBool("skip_ssl_validation"),
 	}
 
-	tlsConfig.MinVersion = minTLSVersionFromConfig(cfg)
+	minVersion, fallback := minTLSVersionFromConfig(cfg)
+	tlsConfig.MinVersion = minVersion
 
 	// Most of the following timeouts are a copy of Golang http.DefaultTransport
 	// They are mostly used to act as safeguards in case we forget to add a general
@@ -121,7 +133,10 @@ func CreateHTTPTransport(cfg pkgconfigmodel.Reader, transportOptions ...func(*ht
 		transportOption(transport)
 	}
 
-	return transport
+	if transport.TLSClientConfig == nil || transport.TLSClientConfig.MinVersion != minVersion {
+		fallback = nil
+	}
+	return transport, fallback
 }
 
 // GetProxyTransportFunc return a proxy function for a http.Transport that

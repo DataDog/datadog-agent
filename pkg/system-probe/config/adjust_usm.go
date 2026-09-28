@@ -91,7 +91,7 @@ func adjustUSM(cfg model.Config) {
 			return fmt.Errorf("notification threshold %d set higher than tracked connections %d", v, limit)
 		}
 		return nil
-	})
+	}, model.ConfigFallback{}) // The HTTP monitor can fail independently of the tracer; no confirmed consumer here.
 
 	limitMaxInt64(cfg, smNS("http", "max_request_fragment"), maxHTTPFrag)
 

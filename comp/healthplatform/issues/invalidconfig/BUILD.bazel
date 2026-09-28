@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "check.go",
         "conversion.go",
+        "fallback.go",
         "issue.go",
         "module.go",
     ],
@@ -33,6 +34,7 @@ dd_agent_go_test(
     name = "invalidconfig_test",
     srcs = [
         "conversion_test.go",
+        "fallback_test.go",
         "invalidconfig_test.go",
     ],
     embed = [":invalidconfig"],

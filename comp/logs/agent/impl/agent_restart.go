@@ -147,6 +147,7 @@ func (a *logAgent) restartPipeline() {
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()
+	a.recordCompressionFallback()
 
 	a.log.Info("Successfully restarted pipeline")
 }
@@ -174,6 +175,7 @@ func (a *logAgent) partialStop() error {
 	a.stopComponents(toStop, func() {
 		a.destinationsCtx.Stop()
 	})
+	a.config.ClearConfigFallback("logs_config.compression_kind", "logs")
 
 	// Flush auditor to write current positions to disk
 	a.log.Debug("Flushing auditor registry after pipeline stop")

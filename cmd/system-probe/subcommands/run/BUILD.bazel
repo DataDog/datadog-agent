@@ -74,6 +74,8 @@ go_library(
         "//pkg/proto/pbgo/core",
         "//pkg/runtime",
         "//pkg/system-probe/api/module",
+        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
         "//pkg/system-probe/utils",
         "//pkg/util/coredump",
         "//pkg/util/fxutil",
@@ -86,13 +88,9 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/discovery/module/splite",
-            "//pkg/system-probe/config",
-            "//pkg/system-probe/config/types",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/module/splite",
-            "//pkg/system-probe/config",
-            "//pkg/system-probe/config/types",
         ],
         "//conditions:default": [],
     }),
@@ -118,6 +116,8 @@ dd_agent_go_test(
         "//pkg/config/model",
         "//pkg/configstreambootstrap",
         "//pkg/proto/pbgo/core",
+        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:grpc",

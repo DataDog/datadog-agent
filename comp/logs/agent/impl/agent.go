@@ -283,7 +283,17 @@ func (a *logAgent) startPipeline() {
 		a.launchers,
 	)
 	starter.Start()
+	a.recordCompressionFallback()
 	a.startSchedulers()
+}
+
+func (a *logAgent) recordCompressionFallback() {
+	a.config.ClearConfigFallback("logs_config.compression_kind", "logs")
+	if a.endpoints.UseHTTP {
+		if fallback := a.endpoints.Main.CompressionFallback(); fallback != nil {
+			a.config.RecordConfigFallback(*fallback)
+		}
+	}
 }
 
 func (a *logAgent) startSchedulers() {
@@ -323,6 +333,7 @@ func (a *logAgent) stop(context.Context) error {
 	a.stopComponents(toStop, func() {
 		a.destinationsCtx.Stop()
 	})
+	a.config.ClearConfigFallback("logs_config.compression_kind", "logs")
 
 	return nil
 }
