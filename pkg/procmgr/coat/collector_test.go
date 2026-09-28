@@ -22,6 +22,10 @@ type mockClient struct {
 	daemonErr  error
 	processes  map[string]ProcessSnapshot
 	listErr    error
+	// details overrides what Describe returns for a process name. Names absent from it fall
+	// back to the List entry, so tests only specify Describe-only fields when they matter.
+	details     map[string]ProcessSnapshot
+	describeErr error
 }
 
 func (m *mockClient) Connect(context.Context) (ProcmgrSession, error) {
@@ -51,6 +55,19 @@ func (s *mockSession) List(context.Context) (map[string]ProcessSnapshot, error) 
 		procs = map[string]ProcessSnapshot{}
 	}
 	return procs, nil
+}
+
+func (s *mockSession) Describe(_ context.Context, nameOrUUID string) (ProcessSnapshot, error) {
+	if s.m.describeErr != nil {
+		return ProcessSnapshot{}, s.m.describeErr
+	}
+	if detail, ok := s.m.details[nameOrUUID]; ok {
+		return detail, nil
+	}
+	if listed, ok := s.m.processes[nameOrUUID]; ok {
+		return listed, nil
+	}
+	return ProcessSnapshot{}, errors.New("no such process")
 }
 
 func (s *mockSession) Disconnect() error {

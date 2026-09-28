@@ -18,6 +18,7 @@ go_library(
         "paths_notwindows.go",
         "paths_windows.go",
         "process_state.go",
+        "report.go",
         "reporter.go",
         "services.go",
         "snapshot.go",
@@ -123,6 +124,7 @@ dd_agent_go_test(
     srcs = [
         "collector_test.go",
         "process_state_test.go",
+        "report_test.go",
     ],
     embed = [":coat"],
     deps = [

@@ -14,6 +14,8 @@ import (
 type ProcmgrSession interface {
 	Status(ctx context.Context) (DaemonSnapshot, error)
 	List(ctx context.Context) (map[string]ProcessSnapshot, error)
+	// Describe returns the full detail for one process, including the fields List omits.
+	Describe(ctx context.Context, nameOrUUID string) (ProcessSnapshot, error)
 	Disconnect() error
 }
 
