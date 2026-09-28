@@ -85,7 +85,7 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		Bundle(),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component {
-			cfg := config.NewMockFromYAML(t, "logs_enabled: ENC[logs_enabled]\n")
+			cfg := config.NewMockFromYAML(t, "logs_enabled: ENC[logs_enabled]\ndogstatsd_port: ENC[PRIVATE_UNRESOLVED_HANDLE]\n")
 			cfg.SetInTest("api_key", "test-api-key")
 			cfg.SetInTest("dd_url", fi.URL())
 			cfg.SetInTest("health_platform.enabled", true)
@@ -154,13 +154,18 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 		assert.Equal(t, "known", violation["default_status"])
 		assert.Equal(t, expected.defaultValue, violation["default_value"])
 	}
+	assert.Len(t, byPath, 3)
+	assert.NotContains(t, errorsStruct.GetFields(), "/dogstatsd_port")
+	assert.NotContains(t, byPath, "/dogstatsd_port")
 
 	receivedJSON, err := json.Marshal(receivedIssue)
 	require.NoError(t, err)
 	assert.NotContains(t, string(receivedJSON), rawInvalidLogsEnabled)
+	assert.NotContains(t, string(receivedJSON), "PRIVATE_UNRESOLVED_HANDLE")
 	const explanation = "`/logs_enabled` expects true or false, but received a string."
 	const correction = "Set `/logs_enabled` to true or false. The default value for this setting is `false`."
 	assert.Contains(t, receivedIssue.GetDescription(), explanation)
+	assert.NotContains(t, receivedIssue.GetDescription(), "/dogstatsd_port")
 	assert.Contains(t, receivedIssue.GetRemediation().GetSteps()[1].Text, correction)
 	for _, verbose := range []bool{false, true} {
 		found := false
@@ -170,7 +175,9 @@ func TestInvalidConfigExtraErrorsSurviveFullPipeline(t *testing.T) {
 			}
 			found = true
 			assert.Contains(t, result.Diagnosis, explanation)
+			assert.NotContains(t, result.Diagnosis+result.Remediation, "/dogstatsd_port")
 			assert.NotContains(t, result.Diagnosis+result.Remediation, rawInvalidLogsEnabled)
+			assert.NotContains(t, result.Diagnosis+result.Remediation, "PRIVATE_UNRESOLVED_HANDLE")
 			if verbose {
 				assert.Contains(t, result.Remediation, correction)
 			} else {
