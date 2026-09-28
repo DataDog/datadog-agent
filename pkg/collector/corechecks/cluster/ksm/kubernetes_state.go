@@ -773,6 +773,7 @@ func (k *KSMCheck) discoverCustomResources(c *apiserver.APIClient, collectors []
 	// extended collector, mirroring NewExtendedPodFactory.
 	if apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler") {
 		factories = append(factories, customresources.NewExtendedHorizontalPodAutoscalerFactory(c))
+		collectors = lo.Uniq(append(collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended"))
 	}
 
 	clients := make(map[string]interface{}, len(factories))
