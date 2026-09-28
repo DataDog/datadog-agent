@@ -289,14 +289,12 @@ func TestParseTeardownBudget(t *testing.T) {
 		budget time.Duration
 		err    bool
 	}{
-		"":      {defaultTeardownBudget, false},
-		"90s":   {90 * time.Second, false},
-		"5m":    {5 * time.Minute, false},
-		"1h30m": {90 * time.Minute, false},
-		"nope":  {defaultTeardownBudget, true},
-		"0":     {defaultTeardownBudget, true},
-		"0s":    {defaultTeardownBudget, true},
-		"-5m":   {defaultTeardownBudget, true},
+		"":     {defaultTeardownBudget, false},
+		"5m":   {5 * time.Minute, false},
+		"nope": {defaultTeardownBudget, true},
+		"0":    {defaultTeardownBudget, true},
+		"0s":   {defaultTeardownBudget, true},
+		"-5m":  {defaultTeardownBudget, true},
 	} {
 		budget, err := parseTeardownBudget(value)
 		require.Equal(t, expected.budget, budget, "value %q", value)

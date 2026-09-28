@@ -224,14 +224,10 @@ type BaseSuite[Env any] struct {
 
 	outputDir string
 
-	// teardownOnce ensures exactly one caller runs the teardown body
-	// (teardownSuite); concurrent or later callers block inside TearDownSuite
-	// until that run finishes. teardownStarted is set at the start of the body
-	// and read by the t.Cleanup hook registered in SetupSuite to skip cleanup
-	// when teardown is already handled. testify calls TearDownSuite reliably on
-	// every path *except* SetupSuite failure (testify suite.go:214 defers
-	// TearDownSuite after SetupSuite returns, so a Goexit during setup never
-	// registers the defer); the t.Cleanup hook covers that one gap.
+	// teardownOnce ensures exactly one caller runs the teardown body; concurrent
+	// or later callers block until it finishes. teardownStarted is set at the
+	// start of the body so the SetupSuite t.Cleanup hook can skip cleanup; that
+	// hook covers the one path testify misses, a Goexit during SetupSuite.
 	teardownOnce    sync.Once
 	teardownStarted atomic.Bool
 
@@ -442,10 +438,8 @@ func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 }
 
 func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.ProvisionerMap) error {
-	// Hold the provisioning mutex for the whole reconciliation: the deadline
-	// teardown (waitForProvisioning) joins on it, so once it holds the mutex,
-	// a reconcileEnv that returned has either failed (its rollback released
-	// any new pool lease) or fully updated bs.env (visible to the teardown).
+	// Hold the provisioning mutex for the whole reconciliation, so the deadline
+	// teardown joining on it implies the reconcile finished (rolled back or bs.env set).
 	bs.provisioningMu.Lock()
 	defer bs.provisioningMu.Unlock()
 
@@ -608,11 +602,9 @@ func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Cont
 	return context.WithTimeout(context.Background(), opTimeout)
 }
 
-// provisioningContext is the context for provisioning operations. When the
-// deadline watchdog is armed, it ends at the e2e deadline so an in-flight
-// pulumi up is cancelled (SIGINT, then SIGKILL through the SDK's WaitDelay)
-// while there is still budget to tear down; a provisioning started after the
-// deadline fails on an already-expired context.
+// provisioningContext ends at the e2e deadline when the watchdog is armed,
+// so in-flight pulumi operations are cancelled with budget left to tear down;
+// otherwise it falls back to the provider context.
 func (bs *BaseSuite[Env]) provisioningContext(opTimeout time.Duration) (context.Context, context.CancelFunc) {
 	if !bs.e2eDeadline.IsZero() {
 		return context.WithDeadlineCause(context.Background(), bs.e2eDeadline, errors.New("e2e deadline reached, cancelling provisioning"))
@@ -642,30 +634,20 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	}
 
 	// Setup Datadog Client to be used to send telemetry when writing e2e tests.
-	// Initialized before arming the deadline watchdog, which reads it on the
-	// deadline path; writes before arming are the ones visible to the watchdog.
+	// Read by the deadline watchdog, so it must be initialized before arming.
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
 	bs.Require().NoError(err)
 	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
 	bs.Require().NoError(err)
 	bs.datadogClient = datadog.NewClient(apiKey, appKey)
 
-	// Arm the deadline watchdog before provisioning anything (see
-	// armDeadlineWatchdog): when less than the teardown budget remains before
-	// the go test deadline, fail fast rather than create stacks that would be
-	// killed without a teardown.
+	// Arm the deadline watchdog before provisioning anything: it fails the
+	// suite when less than the teardown budget remains before the deadline.
 	bs.armDeadlineWatchdog(bs.T(), bs.teardownBudget())
 
-	// Register a t.Cleanup hook that invokes CleanupOnSetupFailure if testify never gets
-	// the chance to call TearDownSuite. testify's own defer of TearDownSuite (testify
-	// suite.go:214) is registered *after* SetupSuite returns, so a panic or T.FailNow in
-	// any SetupSuite layer (framework or derived override) leaves the goroutine without
-	// ever invoking it. t.Cleanup runs against the *testing.T regardless of how the test
-	// goroutine terminates, so it is robust to Goexit/panic during setup. The teardownStarted
-	// flag (set at the start of the teardown body) ensures the hook is a no-op when testify
-	// or a legacy `defer s.CleanupOnSetupFailure()` already handled cleanup. When the hook
-	// does invoke CleanupOnSetupFailure, recover() returns nil and we fall through to its
-	// T().Failed() branch to run the diagnose + TearDownSuite + T.Fatal sequence.
+	// The t.Cleanup hook covers the one path testify misses: a Goexit or panic
+	// during SetupSuite, since testify defers TearDownSuite only after SetupSuite
+	// returns. The teardownStarted flag makes it a no-op when teardown already ran.
 	bs.T().Cleanup(func() {
 		if bs.teardownStarted.Load() {
 			return
@@ -695,9 +677,8 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	}
 }
 
-// teardownBudget returns the time reserved before the go test deadline for
-// suite teardown (E2E_TEARDOWN_BUDGET, a Go duration string). An invalid value
-// logs a warning and falls back to the default.
+// teardownBudget returns the E2E_TEARDOWN_BUDGET parameter as a duration,
+// falling back to the default (with a warning) on invalid values.
 func (bs *BaseSuite[Env]) teardownBudget() time.Duration {
 	value, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.TeardownBudget, "")
 	if err != nil {
@@ -710,12 +691,9 @@ func (bs *BaseSuite[Env]) teardownBudget() time.Duration {
 	return budget
 }
 
-// armDeadlineWatchdog arms the deadline teardown. It is a no-op unless the
-// suite runs in CI with remote stack cleaning (the same condition the teardown
-// uses to delegate to the stackcleaner; a local teardown is a synchronous
-// pulumi destroy, which a mid-suite deadline would truncate) and go test has
-// a deadline. When less than the teardown budget remains before that deadline,
-// it fails the suite before anything is provisioned.
+// armDeadlineWatchdog arms the deadline teardown. It is a no-op outside CI
+// with remote stack cleaning, or when go test has no deadline; when less than
+// the teardown budget remains, it fails the suite before provisioning.
 func (bs *BaseSuite[Env]) armDeadlineWatchdog(t *testing.T, budget time.Duration) {
 	if !bs.IsWithinCI() || os.Getenv("REMOTE_STACK_CLEANING") != "true" {
 		return
@@ -734,10 +712,8 @@ func (bs *BaseSuite[Env]) armDeadlineWatchdog(t *testing.T, budget time.Duration
 }
 
 // teardownOnDeadline runs on the timer goroutine when the e2e deadline is
-// reached while the suite is still running. It marks the suite failed and
-// tears it down with deadline semantics while the test goroutine may still be
-// mid-test; that goroutine's own TearDownSuite call blocks on the sync.Once
-// until this teardown finishes.
+// reached mid-run: it marks the suite failed and tears it down with deadline
+// semantics; the test goroutine's TearDownSuite blocks on the sync.Once.
 func (bs *BaseSuite[Env]) teardownOnDeadline() {
 	t := bs.suiteT
 	testName := "setup"
@@ -751,15 +727,11 @@ func (bs *BaseSuite[Env]) teardownOnDeadline() {
 }
 
 // runDeadlineTeardown tears the suite down with deadline semantics: stacks are
-// deleted even when skipDeleteOnFailure is set (no retry will have time to
-// reuse them) and teardown operations are capped at the remaining budget. The
-// teardown is dispatched through the derived suite's TearDownSuite (bs.self)
-// so overrides that clean resources the stackcleaner can't see also run.
+// deleted even with skipDeleteOnFailure set, operations are capped at the
+// remaining budget, and the derived TearDownSuite override still runs.
 func (bs *BaseSuite[Env]) runDeadlineTeardown(t *testing.T) {
-	// Wait for an in-flight reconcileEnv: once the mutex is held here, any
-	// reconcileEnv that returned has either failed (its rollback already
-	// released a new pool lease) or succeeded (bs.env is set). Bounded, since
-	// a provisioner that ignores its cancelled context could hang forever.
+	// Wait for an in-flight reconcileEnv to finish before tearing down,
+	// bounded since a provisioner ignoring its context could hang forever.
 	if bs.waitForProvisioning() {
 		defer bs.provisioningMu.Unlock()
 	} else {
@@ -768,10 +740,8 @@ func (bs *BaseSuite[Env]) runDeadlineTeardown(t *testing.T) {
 
 	bs.deadlineTeardown.Store(true)
 	// The deferred fallback covers a derived TearDownSuite override that never
-	// reaches the base teardown (require/FailNow Goexits, or a panic): recover
-	// keeps the panic from killing the test binary, and the base TearDownSuite
-	// call runs the teardown body if the override did not. Deferred calls run
-	// during a Goexit too, so the fallback covers that case as well.
+	// reaches the base teardown (Goexit or panic): recover keeps the process
+	// alive, and the base call runs the teardown body if the override did not.
 	defer func() {
 		if r := recover(); r != nil {
 			utils.Logf(t, "WARNING: panic during deadline teardown: %v", r)
@@ -796,10 +766,9 @@ func (bs *BaseSuite[Env]) waitForProvisioning() bool {
 	return true
 }
 
-// teardownT returns the T to log teardown output through: the suite-level T
-// captured at arming time when the deadline teardown runs on the watchdog
-// goroutine (bs.T() would follow whichever subtest is running), otherwise the
-// current T.
+// teardownT returns the suite-level T captured at arming when the deadline
+// teardown runs on the watchdog goroutine (bs.T() follows the running subtest),
+// otherwise the current T.
 func (bs *BaseSuite[Env]) teardownT() *testing.T {
 	if bs.deadlineTeardown.Load() && bs.suiteT != nil {
 		return bs.suiteT
