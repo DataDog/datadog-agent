@@ -576,9 +576,8 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	if ddcfg == nil {
 		if !isSiteEmpty {
 			return map[string]any{"api": map[string]any{"site": site}}, nil
-		} else {
-			return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
 		}
+		return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -589,10 +588,10 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 		if !isSiteEmpty {
 			ddcfgMap["api"] = map[string]any{"site": site}
 			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
-		} else {
-			ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
-			return ddcfgMap, nil
 		}
+		ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
+		return ddcfgMap, nil
+
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
@@ -603,12 +602,10 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
 		if !isSiteEmpty {
 			apicfgMap["site"] = site
-		} else {
-			apicfgMap["site"] = "datadoghq.com"
 		}
-	} else {
-		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
+		apicfgMap["site"] = "datadoghq.com"
 	}
+	apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	return ddcfgMap, nil
 }
 
