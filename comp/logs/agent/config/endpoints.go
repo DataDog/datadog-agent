@@ -53,8 +53,9 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
-	isReliable bool
-	useSSL     bool
+	compressionFallback *model.ConfigFallback
+	isReliable          bool
+	useSSL              bool
 
 	// the apiKey to use for this endpoint
 	apiKey *atomic.String
@@ -153,11 +154,13 @@ func newTCPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint 
 func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint {
 
 	apiKey, configPath := logsConfig.getMainAPIKey()
+	kind, fallback := logsConfig.compressionKindWithFallback()
 	e := Endpoint{
+		compressionFallback:     fallback,
 		apiKey:                  atomic.NewString(apiKey),
 		configSettingPath:       configPath,
 		UseCompression:          logsConfig.useCompression(),
-		CompressionKind:         logsConfig.compressionKind(),
+		CompressionKind:         kind,
 		CompressionLevel:        logsConfig.compressionLevel(),
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
 		BackoffBase:             logsConfig.senderBackoffBase(),
@@ -172,6 +175,14 @@ func newHTTPEndpoint(logsConfig *LogsConfigKeys, registerCallback bool) Endpoint
 		e.onConfigUpdate(logsConfig)
 	}
 	return e
+}
+
+// CompressionFallback describes the decision attached to this endpoint, not a later config read.
+func (e Endpoint) CompressionFallback() *model.ConfigFallback {
+	if !e.UseCompression {
+		return nil
+	}
+	return e.compressionFallback
 }
 
 // The setting from 'logs_config.additional_endpoints' is directly unmarshalled from the configuration into a

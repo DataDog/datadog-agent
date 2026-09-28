@@ -360,6 +360,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	}
 
 	if compressionOptions.CompressionKind != "" {
+		main.compressionFallback = nil
 		main.CompressionKind = compressionOptions.CompressionKind
 		main.CompressionLevel = compressionOptions.CompressionLevel
 	}

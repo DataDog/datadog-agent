@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	spconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // Report this process's config, not the core Agent's separately loaded copy.
@@ -42,6 +44,13 @@ func startConfigHealth(deps module.FactoryDependencies, running bool) func() {
 			if err != nil && ctx.Err() == nil {
 				deps.Log.Debugf("Configuration health report will be retried: %v", err)
 			}
+			reportCtx, reportCancel = context.WithTimeout(ctx, 5*time.Second)
+			id = invalidconfig.ConfigAdjustmentIssueID(invalidconfig.FallbackIssueID, "system-probe", deps.Hostname.GetSafe(reportCtx))
+			err = reportConfigFallbacks(reportCtx, client, deps.SysprobeConfig, id, enabled)
+			reportCancel()
+			if err != nil && ctx.Err() == nil {
+				deps.Log.Debugf("Configuration fallback report will be retried: %v", err)
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -53,7 +62,7 @@ func startConfigHealth(deps module.FactoryDependencies, running bool) func() {
 }
 
 func reportConfigConversions(ctx context.Context, client pb.AgentSecureClient, cfg model.Reader, id string, enabled bool) error {
-	conversions := cfg.GetConfigTypeConversions()
+	conversions := invalidconfig.FilterConfigConversions(cfg.GetConfigTypeConversions(), activeConfigFallbacks(cfg, module.IsLoaded))
 	if !enabled || len(conversions) == 0 {
 		_, err := client.ResolveHealthIssue(ctx, &pb.ResolveHealthIssueRequest{IssueId: id})
 		return err
@@ -65,4 +74,39 @@ func reportConfigConversions(ctx context.Context, client pb.AgentSecureClient, c
 	issue.Id = id
 	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{Issue: issue})
 	return err
+}
+
+func reportConfigFallbacks(ctx context.Context, client pb.AgentSecureClient, cfg model.Reader, id string, enabled bool) error {
+	fallbacks := activeConfigFallbacks(cfg, module.IsLoaded)
+	if !enabled || len(fallbacks) == 0 {
+		_, err := client.ResolveHealthIssue(ctx, &pb.ResolveHealthIssueRequest{IssueId: id})
+		return err
+	}
+	issue, err := invalidconfig.BuildFallbackIssue("system-probe", cfg.ConfigFileUsed(), fallbacks)
+	if err != nil {
+		return err
+	}
+	issue.Id = id
+	_, err = client.ReportHealthIssue(ctx, &pb.ReportHealthIssueRequest{Issue: issue})
+	return err
+}
+
+// Configuration is adjusted even for disabled modules. Only report replacements used by running consumers.
+func activeConfigFallbacks(cfg model.Reader, loaded func(types.ModuleName) bool) []model.ConfigFallback {
+	var active []model.ConfigFallback
+	for _, fallback := range cfg.GetConfigFallbacks() {
+		inUse := false
+		switch fallback.Consumer {
+		case "system-probe":
+			inUse = true
+		case string(spconfig.NetworkTracerModule):
+			inUse = loaded(spconfig.NetworkTracerModule)
+		case "network_process":
+			inUse = loaded(spconfig.NetworkTracerModule) && cfg.GetBool("event_monitoring_config.network_process.enabled")
+		}
+		if inUse {
+			active = append(active, fallback)
+		}
+	}
+	return active
 }

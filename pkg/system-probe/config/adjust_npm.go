@@ -51,7 +51,7 @@ func adjustNetwork(cfg model.Config) {
 				return fmt.Errorf("closed connection notification threshold set to invalid value %d. resetting to default", v)
 			}
 			return nil
-		})
+		}, model.ConfigFallback{}) // The driver reads the replacement network_config key, not this legacy key.
 	}
 
 	validateInt64(cfg, spNS("max_tracked_connections"), defaultMaxTrackedConnections, func(v int64) error {
@@ -59,7 +59,7 @@ func adjustNetwork(cfg model.Config) {
 			return errors.New("must be a positive value")
 		}
 		return nil
-	})
+	}, model.ConfigFallback{Consumer: string(NetworkTracerModule), Reason: "must be positive"})
 	limitMaxInt64(cfg, spNS("max_tracked_connections"), math.MaxUint32)
 	// make sure max_closed_connections_buffered is equal to max_tracked_connections,
 	// if the former is not set. this helps with lowering or eliminating dropped
@@ -69,7 +69,7 @@ func adjustNetwork(cfg model.Config) {
 			return errors.New("must be a positive value")
 		}
 		return nil
-	})
+	}, model.ConfigFallback{Consumer: string(NetworkTracerModule), Reason: "must be positive", ReplacementSetting: spNS("max_tracked_connections")})
 	limitMaxInt64(cfg, spNS("max_closed_connections_buffered"), math.MaxUint32)
 	// also ensure that max_failed_connections_buffered is equal to max_tracked_connections if the former is not set
 	validateInt64(cfg, netNS("max_failed_connections_buffered"), cfg.GetInt64(spNS("max_tracked_connections")), func(v int64) error {
@@ -77,7 +77,7 @@ func adjustNetwork(cfg model.Config) {
 			return errors.New("must be a positive value")
 		}
 		return nil
-	})
+	}, model.ConfigFallback{}) // No running consumer currently reads this setting.
 	limitMaxInt64(cfg, netNS("max_failed_connections_buffered"), math.MaxUint32)
 
 	limitMaxInt(cfg, spNS("offset_guess_threshold"), maxOffsetThreshold)
@@ -91,7 +91,7 @@ func adjustNetwork(cfg model.Config) {
 			return fmt.Errorf("`%d` is 0 or less", v)
 		}
 		return nil
-	})
+	}, model.ConfigFallback{Consumer: "network_process", Reason: "must be positive"})
 
 	if cfg.GetBool(evNS("network_process", "enabled")) && !ProcessEventDataStreamSupported() {
 		if flavor.GetFlavor() == flavor.SystemProbe {

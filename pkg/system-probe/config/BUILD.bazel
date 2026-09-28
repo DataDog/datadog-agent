@@ -53,6 +53,7 @@ dd_agent_go_test(
         "config_darwin_test.go",
         "config_test.go",
         "config_traceroute_test.go",
+        "fallback_test.go",
     ],
     embed = [":config"],
     gotags_sets = [["bpf"]],

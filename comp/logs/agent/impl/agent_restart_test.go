@@ -345,12 +345,14 @@ func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
 	originalDiagnostic := agent.diagnosticMessageReceiver
 	originalSchedulers := agent.schedulers
 	originalAuditor := agent.auditor
+	agent.config.RecordConfigFallback(pkgconfigmodel.ConfigFallback{Key: "logs_config.compression_kind", Consumer: "logs", DefaultValue: "zstd"})
 
 	// Execute partial stop
 	err := agent.partialStop()
 
 	// Assertions
 	suite.NoError(err)
+	suite.Empty(agent.config.GetConfigFallbacks(), "a stopped pipeline no longer uses its fallback")
 
 	// Persistent components should remain
 	suite.Same(originalDiagnostic, agent.diagnosticMessageReceiver)

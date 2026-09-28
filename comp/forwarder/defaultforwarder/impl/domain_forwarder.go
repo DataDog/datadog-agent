@@ -22,6 +22,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -234,6 +235,7 @@ func (f *domainForwarder) Start() error {
 	}
 
 	f.internalState = Started
+	f.Client.setActive(true)
 	return nil
 }
 
@@ -276,21 +278,20 @@ func NewHTTPClient(config config.Component, numberOfWorkers int, log log.Compone
 
 // NewHTTPTransport creates a new http.Transport
 func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Component) *http.Transport {
-	var transport *http.Transport
-
-	transportConfig := config.Get("forwarder_http_protocol")
-
-	switch transportConfig {
-	case "http1":
-		transport = httputils.CreateHTTPTransport(config, httputils.MaxConnsPerHost(numberOfWorkers))
-	case "auto":
-		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
-	default:
-		log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
-		transport = httputils.CreateHTTPTransport(config, httputils.WithHTTP2(), httputils.MaxConnsPerHost(numberOfWorkers))
-	}
-
+	transport, _ := newHTTPTransport(config, numberOfWorkers, log)
 	return transport
+}
+
+func newHTTPTransport(config config.Component, numberOfWorkers int, log log.Component) (*http.Transport, *model.ConfigFallback) {
+	transportConfig := config.Get("forwarder_http_protocol")
+	if transportConfig != "http1" && transportConfig != "auto" {
+		log.Warnf("Invalid http_protocol '%v', falling back to 'auto'", transportConfig)
+	}
+	options := []func(*http.Transport){httputils.MaxConnsPerHost(numberOfWorkers)}
+	if transportConfig != "http1" {
+		options = append(options, httputils.WithHTTP2())
+	}
+	return httputils.CreateHTTPTransportWithFallback(config, options...)
 }
 
 // Stop stops a domainForwarder and persists retryable queued transactions when
@@ -329,6 +330,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 
 	f.log.Info("domainForwarder stopped")
 	f.internalState = Stopped
+	f.Client.setActive(false)
 }
 
 func (f *domainForwarder) State() uint32 {

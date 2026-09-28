@@ -51,7 +51,7 @@ import (
 
 // team: fleet-remediation
 
-func TestConfigConversionReachesFakeintake(t *testing.T) {
+func TestConfigAdjustmentsReachFakeintake(t *testing.T) {
 	ready := make(chan bool, 1)
 	fi := fakeintakeserver.NewServer(fakeintakeserver.WithAddress("127.0.0.1:0"), fakeintakeserver.WithReadyChannel(ready))
 	fi.Start()
@@ -76,12 +76,13 @@ func TestConfigConversionReachesFakeintake(t *testing.T) {
 		telemetrymock.Module(), hostnameinterface.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	hostname, _ := hostnameinterface.NewMock("my-hostname")
 	for _, module := range issues.GetAllModules(issues.ModuleDeps{Config: cfg, Hostname: hostname}) {
-		if module.IssueName() == invalidconfig.ConversionIssueName {
+		if module.IssueName() == invalidconfig.ConversionIssueName || module.IssueName() == invalidconfig.FallbackIssueName {
 			check := module.BuiltInPeriodicHealthCheck()
-			require.NoError(t, deps.Scheduler.Schedule("test-config-conversion", check.Fn, 100*time.Millisecond, nil))
+			require.NoError(t, deps.Scheduler.Schedule(module.IssueName(), check.Fn, 100*time.Millisecond, nil))
 		}
 	}
 	id := invalidconfig.ConfigAdjustmentIssueID(invalidconfig.ConversionIssueID, "agent", "my-hostname")
+	explanation := "converted it to a whole number"
 	seen := func(state healthplatformpayload.IssueState) bool {
 		payloads, err := client.GetAgentHealth()
 		if err != nil {
@@ -91,7 +92,7 @@ func TestConfigConversionReachesFakeintake(t *testing.T) {
 			issue := payload.Issues[id]
 			if issue != nil && issue.GetPersistedIssue().GetState() == state {
 				if state == healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE {
-					require.Contains(t, issue.Description, "converted it to a whole number")
+					require.Contains(t, issue.Description, explanation)
 					require.NotContains(t, issue.Description, "9000")
 					require.NotEmpty(t, issue.Remediation.Steps)
 				}
@@ -102,6 +103,12 @@ func TestConfigConversionReachesFakeintake(t *testing.T) {
 	}
 	require.Eventually(t, func() bool { return seen(healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE) }, 5*time.Second, 20*time.Millisecond)
 	cfg.Set("dogstatsd_port", 9000, model.SourceFile)
+	require.Eventually(t, func() bool { return seen(healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) }, 5*time.Second, 20*time.Millisecond)
+	id = invalidconfig.ConfigAdjustmentIssueID(invalidconfig.FallbackIssueID, "agent", "my-hostname")
+	explanation = "is using the default value of `\"tlsv1.2\"`"
+	cfg.RecordConfigFallback(model.ConfigFallback{Key: "min_tls_version", Consumer: "test", Reason: "must be a supported TLS version", DefaultValue: "tlsv1.2"})
+	require.Eventually(t, func() bool { return seen(healthplatformpayload.IssueState_ISSUE_STATE_ACTIVE) }, 5*time.Second, 20*time.Millisecond)
+	cfg.ClearConfigFallback("min_tls_version", "test")
 	require.Eventually(t, func() bool { return seen(healthplatformpayload.IssueState_ISSUE_STATE_RESOLVED) }, 5*time.Second, 20*time.Millisecond)
 }
 
@@ -486,6 +493,9 @@ func TestAllModulesIssueNameMatchesBuiltIssueName(t *testing.T) {
 		ctx := map[string]string{}
 		if mod.IssueName() == invalidconfig.ConversionIssueName {
 			ctx["conversions"] = `[{"key":"dogstatsd_port","from_type":"string","to_type":"integer"}]`
+		}
+		if mod.IssueName() == invalidconfig.FallbackIssueName {
+			ctx["fallbacks"] = `[{"key":"min_tls_version","reason":"must be a supported TLS version","default_value":"tlsv1.2"}]`
 		}
 		issue, err := mod.BuildIssue(ctx)
 		require.NoError(t, err, "module %s: BuildIssue failed", mod.IssueName())

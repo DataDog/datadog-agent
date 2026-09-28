@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/atomic"
 
@@ -22,6 +23,23 @@ import (
 type EndpointsTestSuite struct {
 	suite.Suite
 	config config.Component
+}
+
+func TestCompressionFallbackDecision(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.Set("logs_config.compression_kind", "PRIVATE_INVALID_COMPRESSION", model.SourceFile)
+	keys := NewLogsConfigKeys("logs_config.", cfg)
+	endpoint := newHTTPEndpoint(keys, false)
+	require.Empty(t, cfg.GetConfigFallbacks(), "diagnostic construction must not publish a fallback")
+	require.NotNil(t, endpoint.CompressionFallback())
+	require.Equal(t, constants.DefaultLogCompressionKind, endpoint.CompressionFallback().DefaultValue)
+	cfg.Set("logs_config.use_compression", false, model.SourceFile)
+	endpoint = newHTTPEndpoint(keys, true)
+	require.Nil(t, endpoint.CompressionFallback(), "disabled compression cannot use a fallback")
+	cfg.Set("logs_config.use_compression", true, model.SourceFile)
+	cfg.Set("logs_config.compression_kind", "gzip", model.SourceFile)
+	endpoint = newHTTPEndpoint(keys, true)
+	require.Nil(t, endpoint.CompressionFallback())
 }
 
 func (suite *EndpointsTestSuite) SetupTest() {

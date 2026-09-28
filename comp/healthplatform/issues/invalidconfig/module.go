@@ -26,6 +26,7 @@ const (
 func init() {
 	issues.RegisterModuleFactory(NewModule)
 	issues.RegisterModuleFactory(newConversionModule)
+	issues.RegisterModuleFactory(newFallbackModule)
 }
 
 type invalidConfigModule struct {
