@@ -145,6 +145,7 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
         tags = ["manual"],
         visibility = ["//visibility:private"],
     )
+
     # easyjson_stubs in the calling package lists this filegroup. The macro's
     # visibility attribute is wider (//pkg/security, for the writeback target).
     native.filegroup(
