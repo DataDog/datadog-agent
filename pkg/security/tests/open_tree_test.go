@@ -303,12 +303,12 @@ func TestOpenTree(t *testing.T) {
 		}, "test_rule3")
 	})
 
-	test.Close()
+	test.CloseTest()
 	test, err = newTestModule(t, nil, execRules)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("execution-from-detached-mount", func(t *testing.T) {
 		srcPath := which(t, "true")

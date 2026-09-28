@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CWS: fix a regression where the process context updates carried by
+    an event (``setuid``, ``setgid``, ``capset``, login UID and IMDS security
+    credentials) were applied before the event was evaluated, preventing rules
+    from matching on the process state that preceded the event.

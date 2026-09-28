@@ -19,6 +19,7 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/forwarder/eventplatform/def",
         "//pkg/logs/message",
+        "//pkg/tagset",
         "//pkg/util/strings",
     ],
 )
@@ -32,6 +33,7 @@ dd_agent_go_test(
     embed = [":impl"],
     deps = [
         "//comp/anomalydetection/observer/def",
+        "//pkg/tagset",
         "@com_github_stretchr_testify//assert",
     ],
 )
