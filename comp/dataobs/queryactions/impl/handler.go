@@ -128,7 +128,14 @@ func instanceHasDOEnabled(instance map[string]any) bool {
 // unscheduled. An empty queries list signals removal of all queries for that config.
 // All schedule/unschedule changes are collected into a single returned ConfigChanges.
 // The caller is responsible for delivering changes to autodiscovery.
+//
+// One-off task configs (do-<platform>-once-*) are split off first and handled by onTaskUpdate,
+// whose changes go to the task provider instead of the returned ConfigChanges. Everything below
+// only ever sees monitor configs.
 func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus func(string, state.ApplyStatus)) integration.ConfigChanges {
+	updates, taskUpdates := splitTaskUpdates(updates)
+	c.taskChanges.push(c.onTaskUpdate(taskUpdates, applyStatus))
+
 	changes := integration.ConfigChanges{}
 	seenConfigIDs := make(map[string]bool, len(updates))
 
