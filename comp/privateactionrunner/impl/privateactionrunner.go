@@ -173,6 +173,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	taskverifier.SetProofProvider(reqs.KeysManager, runner.rcClient)
 	runner.keysManager = reqs.KeysManager
 	runner.ownsMetricsClient = true
+	runner.shutdowner = reqs.Shutdowner
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
 		OnStop:  runner.Stop,
@@ -183,11 +184,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 // NewExecutorComponent creates a privateactionrunner component in on-demand executor mode.
 func NewExecutorComponent(reqs Requires) (Provides, error) {
 	ctx := context.Background()
-	if !isEnabled(reqs.Config) {
-		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
-		reqs.Log.Flush()
-		return Provides{}, privateactionrunner.ErrNotEnabled
-	}
 
 	metricsClient, err := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
 	if err != nil {
@@ -268,7 +264,6 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
 		if err != nil {
-			p.logger.Errorf("Self-enrollment failed: %v", err)
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
 		p.coreConfig.Set(privateactionrunner.PARPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
@@ -316,54 +311,43 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.cancelStart = cancel
 	defer p.logger.Flush()
 
-	cfg, err := p.getRunnerConfig(ctx)
+	runCtx, cfg, err := p.configureExecutor(ctx, runCtx)
 	if err != nil {
-		p.logger.Errorf("Private action runner executor failed to start: %v", err)
+		cancel()
 		return err
 	}
-	commonTags := observability.CommonTags{
-		RunnerId:      cfg.RunnerId,
-		RunnerVersion: cfg.Version,
-		Modes:         cfg.Modes,
-		ExtraTags:     cfg.Tags,
+	snapshot, err := executor.ControlPlaneConfig(p.coreConfig, cfg)
+	if err != nil {
+		cancel()
+		return err
 	}
-	runCtx = observability.AddCommonTagsToLogs(runCtx, commonTags)
-	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
-
-	p.logger.Info("Private action runner executor starting")
-	p.logger.Info("==> Version : " + parversion.RunnerVersion)
-	p.logger.Info("==> URN : " + cfg.Urn)
-
-	keysManager := p.getKeysManager()
-	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
-	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
-
-	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
-
-	go p.encryptionStore.Start()
-	keysManager.Start(runCtx)
-	go func() {
-		keysManager.WaitForReady()
-		p.executorServer.SetReady(true)
-		p.logger.Info("Private action runner executor ready to accept actions")
-	}()
+	tlsConfig := p.ipc.GetTLSServerConfig().Clone()
+	if len(tlsConfig.Certificates) == 0 || len(tlsConfig.Certificates[0].Certificate) == 0 {
+		cancel()
+		return errors.New("shared IPC certificate is missing")
+	}
+	p.executorServer.SetControlPlaneConfig(snapshot, tlsConfig.Certificates[0].Certificate[0])
 
 	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
 	lis, err := executor.Listen(socketPath)
 	if err != nil {
+		cancel()
 		return fmt.Errorf("failed to listen on executor socket %q: %w", socketPath, err)
 	}
 	p.logger.Info("Private action runner executor listening on " + socketPath)
 
 	p.executorDone = make(chan struct{})
 	drainTimeout := 60 * time.Second
-	if cfg.TaskTimeoutSeconds != nil {
+	if cfg != nil && cfg.TaskTimeoutSeconds != nil {
 		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
+	}
+	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds))
+	if cfg == nil {
+		idleTimeout = time.Minute
 	}
 	serveOpts := executor.ServeOptions{
 		DrainTimeout: drainTimeout,
-		IdleTimeout:  executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds)),
+		IdleTimeout:  idleTimeout,
 		OnIdleTimeout: func() {
 			p.logger.Info("Private action runner executor idle timeout elapsed; shutting down")
 			if err := p.shutdowner.Shutdown(); err != nil {
@@ -372,7 +356,6 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		},
 	}
 	// mTLS via the agent IPC cert: only a client with a CA-signed cert can dispatch.
-	tlsConfig := p.ipc.GetTLSServerConfig()
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	creds := grpc.Creds(credentials.NewTLS(tlsConfig))
 
@@ -383,6 +366,54 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+// configureExecutor resolves identity and returns the context tagged for logging.
+// Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
+func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
+	if !p.coreConfig.GetBool(privateactionrunner.PAREnabled) || !splitDeploymentEnabled(
+		p.coreConfig.GetBool(privateactionrunner.PARSplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
+	) {
+		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
+		return runCtx, nil, nil
+	}
+	buildFIPS, err := fips.Enabled()
+	if err != nil {
+		return runCtx, nil, err
+	}
+	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
+		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
+	}
+	cfg, err := p.getRunnerConfig(ctx)
+	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
+		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
+		return runCtx, nil, nil
+	}
+	if err != nil {
+		return runCtx, nil, err
+	}
+	commonTags := observability.CommonTags{
+		RunnerId: cfg.RunnerId, RunnerVersion: cfg.Version, Modes: cfg.Modes, ExtraTags: cfg.Tags,
+	}
+	runCtx = observability.AddCommonTagsToLogs(runCtx, commonTags)
+	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
+	p.logger.Info("Private action runner executor starting")
+	p.logger.Info("==> Version : " + parversion.RunnerVersion)
+	p.logger.Info("==> URN : " + cfg.Urn)
+	keysManager := p.getKeysManager()
+	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	p.encryptionStore = encryptioncontext.NewStore()
+	taskExecutor := runners.NewWorkflowTaskExecutor(cfg, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	p.executorServer = executor.NewServer(taskExecutor, parversion.RunnerVersion)
+	go p.encryptionStore.Start()
+	keysManager.Start(runCtx)
+	go func() {
+		keysManager.WaitForReady()
+		p.executorServer.SetReady(true)
+		p.logger.Info("Private action runner executor ready to accept actions")
+	}()
+	return runCtx, cfg, nil
 }
 
 func (p *PrivateActionRunner) getKeysManager() taskverifier.KeysManager {
@@ -442,6 +473,17 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
 	cfg, err := p.getRunnerConfig(ctx)
+	if errors.Is(err, opms.ErrEnrollmentUnauthorized) {
+		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
+		if p.shutdowner != nil {
+			go func() {
+				if stopErr := p.shutdowner.Shutdown(); stopErr != nil {
+					p.logger.Errorf("Failed to stop Private Action Runner: %v", stopErr)
+				}
+			}()
+		}
+		return nil
+	}
 	if err != nil {
 		p.logger.Errorf("Private action runner failed to start: %v", err)
 		return err

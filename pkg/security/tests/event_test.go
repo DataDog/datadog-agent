@@ -42,7 +42,7 @@ func TestEventRulesetLoaded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.cws.SendStats()
 
@@ -84,7 +84,7 @@ func TestEventHeartbeatSent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	test.cws.SendStats()
 
@@ -133,7 +133,7 @@ func TestEventRaleLimiters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -253,7 +253,7 @@ func TestEventIteratorRegister(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFile, _, err := test.Path("test-register")
 	if err != nil {
@@ -313,7 +313,7 @@ func TestEventProductTags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	testFileTagsMatch, _, err := test.Path("test-tags-match")
 	if err != nil {
@@ -389,7 +389,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	truncatedParentsFile, _, err := test.Path(truncatedParents)
 	if err != nil {
