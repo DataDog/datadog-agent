@@ -110,7 +110,7 @@ bazel:test:linux-arm64:
       fi
     - |-
       while IFS= read -r native_output; do
-        cp "$native_output" "$RC_X509_ARTIFACTS_DIR/"
+        cp -f "$native_output" "$RC_X509_ARTIFACTS_DIR/"
       done < "$RC_X509_ARTIFACTS_DIR/native-outputs.txt"
   artifacts:
     expire_in: 2 weeks
