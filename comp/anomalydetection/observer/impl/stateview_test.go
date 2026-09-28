@@ -139,14 +139,17 @@ func TestStateView_Anomalies(t *testing.T) {
 }
 
 func TestStateView_DetectorOutputAnomaliesRetainsPrePipelineResults(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	ref := storage.Add("ns", "cpu", 1, 100, nil).Ref
 	anomaly := observerdef.Anomaly{
-		Source:    observerdef.SeriesDescriptor{Name: "cpu", Aggregate: observerdef.AggregateAverage},
+		Source:    observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: observerdef.AggregateAverage},
+		SourceRef: &observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
 		Timestamp: 100,
 		Title:     "cpu changed",
 	}
 	detector := &outputDetector{name: "detector_a", anomalies: []observerdef.Anomaly{anomaly}}
 	e := newEngine(engineConfig{
-		storage:                    newTimeSeriesStorage(),
+		storage:                    storage,
 		detectors:                  []observerdef.Detector{detector},
 		trackAnomalyHistory:        true,
 		trackDetectorOutputHistory: true,

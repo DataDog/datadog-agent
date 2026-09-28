@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
@@ -159,11 +160,12 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage     *timeSeriesStorage
-	extractors  []observerdef.LogMetricsExtractor
-	detectors   []observerdef.Detector
-	correlators []observerdef.Correlator
-	logCounts   *materializedLogCountBucketizer
+	storage         *timeSeriesStorage
+	extractors      []observerdef.LogMetricsExtractor
+	detectors       []observerdef.Detector
+	correlators     []observerdef.Correlator
+	logCounts       *materializedLogCountBucketizer
+	logKeyGenerator *SliceKeyGenerator
 
 	// scorer is a typed pointer to the anomaly scorer (when present).
 	// It is also included in correlators for processing; this pointer is used
@@ -246,13 +248,12 @@ type engine struct {
 	handles            []*handle        // registered handles for per-source drop collection
 	handlesMu          sync.Mutex       // protects handles slice
 
-	// sourceTagCache memoises the "observer_source:<source>" string used in
-	// IngestLog/IngestMetric. Without this we allocate a fresh string per
-	// log/metric ingest. Sources are a small bounded set (e.g. "logs",
-	// "profiles", "traces") so a single-goroutine map is plenty; access is
-	// confined to the engine run loop. Lock-free via atomic.Pointer to a
-	// copy-on-write map so we don't add a mutex to the hot path.
-	sourceTagCache atomic.Pointer[map[string]string]
+	// sourceTagCache memoises the source tag and its immutable tag view used in
+	// IngestLog. Sources are a small bounded set (e.g. "logs", "profiles",
+	// "traces"), so a single-goroutine map is plenty; access is confined to the
+	// engine run loop. Lock-free via atomic.Pointer to a copy-on-write map so we
+	// don't add a mutex to the hot path.
+	sourceTagCache atomic.Pointer[map[string]cachedSourceTag]
 
 	// baseline is accessed only from the engine run goroutine.
 	baseline *baselineController
@@ -298,12 +299,13 @@ func newEngine(cfg engineConfig) *engine {
 	}
 
 	e := &engine{
-		storage:     cfg.storage,
-		extractors:  cfg.extractors,
-		detectors:   cfg.detectors,
-		correlators: correlators,
-		scorer:      cfg.scorer,
-		scheduler:   sched,
+		storage:         cfg.storage,
+		extractors:      cfg.extractors,
+		detectors:       cfg.detectors,
+		correlators:     correlators,
+		logKeyGenerator: NewSliceKeyGenerator(),
+		scorer:          cfg.scorer,
+		scheduler:       sched,
 
 		anomalyDeduper:             newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
 		trackAnomalyHistory:        cfg.trackAnomalyHistory,
@@ -395,16 +397,22 @@ func (e *engine) registerHandle(h *handle) {
 // string, the COW map becomes unbounded and this memoisation strategy is
 // the wrong shape (use sync.Map or a bounded LRU). Adding an entry to that
 // list above means revisiting this function.
-func (e *engine) sourceTagForIngest(source string) string {
+type cachedSourceTag struct {
+	value string
+	tags  tagset.CompositeTags
+}
+
+func (e *engine) sourceTagForIngest(source string) cachedSourceTag {
 	if m := e.sourceTagCache.Load(); m != nil {
 		if tag, ok := (*m)[source]; ok {
 			return tag
 		}
 	}
-	tag := "observer_source:" + source
+	tag := cachedSourceTag{value: "observer_source:" + source}
+	tag.tags = tagset.CompositeTagsFromSlice([]string{tag.value})
 	for {
 		old := e.sourceTagCache.Load()
-		newMap := make(map[string]string, 4)
+		newMap := make(map[string]cachedSourceTag, 4)
 		if old != nil {
 			for k, v := range *old {
 				newMap[k] = v
@@ -422,7 +430,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
 func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
-	e.storage.AddWithHost(source, m.name, m.host, m.value, m.timestamp, m.tags)
+	e.storage.AddWithKeyAndHostComposite(source, m.name, m.host, m.value, m.timestamp, m.tags, m.storageKey)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
 	if m.timestamp <= e.lastAnalyzedDataTime {
@@ -446,31 +454,24 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 		out := extractor.ProcessLog(view)
 		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
 		for _, m := range out.Metrics {
-			// Avoid copying m.Tags when sourceTag is already present: storage.Add
-			// performs its own deep copy on first-write of a series via
-			// canonicalizeTags — it doesn't mutate the input. The copy is only
-			// needed when we append sourceTag.
 			tags := m.Tags
-			if !sliceContains(tags, sourceTag) {
-				newTags := make([]string, len(tags), len(tags)+1)
-				copy(newTags, tags)
-				tags = append(newTags, sourceTag)
+			if !tags.Find(func(tag string) bool { return tag == sourceTag.value }) {
+				sourceTags, _ := sourceTag.tags.UnsafeGet()
+				tags = tagset.CombineCompositeTagsAndSlice(tags, sourceTags)
 			}
-			// Always canonicalize so the hash computed here matches storage's
-			// seriesKeyHash, and storage.Add hits the tagsSorted fast path.
-			tags = canonicalizeTags(tags)
 			host := m.Host
 			if host == "" {
 				host = l.hostname
 			}
+			seriesKey := storageKeyForContextKey(extractor.Name(), e.contextKeyForLogComposite(m.Name, host, tags))
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				if _, ok := e.baseline.mutedHashes[seriesKeyHash(extractor.Name(), m.Name, host, tags)]; ok {
+				if _, ok := e.baseline.mutedHashes[seriesKey]; ok {
 					continue
 				}
 			}
 			timestamp := l.timestampMs / 1000
 			if e.logCounts != nil && e.logCounts.handlesMetric(m.Name) {
-				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags) {
+				if !e.logCounts.observe(extractor.Name(), m, host, timestamp, tags, seriesKey) {
 					e.latePoints.Add(1)
 					if e.latePointsBySource == nil {
 						e.latePointsBySource = make(map[string]int64)
@@ -479,7 +480,7 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				}
 				continue
 			}
-			res := e.storage.AddWithHost(extractor.Name(), m.Name, host, m.Value, timestamp, tags)
+			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
 			if m.Context != nil && res.Ref >= 0 {
 				e.storage.SetContext(res.Ref, m.Context)
 			}
@@ -493,13 +494,8 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState())
 }
 
-func sliceContains(items []string, want string) bool {
-	for _, item := range items {
-		if item == want {
-			return true
-		}
-	}
-	return false
+func (e *engine) contextKeyForLogComposite(name, host string, tags tagset.CompositeTags) uint64 {
+	return uint64(e.logKeyGenerator.GenerateComposite(name, host, tags))
 }
 
 // removeEvictedMetricSeries removes all storage series for the given metric
@@ -782,11 +778,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
 			// anomaly.Source.Tags are sorted (copied from storage's intern pool by seriesDetectorAdapter).
 			if e.baseline != nil && e.baseline.isAnalyzingAt(detector.Name(), upTo) {
-				e.baseline.mark(detector.Name(), seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags))
+				e.baseline.mark(detector.Name(), e.anomalyStorageKey(anomaly))
 				continue
 			}
 			if e.baseline != nil && e.baseline.config.MuteNoisyMetrics && len(e.baseline.mutedHashes) > 0 {
-				h := seriesKeyHash(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
+				h := e.anomalyStorageKey(anomaly)
 				if _, muted := e.baseline.mutedHashes[h]; muted {
 					continue
 				}
@@ -850,6 +846,15 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		anomalies:        allAnomalies,
 		correlatorEvents: allCorrelatorEvents,
 	}
+}
+
+func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
+	if anomaly.SourceRef != nil {
+		if key, ok := e.storage.StorageKey(anomaly.SourceRef.Ref); ok {
+			return key
+		}
+	}
+	return storageKeyForCompositeIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
 }
 
 // enrichAnomaly decorates an anomaly with context stored on the source series.
@@ -1054,7 +1059,7 @@ func (e *engine) completeBaseline(detectorName string, upToSec int64) {
 	if e.baseline.config.Verbose {
 		for _, ref := range refs {
 			if meta := e.storage.GetSeriesMeta(ref); meta != nil {
-				displayNames = append(displayNames, seriesKey(meta.Namespace, meta.Name, meta.Host, meta.Tags))
+				displayNames = append(displayNames, seriesKeyComposite(meta.Namespace, meta.Name, meta.Host, meta.Tags))
 			}
 		}
 		sort.Strings(displayNames)
