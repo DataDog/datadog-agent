@@ -25,6 +25,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clustermetadata"
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -117,19 +118,12 @@ func startMetadataRing(cfg config.Component, wmeta workloadmeta.Component, tagge
 		return nil, taggerComp
 	}
 
-	// Peers dial each other by pod IP, but the DCA serving certificate only
-	// carries the service DNS names — hostname verification against an IP
-	// fails. The Bearer token interceptor stays the auth boundary (peers are
-	// the same trust domain as node agents), so peer connections skip host
-	// verification until there is a certificate story for pod-IP dialing.
-	peerTLS := ipc.GetTLSClientConfig().Clone()
-	peerTLS.InsecureSkipVerify = true
+	peerTLS := &tls.Config{InsecureSkipVerify: true}
 
 	pool := &metadataPeerPool{
 		controller: controller,
 		selfID:     controller.SelfID(),
 		tlsConfig:  peerTLS,
-		authToken:  ipc.GetAuthToken(),
 		port:       cfg.GetInt("cluster_agent.cmd_port"),
 	}
 
@@ -163,7 +157,6 @@ type metadataPeerPool struct {
 	controller *clustermetadata.RingController
 	selfID     string
 	tlsConfig  *tls.Config
-	authToken  string
 	port       int
 
 	mu    sync.Mutex
@@ -174,6 +167,7 @@ type metadataPeerPool struct {
 // address is skipped until it renews with one.
 func (p *metadataPeerPool) peers() []cm.Store {
 	state := p.controller.State()
+	log.Debugf("metadata ring: peers() called, %d member infos", len(state.MemberInfos))
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -186,6 +180,7 @@ func (p *metadataPeerPool) peers() []cm.Store {
 		}
 		live[info.Name] = true
 
+		log.Debugf("metadata ring: peers() creating/checking conn for %s at %s", info.Name, info.PodIP)
 		conn, cached := p.conns[info.Name]
 		if !cached || conn == nil {
 			// Note: plain assignment, not := — a shadowed conn here builds
@@ -194,7 +189,7 @@ func (p *metadataPeerPool) peers() []cm.Store {
 			conn, err = grpc.NewClient(
 				net.JoinHostPort(info.PodIP, strconv.Itoa(p.port)),
 				grpc.WithTransportCredentials(credentials.NewTLS(p.tlsConfig)),
-				grpc.WithPerRPCCredentials(bearerToken{token: p.authToken}),
+				grpc.WithPerRPCCredentials(bearerToken{token: pkgapiutil.GetDCAAuthToken()}),
 			)
 			if err != nil {
 				log.Warnf("metadata ring: cannot create peer client for %s: %v", info.Name, err)

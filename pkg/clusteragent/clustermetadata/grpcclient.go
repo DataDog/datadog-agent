@@ -12,6 +12,7 @@ import (
 
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PeerClient implements cm.Store between replicas using the ClusterMetadata
@@ -29,6 +30,7 @@ func NewPeerClient(conn *grpc.ClientConn) *PeerClient {
 
 // Lookup implements cm.Store against the remote Query.
 func (p *PeerClient) Lookup(ctx context.Context, req cm.LookupRequest) (cm.LookupAnswer, error) {
+	log.Debugf("ring peer client: Lookup(%s/%s/%s)", req.Key.Kind, req.Key.Namespace, req.Key.Name)
 	answer, err := p.client.Query(ctx, &pb.ClusterMetadataQueryRequest{
 		Key: &pb.ClusterMetadataEntityKey{
 			Kind:      req.Key.Kind,
@@ -45,6 +47,7 @@ func (p *PeerClient) Lookup(ctx context.Context, req cm.LookupRequest) (cm.Looku
 
 // LookupOrigin implements cm.Store against the remote QueryOrigin.
 func (p *PeerClient) LookupOrigin(ctx context.Context, req cm.OriginLookupRequest) (cm.LookupAnswer, error) {
+	log.Debugf("ring peer client: LookupOrigin(uid=%s)", req.Key.PodUID)
 	answer, err := p.client.QueryOrigin(ctx, &pb.ClusterMetadataOriginRequest{
 		PodUid:        req.Key.PodUID,
 		ContainerId:   req.Key.ContainerID,

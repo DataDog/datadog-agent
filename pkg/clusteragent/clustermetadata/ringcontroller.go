@@ -122,6 +122,7 @@ func (c *RingController) Reconcile(ctx context.Context) error {
 		nodeSynced[node] = prevSynced[node]
 	}
 
+	log.Debugf("ring controller: reconcile pass — %d alive members, %d my nodes", len(aliveInfos), len(myNodes))
 	c.mu.Lock()
 	c.state = RingState{
 		MemberInfos: aliveInfos,

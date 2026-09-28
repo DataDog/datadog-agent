@@ -75,6 +75,7 @@ func (w *perNodePodWatcher) stopAll() {
 // reconcile aligns the watch set with the scope's current nodes.
 func (w *perNodePodWatcher) reconcile(ctx context.Context) {
 	desired := make(map[string]struct{})
+	log.Debugf("per-node watcher: reconcile, scope nodes: %d", len(w.scope.Nodes()))
 	for _, node := range w.scope.Nodes() {
 		desired[node] = struct{}{}
 	}
@@ -95,6 +96,7 @@ func (w *perNodePodWatcher) reconcile(ctx context.Context) {
 }
 
 func (w *perNodePodWatcher) startLocked(ctx context.Context, node string) {
+	log.Debugf("per-node watcher: starting reflector for node %s", node)
 	nodeCtx, cancel := context.WithCancel(ctx)
 
 	store := newPodReflectorStoreWithFullPodParser(w.wmeta, w.config)
@@ -117,6 +119,7 @@ func (w *perNodePodWatcher) startLocked(ctx context.Context, node string) {
 }
 
 func (w *perNodePodWatcher) stopLocked(node string) {
+	log.Debugf("per-node watcher: stopping reflector for node %s", node)
 	watch, ok := w.watches[node]
 	if !ok {
 		return

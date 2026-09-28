@@ -12,6 +12,7 @@ import (
 
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PeerServer implements the generated ClusterMetadata gRPC service: the
@@ -38,6 +39,7 @@ func (s *PeerServer) Register(server *grpc.Server) {
 
 // Query answers a named-entity lookup from the local cache.
 func (s *PeerServer) Query(ctx context.Context, req *pb.ClusterMetadataQueryRequest) (*pb.ClusterMetadataAnswer, error) {
+	log.Debugf("ring peer server: Query(%s/%s/%s)", req.GetKey().GetKind(), req.GetKey().GetNamespace(), req.GetKey().GetName())
 	answer, err := s.store.localLookup(ctx, cmLookupRequest(req))
 	if err != nil {
 		return nil, err
@@ -47,6 +49,7 @@ func (s *PeerServer) Query(ctx context.Context, req *pb.ClusterMetadataQueryRequ
 
 // QueryOrigin answers an origin lookup from the local cache.
 func (s *PeerServer) QueryOrigin(ctx context.Context, req *pb.ClusterMetadataOriginRequest) (*pb.ClusterMetadataAnswer, error) {
+	log.Debugf("ring peer server: QueryOrigin(uid=%s)", req.GetPodUid())
 	answer, err := s.store.localLookupOrigin(ctx, cmOriginRequest(req))
 	if err != nil {
 		return nil, err

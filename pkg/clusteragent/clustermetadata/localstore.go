@@ -15,6 +15,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Kinds supported by Lookup. Kind strings are the lowercase Kubernetes kinds
@@ -54,6 +55,7 @@ func (s *LocalStore) currentPeers() []cm.Store {
 // Lookup implements cm.Store.Lookup().
 func (s *LocalStore) Lookup(ctx context.Context, req cm.LookupRequest) (cm.LookupAnswer, error) {
 	local, err := s.localLookup(ctx, req)
+	log.Debugf("ring store: Lookup(%s/%s/%s) local: kind=%d err=%v", req.Key.Kind, req.Key.Namespace, req.Key.Name, local.Kind, err)
 	if err != nil || local.Kind == cm.AnswerFound || req.Key.Kind != KindPod {
 		return local, err
 	}
@@ -62,18 +64,23 @@ func (s *LocalStore) Lookup(ctx context.Context, req cm.LookupRequest) (cm.Looku
 	for _, peer := range s.currentPeers() {
 		answer, err := peer.Lookup(ctx, req)
 		if err != nil {
+			log.Debugf("ring store: Lookup(%s/%s/%s) peer error: %v", req.Key.Kind, req.Key.Namespace, req.Key.Name, err)
 			// A peer failure makes absence impossible to conclude, so it
 			// fails the query.
 			return cm.LookupAnswer{}, err
 		}
+		log.Debugf("ring store: Lookup(%s/%s/%s) peer answer: kind=%d %d tags", req.Key.Kind, req.Key.Namespace, req.Key.Name, answer.Kind, len(answer.Tags))
 		answers = append(answers, answer)
 	}
-	return cm.ReducePeerAnswers(answers), nil
+	result := cm.ReducePeerAnswers(answers)
+	log.Debugf("ring store: Lookup(%s/%s/%s) reduced: kind=%d %d tags", req.Key.Kind, req.Key.Namespace, req.Key.Name, result.Kind, len(result.Tags))
+	return result, nil
 }
 
 // LookupOrigin implements cm.Store.LookupOrigin().
 func (s *LocalStore) LookupOrigin(ctx context.Context, req cm.OriginLookupRequest) (cm.LookupAnswer, error) {
 	local, err := s.localLookupOrigin(ctx, req)
+	log.Debugf("ring store: LookupOrigin(uid=%s) local: kind=%d err=%v", req.Key.PodUID, local.Kind, err)
 	if err != nil || local.Kind == cm.AnswerFound {
 		return local, err
 	}
@@ -82,11 +89,15 @@ func (s *LocalStore) LookupOrigin(ctx context.Context, req cm.OriginLookupReques
 	for _, peer := range s.currentPeers() {
 		answer, err := peer.LookupOrigin(ctx, req)
 		if err != nil {
+			log.Debugf("ring store: LookupOrigin(uid=%s) peer error: %v", req.Key.PodUID, err)
 			return cm.LookupAnswer{}, err
 		}
+		log.Debugf("ring store: LookupOrigin(uid=%s) peer answer: kind=%d %d tags", req.Key.PodUID, answer.Kind, len(answer.Tags))
 		answers = append(answers, answer)
 	}
-	return cm.ReducePeerAnswers(answers), nil
+	result := cm.ReducePeerAnswers(answers)
+	log.Debugf("ring store: LookupOrigin(uid=%s) reduced: kind=%d %d tags", req.Key.PodUID, result.Kind, len(result.Tags))
+	return result, nil
 }
 
 func (s *LocalStore) localLookup(ctx context.Context, req cm.LookupRequest) (cm.LookupAnswer, error) {
@@ -99,9 +110,12 @@ func (s *LocalStore) localLookup(ctx context.Context, req cm.LookupRequest) (cm.
 		if req.Key.Kind == KindPod {
 			// if it's a pod, another replica might have it, but only claim
 			// NotMine once our own watches are synced
-			if s.ring.State().Ready() {
+			state := s.ring.State()
+			if state.Ready() {
+				log.Debugf("ring store: localLookup pod miss -> NOT_MINE (ready, %d my nodes)", len(state.MyNodes))
 				return cm.LookupAnswer{Kind: cm.AnswerNotMine}, nil
 			}
+			log.Debugf("ring store: localLookup pod miss -> NOT_READY (my nodes: %v, synced: %v)", state.MyNodes, state.NodeSynced)
 			return cm.LookupAnswer{Kind: cm.AnswerNotReady}, nil
 		}
 		// if it's not a pod it should be replicated across all DCAs, so that means it's absent
@@ -130,9 +144,12 @@ func (s *LocalStore) localLookupOrigin(ctx context.Context, req cm.OriginLookupR
 			return cm.LookupAnswer{}, err
 		}
 		// origin keys are always pods: NotMine only once our watches are synced
-		if s.ring.State().Ready() {
+		state := s.ring.State()
+		if state.Ready() {
+			log.Debugf("ring store: localLookupOrigin miss -> NOT_MINE (ready, %d my nodes)", len(state.MyNodes))
 			return cm.LookupAnswer{Kind: cm.AnswerNotMine}, nil
 		}
+		log.Debugf("ring store: localLookupOrigin miss -> NOT_READY (my nodes: %v, synced: %v)", state.MyNodes, state.NodeSynced)
 		return cm.LookupAnswer{Kind: cm.AnswerNotReady}, nil
 	}
 

@@ -11,6 +11,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	cm "github.com/DataDog/datadog-agent/pkg/clustermetadata"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RingTagger wraps the cluster-agent's local tagger so the existing tagger
@@ -36,6 +37,7 @@ func NewRingTagger(local tagger.Component, store *LocalStore) *RingTagger {
 // leaves the local result in place.
 func (t *RingTagger) Tag(entityID taggertypes.EntityID, cardinality taggertypes.TagCardinality) ([]string, error) {
 	tags, err := t.Component.Tag(entityID, cardinality)
+	log.Debugf("ring tagger: Tag(%s) local result: %d tags, err=%v", entityID.String(), len(tags), err)
 
 	// Only pods can be on another shard; every other kind is replicated.
 	if entityID.GetPrefix() != taggertypes.KubernetesPodUID {
@@ -50,6 +52,7 @@ func (t *RingTagger) Tag(entityID taggertypes.EntityID, cardinality taggertypes.
 		Key:   cm.OriginKey{PodUID: entityID.GetID()},
 		Scope: cm.Scope{Cardinality: cardinality},
 	})
+	log.Debugf("ring tagger: Tag(%s) ring result: kind=%d, %d tags, err=%v", entityID.String(), answer.Kind, len(answer.Tags), ringErr)
 	if ringErr != nil || answer.Kind != cm.AnswerFound {
 		// The ring did not resolve the pod: surface the local answer —
 		// its error or emptiness is the more informative failure.
