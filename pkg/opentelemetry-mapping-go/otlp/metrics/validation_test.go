@@ -287,6 +287,24 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		}
 	})
 
+	t.Run("cumulative count delta past the uint64 range is reported saturated", func(t *testing.T) {
+		// float64(math.MaxUint64) rounds to 2^64, which has no uint64 value: converting
+		// it as is gives an architecture-dependent count, 2^63 on amd64.
+		core, logs := observer.New(zapcore.WarnLevel)
+		m := newDefaultMapper(newTTLCache(1800, 3600), zap.New(core), distributions)
+
+		slice := pmetric.NewHistogramDataPointSlice()
+		appendHistogramPoint(slice, 1_000_000_000, 0, 1)
+		appendHistogramPoint(slice, 2_000_000_000, math.MaxUint64, 2)
+
+		consumer := newTestConsumer()
+		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
+
+		assert.Empty(t, consumer.data.Metrics.Sketches)
+		require.Equal(t, 1, logs.Len())
+		assert.Equal(t, uint64(math.MaxUint64), logs.All()[0].ContextMap()["count"])
+	})
+
 	t.Run("counters mode is untouched", func(t *testing.T) {
 		// Buckets become plain Count series here, no sketch bins are allocated, so the
 		// sketch limit must not apply.

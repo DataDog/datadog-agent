@@ -102,7 +102,7 @@ func (m *defaultMapper) MapHistogramMetrics(
 		if delta {
 			histInfo.count = p.Count()
 		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok && dx >= 0 {
-			histInfo.count = uint64(dx)
+			histInfo.count = saturatingUint64(dx)
 		} else {
 			// No delta to report: the point is a first or an out-of-order one, or its
 			// count went down, which is a reset the start timestamp did not reveal.
@@ -464,11 +464,14 @@ func (m *defaultMapper) getSketchBuckets(
 			if !dropSketch {
 				// dx, not count: a cumulative point carries lifetime counts, while only
 				// the difference from the previous point is inserted. A negative dx (a
-				// counter reset) inserts nothing, so it adds nothing to the total.
-				inserted += math.Max(dx, 0)
+				// counter reset) inserts nothing and adds nothing to the total; it is
+				// clamped rather than converted, as uint of a negative float64 is
+				// architecture-dependent.
+				added := math.Max(dx, 0)
+				inserted += added
 				if exceedsSketchCapacity(inserted, sketchMaxObservationCount) {
 					dropSketch, badCount = true, saturatingUint64(inserted)
-				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(dx)); err != nil {
+				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(added)); err != nil {
 					return err
 				}
 			}
