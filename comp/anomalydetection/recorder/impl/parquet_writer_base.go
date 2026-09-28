@@ -41,13 +41,17 @@ type parquetWriter struct {
 	retentionDuration time.Duration // 0 means no cleanup
 	stopCh            chan struct{}
 	closed            bool
+	closeErr          error
 	mu                sync.Mutex
+	workers           sync.WaitGroup
 }
 
 // start launches the background flush and cleanup goroutines.
 func (b *parquetWriter) start() {
+	b.workers.Add(1)
 	go b.flushLoop()
 	if b.retentionDuration > 0 {
+		b.workers.Add(1)
 		go b.cleanupLoop()
 	}
 }
@@ -110,6 +114,7 @@ func (b *parquetWriter) flush() {
 }
 
 func (b *parquetWriter) flushLoop() {
+	defer b.workers.Done()
 	ticker := time.NewTicker(b.flushInterval)
 	defer ticker.Stop()
 
@@ -125,6 +130,7 @@ func (b *parquetWriter) flushLoop() {
 }
 
 func (b *parquetWriter) cleanupLoop() {
+	defer b.workers.Done()
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
@@ -179,23 +185,25 @@ func (b *parquetWriter) cleanup() {
 // Close flushes remaining data and stops background goroutines.
 func (b *parquetWriter) Close() error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	if b.closed {
-		return nil
+		err := b.closeErr
+		b.mu.Unlock()
+		b.workers.Wait()
+		return err
 	}
 	b.closed = true
-
 	close(b.stopCh)
 
 	record := b.builder.build()
-	if record == nil {
-		return nil
+	if record != nil {
+		b.closeErr = b.writeRecord(record)
+		record.Release()
 	}
-	defer record.Release()
-
-	if err := b.writeRecord(record); err != nil {
-		return fmt.Errorf("final flush: %w", err)
+	if b.closeErr != nil {
+		b.closeErr = fmt.Errorf("final flush: %w", b.closeErr)
 	}
-	return nil
+	err := b.closeErr
+	b.mu.Unlock()
+	b.workers.Wait()
+	return err
 }

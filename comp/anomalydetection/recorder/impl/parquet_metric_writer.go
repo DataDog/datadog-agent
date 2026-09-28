@@ -84,12 +84,17 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 	return pw, nil
 }
 
-// WriteMetric adds a metric to the batch (will be flushed on interval).
-func (pw *metricParquetWriter) WriteMetric(source, name string, value float64, tags []string, timestamp int64, dropped bool) {
+// WriteMetric adds a metric to the batch and reports whether it was accepted.
+// Calls after Close return false.
+func (pw *metricParquetWriter) WriteMetric(source, name string, value float64, tags []string, timestamp int64, dropped bool) bool {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
+	if pw.closed {
+		return false
+	}
 	pw.typedBuilder.add(source, name, value, tags, timestamp, dropped)
+	return true
 }
 
 // metricBatchBuilder accumulates metrics into Arrow record batches using RecordBuilder

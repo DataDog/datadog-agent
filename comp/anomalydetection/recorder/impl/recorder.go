@@ -9,6 +9,7 @@
 package recorderimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -18,12 +19,14 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Requires defines the dependencies for the recorder component.
 type Requires struct {
-	Config config.Component
+	Config    config.Component
+	Lifecycle compdef.Lifecycle
 }
 
 // Provides defines the output of the recorder component.
@@ -33,9 +36,20 @@ type Provides struct {
 
 // NewComponent creates a new recorder component.
 func NewComponent(req Requires) (Provides, error) {
+	return newComponentWithWriters(req, newMetricParquetWriter, newLogParquetWriter)
+}
+
+func newComponentWithWriters(
+	req Requires,
+	newMetricWriter func(string, time.Duration, time.Duration) (*metricParquetWriter, error),
+	newLogWriter func(string, time.Duration, time.Duration) (*logParquetWriter, error),
+) (Provides, error) {
 	if !req.Config.GetBool("anomaly_detection.recording.enabled") {
 		logging.Debug("recorder disabled (anomaly_detection.recording.enabled=false)")
 		return Provides{Comp: option.None[recorderdef.Component]()}, nil
+	}
+	if req.Lifecycle == nil {
+		return Provides{}, errors.New("recorder lifecycle not set")
 	}
 
 	r := &recorderImpl{}
@@ -44,8 +58,12 @@ func NewComponent(req Requires) (Provides, error) {
 		return Provides{}, errors.New("anomaly_detection.recording.output_dir not set")
 	}
 
-	flushInterval := time.Duration(req.Config.GetInt("anomaly_detection.recording.flush_interval")) * time.Second
-	if flushInterval == 0 {
+	flushSeconds := req.Config.GetInt("anomaly_detection.recording.flush_interval")
+	if flushSeconds < 0 || int64(flushSeconds) > (1<<63-1)/int64(time.Second) {
+		return Provides{}, fmt.Errorf("anomaly_detection.recording.flush_interval must be a nonnegative number of seconds within time.Duration range: %d", flushSeconds)
+	}
+	flushInterval := time.Duration(flushSeconds) * time.Second
+	if flushSeconds == 0 {
 		flushInterval = 60 * time.Second
 	}
 
@@ -54,19 +72,23 @@ func NewComponent(req Requires) (Provides, error) {
 		retentionDuration = 24 * time.Hour
 	}
 
-	writer, err := newMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
+	writer, err := newMetricWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
 		return Provides{}, fmt.Errorf("creating metrics parquet writer: %w", err)
 	}
 	r.metricParquetWriter = writer
 	logging.Infof("recorder metrics writer started: dir=%s", parquetDir)
 
-	logWriter, err := newLogParquetWriter(parquetDir, flushInterval, retentionDuration)
+	logWriter, err := newLogWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		return Provides{}, fmt.Errorf("creating log parquet writer: %w", err)
+		return Provides{}, errors.Join(
+			fmt.Errorf("creating log parquet writer: %w", err),
+			r.close(),
+		)
 	}
 	r.logParquetWriter = logWriter
 	logging.Infof("recorder log writer started: dir=%s", parquetDir)
+	req.Lifecycle.Append(compdef.Hook{OnStop: func(context.Context) error { return r.close() }})
 
 	return Provides{Comp: option.New[recorderdef.Component](r)}, nil
 }
@@ -74,6 +96,21 @@ func NewComponent(req Requires) (Provides, error) {
 type recorderImpl struct {
 	metricParquetWriter *metricParquetWriter
 	logParquetWriter    *logParquetWriter
+}
+
+func (r *recorderImpl) close() error {
+	var metricErr, logErr error
+	if r.metricParquetWriter != nil {
+		if err := r.metricParquetWriter.Close(); err != nil {
+			metricErr = fmt.Errorf("closing metric parquet writer: %w", err)
+		}
+	}
+	if r.logParquetWriter != nil {
+		if err := r.logParquetWriter.Close(); err != nil {
+			logErr = fmt.Errorf("closing log parquet writer: %w", err)
+		}
+	}
+	return errors.Join(metricErr, logErr)
 }
 
 // GetHandle wraps the provided HandleFunc with recording capability.

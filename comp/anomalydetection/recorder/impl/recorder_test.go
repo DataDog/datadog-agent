@@ -8,6 +8,7 @@
 package recorderimpl
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,8 +19,13 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
+
+type recorderTestLifecycle struct{ hooks []compdef.Hook }
+
+func (l *recorderTestLifecycle) Append(h compdef.Hook) { l.hooks = append(l.hooks, h) }
 
 type recorderTestMetric struct {
 	tags      []string
@@ -89,13 +95,14 @@ func TestRecorderDisabledProvidesNoComponentOrWriters(t *testing.T) {
 
 func TestRecorderMiddlewareRoundTrip(t *testing.T) {
 	dir := t.TempDir()
+	lifecycle := &recorderTestLifecycle{}
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"anomaly_detection.recording.enabled":        true,
 		"anomaly_detection.recording.output_dir":     dir,
 		"anomaly_detection.recording.flush_interval": 30,
 		"anomaly_detection.recording.retention":      "2h",
 	})
-	provided, err := NewComponent(Requires{Config: cfg})
+	provided, err := NewComponent(Requires{Config: cfg, Lifecycle: lifecycle})
 	require.NoError(t, err)
 	comp, present := provided.Comp.Get()
 	require.True(t, present)
@@ -126,8 +133,10 @@ func TestRecorderMiddlewareRoundTrip(t *testing.T) {
 
 	require.Equal(t, 2, inner.metricCalls)
 	require.Equal(t, 1, inner.logCalls)
-	require.NoError(t, r.metricParquetWriter.Close())
-	require.NoError(t, r.logParquetWriter.Close())
+	require.Len(t, lifecycle.hooks, 1)
+	require.NoError(t, lifecycle.hooks[0].OnStop(context.Background()))
+	require.False(t, r.metricParquetWriter.WriteMetric("check", "late", 1, nil, 1, false))
+	require.False(t, r.logParquetWriter.WriteLog("check", []byte("late"), "info", "agent-a", nil, 1))
 
 	metrics, err := r.ReadAllMetrics(dir)
 	require.NoError(t, err)
@@ -150,6 +159,71 @@ func TestRecorderMiddlewareRoundTrip(t *testing.T) {
 	require.Equal(t, []string{"service:api"}, logs[0].Tags)
 	require.Equal(t, "warn", logs[0].Status)
 	require.Equal(t, "agent-a", logs[0].Hostname)
+}
+
+func TestRecorderRejectsInvalidFlushIntervalBeforeStartingWriters(t *testing.T) {
+	outputDir := filepath.Join(t.TempDir(), "recordings")
+	lifecycle := &recorderTestLifecycle{}
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":        true,
+		"anomaly_detection.recording.output_dir":     outputDir,
+		"anomaly_detection.recording.flush_interval": -1,
+	})
+	_, err := NewComponent(Requires{Config: cfg, Lifecycle: lifecycle})
+	require.ErrorContains(t, err, "anomaly_detection.recording.flush_interval")
+	require.Empty(t, lifecycle.hooks)
+	_, err = os.Stat(outputDir)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestRecorderClosesMetricWriterWhenLogWriterInitializationFails(t *testing.T) {
+	dir := t.TempDir()
+	lifecycle := &recorderTestLifecycle{}
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":    true,
+		"anomaly_detection.recording.output_dir": dir,
+	})
+	var metricWriter *metricParquetWriter
+	provided, err := newComponentWithWriters(
+		Requires{Config: cfg, Lifecycle: lifecycle},
+		func(dir string, flush, retention time.Duration) (*metricParquetWriter, error) {
+			var createErr error
+			metricWriter, createErr = newMetricParquetWriter(dir, flush, retention)
+			return metricWriter, createErr
+		},
+		func(string, time.Duration, time.Duration) (*logParquetWriter, error) {
+			return nil, errors.New("log writer setup failed")
+		},
+	)
+	require.ErrorContains(t, err, "log writer setup failed")
+	_, present := provided.Comp.Get()
+	require.False(t, present)
+	require.Empty(t, lifecycle.hooks)
+	require.NotNil(t, metricWriter)
+	require.False(t, metricWriter.WriteMetric("check", "late", 1, nil, 1, false))
+}
+
+func TestRecorderShutdownReportsFlushErrors(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "recordings")
+	lifecycle := &recorderTestLifecycle{}
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":    true,
+		"anomaly_detection.recording.output_dir": dir,
+	})
+	provided, err := NewComponent(Requires{Config: cfg, Lifecycle: lifecycle})
+	require.NoError(t, err)
+	comp, present := provided.Comp.Get()
+	require.True(t, present)
+	r := comp.(*recorderImpl)
+	require.True(t, r.metricParquetWriter.WriteMetric("check", "sample", 1, nil, 1, false))
+	require.True(t, r.logParquetWriter.WriteLog("check", []byte("sample"), "info", "agent-a", nil, 1))
+	require.NoError(t, os.Remove(dir))
+	require.Len(t, lifecycle.hooks, 1)
+	err = lifecycle.hooks[0].OnStop(context.Background())
+	require.ErrorContains(t, err, "closing metric parquet writer")
+	require.ErrorContains(t, err, "closing log parquet writer")
+	require.ErrorIs(t, err, os.ErrNotExist)
+	require.EqualError(t, lifecycle.hooks[0].OnStop(context.Background()), err.Error())
 }
 
 func TestRecorderDoesNotDuplicateHostTag(t *testing.T) {

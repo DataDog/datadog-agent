@@ -74,18 +74,23 @@ func newLogParquetWriter(outputDir string, flushInterval, retentionDuration time
 	return lw, nil
 }
 
-// WriteLog writes log data to the parquet batch.
+// WriteLog adds a log to the batch and reports whether it was accepted.
+// Calls after Close return false.
 func (lw *logParquetWriter) WriteLog(
 	source string,
 	content []byte,
 	status, hostname string,
 	tags []string,
 	timestampMs int64,
-) {
+) bool {
 	lw.mu.Lock()
 	defer lw.mu.Unlock()
 
+	if lw.closed {
+		return false
+	}
 	lw.typedBuilder.add(source, timestampMs, content, status, hostname, tags)
+	return true
 }
 
 // logBatchBuilder accumulates log data into Arrow record batches.

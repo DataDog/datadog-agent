@@ -44,6 +44,7 @@ dd_agent_go_test(
     deps = [
         "//comp/anomalydetection/recorder/def",
         "//comp/core/config",
+        "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
