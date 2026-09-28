@@ -32,11 +32,6 @@ fn to_text_fn(ty: &Type) -> Option<ToText> {
         _ if ty.name() == "hstore" => |_, raw| hstore_text(raw),
         // String types, including extensions such as `citext` and `ltree`.
         _ if <String as FromSql>::accepts(ty) => |ty, raw| String::from_sql(ty, raw),
-        // Reported as scanned columns but read as empty text, which is not scanned: they hold
-        // no sensitive data.
-        Type::DATE | Type::TIME | Type::TIMESTAMP | Type::TIMESTAMPTZ | Type::INTERVAL => {
-            |_, _| Ok(String::new())
-        }
         _ => return None,
     };
     Some(to_text)
@@ -113,7 +108,6 @@ fn hstore_text(raw: &[u8]) -> Result<String, BoxError> {
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr, Ipv6Addr};
-    use std::time::SystemTime;
 
     use postgres::types::private::BytesMut;
     use postgres::types::{FromSql, Kind, ToSql, Type};
@@ -157,12 +151,6 @@ mod tests {
             Type::MACADDR,
             Type::UUID,
             Type::UUID_ARRAY,
-            Type::DATE,
-            Type::TIME,
-            Type::TIMESTAMP,
-            Type::TIMESTAMPTZ,
-            Type::TIMESTAMP_ARRAY,
-            Type::INTERVAL,
             Type::JSON,
             Type::JSONB,
             Type::XML,
@@ -176,7 +164,17 @@ mod tests {
         ] {
             assert!(TextCell::accepts(&ty), "{ty} should be accepted");
         }
-        for ty in [Type::NUMERIC, Type::NUMERIC_ARRAY, extension("geometry")] {
+        for ty in [
+            Type::NUMERIC,
+            Type::NUMERIC_ARRAY,
+            Type::DATE,
+            Type::TIME,
+            Type::TIMESTAMP,
+            Type::TIMESTAMPTZ,
+            Type::TIMESTAMP_ARRAY,
+            Type::INTERVAL,
+            extension("geometry"),
+        ] {
             assert!(!TextCell::accepts(&ty), "{ty} should not be accepted");
         }
     }
@@ -247,16 +245,6 @@ mod tests {
         assert_eq!(text(extension("citext"), b"Alice@Corp.io"), "Alice@Corp.io");
         // `ltree` carries a version byte that must not end up in the text.
         assert_eq!(text(extension("ltree"), b"\x01top.science"), "top.science");
-        // Dates, times and intervals are reported but read as empty text.
-        let now = SystemTime::now();
-        assert_eq!(text(Type::TIMESTAMP, &encode(&now, &Type::TIMESTAMP)), "");
-        assert_eq!(
-            text(Type::TIMESTAMPTZ, &encode(&now, &Type::TIMESTAMPTZ)),
-            ""
-        );
-        assert_eq!(text(Type::DATE, &0i32.to_be_bytes()), "");
-        assert_eq!(text(Type::TIME, &0i64.to_be_bytes()), "");
-        assert_eq!(text(Type::INTERVAL, &[0; 16]), "");
         // Arrays are flattened into `{a,NULL,b}`.
         // TODO(DATASEC-349): add multidimensional array tests.
         let emails = encode(
