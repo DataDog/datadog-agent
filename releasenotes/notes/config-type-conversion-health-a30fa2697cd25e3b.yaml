@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Agent Health now highlights configuration types that the Agent or
+    system-probe converted while loading, and explains how to write
+    those settings with the expected types.
