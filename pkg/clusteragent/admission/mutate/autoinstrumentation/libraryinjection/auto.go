@@ -40,11 +40,7 @@ func NewAutoProvider(cfg LibraryInjectionConfig) *AutoProvider {
 // pickAutoProvider returns the concrete provider that AutoProvider will
 // delegate to. It is split out from NewAutoProvider for testability.
 //
-// A nil CSIDriverWatcher disables CSI auto-detection — for example when the
-// temporary feature flag apm_config.instrumentation.csi_driver_detection_enabled
-// is off, or in unit tests that don't care about CSI selection. In that case
-// the provider behaves exactly as before this feature existed and always
-// returns the init-container provider.
+// A nil CSIDriverWatcher always selects the init-container provider.
 func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
 	if cfg.CSIDriverWatcher == nil || !cfg.CSIDriverWatcher.IsAPMEnabled() {
 		log.Debugf("library injection auto provider: Datadog CSI driver %q is unavailable for APM injection, using InitContainerProvider", csiDriverName)

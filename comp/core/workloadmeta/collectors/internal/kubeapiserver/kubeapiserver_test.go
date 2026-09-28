@@ -764,6 +764,22 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			},
 			expectedResources: []string{"//namespaces"},
 		},
+		{
+			name: "auto instrumentation enables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": true,
+			},
+			expectedResources: []string{"storage.k8s.io//csidrivers"},
+		},
+		{
+			name: "auto instrumentation disabled disables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": false,
+			},
+			expectedResources: nil,
+		},
 	}
 
 	for _, test := range tests {

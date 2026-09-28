@@ -156,10 +156,8 @@ func (v *ssiSuite) TestInjectionMode() {
 							},
 						},
 						{
-							// The cluster-agent is started with
-							// DD_APM_INSTRUMENTATION_CSI_DRIVER_DETECTION_ENABLED=true
-							// (see injection_mode.yaml) and the Datadog CSI driver is
-							// installed in this suite. The AutoProvider must therefore
+							// The Datadog CSI driver is installed in this suite
+							// (see injection_mode.yaml). The AutoProvider must therefore
 							// pick the CSI provider for this "auto" pod. The pod
 							// security context mirrors the csi pod since the resulting
 							// volume is a CSI volume.

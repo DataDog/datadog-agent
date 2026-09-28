@@ -692,8 +692,7 @@ func start(log log.Component,
 		}
 
 		var csiDriverWatcher libraryinjection.CSIDriverWatcher
-		if config.GetBool("admission_controller.auto_instrumentation.enabled") &&
-			config.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		if config.GetBool("admission_controller.auto_instrumentation.enabled") {
 			csiDriverWatcher = libraryinjection.NewCSIDriverWatcher(mainCtx, wmeta)
 		}
 

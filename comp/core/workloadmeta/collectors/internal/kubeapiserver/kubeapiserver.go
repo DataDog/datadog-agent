@@ -185,14 +185,13 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 // resourcesForCSIDetection returns the list of resources to collect metadata
 // from for the APM auto-instrumentation library injection AutoProvider.
 //
-// When CSI auto-detection is enabled, the AutoProvider needs to know whether
-// the Datadog CSI driver is registered in the cluster and has APM SSI
-// capabilities advertised on its annotations, in order to choose between
-// the CSI- and init-container-based library injection providers.
+// The AutoProvider needs to know whether the Datadog CSI driver is registered
+// in the cluster and has APM SSI capabilities advertised on its annotations,
+// in order to choose between the CSI- and init-container-based library
+// injection providers.
 func resourcesForCSIDetection(cfg config.Reader) []string {
 	if !cfg.GetBool("admission_controller.enabled") ||
-		!cfg.GetBool("admission_controller.auto_instrumentation.enabled") ||
-		!cfg.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		!cfg.GetBool("admission_controller.auto_instrumentation.enabled") {
 		return nil
 	}
 
