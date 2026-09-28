@@ -582,7 +582,7 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 		// The service is normalized further down the pipeline, which truncates
 		// it to the same length; doing it here too keeps the service reported
 		// by the receiver's own metrics in agreement with the rest.
-		Service: normalizeutil.TruncateUTF8(service, normalizeutil.MaxServiceLen),
+		Service: cloneIfTruncated(service, normalizeutil.MaxServiceLen),
 	})
 }
 
@@ -594,7 +594,19 @@ func (r *HTTPReceiver) tagStats(v Version, req *http.Request, service string) *i
 const maxMetaValueLen = 200
 
 func truncateMetaValue(v string) string {
-	return normalizeutil.TruncateUTF8(v, maxMetaValueLen)
+	return cloneIfTruncated(v, maxMetaValueLen)
+}
+
+// cloneIfTruncated truncates v to limit and, only if that actually shortened
+// it, clones the result: TruncateUTF8 returns a substring backed by v's
+// original allocation, so a clipped megabyte-sized value would otherwise
+// keep that whole allocation alive in the stats map.
+func cloneIfTruncated(v string, limit int) string {
+	t := normalizeutil.TruncateUTF8(v, limit)
+	if len(t) == len(v) {
+		return v
+	}
+	return strings.Clone(t)
 }
 
 // decodeTracerPayload decodes the payload in http request `req`, it handles non v1.0 requests.

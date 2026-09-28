@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -948,6 +949,35 @@ func TestReceiverTagStatsBoundsKeyLength(t *testing.T) {
 		assert.True(t, utf8.ValidString(ts.Lang), "lang is not valid UTF-8")
 		assert.True(t, utf8.ValidString(ts.Service), "service is not valid UTF-8")
 		assert.LessOrEqual(t, len(ts.Lang), maxMetaValueLen)
+	})
+}
+
+// stringDataAddr returns the address of s's backing array, for asserting
+// whether two strings share the same allocation. Comparing the *byte
+// pointers directly via assert.Equal would compare the pointed-to byte
+// values instead of the addresses, since reflect.DeepEqual dereferences
+// pointers.
+func stringDataAddr(s string) uintptr {
+	return uintptr(unsafe.Pointer(unsafe.StringData(s)))
+}
+
+func TestCloneIfTruncated(t *testing.T) {
+	t.Run("withinLimitIsNotCloned", func(t *testing.T) {
+		v := "go"
+
+		got := cloneIfTruncated(v, maxMetaValueLen)
+
+		assert.Equal(t, v, got)
+		assert.Equal(t, stringDataAddr(v), stringDataAddr(got), "value within the limit must not be cloned")
+	})
+
+	t.Run("truncatedValueIsClonedNotAliased", func(t *testing.T) {
+		v := strings.Repeat("a", 4096)
+
+		got := cloneIfTruncated(v, maxMetaValueLen)
+
+		assert.Len(t, got, maxMetaValueLen)
+		assert.NotEqual(t, stringDataAddr(v), stringDataAddr(got), "truncated value must not retain the original allocation")
 	})
 }
 
