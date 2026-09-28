@@ -8,16 +8,25 @@
 ---
 fixes:
   - |
-    OTLP: a histogram or exponential histogram data point contributing more
-    observations than a Datadog distribution can represent no longer produces a
-    distribution, and is reported with a warning naming the metric and the
-    offending count. Such a point used to be converted anyway, expanding into one
-    sketch bin per 65535 observations while the distribution was being built —
-    enough to exhaust the Agent's memory — and, past the representable count,
-    silently distorting the lower percentiles. Only the ``distributions``
-    histogram mode is affected; for cumulative histograms the count compared
-    against the limit is the delta from the previous point, not the lifetime
-    total.
+    OTLP: a histogram or exponential histogram data point carrying more than
+    268,431,360 observations, by its count or by its buckets added together, is
+    no longer converted into a Datadog distribution. Such a point used to be
+    converted anyway: every 65535 observations took a sketch bin of their own,
+    enough to exhaust the Agent's memory, and past that count the lower
+    percentiles were silently distorted. For cumulative histograms, the
+    observations counted are the difference from the previous point, not the
+    lifetime total. A warning naming the metric is logged the first time one of
+    its points is dropped. Explicit bounds histograms are only checked in the
+    ``distributions`` histogram mode, and keep their aggregation metrics;
+    exponential histograms become distributions in every mode, and are dropped
+    whole, aggregation metrics included.
   - |
     OTLP: exponential histogram data points flagged as having no recorded value
     are now skipped, as explicit bounds histogram data points already were.
+  - |
+    OTLP: when a cumulative histogram's count goes down between two points
+    without a new start timestamp, the later point no longer reports a
+    meaningless count: its ``.count`` and ``.sum`` aggregation metrics are
+    skipped, as after any other reset, and its distribution keeps the count of
+    the observations it holds. On amd64 hosts, ``.count`` used to report a value
+    close to 1.8e19.

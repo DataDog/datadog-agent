@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"math"
 	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -23,29 +24,40 @@ const (
 	dropReasonBucketCountTooHigh = "bucket_count_too_high"
 )
 
-// sketchMaxObservationCount is the largest number of observations a single bucket,
-// or a data point as a whole, may carry on its way into an agent sketch. It bounds
-// the count values, not how many buckets there are.
+// sketchMaxObservationCount is the largest number of observations a data point may
+// put into an agent sketch, all of its buckets together. It bounds the count
+// values, not how many buckets there are.
 //
 // A sketch bin holds its count in a uint16, so appendSafe (pkg/util/quantile/bin.go)
-// turns a bucket count into one bin per 65535 observations, and insertCounts builds
-// that whole slice before trimLeft caps it: memory and iterations scale with the
-// count value. quantile.Config.MaxCount() is the largest count binLimit bins can
-// represent; above it the sketch also overruns its bin budget and loses resolution
-// in the low tail, with nothing reported anywhere.
+// gives every 65535 observations a bin of their own, and trimLeft cannot fold full
+// bins back together: the bins a sketch keeps, and the work to build it, grow with
+// the number of observations. quantile.Config.MaxCount() is the most observations
+// binLimit bins can hold; past it the sketch overruns its bin budget and loses
+// resolution in the low tail, with nothing reported anywhere.
 var sketchMaxObservationCount = uint64(quantile.Default().MaxCount())
 
-// exceedsSketchCapacity reports whether count is too large to be inserted into an
-// agent sketch. Callers must pass the count that actually reaches the sketch: for
-// a cumulative data point that is the delta from the previous point, not the raw
-// lifetime count the point carries.
+// exceedsSketchCapacity reports whether count observations are too many for one
+// agent sketch. Callers must pass what actually reaches the sketch: the total of
+// the buckets inserted so far, which for a cumulative data point are the deltas
+// from the previous point, not the lifetime counts the point carries.
 func exceedsSketchCapacity(count float64, maxObservationCount uint64) bool {
 	return count > float64(maxObservationCount)
 }
 
+// saturatingUint64 converts a non-negative total of observations to uint64,
+// clamping it to math.MaxUint64: converting a float64 past the uint64 range
+// gives an architecture-dependent result.
+func saturatingUint64(total float64) uint64 {
+	if total >= math.MaxUint64 {
+		return math.MaxUint64
+	}
+	return uint64(total)
+}
+
 // validateExpHistogramDataPoint reports whether an exponential histogram data
 // point must be dropped, why, and — for dropReasonBucketCountTooHigh — the
-// offending count. reason is empty when drop is false.
+// observations counted when the limit was crossed. reason is empty when drop is
+// false.
 //
 // The limit is a parameter because it belongs to whatever consumes the point: a
 // histogram forwarded without sketch conversion is bounded by what the backend
@@ -63,21 +75,20 @@ func validateExpHistogramDataPoint(dp pmetric.ExponentialHistogramDataPoint, max
 	}
 
 	// Observations live in three separate places, and all of them end up in the
-	// same sketch, so the bound is on their total rather than on each bucket.
-	total := dp.ZeroCount()
-	if total > maxObservationCount {
-		return dropReasonBucketCountTooHigh, total, true
+	// same sketch, so the bound is on their total rather than on each bucket. The
+	// total is a float64 so that it cannot overflow; every value near the limit is
+	// still exact.
+	total := float64(dp.ZeroCount())
+	if exceedsSketchCapacity(total, maxObservationCount) {
+		return dropReasonBucketCountTooHigh, saturatingUint64(total), true
 	}
 
 	for _, counts := range [2]pcommon.UInt64Slice{dp.Positive().BucketCounts(), dp.Negative().BucketCounts()} {
 		for i := 0; i < counts.Len(); i++ {
-			count := counts.At(i)
-			// total is at most maxObservationCount here, so the subtraction cannot wrap.
-			// Comparing this way also catches a sum that would overflow a uint64.
-			if count > maxObservationCount-total {
-				return dropReasonBucketCountTooHigh, count, true
+			total += float64(counts.At(i))
+			if exceedsSketchCapacity(total, maxObservationCount) {
+				return dropReasonBucketCountTooHigh, saturatingUint64(total), true
 			}
-			total += count
 		}
 	}
 
@@ -89,8 +100,8 @@ func validateExpHistogramDataPoint(dp pmetric.ExponentialHistogramDataPoint, max
 // means the sender is producing implausible input, whereas the other reasons are
 // benign or high-volume and stay as silent as they were before this guard.
 //
-// badCount is the count that could not be accommodated: the total the point
-// carries, or the bucket count that pushed that total past the limit.
+// badCount is the number of observations that did not fit: the total the point
+// declares, or the total of its buckets up to the one that crossed the limit.
 func warnDroppedDataPoint(logger *zap.Logger, warned *sync.Map, metricName, reason string, badCount, maxObservationCount uint64) {
 	if reason != dropReasonBucketCountTooHigh {
 		return

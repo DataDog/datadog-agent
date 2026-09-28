@@ -101,9 +101,12 @@ func (m *defaultMapper) MapHistogramMetrics(
 		countDims := pointDims.WithSuffix("count").WithoutUnit()
 		if delta {
 			histInfo.count = p.Count()
-		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
+		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok && dx >= 0 {
 			histInfo.count = uint64(dx)
-		} else { // not ok
+		} else {
+			// No delta to report: the point is a first or an out-of-order one, or its
+			// count went down, which is a reset the start timestamp did not reveal.
+			// Converting that negative delta to uint64 is architecture-dependent.
 			histInfo.ok = false
 		}
 
@@ -398,7 +401,7 @@ func (m *defaultMapper) getSketchBuckets(
 	// More observations than the sketch can represent make the whole sketch
 	// unusable: insertCounts expands a count into one bin per 65535 observations,
 	// and trimLeft does not give the budget back once the bins are full, so the bin
-	// count grows with every oversized bucket.
+	// count grows with the total number of observations.
 	//
 	// What is bounded below is the running total of what is actually inserted, not
 	// each bucket on its own: the counts of all buckets land in the same sketch, and
@@ -451,7 +454,7 @@ func (m *defaultMapper) getSketchBuckets(
 			if !dropSketch {
 				inserted += float64(count)
 				if exceedsSketchCapacity(inserted, sketchMaxObservationCount) {
-					dropSketch, badCount = true, count
+					dropSketch, badCount = true, saturatingUint64(inserted)
 				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(count)); err != nil {
 					return err
 				}
@@ -464,7 +467,7 @@ func (m *defaultMapper) getSketchBuckets(
 				// counter reset) inserts nothing, so it adds nothing to the total.
 				inserted += math.Max(dx, 0)
 				if exceedsSketchCapacity(inserted, sketchMaxObservationCount) {
-					dropSketch, badCount = true, uint64(math.Max(dx, 0))
+					dropSketch, badCount = true, saturatingUint64(inserted)
 				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(dx)); err != nil {
 					return err
 				}
