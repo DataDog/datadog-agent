@@ -20,14 +20,14 @@ const (
 
 	// RecommendationIDAnnotation is the annotation key used to store the recommendation ID
 	RecommendationIDAnnotation = "autoscaling.datadoghq.com/rec-id"
+	// RuntimeRecommendationIDAnnotation is the annotation key used to store a hash of the runtime values
+	RuntimeRecommendationIDAnnotation = "autoscaling.datadoghq.com/runtime-rec-id"
 	// AutoscalerIDAnnotation is the annotation key used to store the autoscaler ID
 	AutoscalerIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
 	// RecommendationAppliedEventGeneratedAnnotation is an annotation added when even was generated for applied recommendation
 	RecommendationAppliedEventGeneratedAnnotation = "autoscaling.datadoghq.com/event"
 	// RolloutTimestampAnnotation is the annotation key used to store the rollout timestamp
 	RolloutTimestampAnnotation = "autoscaling.datadoghq.com/rolloutAt"
-	// RuntimeValuesAnnotation is the annotation key used to store the runtime values applied to the pod per container.
-	RuntimeValuesAnnotation = "autoscaling.datadoghq.com/runtime-values"
 
 	// RecommendationAppliedEventReason is the event reason when a recommendation is applied
 	RecommendationAppliedEventReason = "RecommendationApplied"

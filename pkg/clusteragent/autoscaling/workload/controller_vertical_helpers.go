@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -604,11 +603,9 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*
 	// admission webhook — they cannot be updated on a running container via pods/resize.
 	// Force the rollout path only when the recommended value differs from what is already on the pods.
 	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
-		for _, cr := range sv.Vertical.ContainerResources {
-			if cr.Runtime != nil {
-				if !runtimeValuesAlreadyApplied(cr.Name, cr.Runtime, pods) {
-					return true
-				}
+		if hash, hasRuntime := computeRuntimeRecommendationID(sv.Vertical.ContainerResources); hasRuntime {
+			if !runtimeRecommendationIDApplied(hash, pods) {
+				return true
 			}
 		}
 	}
@@ -619,10 +616,30 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*
 	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
 }
 
-// runtimeValuesAlreadyApplied returns true if all non-terminating pods already have the expected
-// runtime values for the given container, as recorded in the RuntimeValuesAnnotation.
-// Returns false if any pod is missing the annotation or has different values.
-func runtimeValuesAlreadyApplied(containerName string, expected *datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues, pods []*workloadmeta.KubernetesPod) bool {
+// computeRuntimeRecommendationID collects all non-nil Runtime values across container resources
+// and returns a deterministic hash of the combined map, suitable for use as the runtime-rec-id
+// annotation. Returns ("", false) when no container has runtime values.
+func computeRuntimeRecommendationID(containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (string, bool) {
+	runtimeValues := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues)
+	for _, cr := range containerResources {
+		if cr.Runtime != nil {
+			runtimeValues[cr.Name] = *cr.Runtime
+		}
+	}
+	if len(runtimeValues) == 0 {
+		return "", false
+	}
+	hash, err := autoscaling.ObjectHash(runtimeValues)
+	if err != nil {
+		log.Debugf("Failed to compute runtime recommendation ID hash: %v", err)
+		return "", false
+	}
+	return hash, true
+}
+
+// runtimeRecommendationIDApplied returns true if all non-terminating pods already carry the expected
+// runtime-rec-id annotation. Returns false if any pod is missing the annotation or has a different hash.
+func runtimeRecommendationIDApplied(expectedHash string, pods []*workloadmeta.KubernetesPod) bool {
 	if len(pods) == 0 {
 		return false
 	}
@@ -630,16 +647,7 @@ func runtimeValuesAlreadyApplied(containerName string, expected *datadoghqcommon
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
-		annotationValue, exists := pod.Annotations[model.RuntimeValuesAnnotation]
-		if !exists {
-			return false
-		}
-		var runtimeValues map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues
-		if err := json.Unmarshal([]byte(annotationValue), &runtimeValues); err != nil {
-			log.Debugf("Failed to parse %s annotation on pod %s/%s: %v", model.RuntimeValuesAnnotation, pod.Namespace, pod.Name, err)
-			return false
-		}
-		if runtimeValues[containerName] != *expected {
+		if pod.Annotations[model.RuntimeRecommendationIDAnnotation] != expectedHash {
 			return false
 		}
 	}

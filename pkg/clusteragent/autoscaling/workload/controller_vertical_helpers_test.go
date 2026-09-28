@@ -8,7 +8,6 @@
 package workload
 
 import (
-	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -1125,10 +1124,12 @@ func TestApplyVerticalConstraints_BurstableHashChange(t *testing.T) {
 }
 
 func podWithRuntimeValuesAnnotation(containerName string, rv datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues) *workloadmeta.KubernetesPod {
-	encoded, _ := json.Marshal(map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{containerName: rv})
+	hash, _ := computeRuntimeRecommendationID([]datadoghqcommon.DatadogPodAutoscalerContainerResources{
+		{Name: containerName, Runtime: &rv},
+	})
 	return &workloadmeta.KubernetesPod{
 		EntityMeta: workloadmeta.EntityMeta{
-			Annotations: map[string]string{model.RuntimeValuesAnnotation: string(encoded)},
+			Annotations: map[string]string{model.RuntimeRecommendationIDAnnotation: hash},
 		},
 	}
 }
@@ -1196,7 +1197,7 @@ func TestIsRolloutRequired_RuntimeValues(t *testing.T) {
 			podWithRuntimeValuesAnnotation("app", rv),
 			{
 				EntityMeta: workloadmeta.EntityMeta{Annotations: map[string]string{
-					model.RuntimeValuesAnnotation: `{"app":{"gomemlimit":"128MiB"}}`,
+					model.RuntimeRecommendationIDAnnotation: "stale-hash",
 				}},
 				DeletionTimestamp: &deletionTime.Time,
 			},
