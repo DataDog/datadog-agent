@@ -12,7 +12,33 @@ index 36ea768..2e9d2de 100644
 +    use_prebuilt_nasm, OutputLibType,
  };
  use std::collections::HashMap;
-@@ -101,3 +101,19 @@ impl CmakeBuilder {
+@@ -36,0 +37,25 @@ fn strip_lto_flags(cflags: &str) -> String {
++/// Remove Bazel LLVM's builtin-header selection when an Apple system compiler
++/// is used. Mixing LLVM 19 resource headers with AppleClang 16 builtins causes
++/// ARM NEON intrinsic compilation failures.
++fn strip_compiler_resource_flags(flags: &str) -> String {
++    let mut filtered = Vec::new();
++    let mut skip_value = false;
++
++    for flag in flags.split_whitespace() {
++        if skip_value {
++            skip_value = false;
++            continue;
++        }
++        if flag == "-resource-dir" || flag == "-idirafter" {
++            skip_value = true;
++            continue;
++        }
++        if flag.starts_with("-resource-dir=") || flag.starts_with("-idirafter=") {
++            continue;
++        }
++        filtered.push(flag);
++    }
++
++    filtered.join(" ")
++}
++
+@@ -101,3 +126,19 @@ impl CmakeBuilder {
      fn get_cmake_config(&self) -> cmake::Config {
 -        cmake::Config::new(&self.manifest_dir)
 +        let mut config = cmake::Config::new(&self.manifest_dir);
@@ -21,9 +47,9 @@ index 36ea768..2e9d2de 100644
 +            // Apple linker process. Xcode's linker expects the host libc++ and
 +            // aborts before CMake's compiler check with a missing
 +            // `___cxa_demangle` symbol. Keep the Bazel-provided target, SDK,
-+            // resource-dir, and hardening flags, but use Apple's compiler
-+            // drivers for this CMake sub-build so Apple's linker runs with its
-+            // matching host runtime.
++            // and hardening flags, but use Apple's compiler drivers for this
++            // CMake sub-build so Apple's linker runs with its matching host
++            // runtime.
 +            let mut c_config = cc::Build::new();
 +            c_config.compiler("/usr/bin/clang");
 +            config.init_c_cfg(c_config);
@@ -33,7 +59,7 @@ index 36ea768..2e9d2de 100644
 +        }
 +        config
      }
-@@ -135,4 +152,20 @@ impl CmakeBuilder {
+@@ -135,4 +177,27 @@ impl CmakeBuilder {
      fn prepare_cmake_build(&self) -> cmake::Config {
 +        // Bazel's macOS C++ toolchain selects ld64.lld through LDFLAGS. That
 +        // linker rejects an __eh_frame relocation emitted by the validated
@@ -49,12 +75,19 @@ index 36ea768..2e9d2de 100644
 +                    .join(" ");
 +                set_env("LDFLAGS", ldflags);
 +            }
++            for env_var in ["CFLAGS", "CXXFLAGS"] {
++                if let Some(flags) = optional_env_optional_crate_target(env_var) {
++                    let flags = strip_compiler_resource_flags(&flags);
++                    set_env_for_target(env_var, &flags);
++                    set_env(env_var, &flags);
++                }
++            }
 +        }
 +
          if is_fips_build() {
              unsafe {
                  env::set_var("GOFLAGS", "-buildvcs=false");
-@@ -150,4 +183,9 @@ impl CmakeBuilder {
+@@ -150,4 +215,9 @@ impl CmakeBuilder {
          let mut cmake_cfg = self.get_cmake_config();
 +        if is_fips_build() {
 +            if let Ok(go_executable) = env::var("GO_EXECUTABLE") {
