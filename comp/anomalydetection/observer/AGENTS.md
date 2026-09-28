@@ -13,8 +13,8 @@ Handle → Storage → Detect → Correlate → Report
 
 Data enters through lightweight **Handles** (non-blocking scalar snapshot on
 send). Metric handles reject name/source/host-only processing rules before
-enqueueing, retain immutable resolved-tag views, and defer tag materialization,
-tag-dependent filtering, muting, and canonicalization to the dispatch
+enqueueing, retain immutable resolved-tag views, and defer tag-dependent
+filtering, muting, and context-key generation when needed to the dispatch
 goroutine; log handles still copy caller-owned content and tags before
 enqueueing.
 The **engine** stores metrics, runs detectors and correlators, and emits
@@ -146,6 +146,23 @@ When `anomaly_detection.metrics.enabled=false`, handles wrap with
 `metricDropHandle` so external metrics are dropped at the edge. `ObserveLog`
 still passes through; log-derived virtual metrics produced inside the engine
 are unaffected.
+
+### Tag ownership and host identity
+
+Metrics-pipeline tags enter the observer as immutable `tagset.CompositeTags`.
+Core observer paths (ingestion, filtering, storage, detectors, and
+correlators) retain and iterate that view; they must not flatten, sort, or
+copy it. Materialize a `[]string` only at an external serialization boundary
+such as a JSON, event, Parquet, or testbench DTO.
+
+Storage uses a bounded, reference-counted composite-tag interner on new-series
+insertion only. It fingerprints tags as unordered, duplicate-insensitive sets
+and collision-checks views without flattening them. Existing-series writes must
+not hash or inspect tags; eviction releases the interner reference.
+
+Raw `LogView.Tags()` remains a `[]string` because the upstream log can be
+reused. Copy it once at raw-log ingestion; all derived metric paths should then
+use a composite view.
 
 ### Correlator-owned deduplication (`correlationEmitter`)
 

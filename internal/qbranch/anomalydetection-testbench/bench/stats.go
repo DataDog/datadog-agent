@@ -12,6 +12,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -89,13 +90,14 @@ func sumStoredTelemetryCounter(sv observerimpl.StateView, name string) int {
 }
 
 // detectorNameFromTags extracts the detector name from a "detector:xxx" tag.
-func detectorNameFromTags(tags []string) string {
-	for _, t := range tags {
-		if strings.HasPrefix(t, "detector:") {
-			return strings.TrimPrefix(t, "detector:")
+func detectorNameFromTags(tags tagset.CompositeTags) string {
+	var name string
+	tags.ForEach(func(tag string) {
+		if name == "" && strings.HasPrefix(tag, "detector:") {
+			name = strings.TrimPrefix(tag, "detector:")
 		}
-	}
-	return ""
+	})
+	return name
 }
 
 // computeDetectorProcessingStatsFromStateView groups telemetry samples for
