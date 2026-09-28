@@ -152,6 +152,7 @@ func newCollector(deps dependencies) *collectorImpl {
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
+	c.registerGPUReadiness(deps.Lc)
 
 	return c
 }

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "agent_check_metadata.go",
         "collector.go",
+        "gpu_readiness.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/impl",
     tags = ["manual"],  # keep
@@ -38,6 +39,7 @@ go_library(
         "//pkg/jmxfetch",
         "//pkg/serializer",
         "//pkg/status/collector",
+        "//pkg/status/health",
         "//pkg/status/jmx",
         "//pkg/util/fxutil",
         "//pkg/util/log",
@@ -53,6 +55,7 @@ dd_agent_go_test(
         "agent_check_metadata_test.go",
         "collector_demux_test.go",
         "collector_test.go",
+        "gpu_readiness_test.go",
     ],
     embed = [":impl"],
     deps = [
@@ -72,10 +75,13 @@ dd_agent_go_test(
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",
         "//pkg/collector/externalhost",
+        "//pkg/collector/runner/expvars",
         "//pkg/metrics",
         "//pkg/serializer",
+        "//pkg/status/health",
         "//pkg/util/option",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",

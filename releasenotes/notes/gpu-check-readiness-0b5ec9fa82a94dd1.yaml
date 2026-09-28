@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    When GPU Monitoring is enabled, Agent readiness now requires the GPU check
+    to be loaded and to have completed a recent run without errors. This catches
+    missing checks, NVML initialization failures, check panics, and stalled
+    collection without changing the Agent liveness probe. Existing Operator and
+    Helm readiness probes pick up this check when the Agent is upgraded.
