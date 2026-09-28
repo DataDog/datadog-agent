@@ -63,6 +63,7 @@ const (
 	DDInfraOpenShiftCPUs                   = "gcp/openshift/cpus"
 	DDInfraOpenShiftMemory                 = "gcp/openshift/memory"
 	DDInfraOpenShiftDisk                   = "gcp/openshift/disk"
+	DDInfraOpenShiftPreset                 = "gcp/openshift/preset"
 	DDInfraEnableNestedVirtualization      = "gcp/enableNestedVirtualization"
 )
 
@@ -259,6 +260,14 @@ func (e *Environment) OpenShiftDisk() string {
 		return v
 	}
 	return "100"
+}
+
+// OpenShiftPreset returns the preset to use for the CRC cluster (openshift or microshift default: microshift).
+func (e *Environment) OpenShiftPreset() string {
+	if v := e.InfraConfig.Get(DDInfraOpenShiftPreset); v != "" {
+		return v
+	}
+	return "microshift"
 }
 
 // EnableNestedVirtualization returns whether to enable nested virtualization

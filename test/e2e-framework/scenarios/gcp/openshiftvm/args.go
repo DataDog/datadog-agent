@@ -79,6 +79,7 @@ func ParamsFromEnvironment(e resGcp.Environment) *Params {
 	p.CPUs = e.OpenShiftCPUs()
 	p.Memory = e.OpenShiftMemory()
 	p.Disk = e.OpenShiftDisk()
+	p.Preset = e.OpenShiftPreset()
 
 	openshift.ApplyAgentEnvironment(&p.Params, &e)
 	if p.AgentOptions != nil && e.AgentUseDualShipping() {

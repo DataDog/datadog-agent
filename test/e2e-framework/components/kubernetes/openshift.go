@@ -27,6 +27,7 @@ type OpenShiftClusterArgs struct {
 	CPUs           string
 	Memory         string
 	Disk           string
+	Preset         string
 }
 
 func NewLocalOpenShiftCluster(env config.Env, name string, args OpenShiftClusterArgs, pulumiResourceOptions ...pulumi.ResourceOption) (*Cluster, error) {
@@ -116,12 +117,13 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, args Open
 		}
 
 		setupCRC, err := runner.Command(commonEnvironment.CommonNamer().ResourceName("crc-setup"), &command.Args{
-			Create: pulumi.Sprintf("crc setup --check-only || crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup", args.CPUs, args.Memory, args.Disk),
+			Create: pulumi.Sprintf("crc setup --check-only || (crc config set preset %s && crc config set cpus %s && crc config set memory %s && crc config set disk-size %s && crc setup)", args.Preset, args.CPUs, args.Memory, args.Disk),
 			Delete: pulumi.String("crc cleanup"),
 			Triggers: pulumi.Array{
 				pulumi.String(args.CPUs),
 				pulumi.String(args.Memory),
 				pulumi.String(args.Disk),
+				pulumi.String(args.Preset),
 			},
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(pullSecretFile, enableLinger))...)
 		if err != nil {
@@ -136,6 +138,7 @@ func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, args Open
 				pulumi.String(args.CPUs),
 				pulumi.String(args.Memory),
 				pulumi.String(args.Disk),
+				pulumi.String(args.Preset),
 			},
 		}, utils.MergeOptions(opts, utils.PulumiDependsOn(setupCRC), pulumi.DeleteBeforeReplace(true))...)
 		if err != nil {

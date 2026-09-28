@@ -107,6 +107,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 		CPUs:           gcpEnv.OpenShiftCPUs(),
 		Memory:         gcpEnv.OpenShiftMemory(),
 		Disk:           gcpEnv.OpenShiftDisk(),
+		Preset:         gcpEnv.OpenShiftPreset(),
 	}
 	_ = optional.ApplyOptions(&clusterArgs, params.openshiftOptions)
 
