@@ -38,9 +38,11 @@ var (
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
 
-	// AlmaLinux 9. The AMI is resolved by search (resolveAlmaLinuxAMI), so the
-	// descriptor carries no version; provision it with WithLatestAMI.
-	AlmaLinux9 = NewDescriptor(AlmaLinux, "")
+	AlmaLinuxDefault = AlmaLinux9
+	// AlmaLinux 9. Pinned to a single Datadog-built AMI (published from
+	// ami-builder's alma-linux 9-e2e image) in platforms.json, rather than
+	// resolved by live search against AlmaLinux's own publisher account.
+	AlmaLinux9 = NewDescriptor(AlmaLinux, "9")
 )
 
 var LinuxDescriptorsDefault = map[Flavor]Descriptor{
@@ -51,4 +53,5 @@ var LinuxDescriptorsDefault = map[Flavor]Descriptor{
 	RedHat:         RedHatDefault,
 	Suse:           SuseDefault,
 	CentOS:         CentOSDefault,
+	AlmaLinux:      AlmaLinuxDefault,
 }
