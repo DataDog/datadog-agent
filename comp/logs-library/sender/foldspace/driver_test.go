@@ -6,7 +6,9 @@
 package foldspace
 
 import (
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,6 +38,53 @@ func testMessage(body string) *message.Message {
 	msg.Hostname = "host"
 	msg.SetRendered([]byte(body))
 	return msg
+}
+
+// countingFlushCore counts Flush calls so a test can distinguish a periodic
+// seal from the single one Stop performs.
+type countingFlushCore struct {
+	Core
+	flushes atomic.Int64
+}
+
+func (c *countingFlushCore) Flush() (Admission, Progress) {
+	c.flushes.Add(1)
+	return c.Core.Flush()
+}
+
+// TestIngestFlushesOnTimer asserts ingest seals whatever the core holds on a
+// timer. The core seals on record count and content size only, so without this
+// a partial batch left by a lull waits until shutdown.
+func TestIngestFlushesOnTimer(t *testing.T) {
+	core := &countingFlushCore{Core: NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})}
+	transport := NewFakeTransport(1)
+	sink := newChannelSink()
+
+	d := NewDriver(DriverOptions{
+		Core:            core,
+		Transport:       transport,
+		Sink:            sink,
+		PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+		ShutdownTimeout: 2 * time.Second,
+		BatchWait:       20 * time.Millisecond,
+	})
+	d.Start()
+	defer d.Stop()
+
+	// One record, far short of any size threshold, then nothing further: only a
+	// timer can move it.
+	d.Offer(testMessage("partial"))
+
+	require.Eventually(t, func() bool { return core.flushes.Load() >= 3 }, 2*time.Second, 10*time.Millisecond,
+		"ingest must keep sealing on the timer while the driver runs")
+}
+
+// TestBatchWaitDefaults asserts the ticker is always armed, since NewTicker
+// panics on a non-positive interval.
+func TestBatchWaitDefaults(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
+	d := NewDriver(DriverOptions{Core: core, Transport: NewFakeTransport(1)})
+	assert.Positive(t, d.batchWait)
 }
 
 func startDriver(t *testing.T, core Core, transport Transport, sink *channelSink, dualShip bool) *Driver {
@@ -318,4 +367,95 @@ type recordingEncoder struct{}
 func (recordingEncoder) Encode(msg *message.Message, _ string) error {
 	msg.SetEncoded([]byte("encoded"))
 	return nil
+}
+
+// The sender goroutine performs the sends and is also the only consumer of acks,
+// so it must never wait mid-send for an ack: that would be waiting on itself, and
+// the records queued behind it would never ship. Nothing in the sender may bound
+// outstanding sends below max_inflight_payloads, which is why this sweeps
+// pipeline_depth across values both under and over the window rather than
+// checking the one that happened to be shipped.
+func TestSenderNeverWaitsOnAnAckItOwes(t *testing.T) {
+	const inflight = 16
+	for _, depth := range []int{1, 2, 4, 8, 16, 32} {
+		t.Run(fmt.Sprintf("pipeline_depth=%d", depth), func(t *testing.T) {
+			core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: inflight})
+			transport := NewFakeTransport(1)
+			transport.blockRecv = true // no ack ever arrives, so every send stays outstanding
+			d := NewDriver(DriverOptions{
+				Core:            core,
+				Transport:       transport,
+				Sink:            newChannelSink(),
+				PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+				InputSize:       inflight * 2,
+				PipelineDepth:   depth,
+				ShutdownTimeout: 200 * time.Millisecond,
+			})
+			d.Start()
+			t.Cleanup(d.Stop)
+
+			// FakeCore seals one payload per record, so a full window is one offer each.
+			for i := 0; i < inflight; i++ {
+				d.Offer(testMessage(fmt.Sprintf("record-%d", i)))
+			}
+
+			deadline := time.After(3 * time.Second)
+			for len(transport.Sent(0)) < inflight {
+				select {
+				case <-deadline:
+					t.Fatalf("only %d of %d payloads reached the transport", len(transport.Sent(0)), inflight)
+				case <-time.After(5 * time.Millisecond):
+				}
+			}
+		})
+	}
+}
+
+// Steady state exercises the interleaving the window test cannot: acks arriving
+// while further batches seal. The sender must keep draining effects across many
+// windows rather than wedging once the first one fills.
+func TestSenderSustainsManyWindows(t *testing.T) {
+	const payloads = 64 // four times the default window
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: 16})
+	transport := NewFakeTransport(1)
+	d := startDriver(t, core, transport, newChannelSink(), false)
+
+	for i := 0; i < payloads; i++ {
+		d.Offer(testMessage(fmt.Sprintf("record-%d", i)))
+	}
+
+	deadline := time.After(5 * time.Second)
+	for len(transport.Sent(0)) < payloads {
+		select {
+		case <-deadline:
+			t.Fatalf("only %d of %d payloads reached the transport", len(transport.Sent(0)), payloads)
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
+// A wedged sender loses its queued sends when Stop releases it, and that loss is
+// silent: an abandoning drop increments no counter. Stop must therefore deliver
+// everything the core accepted.
+func TestStopDeliversEverythingAccepted(t *testing.T) {
+	const payloads = 32
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: 16})
+	transport := NewFakeTransport(1)
+	d := NewDriver(DriverOptions{
+		Core:            core,
+		Transport:       transport,
+		Sink:            newChannelSink(),
+		PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+		InputSize:       payloads,
+		PipelineDepth:   4, // below the window, where a self-imposed bound would bind
+		ShutdownTimeout: 5 * time.Second,
+	})
+	d.Start()
+
+	for i := 0; i < payloads; i++ {
+		d.Offer(testMessage(fmt.Sprintf("record-%d", i)))
+	}
+	d.Stop()
+
+	assert.Len(t, transport.Sent(0), payloads, "Stop must not discard accepted records")
 }
