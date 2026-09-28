@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fixes API v3 sketch serialization so empty sketches are preserved and large sketches use the
+    sketch payload-size limits instead of the smaller metric-series limits.
