@@ -732,6 +732,7 @@ func (bs *BaseSuite[Env]) teardownOnDeadline() {
 // deleted even with skipDeleteOnFailure set, operations are capped at the
 // remaining budget, and the derived TearDownSuite override still runs.
 func (bs *BaseSuite[Env]) runDeadlineTeardown(t *testing.T) {
+	bs.deadlineTeardown.Store(true)
 	// Wait for an in-flight reconcileEnv to finish before tearing down,
 	// bounded since a provisioner ignoring its context could hang forever.
 	if bs.waitForProvisioning() {
@@ -740,7 +741,6 @@ func (bs *BaseSuite[Env]) runDeadlineTeardown(t *testing.T) {
 		utils.Logf(t, "WARNING: timed out waiting for in-flight provisioning, tearing down anyway")
 	}
 
-	bs.deadlineTeardown.Store(true)
 	// The deferred fallback covers a derived TearDownSuite override that never
 	// reaches the base teardown (Goexit or panic): recover keeps the process
 	// alive, and the base call runs the teardown body if the override did not.
@@ -872,6 +872,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // TearDownSuite for the concurrency contract.
 func (bs *BaseSuite[Env]) teardownSuite() {
 	bs.teardownStarted.Store(true)
+	// Provisioning cancellation can reach cleanup before the watchdog callback.
+	if !bs.e2eDeadline.IsZero() && !time.Now().Before(bs.e2eDeadline) {
+		bs.deadlineTeardown.Store(true)
+	}
 	if bs.deadlineTimer != nil {
 		bs.deadlineTimer.Stop()
 	}

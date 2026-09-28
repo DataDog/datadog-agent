@@ -356,6 +356,28 @@ func TestDeadlineTeardownRunsDestroyDespiteSkipDeleteOnFailure(t *testing.T) {
 	p.AssertNumberOfCalls(t, "Destroy", 1)
 }
 
+func TestNormalTeardownAfterDeadlineDoesNotKeepFailedStack(t *testing.T) {
+	t.Setenv("REMOTE_STACK_CLEANING", "")
+	p := &testProvisioner{}
+	p.On("ID").Return("test")
+	p.On("Destroy", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	s := &testNoOpSuite{}
+	s.init([]SuiteOption{WithProvisioner(p)}, s)
+	s.SetT(t)
+	s.suiteT = t
+	s.e2eDeadline = time.Now().Add(-time.Second)
+	s.params.skipDeleteOnFailure = true
+	firstFail := "Initial provisioning SetupSuite"
+	s.firstFailTest.Store(&firstFail)
+
+	// Provisioning cancellation can reach ordinary cleanup before the watchdog runs.
+	s.TearDownSuite()
+	s.runDeadlineTeardown(t)
+
+	p.AssertNumberOfCalls(t, "Destroy", 1)
+}
+
 // TestDeadlineTeardownDispatchesThroughOverride verifies the deadline teardown
 // dispatches through the derived suite's TearDownSuite override, so overrides
 // that clean resources the stackcleaner can't see also run.
