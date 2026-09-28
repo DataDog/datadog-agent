@@ -44,8 +44,8 @@ func TestProcessMessageApplicationNames_IPFIX(t *testing.T) {
 
 	app, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 	assert.True(t, ok, "application-name caching must not require any fieldsConfig")
-	assert.Equal(t, "HTTP", app.applicationName)
-	assert.Equal(t, "Hypertext Transfer Protocol", app.applicationDescription)
+	assert.Equal(t, "HTTP", app.name)
+	assert.Equal(t, "Hypertext Transfer Protocol", app.description)
 
 	dataPacket := netflow.IPFIXPacket{
 		Version: 10,
@@ -61,7 +61,7 @@ func TestProcessMessageApplicationNames_IPFIX(t *testing.T) {
 	}
 	fields = ProcessMessageApplicationNames(dataPacket, "10.0.0.1", mapper)
 	assert.Equal(t, []common.AdditionalFields{
-		{"dpi": map[string]any{"application_name": "HTTP", "application_description": "Hypertext Transfer Protocol"}},
+		{"dpi": map[string]any{"application_id": "\x00\x00\x00\x00\x00\x00\x00\x64", "application_name": "HTTP", "application_description": "Hypertext Transfer Protocol"}},
 		{},
 	}, fields, "one entry per flow record, in order, resolving known application ids and leaving unknown ones empty")
 }

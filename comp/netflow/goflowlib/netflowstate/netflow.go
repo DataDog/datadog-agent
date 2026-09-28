@@ -67,7 +67,7 @@ func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool, en
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
 		sampling:           make(map[string]producer.SamplingRateSystem),
-		appMapper:          dpi.CreateApplicationMapper(enableDPI),
+		appMapper:          makeApplicationMapper(enableDPI),
 		mappedFieldsConfig: mapFieldsConfig(mappingConfs, enableBiflowParsing),
 	}
 }
@@ -194,6 +194,13 @@ func mapFieldsConfig(mappingConfs []config.Mapping, enableBiflowParsing bool) ma
 		mappedFieldsConfig[conf.Field] = conf
 	}
 	return mappedFieldsConfig
+}
+
+func makeApplicationMapper(enableDPI bool) *dpi.ApplicationMapper {
+	if !enableDPI {
+		return nil
+	}
+	return dpi.NewApplicationMapper()
 }
 
 // FlowRoutine starts a goflow flow routine

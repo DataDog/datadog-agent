@@ -44,8 +44,8 @@ func TestApplicationMapper_addToCache(t *testing.T) {
 			check: func(t *testing.T, mapper *ApplicationMapper) {
 				app, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 				assert.True(t, ok, "unrelated option fields must not prevent caching")
-				assert.Equal(t, "HTTP", app.applicationName)
-				assert.Equal(t, "Hypertext Transfer Protocol", app.applicationDescription)
+				assert.Equal(t, "HTTP", app.name)
+				assert.Equal(t, "Hypertext Transfer Protocol", app.description)
 
 				_, ok = mapper.lookupApplication("10.0.0.1", appIDtoBytes(101))
 				assert.False(t, ok, "unrelated application ids must not resolve")
@@ -56,12 +56,12 @@ func TestApplicationMapper_addToCache(t *testing.T) {
 
 				app, ok = mapper.lookupApplication("10.0.0.2", appIDtoBytes(100))
 				assert.True(t, ok, "same application id from a different exporter must resolve independently")
-				assert.Equal(t, "DNS", app.applicationName)
-				assert.Empty(t, app.applicationDescription, "an options record with no description field must leave it empty")
+				assert.Equal(t, "DNS", app.name)
+				assert.Empty(t, app.description, "an options record with no description field must leave it empty")
 
 				app, ok = mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 				assert.True(t, ok, "caching a second exporter must not disturb the first")
-				assert.Equal(t, "HTTP", app.applicationName)
+				assert.Equal(t, "HTTP", app.name)
 			},
 		},
 		{
@@ -126,9 +126,9 @@ func TestApplicationMapper_enterpriseSpecificIDs(t *testing.T) {
 
 	app, ok := mapper.lookupApplication("10.0.0.1", ciscoID)
 	assert.True(t, ok)
-	assert.Equal(t, "nbar:webex", app.applicationName)
+	assert.Equal(t, "nbar:webex", app.name)
 
 	app, ok = mapper.lookupApplication("10.0.0.1", otherID)
 	assert.True(t, ok)
-	assert.Equal(t, "other:app", app.applicationName, "ids sharing their low 32 bits but differing in their enterprise number must not overwrite each other")
+	assert.Equal(t, "other:app", app.name, "ids sharing their low 32 bits but differing in their enterprise number must not overwrite each other")
 }

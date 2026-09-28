@@ -41,8 +41,9 @@ func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mappe
 				}
 				if app, found := mapper.lookupApplication(exporterIP, v); found {
 					fields["dpi"] = map[string]any{
-						"application_name":        app.applicationName,
-						"application_description": app.applicationDescription,
+						"application_id":          app.id,
+						"application_name":        app.name,
+						"application_description": app.description,
 					}
 				}
 			}
