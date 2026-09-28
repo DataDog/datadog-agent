@@ -38,7 +38,11 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
         //     before sending the event to userspace
         //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
         //     the corresponding exit event
-        bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
+        struct exec_pid_transfer_t transfer = {
+            .pid_tgid = pid_tgid,
+            .task = bpf_get_current_task(),
+        };
+        bpf_map_update_elem(&exec_pid_transfer, &tgid, &transfer, BPF_ANY);
     }
 
     cache_syscall_update_cgroup(ctx, &syscall);
@@ -353,10 +357,10 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
     // every thread has its own capability context, not just the group leader
     cleanup_capabilities_context(pid);
 
-    u64 *pid_tgid_execing = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    struct exec_pid_transfer_t *exec_transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
 
     // only send the exit event if this is the thread group leader that isn't being killed by an execing thread
-    if (tgid == pid && pid_tgid_execing == NULL) {
+    if (tgid == pid && exec_transfer == NULL) {
         // update exit time
         struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {

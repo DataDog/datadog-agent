@@ -244,6 +244,30 @@ static struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 ty
 // the following functions must use the {peek,pop}_current_or_impersonated_exec_syscall to retrieve the syscall context
 // because the task performing the exec syscall may change its pid in the flush_old_exec() kernel function
 
+// Key of the task that entered the execve being completed, or 0. The tgid/pid guards alone
+// also match a sibling thread's leftover slot, hence the task comparison.
+static u64 __attribute__((always_inline)) impersonated_exec_key(u64 pid_tgid) {
+    u32 tgid = pid_tgid >> 32;
+    u32 pid = pid_tgid;
+
+    struct exec_pid_transfer_t *transfer = (struct exec_pid_transfer_t *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
+    if (!transfer) {
+        return 0;
+    }
+
+    u32 tgid_execing = transfer->pid_tgid >> 32;
+    u32 pid_execing = transfer->pid_tgid;
+    if (tgid != tgid_execing || pid == pid_execing) {
+        return 0;
+    }
+
+    if (transfer->task != bpf_get_current_task()) {
+        return 0;
+    }
+
+    return transfer->pid_tgid;
+}
+
 static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
 #if USE_SYSCALL_TASK_STORAGE == 1
     u64 use_syscall_task_storage;
@@ -258,20 +282,10 @@ static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_im
 #endif
     struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
     if (!syscall) {
-        u64 pid_tgid = bpf_get_current_pid_tgid();
-        u32 tgid = pid_tgid >> 32;
-        u32 pid = pid_tgid;
-        u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
-        if (!pid_tgid_execing_ptr) {
+        u64 pid_tgid_execing = impersonated_exec_key(bpf_get_current_pid_tgid());
+        if (pid_tgid_execing == 0) {
             return NULL;
         }
-        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
-        u32 tgid_execing = pid_tgid_execing >> 32;
-        u32 pid_execing = pid_tgid_execing;
-        if (tgid != tgid_execing || pid == pid_execing) {
-            return NULL;
-        }
-        // the current task is impersonating its thread group leader
         syscall = peek_task_syscall(pid_tgid_execing, EVENT_EXEC);
     }
     return syscall;
@@ -288,21 +302,17 @@ static struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_imp
     }
 #endif
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
     struct syscall_cache_t *syscall = pop_syscall(EVENT_EXEC);
-    u64 *pid_tgid_execing_ptr = (u64 *)bpf_map_lookup_elem(&exec_pid_transfer, &tgid);
-    if (pid_tgid_execing_ptr) {
-        u64 pid_tgid_execing = *pid_tgid_execing_ptr;
-        u32 tgid_execing = pid_tgid_execing >> 32;
-        u32 pid_execing = pid_tgid_execing;
-        u32 pid = pid_tgid;
-        struct syscall_cache_t *imp_syscall = pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
-        if (tgid == tgid_execing && pid != pid_execing && !syscall) {
-            // the current task is impersonating its thread group leader
-            return imp_syscall;
-        }
+    if (syscall) {
+        // popping the slot's entry here would consume a sibling's in-flight exec
+        return syscall;
     }
-    return syscall;
+
+    u64 pid_tgid_execing = impersonated_exec_key(pid_tgid);
+    if (pid_tgid_execing == 0) {
+        return NULL;
+    }
+    return pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
 }
 
 static __attribute__((always_inline)) int capture_all_errors_enabled(void) {
