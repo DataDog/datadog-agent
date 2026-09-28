@@ -8,6 +8,7 @@ package providers
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"go.uber.org/atomic"
@@ -141,6 +142,27 @@ func (c *ClusterChecksConfigProvider) newNodeStatus(lastChange int64) types.Node
 	}
 }
 
+// splitCompatEntries expands a config-provided string slice into individual
+// check names. The agent's DD_ environment binder splits []string values on
+// spaces, while some emitters (notably the operator's runner-group env vars)
+// join check names with commas; accept both by splitting every element on
+// commas as well, trimming whitespace and dropping empty entries.
+func splitCompatEntries(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		for _, part := range strings.Split(v, ",") {
+			if entry := strings.TrimSpace(part); entry != "" {
+				out = append(out, entry)
+			}
+		}
+	}
+	return out
+}
+
 // checkCompatibilityFromConfig derives the worker's advertised check
 // compatibility from the configuration. The experimental.* keys are the
 // preferred, DD_EXPERIMENTAL_-prefixed spelling; the plain clc_runner_checks_*
@@ -156,6 +178,9 @@ func checkCompatibilityFromConfig(config pkgconfigmodel.Reader) *types.CheckComp
 	if len(exclude) == 0 {
 		exclude = config.GetStringSlice("clc_runner_checks_exclude")
 	}
+
+	include = splitCompatEntries(include)
+	exclude = splitCompatEntries(exclude)
 
 	if len(include) == 0 && len(exclude) == 0 {
 		return nil

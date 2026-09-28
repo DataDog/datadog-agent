@@ -40,6 +40,18 @@ func TestCheckCompatibilityFromConfig(t *testing.T) {
 	assert.Equal(t, []string{"http_check"}, compat.Exclude)
 	reset()
 
+	// Comma-joined values bound as a single list element (the DD_ env binder
+	// splits []string on spaces, so the operator's comma-joined env var lands
+	// as one element): the compat parser must expand it into individual check
+	// names.
+	cfg.SetInTest("clc_runner_checks_include", []string{"kubernetes_state_core,orchestrator, kube_apiserver_metrics"})
+	cfg.SetInTest("clc_runner_checks_exclude", []string{"http_check, ,redisdb"})
+	compat = checkCompatibilityFromConfig(cfg)
+	require.NotNil(t, compat)
+	assert.Equal(t, []string{"kubernetes_state_core", "orchestrator", "kube_apiserver_metrics"}, compat.Include)
+	assert.Equal(t, []string{"http_check", "redisdb"}, compat.Exclude)
+	reset()
+
 	// Experimental keys (DD_EXPERIMENTAL_CLC_RUNNER_CHECKS_*) win over the
 	// aliases when both are set.
 	cfg.SetInTest("clc_runner_checks_include", []string{"from-alias"})
