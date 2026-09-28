@@ -11,10 +11,10 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
 
 // requestTimeout is a var (not const) so tests can shorten it.
@@ -35,7 +35,7 @@ const (
 // response then hangs until it times out. A plain TCP dial can never observe this.
 func Check() ([]runnerdef.IssueReport, error) {
 	// Only relevant when running inside a container
-	if !isContainerized() {
+	if !env.IsContainerized() {
 		return nil, nil
 	}
 
@@ -73,17 +73,4 @@ func Check() ([]runnerdef.IssueReport, error) {
 	}
 
 	return nil, nil
-}
-
-// containerMarkerPaths is a var (not const) so tests can point it at a temp file.
-var containerMarkerPaths = []string{"/.dockerenv", "/run/.containerenv"}
-
-// isContainerized checks if the agent is running inside a container
-func isContainerized() bool {
-	for _, p := range containerMarkerPaths {
-		if _, err := os.Stat(p); err == nil {
-			return true
-		}
-	}
-	return false
 }

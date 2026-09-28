@@ -19,7 +19,15 @@ go_library(
         "//comp/healthplatform/runner/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config/env",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/env",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -29,14 +28,12 @@ func withIMDSAddress(t *testing.T, addr string, fn func()) {
 	fn()
 }
 
+// withContainerMarker sets DOCKER_DD_AGENT, which env.IsContainerized() checks -
+// it's baked into the official Agent Dockerfiles, so it's set regardless of which
+// container runtime (Docker, containerd, CRI-O) actually runs the image.
 func withContainerMarker(t *testing.T, fn func()) {
 	t.Helper()
-	f, err := os.CreateTemp(t.TempDir(), "dockerenv")
-	require.NoError(t, err)
-	f.Close()
-	original := containerMarkerPaths
-	containerMarkerPaths = []string{f.Name()}
-	defer func() { containerMarkerPaths = original }()
+	t.Setenv("DOCKER_DD_AGENT", "true")
 	fn()
 }
 
@@ -104,6 +101,8 @@ func TestCheck_IMDSReachable(t *testing.T) {
 // TestCheck_NotContainerized verifies the check is a no-op outside of containers,
 // even if the (fake) IMDS endpoint would otherwise time out.
 func TestCheck_NotContainerized(t *testing.T) {
+	t.Setenv("DOCKER_DD_AGENT", "")
+
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
