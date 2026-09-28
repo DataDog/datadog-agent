@@ -61,6 +61,24 @@ function Invoke-NonFatalStep {
     }
 }
 
+# Debugging attempts around the tests that are timing out
+Write-Host -ForegroundColor Yellow "Debug attempt #1: Different targets"
+bazel coverage --config=go --verbose_failures `
+  //pkg/process/... -- -//pkg/process/checks/... `
+  --nocache_test_results `
+  --test_output=streamed `
+  --test_env=VERBOSE_COVERAGE=1
+
+Write-Host -ForegroundColor Yellow "Debug attempt #2: Filter out all tests and try to get more output"
+bazel coverage --config=go --verbose_failures `
+  //pkg/process/checks:checks_test `
+  --nocache_test_results `
+  --test_output=streamed `
+  --test_env=VERBOSE_COVERAGE=1 `
+  --test_arg='-test.run=^$'
+
+exit $LASTEXITCODE
+
 $bazelExitCode = 0
 $global:LASTEXITCODE = 0
 try {
