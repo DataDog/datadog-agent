@@ -328,6 +328,29 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 			want: []string{"--password", wantRedacted},
 		},
 		{
+			// A secret flag is not always followed by its value. Redacting the next element blindly
+			// overwrites the second flag, and classifying elements as they are rewritten then reads
+			// the placeholder instead of "--api-key", leaving the real credential in the flare.
+			name: "a secret flag following another does not lose its own value",
+			args: []string{"--password", "--api-key", "leaked-by-adjacency"},
+			want: []string{"--password", "--api-key", wantRedacted},
+		},
+		{
+			// The value itself names a secret. Classifying every element before rewriting any of
+			// them means this one is examined, so it must be recognized as the value it is rather
+			// than as a flag whose own value needs redacting.
+			name: "a value that names a secret is redacted without disturbing what follows",
+			args: []string{"--password", "my-api-key-value", "--verbose"},
+			want: []string{"--password", wantRedacted, "--verbose"},
+		},
+		{
+			// Not every secret is spelled as a flag. This one carries its value on its own token,
+			// so it is redacted there rather than by consuming the argument after it.
+			name: "a secret named without a dash is still redacted",
+			args: []string{"password=leaked-without-a-dash", "--verbose"},
+			want: []string{"password=" + wantRedacted, "--verbose"},
+		},
+		{
 			name: "a value holding a Windows path is not a flag",
 			args: []string{"--config", `C:\Program Files\Datadog\datadog.yaml`},
 			want: []string{"--config", `C:\Program Files\Datadog\datadog.yaml`},

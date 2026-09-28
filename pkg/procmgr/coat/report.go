@@ -171,22 +171,67 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 // "secret with spaces" would keep everything after "secret". Element boundaries are known here, and
 // throwing them away loses information that cannot be recovered.
 func redactSecretValues(args []string, patterns []procutil.DataScrubberPattern) {
-	for i, arg := range args {
-		flag, delimiter, hasInlineValue := splitArgument(arg)
-		if !namesSecret(patterns, flag) {
+	// Classified up front, because redacting rewrites the element after a flag. Classifying as the
+	// rewriting goes along would read a placeholder where a flag used to be: in
+	// ["--password", "--api-key", "s3cret"], "--api-key" would be overwritten before it was ever
+	// recognized and "s3cret" would reach the flare.
+	classified := classifyArguments(args, patterns)
+	// Elements replaced wholesale because they were a secret's value. They are not examined again:
+	// their classification describes text that is gone, and reapplying it would rebuild part of it.
+	wasValue := make([]bool, len(args))
+
+	for i, arg := range classified {
+		if wasValue[i] || !arg.namesSecret {
 			continue
 		}
-		if hasInlineValue {
-			args[i] = flag + delimiter + redactedValue
+		if arg.hasInlineValue {
+			args[i] = arg.flag + arg.delimiter + redactedValue
 			continue
 		}
 		// The value is the following element, as in ["--password", "s3cret"]. All of it goes:
 		// a flag that takes no value is worth losing to a redaction, a credential is not worth
-		// risking on a guess about what a value looks like.
-		if i+1 < len(args) {
+		// risking on a guess about what a value looks like. A flag is the exception, because
+		// ["--password", "--api-key", "s3cret"] is a flag that took no value followed by one that
+		// did, and consuming "--api-key" here would leave its own value untouched below.
+		if i+1 < len(args) && !classified[i+1].isFlag {
 			args[i+1] = redactedValue
+			wasValue[i+1] = true
 		}
 	}
+}
+
+// argument is one argv element, split and classified before any redaction rewrites it.
+type argument struct {
+	flag           string
+	delimiter      string
+	hasInlineValue bool
+	namesSecret    bool
+	isFlag         bool
+}
+
+func classifyArguments(args []string, patterns []procutil.DataScrubberPattern) []argument {
+	classified := make([]argument, len(args))
+	for i, arg := range args {
+		flag, delimiter, hasInlineValue := splitArgument(arg)
+		classified[i] = argument{
+			flag:           flag,
+			delimiter:      delimiter,
+			hasInlineValue: hasInlineValue,
+			namesSecret:    namesSecret(patterns, flag),
+			isFlag:         looksLikeFlag(arg),
+		}
+	}
+	return classified
+}
+
+// looksLikeFlag reports whether an argument is written the way a flag is written. It says nothing
+// about whether the flag names a secret: "password=x" carries a secret without being spelled as a
+// flag, and is redacted on its own token rather than by consuming the argument after it.
+//
+// Both prefixes count, because procutil recognizes the Windows "/p" and "/rp" spellings alongside
+// dashed ones.
+func looksLikeFlag(arg string) bool {
+	return strings.HasPrefix(arg, "-") || strings.HasPrefix(arg, "/")
 }
 
 // argumentDelimiters are the characters that can separate a flag from its value inside a single
