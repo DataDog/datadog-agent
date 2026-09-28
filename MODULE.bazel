@@ -199,17 +199,16 @@ http_archive(
     name = "com_github_bazelbuild_buildtools",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
-        "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
-        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400
-        "//bazel/patches:buildifier-runner-bash-template.patch",  # bazelbuild/buildtools#1454
+        "//bazel/patches:buildifier-build.patch",  # bazel-contrib/buildtools#1398
+        "//bazel/patches:buildifier-internal-factory.patch",  # bazel-contrib/buildtools#1399
+        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazel-contrib/buildtools#1399, #1400
     ],
-    sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",
-    strip_prefix = "buildtools-8.5.1",
+    sha256 = "fa0b905032d49a621679e7318875736e451895a1417d992fbbebd27f82b83c38",
+    strip_prefix = "buildtools-10.1.0",
     type = "tar.gz",
     urls = [
-        "https://codeload.github.com/bazelbuild/buildtools/tar.gz/refs/tags/v8.5.1",
-        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
+        "https://codeload.github.com/bazel-contrib/buildtools/tar.gz/refs/tags/v10.1.0",
+        "https://github.com/bazel-contrib/buildtools/archive/refs/tags/v10.1.0.tar.gz",
     ],
 )
 
