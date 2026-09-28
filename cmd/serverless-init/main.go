@@ -341,7 +341,7 @@ func main() {
 
 	// Gate before Fx construction, including provider registration: skipping
 	// only startup Submit would still allow periodic/in-flight collection of
-	// unresolved inventory.
+	// unresolved inventory. GCP identity reuses configureTags' cached lookup.
 	configureInventory(cloudService)
 
 	metricTags := metrics.Tags{
