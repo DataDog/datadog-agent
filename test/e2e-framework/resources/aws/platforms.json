@@ -9,26 +9,26 @@
     },
     "amazon-linux": {
         "arm64": {
-            "2": "ami-014a2929b68fa9931",
+            "2": "ami-0e8cbea8f6ca058ca",
             "2-5-10": "ami-09e51988f56677f44",
             "2022-5-15": "ami-0acc51c3357f26240",
-            "2023": "ami-04c4a14c3eeb37669"
+            "2023": "ami-0763217ebc918825a"
         },
         "x86_64": {
-            "2": "ami-00a582e65ca9fb5d3",
+            "2": "ami-005fc2543cf431451",
             "2-5-10": "ami-06a0cd9728546d178",
             "2022-5-15": "ami-0f0f00c2d082c52ae",
-            "2023": "ami-0de5c3ecd5a9c7c7b"
+            "2023": "ami-04e666d13a426ea0d"
         }
     },
     "amazon-linux-ecs": {
         "arm64": {
-            "2": "ami-0dcf2251579699482",
-            "2023": "ami-0101b61d5b36d62a1"
+            "2": "ami-0eb33120b9dad7af3",
+            "2023": "ami-09e8cb6b1d49dcc36"
         },
         "x86_64": {
-            "2": "ami-0e37628daf9e2446b",
-            "2023": "ami-0dca33706e9d8da76"
+            "2": "ami-0a7e801494f26cfe6",
+            "2023": "ami-0a893b70ea79c5773"
         }
     },
     "centos": {
@@ -42,68 +42,68 @@
     },
     "debian": {
         "arm64": {
-            "10": "ami-078a42aba8bce7215",
-            "12": "ami-0e7ef94b9787e1b2c"
+            "10": "ami-01dd18e069dbe3968",
+            "12": "ami-0d128c724ff9a4854"
         },
         "x86_64": {
-            "9": "ami-0a8378c7228eec1d4",
-            "10": "ami-010a1b0677e40fda7",
-            "11": "ami-0064e71807631721a",
-            "12": "ami-01c8cab3a6008d78b"
+            "10": "ami-0bccf87dd7296f77e",
+            "11": "ami-09f459e11a627f8e6",
+            "12": "ami-0e5ed7abed639b2e8",
+            "9": "ami-0a8378c7228eec1d4"
         }
     },
     "macos": {
         "arm64": {
-            "sonoma": "ami-0108b3d2537cb6ef9"
+            "sonoma": "ami-0c6ab4a743e896316"
         },
         "x86_64": {
-            "sonoma": "ami-00efe5135d1fbb9be"
+            "sonoma": "ami-0c0ca3981628542c0"
         }
     },
     "redhat": {
         "x86_64": {
+            "10": "ami-07b1b74df74f960a5",
             "8": "ami-031eff1ae75bb87e4",
-            "86": "ami-031eff1ae75bb87e4",
+            "86": "ami-05047a98ef7a88453",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-0d424760e95da7d14",
-            "10": "ami-07b1b74df74f960a5"
+            "9": "ami-02341b415a55bcd7a"
         }
     },
     "suse": {
         "arm64": {
-            "15-4": "ami-0d4afd2f545696595"
+            "15-4": "ami-0215635648ad40e44"
         },
         "x86_64": {
-            "12": "ami-073614fc408ea4c0e",
-            "15-4": "ami-011fc7361d5dd06d1"
+            "12": "ami-03c58ce81693c8990",
+            "15-4": "ami-030d12ebaccb297c7"
         }
     },
     "ubuntu": {
         "arm64": {
-            "18-04": "ami-030c578ba48699e2d",
-            "20-04": "ami-0ddd19814e441dbda",
-            "24-04": "ami-09bc641dcce47f5d9"
+            "18-04": "ami-0b2971ec740c94ebb",
+            "20-04": "ami-0fdbf3e1e71a6c1b2",
+            "24-04": "ami-0e7e52d39036b555a"
         },
         "x86_64": {
-            "16-04": "ami-01e8392f42693ed85",
-            "18-04": "ami-016df41acf36b4cc7",
-            "20-04": "ami-08b7b6b1a33c2c5c4",
-            "22-04": "ami-0c75be60114191340",
-            "22-04-e2e": "ami-0c75be60114191340",
-            "24-04": "ami-0b958b92f3311629a",
-            "24-04-e2e": "ami-0b958b92f3311629a"
+            "16-04": "ami-0b7f524ba58feb41d",
+            "18-04": "ami-0244455c44e39525d",
+            "20-04": "ami-09ee487c11426ccc1",
+            "22-04": "ami-01f4697ae25ff2996",
+            "22-04-e2e": "ami-0e7fdfc6ad9006685",
+            "24-04": "ami-0f2e08b9568f40f67",
+            "24-04-e2e": "ami-0df009278dd0ed630"
         }
     },
     "windows-server": {
         "x86_64": {
-            "2016": "ami-02d12824a464a28ae",
-            "2016-e2e": "ami-04768ca6b914ca911",
-            "2019": "ami-0cd77a1bbde0488e2",
-            "2019-e2e": "ami-0850d92fe7ed199a7",
-            "2022": "ami-0fcc930391c87ec7b",
-            "2022-e2e": "ami-0979cd4acf7874ba9",
-            "2025": "ami-0d03f0a2f81ced53e",
-            "2025-e2e": "ami-004c3c6126a26e23d"
+            "2016": "ami-0b47c30ef33cbe3e5",
+            "2016-e2e": "ami-01fc69ff106a954f7",
+            "2019": "ami-0e92df1513a02353c",
+            "2019-e2e": "ami-0ef7c81f7bfba7dba",
+            "2022": "ami-0cf33e3e8fd2daf5d",
+            "2022-e2e": "ami-0516f55a60df5b72d",
+            "2025": "ami-03435097735cf66e7",
+            "2025-e2e": "ami-08df4552c8b69d6d1"
         }
     }
 }
