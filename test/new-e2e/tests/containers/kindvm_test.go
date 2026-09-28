@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -18,10 +17,6 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
 )
@@ -110,18 +105,40 @@ func (suite *kindSuite) TestDynamoGraphDeploymentTagOnContainerMetric() {
 		suite.Require().NoError(setLabel(context.Background(), ""), "restore stress-ng pod labels")
 	}()
 
-	suite.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := suite.Fakeintake.FilterMetrics(
-			"container.cpu.usage",
-			fakeintakeclient.WithTags[*aggregator.MetricSeries]([]string{
-				"kube_namespace:" + namespace,
-				"pod_name:" + podName,
-				"dynamo_graph_deployment:" + deploymentName,
-			}),
-		)
-		require.NoError(c, err)
-		assert.NotEmpty(c, metrics, "container CPU metric did not reach fakeintake with the Dynamo deployment tag")
-	}, 2*time.Minute, 10*time.Second)
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				`^kube_namespace:` + namespace + `$`,
+				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+				`^dynamo_graph_deployment:` + deploymentName + `$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^dynamo_graph_deployment:` + deploymentName + `$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
+				`^image_tag:`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:` + namespace + `$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+				`^pod_phase:running$`,
+				`^runtime:containerd$`,
+				`^short_image:apps-stress-ng$`,
+			},
+		},
+	})
 }
 
 func (suite *kindSuite) TestControlPlane() {
