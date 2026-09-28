@@ -7,7 +7,7 @@
   extends: .dd_octo_sts
   rules:
     - !reference [.on_invoke_tasks_changes]
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - changes:
         paths:
           - .gitlab/build/source_test/kmt_tasks.yml
@@ -22,7 +22,7 @@
 
 test_kmt_local_setup_linux:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:arm64"]
+  tags: ["arch:arm64", "specific:true"]
   extends: .test_kmt_local_setup
   variables:
     # Some requirements cannot be tested in the CI yet:
@@ -49,6 +49,8 @@ test_kmt_local_setup_macos:
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
+  after_script:
+    - !reference [.macos_cleanup_python_dependencies]
   tags: ["macos:sonoma-arm64", "specific:true"]
   variables:
      # Some requirements cannot be tested in the CI yet:

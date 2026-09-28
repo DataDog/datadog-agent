@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix a process supervised by ``dd-procmgr`` staying stopped after a
+    configuration change disabled it while it was restarting. Once the
+    configuration re-enables the process, ``dd-procmgr reload`` now starts it
+    again. Previously reload skipped such a process, and recovering it required
+    ``dd-procmgr start`` or an Agent restart.

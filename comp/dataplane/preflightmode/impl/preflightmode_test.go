@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -69,17 +70,43 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// adpLog writes one log record in ADP's JSON format. Preflight mode forces log_format_json, so
-// the stand-in must emit the same shape as the real binary or the tests would be exercising
-// a format that never occurs.
+// fakeSite is a source location in the stand-in's imaginary Rust source. The line is an int
+// because that is how the real binary emits it, and the location is what the finding telemetry
+// is tagged with, so it is worth the tests and the stand-in agreeing on one definition.
+type fakeSite struct {
+	file string
+	line int
+}
+
+// location is the site in the form the capture reports it.
+func (s fakeSite) location() sourceLocation {
+	return sourceLocation{file: s.file, line: strconv.Itoa(s.line)}
+}
+
+// The sites the stand-in logs from. Distinct per notable record, because the whole point of
+// tagging a finding with its location is telling two log sites apart.
+var (
+	siteDefault       = fakeSite{file: "bin/agent-data-plane/src/main.rs", line: 1}
+	siteNetError      = fakeSite{file: "lib/saluki-io/src/net/mod.rs", line: 412}
+	siteInvalidAPIKey = fakeSite{file: "lib/saluki-components/src/common/datadog/validation.rs", line: 286}
+)
+
+// adpLog writes one log record in ADP's JSON format, from siteDefault.
 func adpLog(w io.Writer, level, target, message string) {
+	adpLogAt(w, level, target, message, siteDefault)
+}
+
+// adpLogAt writes one log record in ADP's JSON format. Preflight mode forces log_format_json, so
+// the stand-in must emit the same shape as the real binary or the tests would be exercising
+// a format that never occurs — including the filename and line_number the real logger attaches.
+func adpLogAt(w io.Writer, level, target, message string, at fakeSite) {
 	rec, err := json.Marshal(map[string]any{
 		"timestamp":   "2026-07-27T12:00:00.000000Z",
 		"level":       level,
 		"message":     message,
 		"target":      target,
-		"filename":    "bin/agent-data-plane/src/main.rs",
-		"line_number": 1,
+		"filename":    at.file,
+		"line_number": at.line,
 	})
 	if err != nil {
 		panic(err)
@@ -191,17 +218,18 @@ func runFakeDataPlane() int {
 
 	if mode == modeErrors {
 		// Two records that differ only in a retry count, so they must collapse into one
-		// signature, plus a multi-line anyhow chain like the real binary emits.
-		adpLog(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 1)")
-		adpLog(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 2)")
-		adpLog(os.Stderr, "ERROR", "agent_data_plane",
-			"Failed to create internal supervisor.\n\nCaused by:\n    No such file or directory (os error 2)")
+		// signature, plus a multi-line anyhow chain like the real binary emits. The chain comes
+		// from a different site, so the run reports two distinct locations.
+		adpLogAt(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 1)", siteNetError)
+		adpLogAt(os.Stderr, "ERROR", "saluki_io::net", "connection refused (attempt 2)", siteNetError)
+		adpLogAt(os.Stderr, "ERROR", "agent_data_plane",
+			"Failed to create internal supervisor.\n\nCaused by:\n    No such file or directory (os error 2)", siteDefault)
 	}
 
 	if mode == modeInvalidAPIKey {
 		// The real binary reports a rejected key at WARN, from this target.
-		adpLog(os.Stderr, "WARN", "saluki_components::common::datadog::validation",
-			"Datadog API key is invalid.")
+		adpLogAt(os.Stderr, "WARN", "saluki_components::common::datadog::validation",
+			"Datadog API key is invalid.", siteInvalidAPIKey)
 	}
 
 	// The real binary only handles SIGINT; see the stopSignal comment in terminate_nix.go.
@@ -357,7 +385,9 @@ func (h *harness) capturedContains(sub string) bool {
 	return false
 }
 
-// findingCount returns how many times a finding was reported.
+// findingCount returns how many times a finding was reported, across every log site it was
+// reported from. A finding that came from ADP's log is reported once per distinct site, so this
+// is the number of sites for those and 1 for every other finding.
 //
 // A lookup error means the counter was never registered at all — if that were swallowed and
 // reported as 0, every assert.Zero on a finding would be unfalsifiable, and renaming the
@@ -376,12 +406,32 @@ func (h *harness) findingCount(t *testing.T, f finding) float64 {
 			telemetrySubsystem, metricFinding, telemetrySubsystem, metricResult)
 		return 0
 	}
+	total := 0.0
 	for _, m := range metrics {
 		if m.Tags()[labelFinding] == string(f) {
-			return m.Value()
+			total += m.Value()
 		}
 	}
-	return 0
+	return total
+}
+
+// findingLocations returns the log sites a finding was reported with, one entry per point.
+func (h *harness) findingLocations(t *testing.T, f finding) []sourceLocation {
+	t.Helper()
+	metrics, err := h.tlm.GetCountMetric(telemetrySubsystem, metricFinding)
+	require.NoError(t, err)
+
+	var locations []sourceLocation
+	for _, m := range metrics {
+		if m.Tags()[labelFinding] != string(f) {
+			continue
+		}
+		locations = append(locations, sourceLocation{
+			file: m.Tags()[labelSourceFile],
+			line: m.Tags()[labelSourceLine],
+		})
+	}
+	return locations
 }
 
 // result returns the single reported result label.
@@ -432,10 +482,27 @@ func TestPreflightModeErrorsInLog(t *testing.T) {
 	h.runToCompletion(t)
 
 	assert.Equal(t, string(findingErrorsInLog), h.result(t))
-	assert.Equal(t, 1.0, h.findingCount(t, findingErrorsInLog))
 	assert.Zero(t, h.findingCount(t, findingProbeFailed))
 	assert.Zero(t, h.findingCount(t, findingWarningsInLog),
 		"the standalone-mode warning is provoked by preflight mode itself")
+
+	// One point per distinct log site: the two retries collapse into the site they share, and
+	// the supervisor failure is reported separately because it came from somewhere else.
+	assert.ElementsMatch(t,
+		[]sourceLocation{siteNetError.location(), siteDefault.location()},
+		h.findingLocations(t, findingErrorsInLog))
+	assert.Equal(t, 2.0, h.findingCount(t, findingErrorsInLog))
+}
+
+// TestPreflightModeFindingsWithoutALogSite covers the other half of the location tags: a finding
+// the pre-flight observed about the process, rather than one ADP logged, has no source location
+// and must not be tagged with a made-up one.
+func TestPreflightModeFindingsWithoutALogSite(t *testing.T) {
+	h := newHarness(t, modeNoListener, nil)
+	h.runToCompletion(t)
+
+	assert.Equal(t, []sourceLocation{{}}, h.findingLocations(t, findingProbeFailed),
+		"a finding with no log site must report both location tags empty")
 }
 
 // TestPreflightModeInvalidAPIKey is the end-to-end version of the case that motivated
@@ -448,6 +515,10 @@ func TestPreflightModeInvalidAPIKey(t *testing.T) {
 	assert.Equal(t, string(findingWarningsInLog), h.result(t))
 	assert.Equal(t, 1.0, h.findingCount(t, findingWarningsInLog))
 	assert.Zero(t, h.findingCount(t, findingErrorsInLog), "ADP reports this at WARN, not ERROR")
+	// Only the rejected key's site: the standalone-mode warning preflight mode provokes itself
+	// is not a finding, so it contributes no location either.
+	assert.Equal(t, []sourceLocation{siteInvalidAPIKey.location()},
+		h.findingLocations(t, findingWarningsInLog))
 }
 
 func TestPreflightModeExitsEarly(t *testing.T) {
@@ -485,6 +556,10 @@ func TestPreflightModePanicIsReported(t *testing.T) {
 
 	assert.Equal(t, 1.0, h.findingCount(t, findingErrorsInLog),
 		"a panic bypasses the JSON logger, so it must still be reported as an error")
+	// Both panic lines are errors, but neither carries a location, so they report as one
+	// unknown site rather than two.
+	assert.Equal(t, []sourceLocation{{file: sourceUnknown, line: sourceUnknown}},
+		h.findingLocations(t, findingErrorsInLog))
 }
 
 // TestPreflightModeStopsGracefully pins the stop signal. The real binary only handles SIGINT, so
@@ -587,7 +662,7 @@ func TestPreflightModeInterruptedStillReportsRealErrors(t *testing.T) {
 	<-h.comp.done
 
 	assert.Equal(t, string(findingInterrupted), h.result(t), "interrupted is recorded first")
-	assert.Equal(t, 1.0, h.findingCount(t, findingErrorsInLog),
+	assert.Equal(t, 2.0, h.findingCount(t, findingErrorsInLog),
 		"errors ADP actually logged are real even if the run was cut short")
 }
 

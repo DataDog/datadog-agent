@@ -37,6 +37,7 @@ needs-rules:
     - publish_winget_7_x64
     - revert_latest_7
     - security_go_generate_check
+    - new_e2e_scenario_imports_check
     - setup_agent_version
     - tests_ebpf_arm64
     - tests_ebpf_x64

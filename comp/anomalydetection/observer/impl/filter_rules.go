@@ -207,7 +207,7 @@ func (f *metricsFilterRules) precheck(name, source, host string) metricFilterPre
 }
 
 // isAllowed returns true if the metric should be ingested.
-// tags must be sorted so the mute hash matches seriesKeyHash in storage.
+// tags must be sorted for rule matching and mute-key construction.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
 	return f.isAllowedWithHost(name, source, "", tags)
 }
@@ -229,12 +229,16 @@ func (f *metricsFilterRules) isAllowedWithHost(name, source, host string, tags [
 }
 
 func (f *metricsFilterRules) isMutedWithHost(name, source, host string, tags []string) bool {
+	return f.isMutedWithKey(source, storageKeyForIdentity(source, name, host, tags))
+}
+
+func (f *metricsFilterRules) isMutedWithKey(source string, key uint64) bool {
 	if f == nil || source == LogMetricsExtractorName {
 		return false
 	}
 
 	if m := f.muted.Load(); m != nil {
-		if _, ok := (*m)[seriesKeyHash(source, name, host, tags)]; ok {
+		if _, ok := (*m)[key]; ok {
 			return true
 		}
 	}
