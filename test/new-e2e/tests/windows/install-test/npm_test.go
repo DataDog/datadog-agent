@@ -99,6 +99,12 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 	s.enableNPM()
 	s.testNPMFunctional()
+
+	// The drivers cannot unload while system-probe holds their devices open, and
+	// system-probe now exits with dd-procmgr-service instead of with a Windows service of
+	// its own, so the uninstaller has to stop the supervisor first. This is the only
+	// install-test scenario where system-probe is running when the uninstall starts.
+	s.Require().True(s.uninstallAgent(), "should uninstall the agent with NPM running")
 }
 
 // TestNPMUpgradeNPMToNPM tests the latest installer can successfully upgrade
