@@ -180,6 +180,12 @@ fn fleet_sysprobe_template_external_vetoes_every_open_key() {
             EMPTY_AGENT_YAML,
             format!("{EXTERNAL}network_config:\n  enabled: true\n"),
         ),
+        // Written as one block: a second `system_probe_config` mapping would shadow the
+        // first and drop `external` before the gate ever saw it.
+        (
+            EMPTY_AGENT_YAML,
+            "system_probe_config:\n  external: true\n  enabled: true\n".to_string(),
+        ),
         (
             EMPTY_AGENT_YAML,
             format!("{EXTERNAL}windows_crash_detection:\n  enabled: true\n"),

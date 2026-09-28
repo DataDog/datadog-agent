@@ -15,9 +15,13 @@
 //!
 //! **When module enablement changes in Go, update [`derived_enabled`].**
 //!
-//! The one deliberate divergence is `system_probe_config.external`, which Go checks in
-//! `startSystemProbe` rather than folding into `system_probe_config.enabled`. See the
-//! comment on that check in [`derived_enabled`].
+//! `system_probe_config.external` is deliberately not read here, matching Go: `load()`
+//! leaves the derived value purely module-derived and `startSystemProbe` checks `external`
+//! separately. Folding it in would reach further than system-probe, because this function
+//! also backs process-agent's `system_probe_config.enabled` term, and process-agent has to
+//! keep running against an externally managed system-probe since talking to it is its job.
+//! Keeping system-probe itself from being spawned is the sysprobe entry's
+//! `condition_config_none`.
 //!
 //! Module knobs come from the highest-priority configured source among fleet policy,
 //! env, and YAML. A few modules read the core `datadog.yaml` instead of
@@ -57,15 +61,6 @@ pub(super) fn derived_enabled(sysprobe_path: &str, yaml: &mut YamlCache, os: Hos
         yaml,
         os,
     };
-
-    // Not part of the Go mirror: `load()` leaves `system_probe_config.enabled` purely
-    // module-derived and `startSystemProbe` checks `external` separately. Folded in here
-    // because the gate decides whether to spawn at all, and an externally managed
-    // system-probe returns ErrNotEnabled, sleeps 5 seconds and exits 0 every time it is
-    // spawned (cmd/system-probe/subcommands/run/command.go).
-    if cfg.sysprobe_bool("system_probe_config.external") {
-        return false;
-    }
 
     // Values reused across module checks, matching the locals in config.go.
     let npm = cfg.npm_enabled();

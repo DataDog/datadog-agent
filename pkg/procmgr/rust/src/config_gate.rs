@@ -195,8 +195,9 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         fleet_policy_file: AGENT_POLICY,
     },
     // Only ever named by a `condition_config_none`, since it has to be false for
-    // system-probe to run. `derived_enabled` reads it too, which covers the derived term
-    // on its own; the veto is what covers the literal terms beside it.
+    // system-probe to run. Nothing folds it into the derived key, which process-agent
+    // reads too: a per-entry veto is the only shape that stops system-probe without
+    // stopping the process-agent that talks to the external one.
     GatedKeySpec {
         kind: GatedKey::SystemProbeExternal,
         key: SYSTEM_PROBE_EXTERNAL_KEY,
@@ -956,34 +957,28 @@ process_config:
         assert!(fx.veto_clear_for(&sysprobe, "not_a_gate.enabled"));
     }
 
-    /// `startSystemProbe` returns ErrNotEnabled when `external` is set, whatever the
-    /// modules say, so the derived key has to agree.
+    /// `external` leaves every key it sits beside alone, the derived one included, because
+    /// `load()` never folds it into `system_probe_config.enabled`. Reading it here instead
+    /// of through the veto would close process-agent's gate too, and process-agent has to
+    /// keep running against an externally managed system-probe. That is also why the veto
+    /// has to be per entry rather than per key.
     #[test]
-    fn external_system_probe_closes_the_derived_key() {
+    fn external_system_probe_leaves_the_keys_beside_it_open() {
         let fx = Gate::new();
         let sysprobe = fx
             .sysprobe("system_probe_config:\n  external: true\nnetwork_config:\n  enabled: true\n");
-        fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, false);
+        fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, true);
+        fx.assert_key(&sysprobe, NETWORK_CONFIG_KEY, true);
     }
 
+    /// The veto resolves `external` through the same source ladder as every other key, so
+    /// an env-only external system-probe is vetoed with nothing in the file.
     #[test]
-    fn env_external_system_probe_closes_the_derived_key() {
+    fn env_external_system_probe_fires_the_veto() {
         let fx = Gate::new();
         let sysprobe = fx.sysprobe("network_config:\n  enabled: true\n");
         fx.env("DD_SYSTEM_PROBE_EXTERNAL", "true");
-        fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, false);
-    }
-
-    /// The blast radius of the fold-in. `derived_enabled` backs the process-agent gate
-    /// too, and process-agent has to keep running against an external system-probe, so
-    /// the literal keys beside the derived one must stay open. That is also why the veto
-    /// has to be per entry rather than per key.
-    #[test]
-    fn external_system_probe_leaves_the_network_key_open() {
-        let fx = Gate::new();
-        let sysprobe = fx
-            .sysprobe("system_probe_config:\n  external: true\nnetwork_config:\n  enabled: true\n");
-        fx.assert_key(&sysprobe, NETWORK_CONFIG_KEY, true);
+        assert!(!fx.veto_clear_for(&sysprobe, SYSTEM_PROBE_EXTERNAL_KEY));
     }
 
     #[test]
