@@ -5,7 +5,7 @@ go 1.26.0
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.210
+	github.com/DataDog/agent-payload/v5 v5.0.211
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -43,14 +43,11 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	go.opentelemetry.io/otel/metric v1.46.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.45.0 // indirect
-	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/grpc v1.83.2 // indirect
+	google.golang.org/grpc v1.84.0 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -231,6 +228,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel

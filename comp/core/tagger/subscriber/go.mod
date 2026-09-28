@@ -31,7 +31,7 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -219,6 +219,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e

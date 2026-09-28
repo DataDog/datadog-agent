@@ -21,7 +21,7 @@ import (
 func requireCounterMetricValueBySource(t *testing.T, source string, want float64, telemetryComp telemetry.Component) {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	metricName := "observer__" + telemetryFilteredMetrics
@@ -48,7 +48,7 @@ func requireCounterMetricValueBySource(t *testing.T, source string, want float64
 func requireNoCounterMetricForNameBySource(t *testing.T, metricName, source string, telemetryComp telemetry.Component) {
 	t.Helper()
 
-	metricFamilies, err := telemetryComp.Gather(false)
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
 	require.NoError(t, err)
 
 	fullMetricName := "observer__" + metricName
@@ -551,17 +551,27 @@ func TestFilteredMetricTelemetryAsyncPath(t *testing.T) {
 		metricFilter:         filter,
 	}
 	obs.handleFunc = obs.innerHandle
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
 
 	obs.GetHandle("dogstatsd").ObserveMetric(&metricObs{
 		name:      "system.cpu.user",
 		value:     50,
 		timestamp: 1000,
 	})
+	obs.Flush()
 
 	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
 }
 
-func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *testing.T) {
+func TestAsyncFilteredMetricTelemetryPreservesNormalizedSourceLabels(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
 		Type:        excludeAtMatch,
 		Name:        "drop_everything",
@@ -585,14 +595,29 @@ func TestHandleFilteredMetricTelemetryCachePreservesNormalizedSourceLabels(t *te
 		t.Run(tc.name, func(t *testing.T) {
 			telComp := telemetryimpl.NewMock(t)
 
-			h := &handle{
-				source:    "check",
-				telemetry: newObserverTelemetry(telComp),
-				filter:    filter,
+			obs := &observerImpl{
+				engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+				obsCh:                make(chan observation, len(tc.metricNames)),
+				telemetry:            newObserverTelemetry(telComp),
+				ingestMetricsEnabled: true,
+				metricFilter:         filter,
 			}
+			obs.handleFunc = obs.innerHandle
+			done := make(chan struct{})
+			go func() {
+				obs.run()
+				close(done)
+			}()
+			t.Cleanup(func() {
+				close(obs.obsCh)
+				<-done
+			})
+
+			h := obs.GetHandle("check")
 			for _, metricName := range tc.metricNames {
 				h.ObserveMetric(&metricObs{name: metricName})
 			}
+			obs.Flush()
 
 			requireCounterMetricValueBySource(t, "check", 1.0, telComp)
 			requireCounterMetricValueBySource(t, observerdef.AgentNamespace, 1.0, telComp)
@@ -943,6 +968,44 @@ func TestMetricsFilterRulesDuplicateRuleTagsBehaveAsIfUnique(t *testing.T) {
 	assert.True(t, filter.isAllowed("system.cpu.user", "dogstatsd", []string{"env:dev"}))
 }
 
+func TestNameOnlyFilteredMetricDoesNotConsumeFullChannel(t *testing.T) {
+	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
+		Type:        excludeAtMatch,
+		Name:        "drop_system_cpu",
+		NamePattern: "system.cpu.",
+	}})
+	require.NoError(t, err)
+
+	telComp := telemetryimpl.GetCompatComponent()
+	telComp.Reset()
+	t.Cleanup(telComp.Reset)
+
+	obs := &observerImpl{
+		engine:               newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		obsCh:                make(chan observation, 1),
+		telemetry:            newObserverTelemetry(telComp),
+		ingestMetricsEnabled: true,
+		metricFilter:         filter,
+	}
+	obs.handleFunc = obs.innerHandle
+
+	h, ok := obs.GetHandle("dogstatsd").(*handle)
+	require.True(t, ok)
+	require.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+		name:      "system.mem.used",
+		value:     1,
+		timestamp: 1000,
+	}))
+	require.False(t, h.ObserveMetricAndReportDrop(&metricObs{
+		name:      "system.cpu.user",
+		value:     2,
+		timestamp: 1000,
+	}))
+
+	requireNoCounterMetricForNameBySource(t, telemetryObservationsDropped, "dogstatsd", telComp)
+	requireCounterMetricValueBySource(t, "dogstatsd", 1.0, telComp)
+}
+
 func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 	filter, err := newMetricsFilterRules([]metricsProcessingRule{{
 		Type:        excludeAtMatch,
@@ -974,11 +1037,24 @@ func TestFilteredMetricsAndChannelDropsIncrementSeparateCounters(t *testing.T) {
 		value:     2,
 		timestamp: 1000,
 	}))
+
+	done := make(chan struct{})
+	go func() {
+		obs.run()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		close(obs.obsCh)
+		<-done
+	})
+	obs.Flush()
+
 	assert.False(t, h.ObserveMetricAndReportDrop(&metricObs{
 		name:      "system.cpu.user",
 		value:     3,
 		timestamp: 1000,
 	}))
+	obs.Flush()
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())

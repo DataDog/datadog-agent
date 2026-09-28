@@ -6,6 +6,8 @@
 pub mod server;
 pub mod service;
 
+mod caller_auth;
+
 pub mod proto {
     pub use dd_procmgr_client::proto::*;
 }

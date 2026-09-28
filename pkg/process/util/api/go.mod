@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/process/util/api
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.210
+	github.com/DataDog/agent-payload/v5 v5.0.211
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.70.0
 	github.com/gogo/protobuf v1.3.2
@@ -62,7 +62,7 @@ require (
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -254,6 +254,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e

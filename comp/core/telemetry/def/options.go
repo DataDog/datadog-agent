@@ -14,9 +14,6 @@ type Options struct {
 	//
 	// This option is not compatible with the cross-org agent telemetry
 	NoDoubleUnderscoreSep bool
-
-	// DefaultMetric exports metric by default via built-in agent_telemetry core check.
-	DefaultMetric bool
 }
 
 // MetricFilter is a function that filters metrics based on their name

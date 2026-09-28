@@ -11,7 +11,12 @@ on it:
 Handle → Storage → Detect → Correlate → Report
 ```
 
-Data enters through lightweight **Handles** (non-blocking, copy-on-send).
+Data enters through lightweight **Handles** (non-blocking scalar snapshot on
+send). Metric handles reject name/source/host-only processing rules before
+enqueueing, retain immutable resolved-tag views, and defer tag materialization,
+tag-dependent filtering, muting, and canonicalization to the dispatch
+goroutine; log handles still copy caller-owned content and tags before
+enqueueing.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
@@ -62,6 +67,15 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+`anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
+patterns across all tag groups (default 3,000). This includes patterns below
+the metric emission threshold. Non-positive values use the default. Capacity
+eviction removes the least recently seen existing pattern and sends its metric
+name through engine cleanup. The internal per-group and tag-group safeguards
+still apply. This setting does not limit `log_metrics_extractor` outputs; the
+shared storage series budget remains separate.
+
 
 The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
 
