@@ -37,7 +37,6 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/file",
-            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/symlink",
             "//pkg/util/log",
         ],
@@ -64,7 +63,6 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/file",
-            "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/symlink",
             "//pkg/util/log",
         ],
@@ -147,12 +145,6 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ] + select({
-        "@rules_go//go/platform:darwin": [
-            "@com_github_stretchr_testify//require",
-        ],
-        "@rules_go//go/platform:ios": [
-            "@com_github_stretchr_testify//require",
-        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
             "@org_golang_x_sys//windows",

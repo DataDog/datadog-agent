@@ -358,7 +358,7 @@ func (s *configMacOSSuite) startConfigExperimentRC(deploymentID string, fileOps 
 	s.pushTaskUntil("start_experiment_config",
 		&experimentTaskParams{Version: deploymentID, EncryptedSecrets: encryptedSecrets},
 		func(pkg backend.RemoteConfigStatePackage) bool { return pkg.ExperimentConfigVersion == deploymentID },
-		fmt.Sprintf("start_experiment_config %s", deploymentID))
+		"start_experiment_config "+deploymentID)
 }
 
 func (s *configMacOSSuite) promoteConfigExperimentRC() {
@@ -366,7 +366,7 @@ func (s *configMacOSSuite) promoteConfigExperimentRC() {
 	s.pushTaskUntil("promote_experiment_config", nil, func(pkg backend.RemoteConfigStatePackage) bool {
 		// The promoted experiment becomes the stable configuration, and nothing is left deployed.
 		return pkg.StableConfigVersion == before.ExperimentConfig && pkg.ExperimentConfigVersion == ""
-	}, fmt.Sprintf("promote_experiment_config %s", before.ExperimentConfig))
+	}, "promote_experiment_config "+before.ExperimentConfig)
 }
 
 func (s *configMacOSSuite) stopConfigExperimentRC() {
@@ -374,7 +374,7 @@ func (s *configMacOSSuite) stopConfigExperimentRC() {
 	s.pushTaskUntil("stop_experiment_config", nil, func(pkg backend.RemoteConfigStatePackage) bool {
 		// A stop rolls the experiment back, so the stable configuration is the one it already was.
 		return pkg.StableConfigVersion == before.StableConfig && pkg.ExperimentConfigVersion == ""
-	}, fmt.Sprintf("stop_experiment_config %s", before.ExperimentConfig))
+	}, "stop_experiment_config "+before.ExperimentConfig)
 }
 
 // --- host-state helpers ------------------------------------------------------------------------
