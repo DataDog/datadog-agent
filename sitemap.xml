@@ -4,82 +4,43 @@
         <loc>https://datadoghq.dev/datadog-agent/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/setup/required/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/setup/optional/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/setup/manual/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/examples/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/build/standalone/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/components/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/build/distributions/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/components/fx/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/unit/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/static-analysis/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/components/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/contributing/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/running/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/conventions/logging/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/writing/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/docs/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/RUST/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/custom-amis/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/go/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-vm/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-docker/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-eks/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-ecs/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-kind/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/azure-vm/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/gcp-vm/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/go/modules/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/components/using-components/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/components/creating-bundles/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/components/optional-dependencies/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/components/flares/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/components/status/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/guidelines/testing/test-categories/</loc>
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/how-to/agent-schema/settings/</loc>
@@ -88,7 +49,25 @@
         <loc>https://datadoghq.dev/datadog-agent/how-to/agent-schema/workflows/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/run-jmxfetch/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/build/distributions/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/build/standalone/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/creating-bundles/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/flares/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/optional-dependencies/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/status/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/components/using-components/</loc>
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/how-to/debug-agents/</loc>
@@ -100,16 +79,97 @@
         <loc>https://datadoghq.dev/datadog-agent/how-to/debug-agents/windows/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/overview/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/go/modules/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/c++/</loc>
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/go/</loc>
       </url>
       <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/overview/</loc>
+      </url>
+      <url>
         <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/python/</loc>
       </url>
       <url>
-        <loc>https://datadoghq.dev/datadog-agent/how-to/memory-profiling/c++/</loc>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/run-jmxfetch/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/custom-amis/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/running/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/writing/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-docker/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-ecs/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-eks/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-kind/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/aws-vm/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/azure-vm/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/manual-qa/gcp-vm/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/static-analysis/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/unit/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/agent-schema/cli/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/agent-schema/keywords/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/builds/components/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/components/status/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/docs/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/images/builders/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/reference/images/dev/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/setup/manual/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/setup/optional/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/setup/required/</loc>
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/tutorials/components/creating-components/</loc>
@@ -125,65 +185,5 @@
       </url>
       <url>
         <loc>https://datadoghq.dev/datadog-agent/tutorials/dev/lab/kind/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/guidelines/contributing/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/guidelines/docs/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/guidelines/components/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/go/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/guidelines/languages/RUST/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/guidelines/testing/test-categories/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/guidelines/conventions/logging/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/reference/components/status/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/reference/agent-schema/keywords/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/reference/agent-schema/cli/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/reference/images/dev/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/reference/images/builders/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/reference/builds/components/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/reference/docs/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/components/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/components/fx/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/agent-schema/examples/</loc>
-      </url>
-      <url>
-        <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
       </url>
 </urlset>
