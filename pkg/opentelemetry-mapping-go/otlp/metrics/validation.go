@@ -35,34 +35,21 @@ const (
 // in the low tail, with nothing reported anywhere.
 var sketchMaxObservationCount = uint64(quantile.Default().MaxCount())
 
-// validateHistogramDataPoint reports whether an explicit-bounds histogram data
+// exceedsSketchCapacity reports whether count is too large to be inserted into an
+// agent sketch. Callers must pass the count that actually reaches the sketch: for
+// a cumulative data point that is the delta from the previous point, not the raw
+// lifetime count the point carries.
+func exceedsSketchCapacity(count float64, maxObservationCount uint64) bool {
+	return count > float64(maxObservationCount)
+}
+
+// validateExpHistogramDataPoint reports whether an exponential histogram data
 // point must be dropped, why, and — for dropReasonBucketCountTooHigh — the
 // offending count. reason is empty when drop is false.
 //
 // The limit is a parameter because it belongs to whatever consumes the point: a
 // histogram forwarded without sketch conversion is bounded by what the backend
 // rebuilds it into instead, which is a different number (see OTAGENT-1131).
-func validateHistogramDataPoint(dp pmetric.HistogramDataPoint, maxObservationCount uint64) (reason string, badCount uint64, drop bool) {
-	if dp.Flags().NoRecordedValue() {
-		return dropReasonNoRecordedValue, 0, true
-	}
-
-	// The total count bounds the number of bins the whole point can produce, which
-	// per-bucket limits alone do not. The intake validates buckets only.
-	if dp.Count() > maxObservationCount {
-		return dropReasonBucketCountTooHigh, dp.Count(), true
-	}
-
-	if count, ok := firstCountAbove(dp.BucketCounts(), maxObservationCount); ok {
-		return dropReasonBucketCountTooHigh, count, true
-	}
-
-	return "", 0, false
-}
-
-// validateExpHistogramDataPoint reports whether an exponential histogram data
-// point must be dropped, why, and — for dropReasonBucketCountTooHigh — the
-// offending count. reason is empty when drop is false.
 func validateExpHistogramDataPoint(dp pmetric.ExponentialHistogramDataPoint, maxObservationCount uint64) (reason string, badCount uint64, drop bool) {
 	if dp.Flags().NoRecordedValue() {
 		return dropReasonNoRecordedValue, 0, true

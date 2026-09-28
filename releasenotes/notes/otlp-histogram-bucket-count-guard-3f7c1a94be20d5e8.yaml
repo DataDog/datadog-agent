@@ -8,13 +8,16 @@
 ---
 fixes:
   - |
-    OTLP: histogram and exponential histogram data points carrying bucket counts
-    above what a distribution can represent are now dropped, with a warning
-    naming the metric and the offending count. Such a point used to be converted
-    anyway, expanding into one sketch bin per 65535 observations while the sketch
-    was being built — enough to exhaust the Agent's memory — and, past the
-    representable count, silently distorting the lower percentiles of the
-    resulting distribution.
+    OTLP: a histogram or exponential histogram data point contributing more
+    observations than a Datadog distribution can represent no longer produces a
+    distribution, and is reported with a warning naming the metric and the
+    offending count. Such a point used to be converted anyway, expanding into one
+    sketch bin per 65535 observations while the distribution was being built —
+    enough to exhaust the Agent's memory — and, past the representable count,
+    silently distorting the lower percentiles. Only the ``distributions``
+    histogram mode is affected; for cumulative histograms the count compared
+    against the limit is the delta from the previous point, not the lifetime
+    total.
   - |
     OTLP: exponential histogram data points flagged as having no recorded value
     are now skipped, as explicit bounds histogram data points already were.

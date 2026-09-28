@@ -82,10 +82,14 @@ func (m *defaultMapper) MapHistogramMetrics(
 ) error {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
-		if reason, badCount, drop := validateHistogramDataPoint(p, sketchMaxObservationCount); drop {
-			warnDroppedDataPoint(m.logger, &m.warnedMetrics, dims.name, reason, badCount, sketchMaxObservationCount)
+		if p.Flags().NoRecordedValue() {
+			// No recorded value, skip.
 			continue
 		}
+		// The sketch capacity limit is not checked here: it only applies to
+		// HistogramModeDistributions, and it has to be checked against the counts that
+		// actually reach the sketch, which for a cumulative point are the deltas
+		// computed below. See getSketchBuckets.
 
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
@@ -242,6 +246,10 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
+		// Unlike explicit-bounds histograms, the raw counts are the ones inserted into
+		// the sketch here: only delta exponential histograms reach this mapper (see the
+		// temporality switch in metrics_translator.go), and every one of them is
+		// converted into a sketch, with no HistogramMode to opt out of it.
 		if reason, badCount, drop := validateExpHistogramDataPoint(p, sketchMaxObservationCount); drop {
 			warnDroppedDataPoint(m.logger, &m.warnedMetrics, dims.name, reason, badCount, sketchMaxObservationCount)
 			continue
@@ -386,6 +394,18 @@ func (m *defaultMapper) getSketchBuckets(
 	//   there was at least a nonzero bucket.
 	var minBound, maxBound float64
 	var minBoundSet bool
+
+	// A count above what the sketch can represent makes the whole sketch unusable:
+	// insertCounts expands it into one bin per 65535 observations before trimLeft
+	// caps the result. The loop below still runs to completion when that happens,
+	// so that every bucket's entry in the delta cache stays up to date and the next
+	// point is not computed against a stale value.
+	var badCount uint64
+	dropSketch := exceedsSketchCapacity(float64(histInfo.count), sketchMaxObservationCount)
+	if dropSketch {
+		badCount = histInfo.count
+	}
+
 	for j := 0; j < bucketCounts.Len(); j++ {
 		lowerBound, upperBound := getBounds(explicitBounds, j)
 		originalLowerBound, originalUpperBound := lowerBound, upperBound
@@ -419,15 +439,29 @@ func (m *defaultMapper) getSketchBuckets(
 		var nonZeroBucket bool
 		if delta {
 			nonZeroBucket = count > 0
-			err := as.InsertInterpolate(lowerBound, upperBound, uint(count))
-			if err != nil {
-				return err
+			if exceedsSketchCapacity(float64(count), sketchMaxObservationCount) {
+				if !dropSketch {
+					dropSketch, badCount = true, count
+				}
+			} else if !dropSketch {
+				err := as.InsertInterpolate(lowerBound, upperBound, uint(count))
+				if err != nil {
+					return err
+				}
 			}
 		} else if dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
 			nonZeroBucket = dx > 0
-			err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
-			if err != nil {
-				return err
+			// dx, not count: a cumulative point carries lifetime counts, while only the
+			// difference from the previous point is inserted.
+			if exceedsSketchCapacity(dx, sketchMaxObservationCount) {
+				if !dropSketch {
+					dropSketch, badCount = true, uint64(dx)
+				}
+			} else if !dropSketch {
+				err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -438,6 +472,11 @@ func (m *defaultMapper) getSketchBuckets(
 			}
 			maxBound = originalUpperBound
 		}
+	}
+
+	if dropSketch {
+		warnDroppedDataPoint(m.logger, &m.warnedMetrics, pointDims.name, dropReasonBucketCountTooHigh, badCount, sketchMaxObservationCount)
+		return nil
 	}
 
 	sketch := as.Finish()
