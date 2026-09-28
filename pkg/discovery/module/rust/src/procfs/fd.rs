@@ -21,6 +21,12 @@ const MAX_TRACER_MEMFDS: usize = 25;
 
 const MAX_LOG_FILES: usize = 100;
 
+// Bounds the readlink syscalls done per PID. /proc/<pid>/fd is listed in ascending fd order and
+// the kernel allocates the lowest free fd, so listening sockets, log files and memfds opened at
+// startup are usually below the limit. Files opened later, such as a log reopened after rotation,
+// can get a higher fd and be missed on processes with that many open fds.
+const MAX_FDS: usize = 100_000;
+
 #[derive(Debug, Default)]
 pub struct OpenFilesInfo {
     pub sockets: Vec<u64>,
@@ -36,11 +42,19 @@ struct FdInfo {
 }
 
 pub fn get_open_files_info(pid: i32) -> Result<OpenFilesInfo, std::io::Error> {
+    get_open_files_info_with_limit(pid, MAX_FDS)
+}
+
+fn get_open_files_info_with_limit(
+    pid: i32,
+    max_fds: usize,
+) -> Result<OpenFilesInfo, std::io::Error> {
     let fd_path = root_path().join(pid.to_string()).join("fd");
     let mut result = OpenFilesInfo::default();
 
     read_dir(fd_path)?
         .map_while(|entry_result| entry_result.ok())
+        .take(max_fds)
         .filter_map(|entry| {
             let path = entry.path();
             let link = read_link(&path).ok()?;
@@ -427,7 +441,10 @@ mod tests {
 
         use tempfile::TempDir;
 
-        use super::super::{MAX_LOG_FILES, OpenFilesInfo, get_open_files_info, process_fd};
+        use super::super::{
+            MAX_FDS, MAX_LOG_FILES, OpenFilesInfo, get_open_files_info,
+            get_open_files_info_with_limit, is_socket, process_fd,
+        };
         use crate::procfs::root_path;
 
         fn fd_path(fd: &impl AsRawFd) -> PathBuf {
@@ -550,6 +567,28 @@ mod tests {
             assert!(result.logs.contains(&duplicate));
             assert!(result.logs.contains(&PathBuf::from("/tmp/99.log")));
             assert_eq!(result.sockets.len(), 1);
+        }
+
+        #[test]
+        fn fd_enumeration_is_bounded() {
+            let temp_dir = TempDir::new().expect("Failed to create temp dir");
+            let log_path = temp_dir.path().join("bounded.log");
+            let _log = append_file(&log_path);
+            let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
+            let listener_link =
+                read_link(fd_path(&listener)).expect("Failed to read listener link");
+            let listener_inode = is_socket(&listener_link).expect("Listener is not a socket");
+            let pid = std::process::id().cast_signed();
+
+            let unbounded =
+                get_open_files_info_with_limit(pid, MAX_FDS).expect("Failed to collect open files");
+            assert!(unbounded.logs.contains(&log_path));
+            assert!(unbounded.sockets.contains(&listener_inode));
+
+            let bounded =
+                get_open_files_info_with_limit(pid, 0).expect("Failed to collect open files");
+            assert!(bounded.logs.is_empty());
+            assert!(bounded.sockets.is_empty());
         }
 
         #[test]
