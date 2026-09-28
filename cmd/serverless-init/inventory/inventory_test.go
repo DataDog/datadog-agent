@@ -165,6 +165,29 @@ func TestBuildFieldsRuntime(t *testing.T) {
 	}
 }
 
+func TestBuildFieldsAppServiceRuntime(t *testing.T) {
+	conf := configmock.New(t)
+	t.Setenv("DD_SERVERLESS_INVENTORY_RUNTIME", "")
+	t.Setenv(cloudservice.WebsiteStack, "RUBY")
+	for _, tt := range []struct {
+		worker string
+		want   string
+	}{
+		{worker: "", want: "Ruby"},
+		{worker: " \t", want: "Ruby"},
+		{worker: " UnKnOwN ", want: "Ruby"},
+		{worker: " CONTAINER ", want: "Ruby"},
+		{worker: " NuLl ", want: "Ruby"},
+		{worker: " MyWorker ", want: "MyWorker"},
+	} {
+		t.Run(tt.worker, func(t *testing.T) {
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", tt.worker)
+			fields := buildFields(&cloudservice.AppService{}, mode.Conf{SidecarMode: true}, conf, nil)
+			assert.Equal(t, tt.want, fields["runtime"])
+		})
+	}
+}
+
 func TestBuildFieldsWrappedCommand(t *testing.T) {
 	originalArgs := os.Args
 	t.Cleanup(func() { os.Args = originalArgs })

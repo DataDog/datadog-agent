@@ -34,6 +34,7 @@ go_library(
 dd_agent_go_test(
     name = "cloudservice_test",
     srcs = [
+        "appservice_inventory_test.go",
         "appservice_test.go",
         "cloudrun_jobs_test.go",
         "cloudrun_test.go",
@@ -50,6 +51,8 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//comp/serializer/logscompression/fx-mock",
         "//comp/serializer/metricscompression/fx-mock",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/serverless/env",
         "//pkg/serverless/metrics",
         "//pkg/trace/api",

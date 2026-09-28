@@ -5,6 +5,11 @@
 
 package cloudservice
 
+const (
+	workloadTypeAzureAppService = "azure_app_service"
+	workloadTypeAzureFunction   = "azure_function"
+)
+
 // InventoryData holds the per-platform serverless fields that feed the
 // serverless-init inventory metadata payload. Each CloudService implementation
 // derives these from its own environment so the payload builder stays thin and
@@ -51,9 +56,6 @@ func (c *CloudRunJobs) GetInventoryData() InventoryData { return InventoryData{}
 
 func (c *ContainerApp) CanCollectInventory() bool       { return false }
 func (c *ContainerApp) GetInventoryData() InventoryData { return InventoryData{} }
-
-func (a *AppService) CanCollectInventory() bool       { return false }
-func (a *AppService) GetInventoryData() InventoryData { return InventoryData{} }
 
 func (m *MicroVM) CanCollectInventory() bool       { return false }
 func (m *MicroVM) GetInventoryData() InventoryData { return InventoryData{} }
