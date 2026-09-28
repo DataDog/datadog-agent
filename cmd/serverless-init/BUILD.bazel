@@ -1069,7 +1069,6 @@ dd_agent_go_test(
         "inventory_appservice_test.go",
         "inventory_cloudrun_test.go",
         "inventory_containerapp_test.go",
-        "inventory_disabled_test.go",
         "main_test.go",
     ],
     embed = [":serverless-init_lib"],

@@ -15,6 +15,7 @@ package inventory
 import (
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -23,6 +24,7 @@ import (
 	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	serverlessTags "github.com/DataDog/datadog-agent/pkg/serverless/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -47,11 +49,62 @@ func NewCapabilities() *inventoryagent.Capabilities {
 	return inventoryagent.NewServerlessCapabilities(func() string { return id })
 }
 
+// InstanceUUID re-identifies the payload uuid when the process outlives the
+// instance it was constructed for.
+//
+// This type is MicroVM-specific: MicroVM restores many instances from one
+// snapshot captured after construction, so every restored instance would
+// otherwise report the uuid baked into it. Platforms that run one process per
+// deployed instance use NewCapabilities.
+type InstanceUUID struct {
+	mu         sync.Mutex
+	uuid       string
+	instanceID string
+}
+
+// NewInstanceUUID builds an InstanceUUID.
+func NewInstanceUUID() *InstanceUUID {
+	return &InstanceUUID{uuid: uuid.New().String()}
+}
+
+// SetInstance rotates the uuid when id names an instance other than the current
+// one. The lifecycle server reports the running instance id on every transition,
+// so a restored instance rotates the snapshot's uuid on its first transition
+// while later transitions of that same instance keep one uuid. No-op on a nil
+// receiver, so callers can invoke unconditionally.
+//
+// Safe to call concurrently with Resolve; visible to the next payload built.
+func (u *InstanceUUID) SetInstance(id string) {
+	if u == nil || id == "" {
+		return
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if id == u.instanceID {
+		return
+	}
+	u.instanceID = id
+	u.uuid = uuid.New().String()
+}
+
+// Resolve returns the current payload uuid.
+func (u *InstanceUUID) Resolve() string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.uuid
+}
+
+// NewInstanceCapabilities builds Capabilities that re-resolve the uuid per
+// payload, for a platform whose instance identity arrives after construction.
+func NewInstanceCapabilities(u *InstanceUUID) *inventoryagent.Capabilities {
+	return inventoryagent.NewServerlessCapabilities(u.Resolve)
+}
+
 // Inject layers the serverless-specific fields and the serverless-init flavor
 // onto the shared inventoryagent component via its public Set API. The
 // component's initData() has already populated the core fields at construction.
 //
-// Inject and Submit are no-ops while the
+// Inject, Submit, and SetResourceID are all no-ops while the
 // serverless.inventory_enabled ramp gate is off, so a gated-off run emits no
 // serverless payload at all rather than one carrying only core fields.
 func Inject(ia inventoryagent.Component, cs cloudservice.CloudService, modeConf mode.Conf, conf configmodel.Reader, tags map[string]string) {
@@ -72,6 +125,27 @@ func Submit(ia inventoryagent.Component, conf configmodel.Reader) {
 	}
 	ia.Submit()
 	ia.Set("report_reason", reportReasonPeriodic)
+}
+
+// SetResourceID narrows the resource_id serverless field to the deployed
+// instance, for platforms that only learn their instance identifier after the
+// initial Inject (e.g. delivered by a lifecycle hook rather than the
+// environment).
+//
+// An empty id is ignored so it cannot displace the identifier the platform's
+// GetInventoryData already derived: the MicroVM lifecycle server reports the
+// stored instance id on /resume, which is empty when no /run delivered one. The
+// payload then keeps reporting the parent, which is indistinguishable from one
+// built before the first /run, so the discarded narrowing is logged.
+func SetResourceID(ia inventoryagent.Component, conf configmodel.Reader, id string) {
+	if !conf.GetBool("serverless.inventory_enabled") {
+		return
+	}
+	if id == "" {
+		log.Debug("serverless-init inventory: no instance id to narrow resource_id with; keeping the id derived from the environment")
+		return
+	}
+	ia.Set("resource_id", id)
 }
 
 // buildFields flattens the per-platform inventory data and process-level

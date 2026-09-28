@@ -272,11 +272,12 @@ func TestInventorySerializesMissingValues(t *testing.T) {
 	}
 }
 
-func TestInventoryGateLeavesLocalServiceUnchanged(t *testing.T) {
+func TestInventoryGateLeavesOtherPlatformsUnchanged(t *testing.T) {
 	conf := configmock.New(t)
 	conf.Set("serverless.inventory_enabled", true, configmodel.SourceAgentRuntime)
 	conf.Set("inventories_enabled", true, configmodel.SourceAgentRuntime)
 	configureInventory(&cloudservice.LocalService{})
+	configureInventory(&cloudservice.MicroVM{})
 	assert.True(t, conf.GetBool("inventories_enabled"))
 }
 
