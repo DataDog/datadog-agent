@@ -31,10 +31,7 @@ var (
 type WorkerStats struct {
 	Utilization float64
 	// Excluded workers should not be folded into the aggregate utilization stats
-	// as their values are not representative of pool-wide load. This includes
-	// shadow workers (not part of the regular scheduling pool) and workers
-	// currently pinned to a long-running check (whose utilization is permanently
-	// ~1.0 by construction).
+	// as their values are not representative of pool-wide load.
 	Excluded bool
 }
 
