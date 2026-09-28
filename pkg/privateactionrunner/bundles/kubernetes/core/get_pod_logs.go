@@ -18,7 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const maxPodLogsBytes int64 = 10 * 1024 * 1024
+const maxPodLogsBytes int64 = 9 * 1024 * 1024
 
 // GetPodLogsHandler retrieves the finite log output for one Pod container.
 type GetPodLogsHandler struct{}

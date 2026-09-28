@@ -12,7 +12,7 @@ require (
 	github.com/mdlayher/vsock v1.3.0
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/stretchr/testify v1.12.1
-	go.uber.org/atomic v1.11.0
+	go.uber.org/atomic v1.12.0
 	golang.org/x/sys v0.48.0
 )
 

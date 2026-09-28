@@ -8,6 +8,7 @@ package bench
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,4 +28,10 @@ func TestSeriesKeyRoundTripsHost(t *testing.T) {
 	assert.Equal(t, "system.cpu:avg", name)
 	assert.Equal(t, "web-1", host)
 	assert.Equal(t, []string{"env:prod", "service:api"}, tags)
+}
+
+func TestCompositeTagsMatchIgnoresOrderAndDuplicates(t *testing.T) {
+	tags := tagset.NewCompositeTags([]string{"service:api", "env:prod"}, []string{"service:api"})
+
+	assert.True(t, compositeTagsMatch(tags, []string{"env:prod", "service:api"}))
 }

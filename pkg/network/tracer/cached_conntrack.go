@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -141,6 +142,10 @@ func (cache *cachedConntrack) ensureConntrack(ino uint64, pid int) (netlink.Conn
 	}
 
 	if pid == 0 {
+		return nil, nil
+	}
+
+	if zombie, _ := kernel.IsZombiePid(cache.procRoot, pid); zombie {
 		return nil, nil
 	}
 

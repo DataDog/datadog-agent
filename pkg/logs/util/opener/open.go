@@ -18,6 +18,7 @@ import (
 // FileOpener is an interface that defines the method to open a log file.
 type FileOpener interface {
 	OpenLogFile(path string) (afero.File, error)
+	NoFollow() FileOpener
 	OpenShared(path string) (afero.File, error)
 	Abs(path string) (string, error)
 }
@@ -29,6 +30,7 @@ func NewFileOpener() FileOpener {
 
 // fileOpenerImpl is a struct that contains the default file opener implementation
 type fileOpenerImpl struct {
+	noFollow bool
 }
 
 // OpenLogFile utilizes an os-specific implementation to open a log file in a shared mode.
@@ -36,7 +38,18 @@ type fileOpenerImpl struct {
 // If the file is not intended to attempt privilege escalation for access (e.g. it is not a log file), then the OpenShared
 // function should be used instead. This will minimize avoidable error logs for failed privilege escalation attempts.
 func (f *fileOpenerImpl) OpenLogFile(path string) (afero.File, error) {
+	if f.noFollow {
+		return internalOpener.OpenLogFileNoFollow(path)
+	}
 	return internalOpener.OpenLogFile(path)
+}
+
+// NoFollow returns an opener that rejects symbolic links in every path component.
+func (f *fileOpenerImpl) NoFollow() FileOpener {
+	if f.noFollow {
+		return f
+	}
+	return &fileOpenerImpl{noFollow: true}
 }
 
 // OpenShared utilizes an os-specific implementation to open a generic file in a shared mode.

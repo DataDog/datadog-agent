@@ -45,7 +45,7 @@ require (
 	go.opentelemetry.io/collector/processor/processortest v0.159.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/metric v1.46.0
-	go.uber.org/atomic v1.11.0
+	go.uber.org/atomic v1.12.0
 	go.uber.org/mock v0.6.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/time v0.15.0

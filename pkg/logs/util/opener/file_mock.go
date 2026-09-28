@@ -8,6 +8,7 @@
 package opener
 
 import (
+	"bytes"
 	"io"
 	"os"
 
@@ -128,6 +129,12 @@ func (m *MockFile) Read(p []byte) (int, error) {
 	}
 
 	return n, nil
+}
+
+// ReadAt reads data from the current file contents without changing the current position.
+func (m *MockFile) ReadAt(p []byte, off int64) (int, error) {
+	contents := bytes.Join(m.fileContents.outputs[m.fileContents.fileIdx], nil)
+	return bytes.NewReader(contents).ReadAt(p, off)
 }
 
 // Stat returns the file info

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -67,6 +68,9 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
 		return nil, schemaErr
 	}
+	violations = slices.DeleteFunc(violations, func(violation schema.Violation) bool {
+		return c.isUnresolvedSecret(normalized, violation)
+	})
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -104,6 +108,30 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 		Source:    "agent",
 		Context:   ctx,
 	}}, nil
+}
+
+// Skip type errors for placeholders, but validate ENC-looking values returned by the secret backend.
+func (c *checker) isUnresolvedSecret(normalized map[string]any, violation schema.Violation) bool {
+	if violation.ActualType != "string" {
+		return false
+	}
+	pointer, err := jsonpointer.Parse(violation.Path)
+	if err != nil {
+		return false
+	}
+	value, err := pointer.Eval(normalized)
+	text, ok := value.(string)
+	if err != nil || !ok || !scrubber.IsEnc(text) {
+		return false
+	}
+	// A compound setting carries the source on its enclosing map or list.
+	for i := len(pointer); i > 0; i-- {
+		key := strings.Join(pointer[:i], ".")
+		if c.cfg.IsSetting(key) {
+			return c.cfg.GetSource(key) != model.SourceSecret
+		}
+	}
+	return false
 }
 
 func scrubViolationPath(path string) string {

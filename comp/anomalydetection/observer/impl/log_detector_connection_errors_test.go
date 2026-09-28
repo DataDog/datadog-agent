@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,7 +29,7 @@ func TestConnectionErrorExtractor_Process_ConnectionRefused(t *testing.T) {
 	assert.Len(t, result.Metrics, 1)
 	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
 	assert.Equal(t, 1.0, result.Metrics[0].Value)
-	assert.Equal(t, []string{"env:prod", "service:api"}, result.Metrics[0].Tags)
+	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"env:prod", "service:api"}), result.Metrics[0].Tags)
 }
 
 func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
@@ -43,7 +44,7 @@ func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
 	assert.Len(t, result.Metrics, 1)
 	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
 	assert.Equal(t, 1.0, result.Metrics[0].Value)
-	assert.Equal(t, []string{"env:staging"}, result.Metrics[0].Tags)
+	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"env:staging"}), result.Metrics[0].Tags)
 }
 
 func TestConnectionErrorExtractor_Process_NoMatch(t *testing.T) {
@@ -70,10 +71,10 @@ func TestConnectionErrorExtractor_Process_CaseInsensitive(t *testing.T) {
 	assert.Len(t, result.Metrics, 1)
 	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
 	assert.Equal(t, 1.0, result.Metrics[0].Value)
-	assert.Equal(t, []string{"env:prod"}, result.Metrics[0].Tags)
+	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"env:prod"}), result.Metrics[0].Tags)
 }
 
-func TestConnectionErrorExtractor_Process_TagsCopied(t *testing.T) {
+func TestConnectionErrorExtractor_Process_TagsAreRetainedAsAReadOnlyView(t *testing.T) {
 	e := &ConnectionErrorExtractor{}
 	inputTags := []string{"env:prod", "service:api", "host:web-1"}
 	log := &mockLogView{
@@ -84,7 +85,9 @@ func TestConnectionErrorExtractor_Process_TagsCopied(t *testing.T) {
 	result := e.ProcessLog(log)
 
 	assert.Len(t, result.Metrics, 1)
-	assert.Equal(t, inputTags, result.Metrics[0].Tags)
+	assert.Equal(t, tagset.CompositeTagsFromSlice(inputTags), result.Metrics[0].Tags)
+	retainedTags, _ := result.Metrics[0].Tags.UnsafeGet()
+	assert.Same(t, &inputTags[0], &retainedTags[0])
 }
 
 func TestConnectionErrorExtractor_Process_AllPatterns(t *testing.T) {

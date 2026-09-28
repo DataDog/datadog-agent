@@ -8731,7 +8731,7 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
     tags:
     - full-agent-only:true
   remote_policies:

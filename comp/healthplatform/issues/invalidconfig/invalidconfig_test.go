@@ -215,7 +215,12 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		{"api_key: [secret]\n", "got array, want string"},
 		{"api_key: {value: secret}\n", "got object, want string"},
 		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
-		{"agent_ipc:\n  port: ENC[ipc_port]\n", "got string, want integer"},
+		{"agent_ipc:\n  port: ENC[ipc_port]\n", ""},
+		{"logs_enabled: ENC[enabled]\n", ""},
+		{"agent_ipc: ENC[ipc]\n", ""},
+		{"additional_endpoints: {'https://example.test': 'ENC[endpoints]'}\n", ""},
+		{"api_key: ['ENC[key]']\n", "got array, want string"},
+		{"logs_enabled: {value: 'ENC[enabled]'}\n", "got object, want boolean"},
 	} {
 		t.Run(testCase.yaml, func(t *testing.T) {
 			cfg := config.NewMockFromYAML(t, testCase.yaml)
@@ -234,6 +239,22 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotContains(t, string(encoded), "RAW_URL_PASSWORD_7c81")
 			assert.NotContains(t, string(encoded), "ENC[")
+		})
+	}
+}
+
+func TestCheck_UnresolvedSecretWithConfiguredBackend(t *testing.T) {
+	requireSchema(t)
+	for _, backend := range []string{
+		"secret_backend_command: /test/backend",
+		"secret_backend_type: file",
+		"multi_secret_backends: {test: {type: file}}",
+	} {
+		t.Run(backend, func(t *testing.T) {
+			cfg := config.NewMockFromYAML(t, backend+"\nagent_ipc: {port: 'ENC[value]'}")
+			reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+			require.NoError(t, err)
+			assert.Empty(t, reports)
 		})
 	}
 }
@@ -264,6 +285,16 @@ func TestCheck_ResolvedSecrets(t *testing.T) {
 			assert.NotContains(t, string(encoded), tc.value)
 		})
 	}
+}
+
+func TestCheck_ResolvedSecretInMap(t *testing.T) {
+	requireSchema(t)
+	cfg := config.NewMockFromYAML(t, "additional_endpoints: {'https://example.test': 'ENC[PRIVATE_HANDLE]'}")
+	cfg.Set("additional_endpoints", cfg.Get("additional_endpoints"), model.SourceSecret)
+	reports, err := newChecker(cfg, testHostname(t), testSelfIdent(t)).Run()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, "at '/additional_endpoints/https:~1~1example.test': got string, want array", reports[0].Context[contextErrorKey(0)])
 }
 
 func TestResolveDefault(t *testing.T) {

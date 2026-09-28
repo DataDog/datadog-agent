@@ -87,8 +87,9 @@ func TestGetPodLogsOptions(t *testing.T) {
 	}
 
 	defaultOptions := (GetPodLogsInputs{}).options()
-	if defaultOptions.LimitBytes == nil || *defaultOptions.LimitBytes != maxPodLogsBytes {
-		t.Fatalf("options() default limit = %v, want %d", defaultOptions.LimitBytes, maxPodLogsBytes)
+	const wantDefaultLimit int64 = 9 * 1024 * 1024
+	if defaultOptions.LimitBytes == nil || *defaultOptions.LimitBytes != wantDefaultLimit {
+		t.Fatalf("options() default limit = %v, want %d", defaultOptions.LimitBytes, wantDefaultLimit)
 	}
 }
 

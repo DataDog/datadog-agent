@@ -11,6 +11,7 @@ go_library(
         "process_procmgr_config_windows.go",
         "procmgr_yaml_placeholders_windows.go",
         "reload_windows.go",
+        "sysprobe_procmgr_config_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager",
     target_compatible_with = ["@platforms//os:windows"],

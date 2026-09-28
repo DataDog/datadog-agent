@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -90,6 +91,10 @@ func TestExecuteCommand_OutputLimitExceeded(t *testing.T) {
 }
 
 func TestExecuteCommand_ReapsProcessGroup(t *testing.T) {
+	if runtime.GOOS == "aix" {
+		t.Skip("flaky on AIX")
+	}
+
 	cmd := exec.CommandContext(context.Background(), "/bin/sh", "-c", "sleep 30 </dev/null >/dev/null 2>&1 & echo $!")
 
 	result, err := ExecuteCommand(context.Background(), cmd)

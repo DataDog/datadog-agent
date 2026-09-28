@@ -25,7 +25,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.211 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.212 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.82.0 // indirect
@@ -49,6 +49,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.82.0 // indirect
@@ -145,7 +146,7 @@ require (
 	github.com/twmb/murmur3 v1.2.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
