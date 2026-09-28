@@ -256,6 +256,14 @@ properties:
         node_type: setting
         type: string
         default: localhost:5678
+  eks_pod_identity_ipv4:
+    node_type: setting
+    type: string
+    default: 169.254.170.23
+  eks_pod_identity_ipv6:
+    node_type: setting
+    type: string
+    default: fd00:ec2::23
   enforcement:
     node_type: section
     type: object
@@ -354,22 +362,6 @@ properties:
     node_type: section
     type: object
     properties:
-      bind:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-          rate:
-            node_type: setting
-            type: integer
-            default: 500
-          threshold:
-            node_type: setting
-            type: integer
-            default: 60
       connect:
         node_type: section
         type: object
@@ -712,6 +704,13 @@ properties:
         node_type: section
         type: object
         properties:
+          clear_local_profiles_on_start:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: |
+              Testing aid: when true, deletes every locally stored security
+              profile on startup. Not user-facing.
           enabled:
             node_type: setting
             type: boolean
@@ -736,6 +735,38 @@ properties:
             node_type: setting
             type: integer
             default: 2560
+          profile_reporting_delay:
+            node_type: section
+            type: object
+            properties:
+              duration:
+                node_type: setting
+                type: string
+                default: 0s
+                description: |
+                  Duration after a workload's security profile is created
+                  before it starts reporting out-of-profile events to the
+                  backend. Only used when time_based is true. 0s reports
+                  out-of-profile events as soon as the profile is created.
+              time_based:
+                node_type: setting
+                type: boolean
+                default: false
+                description: |
+                  When false (default), a profile withholds out-of-profile
+                  events until it has been shipped to the backend at least once.
+                  When true, it withholds them for duration after the profile is
+                  created, independent of shipping.
+          profiling_startup_delay:
+            node_type: setting
+            type: string
+            default: 0s
+            description: |
+              Duration after system-probe starts during which v2 workload
+              profiling ignores events, so profiles don't capture noisy activity
+              while system-probe is still stabilizing (resyncing from the OS,
+              loading rules, pushing approvers and discarders to the kernel).
+              0s (default) disables the delay.
           sample_refresh_period:
             node_type: setting
             type: string

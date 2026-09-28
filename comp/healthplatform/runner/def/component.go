@@ -22,7 +22,7 @@ type IssueReport struct {
 	IssueID string
 
 	// IssueName is the issue name looked up in the issue registry.
-	// Examples: "Read-Only Filesystem Error", "Docker File Tailing Disabled"
+	// Examples: "Read-Only Filesystem Error", "Docker Socket Permission"
 	IssueName string
 
 	// Source is the reporting integration or component name.

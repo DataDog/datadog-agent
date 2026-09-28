@@ -54,7 +54,7 @@ func TestChown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	prevUID := 98
 	prevGID := 99
@@ -323,7 +323,7 @@ func TestChownUserGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("fchown", func(t *testing.T) {
 		testFile, _, err := test.Create("test-chown")

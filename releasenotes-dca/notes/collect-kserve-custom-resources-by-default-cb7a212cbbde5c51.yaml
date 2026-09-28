@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Collect KServe custom resources by default, including inference services,
+    inference graphs, serving runtimes, storage containers, trained models,
+    LLM inference services and configs, and local model resources, when the
+    Cluster Agent has permission to access the ``serving.kserve.io`` API group.
