@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The ``comp/dataobs/queryactions`` component now runs one-off Data Observability
+    tasks for MySQL. A task arrives as a ``DO_QUERY_ACTIONS`` Remote Configuration
+    config with the ``do-mysql-once-`` prefix and runs its SQL statements once, as a
+    separate ``run_once`` ``mysql`` check that reuses only the connection settings of
+    the matching instance with ``data_observability.enabled: true``. The instance's
+    own check and its Data Observability monitor queries are never restarted by a
+    task. A task the Agent cannot run, because it has expired or no matching instance
+    exists, is reported back immediately. Running a task requires a ``mysql``
+    integration version with task support.

@@ -53,3 +53,32 @@ type EntityMetadata struct {
 	Schema   string `json:"schema,omitempty"`
 	Table    string `json:"table,omitempty"`
 }
+
+// DOTaskPayload represents the RC config payload of a one-off task (kind "task"). A task runs its
+// statements once against one database instance and reports each statement's result as a
+// do-query-results event. Its RC config ID is do-<platform>-once-<task_id>.
+type DOTaskPayload struct {
+	ConfigID     string       `json:"config_id"`
+	Kind         string       `json:"kind"`
+	DBIdentifier DBIdentifier `json:"db_identifier"`
+	Task         TaskSpec     `json:"task"`
+}
+
+// TaskSpec holds the statements of a one-off task. CreatedAt and ExpiresAt are Unix seconds; a
+// task still pending at ExpiresAt is abandoned by the backend, so the agent never starts it late.
+type TaskSpec struct {
+	TaskID     string          `json:"task_id"`
+	CreatedAt  int64           `json:"created_at"`
+	ExpiresAt  int64           `json:"expires_at"`
+	Statements []TaskStatement `json:"statements"`
+}
+
+// TaskStatement is a single SQL statement of a one-off task. The integration runs each statement
+// on its own and returns at most MaxRows rows for it, so a failing statement fails alone.
+type TaskStatement struct {
+	ID             string `json:"id"`
+	DBName         string `json:"dbname"`
+	Query          string `json:"query"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+	MaxRows        int    `json:"max_rows"`
+}

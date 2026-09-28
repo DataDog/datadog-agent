@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -50,6 +51,9 @@ func newTestComponentWithAC(t *testing.T, configs []integration.Config) *compone
 		ac:            newMockAutodiscovery(t, configs),
 		activeConfigs: make(map[string]activeConfigEntry),
 		managedBases:  make(map[string]*managedBaseEntry),
+		tasks:         make(map[string]*trackedTask),
+		taskChanges:   newTaskChangesQueue(),
+		now:           time.Now,
 	}
 }
 
@@ -562,6 +566,9 @@ func newTestComponent(t *testing.T) *component {
 		log:           logmock.New(t),
 		activeConfigs: make(map[string]activeConfigEntry),
 		managedBases:  make(map[string]*managedBaseEntry),
+		tasks:         make(map[string]*trackedTask),
+		taskChanges:   newTaskChangesQueue(),
+		now:           time.Now,
 	}
 }
 
@@ -1755,6 +1762,9 @@ func TestOnRCUpdate_SecondUpdateReusesStoredBase(t *testing.T) {
 		ac:            mockAC,
 		activeConfigs: make(map[string]activeConfigEntry),
 		managedBases:  make(map[string]*managedBaseEntry),
+		tasks:         make(map[string]*trackedTask),
+		taskChanges:   newTaskChangesQueue(),
+		now:           time.Now,
 	}
 
 	dbID := DBIdentifier{Type: "self-hosted", Host: fmt.Sprintf("%s:%d", server, port)}
