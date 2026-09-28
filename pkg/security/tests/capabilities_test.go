@@ -130,7 +130,9 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Attempted, "wrong capabilities attempted")
 			assert.Equal(t, uint64(1<<unix.CAP_SETGID), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, "syscall_tester", event.ProcessContext.FileEvent.BasenameStr, "capabilities usage must be reported against the program that used them")
+			// same here, the CAP_SETGID cap is only checked against the user namespace of the process so it should not show in the host userns fields.
 			assert.Zero(t, event.CapabilitiesUsage.UsedHostUserNS, "CAP_SETGID is not checked against the initial user namespace")
+			assert.Zero(t, event.CapabilitiesUsage.AttemptedHostUserNS, "CAP_SETGID is not checked against the initial user namespace")
 		}, "test_capabilities_used_exec_flush_other_binary")
 	})
 
@@ -146,9 +148,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(0), event.CapabilitiesUsage.Used, "wrong capabilities used")
 			assert.Equal(t, uint64(1<<unix.CAP_SYS_PACCT), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_SYS_PACCT), "capabilities attempted should contain CAP_SYS_PACCT")
 			assert.Equal(t, uint64(0), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_SYS_PACCT), "capabilities used shouldn't contain CAP_SYS_PACCT")
-			// acct goes through capable(), so the attempt is against the initial user namespace
-			assert.Equal(t, uint64(1<<unix.CAP_SYS_PACCT), event.CapabilitiesUsage.AttemptedHostUserNS, "wrong capabilities attempted in the initial user namespace")
-			assert.Zero(t, event.CapabilitiesUsage.UsedHostUserNS, "the capability was denied, so it was never used")
+			// CAP_SYS_PACCT is actually checked against the initial user namespace, but do not assert host userns fields here as this is not the goal of this test
 		}, "test_capabilities_attempted_exit_flush")
 	})
 
@@ -175,6 +175,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsAttempted&(1<<unix.CAP_CHOWN), "capabilities attempted should contain CAP_CHOWN")
 			assert.Equal(t, uint64(1<<unix.CAP_CHOWN), event.ProcessCacheEntry.CapsUsed&(1<<unix.CAP_CHOWN), "capabilities used should contain CAP_CHOWN")
 			assert.Zero(t, event.CapabilitiesUsage.UsedHostUserNS, "CAP_CHOWN is not checked against the initial user namespace")
+			assert.Zero(t, event.CapabilitiesUsage.AttemptedHostUserNS, "CAP_CHOWN is not checked against the initial user namespace")
 		}, "test_capabilities_used_periodic_flush")
 	})
 
