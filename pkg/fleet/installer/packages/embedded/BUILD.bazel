@@ -77,6 +77,7 @@ go_library(
         "tmpl/datadog-agent-procmgr.service.tmpl",
         "tmpl/datadog-agent-security.service.tmpl",
         "tmpl/datadog-agent-sysprobe.service.tmpl",
+        "tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
         "tmpl/datadog-agent-trace.service.tmpl",
         "tmpl/datadog-agent.service.tmpl",
     ],

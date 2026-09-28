@@ -14,10 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 )
 
-// TODO change probe.c path to runtime-compilation specific version
-//go:generate $GOPATH/bin/include_headers pkg/security/ebpf/c/prebuilt/probe.c pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/security/ebpf/c/include pkg/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/runtime-security.c pkg/ebpf/bytecode/runtime/runtime-security.go runtime
-
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer, useSyscallTaskStorage bool) (bytecode.AssetReader, error) {
 	var cflags []string
 

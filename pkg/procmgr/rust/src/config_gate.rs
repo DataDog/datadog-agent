@@ -19,8 +19,8 @@
 //! 2. Fleet policy (`<fleet_policies_dir>/{datadog,system-probe}.yaml`).
 //! 3. Environment variables, resolved through [`env_bindings`].
 //! 4. The gated YAML file itself.
-//! 5. `infrastructure_mode: end_user_device`, which enables process collection at
-//!    `SourceInfraMode`.
+//! 5. `infrastructure_mode: end_user_device`, which enables process collection and
+//!    software inventory at `SourceInfraMode`.
 //! 6. The Agent's schema default.
 //!
 //! Two keys do not follow that ladder directly. `system_probe_config.enabled` is
@@ -98,6 +98,9 @@ enum GatedKey {
     ProcessDiscovery,
     NetworkConfig,
     SystemProbeConfig,
+    WindowsCrashDetection,
+    RuntimeSecurity,
+    SoftwareInventory,
 }
 
 struct GatedKeySpec {
@@ -117,6 +120,9 @@ const CONTAINER_COLLECTION_KEY: &str = "process_config.container_collection.enab
 const PROCESS_DISCOVERY_KEY: &str = "process_config.process_discovery.enabled";
 const NETWORK_CONFIG_KEY: &str = "network_config.enabled";
 const SYSTEM_PROBE_CONFIG_KEY: &str = "system_probe_config.enabled";
+const WINDOWS_CRASH_DETECTION_KEY: &str = "windows_crash_detection.enabled";
+const RUNTIME_SECURITY_KEY: &str = "runtime_security_config.enabled";
+const SOFTWARE_INVENTORY_KEY: &str = "software_inventory.enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -156,7 +162,43 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
         default: false,
         fleet_policy_file: SYSPROBE_POLICY,
     },
+    // The three keys below are named by the system-probe processes.d entry, which
+    // transcribes a five-key Servicedef. On Windows the derived
+    // `system_probe_config.enabled` above already subsumes all three, so they never
+    // change the result of that gate. They are evaluated rather than reported as unknown
+    // keys so the transcription is real: a reviewer can diff the template against the
+    // Servicedef line by line, and a future drift in the derived mirror does not silently
+    // take a module with it.
+    GatedKeySpec {
+        kind: GatedKey::WindowsCrashDetection,
+        key: WINDOWS_CRASH_DETECTION_KEY,
+        default: false,
+        fleet_policy_file: SYSPROBE_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::RuntimeSecurity,
+        key: RUNTIME_SECURITY_KEY,
+        default: false,
+        fleet_policy_file: SYSPROBE_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::SoftwareInventory,
+        key: SOFTWARE_INVENTORY_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
 ];
+
+/// Every key a `condition_config_any` gate can evaluate.
+///
+/// A shipped template that names anything else takes the unknown-key branch in
+/// [`gated_key_enabled`]: the term resolves false and warns on every evaluation, so the
+/// gate reads like a transcription while part of it is dead. Exposed so a template test
+/// can pin that without evaluating the gate.
+#[cfg(all(test, windows))]
+pub(crate) fn gated_key_names() -> Vec<&'static str> {
+    GATED_KEY_SPECS.iter().map(|spec| spec.key).collect()
+}
 
 /// Returns true when `conditions` is empty or any `(path, key)` pair is enabled.
 pub fn condition_config_any_met(conditions: &[ConditionConfigFile]) -> bool {
@@ -216,7 +258,13 @@ impl GatedKeySpec {
         if let Some(enabled) = yaml.resolve_bool(base_path, self.key, self.fleet_policy_file) {
             return enabled;
         }
-        if self.kind == GatedKey::ProcessCollection && yaml.end_user_device_at_load(base_path) {
+        // `applyInfrastructureModeOverrides` turns both of these on for `end_user_device`
+        // when no source set them.
+        if matches!(
+            self.kind,
+            GatedKey::ProcessCollection | GatedKey::SoftwareInventory
+        ) && yaml.end_user_device_at_load(base_path)
+        {
             return true;
         }
         self.default
@@ -1681,5 +1729,80 @@ process_config:
             fx.assert_key(&sysprobe, SYSTEM_PROBE_CONFIG_KEY, true);
             assert!(fx.process_and_sysprobe_gate(&agent, &sysprobe));
         }
+    }
+
+    // --------------------------------------------- system-probe catalog entry keys
+
+    /// The three keys the system-probe processes.d entry adds beyond the process-agent
+    /// ones must resolve, not fall through to the unknown-key branch, which returns false
+    /// and warns on every evaluation.
+    #[test]
+    fn system_probe_catalog_keys_resolve() {
+        for (body, key, in_sysprobe) in [
+            (
+                "windows_crash_detection:\n  enabled: true\n",
+                WINDOWS_CRASH_DETECTION_KEY,
+                true,
+            ),
+            (
+                "runtime_security_config:\n  enabled: true\n",
+                RUNTIME_SECURITY_KEY,
+                true,
+            ),
+            (
+                "software_inventory:\n  enabled: true\n",
+                SOFTWARE_INVENTORY_KEY,
+                false,
+            ),
+        ] {
+            let fx = Gate::new();
+            let path = if in_sysprobe {
+                fx.sysprobe(body)
+            } else {
+                fx.agent(body)
+            };
+            fx.assert_key(&path, key, true);
+        }
+    }
+
+    #[test]
+    fn system_probe_catalog_keys_default_off() {
+        let fx = Gate::new();
+        let sysprobe = fx.sysprobe("# empty\n");
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&sysprobe, WINDOWS_CRASH_DETECTION_KEY, false);
+        fx.assert_key(&sysprobe, RUNTIME_SECURITY_KEY, false);
+        fx.assert_key(&agent, SOFTWARE_INVENTORY_KEY, false);
+    }
+
+    /// `software_inventory.enabled` is one of the settings
+    /// `applyInfrastructureModeOverrides` turns on, so the key follows the mode when no
+    /// source sets it, exactly as the derived key already does.
+    #[test]
+    fn end_user_device_enables_the_software_inventory_key() {
+        // One fixture at a time: the env guard is not reentrant, and two live in the same
+        // scope would deadlock rather than fail.
+        for (body, expected) in [
+            ("infrastructure_mode: end_user_device\n", true),
+            (
+                "infrastructure_mode: end_user_device\nsoftware_inventory:\n  enabled: false\n",
+                false,
+            ),
+        ] {
+            let fx = Gate::new();
+            let agent = fx.agent(body);
+            fx.assert_key(&agent, SOFTWARE_INVENTORY_KEY, expected);
+        }
+    }
+
+    #[test]
+    fn fleet_policy_drives_the_system_probe_catalog_keys() {
+        let fx = Gate::new();
+        fx.fleet(
+            SYSPROBE_POLICY,
+            "runtime_security_config:\n  enabled: true\n",
+        );
+        let sysprobe = fx.sysprobe("runtime_security_config:\n  enabled: false\n");
+        fx.assert_key(&sysprobe, RUNTIME_SECURITY_KEY, true);
     }
 }
