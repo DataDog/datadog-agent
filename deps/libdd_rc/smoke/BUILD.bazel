@@ -1,18 +1,22 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_go//go:def.bzl", "go_test")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-genrule(
+copy_file(
     name = "client_lifecycle_test_src",
-    srcs = ["client_lifecycle_test.go.in"],
-    outs = ["client_lifecycle_generated_test.go"],
-    cmd = "cp $(location client_lifecycle_test.go.in) $@",
+    src = "client_lifecycle_test.go.in",
+    out = "client_lifecycle_generated_test.go",
 )
 
 go_test(
     name = "client_lifecycle_test",
     srcs = [":client_lifecycle_test_src"],
     tags = ["manual"],
-    target_compatible_with = ["@platforms//os:linux"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
     deps = ["@libdd_rc_source//:rcx509"],
 )
 

@@ -2,6 +2,7 @@ exports_files(
     [
         "Cargo.lock",
         "Cargo.toml",
+        "aws-lc-fips-sys-macos-linker.patch",
         "lib.rs",
         "libdd_rc.BUILD.bazel",
     ],

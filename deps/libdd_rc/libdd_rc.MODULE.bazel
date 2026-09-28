@@ -38,12 +38,22 @@ crate.annotation(
 
 # TODO: update as needed
 crate.annotation(
+    additive_build_file_content = """
+alias(
+    name = "aws_lc_fips_build_output",
+    actual = ":aws-lc-fips-sys_build_script",
+    visibility = ["//visibility:public"],
+)
+""",
     build_script_env_select = {
         "aarch64-apple-darwin": "{\"CMAKE\":\"/opt/homebrew/bin/cmake\",\"PATH\":\"/opt/homebrew/bin:/bin:/usr/bin:/usr/local/bin\"}",
         "aarch64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
+        "x86_64-apple-darwin": "{\"CMAKE\":\"/usr/local/bin/cmake\",\"PATH\":\"/usr/local/bin:/usr/local/go/bin:/bin:/usr/bin\"}",
         "x86_64-unknown-linux-gnu": "{\"CMAKE\":\"/usr/bin/cmake\",\"GO111MODULE\":\"on\",\"GOTOOLCHAIN\":\"local\",\"GOWORK\":\"off\",\"PATH\":\"/usr/local/go/bin:/bin:/usr/bin:/usr/local/bin\"}",
     },
     crate = "aws-lc-fips-sys",
+    patch_args = ["-p1"],
+    patches = ["//deps/libdd_rc:aws-lc-fips-sys-macos-linker.patch"],
 )
 use_repo(crate, "libdd_rc_crates")
 

@@ -76,27 +76,28 @@ bazel:test:linux-arm64:
   extends: [.bazel:runner:linux-arm64, .bazel:test:linux]
 
 # Deliberately manual to validate the pinned libdd-rc source through both its
-# native build and public Go client lifecycle on each supported Linux runner.
+# native build and public Go client lifecycle on each supported native runner.
 # Keep native outputs on failures so CI runs provide enough evidence to refine
-.bazel:rc-x509-ffi:linux:
+.bazel:rc-x509-ffi:
   stage: source_test
   needs: []
   rules:
     - when: manual
       allow_failure: true
   variables:
+    RC_X509_BAZEL_JOBS: 8
     RC_X509_ARTIFACTS_DIR: $CI_PROJECT_DIR/rc-x509-artifacts
   script:
     - uname -a
     - bazel version
     - cc --version
-    - ld --version
+    - ld -v
     - command -v cmake && cmake --version
     - command -v go && go version
     - command -v perl && perl --version
     - bazel cquery -c opt --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
-    - bazel build -c opt --jobs=$KUBERNETES_CPU_REQUEST --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
-    - bazel test -c opt --jobs=$KUBERNETES_CPU_REQUEST --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test
+    - bazel build -c opt --jobs=$RC_X509_BAZEL_JOBS --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
+    - bazel test -c opt --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test
   after_script:
     - mkdir -p "$RC_X509_ARTIFACTS_DIR"
     - mv rc-x509-declared-outputs.txt "$RC_X509_ARTIFACTS_DIR/" 2>/dev/null || true
@@ -118,10 +119,16 @@ bazel:test:linux-arm64:
       - rc-x509-artifacts/
 
 bazel:rc-x509-ffi:linux-amd64:
-  extends: [.bazel:runner:linux-amd64, .bazel:rc-x509-ffi:linux]
+  extends: [.bazel:runner:linux-amd64, .bazel:rc-x509-ffi]
 
 bazel:rc-x509-ffi:linux-arm64:
-  extends: [.bazel:runner:linux-arm64, .bazel:rc-x509-ffi:linux]
+  extends: [.bazel:runner:linux-arm64, .bazel:rc-x509-ffi]
+
+bazel:rc-x509-ffi:macos-amd64:
+  extends: [.bazel:runner:macos-amd64, .bazel:rc-x509-ffi]
+
+bazel:rc-x509-ffi:macos-arm64:
+  extends: [.bazel:runner:macos-arm64, .bazel:rc-x509-ffi]
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]

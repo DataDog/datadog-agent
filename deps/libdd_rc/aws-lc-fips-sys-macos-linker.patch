@@ -1,0 +1,41 @@
+diff --git a/builder/cmake_builder.rs b/builder/cmake_builder.rs
+index 36ea768..910fb28 100644
+--- a/builder/cmake_builder.rs
++++ b/builder/cmake_builder.rs
+@@ -7,8 +7,8 @@ use crate::{
+     allow_prebuilt_nasm, cargo_env, effective_target, emit_warning, execute_command,
+     get_crate_cflags, is_crt_static, is_fips_build, is_fips_crate, is_no_asm,
+     is_no_pregenerated_src, is_small, optional_env, optional_env_optional_crate_target, sanitizer,
+-    set_env, set_env_for_target, should_build_jitter_entropy, target, target_arch, target_env,
+-    target_is_msvc, target_os, test_clang_cl_command, test_nasm_command, use_prebuilt_nasm,
++    set_env, set_env_for_target, should_build_jitter_entropy, target, target_arch, target_env,
++    target_is_msvc, target_os, target_vendor, test_clang_cl_command, test_nasm_command, use_prebuilt_nasm,
+     OutputLibType,
+ };
+ use std::collections::HashMap;
+@@ -107,7 +107,25 @@ impl CmakeBuilder {
+     }
+ 
+     #[allow(clippy::too_many_lines)]
+     fn prepare_cmake_build(&self) -> cmake::Config {
++        // Bazel's macOS C++ toolchain selects ld64.lld through LDFLAGS. That
++        // linker rejects an __eh_frame relocation emitted by the validated
++        // AWS-LC FIPS assembly when producing the required shared library.
++        // Use Apple's system linker for this dylib while retaining the rest of
++        // the Bazel-provided link flags and SDK configuration.
++        if is_fips_build() && target_vendor() == "apple" {
++            if let Ok(ldflags) = env::var("LDFLAGS") {
++                let ldflags = ldflags
++                    .split_whitespace()
++                    .filter(|flag| {
++                        *flag != "-fuse-ld=lld" && *flag != "--ld-path=ld64.lld"
++                    })
++                    .collect::<Vec<_>>()
++                    .join(" ");
++                set_env("LDFLAGS", ldflags);
++            }
++        }
++
+         if is_fips_build() {
+             unsafe {
+                 env::set_var("GOFLAGS", "-buildvcs=false");

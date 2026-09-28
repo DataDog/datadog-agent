@@ -1,4 +1,5 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_go//go:def.bzl", "go_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
@@ -72,6 +73,24 @@ rust_static_library(
     ],
 )
 
+# FIPS AWS-LC is necessarily dynamic on macOS. Cargo build scripts expose their
+# output directory as a Bazel tree artifact, so materialize the dylib as a
+# regular declared output that cc_import can propagate through cgo and place in
+# test runfiles.
+genrule(
+    name = "aws_lc_fips_crypto_dylib_file",
+    srcs = ["@@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output"],
+    outs = ["libaws_lc_fips_0_14_2_crypto.dylib"],
+    cmd = "cp $(location @@rules_rs++crate+libdd_rc_crates__aws-lc-fips-sys-0.14.2//:aws_lc_fips_build_output)/build/artifacts/libaws_lc_fips_0_14_2_crypto.dylib $@",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+cc_import(
+    name = "aws_lc_fips_crypto_dylib",
+    shared_library = ":aws_lc_fips_crypto_dylib_file",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
 cc_library(
     name = "rc_x509_ffi_cc",
     hdrs = ["include/libdd_rc.h"],
@@ -85,12 +104,15 @@ cc_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
-    deps = [":rc_x509_ffi"],
+    deps = [":rc_x509_ffi"] + select({
+        "@rules_go//go/platform:darwin": [":aws_lc_fips_crypto_dylib"],
+        "//conditions:default": [],
+    }),
 )
 
-# bridge.go is intentionally omitted: it contains Cargo-relative #cgo paths
-# and links AWS-LC as a separate shared object. Bazel supplies both the header
-# and the fully linked Rust static library through rc_x509_ffi_cc.
+# bridge.go is intentionally omitted: it contains Cargo-relative #cgo paths.
+# Bazel supplies the header, Rust archive, and any platform-specific native
+# runtime libraries through rc_x509_ffi_cc.
 go_library(
     name = "libddrcffi",
     srcs = [
