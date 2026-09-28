@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "batch",
@@ -17,6 +18,7 @@ go_library(
         "patch_cron_job.gen.go",
         "patch_job.gen.go",
         "update_cron_job.gen.go",
+        "update_cron_job_schedule.go",
         "update_job.gen.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch",
@@ -28,5 +30,23 @@ go_library(
         "@io_k8s_api//batch/v1:batch",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+dd_agent_go_test(
+    name = "batch_test",
+    srcs = ["update_cron_job_schedule_test.go"],
+    embed = [":batch"],
+    deps = [
+        "//pkg/privateactionrunner/bundle-support/test",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//batch/v1:batch",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//testing",
     ],
 )
