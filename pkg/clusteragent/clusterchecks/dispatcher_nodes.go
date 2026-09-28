@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -56,6 +57,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	defer node.Unlock()
 	node.heartbeat = timestampNow()
 	node.nodetype = status.NodeType
+	node.checkCompat = status.CheckCompatibility
 
 	// Check if we need to disable advanced dispatching when node agents join
 	if d.advancedDispatching.Load() && status.NodeType == types.NodeTypeNodeAgent {
@@ -84,7 +86,9 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getNodeToScheduleCheck returns the node where a new check should be scheduled
+// getNodeToScheduleCheck returns the node where a new check with the given
+// name should be scheduled. The candidate set respects the workers' advertised
+// check compatibility: see placementCandidates.
 //
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the
@@ -96,38 +100,95 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
-func (d *dispatcher) getNodeToScheduleCheck() string {
+func (d *dispatcher) getNodeToScheduleCheck(checkName string) string {
 	if d.advancedDispatching.Load() {
-		return d.getRandomNode()
+		return d.getRandomNode(checkName)
 	}
 
-	return d.getNodeWithLessChecks()
+	return d.getNodeWithLessChecks(checkName)
 }
 
-func (d *dispatcher) getRandomNode() string {
+// placementCandidates returns the names of the live workers a check with the
+// given name may be dispatched to, applying the compatibility declarations
+// advertised by the workers:
+//
+//   - eligible workers are the ones whose check compatibility admits the check
+//     name (isEligible); a worker that declared no compatibility (nil) is
+//     unrestricted and eligible for everything.
+//   - among the eligible workers, if any restricted worker (one that declared
+//     a non-nil compatibility) is eligible, only those are returned: checks
+//     claimed by dedicated runner groups stay on them, and unrestricted
+//     workers (e.g. node agents in a mixed pool) only receive the check as a
+//     fallback, when no eligible restricted worker is live. This makes group
+//     loss availability-safe: the check degrades to the general pool rather
+//     than dangling, and is moved back by repairMisplacedConfigs once the
+//     group is live again.
+//
+// The returned list is sorted for determinism. An empty result means no
+// worker is eligible; the caller should let the config dangle so it is
+// re-dispatched as soon as an eligible worker appears.
+func (d *dispatcher) placementCandidates(checkName string) []string {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	var nodes []string
-	for name := range d.store.nodes {
-		nodes = append(nodes, name)
+	return d.candidatesFromStore(checkName)
+}
+
+// candidatesFromStore must be called with the store read-locked (or locked).
+func (d *dispatcher) candidatesFromStore(checkName string) []string {
+	var restricted, unrestricted []string
+
+	for name, node := range d.store.nodes {
+		node.RLock()
+		compat := node.checkCompat
+		node.RUnlock()
+
+		if isEligible(compat, checkName) {
+			if compat != nil {
+				restricted = append(restricted, name)
+			} else {
+				unrestricted = append(unrestricted, name)
+			}
+		}
 	}
 
-	if len(nodes) == 0 {
+	// Restricted workers that admit the check take precedence over
+	// unrestricted ones: only fall back to the general pool when no
+	// compat-declaring worker can run the check.
+	if len(restricted) > 0 {
+		sort.Strings(restricted)
+		return restricted
+	}
+	sort.Strings(unrestricted)
+	return unrestricted
+}
+
+func (d *dispatcher) getRandomNode(checkName string) string {
+	candidates := d.placementCandidates(checkName)
+	if len(candidates) == 0 {
 		return ""
 	}
 
-	return nodes[rand.Intn(len(nodes))]
+	return candidates[rand.Intn(len(candidates))]
 }
 
-func (d *dispatcher) getNodeWithLessChecks() string {
+func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
+	candidates := d.placementCandidates(checkName)
+	if len(candidates) == 0 {
+		return ""
+	}
+
 	d.store.RLock()
 	defer d.store.RUnlock()
 
 	var selectedNode string
 	minNumChecks := 0
 
-	for name, store := range d.store.nodes {
+	for _, name := range candidates {
+		store, found := d.store.nodes[name]
+		if !found {
+			continue
+		}
 		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
 			selectedNode = name
 			minNumChecks = len(store.digestToConfig)
@@ -135,6 +196,25 @@ func (d *dispatcher) getNodeWithLessChecks() string {
 	}
 
 	return selectedNode
+}
+
+// anyCompatDeclared returns whether at least one live worker advertised a
+// check compatibility in its status POST. When false, no compatibility
+// filtering applies anywhere and dispatching/rebalancing behave exactly as
+// before the feature existed.
+func (d *dispatcher) anyCompatDeclared() bool {
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	for _, node := range d.store.nodes {
+		node.RLock()
+		compat := node.checkCompat
+		node.RUnlock()
+		if compat != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // expireNodes iterates over nodes and removes the ones that have not

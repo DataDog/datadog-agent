@@ -276,22 +276,22 @@ func TestGetNodeWithLessChecks(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	// No node registered -> empty string
-	assert.Equal(t, "", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "", dispatcher.getNodeWithLessChecks("test_check"))
 
 	// 1 config on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("A"), "node1")
 	dispatcher.addConfig(generateIntegration("B"), "node2")
 	dispatcher.addConfig(generateIntegration("C"), "node2")
-	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks("test_check"))
 
 	// 3 configs on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("D"), "node1")
 	dispatcher.addConfig(generateIntegration("E"), "node1")
-	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks("test_check"))
 
 	// Add an empty node3
 	dispatcher.processNodeStatus("node3", "10.0.0.3", types.NodeStatus{})
-	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks("test_check"))
 
 	requireNotLocked(t, dispatcher.store)
 }

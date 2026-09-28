@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -42,6 +43,10 @@ type ClusterChecksConfigProvider struct {
 	identifier       string
 	flushedConfigs   bool
 	nodeType         types.NodeType
+	// checkCompat holds this worker's advertised check compatibility, derived
+	// from the clc_runner_checks_include/exclude configuration (the
+	// experimental.* spelling takes precedence). nil means unrestricted.
+	checkCompat *types.CheckCompatibility
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -77,6 +82,14 @@ func NewClusterChecksConfigProvider(providerConfig *constants.ConfigurationProvi
 		c.nodeType = types.NodeTypeCLCRunner
 	} else {
 		c.nodeType = types.NodeTypeNodeAgent
+	}
+
+	// Read the check compatibility declarations. They apply to any worker
+	// running this provider (node agents included), not only dedicated
+	// cluster check runners.
+	c.checkCompat = checkCompatibilityFromConfig(pkgconfigsetup.Datadog())
+	if c.checkCompat != nil {
+		log.Infof("Advertising cluster check compatibility: include=%v exclude=%v", c.checkCompat.Include, c.checkCompat.Exclude)
 	}
 
 	if providerConfig.GraceTimeSeconds > 0 {
@@ -117,6 +130,43 @@ func (c *ClusterChecksConfigProvider) withinDegradedModePeriod() bool {
 	return withinDegradedModePeriod(c.heartbeat.Load(), c.degradedDuration)
 }
 
+// newNodeStatus builds the NodeStatus sent with every status POST, including
+// the worker's advertised check compatibility (nil when unrestricted, which
+// the Cluster Agent reads as "accepts any cluster check").
+func (c *ClusterChecksConfigProvider) newNodeStatus(lastChange int64) types.NodeStatus {
+	return types.NodeStatus{
+		LastChange:         lastChange,
+		NodeType:           c.nodeType,
+		CheckCompatibility: c.checkCompat,
+	}
+}
+
+// checkCompatibilityFromConfig derives the worker's advertised check
+// compatibility from the configuration. The experimental.* keys are the
+// preferred, DD_EXPERIMENTAL_-prefixed spelling; the plain clc_runner_checks_*
+// keys are the alias currently emitted by the operator and win only when the
+// experimental key is unset. Both empty means unrestricted (nil).
+func checkCompatibilityFromConfig(config pkgconfigmodel.Reader) *types.CheckCompatibility {
+	include := config.GetStringSlice("experimental.clc_runner_checks_include")
+	if len(include) == 0 {
+		include = config.GetStringSlice("clc_runner_checks_include")
+	}
+
+	exclude := config.GetStringSlice("experimental.clc_runner_checks_exclude")
+	if len(exclude) == 0 {
+		exclude = config.GetStringSlice("clc_runner_checks_exclude")
+	}
+
+	if len(include) == 0 && len(exclude) == 0 {
+		return nil
+	}
+
+	return &types.CheckCompatibility{
+		Include: include,
+		Exclude: exclude,
+	}
+}
+
 // IsUpToDate queries the cluster-agent to update its status and
 // query if new configurations are available
 func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
@@ -127,10 +177,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 		}
 	}
 
-	status := types.NodeStatus{
-		LastChange: c.lastChange,
-		NodeType:   c.nodeType,
-	}
+	status := c.newNodeStatus(c.lastChange)
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
 	if err != nil {
@@ -226,10 +273,7 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 		return errors.New("DCA Client not initialized by main provider yet, cannot post heartbeat, wait for init completion")
 	}
 
-	status := types.NodeStatus{
-		LastChange: types.ExtraHeartbeatLastChangeValue,
-		NodeType:   c.nodeType,
-	}
+	status := c.newNodeStatus(types.ExtraHeartbeatLastChangeValue)
 
 	_, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
 	return err

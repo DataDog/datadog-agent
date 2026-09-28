@@ -124,6 +124,11 @@ type nodeStore struct {
 	busyness         int
 	workers          int
 	nodetype         types.NodeType
+	// checkCompat holds the worker's advertised check compatibility, declared
+	// in its status POST. nil means unrestricted (any cluster check may be
+	// dispatched to this worker); a non-nil value restricts dispatching to the
+	// checks it admits (see isEligible).
+	checkCompat *types.CheckCompatibility
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {

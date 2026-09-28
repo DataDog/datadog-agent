@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -245,7 +246,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	defer span.Finish()
 
 	var result []types.RebalanceResponse
-	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+	if d.useUtilizationRebalance() {
 		result = d.rebalanceUsingUtilization(force)
 		span.SetTag("algorithm", "utilization")
 	} else {
@@ -254,6 +255,23 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	}
 	span.SetTag("checks_moved", len(result))
 	return result
+}
+
+// useUtilizationRebalance picks the rebalance algorithm. The utilization
+// algorithm is the only compatibility-aware one: the busyness algorithm can
+// move checks onto workers that refuse them, so when any runner declares a
+// check compatibility the utilization algorithm is used regardless of the
+// cluster_checks.rebalance_with_utilization setting (first-iteration stance;
+// the busyness algorithm may be deprecated outright later).
+func (d *dispatcher) useUtilizationRebalance() bool {
+	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+		return true
+	}
+	if d.anyCompatDeclared() {
+		log.Warn("Cluster check runner compatibility declarations are present: falling back to the utilization rebalance algorithm, the busyness algorithm does not support compatibility groups")
+		return true
+	}
+	return false
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster
@@ -390,16 +408,28 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// Place configs in proposed: pinned ones stay on their current runner,
 	for digest, config := range currentConfigsDistribution.Configs {
 		if config.Pinned {
-			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
+			proposedDistribution.addConfigWithEligibility(config.EligibleRunners, digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
 		}
 	}
-	// the rest go greedily on the least busy runner (descending workersNeeded).
+	// the rest go greedily on the least busy runner (descending workersNeeded),
+	// restricted to the runners eligible for each config per the workers'
+	// compatibility declarations.
 	for _, digest := range currentConfigsDistribution.configsSortedByWorkersNeeded() {
 		config := currentConfigsDistribution.Configs[digest]
 		if config.Pinned {
 			continue
 		}
-		proposedDistribution.addToLeastBusy(
+		if config.EligibleRunners != nil && len(config.EligibleRunners) == 0 {
+			// No eligible worker (e.g. the runner group claiming this check is
+			// entirely down): leave the config where it is rather than moving
+			// it onto a worker that refuses it, and count it.
+			log.Debugf("No eligible runner for config %s (%s), leaving it on %s", digest, config.CheckName, config.Runner)
+			proposedDistribution.addConfigWithEligibility(config.EligibleRunners, digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
+			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
+			continue
+		}
+		proposedDistribution.addToLeastBusyIn(
+			config.EligibleRunners,
 			digest,
 			config.CheckName,
 			config.WorkersNeeded,
@@ -412,12 +442,19 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// We don't calculate the optimal distribution, so it might be worse than
 	// the current one or not good enough so that it's worth it to schedule and
 	// unschedule checks. When that's the case, return without moving any
-	// checks.
-	currentUtilizationStdDev := currentConfigsDistribution.utilizationStdDev()
-	proposedUtilizationStdDev := proposedDistribution.utilizationStdDev()
+	// checks. The stddev is compatibility-aware (per-cohort, weighted), so an
+	// intentionally skewed runner group does not read as a global imbalance.
+	//
+	// The gate is bypassed when the current distribution holds misplaced
+	// configs (a config sitting on a runner that is not eligible for it, e.g.
+	// after its runner group recovered from an outage): repairing those is a
+	// correctness fix, not a balance optimization, so it must not be blocked
+	// by the improvement threshold.
+	currentUtilizationStdDev := currentConfigsDistribution.utilizationStdDevWeighted()
+	proposedUtilizationStdDev := proposedDistribution.utilizationStdDevWeighted()
 	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
 
-	if force || rebalanceIsWorthIt(currentConfigsDistribution, proposedDistribution, minPercImprovement) {
+	if force || hasIneligiblePlacement(currentConfigsDistribution) || rebalanceIsWorthIt(currentConfigsDistribution, proposedDistribution, minPercImprovement) {
 
 		jsonDistribution, _ := json.Marshal(proposedDistribution)
 
@@ -491,7 +528,13 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 			_, excluded := d.excludedChecksFromDispatching[conf.Name]
 			pinned := excluded || workersNeeded == 0
 
-			distribution.addConfig(digest, conf.Name, workersNeeded, nodeName, pinned)
+			// Compatibility declarations restrict the runners this config may
+			// be placed on; candidatesFromStore applies the preference rule
+			// (restricted workers first, unrestricted workers only as a
+			// fallback).
+			eligible := d.candidatesFromStore(conf.Name)
+
+			distribution.addConfigWithEligibility(eligible, digest, conf.Name, workersNeeded, nodeName, pinned)
 		}
 		nodeStoreInfo.RUnlock()
 	}
@@ -540,15 +583,35 @@ func setPredictedUtilization(distribution configsDistribution) {
 	}
 }
 
+// hasIneligiblePlacement reports whether any config in the distribution sits
+// on a runner that is not eligible for it per the compatibility declarations
+// (a misplaced config). Configs with no eligibility info (legacy) and configs
+// with no eligible worker at all (nothing to repair, they are pinned) do not
+// count. Purely additive: with no compatibility declared anywhere this is
+// always false.
+func hasIneligiblePlacement(distribution configsDistribution) bool {
+	for _, config := range distribution.Configs {
+		if len(config.EligibleRunners) == 0 {
+			continue
+		}
+		if !slices.Contains(config.EligibleRunners, config.Runner) {
+			return true
+		}
+	}
+	return false
+}
+
 func rebalanceIsWorthIt(currentDistribution configsDistribution, proposedDistribution configsDistribution, minPercImprovement int) bool {
 	// If the current utilization stddev is already good enough, consider that
 	// rescheduling checks is not worth it, unless the new distribution has
 	// fewer runners with a high utilization or leaves fewer runners empty.
-	if currentDistribution.utilizationStdDev() < 0.1 {
+	// The stddev is compatibility-aware (per-cohort, weighted): see
+	// utilizationStdDevWeighted.
+	if currentDistribution.utilizationStdDevWeighted() < 0.1 {
 		return proposedDistribution.numRunnersWithHighUtilization() < currentDistribution.numRunnersWithHighUtilization() ||
 			proposedDistribution.numEmptyRunners() < currentDistribution.numEmptyRunners()
 	}
 
-	maxStdDevAccepted := currentDistribution.utilizationStdDev() * ((100 - float64(minPercImprovement)) / 100)
-	return proposedDistribution.utilizationStdDev() < maxStdDevAccepted
+	maxStdDevAccepted := currentDistribution.utilizationStdDevWeighted() * ((100 - float64(minPercImprovement)) / 100)
+	return proposedDistribution.utilizationStdDevWeighted() < maxStdDevAccepted
 }

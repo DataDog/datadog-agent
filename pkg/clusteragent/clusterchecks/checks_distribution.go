@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"math"
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -17,11 +18,21 @@ import (
 // ConfigStatus is one config's entry in a distribution.
 // WorkersNeeded is summed across the config's instances.
 // Pinned configs are kept on their current runner during rebalancing.
+// EligibleRunners is the sorted set of runners the config may be placed on per
+// the workers' advertised check compatibility (see placementCandidates); it is
+// empty for configs built without compatibility info (legacy callers), which
+// Cohort == "" denotes.
 type ConfigStatus struct {
-	WorkersNeeded float64
-	Runner        string
-	CheckName     string
-	Pinned        bool
+	WorkersNeeded   float64
+	Runner          string
+	CheckName       string
+	Pinned          bool
+	EligibleRunners []string
+	// Cohort is the eligibility cohort key this config belongs to: the sorted,
+	// comma-joined EligibleRunners, or "" when no compatibility info is
+	// available (legacy/global cohort covering all runners of the
+	// distribution).
+	Cohort string
 }
 
 // RunnerStatus represents the status of a check runner
@@ -72,12 +83,20 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 	}
 }
 
-// leastBusyRunner returns the runner with the lowest utilization. If there are
+// leastBusyRunner returns the runner with the lowest utilization among all
+// the runners of the distribution. See leastBusyRunnerIn for the full
+// semantics; this variant considers every runner (no eligibility filter).
+func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64) string {
+	return distribution.leastBusyRunnerIn(nil, preferredRunner, excludeRunner, workersNeeded)
+}
+
+// leastBusyRunnerIn returns the runner with the lowest utilization among the
+// eligible runners. If eligible is nil, every runner is considered. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
 // is not among the runners with the lowest utilization, it gives precedence to
 // the runner with the lowest number of configs deployed. excludeRunner can be
 // set to avoid assigning a config to a specific runner.
-func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64) string {
+func (distribution *configsDistribution) leastBusyRunnerIn(eligible map[string]struct{}, preferredRunner string, excludeRunner string, workersNeeded float64) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
@@ -85,6 +104,11 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 	for runnerName, runnerStatus := range distribution.Runners {
 		if runnerName == excludeRunner {
 			continue
+		}
+		if eligible != nil {
+			if _, ok := eligible[runnerName]; !ok {
+				continue
+			}
 		}
 
 		runnerUtilization := runnerStatus.utilization()
@@ -111,16 +135,42 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 }
 
 func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner, workersNeeded)
+	distribution.addToLeastBusyIn(nil, digest, checkName, workersNeeded, preferredRunner, excludeRunner, pinned)
+}
+
+// addToLeastBusyIn is addToLeastBusy restricted to the given eligible runners
+// (nil eligible means no restriction), so compatibility-declared runner
+// groups only receive the checks they declared. If no eligible runner is
+// available, the config is not placed and the distribution is left unchanged
+// for it.
+func (distribution *configsDistribution) addToLeastBusyIn(eligibleRunners []string, digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
+	var eligible map[string]struct{}
+	if eligibleRunners != nil {
+		eligible = make(map[string]struct{}, len(eligibleRunners))
+		for _, r := range eligibleRunners {
+			eligible[r] = struct{}{}
+		}
+	}
+	leastBusy := distribution.leastBusyRunnerIn(eligible, preferredRunner, excludeRunner, workersNeeded)
 	if leastBusy == "" {
 		return
 	}
 
-	distribution.addConfig(digest, checkName, workersNeeded, leastBusy, pinned)
+	distribution.addConfigWithEligibility(eligibleRunners, digest, checkName, workersNeeded, leastBusy, pinned)
 }
 
 // addConfig records a config instance in the distribution.
 func (distribution *configsDistribution) addConfig(digest, checkName string, workersNeeded float64, runner string, pinned bool) {
+	distribution.addConfigWithEligibility(nil, digest, checkName, workersNeeded, runner, pinned)
+}
+
+// addConfigWithEligibility records a config instance in the distribution along
+// with its eligibility cohort. eligibleRunners is the sorted candidate set for
+// this config; nil means no compatibility info (the config belongs to the
+// global cohort spanning every runner of the distribution), while an empty
+// non-nil slice means no eligible worker at all (the config is expected to be
+// pinned in place; its cohort is its current runner alone).
+func (distribution *configsDistribution) addConfigWithEligibility(eligibleRunners []string, digest, checkName string, workersNeeded float64, runner string, pinned bool) {
 	// Initialize the runner and attribute work
 	runnerInfo, runnerExists := distribution.Runners[runner]
 	if !runnerExists {
@@ -129,6 +179,19 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 	}
 	runnerInfo.WorkersUsed += workersNeeded
 	runnerInfo.NumChecks++
+
+	// Cohort key for the compatibility-aware stddev: the sorted candidate
+	// runner set, or "" for legacy configs with no eligibility info. Configs
+	// with no eligible worker at all are pinned in place and form a
+	// single-runner cohort of their own.
+	cohort := ""
+	if eligibleRunners != nil {
+		if len(eligibleRunners) == 0 {
+			cohort = "pinned:" + runner
+		} else {
+			cohort = strings.Join(eligibleRunners, ",")
+		}
+	}
 
 	// Initialize the config and attribute work
 	configInfo, configExists := distribution.Configs[digest]
@@ -139,6 +202,8 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 		}
 		distribution.Configs[digest] = configInfo
 	}
+	configInfo.EligibleRunners = eligibleRunners
+	configInfo.Cohort = cohort
 
 	// Prioritize the new assigned runner over the existing one
 	// Note: this edge case should never happen in practice
@@ -248,4 +313,87 @@ func (distribution *configsDistribution) utilizationStdDev() float64 {
 	variance := sumSquaredDeviations / float64(len(distribution.Runners))
 
 	return math.Sqrt(variance)
+}
+
+// utilizationStdDevWeighted is the compatibility-aware replacement for
+// utilizationStdDev when rebalancing runner pools that declare check
+// compatibility. Configs are partitioned into eligibility cohorts (by their
+// candidate runner set); the stddev of each cohort is computed over the
+// utilization of the runners in that cohort's candidate set, and the result
+// is the average weighted by the number of configs in each cohort.
+//
+// A single global stddev would fight isolation: a deliberately skewed group
+// (e.g. one runner group claiming all the heavy checks) reads as a large
+// global deviation that rebalancing can never "fix" without breaking the
+// declarations, so the worth-it gate would either never fire or endlessly
+// churn. Per-cohort stddev measures balance within each candidate pool, which
+// is the thing the rebalance can actually improve.
+//
+// Cohort "" (no compatibility info, e.g. callers building distributions the
+// legacy way) spans all runners of the distribution, so with no compatibility
+// declared anywhere the result degrades to the plain utilizationStdDev over
+// all runners and existing behavior is preserved.
+func (distribution *configsDistribution) utilizationStdDevWeighted() float64 {
+	cohortRunners := map[string]map[string]struct{}{} // cohort key -> runner names
+	cohortConfigs := map[string]int{}
+
+	for _, configInfo := range distribution.Configs {
+		cohort := configInfo.Cohort
+		runners, ok := cohortRunners[cohort]
+		if !ok {
+			runners = map[string]struct{}{}
+			cohortRunners[cohort] = runners
+		}
+		switch {
+		case cohort == "":
+			// Legacy cohort: all runners of the distribution.
+			for runnerName := range distribution.Runners {
+				runners[runnerName] = struct{}{}
+			}
+		case strings.HasPrefix(cohort, "pinned:"):
+			// No eligible worker: the config is pinned to its current runner.
+			runners[configInfo.Runner] = struct{}{}
+		default:
+			for _, runnerName := range configInfo.EligibleRunners {
+				runners[runnerName] = struct{}{}
+			}
+		}
+		cohortConfigs[cohort]++
+	}
+
+	if len(cohortRunners) == 0 {
+		return 0
+	}
+
+	weightedStdDev := 0.0
+	totalConfigs := 0
+	for cohort, runners := range cohortRunners {
+		if len(runners) == 0 {
+			continue
+		}
+		totalUtilization := 0.0
+		for runnerName := range runners {
+			if runnerStatus, ok := distribution.Runners[runnerName]; ok {
+				totalUtilization += runnerStatus.utilization()
+			}
+		}
+		avgUtilization := totalUtilization / float64(len(runners))
+
+		sumSquaredDeviations := 0.0
+		for runnerName := range runners {
+			if runnerStatus, ok := distribution.Runners[runnerName]; ok {
+				sumSquaredDeviations += math.Pow(runnerStatus.utilization()-avgUtilization, 2)
+			}
+		}
+		variance := sumSquaredDeviations / float64(len(runners))
+
+		weightedStdDev += math.Sqrt(variance) * float64(cohortConfigs[cohort])
+		totalConfigs += cohortConfigs[cohort]
+	}
+
+	if totalConfigs == 0 {
+		return 0
+	}
+
+	return weightedStdDev / float64(totalConfigs)
 }
