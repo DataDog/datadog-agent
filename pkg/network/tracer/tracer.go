@@ -383,6 +383,11 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 }
 
+// Type returns the type of the underlying eBPF connection tracer that was loaded
+func (t *Tracer) Type() connection.TracerType {
+	return t.ebpfTracer.Type()
+}
+
 // Pause bypasses the eBPF programs
 func (t *Tracer) Pause() error {
 	if err := t.ebpfTracer.Pause(); err != nil {

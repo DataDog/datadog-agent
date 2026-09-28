@@ -53,6 +53,12 @@ const (
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
 var tlsTagsMapTTL = 3 * time.Minute.Nanoseconds()
 
+var (
+	// these primarily exist for mocking out in tests
+	fentryTracerLoader = fentry.LoadTracer
+	kprobeTracerLoader = kprobe.LoadTracer
+)
+
 // EbpfTracerTelemetryData holds telemetry from the EBPF tracer
 type EbpfTracerTelemetryData struct {
 	connections       telemetryComponent.Gauge
@@ -174,6 +180,33 @@ type ebpfTracer struct {
 	initialPortBindingIter  *manager.Probe
 }
 
+// loadFentryOrKprobeTracer attempts to load the fentry tracer, falling back to the kprobe
+// tracer if it fails to load and config.AllowKprobeFallback allows it. This includes a
+// verifier error: verifier rejections have been observed to be kernel-version or
+// compiler-dependent rather than evidence of a broken program, so they're treated the same
+// as any other load failure rather than exempted from the fallback setting.
+func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), TracerType, error) {
+	m, closeTracerFn, err := fentryTracerLoader(config, mgrOptions, connCloseEventHandler)
+	if err == nil {
+		log.Info("fentry tracer loaded successfully")
+		return m, closeTracerFn, TracerTypeFentry, nil
+	}
+
+	if !errors.Is(err, fentry.ErrorDisabled) {
+		if !config.AllowKprobeFallback {
+			return nil, nil, TracerTypeFentry, fmt.Errorf("fentry tracer failed to load: %w", err)
+		}
+		log.Warnf("error loading fentry network tracer, falling back to kprobe: %s", err)
+	}
+
+	m, closeTracerFn, kprobeTracerType, err := kprobeTracerLoader(config, mgrOptions, connCloseEventHandler)
+	if err != nil {
+		return nil, nil, TracerType(kprobeTracerType), fmt.Errorf("kprobe tracer failed to load: %w", err)
+	}
+	log.Info("kprobe tracer loaded successfully")
+	return m, closeTracerFn, TracerType(kprobeTracerType), nil
+}
+
 // NewTracer creates a new tracer
 func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, error) {
 	if _, err := tracefs.Root(); err != nil {
@@ -248,22 +281,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		mgrOptions.MapSpecEditors[probes.TCPOngoingConnectPid] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPRecvMsgArgsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries}
 
-		tracerType = TracerTypeFentry
-		m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
-		if err == nil {
-			log.Info("fentry tracer loaded successfully")
-		} else if !errors.Is(err, fentry.ErrorDisabled) {
-			return nil, fmt.Errorf("fentry tracer failed to load: %w", err)
-		}
-
+		m, closeTracerFn, tracerType, err = loadFentryOrKprobeTracer(config, mgrOptions, connCloseEventHandler)
 		if err != nil {
-			var kprobeTracerType kprobe.TracerType
-			m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
-			if err != nil {
-				return nil, fmt.Errorf("kprobe tracer failed to load: %w", err)
-			}
-			tracerType = TracerType(kprobeTracerType)
-			log.Info("kprobe tracer loaded successfully")
+			return nil, err
 		}
 	}
 	m.DumpHandler = dumpMapsHandler
