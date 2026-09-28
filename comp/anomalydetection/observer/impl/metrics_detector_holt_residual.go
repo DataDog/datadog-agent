@@ -500,17 +500,13 @@ func (d *HoltResidualDetector) processPoint(
 	// 7. Build the anomaly using the common metric-detector anomaly shape.
 	score := math.Abs(z)
 	seriesName := series.Name + ":" + aggSuffix(agg)
-	var tags []string
-	if len(series.Tags) > 0 {
-		tags = append([]string(nil), series.Tags...)
-	}
 	anomaly := observer.Anomaly{
 		Type: observer.AnomalyTypeMetric,
 		Source: observer.SeriesDescriptor{
 			Namespace: series.Namespace,
 			Name:      series.Name,
 			Host:      series.Host,
-			Tags:      tags,
+			Tags:      series.Tags,
 			Aggregate: agg,
 		},
 		DetectorName: d.Name(),

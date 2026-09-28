@@ -17,6 +17,7 @@ go_library(
         "policy.go",
         "procdump.go",
         "process.go",
+        "procmgr.go",
         "product.go",
         "proxy.go",
         "registry.go",

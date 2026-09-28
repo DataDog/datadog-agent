@@ -12,8 +12,6 @@ tests_aix-ppc64:
           - .gitlab/aix/common/**/*
           - .gitlab/aix/test/aix_unit_tests.yml
         compare_to: $COMPARE_TO_BRANCH
-      # TODO: uncomment once the job is stable enough
-      # allow_failure: false
     - when: manual
       variables:
         EXTRA_TEST_FLAGS: "--only-modified-packages"

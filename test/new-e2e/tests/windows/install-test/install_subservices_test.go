@@ -6,6 +6,7 @@
 package installtest
 
 import (
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -108,6 +109,11 @@ func (s *testSubServicesOptsSuite) TestProcessEnabled() {
 
 	// dd-procmgr supervises process-agent, so the legacy service stays Stopped regardless of processEnabled.
 	s.testServiceState("datadog-process-agent", false)
+	// Only the enabled case is asserted: container_collection defaults keep the procmgr gate open
+	// even with processEnabled=false, so whether process-agent stays up then depends on the host.
+	if tc.processEnabled {
+		s.testProcmgrProcessRunning("datadog-agent-process")
+	}
 }
 
 func (s *testSubServicesOptsSuite) TestAPMEnabled() {
@@ -135,4 +141,17 @@ func (s *testSubServicesOptsSuite) testServiceState(serviceName string, running 
 			assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName)
 		}
 	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+}
+
+func (s *testSubServicesOptsSuite) testProcmgrProcessRunning(processName string) {
+	vm := s.Env().RemoteHost
+	installPath, err := windowsAgent.GetInstallPathFromRegistry(vm)
+	s.Require().NoError(err)
+	cli := filepath.Join(installPath, "bin", "agent", "dd-procmgr.exe")
+
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		state, err := windowsCommon.ProcmgrDescribeField(vm, cli, processName, "State")
+		require.NoError(c, err)
+		assert.Equal(c, "Running", state, "%s should be running under dd-procmgr", processName)
+	}, 1*time.Minute, 1*time.Second, "%s should be running under dd-procmgr", processName)
 }

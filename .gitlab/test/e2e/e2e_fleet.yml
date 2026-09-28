@@ -126,6 +126,7 @@ new-e2e-installer:
       - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
       - EXTRA_PARAMS: --run "TestPackages/ddot_"
       - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
+      - EXTRA_PARAMS: --run "TestPackageAgentFapolicyd"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -155,3 +156,4 @@ new-e2e-installer-ansible:
       - EXTRA_PARAMS: --run "TestPackages/agent_"
       - EXTRA_PARAMS: --run "TestPackages/apm_inject_"
       - EXTRA_PARAMS: --run "TestPackages/upgrade_scenario_"
+      - EXTRA_PARAMS: --run "TestPackageAgentFapolicyd"

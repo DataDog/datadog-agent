@@ -12,6 +12,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // aggSuffix returns the short string representation of an aggregate.
@@ -108,20 +109,11 @@ func (s *stateViewStorage) compactSeriesID(fullKey string) string {
 	filter := observerdef.SeriesFilter{Namespace: namespace}
 	series := s.sv.ListSeries(filter)
 
-	// Sort tags for comparison.
-	sortedTags := make([]string, len(tags))
-	copy(sortedTags, tags)
-	sort.Strings(sortedTags)
-
 	for _, m := range series {
 		if m.Name != name || m.Host != host {
 			continue
 		}
-		// Compare tags.
-		mTags := make([]string, len(m.Tags))
-		copy(mTags, m.Tags)
-		sort.Strings(mTags)
-		if tagsMatch(mTags, sortedTags) {
+		if compositeTagsMatch(m.Tags, tags) {
 			return strconv.Itoa(int(m.Ref)) + ":" + aggStr
 		}
 	}
@@ -129,14 +121,19 @@ func (s *stateViewStorage) compactSeriesID(fullKey string) string {
 	return fullKey
 }
 
-func tagsMatch(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+func compositeTagsMatch(tags tagset.CompositeTags, want []string) bool {
+	wanted := make(map[string]struct{}, len(want))
+	for _, tag := range want {
+		wanted[tag] = struct{}{}
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+	seen := make(map[string]struct{}, tags.Len())
+	matched := true
+	tags.ForEach(func(tag string) {
+		if _, found := wanted[tag]; !found {
+			matched = false
+			return
 		}
-	}
-	return true
+		seen[tag] = struct{}{}
+	})
+	return matched && len(seen) == len(wanted)
 }
