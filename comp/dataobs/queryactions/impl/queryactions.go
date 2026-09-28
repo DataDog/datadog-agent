@@ -18,6 +18,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	doqueryactions "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -30,6 +31,8 @@ type Requires struct {
 	Log      log.Component
 	RcClient rcclient.Component
 	Ac       autodiscovery.Component
+	// EventPlatform sends task-level error results for one-off tasks the agent cannot start.
+	EventPlatform eventplatform.Component
 }
 
 // Provides defines the output of the Data Observability query actions component
@@ -50,6 +53,16 @@ type component struct {
 	// scheduled in its place. See reconcileBases.
 	managedBases    map[string]*managedBaseEntry
 	activeConfigsMu sync.Mutex
+
+	// tasks maps the RC config ID of each one-off task in the latest snapshot to its outcome. See
+	// tasks.go.
+	tasks   map[string]*trackedTask
+	tasksMu sync.Mutex
+	// taskChanges carries task check configs to the task provider, which streams them to
+	// autodiscovery separately from monitor configs.
+	taskChanges   *taskChangesQueue
+	eventPlatform eventplatform.Component
+	now           func() time.Time
 }
 
 // NewComponent creates a new Data Observability query actions component
@@ -60,6 +73,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		rcclient:      reqs.RcClient,
 		activeConfigs: make(map[string]activeConfigEntry),
 		managedBases:  make(map[string]*managedBaseEntry),
+		tasks:         make(map[string]*trackedTask),
+		taskChanges:   newTaskChangesQueue(),
+		eventPlatform: reqs.EventPlatform,
+		now:           time.Now,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
@@ -71,6 +88,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func (c *component) start(_ context.Context) error {
 	c.ac.AddConfigProvider(c, false, 0)
+	c.ac.AddConfigProvider(&taskProvider{queue: c.taskChanges}, false, 0)
 	c.log.Info("Data Observability query actions component started")
 	return nil
 }
