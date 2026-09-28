@@ -28,18 +28,18 @@ package_metadata(
     attributes = [
         ":license",
     ],
-    purl = select({
-        "@@//bazel/platforms:linux_x86_64": purl_for_generic(
-            download_url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{version}_amd64.deb",
-            package = "msodbcsql18",
-            version = VERSION,
-        ),
-        "@@//bazel/platforms:linux_arm64": purl_for_generic(
-            download_url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{version}_arm64.deb",
-            package = "msodbcsql18",
-            version = VERSION,
-        ),
-    }),
+    purl = purl_for_generic(
+        # The architecture is a wildcard because the download URL does change
+        # by cpu, but package metadata is not configurable.
+        # To make this more precise, we would need to have a distinct BUILD
+        # file for each of the two modules which targets here resolve to,
+        # and push metadata into each. A better solution mgiht be to declare
+        # a respository rule for msodbc that does the download and extract and
+        # creates the BUILD file with the right metadata.
+        download_url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{version}_*.deb",
+        package = "msodbcsql18",
+        version = VERSION,
+    ),
 )
 
 # I couldn't find a license kind in sdpx
