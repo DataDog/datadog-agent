@@ -139,12 +139,12 @@ func scrubProcessArgs(processes []ProcessSnapshot) {
 	for i := range processes {
 		args := processes[i].Args
 		for j, arg := range args {
-			flag, _, hasInlineValue := strings.Cut(arg, "=")
-			if !scrubber.ContainsSensitiveWord(flag) {
+			flag, delimiter, hasInlineValue := splitArgument(arg)
+			if !namesSecret(scrubber, flag) {
 				continue
 			}
 			if hasInlineValue {
-				args[j] = flag + "=" + redactedValue
+				args[j] = flag + delimiter + redactedValue
 				continue
 			}
 			// The value is the following token, as in ["--password", "s3cret"]. It is redacted
@@ -155,6 +155,31 @@ func scrubProcessArgs(processes []ProcessSnapshot) {
 			}
 		}
 	}
+}
+
+// argumentDelimiters are the characters that can separate a flag from its value inside a single
+// argument token. Missing one is worse than useless: the value stays intact and the unrelated
+// argument that follows gets redacted in its place. Whitespace is included because procmgr reads
+// args from a YAML list, where writing a flag and its value as one entry is an easy thing to do.
+const argumentDelimiters = "=: \t"
+
+// splitArgument separates the flag in an argument from a value carried in the same token.
+//
+// A token with no flag, such as a bare "C:\Program Files\Datadog\datadog.yaml", splits at its
+// first delimiter into a harmless "C" that names no secret, so paths pass through untouched.
+func splitArgument(arg string) (flag, delimiter string, hasInlineValue bool) {
+	i := strings.IndexAny(arg, argumentDelimiters)
+	if i < 0 {
+		return arg, "", false
+	}
+	return arg[:i], arg[i : i+1], true
+}
+
+// namesSecret reports whether a flag names a secret. Hyphens become underscores first: the shared
+// word list spells these "api_key" and "auth_token", while command lines just as often write
+// "--api-key" and "--auth-token", which no literal match on that list would catch.
+func namesSecret(scrubber *redact.DataScrubber, flag string) bool {
+	return scrubber.ContainsSensitiveWord(strings.ReplaceAll(flag, "-", "_"))
 }
 
 // describeAll enriches each listed process with the fields only Describe carries, above all

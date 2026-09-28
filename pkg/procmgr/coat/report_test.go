@@ -273,3 +273,50 @@ func TestScrubProcessArgsIsIdempotent(t *testing.T) {
 	assert.Equal(t, once, processes[0].Args)
 	assert.Equal(t, []string{"--password", redactedValue, "--verbose"}, processes[0].Args)
 }
+
+// The shared word list spells these with underscores, but command lines just as often use hyphens,
+// and a value can be attached with ":" as well as "=". Both forms slipped through a scrubber that
+// matched the word list literally and split only on "=".
+func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "hyphenated flag with a separate value",
+			args: []string{"--api-key", "leaked-by-spelling"},
+			want: []string{"--api-key", redactedValue},
+		},
+		{
+			name: "colon delimiter keeps the value in the same token",
+			args: []string{"--password:leaked-by-delimiter", "--verbose"},
+			want: []string{"--password:" + redactedValue, "--verbose"},
+		},
+		{
+			name: "uppercase flag",
+			args: []string{"--AUTH-TOKEN=leaked-by-case"},
+			want: []string{"--AUTH-TOKEN=" + redactedValue},
+		},
+		{
+			name: "a value holding a Windows path is not a flag",
+			args: []string{"--config", `C:\Program Files\Datadog\datadog.yaml`},
+			want: []string{"--config", `C:\Program Files\Datadog\datadog.yaml`},
+		},
+		{
+			// procmgr reads args from a YAML list, where writing a flag and its value as one
+			// entry is an easy thing to do.
+			name: "flag and value in one token separated by a space",
+			args: []string{"--password leaked-by-space"},
+			want: []string{"--password " + redactedValue},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			processes := []ProcessSnapshot{{Args: append([]string{}, test.args...)}}
+			scrubProcessArgs(processes)
+			assert.Equal(t, test.want, processes[0].Args)
+		})
+	}
+}
