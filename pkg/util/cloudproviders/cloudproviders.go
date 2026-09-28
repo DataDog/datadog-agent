@@ -210,7 +210,7 @@ var (
 // results. Cloud providers endpoints can take a few seconds to answer, so we're using a WaitGroup
 // to call all of them concurrently since GetHostAliases is called during the agent startup and is
 // blocking.
-func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProviderAliasesDetector, isCLCRunner bool) ([]string, string) {
+func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProviderAliasesDetector) ([]string, string) {
 	aliases := []string{}
 	cloudprovider := ""
 
@@ -251,8 +251,6 @@ func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProv
 // timeout; the full set of detectors is only probed as a fallback if that direct attempt doesn't
 // yield a cloud provider.
 func GetHostAliases(ctx context.Context) ([]string, string) {
-	isCLCRunner := helper.IsCLCRunner(configsetup.Datadog())
-
 	if provider := DetectCloudProviderDMI(); provider != "" {
 		scoped := make(map[string]cloudProviderAliasesDetector, len(hostAliasesDetectors))
 		for name, detector := range hostAliasesDetectors {
@@ -261,7 +259,7 @@ func GetHostAliases(ctx context.Context) ([]string, string) {
 			}
 		}
 
-		aliases, cloudprovider := runHostAliasesDetectors(ctx, scoped, isCLCRunner)
+		aliases, cloudprovider := runHostAliasesDetectors(ctx, scoped)
 		if cloudprovider != "" {
 			log.Debugf("GetHostAliases: could not retrieve host aliases from DMI-detected provider %s, falling back to probing all providers", provider)
 			return aliases, cloudprovider
@@ -269,7 +267,7 @@ func GetHostAliases(ctx context.Context) ([]string, string) {
 		return aliases, cloudprovider
 	}
 
-	return runHostAliasesDetectors(ctx, hostAliasesDetectors, isCLCRunner)
+	return runHostAliasesDetectors(ctx, hostAliasesDetectors)
 }
 
 type cloudProviderCCRIDDetector func(context.Context) (string, error)
