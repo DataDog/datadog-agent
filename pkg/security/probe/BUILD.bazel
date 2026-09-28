@@ -8,6 +8,7 @@ easyjson(
     output = "actions_easyjson.go",
     package = ":probe",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 easyjson(
@@ -17,6 +18,7 @@ easyjson(
     output = "actions_linux_easyjson.go",
     package = ":probe",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 easyjson(
@@ -26,6 +28,7 @@ easyjson(
     output = "custom_events_easyjson.go",
     package = ":probe",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 easyjson(
@@ -35,6 +38,7 @@ easyjson(
     output = "remediations_linux_easyjson.go",
     package = ":probe",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/probe",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 go_library(

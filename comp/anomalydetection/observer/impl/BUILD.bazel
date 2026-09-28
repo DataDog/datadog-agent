@@ -88,6 +88,7 @@ dd_agent_go_test(
         "log_metrics_extractor_test.go",
         "log_pattern_extractor_test.go",
         "log_tagged_pattern_clusterer_test.go",
+        "metric_handoff_test.go",
         "metrics_detector_bocpd_test.go",
         "metrics_detector_holt_residual_test.go",
         "metrics_detector_scanmw_test.go",

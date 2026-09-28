@@ -1870,12 +1870,14 @@ var metadataMetrics = []string{
 	"kube_verticalpodautoscaler_labels",
 }
 
-func TestMetadataMetricsRegex(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+func TestShouldDropForMetadata(t *testing.T) {
 	for _, m := range metadataMetrics {
-		assert.True(t, check.metadataMetricsRegex.MatchString(m))
+		assert.True(t, shouldDropForMetadata(m), "expected %s to be dropped", m)
 	}
+
+	assert.False(t, shouldDropForMetadata("kube_pod_status_phase"))
+	assert.False(t, shouldDropForMetadata("kube_customresource_info"))
+	assert.False(t, shouldDropForMetadata("kube_customresource_labels"))
 }
 
 func TestResourceNameFromMetric(t *testing.T) {
