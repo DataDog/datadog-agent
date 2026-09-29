@@ -227,3 +227,42 @@ func TestDatagramTailer_TagWireOrder(t *testing.T) {
 
 	tailer.Stop()
 }
+
+// TestDatagramTailer_TagSnapshotIgnoresConfigMutation checks that a sent
+// message keeps its tags when Config.Tags is changed in place afterwards.
+func TestDatagramTailer_TagSnapshotIgnoresConfigMutation(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("logs_config.use_sourcehost_tag", false)
+
+	serverConn, serverAddr := newTestUDPConn(t)
+	defer serverConn.Close()
+
+	cfg := &logsConfig.LogsConfig{SourceCategory: "web", Tags: []string{"env:prod", "team:infra"}}
+	source := sources.NewLogSource("", cfg)
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)
+	tailer.Start()
+
+	clientConn, err := net.DialUDP("udp", nil, serverAddr)
+	require.NoError(t, err)
+	defer clientConn.Close()
+
+	_, err = clientConn.Write([]byte("plain text log line"))
+	require.NoError(t, err)
+
+	var msg *message.Message
+	select {
+	case msg = <-outputChan:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for UDP message")
+	}
+	tailer.Stop()
+
+	cfg.Tags[0] = "env:mutated"
+	cfg.Tags = append(cfg.Tags, "late:tag")
+	cfg.SourceCategory = "mutated"
+
+	assert.Equal(t, []string{"sourcecategory:web", "env:prod", "team:infra"}, msg.Origin.Tags())
+	assert.Equal(t, `[dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra"]`, string(msg.Origin.TagsPayload(nil)))
+}

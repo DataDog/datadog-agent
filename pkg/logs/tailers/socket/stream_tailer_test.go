@@ -365,3 +365,29 @@ func TestStreamTailer_TagWireOrder(t *testing.T) {
 	clientConn.Close()
 	tailer.Stop()
 }
+
+// TestStreamTailer_TagSnapshotIgnoresConfigMutation checks that a sent
+// message keeps its tags when Config.Tags is changed in place afterwards.
+func TestStreamTailer_TagSnapshotIgnoresConfigMutation(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	cfg := &config.LogsConfig{SourceCategory: "web", Tags: []string{"env:prod", "team:infra"}}
+	source := sources.NewLogSource("", cfg)
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
+	tailer.Start()
+
+	clientConn.Write([]byte("foo\n"))
+	msg := recvMsg(t, outputChan)
+	clientConn.Close()
+	tailer.Stop()
+
+	cfg.Tags[0] = "env:mutated"
+	cfg.Tags = append(cfg.Tags, "late:tag")
+	cfg.SourceCategory = "mutated"
+
+	assert.Equal(t, []string{"sourcecategory:web", "env:prod", "team:infra"}, msg.Origin.Tags())
+	assert.Equal(t, `[dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra"]`, string(msg.Origin.TagsPayload(nil)))
+}

@@ -113,6 +113,7 @@ func (t *DatagramTailer) forwardMessages() {
 		if output.HasContent() {
 			origin := message.NewOrigin(t.source)
 			origin.SetTags(output.ParsingExtra.Tags)
+			origin.BuildTagSnapshot()
 
 			output.Origin = origin
 			t.outputChan <- output
