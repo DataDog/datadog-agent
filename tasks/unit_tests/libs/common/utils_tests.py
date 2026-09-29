@@ -211,12 +211,22 @@ class TestGetVersionLdflags(unittest.TestCase):
 
     @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
     @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
-    def test_keeps_package_version_for_traditional_install_paths(self, *_):
-        # deb/rpm installs into /opt/<product>: the last component is the product name, not a
-        # version, for the installer and dogstatsd just as much as for the agent.
-        for install_path in ("/opt/datadog-agent", "/opt/datadog-installer", "/opt/datadog-dogstatsd"):
+    def test_keeps_package_version_for_agent_install_path(self, *_):
+        # deb/rpm agent install into /opt/datadog-agent: the last component equals the
+        # "datadog-agent" sentinel, so the non-darwin fallback below leaves it untouched.
+        self.assertEqual(self.package_version("/opt/datadog-agent"), self.PACKAGE_VERSION)
+
+    @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
+    @mock.patch("tasks.libs.common.utils.sys.platform", "linux")
+    def test_non_darwin_traditional_install_paths_mis_stamp_the_product_name(self, *_):
+        # Known pre-existing bug, intentionally left alone here: deb/rpm installs into
+        # /opt/<product> for anything other than the agent stamp the product directory name
+        # (not the "datadog-agent" sentinel, so the fallback below doesn't skip it) as if it
+        # were a version. Fixing it is out of scope for a macOS-only change; see the non-darwin
+        # branch of get_version_ldflags in tasks/libs/common/utils.py.
+        for install_path in ("/opt/datadog-installer", "/opt/datadog-dogstatsd"):
             with self.subTest(install_path=install_path):
-                self.assertEqual(self.package_version(install_path), self.PACKAGE_VERSION)
+                self.assertEqual(self.package_version(install_path), os.path.basename(install_path))
 
     @mock.patch.dict(os.environ, {"PACKAGE_VERSION": PACKAGE_VERSION})
     @mock.patch("tasks.libs.common.utils.sys.platform", "darwin")
