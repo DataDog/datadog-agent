@@ -6,8 +6,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "impl",
     srcs = [
-        "component.go",
         "config.go",
+        "configured_component.go",
         "recorder.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl",
