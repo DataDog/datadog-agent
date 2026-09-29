@@ -85,8 +85,6 @@ $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist
 printf "${BLUE}\n    - Removing application and install directory...\n${NC}"
 $sudo_cmd rm -rf "/Applications/Datadog Agent.app"
 $sudo_cmd rm -rf /opt/datadog-agent
-# The installer registers the Agent as a package here and keeps its state
-# alongside; macOS stores nothing else under this root.
 $sudo_cmd rm -rf /opt/datadog-packages
 
 printf "${BLUE}\n    - Removing symlinks and staging data...\n${NC}"

@@ -44,10 +44,8 @@ new-e2e-fleet-config:
       - E2E_FLEET_PLATFORM_GROUP: windows
         EXTRA_PARAMS: --run "TestFleetConfig$" --skip "TestFleetConfig$/.+/(TestConfig|TestConfigFailureCrash|TestSystemProbeConfig|TestConfigWithSecrets|TestConfigFilePermissions)$"
 
-# macOS runs on dedicated EC2 hosts (mac1.metal/mac2.metal) with a 24-hour AWS billing minimum
-# (test/e2e-framework/AGENTS.md), so this job stays manual and gated on the DMG testing build
-# actually existing, mirroring new-e2e-agent-platform-install-script-macos-x64
-# (.gitlab/test/e2e_install_packages/macos.yml).
+# Exercises Remote Config-driven config experiments (start/promote, stop/rollback, multiple
+# concurrent configs, JQ tag replacement, crash handling) on the macOS installer daemon.
 new-e2e-fleet-config-macos:
   extends: .new_e2e_template
   rules:
