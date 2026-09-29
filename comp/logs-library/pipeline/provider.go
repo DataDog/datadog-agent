@@ -66,8 +66,9 @@ type provider struct {
 	processingRules           []*config.ProcessingRule
 	endpoints                 *config.Endpoints
 	sender                    sender.PipelineComponent
-	foldspaceDriver           *foldspace.Driver
-	foldspaceDualShip         bool
+	// foldspaceGroup holds one driver per pipeline, indexed alongside pipelines.
+	foldspaceGroup    *foldspace.DriverGroup
+	foldspaceDualShip bool
 
 	pipelines            []*Pipeline
 	currentPipelineIndex *atomic.Uint32
@@ -103,33 +104,14 @@ func NewProvider(
 ) Provider {
 	var senderImpl sender.PipelineComponent
 	serverlessMeta := sender.NewServerlessMeta(serverless)
-	var fsDriver *foldspace.Driver
+	var fsGroup *foldspace.DriverGroup
 	dualShip := config.FoldspaceDualShip(cfg)
 
 	if config.FoldspaceEnabled(cfg) && !serverless {
 		if dest, err := foldspace.BuildDestinationConfig(cfg, endpoints); err != nil {
 			log.Errorf("foldspace configuration rejected: %v", err)
-		} else {
-			core, err := newFoldspaceCore(dest)
-			if err != nil {
-				log.Errorf("foldspace core: %v", err)
-			} else {
-				fsDriver = foldspace.NewDriver(foldspace.DriverOptions{
-					Core:              core,
-					Transport:         foldspace.NewGRPCTransport(dest),
-					Sink:              sink,
-					PipelineMonitor:   metrics.NewTelemetryPipelineMonitor(),
-					InputSize:         config.FoldspaceTapChannelSize(cfg),
-					PipelineDepth:     dest.PipelineDepth,
-					ConnectTimeout:    dest.ConnectTimeout,
-					SendTimeout:       dest.SendTimeout,
-					AckTimeout:        dest.AckTimeout,
-					ShutdownTimeout:   dest.ShutdownTimeout,
-					StateRequestBytes: dest.StateRequestBytes,
-					BatchWait:         dest.BatchWait,
-					DualShip:          dualShip,
-				})
-			}
+		} else if drivers := foldspaceDrivers(numberOfPipelines, dest, cfg, sink, dualShip); len(drivers) > 0 {
+			fsGroup = foldspace.NewDriverGroup(drivers)
 		}
 	}
 
@@ -139,8 +121,8 @@ func NewProvider(
 		senderImpl = tcpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, status, serverlessMeta, legacyMode)
 	}
 
-	if fsDriver != nil && !dualShip {
-		senderImpl = fsDriver
+	if fsGroup != nil && !dualShip {
+		senderImpl = fsGroup
 	}
 
 	p := newProvider(
@@ -154,9 +136,64 @@ func NewProvider(
 		serverlessMeta,
 		senderImpl,
 	).(*provider)
-	p.foldspaceDriver = fsDriver
-	p.foldspaceDualShip = dualShip && fsDriver != nil
+	p.foldspaceGroup = fsGroup
+	p.foldspaceDualShip = dualShip && fsGroup != nil
 	return p
+}
+
+// foldspaceDrivers builds one Driver per pipeline, each with its own Core. A
+// Core's ingest region admits one caller at a time, so N pipelines encoding
+// concurrently need N cores; a single shared core would serialize every
+// pipeline's stateful encoding behind one ingest loop.
+//
+// Every core carries the configured inflight window, so the destination sees up
+// to numberOfPipelines times max_inflight_payloads outstanding. That mirrors how
+// the HTTP sender scales its concurrency with the pipeline count.
+//
+// Construction is all-or-nothing: a partial set would leave some pipelines
+// shipping to foldspace and others silently not.
+func foldspaceDrivers(
+	numberOfPipelines int,
+	dest *foldspace.DestinationConfig,
+	cfg pkgconfigmodel.Reader,
+	sink sender.Sink,
+	dualShip bool,
+) []*foldspace.Driver {
+	// One monitor for the whole set, so the provider reports a single set of
+	// component snapshots however many drivers back it.
+	monitor := metrics.NewTelemetryPipelineMonitor()
+	cores := make([]foldspace.Core, 0, numberOfPipelines)
+	for i := 0; i < numberOfPipelines; i++ {
+		core, err := newFoldspaceCore(dest)
+		if err != nil {
+			log.Errorf("foldspace core: %v", err)
+			for _, c := range cores {
+				c.Close()
+			}
+			return nil
+		}
+		cores = append(cores, core)
+	}
+
+	drivers := make([]*foldspace.Driver, 0, numberOfPipelines)
+	for _, core := range cores {
+		drivers = append(drivers, foldspace.NewDriver(foldspace.DriverOptions{
+			Core:              core,
+			Transport:         foldspace.NewGRPCTransport(dest),
+			Sink:              sink,
+			PipelineMonitor:   monitor,
+			InputSize:         config.FoldspaceTapChannelSize(cfg),
+			PipelineDepth:     dest.PipelineDepth,
+			ConnectTimeout:    dest.ConnectTimeout,
+			SendTimeout:       dest.SendTimeout,
+			AckTimeout:        dest.AckTimeout,
+			ShutdownTimeout:   dest.ShutdownTimeout,
+			StateRequestBytes: dest.StateRequestBytes,
+			BatchWait:         dest.BatchWait,
+			DualShip:          dualShip,
+		}))
+	}
+	return drivers
 }
 
 // NewMockProvider creates a new provider that will not provide any pipelines.
@@ -294,12 +331,22 @@ func newProvider(
 // N forwarder goroutines. Each forwarder reads from its own router channel and
 // routes messages to pipelines with automatic failover when the primary is blocked.
 func (p *provider) Start() {
-	if p.foldspaceDriver != nil && p.foldspaceDualShip {
-		p.foldspaceDriver.Start()
+	// In dual-ship the group is not p.sender, so it needs starting here; in
+	// foldspace-only p.sender is the group and covers it.
+	if p.foldspaceDualShip {
+		p.foldspaceGroup.Start()
 	}
 	p.sender.Start()
 
+	var fsDrivers []*foldspace.Driver
+	if p.foldspaceGroup != nil {
+		fsDrivers = p.foldspaceGroup.Drivers()
+	}
 	for i := 0; i < p.numberOfPipelines; i++ {
+		var fsDriver *foldspace.Driver
+		if i < len(fsDrivers) {
+			fsDriver = fsDrivers[i]
+		}
 		pipeline := NewPipeline(
 			p.processingRules,
 			p.endpoints,
@@ -310,7 +357,7 @@ func (p *provider) Start() {
 			p.cfg,
 			p.compression,
 			strconv.Itoa(i),
-			p.foldspaceDriver,
+			fsDriver,
 			p.foldspaceDualShip,
 		)
 		pipeline.Start()
@@ -351,10 +398,32 @@ func (p *provider) Stop() {
 		stopper.Add(pipeline)
 	}
 
+	// A pipeline below can be backpressured on a Tap or Offer into a foldspace
+	// driver whose core and input buffer are both full (its intake being down
+	// is enough). That driver only starts its own bounded drain-then-abandon
+	// once its Stop runs, so that Stop needs to start alongside stopper.Stop,
+	// not after it: sequenced later, it would wait on a release only itself
+	// can raise, and stopper.Stop would never return.
+	var fsStopDone chan struct{}
+	if p.foldspaceGroup != nil {
+		fsStopDone = make(chan struct{})
+		go func() {
+			defer close(fsStopDone)
+			if p.foldspaceDualShip {
+				p.foldspaceGroup.Stop()
+			} else {
+				// foldspace-only: p.sender is the group itself.
+				p.sender.Stop()
+			}
+		}()
+	}
+
 	stopper.Stop()
-	p.sender.Stop()
-	if p.foldspaceDriver != nil && p.foldspaceDualShip {
-		p.foldspaceDriver.Stop()
+	if fsStopDone != nil {
+		<-fsStopDone
+	}
+	if p.foldspaceGroup == nil || p.foldspaceDualShip {
+		p.sender.Stop()
 	}
 	p.pipelines = p.pipelines[:0]
 	p.routerChannels = nil
