@@ -313,53 +313,116 @@ func TestReliableAckResolvesUnreliableDropDoesNot(t *testing.T) {
 	assert.Equal(t, []uint64{9}, notes[0].MetadataIDs)
 }
 
-func TestDualShipRefuseDoesNotStall(t *testing.T) {
-	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: 1})
+// Dual-ship names sink ownership: the primary destination owns the auditor, so
+// this driver must not write it even once its records are durable.
+func TestDualShipDoesNotWriteTheSink(t *testing.T) {
+	core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
 	transport := NewFakeTransport(1)
-	transport.blockRecv = true
 	sink := newChannelSink()
+	d := startDriver(t, core, transport, sink, true)
+
+	for _, body := range []string{"one", "two", "three"} {
+		d.Offer(testMessage(body))
+	}
+
+	// The records reaching the transport is what makes the silent sink meaningful:
+	// nothing was written because ownership says so, not because nothing shipped.
+	deadline := time.After(2 * time.Second)
+	for len(transport.Sent(0)) < 3 {
+		select {
+		case p := <-sink.ch:
+			t.Fatalf("dual-ship must not write the auditor, got %d metas", len(p.MessageMetas))
+		case <-deadline:
+			t.Fatalf("only %d of 3 records shipped", len(transport.Sent(0)))
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
+// A full ingest buffer back-pressures the caller. Shedding there would trade a
+// delay for a lost log, so there is no configuration in which it is preferable.
+func TestOfferWaitsForCapacity(t *testing.T) {
 	d := NewDriver(DriverOptions{
-		Core:            core,
-		Transport:       transport,
-		Sink:            sink,
+		Core:            NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}, MaxInflight: 1}),
+		Transport:       NewFakeTransport(1),
+		Sink:            newChannelSink(),
 		PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
 		InputSize:       1,
 		PipelineDepth:   4,
 		ShutdownTimeout: 2 * time.Second,
 		DualShip:        true,
 	})
-	d.Start()
-	t.Cleanup(d.Stop)
 
-	done := make(chan struct{})
+	// Ingest is not running, so the buffer is the whole capacity.
+	d.Offer(testMessage("first"))
+
+	offered := make(chan struct{})
 	go func() {
-		for i := 0; i < 32; i++ {
-			d.Offer(testMessage("x"))
-		}
-		close(done)
+		d.Offer(testMessage("second"))
+		close(offered)
 	}()
+
 	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("dual-ship offer blocked on foldspace back-pressure")
-	}
-	select {
-	case <-sink.ch:
-		t.Fatal("dual-ship must not write the auditor")
+	case <-offered:
+		t.Fatal("offer must wait for capacity, not discard the record")
 	case <-time.After(50 * time.Millisecond):
+	}
+
+	<-d.input
+	select {
+	case <-offered:
+	case <-time.After(time.Second):
+		t.Fatal("blocked offer did not proceed after capacity freed")
 	}
 }
 
-func TestCloneBeforeEncode(t *testing.T) {
-	tap := make(chan *message.Message, 1)
-	inner := recordingEncoder{}
-	enc := NewTeeEncoder(&inner, tap)
+// The tap runs before the primary encoder rewrites the message in place, so the
+// snapshot must keep the rendered body independently of the message.
+func TestTapSnapshotsRenderedBody(t *testing.T) {
+	input := make(chan ingestItem, 1)
+	tap := &DriverTap{input: input}
 	msg := testMessage("body")
-	require.NoError(t, enc.Encode(msg, "host"))
-	clone := <-tap
-	assert.Equal(t, []byte("body"), clone.GetContent())
+
+	tap.Tap(msg)
+	item := <-input
+
+	inner := recordingEncoder{}
+	require.NoError(t, inner.Encode(msg, "host"))
+
+	assert.Equal(t, []byte("body"), item.record.Body, "the snapshot must survive the primary encoder")
 	assert.Equal(t, []byte("encoded"), msg.GetContent())
-	assert.NotEqual(t, &msg.MessageContent, &clone.MessageContent)
+
+	// Dual-ship leaves the metadata behind: the primary destination owns the
+	// auditor sink, so there is nothing for this driver to release.
+	assert.Nil(t, item.meta)
+}
+
+// A full tap buffer means the pipeline is outrunning foldspace. Waiting there
+// back-pressures the processor; the alternative would be to lose the log.
+func TestTapWaitsForCapacity(t *testing.T) {
+	input := make(chan ingestItem, 1)
+	tap := &DriverTap{input: input}
+
+	tap.Tap(testMessage("first"))
+
+	tapped := make(chan struct{})
+	go func() {
+		tap.Tap(testMessage("second"))
+		close(tapped)
+	}()
+
+	select {
+	case <-tapped:
+		t.Fatal("the tap must wait for capacity rather than shed")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	<-input // free a slot; the blocked Tap now completes
+	select {
+	case <-tapped:
+	case <-time.After(time.Second):
+		t.Fatal("blocked Tap did not proceed after capacity freed")
+	}
 }
 
 type recordingEncoder struct{}

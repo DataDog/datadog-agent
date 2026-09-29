@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
-	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,8 +31,8 @@ type DriverOptions struct {
 	// BatchWait is how often ingest seals whatever the core is holding, bounding
 	// how long a partial batch waits when no further records arrive to fill it.
 	BatchWait time.Duration
-	// DualShip, when true, never writes the auditor sink and drops on Refused
-	// instead of waiting for capacity.
+	// DualShip, when true, means the primary destination owns the auditor sink,
+	// so this driver must not release metadata to it.
 	DualShip bool
 }
 
@@ -46,7 +45,7 @@ type Driver struct {
 	sink      sender.Sink
 	monitor   metrics.PipelineMonitor
 
-	input           chan *message.Message
+	input           chan ingestItem
 	pipelineDepth   int
 	connectTimeout  time.Duration
 	shutdownTimeout time.Duration
@@ -68,6 +67,22 @@ type Driver struct {
 	ingestCancel chan struct{}
 
 	wg sync.WaitGroup
+}
+
+// ingestItem is one log queued for the core.
+//
+// It carries a Record rather than a *message.Message because a Record is
+// self-contained: recordFromMessage copies the body and tags out, so the caller
+// may keep mutating the message afterwards. That is what lets the dual-ship tap
+// hand off without cloning a whole message.
+//
+// meta is the metadata to release once the record is durable, and is set only
+// when this driver owns the auditor sink. Dual-ship leaves it nil: the primary
+// destination owns the real message's metadata, so there is nothing here to
+// release and nothing to track.
+type ingestItem struct {
+	record Record
+	meta   *message.MessageMetadata
 }
 
 type streamAck struct {
@@ -113,7 +128,7 @@ func NewDriver(opts DriverOptions) *Driver {
 		transport:       opts.Transport,
 		sink:            opts.Sink,
 		monitor:         opts.PipelineMonitor,
-		input:           make(chan *message.Message, opts.InputSize),
+		input:           make(chan ingestItem, opts.InputSize),
 		pipelineDepth:   opts.PipelineDepth,
 		connectTimeout:  opts.ConnectTimeout,
 		shutdownTimeout: opts.ShutdownTimeout,
@@ -137,21 +152,18 @@ func (d *Driver) In() chan *message.Payload { return nil }
 // PipelineMonitor returns the monitor shared with the processor.
 func (d *Driver) PipelineMonitor() metrics.PipelineMonitor { return d.monitor }
 
-// Input is the ingest channel processor output fans into.
-func (d *Driver) Input() chan *message.Message { return d.input }
+// Tap returns a tap feeding this driver's ingest, for use when the primary
+// destination owns the auditor sink and foldspace observes the rendered message
+// alongside it.
+func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input} }
 
-// Offer sends msg to ingest. Dual-ship drops rather than blocking when the
-// buffer is full. Foldspace-only blocks so back-pressure reaches the processor.
+// Offer sends msg to ingest, blocking while the buffer is full so that
+// back-pressure reaches the processor rather than costing a record.
+//
+// This driver owns the auditor sink here, so the message's metadata rides along
+// to be released once the record is durable.
 func (d *Driver) Offer(msg *message.Message) {
-	if d.dualShip {
-		select {
-		case d.input <- msg:
-		default:
-			metrics.TlmFoldspaceDualShipDropped.Inc()
-		}
-		return
-	}
-	d.input <- msg
+	d.input <- ingestItem{record: recordFromMessage(msg), meta: &msg.MessageMetadata}
 }
 
 // Start launches ingest, per-sender workers, and the notification drain.
@@ -232,11 +244,11 @@ func (d *Driver) ingestLoop() {
 
 	for {
 		select {
-		case msg, ok := <-d.input:
+		case item, ok := <-d.input:
 			if !ok {
 				return
 			}
-			d.offer(msg)
+			d.offer(item)
 		case <-ticker.C:
 			// A refused flush needs no handling here: the next tick retries it.
 			_, progress := d.core.Flush()
@@ -245,13 +257,9 @@ func (d *Driver) ingestLoop() {
 	}
 }
 
-func (d *Driver) offer(msg *message.Message) {
+func (d *Driver) offer(item ingestItem) {
 	for {
 		if !d.core.HasCapacity() {
-			if d.dualShip {
-				metrics.TlmFoldspaceDualShipDropped.Inc()
-				return
-			}
 			select {
 			case <-d.capacity:
 			case <-d.ingestCancel:
@@ -262,9 +270,11 @@ func (d *Driver) offer(msg *message.Message) {
 			continue
 		}
 		id := d.nextID.Add(1)
-		d.pending.store(id, &msg.MessageMetadata)
+		if item.meta != nil {
+			d.pending.store(id, item.meta)
+		}
 		now := uint64(time.Now().UnixNano() - d.startNanos)
-		admission, progress := d.core.PushLog(recordFromMessage(msg), now, id)
+		admission, progress := d.core.PushLog(item.record, now, id)
 		d.dispatch(progress)
 		switch admission {
 		case Accepted:
@@ -274,10 +284,6 @@ func (d *Driver) offer(msg *message.Message) {
 			return
 		case Refused:
 			d.pending.take(id)
-			if d.dualShip {
-				metrics.TlmFoldspaceDualShipDropped.Inc()
-				return
-			}
 			select {
 			case <-d.capacity:
 			case <-d.ingestCancel:
@@ -586,26 +592,25 @@ func (s *FanInStrategy) Stop() {
 	<-s.done
 }
 
-// TeeEncoder clones a rendered message onto tap before running inner Encode.
-// Dual-ship uses this so HTTP JSON encode cannot mutate the foldspace copy,
-// and a full tap never stalls HTTP.
-type TeeEncoder struct {
-	inner processor.Encoder
-	tap   chan *message.Message
+// DriverTap maps each rendered message onto a foldspace Record and hands that to
+// the driver's ingest channel.
+//
+// It must snapshot rather than reference the message, because the primary
+// destination's encoder rewrites the message in place immediately afterwards. A
+// Record is the whole snapshot: it copies the body and tags out, so the mapping
+// costs one copy of the body and nothing else. The metadata stays behind, since
+// the primary destination owns the auditor sink.
+//
+// The hand-off blocks. Foldspace's ingest buffer is sized independently of the
+// primary destination's, so an instantaneous rate difference is absorbed there
+// and neither destination waits on the other. A buffer that fills anyway means
+// the pipeline is running faster than a destination can ship, which is what
+// back-pressure is for; shedding instead would trade a delay for a lost log.
+type DriverTap struct {
+	input chan ingestItem
 }
 
-// NewTeeEncoder returns an encoder that clones onto tap then encodes with inner.
-func NewTeeEncoder(inner processor.Encoder, tap chan *message.Message) *TeeEncoder {
-	return &TeeEncoder{inner: inner, tap: tap}
-}
-
-// Encode clones msg (rendered) onto tap, dropping if tap is full, then encodes.
-func (t *TeeEncoder) Encode(msg *message.Message, hostname string) error {
-	clone := cloneMessage(msg)
-	select {
-	case t.tap <- clone:
-	default:
-		metrics.TlmFoldspaceDualShipDropped.Inc()
-	}
-	return t.inner.Encode(msg, hostname)
+// Tap snapshots msg onto the driver's ingest channel.
+func (t *DriverTap) Tap(msg *message.Message) {
+	t.input <- ingestItem{record: recordFromMessage(msg)}
 }
