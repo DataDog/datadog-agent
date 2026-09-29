@@ -364,6 +364,71 @@ func (suite *TailerTestSuite) TestOriginTagWireOrder() {
 		string(msg.Origin.TagsPayload(nil)))
 }
 
+// TestOriginTagSnapshotIgnoresConfigMutation checks that a message keeps the
+// tags captured when it left the tailer, even if Config.Tags is changed in
+// place afterwards.
+func (suite *TailerTestSuite) TestOriginTagSnapshotIgnoresConfigMutation() {
+	cfg := &config.LogsConfig{
+		Type:           config.FileType,
+		Path:           suite.testPath,
+		SourceCategory: "web",
+		Tags:           []string{"env:prod", "team:infra"},
+	}
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{source: sources.NewLogSource("", cfg)}))
+	suite.Require().NoError(suite.tailer.StartFromBeginning())
+
+	_, err := suite.testFile.WriteString("foo\n")
+	suite.Require().NoError(err)
+	msg := <-suite.outputChan
+
+	filename := "filename:" + filepath.Base(suite.testPath)
+	dirname := "dirname:" + filepath.Dir(suite.testPath)
+	wantTags := []string{filename, dirname, "sourcecategory:web", "env:prod", "team:infra"}
+	wantPayload := `[dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra,` + filename + "," + dirname + `"]`
+	suite.Require().Equal(wantTags, msg.Origin.Tags())
+
+	cfg.Tags[0] = "env:mutated"
+	cfg.Tags = append(cfg.Tags, "late:tag")
+	cfg.SourceCategory = "mutated"
+
+	suite.Equal(wantTags, msg.Origin.Tags())
+	suite.Equal(wantPayload, string(msg.Origin.TagsPayload(nil)))
+}
+
+// TestOriginTagSnapshotSourceReplace checks that ReplaceableSource.Replace is
+// unchanged: messages sent before the replacement keep the old source's
+// tags, messages sent after carry the new ones.
+func (suite *TailerTestSuite) TestOriginTagSnapshotSourceReplace() {
+	oldSource := sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+		Tags: []string{"team:old"},
+	})
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{source: oldSource}))
+	suite.Require().NoError(suite.tailer.StartFromBeginning())
+
+	_, err := suite.testFile.WriteString("before\n")
+	suite.Require().NoError(err)
+	before := <-suite.outputChan
+
+	suite.tailer.ReplaceSource(sources.NewLogSource("", &config.LogsConfig{
+		Type: config.FileType,
+		Path: suite.testPath,
+		Tags: []string{"team:new"},
+	}))
+
+	_, err = suite.testFile.WriteString("after\n")
+	suite.Require().NoError(err)
+	after := <-suite.outputChan
+
+	filename := "filename:" + filepath.Base(suite.testPath)
+	dirname := "dirname:" + filepath.Dir(suite.testPath)
+	suite.Equal("before", string(before.GetContent()))
+	suite.Equal([]string{filename, dirname, "team:old"}, before.Origin.Tags())
+	suite.Equal("after", string(after.GetContent()))
+	suite.Equal([]string{filename, dirname, "team:new"}, after.Origin.Tags())
+}
+
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {
 
 	dirTaggedSource := sources.NewLogSource("", &config.LogsConfig{

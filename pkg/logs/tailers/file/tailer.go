@@ -427,6 +427,9 @@ func (t *Tailer) forwardMessages() {
 		if !output.HasContent() {
 			continue
 		}
+		// Freeze the tag view right before send: later reads serve these tags
+		// instead of re-merging the live source config.
+		origin.BuildTagSnapshot()
 
 		// Enrich the decoder output with the file-tailer origin.
 		// This mutates in-place to preserve the message's content state
