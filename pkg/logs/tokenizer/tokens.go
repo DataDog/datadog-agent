@@ -8,6 +8,12 @@ package tokenizer
 // Token is the type that represents a single token.
 type Token byte
 
+// ProfileVersion identifies the token set below. Bump it whenever a Token is
+// added, so consumers that store or compare tokens can tell token streams from
+// different profiles apart. See the package documentation for the
+// append-only rule.
+const ProfileVersion = 1
+
 // Disable linter since the token list is self explanatory, or documented where needed.
 //
 //revive:disable

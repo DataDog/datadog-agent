@@ -32,7 +32,9 @@
 // hashes raw token bytes into the log_hash tag, and End sizes lookup arrays.
 // So:
 //
-//   - add a new Token immediately before End;
+//   - add a new Token immediately before End, and bump ProfileVersion;
 //   - never renumber or remove an existing Token;
 //   - End is a sentinel and may move; no other value may.
+//
+// TestTokenOrdinalsArePinned fails if an existing value moves.
 package tokenizer
