@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cenkalti/backoff/v7"
@@ -21,7 +22,119 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 	"golang.org/x/text/encoding/unicode"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
+
+func TestAgentMSIName(t *testing.T) {
+	assert.Equal(t, "datadog-agent-7.85.0-1-x86_64.msi", AgentMSIName("7.85.0-1", false))
+	assert.Equal(t, "datadog-fips-agent-7.85.0-1-x86_64.msi", AgentMSIName("7.85.0-1", true))
+	assert.Equal(t, "datadog-fips-agent-7.85.0-devel.git.123-1-x86_64.msi", AgentMSIName("7.85.0-devel.git.123-1", true))
+}
+
+func TestAgentProductName(t *testing.T) {
+	assert.Equal(t, "Datadog Agent", AgentProductName(false))
+	assert.Equal(t, "Datadog FIPS Agent", AgentProductName(true))
+}
+
+func TestFindAgentMSI(t *testing.T) {
+	const base = "datadog-agent-7.85.0-1-x86_64.msi"
+	const fips = "datadog-fips-agent-7.85.0-1-x86_64.msi"
+	tests := []struct {
+		name     string
+		fipsMode bool
+		files    []string
+		products map[string]string
+		want     string
+		wantErr  string
+	}{
+		{name: "base", files: []string{base}, want: base},
+		{name: "fips", fipsMode: true, files: []string{fips}, want: fips},
+		{name: "base ignores fips", files: []string{base, fips}, want: base},
+		{name: "fips ignores base", fipsMode: true, files: []string{base, fips}, want: fips},
+		{name: "old fips rollback filename", fipsMode: true, files: []string{base}, products: map[string]string{base: "Datadog FIPS Agent"}, want: base},
+		{name: "reject base for fips", fipsMode: true, files: []string{base}, wantErr: "unexpected MSI product"},
+		{name: "reject mislabeled fips", fipsMode: true, files: []string{fips}, products: map[string]string{fips: "Datadog Agent"}, wantErr: "unexpected MSI product"},
+		{name: "reject fips for base", files: []string{base}, products: map[string]string{base: "Datadog FIPS Agent"}, wantErr: "unexpected MSI product"},
+		{name: "reject corrupt msi", fipsMode: true, files: []string{base}, products: map[string]string{base: ""}, wantErr: "read MSI product"},
+		{name: "no base fallback", files: []string{fips}, wantErr: "no MSIs in package"},
+		{name: "missing", wantErr: "no MSIs in package"},
+		{name: "ambiguous fips", fipsMode: true, files: []string{fips, "datadog-fips-agent-7.85.1-1-x86_64.msi"}, wantErr: "too many MSIs in package"},
+		{name: "ambiguous rollback filenames", fipsMode: true, files: []string{base, "datadog-agent-7.85.1-1-x86_64.msi"}, wantErr: "too many MSIs in package"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, name := range tt.files {
+				product, ok := tt.products[name]
+				if !ok {
+					product = "Datadog Agent"
+					if strings.HasPrefix(name, "datadog-fips-agent-") {
+						product = "Datadog FIPS Agent"
+					}
+				}
+				createTestMSI(t, filepath.Join(dir, name), product)
+			}
+			got, err := FindAgentMSI(dir, tt.fipsMode)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(dir, tt.want), got)
+		})
+	}
+}
+
+// createTestMSI creates a minimal MSI database.
+func createTestMSI(t *testing.T, filename, product string) {
+	t.Helper()
+	if product == "" {
+		require.NoError(t, os.WriteFile(filename, nil, 0600))
+		return
+	}
+	script := `
+$ErrorActionPreference = 'Stop'
+$installer = New-Object -ComObject WindowsInstaller.Installer
+$db = $installer.OpenDatabase($env:TEST_MSI_PATH, 3)
+$view = $db.OpenView('CREATE TABLE Property (Property CHAR(72) NOT NULL, Value CHAR(0) LOCALIZABLE PRIMARY KEY Property)')
+$view.Execute()
+$view.Close()
+$view = $db.OpenView("INSERT INTO Property (Property, Value) VALUES ('ProductName', '$env:TEST_MSI_PRODUCT')")
+$view.Execute()
+$view.Close()
+$db.Commit()
+`
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd.Env = append(os.Environ(), "TEST_MSI_PATH="+filename, "TEST_MSI_PRODUCT="+product)
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "%s", output)
+}
+
+func TestWithMsiFromPackagePath(t *testing.T) {
+	paths.SetupTestPaths(t)
+	dir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+	require.NoError(t, os.MkdirAll(dir, 0700))
+	for _, tt := range []struct {
+		name     string
+		fipsMode bool
+	}{
+		{name: "datadog-agent-7.85.0-1-x86_64.msi"},
+		{name: "datadog-fips-agent-7.85.0-1-x86_64.msi", fipsMode: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			msiPath := filepath.Join(dir, tt.name)
+			product := "Datadog Agent"
+			if tt.fipsMode {
+				product = "Datadog FIPS Agent"
+			}
+			createTestMSI(t, msiPath, product)
+			args := &msiexecArgs{}
+			require.NoError(t, WithMsiFromPackagePath("stable", "datadog-agent", tt.fipsMode)(args))
+			assert.Equal(t, msiPath, args.target)
+		})
+	}
+}
 
 // mockCmdRunner for testing using testify/mock
 type mockCmdRunner struct {

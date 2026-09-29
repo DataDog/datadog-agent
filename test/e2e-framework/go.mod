@@ -41,7 +41,7 @@ require (
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
 	github.com/pulumi/pulumi-eks/sdk/v4 v4.3.0
 	github.com/pulumi/pulumi-gcp/sdk/v9 v9.37.0
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.1
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.2
 	github.com/pulumi/pulumi-tls/sdk/v5 v5.6.1
@@ -67,7 +67,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.211 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.212 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect
@@ -249,8 +249,8 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
-	github.com/onsi/ginkgo/v2 v2.32.2 // indirect
-	github.com/onsi/gomega v1.43.0 // indirect
+	github.com/onsi/ginkgo/v2 v2.33.0 // indirect
+	github.com/onsi/gomega v1.43.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opentracing/basictracer-go v1.1.0 // indirect
@@ -494,6 +494,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../pkg/serializer

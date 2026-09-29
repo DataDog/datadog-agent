@@ -67,7 +67,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.8.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.211 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.212 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.82.0 // indirect
@@ -662,6 +662,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../pkg/serializer

@@ -49,11 +49,11 @@ genrule(
         set -e
 
         # Extract deb package
-        $(location @libarchive//tar) -xOf $(SRCS) 'data.tar.*' | $(location @libarchive//tar) -xf -
+        $(execpath @libarchive//tar) -xOf $(SRCS) 'data.tar.*' | $(execpath @libarchive//tar) -xf -
 
         # Copy the files we need
-        cp opt/microsoft/msodbcsql18/lib64/{so_filename} $(location {so_filename})
-        cp opt/microsoft/msodbcsql18/share/resources/en_US/msodbcsqlr18.rll $(location msodbcsqlr18.rll)
+        cp opt/microsoft/msodbcsql18/lib64/{so_filename} $(execpath {so_filename})
+        cp opt/microsoft/msodbcsql18/share/resources/en_US/msodbcsqlr18.rll $(execpath msodbcsqlr18.rll)
     """.format(so_filename = SO_FILENAME),
     target_compatible_with = select({
         "@platforms//os:linux": [],

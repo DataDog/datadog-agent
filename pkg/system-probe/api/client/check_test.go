@@ -8,6 +8,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +42,7 @@ func resetStartupChecker() {
 	defer checker.mutex.Unlock()
 	checker.startTime = time.Now()
 	checker.started = false
+	checker.startedCh = make(chan struct{})
 	checker.inFlight = nil
 }
 
@@ -275,6 +277,120 @@ func TestStartCheckerWaiterRetriesAfterProbeOwnerCancellation(t *testing.T) {
 	mu.Lock()
 	assert.Equal(t, 2, calls)
 	mu.Unlock()
+}
+
+func TestWaitUntilStartedBacksOffUntilReady(t *testing.T) {
+	var mu sync.Mutex
+	calls := 0
+	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls < 6 {
+			return nil, errors.New("system-probe unavailable")
+		}
+		return successfulCheckResponse(), nil
+	})}
+	checker := &startChecker{
+		startTime:      time.Now(),
+		startupTimeout: time.Minute,
+		startedCh:      make(chan struct{}),
+	}
+
+	var delays []time.Duration
+	err := checker.waitUntilStarted(context.Background(), httpClient, func(_ context.Context, _ <-chan struct{}, delay time.Duration) error {
+		delays = append(delays, delay)
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, []time.Duration{
+		startupRetryInitialInterval,
+		2 * startupRetryInitialInterval,
+		4 * startupRetryInitialInterval,
+		startupRetryMaxInterval,
+		startupRetryMaxInterval,
+	}, delays)
+	assert.Equal(t, 6, calls)
+}
+
+func TestWaitUntilStartedObservesSharedReadinessNotification(t *testing.T) {
+	firstAttempt := make(chan struct{})
+	waiting := make(chan struct{})
+	failingClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		close(firstAttempt)
+		return nil, errors.New("system-probe unavailable")
+	})}
+	checker := &startChecker{
+		startTime:      time.Now(),
+		startupTimeout: time.Minute,
+		startedCh:      make(chan struct{}),
+	}
+
+	done := make(chan error)
+	go func() {
+		done <- checker.waitUntilStarted(context.Background(), failingClient, func(ctx context.Context, started <-chan struct{}, _ time.Duration) error {
+			close(waiting)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-started:
+				return nil
+			}
+		})
+	}()
+	<-firstAttempt
+	<-waiting
+
+	successfulClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return successfulCheckResponse(), nil
+	})}
+	require.NoError(t, checker.ensureStarted(context.Background(), successfulClient))
+	require.NoError(t, <-done)
+}
+
+func TestWaitUntilStartedStopsAfterGracePeriod(t *testing.T) {
+	expectedErr := errors.New("system-probe unavailable")
+	httpClient := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, expectedErr
+	})}
+	checker := &startChecker{
+		startTime:      time.Now().Add(-time.Minute),
+		startupTimeout: time.Second,
+		startedCh:      make(chan struct{}),
+	}
+
+	waitCalled := false
+	err := checker.waitUntilStarted(context.Background(), httpClient, func(context.Context, <-chan struct{}, time.Duration) error {
+		waitCalled = true
+		return nil
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.False(t, waitCalled)
+}
+
+func TestWaitForStartupStopsWhenCanceled(t *testing.T) {
+	requestStarted := make(chan struct{})
+	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		close(requestStarted)
+		<-req.Context().Done()
+		return nil, req.Context().Err()
+	})}
+	client := NewCheckClient(httpClient, httpClient)
+	client.startupChecker = &startChecker{
+		startTime:      time.Now(),
+		startupTimeout: time.Minute,
+		startedCh:      make(chan struct{}),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error)
+	go func() { done <- client.WaitForStartup(ctx) }()
+	<-requestStarted
+	cancel()
+
+	require.ErrorIs(t, <-done, context.Canceled)
 }
 
 func TestGetCheckWithContextCancelsModuleRequest(t *testing.T) {
