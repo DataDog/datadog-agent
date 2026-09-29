@@ -26,7 +26,7 @@ type fakeReporter struct {
 	report coat.SupportReport
 }
 
-func (f fakeReporter) Report(context.Context) coat.SupportReport {
+func (f fakeReporter) Report(context.Context, coat.ScrubOptions) coat.SupportReport {
 	return f.report
 }
 

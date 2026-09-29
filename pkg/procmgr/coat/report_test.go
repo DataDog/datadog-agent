@@ -59,7 +59,7 @@ func TestReportIncludesEveryProcessNotJustCatalogServices(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	require.Len(t, report.Processes, 2,
 		"the report must cover every supervised process, not only the migratable catalog")
@@ -75,7 +75,7 @@ func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
 		connectErr: errors.New("open \\\\.\\pipe\\datadog-procmgrd: file does not exist"),
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	assert.False(t, report.Daemon.Reachable)
 	assert.Contains(t, report.DaemonError, "connect to dd-procmgrd",
@@ -90,7 +90,7 @@ func TestReportStatusFailureIsRecorded(t *testing.T) {
 		daemonErr: errors.New("deadline exceeded"),
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	assert.Contains(t, report.DaemonError, "dd-procmgrd status")
 	assert.Contains(t, report.DaemonError, "deadline exceeded")
@@ -102,7 +102,7 @@ func TestReportListFailureKeepsDaemonState(t *testing.T) {
 		listErr: errors.New("list failed"),
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	assert.True(t, report.Daemon.Reachable, "a failed list must not discard the status we did get")
 	assert.Empty(t, report.DaemonError)
@@ -118,7 +118,7 @@ func TestReportDescribeFailureFallsBackToListData(t *testing.T) {
 		describeErr: errors.New("describe failed"),
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	process := reportProcessByName(t, report, "datadog-agent-process")
 	assert.Equal(t, uint32(42), process.PID, "a failed describe must keep the data List already gave us")
@@ -149,7 +149,7 @@ func TestReportDistinguishesGatedProcessFromInertCatalogEntry(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	gated := reportProcessByName(t, report, "datadog-agent-process")
 	assert.Equal(t, ProcessStateCreated, gated.State)
@@ -175,7 +175,7 @@ func TestReportSeparatesCrashLoopFromFailedSpawn(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	looper := reportProcessByName(t, report, "crash-looper")
 	assert.Equal(t, uint32(5), looper.RestartCount)
@@ -204,7 +204,7 @@ func TestReportServicesExplainStoppedLegacyService(t *testing.T) {
 		},
 	})
 
-	report := collector.Report(context.Background())
+	report := collector.Report(context.Background(), ScrubOptions{})
 
 	var found bool
 	for _, service := range report.Services {
@@ -226,7 +226,7 @@ func TestReportMarshalsToReadableJSON(t *testing.T) {
 		},
 	})
 
-	raw, err := json.Marshal(collector.Report(context.Background()))
+	raw, err := json.Marshal(collector.Report(context.Background(), ScrubOptions{}))
 	require.NoError(t, err)
 
 	var decoded map[string]any
@@ -259,7 +259,7 @@ func TestReportRedactsSecretArguments(t *testing.T) {
 		},
 	})
 
-	proc := reportProcessByName(t, collector.Report(context.Background()), "datadog-agent-process")
+	proc := reportProcessByName(t, collector.Report(context.Background(), ScrubOptions{}), "datadog-agent-process")
 
 	// Asserted as the whole argv rather than as absences: NotContains compares whole elements, so a
 	// value that leaked only part of itself, which is how this went wrong before, would satisfy it.
@@ -504,4 +504,30 @@ func TestNamesSecretAgreesWithProcutil(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The operator's settings have to reach Report, not be applied to what it returns. Redacting a value
+// overwrites the argument that held it, so a pass with only the default words leaves a placeholder
+// where "--tenant-thing" was, and no later pass can recognize it as a name the operator declared
+// sensitive. A flare then ships the value.
+func TestReportHonoursOperatorWordsBesideDefaultOnes(t *testing.T) {
+	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-process": {Name: "datadog-agent-process", State: ProcessStateRunning},
+		},
+		details: map[string]ProcessSnapshot{
+			"datadog-agent-process": {
+				Name:  "datadog-agent-process",
+				State: ProcessStateRunning,
+				Args:  []string{"--password", "--tenant-thing", "leaked-beside-a-default-flag"},
+			},
+		},
+	})
+
+	report := collector.Report(context.Background(), ScrubOptions{CustomSensitiveWords: []string{"*tenant*"}})
+
+	proc := reportProcessByName(t, report, "datadog-agent-process")
+	assert.NotContains(t, strings.Join(proc.Args, " "), "leaked-beside-a-default-flag",
+		"a declared word must be honoured even when a default-word flag precedes it")
 }

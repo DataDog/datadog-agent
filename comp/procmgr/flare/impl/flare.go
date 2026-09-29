@@ -46,7 +46,7 @@ type Provides struct {
 // reporter is the subset of coat.Collector this component needs, so tests can substitute a fake
 // rather than requiring a live dd-procmgrd.
 type reporter interface {
-	Report(ctx context.Context) coat.SupportReport
+	Report(ctx context.Context, opts coat.ScrubOptions) coat.SupportReport
 }
 
 type procmgrFlare struct {
@@ -75,10 +75,12 @@ func newProvides(r reporter, scrub coat.ScrubOptions) Provides {
 // records that as data in the report, because "dd-procmgrd is not answering" is what a support
 // engineer needs to read, and a missing file would instead look like procmgr was never asked.
 func (p *procmgrFlare) fillFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
-	report := p.reporter.Report(ctx)
+	report := p.reporter.Report(ctx, p.scrub)
 
 	// AddFile scrubs too, but line by line, which cannot pair a "--password" argument with its
-	// value on the next line of a JSON array. Scrub here, where the argv is still a slice.
+	// value on the next line of a JSON array. Scrub here, where the argv is still a slice. Report
+	// has already done this with the same settings; repeating it costs nothing and covers a reporter
+	// that returns a report it assembled rather than collected.
 	report.Scrub(p.scrub)
 
 	content, err := marshalReport(report)

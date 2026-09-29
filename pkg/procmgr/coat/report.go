@@ -65,7 +65,13 @@ var reportNotes = []string{
 
 // Report returns a dump of dd-procmgrd state for a flare. It never fails: every error is
 // recorded in the returned report.
-func (c *Collector) Report(ctx context.Context) SupportReport {
+//
+// opts carries the operator's process-argument privacy settings, and has to arrive here rather than
+// be applied to the result later. Redacting a value overwrites the argument that held it, so a pass
+// with a narrower word list destroys the flag names a later pass would need: given
+// ["--password", "--tenant-thing", "s3cret"], a default-words pass leaves the middle argument a
+// placeholder, and "*tenant*" can no longer be recognized there.
+func (c *Collector) Report(ctx context.Context, opts ScrubOptions) SupportReport {
 	ctx, cancel := clientContext(ctx)
 	defer cancel()
 
@@ -104,7 +110,7 @@ func (c *Collector) Report(ctx context.Context) SupportReport {
 		out.Services = append(out.Services, c.collectService(ctx, service, processes))
 	}
 
-	out.Scrub(ScrubOptions{})
+	out.Scrub(opts)
 
 	return out
 }
