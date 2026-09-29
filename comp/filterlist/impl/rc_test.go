@@ -268,6 +268,51 @@ func TestFilterListUpdateWithMetricPrefixRules(t *testing.T) {
 	require.False(histo.Test("test.prefixed.keep"))
 }
 
+func TestFilterListUpdateWithDuplicateMetricPrefixRulesPreservesBoth(t *testing.T) {
+	require := require.New(t)
+
+	filterList, configComponent := newFilterList(t)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"metric_filterlist_prefix": {
+				"by_prefix": {
+					"values": [
+						{
+							"prefix": "test.dup.",
+							"except_exact": [{"name": "test.dup.keep.one"}, {"name": "test.dup.keep.both"}]
+						},
+						{
+							"prefix": "test.dup.",
+							"except_exact": [{"name": "test.dup.keep.two"}, {"name": "test.dup.keep.both"}]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	var prefixEntries []MetricPrefixListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_filterlist_prefix", &prefixEntries)
+	require.NoError(err)
+	require.Len(prefixEntries, 2)
+
+	matcher := filterList.GetMetricFilterList()
+	require.True(matcher.Test("test.dup.anything"))
+	require.True(matcher.Test("test.dup.keep.one"), "the second duplicate rule still matches")
+	require.True(matcher.Test("test.dup.keep.two"), "the first duplicate rule still matches")
+	require.False(matcher.Test("test.dup.keep.both"), "excepted by both duplicate rules")
+}
+
 // RC configs with only prefix rules are not empty.
 func TestFilterListUpdateWithOnlyPrefixRulesIsNotSkipped(t *testing.T) {
 	require := require.New(t)

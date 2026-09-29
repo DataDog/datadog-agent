@@ -64,8 +64,8 @@ func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRu
 
 	var compiled []compiledPrefixRule
 	for _, rule := range rules {
-		exceptExact := compactExact(rule.ExceptExact, nil)
-		exceptPrefix := compactPrefixes(rule.ExceptPrefix)
+		exceptExact := compactExact(slices.Clone(rule.ExceptExact), nil)
+		exceptPrefix := compactPrefixes(slices.Clone(rule.ExceptPrefix))
 
 		if len(exceptExact) == 0 && len(exceptPrefix) == 0 {
 			// No surviving exceptions: use the faster bare-prefix path.

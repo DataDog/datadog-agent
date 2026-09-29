@@ -196,9 +196,9 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 }
 
 // buildMetricPrefixListConfig converts RC prefix rules into the local YAML shape.
-// Duplicate prefixes use the last update received.
+// Duplicate prefixes are preserved; exceptions are scoped per rule.
 func (*FilterList) buildMetricPrefixListConfig(metricPrefixListUpdates []filteredMetricPrefixes) []MetricPrefixListEntry {
-	entries := make(map[string]MetricPrefixListEntry)
+	var prefixEntries []MetricPrefixListEntry
 	for _, update := range metricPrefixListUpdates {
 		for _, v := range update.ByPrefix.Values {
 			entry := MetricPrefixListEntry{Prefix: v.Prefix}
@@ -208,13 +208,8 @@ func (*FilterList) buildMetricPrefixListConfig(metricPrefixListUpdates []filtere
 			for _, exceptExact := range v.ExceptExact {
 				entry.ExceptExact = append(entry.ExceptExact, exceptExact.Name)
 			}
-			entries[v.Prefix] = entry
+			prefixEntries = append(prefixEntries, entry)
 		}
-	}
-
-	prefixEntries := make([]MetricPrefixListEntry, 0, len(entries))
-	for _, entry := range entries {
-		prefixEntries = append(prefixEntries, entry)
 	}
 	return prefixEntries
 }

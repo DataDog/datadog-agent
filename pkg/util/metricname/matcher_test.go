@@ -301,6 +301,30 @@ func TestNewMatcherWithPrefixRulesBothExceptionKinds(t *testing.T) {
 	assert.False(t, m.Test("postgresql.locks.waiting"))
 }
 
+func TestNewMatcherWithPrefixRulesDoesNotRetainExceptionInputSlices(t *testing.T) {
+	rules := []PrefixRule{{
+		Prefix:       "postgresql.",
+		ExceptExact:  []string{"postgresql.connections", "postgresql.connections", "postgresql.locks"},
+		ExceptPrefix: []string{"postgresql.metrics.", "postgresql.metrics.waiting.", "postgresql.metrics."},
+	}}
+
+	first, dropped := NewMatcherWithPrefixRules(nil, false, rules)
+	assert.Empty(t, dropped)
+	assert.False(t, first.Test("postgresql.connections"))
+	assert.False(t, first.Test("postgresql.locks"))
+	assert.False(t, first.Test("postgresql.metrics.waiting"))
+
+	second, dropped := NewMatcherWithPrefixRules(nil, false, rules)
+	assert.Empty(t, dropped)
+	assert.False(t, second.Test("postgresql.connections"))
+	assert.False(t, second.Test("postgresql.locks"))
+	assert.False(t, second.Test("postgresql.metrics.waiting"))
+
+	assert.False(t, first.Test("postgresql.connections"))
+	assert.False(t, first.Test("postgresql.locks"))
+	assert.False(t, first.Test("postgresql.metrics.waiting"))
+}
+
 // Exceptions are scoped to the entry that declares them.
 func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRule(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(

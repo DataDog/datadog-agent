@@ -71,11 +71,11 @@ func (s *metricFilterListPrefixSuite) TestMetricFilterListPrefixBlocksMatchingMe
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(prefixListUnrelatedMetric)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, "unrelated metric should be forwarded to fakeintake")
-	}, 2*time.Minute, 5*time.Second, "timed out waiting for unrelated metric to reach fakeintake")
 
-	excepted, err := s.Env().FakeIntake.Client().FilterMetrics(prefixListExceptedMetric)
-	require.NoError(s.T(), err)
-	assert.NotEmpty(s.T(), excepted, "except_exact metric should still be forwarded to fakeintake")
+		excepted, err := s.Env().FakeIntake.Client().FilterMetrics(prefixListExceptedMetric)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, excepted, "except_exact metric should still be forwarded to fakeintake")
+	}, 2*time.Minute, 5*time.Second, "timed out waiting for forwarded metrics to reach fakeintake")
 
 	blocked, err := s.Env().FakeIntake.Client().FilterMetrics(prefixListBlockedMetric)
 	require.NoError(s.T(), err)
