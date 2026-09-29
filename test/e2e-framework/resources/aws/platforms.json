@@ -18,7 +18,7 @@
             "2": "ami-0292d86aa2d7a88d7",
             "2-5-10": "ami-06a0cd9728546d178",
             "2022-5-15": "ami-0f0f00c2d082c52ae",
-            "2023": "ami-0de5c3ecd5a9c7c7b"
+            "2023": "ami-01febdf9eab418504"
         }
     },
     "amazon-linux-ecs": {
@@ -65,7 +65,7 @@
             "8": "ami-0fbdded980e0521d5",
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-0d424760e95da7d14",
+            "9": "ami-00d31312eb07f3f99",
             "9-selinux-npm": "ami-0800c0a6449bf381b",
             "10": "ami-0203774689199737e"
         }
