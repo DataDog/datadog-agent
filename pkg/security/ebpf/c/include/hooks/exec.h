@@ -828,14 +828,15 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         return 0;
     }
 
-    // Snapshot the ino the instant the entry is popped. pop_task_syscall calls
-    // bpf_map_delete_elem and then returns this very pointer, so everything below reads a
-    // freed element: on the pre-5.11 LRU hash it goes back on a freelist and can be recycled
-    // and rewritten while this program is still running. Both reads are volatile so the
-    // compiler cannot fold them into one and make the comparison vacuously true. Only the
-    // ino is kept: it alone answers whether the memory mutated, and one more live u64 across
-    // this function pushes it past the 512-byte BPF stack limit.
-    u64 popped_ino = *(volatile u64 *)&syscall->exec.file.path_key.ino;
+    // Snapshot the entry the instant it is popped. pop_task_syscall calls bpf_map_delete_elem
+    // and then returns this very pointer, so everything below reads a released element. Both
+    // reads are volatile so the compiler cannot fold them into one and make the comparison
+    // vacuously true. Packed into a single u64 because a second live variable across this
+    // function pushes it past the 512-byte BPF stack limit: low 32 bits the ctx_id, bit 32
+    // whether the ino was non-zero. ctx_id is the discriminator -- it says whether a zeroed
+    // key means the element was reused by another execve or is still ours and was overwritten.
+    u64 popped_state = (u64)(*(volatile u32 *)&syscall->ctx_id)
+        | ((*(volatile u64 *)&syscall->exec.file.path_key.ino != 0) ? (1ULL << 32) : 0);
 
     // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -1048,18 +1049,22 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // ZERO_AT_POP separates the two timings: already zero when popped means the element was
     // reused before the pop, WENT_ZERO means after it.
     u64 late_ino = *(volatile u64 *)&syscall->exec.file.path_key.ino;
+    u32 late_ctx_id = *(volatile u32 *)&syscall->ctx_id;
+    u32 popped_ctx_id = (u32)popped_state;
+    int popped_ino_set = (popped_state >> 32) & 1;
 
     bump_exec_uaf(EXEC_UAF_TOTAL);
-    if (popped_ino == 0) {
+    if (late_ctx_id != popped_ctx_id) {
+        bump_exec_uaf(EXEC_UAF_CTX_CHANGED);
+    }
+    if (!popped_ino_set) {
         bump_exec_uaf(EXEC_UAF_ZERO_AT_POP);
     } else if (late_ino == 0) {
         bump_exec_uaf(EXEC_UAF_WENT_ZERO);
-    } else if (late_ino != popped_ino) {
-        bump_exec_uaf(EXEC_UAF_REUSED);
-    }
-    if (late_ino != popped_ino) {
-        bump_exec_uaf(EXEC_UAF_CHANGED);
-    } else if (popped_ino != 0) {
+        if (late_ctx_id == popped_ctx_id) {
+            bump_exec_uaf(EXEC_UAF_WENT_ZERO_SAME_CTX);
+        }
+    } else if (late_ctx_id == popped_ctx_id) {
         bump_exec_uaf(EXEC_UAF_STABLE);
     }
 

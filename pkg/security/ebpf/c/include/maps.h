@@ -110,9 +110,13 @@ BPF_ARRAY_MAP(exec_uaf_probe, u64, 7)
 #define EXEC_UAF_TOTAL 0       // popped entries examined, the denominator
 #define EXEC_UAF_ZERO_AT_POP 1 // ino already 0 the instant we popped it
 #define EXEC_UAF_WENT_ZERO 2   // ino good at pop, 0 by the time the event is sent
-#define EXEC_UAF_REUSED 3      // ino changed to a DIFFERENT non-zero value: element reused
-#define EXEC_UAF_CHANGED 4     // ino differs between the two reads, any direction
-#define EXEC_UAF_STABLE 5      // both reads agree and the ino is good
+// ctx_id is minted per-execve by collect_syscall_ctx from a global counter, so it identifies
+// WHICH execve an entry belongs to. These two slots split the two remaining explanations for
+// a key that goes to zero: the element now holds a different execve's entry (reuse), or it is
+// still our entry and something zeroed the key in place (a stray write, a different bug).
+#define EXEC_UAF_CTX_CHANGED 3        // ctx_id differs: the element holds another execve now
+#define EXEC_UAF_WENT_ZERO_SAME_CTX 4 // ino zeroed while ctx_id stayed ours: NOT reuse
+#define EXEC_UAF_STABLE 5             // ino good at both reads and ctx_id unchanged
 #define EXEC_UAF_COLLATERAL_AVOIDED 6 // live sibling entry the old unconditional pop would have deleted
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
