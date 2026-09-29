@@ -110,10 +110,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfig.BuildSchema()
 
-	if strings.TrimSpace(pkgconfig.GetString("site")) == "" {
-		pkgconfig.Set("site", "datadoghq.com", pkgconfigmodel.SourceDefault)
-	}
-
 	if len(ddCfg) != 0 {
 		// if the configuration file path was supplied via CLI flags or env vars,
 		// add that first so it's first in line
@@ -576,6 +572,9 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	// Validate that site is configured in pkgconfig
 	site := strings.TrimSpace(pkgconfig.GetString("site"))
 	isSiteEmpty := site == ""
+	if site == "" {
+		site = constants.DefaultSite
+	}
 
 	if ddcfg == nil {
 		if !isSiteEmpty {
@@ -606,10 +605,12 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
 		if !isSiteEmpty {
 			apicfgMap["site"] = site
+		} else {
+			apicfgMap["site"] = "datadoghq.com"
 		}
-		apicfgMap["site"] = "datadoghq.com"
+	} else {
+		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
-	apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	return ddcfgMap, nil
 }
 
