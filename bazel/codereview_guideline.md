@@ -22,7 +22,8 @@ breaks incremental builds. Flag any `glob` with a `**` pattern. Instead, add a `
 ## `print()` statements
 
 `print()` in `.bzl` files is for debugging only. Flag any committed `.bzl` file that contains a `print()` call not
-guarded by `if DEBUG:` with `DEBUG = False`.
+guarded by `if DEBUG:` with `DEBUG = False`, unless it denotes an actionable warning and the message starts with
+`WARNING: `.
 
 ## Depsets over list accumulation
 
