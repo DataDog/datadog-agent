@@ -19,18 +19,17 @@ const (
 )
 
 type Application struct {
-	id          string
 	name        string
 	description string
 }
 
 type ApplicationMapper struct {
 	mu   sync.RWMutex
-	apps map[string]map[string]Application // exporterIP -> applicationId -> Application
+	apps map[string]map[uint64]Application // exporterIP -> applicationId -> Application
 }
 
 func NewApplicationMapper() *ApplicationMapper {
-	return &ApplicationMapper{apps: make(map[string]map[string]Application)}
+	return &ApplicationMapper{apps: make(map[string]map[uint64]Application)}
 }
 
 func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte) (Application, bool) {
@@ -42,15 +41,20 @@ func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte
 		return Application{}, false
 	}
 
-	app, found := apps[string(rawAppID)]
+	id, ok := applicationIDToUint64(rawAppID)
+	if !ok {
+		return Application{}, false
+	}
+
+	app, found := apps[id]
 	return app, found
 }
 
 func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []netflow.OptionsDataFlowSet) {
 	for _, dataFlowSet := range optionsDataFlowSet {
 		for _, record := range dataFlowSet.Records {
-			if app, ok := extractApplication(record); ok {
-				m.set(exporterIP, app)
+			if id, app, ok := extractApplication(record); ok {
+				m.set(exporterIP, id, app)
 			}
 		}
 	}
@@ -58,20 +62,20 @@ func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []n
 
 // gets an Application from IPFIX Options Data Record applicationId (95) from the scope fields,
 // applicationName (96) & applicationDescription (94) from the option fields
-func extractApplication(record netflow.OptionsDataRecord) (Application, bool) {
+func extractApplication(record netflow.OptionsDataRecord) (uint64, Application, bool) {
 	app := Application{}
 
 	id, haveID := findField(record.ScopesValues, ipfixFieldApplicationID)
 	if !haveID {
-		return app, false
+		return 0, app, false
 	}
 
 	name, haveName := findField(record.OptionsValues, ipfixFieldApplicationName)
 	if haveName {
 		// strip the trailing null padding exporters use for fixed-width string fields
-		app = Application{id: string(id), name: string(bytes.Trim(name, "\x00"))}
+		app = Application{name: string(bytes.Trim(name, "\x00"))}
 	} else {
-		return app, false
+		return 0, app, false
 	}
 
 	description, haveDescription := findField(record.OptionsValues, ipfixFieldApplicationDescription)
@@ -80,7 +84,11 @@ func extractApplication(record netflow.OptionsDataRecord) (Application, bool) {
 		app.description = string(bytes.Trim(description, "\x00"))
 	}
 
-	return app, true
+	key, ok := applicationIDToUint64(id)
+	if !ok {
+		return 0, app, false
+	}
+	return key, app, true
 }
 
 // returns the raw bytes of the given field type
@@ -94,13 +102,13 @@ func findField(fields []netflow.DataField, fieldType uint16) ([]byte, bool) {
 	return nil, false
 }
 
-func (m *ApplicationMapper) set(exporterIP string, app Application) {
+func (m *ApplicationMapper) set(exporterIP string, id uint64, app Application) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	apps, ok := m.apps[exporterIP]
 	if !ok {
-		apps = make(map[string]Application)
+		apps = make(map[uint64]Application)
 		m.apps[exporterIP] = apps
 	}
-	apps[app.id] = app
+	apps[id] = app
 }

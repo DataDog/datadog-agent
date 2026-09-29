@@ -63,6 +63,11 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		NextHop: payload.NextHop{
 			IP: format.IPAddr(aggFlow.NextHop),
 		},
+		DPI: payload.DPI{
+			ApplicationID:          aggFlow.DPI.ID,
+			ApplicationName:        aggFlow.DPI.ApplicationName,
+			ApplicationDescription: aggFlow.DPI.ApplicationDescription,
+		},
 		AdditionalFields: aggFlow.AdditionalFields,
 	}
 }

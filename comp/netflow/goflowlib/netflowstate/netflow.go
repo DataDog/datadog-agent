@@ -148,11 +148,7 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 		}
 
 		if dpiFields != nil {
-			if message.AdditionalFields == nil {
-				message.AdditionalFields = dpiFields[i]
-			} else {
-				maps.Copy(message.AdditionalFields, dpiFields[i])
-			}
+			message.DPI = dpiFields[i]
 		}
 
 		utils.NetFlowTimeStatsSum.With(

@@ -9,6 +9,7 @@ package goflowlib
 
 import (
 	"encoding/hex"
+
 	flowpb "github.com/netsampler/goflow2/pb"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -57,6 +58,7 @@ const (
 // When enableBiflowParsing is true and biflow sentinels are present, a reverse flow is also returned.
 func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string, enableBiflowParsing bool) (*common.Flow, *common.Flow) {
 	flow := ConvertFlow(srcFlow.FlowMessage, namespace)
+	flow.DPI = srcFlow.DPI
 	applyAdditionalFields(flow, srcFlow.AdditionalFields)
 	if enableBiflowParsing {
 		return splitBiflow(flow)

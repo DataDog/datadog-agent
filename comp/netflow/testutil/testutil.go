@@ -215,6 +215,7 @@ func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwardermo
   "next_hop": {
     "ip": ""
   },
+  "dpi": {},
   "packets": 840155153,
   "sampling_rate": 0,
   "source": {
@@ -321,7 +322,8 @@ func ExpectBiflowPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwa
   "ingress": {"interface": {"index": 1}},
   "egress": {"interface": {"index": 2}},
   "host": "my-hostname",
-  "next_hop": {"ip": ""}
+  "next_hop": {"ip": ""},
+  "dpi": {}
 }`)
 
 	// reverse flow (src/dst, direction, and bytes/packets changed)
@@ -356,7 +358,8 @@ func ExpectBiflowPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwa
   "ingress": {"interface": {"index": 2}},
   "egress": {"interface": {"index": 1}},
   "host": "my-hostname",
-  "next_hop": {"ip": ""}
+  "next_hop": {"ip": ""},
+  "dpi": {}
 }`)
 
 	// expect both forward and reverse flow events to be sent to the forwarder

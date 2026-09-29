@@ -42,6 +42,13 @@ type ObservationPoint struct {
 	Interface Interface `json:"interface"`
 }
 
+// DPI contains deep packet inspection application enrichment
+type DPI struct {
+	ApplicationID          uint64 `json:"application_id,omitempty"`
+	ApplicationName        string `json:"application_name,omitempty"`
+	ApplicationDescription string `json:"application_description,omitempty"`
+}
+
 // AdditionalFields contains additional configured fields
 type AdditionalFields = map[string]any
 
@@ -69,6 +76,7 @@ type FlowPayload struct {
 	Host             string           `json:"host"`
 	TCPFlags         []string         `json:"tcp_flags,omitempty"`
 	NextHop          NextHop          `json:"next_hop,omitempty"`
+	DPI              DPI              `json:"dpi"`
 	AdditionalFields AdditionalFields `json:"additional_fields,omitempty"`
 }
 
@@ -95,6 +103,7 @@ func (p FlowPayload) MarshalJSON() ([]byte, error) {
 		"egress":          p.Egress,
 		"host":            p.Host,
 		"next_hop":        p.NextHop,
+		"dpi":             p.DPI,
 	}
 
 	// omit empty

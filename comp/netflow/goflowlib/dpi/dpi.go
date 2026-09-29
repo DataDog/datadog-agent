@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
-func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mapper *ApplicationMapper) []common.AdditionalFields {
+func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mapper *ApplicationMapper) []common.DPIFields {
 	if mapper == nil {
 		return nil
 	}
@@ -27,10 +27,10 @@ func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mappe
 	dataFlowSet, _, _, optionsDataFlowSet := producer.SplitIPFIXSets(ipfixPacket)
 	mapper.addToCache(exporterIP, optionsDataFlowSet)
 
-	var flowsFields []common.AdditionalFields
+	var flowsFields []common.DPIFields
 	for _, fs := range dataFlowSet {
 		for _, record := range fs.Records {
-			fields := make(common.AdditionalFields)
+			var fields common.DPIFields
 			for _, df := range record.Values {
 				if df.Type != ipfixFieldApplicationID {
 					continue
@@ -40,10 +40,11 @@ func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mappe
 					continue
 				}
 				if app, found := mapper.lookupApplication(exporterIP, v); found {
-					fields["dpi"] = map[string]any{
-						"application_id":          app.id,
-						"application_name":        app.name,
-						"application_description": app.description,
+					id, _ := applicationIDToUint64(v)
+					fields = common.DPIFields{
+						ID:                     id,
+						ApplicationName:        app.name,
+						ApplicationDescription: app.description,
 					}
 				}
 			}
@@ -51,4 +52,12 @@ func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mappe
 		}
 	}
 	return flowsFields
+}
+
+func applicationIDToUint64(raw []byte) (uint64, bool) {
+	var id uint64
+	if err := producer.DecodeUNumber(raw, &id); err != nil {
+		return 0, false
+	}
+	return id, true
 }

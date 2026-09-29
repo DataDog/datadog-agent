@@ -9,8 +9,9 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
-	flowmessage "github.com/netsampler/goflow2/pb"
 	"hash/fnv"
+
+	flowmessage "github.com/netsampler/goflow2/pb"
 )
 
 // Flow contains flow info used for aggregation
@@ -72,8 +73,17 @@ type Flow struct {
 
 	NextHop []byte // FLOW KEY
 
+	// DPI Application enrichment
+	DPI DPIFields
+
 	// Configured fields
 	AdditionalFields AdditionalFields
+}
+
+type DPIFields struct {
+	ID                     uint64
+	ApplicationName        string
+	ApplicationDescription string
 }
 
 // AdditionalFields holds additional fields collected
@@ -82,6 +92,7 @@ type AdditionalFields = map[string]any
 // FlowMessageWithAdditionalFields contains a goflow flowmessage and additional fields
 type FlowMessageWithAdditionalFields struct {
 	*flowmessage.FlowMessage
+	DPI              DPIFields
 	AdditionalFields AdditionalFields
 }
 

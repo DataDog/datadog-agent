@@ -334,6 +334,7 @@ func TestAggregator(t *testing.T) {
     "namespace": "my-ns"
   },
   "direction": "ingress",
+  "dpi": {},
   "dscp": 0,
   "dscp_name": "CS0",
   "egress": {
