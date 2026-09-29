@@ -82,7 +82,7 @@ cc_shared_library(
     ],
     user_link_flags = [
         "-Wl,--no-undefined",
-        "-Wl,--version-script=$(location src/libpopt.vers)",
+        "-Wl,--version-script=$(execpath src/libpopt.vers)",
     ],
     visibility = ["//visibility:public"],
     deps = [
