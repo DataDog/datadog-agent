@@ -71,8 +71,13 @@ fi
 if ! INSTANCE_ID=$(curl -sf "http://169.254.169.254/latest/meta-data/instance-id" -H "X-aws-ec2-metadata-token: $TOKEN" --max-time 5) || [ -z "$INSTANCE_ID" ]; then
     echo "ERROR: Could not fetch EC2 instance ID using the IMDSv2 token." >&2
     exit 1
+fi
+
+if ! REGION=$(curl -sf "http://169.254.169.254/latest/meta-data/placement/region" -H "X-aws-ec2-metadata-token: $TOKEN" --max-time 5) || [ -z "$REGION" ]; then
+    echo "ERROR: Could not fetch EC2 region using the IMDSv2 token." >&2
+    exit 1
 fi`},
-			{Order: 4, Text: "aws ec2 modify-instance-metadata-options --instance-id \"$INSTANCE_ID\" --http-put-response-hop-limit 2 --http-endpoint enabled"},
+			{Order: 4, Text: "aws ec2 modify-instance-metadata-options --region \"$REGION\" --instance-id \"$INSTANCE_ID\" --http-put-response-hop-limit 2 --http-endpoint enabled"},
 			{Order: 5, Text: "Restart the Datadog Agent container to pick up the correct EC2 hostname."},
 			{Order: 6, Text: "ALTERNATIVE (EKS): use the hostname discovered by cloud-init instead of querying IMDS, by setting providers.eks.ec2.useHostnameFromFile to true."},
 			{Order: 7, Text: "ALTERNATIVE: run the Agent in the host's UTS namespace so it sees the host's real hostname, by setting agents.useHostNetwork to true."},

@@ -16,7 +16,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
-        "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/env",
@@ -35,7 +34,6 @@ dd_agent_go_test(
     embed = [":awsimds"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
-        "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/issues",
         "//pkg/config/mock",
         "//pkg/util/dmi",

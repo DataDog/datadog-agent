@@ -43,11 +43,7 @@ type ModuleDeps struct {
 	SelfIdent *selfident.SelfIdent
 }
 
-// ModuleFactory is a function that creates a new Module instance. It may return
-// nil to decline registration when an immutable environment precondition is not
-// met (e.g. not running on the relevant cloud provider); GetAllModules skips nil
-// results. Gate on mutable config inside the check Fn instead, so toggling it can
-// still resolve previously stored issues on restart.
+// ModuleFactory creates a Module, or returns nil to decline registration (GetAllModules skips nil).
 type ModuleFactory func(deps ModuleDeps) Module
 
 var (

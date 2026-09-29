@@ -22,9 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
-// setupCheck points the probe at a local listener with short timeouts. The
-// environment gate lives in NewModule (see module_test.go), so the check itself
-// does not need AWS/container mocks here.
+// setupCheck points the probe at a local listener with short timeouts (env gate lives in NewModule).
 func setupCheck(t *testing.T, addr string) *awsIMDSModule {
 	t.Helper()
 	originalAddress, originalDialTimeout, originalResponseTimeout := imdsAddress, dialTimeout, responseTimeout

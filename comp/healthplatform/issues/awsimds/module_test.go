@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
@@ -21,7 +20,7 @@ import (
 
 func testDeps(hostname string) issues.ModuleDeps {
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname(hostname))
-	return issues.ModuleDeps{Hostname: hn, SelfIdent: selfident.New(nil)}
+	return issues.ModuleDeps{Hostname: hn}
 }
 
 // testModule builds the module directly, bypassing NewModule's environment gate.
@@ -38,8 +37,7 @@ func TestInstanceIssueID(t *testing.T) {
 	assert.NotEqual(t, id, testModule("host-b").instanceIssueID())
 }
 
-// TestNewModule_RegistrationGate verifies the module registers only inside a
-// container on AWS and declines (returns nil) otherwise.
+// TestNewModule_RegistrationGate verifies the module registers only in a container on AWS.
 func TestNewModule_RegistrationGate(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("ec2_use_dmi", true)

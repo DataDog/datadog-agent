@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package awsimds provides a complete issue module for AWS IMDSv2 hop limit problems.
-// It detects when the agent running in a container cannot reach the AWS instance
-// metadata service due to the default IMDSv2 hop limit of 1, which prevents
-// container traffic from traversing the extra network hop to the metadata endpoint.
+// Package awsimds detects when a containerized agent on AWS EC2 cannot reach IMDS due to the default hop limit of 1.
 package awsimds
 
 import (
@@ -19,7 +16,6 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -40,29 +36,23 @@ func init() {
 }
 
 const (
-	// IssueName is the identifier for AWS IMDS hop limit issues,
-	// used as the template registry key and the proto IssueName field.
+	// IssueName is the template registry key and proto IssueName field.
 	IssueName = "AWS IMDS Hop Limit"
 
-	// IssueType is the snake_case type key for AWS IMDS hop limit issues:
-	// IssueName lowercased with spaces replaced by underscores.
+	// IssueType is IssueName lowercased with spaces replaced by underscores.
 	IssueType = "aws_imds_hop_limit"
 
-	// IssueID is the unique instance id used when reporting this issue
+	// IssueID is the kebab-case instance id prefix used when reporting this issue.
 	IssueID = "aws-imds-hop-limit"
 )
 
 // awsIMDSModule implements issues.Module
 type awsIMDSModule struct {
-	template  *AWSIMDSIssue
-	hostname  hostnameinterface.Component
-	selfIdent *selfident.SelfIdent
+	template *AWSIMDSIssue
+	hostname hostnameinterface.Component
 }
 
-// NewModule creates a new AWS IMDS hop limit issue module, or nil to decline
-// registration entirely when the agent is not in a container on AWS. This gate
-// is on the environment (immutable for a given host), not on config, so there
-// is no stale-issue-resolution reason to register a module that can never fire.
+// NewModule returns the module, or nil to decline registration when not a container on AWS.
 func NewModule(deps issues.ModuleDeps) issues.Module {
 	if !env.IsContainerized() || !ec2.IsRunningOnFromDMI() {
 		return nil
@@ -72,9 +62,8 @@ func NewModule(deps issues.ModuleDeps) issues.Module {
 
 func newModule(deps issues.ModuleDeps) *awsIMDSModule {
 	return &awsIMDSModule{
-		template:  NewAWSIMDSIssue(),
-		hostname:  deps.Hostname,
-		selfIdent: deps.SelfIdent,
+		template: NewAWSIMDSIssue(),
+		hostname: deps.Hostname,
 	}
 }
 
@@ -104,8 +93,7 @@ func (m *awsIMDSModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthChec
 }
 
 func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
-	// Environment is already gated at registration (NewModule); only the probe
-	// result varies here, so a clean probe resolves any previously stored issue.
+	// Environment is gated at registration; a clean probe here resolves any stored issue.
 	detected, err := probe()
 	if err != nil || !detected {
 		return nil, err
@@ -120,10 +108,9 @@ func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
 	}}, nil
 }
 
-// instanceIssueID scopes the issue to this agent's discriminator.
+// instanceIssueID scopes the issue per host, since each EC2 instance's hop limit is configured independently.
 func (m *awsIMDSModule) instanceIssueID() string {
 	h := fnv.New64a()
-	discriminator := issues.IssueDiscriminator(m.selfIdent, m.hostname.GetSafe(context.Background()))
-	fmt.Fprint(h, discriminator)
+	h.Write([]byte(m.hostname.GetSafe(context.Background())))
 	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }

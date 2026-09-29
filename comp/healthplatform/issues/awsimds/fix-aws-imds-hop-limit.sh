@@ -18,9 +18,16 @@ if ! INSTANCE_ID=$(curl -sf "http://169.254.169.254/latest/meta-data/instance-id
     exit 1
 fi
 
-echo "Instance ID: $INSTANCE_ID"
+echo "Fetching EC2 region..."
+if ! REGION=$(curl -sf "http://169.254.169.254/latest/meta-data/placement/region" -H "X-aws-ec2-metadata-token: $TOKEN" --max-time 5) || [ -z "$REGION" ]; then
+    echo "ERROR: Could not fetch EC2 region using the IMDSv2 token." >&2
+    exit 1
+fi
+
+echo "Instance ID: $INSTANCE_ID (region: $REGION)"
 echo "Updating IMDSv2 hop limit to 2..."
 aws ec2 modify-instance-metadata-options \
+    --region "$REGION" \
     --instance-id "$INSTANCE_ID" \
     --http-put-response-hop-limit 2 \
     --http-endpoint enabled
