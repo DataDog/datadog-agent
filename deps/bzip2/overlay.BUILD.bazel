@@ -41,9 +41,6 @@ _PUBLIC_HEADERS = [
 cc_binary(
     name = "bzip2",
     srcs = ["bzip2.c"],
-    deps = [
-        ":libbz2",
-    ],
     copts = [
         "-Wall",
         # -Winline is probably obsolete with modern compilers, but that is what
@@ -52,6 +49,9 @@ cc_binary(
         "-D_FILE_OFFSET_BITS=64",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        ":libbz2",
+    ],
 )
 
 cc_library(
@@ -93,18 +93,16 @@ cc_library(
         },
         no_match_error = "No target platform detected",
     ),
+    includes = ["."],
     local_defines = select({
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
         "//conditions:default": [],
     }),
-    includes = ["."],
     visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "bz2",
-    win_def_file = "libbz2.def",
-    deps = [":libbz2"],
     user_link_flags = select({
         #"//bazel/platforms:os_aix": [
         #    "-qmkshrobj",
@@ -122,6 +120,8 @@ cc_shared_library(
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
+    win_def_file = "libbz2.def",
+    deps = [":libbz2"],
 )
 
 pkg_files(
@@ -132,10 +132,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "bz2_pkg",
-    input = ":bz2",
     dest_dir = "embedded/lib",
-    version = VERSION,
+    input = ":bz2",
     installed_files = [":hdr_files"],
+    version = VERSION,
     visibility = ["//visibility:public"],
 )
 
