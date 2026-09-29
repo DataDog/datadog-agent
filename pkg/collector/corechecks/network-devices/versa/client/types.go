@@ -36,15 +36,15 @@ type DirectorStatus struct {
 // DirectorHAConfig encapsulates metadata for a Versa director's HA configuration
 type DirectorHAConfig struct {
 	ClusterID                      string   `json:"clusterid"`
+	StartupMode                    string   `json:"startupMode"`
+	MyAddress                      string   `json:"myAddress"`
+	MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
+	VDSBInterfaces                 []string `json:"vdsbinterfaces"`
 	FailoverTimeout                int      `json:"failoverTimeout"`
 	SlaveStartTimeout              int      `json:"slaveStartTimeout"`
 	AutoSwitchOverTimeout          int      `json:"autoSwitchOverTimeout"`
 	AutoSwitchOverEnabled          bool     `json:"autoSwitchOverEnabled"`
 	DesignatedMaster               bool     `json:"designatedMaster"`
-	StartupMode                    string   `json:"startupMode"`
-	MyVnfManagementIPs             []string `json:"myVnfManagementIps"`
-	MyAddress                      string   `json:"myAddress"`
-	VDSBInterfaces                 []string `json:"vdsbinterfaces"`
 	StartupModeHA                  bool     `json:"startupModeHA"`
 	MyNcsHaSetAsMaster             bool     `json:"myNcsHaSetAsMaster"`
 	PingViaAnyDeviceSuccessful     bool     `json:"pingViaAnyDeviceSuccessful"`
@@ -54,10 +54,10 @@ type DirectorHAConfig struct {
 
 // DirectorHADetails encapsulates metadata for a Versa director's HA details
 type DirectorHADetails struct {
-	Enabled           bool `json:"enabled"`
-	DesignatedMaster  bool `json:"designatedMaster"`
 	PeerVnmsHaDetails []struct {
 	} `json:"peerVnmsHaDetails"`
+	Enabled            bool `json:"enabled"`
+	DesignatedMaster   bool `json:"designatedMaster"`
 	EnableHaInProgress bool `json:"enableHaInProgress"`
 }
 
@@ -152,24 +152,24 @@ type HAStatus struct {
 type Hardware struct {
 	Name                         string `json:"name"`
 	Model                        string `json:"model"`
-	CPUCores                     int    `json:"cpuCores"`
 	Memory                       string `json:"memory"`
 	FreeMemory                   string `json:"freeMemory"`
 	DiskSize                     string `json:"diskSize"`
 	FreeDisk                     string `json:"freeDisk"`
-	LPM                          bool   `json:"lpm"`
-	Fanless                      bool   `json:"fanless"`
-	IntelQuickAssistAcceleration bool   `json:"intelQuickAssistAcceleration"`
 	FirmwareVersion              string `json:"firmwareVersion"`
 	Manufacturer                 string `json:"manufacturer"`
 	SerialNo                     string `json:"serialNo"`
 	HardWareSerialNo             string `json:"hardWareSerialNo"`
 	CPUModel                     string `json:"cpuModel"`
+	PackageName                  string `json:"packageName"`
+	SKU                          string `json:"sku"`
+	CPUCores                     int    `json:"cpuCores"`
 	CPUCount                     int    `json:"cpuCount"`
 	CPULoad                      int    `json:"cpuLoad"`
 	InterfaceCount               int    `json:"interfaceCount"`
-	PackageName                  string `json:"packageName"`
-	SKU                          string `json:"sku"`
+	LPM                          bool   `json:"lpm"`
+	Fanless                      bool   `json:"fanless"`
+	IntelQuickAssistAcceleration bool   `json:"intelQuickAssistAcceleration"`
 	SSD                          bool   `json:"ssd"`
 }
 
@@ -245,22 +245,22 @@ type TenantConfig struct {
 	Parent                   string              `json:"parent"`
 	SubscriptionPlan         string              `json:"subscriptionPlan"`
 	Description              string              `json:"description"`
-	ID                       int                 `json:"id"`
 	AuthType                 string              `json:"authType"`
-	VsaBasicUsers            int                 `json:"vsaBasicUsers"`
-	VsaAdvancedUsers         int                 `json:"vsaAdvancedUsers"`
-	VsaBasicLicensePeriod    int                 `json:"vsaBasicLicensePeriod"`
-	VsaAdvancedLicensePeriod int                 `json:"vsaAdvancedLicensePeriod"`
 	CpeDeploymentType        string              `json:"cpeDeploymentType"`
 	Appliances               []ApplianceEntry    `json:"appliances"`
 	VrfsGroups               []VRFGroup          `json:"vrfsGroups"`
 	WanNetworkGroups         []WANNetworkGroup   `json:"wanNetworkGroups"`
-	PushCaConfig             bool                `json:"pushCaConfig"`
-	SharedControlPlane       bool                `json:"sharedControlPlane"`
 	DynamicTenantConfig      DynamicTenantConfig `json:"dynamicTenantConfig"`
-	BlockInterRegionRouting  bool                `json:"blockInterRegionRouting"`
 	ApplianceTags            []string            `json:"appliance-tags"`
 	Connectors               []string            `json:"connectors"`
+	ID                       int                 `json:"id"`
+	VsaBasicUsers            int                 `json:"vsaBasicUsers"`
+	VsaAdvancedUsers         int                 `json:"vsaAdvancedUsers"`
+	VsaBasicLicensePeriod    int                 `json:"vsaBasicLicensePeriod"`
+	VsaAdvancedLicensePeriod int                 `json:"vsaAdvancedLicensePeriod"`
+	PushCaConfig             bool                `json:"pushCaConfig"`
+	SharedControlPlane       bool                `json:"sharedControlPlane"`
+	BlockInterRegionRouting  bool                `json:"blockInterRegionRouting"`
 }
 
 // ApplianceEntry encapsulates metadata for an appliance entry in a tenant
@@ -310,16 +310,16 @@ type Organization struct {
 	UUID                    string   `json:"uuid"`
 	Name                    string   `json:"name"`
 	ParentOrg               string   `json:"paraentOrg"` // Keeping the JSON key as is, there's a typo in the API
-	Connectors              []string `json:"connectors"`
 	Plan                    string   `json:"plan"`
 	GlobalOrgID             string   `json:"globalOrgId"`
 	Description             string   `json:"description"`
-	SharedControlPlane      bool     `json:"sharedControlPlane"`
-	BlockInterRegionRouting bool     `json:"blockInterRegionRouting"`
 	CpeDeploymentType       string   `json:"cpeDeploymentType"`
 	AuthType                string   `json:"authType"`
-	ProviderOrg             bool     `json:"providerOrg"`
+	Connectors              []string `json:"connectors"`
 	Depth                   int      `json:"depth"`
+	SharedControlPlane      bool     `json:"sharedControlPlane"`
+	BlockInterRegionRouting bool     `json:"blockInterRegionRouting"`
+	ProviderOrg             bool     `json:"providerOrg"`
 	PushCaConfig            bool     `json:"pushCaConfig"`
 }
 

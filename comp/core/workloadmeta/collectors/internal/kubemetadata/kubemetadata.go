@@ -42,22 +42,22 @@ type dependencies struct {
 }
 
 type collector struct {
-	id                          string
+	lastUpdate                  time.Time
 	cfg                         config.Component
 	store                       workloadmeta.Component
-	catalog                     workloadmeta.AgentType
+	kubeUtil                    kubelet.KubeUtilInterface
+	dcaClient                   clusteragent.DCAClientInterface
 	seen                        map[workloadmeta.EntityID]struct{}
 	namespaceLastSeen           map[string]time.Time
-	kubeUtil                    kubelet.KubeUtilInterface
 	apiClient                   *apiserver.APIClient
-	dcaClient                   clusteragent.DCAClientInterface
-	dcaEnabled                  bool
+	streaming                   *streamingProvider
+	id                          string
 	updateFreq                  time.Duration
-	lastUpdate                  time.Time
+	catalog                     workloadmeta.AgentType
+	dcaEnabled                  bool
 	collectNamespaceLabels      bool
 	collectNamespaceAnnotations bool
 	ignoreServiceReadiness      bool
-	streaming                   *streamingProvider
 }
 
 // NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.

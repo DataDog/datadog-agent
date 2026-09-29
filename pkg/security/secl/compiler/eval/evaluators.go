@@ -22,18 +22,16 @@ type Evaluator interface {
 
 // BoolEvaluator returns a bool as result of the evaluation
 type BoolEvaluator struct {
-	EvalFnc     BoolEvalFnc
-	Field       Field
-	Value       bool
-	Weight      int
-	OpOverrides []*OpOverrides
-	Offset      int // position in the expression
-
-	// used during compilation of partial
-	isDeterministic bool
-
+	EvalFnc BoolEvalFnc
+	Field   Field
 	// track bitmask related value
 	originField Field
+	OpOverrides []*OpOverrides
+	Weight      int
+	Offset      int // position in the expression
+	Value       bool
+	// used during compilation of partial
+	isDeterministic bool
 }
 
 // Eval returns the result of the evaluation

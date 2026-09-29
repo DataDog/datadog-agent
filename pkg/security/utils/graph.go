@@ -31,8 +31,8 @@ type Edge struct {
 	From         GraphID
 	To           GraphID
 	Color        string
-	HasArrowHead bool
 	Label        string
+	HasArrowHead bool
 	IsTable      bool
 }
 

@@ -42,9 +42,8 @@ import (
 )
 
 type agentServer struct {
-	hostname hostnameinterface.Component
-
 	pb.UnimplementedAgentServer
+	hostname hostnameinterface.Component
 }
 
 type serverSecure struct {

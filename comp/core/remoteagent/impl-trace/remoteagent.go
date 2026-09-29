@@ -63,10 +63,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type remoteagentImpl struct {
-	log log.Component
-	ipc ipc.Component
-	cfg config.Component
-
-	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	log               log.Component
+	ipc               ipc.Component
+	cfg               config.Component
+	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 }

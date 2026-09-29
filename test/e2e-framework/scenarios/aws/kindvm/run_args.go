@@ -25,6 +25,11 @@ const csiDriverCommitSHA = "d91af776a15382b030035129e3b93dc8620d787e"
 
 // RunParams collects parameters for the Kind-on-VM scenario
 type RunParams struct {
+	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
+	// Distribution of OpenTelemetry) agent DaemonSet using raw Kubernetes
+	// resources instead of the Datadog Helm chart.
+	// See StandaloneDdotDeployFunc and WithStandaloneOTelAgent.
+	standaloneDdotFunc       StandaloneDdotDeployFunc
 	Name                     string
 	vmOptions                []ec2.VMOption
 	agentOptions             []kubernetesagentparams.Option
@@ -33,24 +38,15 @@ type RunParams struct {
 	preAgentWorkloadAppFuncs []kubecomp.WorkloadAppFunc
 	workloadAppFuncs         []kubecomp.WorkloadAppFunc
 	depWorkloadAppFuncs      []kubecomp.AgentDependentWorkloadAppFunc
-
+	operatorDDAOptions       []agentwithoperatorparams.Option
+	operatorOptions          []operatorparams.Option
+	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
+	// When empty the cluster uses the default single worker node.
+	workerNodes        []kubecomp.KindWorkerNode
 	deployOperator     bool
-	operatorDDAOptions []agentwithoperatorparams.Option
-	operatorOptions    []operatorparams.Option
 	deployDogstatsd    bool
 	deployTestWorkload bool
 	deployArgoRollout  bool
-
-	// standaloneDdotFunc, when non-nil, deploys a standalone DDOT (Datadog
-	// Distribution of OpenTelemetry) agent DaemonSet using raw Kubernetes
-	// resources instead of the Datadog Helm chart.
-	// See StandaloneDdotDeployFunc and WithStandaloneOTelAgent.
-	standaloneDdotFunc StandaloneDdotDeployFunc
-
-	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
-	// When empty the cluster uses the default single worker node.
-	workerNodes []kubecomp.KindWorkerNode
-
 	// mountDockerSocket bind-mounts /var/run/docker.sock from the EC2 host into
 	// each kind node, surfacing the host's dockerd inside the cluster.
 	mountDockerSocket bool

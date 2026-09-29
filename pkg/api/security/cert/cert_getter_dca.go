@@ -23,9 +23,9 @@ import (
 
 // clusterCAData holds the cluster CA configuration and certificate data
 type clusterCAData struct {
-	enableTLSVerification bool
-	caCert                *x509.Certificate
 	caPrivKey             any
+	caCert                *x509.Certificate
+	enableTLSVerification bool
 	isDCA                 bool
 	isCLC                 bool
 }

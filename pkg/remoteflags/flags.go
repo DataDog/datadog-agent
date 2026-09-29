@@ -100,23 +100,23 @@ type RemoteFlagSubscriber interface {
 
 // Flag represents a single flag with its name and value.
 type Flag struct {
-	Name    string    `json:"name"`
-	Enabled FlagValue `json:"enabled"`
+	Name string `json:"name"`
 	// ConfigurationField is the optional config key (e.g. "feature.x.enabled")
 	// the flag is bound to. When set and a ConfigSetter is configured, the
 	// client mirrors the flag value into pkg/config under SourceRC.
 	ConfigurationField string `json:"configuration_field,omitempty"`
-	// OverrideLocal controls whether the flag is allowed to overwrite a value
-	// already set by a user-provided source (file, env, fleet policies, CLI...).
-	// Defaults to false: local user configuration wins.
-	OverrideLocal bool `json:"override_local,omitempty"`
 	// Version is the sequence number of this flag value. The client only applies
 	// a flag whose Version is strictly greater than the last applied Version for
 	// that flag. A Version of 0 (omitted) is treated as unversioned and applied
 	// unconditionally.
-	Version                          int `json:"version,omitempty"`
-	HealthCheckDurationSeconds       int `json:"health_check_duration_seconds,omitempty"`
-	HealthCheckFailuresBeforeRecover int `json:"health_check_failures_before_recover,omitempty"`
+	Version                          int       `json:"version,omitempty"`
+	HealthCheckDurationSeconds       int       `json:"health_check_duration_seconds,omitempty"`
+	HealthCheckFailuresBeforeRecover int       `json:"health_check_failures_before_recover,omitempty"`
+	Enabled                          FlagValue `json:"enabled"`
+	// OverrideLocal controls whether the flag is allowed to overwrite a value
+	// already set by a user-provided source (file, env, fleet policies, CLI...).
+	// Defaults to false: local user configuration wins.
+	OverrideLocal bool `json:"override_local,omitempty"`
 }
 
 // HealthCheckDuration returns the duration for health monitoring.

@@ -488,9 +488,9 @@ func instanceMatchesIdentifier(instance map[string]any, identifier DBIdentifier,
 }
 
 type identifierMatchEvaluation struct {
-	matched            bool
 	strategy           string
 	renderedIdentifier string
+	matched            bool
 	renderable         bool
 }
 

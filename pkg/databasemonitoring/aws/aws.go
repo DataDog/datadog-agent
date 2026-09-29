@@ -19,11 +19,11 @@ type Instance struct {
 	ID           string
 	ClusterID    string
 	Endpoint     string
-	Port         int32
-	IamEnabled   bool
 	Engine       string
 	DbName       string
 	GlobalViewDb string
+	Port         int32
+	IamEnabled   bool
 	DbmEnabled   bool
 }
 

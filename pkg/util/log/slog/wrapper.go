@@ -27,12 +27,11 @@ const baseStackDepth = 4
 // Wrapper is a wrapper around the slog.Handler interface.
 // It implements the LoggerInterface interface.
 type Wrapper struct {
-	handler slog.Handler
-	closed  atomic.Bool
-	flush   func()
-	close   func()
-
+	handler         slog.Handler
+	flush           func()
+	close           func()
 	attrs           atomic.Pointer[[]slog.Attr]
+	closed          atomic.Bool
 	extraStackDepth atomic.Int32
 }
 

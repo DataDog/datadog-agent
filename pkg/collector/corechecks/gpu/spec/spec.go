@@ -260,10 +260,10 @@ type Specs struct {
 
 // ArchitectureCapabilities defines capabilities and unsupported fields.
 type ArchitectureCapabilities struct {
-	GPM                           bool                                `yaml:"gpm"`
-	NVLink                        int                                 `yaml:"nvlink"`
-	C2C                           bool                                `yaml:"c2c"`
 	UnsupportedFieldsByDeviceMode []UnsupportedFieldsByDeviceModeSpec `yaml:"unsupported_fields_by_device_mode"`
+	NVLink                        int                                 `yaml:"nvlink"`
+	GPM                           bool                                `yaml:"gpm"`
+	C2C                           bool                                `yaml:"c2c"`
 }
 
 // ArchitectureCapabilitiesOverride defines mode-specific capability overrides.

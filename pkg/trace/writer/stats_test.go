@@ -599,9 +599,9 @@ func TestContainerTagsBufferManyTracerPayload(t *testing.T) {
 
 type mockContainerTagsBuffer struct {
 	containertagsbuffer.NoOpTagsBuffer
-	enabled    bool
 	returnTags map[string][]string
 	returnErr  map[string]string
+	enabled    bool
 	pending    bool
 }
 

@@ -35,10 +35,10 @@ func (t redisTokenType) String() string {
 // sequences inside them.
 type redisTokenizer struct {
 	data  []byte
-	ch    byte
 	off   int
-	done  bool
 	state redisParseState
+	ch    byte
+	done  bool
 }
 
 // redisParseState specifies the current state of the tokenizer.

@@ -119,8 +119,8 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns   []ConnectionStats
 	USMData USMProtocolsData
+	Conns   []ConnectionStats
 }
 
 type lastStateTelemetry struct {

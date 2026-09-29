@@ -29,31 +29,28 @@ const (
 
 // ListenerConfig holds global configuration for SNMP discovery
 type ListenerConfig struct {
-	Workers                 int                        `mapstructure:"workers"`
-	DiscoveryInterval       int                        `mapstructure:"discovery_interval"`
-	AllowedFailures         int                        `mapstructure:"discovery_allowed_failures"`
-	Loader                  string                     `mapstructure:"loader"`
-	CollectDeviceMetadata   bool                       `mapstructure:"collect_device_metadata"`
-	CollectTopology         bool                       `mapstructure:"collect_topology"`
-	CollectVPN              bool                       `mapstructure:"collect_vpn"`
-	DeviceTagsSource        string                     `mapstructure:"device_tags_source"`
-	MinCollectionInterval   uint                       `mapstructure:"min_collection_interval"`
-	Namespace               string                     `mapstructure:"namespace"`
-	UseDeviceISAsHostname   bool                       `mapstructure:"use_device_id_as_hostname"`
-	PingConfig              snmpintegration.PingConfig `mapstructure:"ping"`
-	Deduplicate             bool                       `mapstructure:"use_deduplication"`
-	UseRemoteConfigProfiles bool                       `mapstructure:"use_remote_config_profiles"`
-	OidBatchSize            int                        `mapstructure:"oid_batch_size"`
-	Timeout                 int                        `mapstructure:"timeout"`
-	Retries                 int                        `mapstructure:"retries"`
-
-	// legacy
-	AllowedFailuresLegacy int `mapstructure:"allowed_failures"`
-
-	Configs []Config
-
+	PingConfig       snmpintegration.PingConfig `mapstructure:"ping"`
+	Loader           string                     `mapstructure:"loader"`
+	DeviceTagsSource string                     `mapstructure:"device_tags_source"`
+	Namespace        string                     `mapstructure:"namespace"`
+	Configs          []Config
 	// DON'T USE. This is only used to read the raw array from datadog.yaml
-	UnmarshalledConfigs []UnmarshalledConfig `mapstructure:"configs"`
+	UnmarshalledConfigs   []UnmarshalledConfig `mapstructure:"configs"`
+	Workers               int                  `mapstructure:"workers"`
+	DiscoveryInterval     int                  `mapstructure:"discovery_interval"`
+	AllowedFailures       int                  `mapstructure:"discovery_allowed_failures"`
+	MinCollectionInterval uint                 `mapstructure:"min_collection_interval"`
+	OidBatchSize          int                  `mapstructure:"oid_batch_size"`
+	Timeout               int                  `mapstructure:"timeout"`
+	Retries               int                  `mapstructure:"retries"`
+	// legacy
+	AllowedFailuresLegacy   int  `mapstructure:"allowed_failures"`
+	CollectDeviceMetadata   bool `mapstructure:"collect_device_metadata"`
+	CollectTopology         bool `mapstructure:"collect_topology"`
+	CollectVPN              bool `mapstructure:"collect_vpn"`
+	UseDeviceISAsHostname   bool `mapstructure:"use_device_id_as_hostname"`
+	Deduplicate             bool `mapstructure:"use_deduplication"`
+	UseRemoteConfigProfiles bool `mapstructure:"use_remote_config_profiles"`
 }
 
 // UnmarshalledConfig is used to read each item of the array in datadog.yaml
@@ -99,37 +96,36 @@ type UnmarshalledConfig struct {
 
 // Config holds configuration for a particular subnet
 type Config struct {
+	PingConfig         snmpintegration.PingConfig
+	IgnoredIPAddresses map[string]bool
+	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
+	InterfaceConfigs        map[string][]snmpintegration.InterfaceConfig
 	ADIdentifier            string
 	AuthKey                 string
 	AuthProtocol            string
-	Authentications         []Authentication
 	Community               string
 	ContextEngineID         string
 	ContextName             string
 	Loader                  string
-	MinCollectionInterval   uint
 	Namespace               string
 	Network                 string
-	OidBatchSize            int
-	Port                    uint16
 	PrivKey                 string
 	PrivProtocol            string
-	Retries                 int
-	Tags                    []string
-	Timeout                 int
 	User                    string
 	Version                 string
+	DeviceTagsSource        string
+	Authentications         []Authentication
+	Tags                    []string
+	MinCollectionInterval   uint
+	OidBatchSize            int
+	Retries                 int
+	Timeout                 int
+	Port                    uint16
 	CollectDeviceMetadata   bool
 	CollectTopology         bool
 	CollectVPN              bool
-	DeviceTagsSource        string
-	IgnoredIPAddresses      map[string]bool
 	UseDeviceIDAsHostname   bool
 	UseRemoteConfigProfiles bool
-	PingConfig              snmpintegration.PingConfig
-
-	// InterfaceConfigs is a map of IP to a list of snmpintegration.InterfaceConfig
-	InterfaceConfigs map[string][]snmpintegration.InterfaceConfig
 }
 
 // Authentication holds SNMP authentication data

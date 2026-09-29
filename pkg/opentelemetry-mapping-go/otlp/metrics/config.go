@@ -21,43 +21,35 @@ import (
 )
 
 type translatorConfig struct {
+	fallbackSourceProvider source.Provider
+	// customMapper allows overriding the default metric mapping behavior.
+	// If nil, the Translator uses itself as the mapper.
+	customMapper mapper
+	// statsOut is the channel where the translator will send its APM statsPayload bytes
+	statsOut chan<- []byte
 	// metrics export behavior
-	HistMode                             HistogramMode
+	HistMode                  HistogramMode
+	NumberMode                NumberMode
+	InitialCumulMonoValueMode InitialCumulMonoValueMode
+	// cache configuration
+	sweepInterval                        int64
+	deltaTTL                             int64
+	originProduct                        OriginProduct
 	SendHistogramAggregations            bool
 	Quantiles                            bool
-	NumberMode                           NumberMode
-	InitialCumulMonoValueMode            InitialCumulMonoValueMode
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 	InferDeltaInterval                   bool
-
-	originProduct OriginProduct
-
 	// withRemapping reports whether certain metrics that are only available when using
 	// the Datadog Agent should be obtained by remapping from OTEL counterparts (e.g.
 	// container.* and system.* metrics). This configuration also enables withOTelPrefix.
 	withRemapping bool
-
 	// withOTelPrefix reports whether some OpenTelemetry metrics (ex: host metrics) should be
 	// renamed with the `otel.` prefix. This prevents the Collector and Datadog
 	// Agent from computing metrics with the same names.
 	withOTelPrefix bool
-
 	// withRuntimeRemapping reports whether runtime metrics should be mapped to Datadog counterparts.
 	withRuntimeRemapping bool
-
-	// cache configuration
-	sweepInterval int64
-	deltaTTL      int64
-
-	fallbackSourceProvider source.Provider
-	// statsOut is the channel where the translator will send its APM statsPayload bytes
-	statsOut chan<- []byte
-
-	// customMapper allows overriding the default metric mapping behavior.
-	// If nil, the Translator uses itself as the mapper.
-	customMapper mapper
-
 	// withUnits reports whether to set Datadog units on metrics.
 	withUnits bool
 }

@@ -32,13 +32,13 @@ type checkInstance struct {
 // checkConfigData is the template context for the check config.
 type checkConfigData struct {
 	Channel               string
-	Instances             []checkInstance
-	AutoDiscoverQueues    bool
 	QueueRegex            string
+	Instances             []checkInstance
 	ExplicitQueues        []string
-	CollectResetQueue     bool
-	MinCollectionInterval int
 	MetricPatternsExclude []string
+	MinCollectionInterval int
+	AutoDiscoverQueues    bool
+	CollectResetQueue     bool
 }
 
 // renderCheckConfig expands the embedded template into an ibm_mq.d/conf.yaml with

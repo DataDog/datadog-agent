@@ -56,18 +56,18 @@ const (
 //nolint:revive
 type PythonCheck struct {
 	senderManager  sender.SenderManager
-	id             checkid.ID
-	version        string
 	instance       *C.rtloader_pyobject_t
 	class          *C.rtloader_pyobject_t
+	id             checkid.ID
+	version        string
 	ModuleName     string
-	interval       time.Duration
-	lastWarnings   []error
 	source         string
 	provider       string
-	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+	lastWarnings   []error
+	interval       time.Duration
+	telemetry      bool // whether or not the telemetry is enabled for this check
 	haSupported    bool
 	cancelled      bool
 }

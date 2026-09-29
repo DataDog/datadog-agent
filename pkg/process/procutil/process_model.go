@@ -29,29 +29,27 @@ const (
 
 // Process holds all relevant metadata and metrics for a process
 type Process struct {
-	Pid      int32
-	Ppid     int32
-	NsPid    int32 // process namespaced PID
-	Name     string
-	Cwd      string
-	Exe      string
-	Comm     string
-	Cmdline  []string
-	Username string // (Windows only)
-	Uids     []int32
-	Gids     []int32
-	Language *languagemodels.Language
-
+	Language       *languagemodels.Language
+	Stats          *Stats
+	Service        *Service
+	Name           string
+	Cwd            string
+	Exe            string
+	Comm           string
+	Username       string // (Windows only)
+	ContainerID    string
+	Cmdline        []string
+	Uids           []int32
+	Gids           []int32
+	TCPPorts       []uint16
+	UDPPorts       []uint16
+	InjectionState InjectionState // APM auto-injector detection status
+	Pid            int32
+	Ppid           int32
+	NsPid          int32 // process namespaced PID
 	// ports are stored on the process because they may/should be collected by default in the future
 	// however, currently this data is collected by service discovery collection
 	PortsCollected bool
-	TCPPorts       []uint16
-	UDPPorts       []uint16
-
-	Stats          *Stats
-	Service        *Service
-	InjectionState InjectionState // APM auto-injector detection status
-	ContainerID    string
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter

@@ -32,14 +32,13 @@ const (
 )
 
 type secureDarwinBookmarkStore struct {
+	fsync                 func(int) error
 	baseDirectory         string
 	directories           []string
 	managedDirectoryStart int
+	treeMu                sync.Mutex
 	expectedUID           uint32
-	fsync                 func(int) error
-
-	treeMu      sync.Mutex
-	treeDurable bool
+	treeDurable           bool
 }
 
 // newProductionDarwinBookmarkStore stores state below the canonical,

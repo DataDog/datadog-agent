@@ -89,14 +89,14 @@ type mutatePodExecFunc func(*corev1.PodExecOptions, string, string, *authenticat
 
 // WebhookForPods is the webhook that injects CWS pod instrumentation
 type WebhookForPods struct {
+	admissionFunc   admission.WebhookFunc
 	name            string
-	isEnabled       bool
 	endpoint        string
 	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	admissionFunc   admission.WebhookFunc
 	timeout         int32
+	isEnabled       bool
 }
 
 func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
@@ -169,14 +169,14 @@ func (w *WebhookForPods) WebhookFunc() admission.WebhookFunc {
 
 // WebhookForCommands is the webhook that injects CWS pods/exec instrumentation
 type WebhookForCommands struct {
+	admissionFunc   admission.WebhookFunc
 	name            string
-	isEnabled       bool
 	endpoint        string
 	resources       []common.WebhookResourceRule
 	operations      []admissionregistrationv1.OperationType
 	matchConditions []admissionregistrationv1.MatchCondition
-	admissionFunc   admission.WebhookFunc
 	timeout         int32
+	isEnabled       bool
 }
 
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {

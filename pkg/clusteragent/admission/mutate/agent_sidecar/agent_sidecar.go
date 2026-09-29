@@ -49,32 +49,31 @@ type Selector struct {
 
 // Webhook is the webhook that injects a Datadog Agent sidecar
 type Webhook struct {
-	name              string
-	isEnabled         bool
-	endpoint          string
-	resources         []common.WebhookResourceRule
-	operations        []admissionregistrationv1.OperationType
-	matchConditions   []admissionregistrationv1.MatchCondition
-	namespaceSelector *metav1.LabelSelector
-	objectSelector    *metav1.LabelSelector
-	containerRegistry string
-	caCertData        map[string]string
-
+	namespaceSelector       *metav1.LabelSelector
+	objectSelector          *metav1.LabelSelector
+	caCertData              map[string]string
+	name                    string
+	endpoint                string
+	containerRegistry       string
+	provider                string
+	imageName               string
+	imageTag                string
+	clusterAgentServiceName string
+	resources               []common.WebhookResourceRule
+	operations              []admissionregistrationv1.OperationType
+	matchConditions         []admissionregistrationv1.MatchCondition
 	// These fields store datadog agent config parameters
 	// to avoid calling the config resolution each time the webhook
 	// receives requests because the resolution is CPU expensive.
 	profileOverrides                 []ProfileOverride
-	provider                         string
-	imageName                        string
-	imageTag                         string
+	clusterAgentCmdPort              int
+	isEnabled                        bool
 	isLangDetectEnabled              bool
 	isLangDetectReportingEnabled     bool
 	isClusterAgentEnabled            bool
 	isKubeletAPILoggingEnabled       bool
 	isClusterAgentTLSEnabled         bool
 	isClusterAgentTLSCopyCAConfigMap bool
-	clusterAgentCmdPort              int
-	clusterAgentServiceName          string
 }
 
 // NewWebhook returns a new Webhook

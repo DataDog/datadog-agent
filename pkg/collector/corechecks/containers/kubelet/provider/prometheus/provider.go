@@ -67,10 +67,10 @@ type Provider struct {
 
 // ScraperConfig contains the configuration of the Prometheus scraper.
 type ScraperConfig struct {
-	Path string
-	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
-	AllowNotFound       bool
+	Path                string
 	TextFilterBlacklist []string
+	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
+	AllowNotFound bool
 	// ShouldDisable determines if a provider should be disabled when a 404 status code is encountered
 	ShouldDisable bool
 	IsDisabled    bool

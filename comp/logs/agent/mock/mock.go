@@ -38,11 +38,11 @@ func MockModule() fxutil.Module {
 }
 
 type mockLogsAgent struct {
-	isRunning       bool
-	addedSchedulers []schedulers.Scheduler
-	hasFlushed      bool
-	flushDelay      time.Duration
 	logSources      *sources.LogSources
+	addedSchedulers []schedulers.Scheduler
+	flushDelay      time.Duration
+	isRunning       bool
+	hasFlushed      bool
 }
 
 func newMock(deps Requires) option.Option[Mock] {

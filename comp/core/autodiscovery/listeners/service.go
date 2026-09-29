@@ -28,21 +28,21 @@ import (
 // workloadmeta.Store. Covers containers and kubernetes pods.
 type WorkloadService struct {
 	entity            workloadmeta.Entity
-	tagsHash          string
-	adIdentifiers     []string
-	hosts             map[string]string
-	ports             []workloadmeta.ContainerPort
-	pid               int
-	hostname          string
-	ready             bool
-	checkNames        []string
-	extraConfig       map[string]string
-	metricsExcluded   bool
-	logsExcluded      bool
 	tagger            tagger.Component
 	wmeta             workloadmeta.Component
-	imageName         string
+	hosts             map[string]string
+	extraConfig       map[string]string
 	staticConfigIndex *StaticConfigIndex
+	tagsHash          string
+	hostname          string
+	imageName         string
+	adIdentifiers     []string
+	ports             []workloadmeta.ContainerPort
+	checkNames        []string
+	pid               int
+	ready             bool
+	metricsExcluded   bool
+	logsExcluded      bool
 }
 
 var _ Service = &WorkloadService{}

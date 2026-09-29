@@ -24,16 +24,14 @@ import (
 // workloadmetaReflector is a reflector that uses workloadmeta as the data source
 // for pod information
 type workloadmetaReflector struct {
-	namespaces         []string
-	watchAllNamespaces bool
-	wmeta              workloadmeta.Component
-
+	wmeta      workloadmeta.Component
+	namespaces []string
 	// Having an array of stores allows us to have a single reflector for all
 	// the collectors configured (by default it's the pods one plus
 	// "pods_extended")
-	stores []cache.Store
-
-	started bool
+	stores             []cache.Store
+	watchAllNamespaces bool
+	started            bool
 }
 
 func newWorkloadmetaReflector(wmeta workloadmeta.Component, namespaces []string) (workloadmetaReflector, error) {

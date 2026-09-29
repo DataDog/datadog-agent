@@ -70,18 +70,16 @@ var (
 // Note that not all params are present for all sub-subcommands.
 type cliParams struct {
 	*command.GlobalParams
-
+	logLevelDefaultOff command.LogLevelDefaultOff
 	// args are the positional command-line arguments
-	args []string
-
-	allowRoot                 bool
+	args                      []string
 	verbose                   int
+	allowRoot                 bool
 	useSysPython              bool
 	versionOnly               bool
 	localWheel                bool
 	thirdParty                bool
 	unsafeDisableVerification bool
-	logLevelDefaultOff        command.LogLevelDefaultOff
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.

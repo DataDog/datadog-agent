@@ -31,10 +31,10 @@ import (
 )
 
 type cliParams struct {
+	statusFilePath  string
 	args            []string
 	jsonStatus      bool
 	prettyPrintJSON bool
-	statusFilePath  string
 	list            bool
 }
 

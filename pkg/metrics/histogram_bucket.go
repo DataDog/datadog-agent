@@ -13,17 +13,17 @@ import (
 // HistogramBucket represents a prometheus/openmetrics histogram bucket
 type HistogramBucket struct {
 	Name            string
+	Host            string
+	Tags            []string
 	Value           int64
 	LowerBound      float64
 	UpperBound      float64
-	Monotonic       bool
-	Tags            []string
-	Host            string
 	Timestamp       float64
+	Source          MetricSource
+	Monotonic       bool
 	FlushFirstValue bool
 	// MultipleBuckets tells check sampler to expect more buckets for the given context.
 	MultipleBuckets bool
-	Source          MetricSource
 }
 
 // Implement the MetricSampleContext interface

@@ -42,11 +42,6 @@ const (
 
 // Config defines configuration for processor.
 type Config struct {
-	// Cardinality controls which tag cardinality is enriched onto the signal.
-	// Accepted values: 0 = low (host-level, default), 1 = orchestrator
-	// (per-pod/task), 2 = high (per-container/request).
-	Cardinality           types.TagCardinality `mapstructure:"cardinality"`
-	AllowHostnameOverride bool                 `mapstructure:"allow_hostname_override"`
 	// TraceContainerTagPromotion controls how tags emitted by this processor are
 	// surfaced for promotion into Datadog container tags. See the
 	// ContainerTagPromotionMode constants for the supported values.
@@ -58,7 +53,11 @@ type Config struct {
 	// and profiles processors always behave as if this were "off",
 	// regardless of the configured value.
 	TraceContainerTagPromotion ContainerTagPromotionMode `mapstructure:"trace_container_tag_promotion"`
-
+	// Cardinality controls which tag cardinality is enriched onto the signal.
+	// Accepted values: 0 = low (host-level, default), 1 = orchestrator
+	// (per-pod/task), 2 = high (per-container/request).
+	Cardinality           types.TagCardinality `mapstructure:"cardinality"`
+	AllowHostnameOverride bool                 `mapstructure:"allow_hostname_override"`
 	// LogsTagsAsDDTags controls whether custom tags emitted by the tagger
 	// (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are
 	// written as a `ddtags` log record attribute -- which the Datadog logs
@@ -73,7 +72,6 @@ type Config struct {
 	//
 	// This only affects the logs pipeline.
 	LogsTagsAsDDTags bool `mapstructure:"logs_tags_as_ddtags"`
-
 	// MetricsAttributesAsTags controls whether custom tags emitted by the tagger
 	// (e.g. via kubernetesResourcesLabelsAsTags / AnnotationsAsTags) are promoted
 	// so they survive the metrics translator's allowlist and become metric tags.

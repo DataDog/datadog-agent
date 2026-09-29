@@ -36,16 +36,14 @@ type dependencies struct {
 }
 
 type collector struct {
-	id      string
-	cfg     config.Component
-	store   workloadmeta.Component
-	seen    map[workloadmeta.EntityID]struct{}
-	catalog workloadmeta.AgentType
-
+	cfg        config.Component
+	store      workloadmeta.Component
 	gardenUtil cloudfoundry.GardenUtilInterface
-	nodeName   string
-
 	dcaClient  clusteragent.DCAClientInterface
+	seen       map[workloadmeta.EntityID]struct{}
+	id         string
+	nodeName   string
+	catalog    workloadmeta.AgentType
 	dcaEnabled bool
 }
 

@@ -17,8 +17,8 @@ type EnrollmentData struct {
 
 // EnrollmentOptions represents options for the enrollment process
 type EnrollmentOptions struct {
-	EnrollOnly   bool   // Enrolls and exits (replaces --enroll-and-print-config)
 	ResultFormat string // Output format: "config", "helm-values", "env" (default: "config")
 	ResultOutput string // File path to save enrollment result (default: stdout)
+	EnrollOnly   bool   // Enrolls and exits (replaces --enroll-and-print-config)
 	UseAPIKey    bool   // Use API key authentication instead of enrollment token
 }

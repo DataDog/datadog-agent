@@ -37,10 +37,10 @@ type engineEvent struct {
 // baselineCompletedEvent carries an immutable mute-union snapshot when the
 // completion changed it. Event consumers must not mutate mutedHashes.
 type baselineCompletedEvent struct {
-	detectorName    string
 	mutedHashes     map[uint64]struct{}
-	snapshotChanged bool
+	detectorName    string
 	mutedRefs       []observerdef.SeriesRef
+	snapshotChanged bool
 	allComplete     bool
 }
 

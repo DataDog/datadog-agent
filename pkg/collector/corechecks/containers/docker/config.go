@@ -17,28 +17,25 @@ const (
 
 // DockerConfig holds the docker check configuration
 type DockerConfig struct {
-	CollectContainerSize     bool               `yaml:"collect_container_size"`
-	CollectContainerSizeFreq uint64             `yaml:"collect_container_size_frequency"`
-	CollectExitCodes         bool               `yaml:"collect_exit_codes"`
-	OkExitCodes              []int              `yaml:"ok_exit_codes"`
-	CollectImagesStats       bool               `yaml:"collect_images_stats"`
-	CollectImageSize         bool               `yaml:"collect_image_size"`
-	CollectDiskStats         bool               `yaml:"collect_disk_stats"`
-	CollectVolumeCount       bool               `yaml:"collect_volume_count"`
-	Tags                     []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
-	CappedMetrics            map[string]float64 `yaml:"capped_metrics"`
-
+	CappedMetrics map[string]float64 `yaml:"capped_metrics"`
+	OkExitCodes   []int              `yaml:"ok_exit_codes"`
+	Tags          []string           `yaml:"tags"` // Used only by the configuration converter v5 → v6
+	// FilteredEventTypes is a slice of docker event types that works as a
+	// deny list of events to filter out.
+	FilteredEventType []string `yaml:"filtered_event_types"`
+	// CollectedEventTypes is a slice of docker event types to collect.
+	CollectedEventTypes      []string `yaml:"collected_event_types"`
+	CollectContainerSizeFreq uint64   `yaml:"collect_container_size_frequency"`
+	CollectContainerSize     bool     `yaml:"collect_container_size"`
+	CollectExitCodes         bool     `yaml:"collect_exit_codes"`
+	CollectImagesStats       bool     `yaml:"collect_images_stats"`
+	CollectImageSize         bool     `yaml:"collect_image_size"`
+	CollectDiskStats         bool     `yaml:"collect_disk_stats"`
+	CollectVolumeCount       bool     `yaml:"collect_volume_count"`
 	// Event collection configuration
 	CollectEvent            bool `yaml:"collect_events"`
 	UnbundleEvents          bool `yaml:"unbundle_events"`
 	BundleUnspecifiedEvents bool `yaml:"bundle_unspecified_events"`
-
-	// FilteredEventTypes is a slice of docker event types that works as a
-	// deny list of events to filter out.
-	FilteredEventType []string `yaml:"filtered_event_types"`
-
-	// CollectedEventTypes is a slice of docker event types to collect.
-	CollectedEventTypes []string `yaml:"collected_event_types"`
 }
 
 // Parse reads the docker check configuration

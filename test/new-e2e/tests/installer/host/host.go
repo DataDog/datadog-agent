@@ -896,15 +896,15 @@ type ProcessesUnitInfo struct {
 
 // FileInfo struct mimics os.FileInfo
 type FileInfo struct {
-	Name      string
-	Size      int64
-	Perms     fs.FileMode
 	ModTime   time.Time
-	IsDir     bool
-	IsSymlink bool
+	Name      string
 	Link      string
 	User      string
 	Group     string
+	Size      int64
+	Perms     fs.FileMode
+	IsDir     bool
+	IsSymlink bool
 }
 
 // State is the state of a remote host.

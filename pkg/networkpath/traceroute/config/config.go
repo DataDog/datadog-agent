@@ -18,31 +18,31 @@ type Config struct {
 	// TODO: add common configuration
 	// Destination Hostname
 	DestHostname string
-	// Destination Port number
-	DestPort uint16
 	// Destination service name
 	DestinationService string
 	// Source service name
 	SourceService string
 	// Source container ID
 	SourceContainerID string
-	// Max number of hops to try
-	MaxTTL uint8
-	// Timeout for each hop
-	Timeout time.Duration
 	// Protocol is the protocol to use
 	// for traceroute, default is UDP
 	Protocol payload.Protocol
 	// TCPMethod is the method used to run a TCP traceroute.
 	TCPMethod payload.TCPMethod
-	// TCPSynParisTracerouteMode makes TCP SYN act like paris traceroute (fixed packet ID, randomized seq)
-	TCPSynParisTracerouteMode bool
-	// ReverseDNS enrich IPs with reverse DNS
-	ReverseDNS bool
+	// Timeout for each hop
+	Timeout time.Duration
 	// TracerouteQueries is the number of traceroute queries to perform
 	TracerouteQueries int
 	// E2eQueries is the number of end-to-end queries to perform
 	E2eQueries int
+	// Destination Port number
+	DestPort uint16
+	// Max number of hops to try
+	MaxTTL uint8
+	// TCPSynParisTracerouteMode makes TCP SYN act like paris traceroute (fixed packet ID, randomized seq)
+	TCPSynParisTracerouteMode bool
+	// ReverseDNS enrich IPs with reverse DNS
+	ReverseDNS bool
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
 	DisableWindowsDriver bool
 	// DisableSourcePublicIPCollection disables collection of the source public IP address

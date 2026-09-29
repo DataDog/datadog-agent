@@ -129,34 +129,34 @@ type testbenchView interface {
 
 // BaselineInfo is the baseline analysis window state exposed to the testbench UI.
 type BaselineInfo struct {
-	Enabled            bool                                       `json:"enabled"`
-	DurationSec        int64                                      `json:"durationSec"`
-	MuteNoisyMetrics   bool                                       `json:"muteNoisyMetrics"`
-	Started            bool                                       `json:"started"`
-	StartSec           int64                                      `json:"startSec"`
-	AnalyzedThroughSec int64                                      `json:"analyzedThroughSec,omitempty"`
-	AllComplete        bool                                       `json:"allComplete"`
-	MutedCount         int                                        `json:"mutedCount"`
-	Active             bool                                       `json:"active"`
-	WindowEndSec       int64                                      `json:"windowEndSec,omitempty"`
 	MutedSeries        []string                                   `json:"mutedSeries,omitempty"`
 	Detectors          []observerimpl.BaselineDetectorDebugStatus `json:"detectors,omitempty"`
+	DurationSec        int64                                      `json:"durationSec"`
+	StartSec           int64                                      `json:"startSec"`
+	AnalyzedThroughSec int64                                      `json:"analyzedThroughSec,omitempty"`
+	MutedCount         int                                        `json:"mutedCount"`
+	WindowEndSec       int64                                      `json:"windowEndSec,omitempty"`
+	Enabled            bool                                       `json:"enabled"`
+	MuteNoisyMetrics   bool                                       `json:"muteNoisyMetrics"`
+	Started            bool                                       `json:"started"`
+	AllComplete        bool                                       `json:"allComplete"`
+	Active             bool                                       `json:"active"`
 }
 
 // StatusResponse is the response for /api/status.
 type StatusResponse struct {
-	Ready                 bool          `json:"ready"`
+	ScenarioStart         *int64        `json:"scenarioStart,omitempty"`
+	ScenarioEnd           *int64        `json:"scenarioEnd,omitempty"`
+	EpisodeInfo           *EpisodeInfo  `json:"episodeInfo,omitempty"`
+	Baseline              *BaselineInfo `json:"baseline,omitempty"`
 	Scenario              string        `json:"scenario,omitempty"`
+	ServerConfig          ServerConfig  `json:"serverConfig"`
 	SeriesCount           int           `json:"seriesCount"`
 	AnomalyCount          int           `json:"anomalyCount"`
 	LogAnomalyCount       int           `json:"logAnomalyCount"`
 	ComponentCount        int           `json:"componentCount"`
+	Ready                 bool          `json:"ready"`
 	CorrelatorsProcessing bool          `json:"correlatorsProcessing"`
-	ScenarioStart         *int64        `json:"scenarioStart,omitempty"`
-	ScenarioEnd           *int64        `json:"scenarioEnd,omitempty"`
-	EpisodeInfo           *EpisodeInfo  `json:"episodeInfo,omitempty"`
-	ServerConfig          ServerConfig  `json:"serverConfig"`
-	Baseline              *BaselineInfo `json:"baseline,omitempty"`
 }
 
 // ServerConfig exposes server-side configuration to the UI.

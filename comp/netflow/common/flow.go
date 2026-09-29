@@ -9,71 +9,57 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
-	flowmessage "github.com/netsampler/goflow2/pb"
 	"hash/fnv"
+
+	flowmessage "github.com/netsampler/goflow2/pb"
 )
 
 // Flow contains flow info used for aggregation
 // json annotations are used in AsJSONString() for debugging purpose
 type Flow struct {
-	Namespace    string
-	FlowType     FlowType
-	SequenceNum  uint32
-	SamplingRate uint64
-	Direction    uint32
-
+	// Configured fields
+	AdditionalFields AdditionalFields
+	Namespace        string
+	FlowType         FlowType
+	// Reverse DNS enrichment added during Flow aggregation processing
+	SrcReverseDNSHostname string
+	DstReverseDNSHostname string
 	// Exporter information
 	ExporterAddr []byte
-
+	// Source/destination addresses
+	SrcAddr      []byte // FLOW KEY
+	DstAddr      []byte // FLOW KEY
+	NextHop      []byte // FLOW KEY
+	SamplingRate uint64
 	// Flow time
 	StartTimestamp uint64 // in seconds
 	EndTimestamp   uint64 // in seconds
-
 	// Size of the sampled packet
 	Bytes   uint64
 	Packets uint64
-
-	// Source/destination addresses
-	SrcAddr []byte // FLOW KEY
-	DstAddr []byte // FLOW KEY
-
+	// Mac Address
+	SrcMac      uint64
+	DstMac      uint64
+	SequenceNum uint32
+	Direction   uint32
 	// Layer 3 protocol (IPv4/IPv6/ARP/MPLS...)
 	EtherType uint32
-
 	// Layer 4 protocol
 	IPProtocol uint32 // FLOW KEY
-
 	// Flags
 	TCPFlags uint32 `json:"tcp_flags"`
-
 	// Ports for UDP and TCP
 	// Port number can be zero/positive or `-1` (ephemeral port)
 	SrcPort int32 // FLOW KEY
 	DstPort int32 // FLOW KEY
-
 	// SNMP Interface Index
 	InputInterface  uint32 // FLOW KEY
 	OutputInterface uint32
-
-	// Mac Address
-	SrcMac uint64
-	DstMac uint64
-
 	// Mask
 	SrcMask uint32
 	DstMask uint32
-
-	// Reverse DNS enrichment added during Flow aggregation processing
-	SrcReverseDNSHostname string
-	DstReverseDNSHostname string
-
 	// Ethernet information
 	Tos uint32 // FLOW KEY
-
-	NextHop []byte // FLOW KEY
-
-	// Configured fields
-	AdditionalFields AdditionalFields
 }
 
 // AdditionalFields holds additional fields collected

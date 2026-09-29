@@ -85,22 +85,22 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles              profile.ProfileConfigMap          `yaml:"profiles"`
-	UseRCProfiles         Boolean                           `yaml:"use_remote_config_profiles"`
+	PingConfig snmpintegration.PackedPingConfig `yaml:"ping"`
+	Profiles   profile.ProfileConfigMap         `yaml:"profiles"`
+	// DeviceTagsSource controls where the device tags on metrics come from: the backend
+	// enrichment (`resource`, default), the Agent (`agent`), or both.
+	DeviceTagsSource      string                            `yaml:"device_tags_source"`
+	Namespace             string                            `yaml:"namespace"`
+	Loader                string                            `yaml:"loader"`
 	GlobalMetrics         []profiledefinition.MetricsConfig `yaml:"global_metrics"`
 	OidBatchSize          Number                            `yaml:"oid_batch_size"`
 	BulkMaxRepetitions    Number                            `yaml:"bulk_max_repetitions"`
+	MinCollectionInterval int                               `yaml:"min_collection_interval"`
+	UseRCProfiles         Boolean                           `yaml:"use_remote_config_profiles"`
 	CollectDeviceMetadata Boolean                           `yaml:"collect_device_metadata"`
 	CollectTopology       Boolean                           `yaml:"collect_topology"`
 	CollectVPN            Boolean                           `yaml:"collect_vpn"`
 	UseDeviceIDAsHostname Boolean                           `yaml:"use_device_id_as_hostname"`
-	// DeviceTagsSource controls where the device tags on metrics come from: the backend
-	// enrichment (`resource`, default), the Agent (`agent`), or both.
-	DeviceTagsSource      string                           `yaml:"device_tags_source"`
-	MinCollectionInterval int                              `yaml:"min_collection_interval"`
-	Namespace             string                           `yaml:"namespace"`
-	PingConfig            snmpintegration.PackedPingConfig `yaml:"ping"`
-	Loader                string                           `yaml:"loader"`
 }
 
 // InstanceConfig is used to deserialize integration instance config

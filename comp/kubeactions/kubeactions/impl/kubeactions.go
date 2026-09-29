@@ -26,14 +26,13 @@ import (
 
 // Requires defines the dependencies for the kubeactions component.
 type Requires struct {
-	Lifecycle compdef.Lifecycle
-
+	Params        kubeactions.Params
+	Lifecycle     compdef.Lifecycle
 	Log           log.Component
 	Config        config.Component
 	Hostname      hostnameinterface.Component
-	APIClient     *apiserver.APIClient
 	EventPlatform eventplatform.Component
-	Params        kubeactions.Params
+	APIClient     *apiserver.APIClient
 }
 
 // Provides defines the output of the kubeactions component.

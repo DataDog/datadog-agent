@@ -69,17 +69,15 @@ type InitConfig struct {
 
 // SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
 type SSHConfig struct {
-	// General configurations for SSH connections
-	Timeout time.Duration `yaml:"timeout"` // Timeout specifies max amount of time for the SSH client to allow the TCP connection to establish
-
 	// For host key verification (verify identity of remote server/host)
-	KnownHostsPath     string `yaml:"known_hosts_path"`     // KnownHostsPath is the location that contains public keys to servers and verify identity of servers we connect to
-	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"` // InsecureSkipVerify is a boolean for development/testing purposes to skip host key validation (insecure)
-
+	KnownHostsPath string `yaml:"known_hosts_path"` // KnownHostsPath is the location that contains public keys to servers and verify identity of servers we connect to
 	// SSH-specific encryption algorithms to use with a device for establishing/securing a connection
 	Ciphers           []string `yaml:"ciphers"`
 	KeyExchanges      []string `yaml:"key_exchanges"`
 	HostKeyAlgorithms []string `yaml:"host_key_algorithms"`
+	// General configurations for SSH connections
+	Timeout            time.Duration `yaml:"timeout"`              // Timeout specifies max amount of time for the SSH client to allow the TCP connection to establish
+	InsecureSkipVerify bool          `yaml:"insecure_skip_verify"` // InsecureSkipVerify is a boolean for development/testing purposes to skip host key validation (insecure)
 	// Allow weak/legacy algorithms (from above) be used for older devices that do not support recommended algorithms (insecure)
 	AllowLegacyAlgorithms bool `yaml:"allow_legacy_algorithms"`
 }

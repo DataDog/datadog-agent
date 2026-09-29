@@ -86,28 +86,25 @@ var (
 
 // KubeASConfig is the config of the API server.
 type KubeASConfig struct {
-	CollectOShiftQuotas bool `yaml:"collect_openshift_clusterquotas"`
-	LeaderSkip          bool `yaml:"skip_leader_election"`
-	UseComponentStatus  bool `yaml:"use_component_status"`
-
-	// Event collection configuration
-	CollectEvent              bool   `yaml:"collect_events"`
-	MaxEventCollection        int    `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
-	EventCollectionTimeoutMs  int    `yaml:"kubernetes_event_read_timeout_ms"`
-	ResyncPeriodEvents        int    `yaml:"kubernetes_event_resync_period_s"`
-	UnbundleEvents            bool   `yaml:"unbundle_events"`
-	BundleUnspecifiedEvents   bool   `yaml:"bundle_unspecified_events"`
-	EventCollectionMode       string `yaml:"event_collection_mode"` // "poll" (default) or "watch"
-	EventCollectionBufferSize int    `yaml:"event_collection_buffer_size"`
-
+	EventCollectionMode string `yaml:"event_collection_mode"` // "poll" (default) or "watch"
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
 	FilteredEventTypes []string `yaml:"filtered_event_types"`
-
 	// CollectedEventTypes specifies which events to collect.
 	// Only effective when UnbundleEvents = true
-	CollectedEventTypes []collectedEventType `yaml:"collected_event_types"`
-	FilteringEnabled    bool                 `yaml:"filtering_enabled"`
+	CollectedEventTypes       []collectedEventType `yaml:"collected_event_types"`
+	MaxEventCollection        int                  `yaml:"max_events_per_run"` // legacy path only; new path drains the full buffer each run
+	EventCollectionTimeoutMs  int                  `yaml:"kubernetes_event_read_timeout_ms"`
+	ResyncPeriodEvents        int                  `yaml:"kubernetes_event_resync_period_s"`
+	EventCollectionBufferSize int                  `yaml:"event_collection_buffer_size"`
+	CollectOShiftQuotas       bool                 `yaml:"collect_openshift_clusterquotas"`
+	LeaderSkip                bool                 `yaml:"skip_leader_election"`
+	UseComponentStatus        bool                 `yaml:"use_component_status"`
+	// Event collection configuration
+	CollectEvent            bool `yaml:"collect_events"`
+	UnbundleEvents          bool `yaml:"unbundle_events"`
+	BundleUnspecifiedEvents bool `yaml:"bundle_unspecified_events"`
+	FilteringEnabled        bool `yaml:"filtering_enabled"`
 }
 
 type collectedEventType struct {

@@ -17,33 +17,30 @@ import (
 
 // NetflowConfig contains configuration for NetFlow collector.
 type NetflowConfig struct {
-	Enabled                       bool             `mapstructure:"enabled"`
+	PrometheusListenerAddress     string           `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
 	Listeners                     []ListenerConfig `mapstructure:"listeners"`
 	StopTimeout                   int              `mapstructure:"stop_timeout"`
 	AggregatorBufferSize          int              `mapstructure:"aggregator_buffer_size"`
 	AggregatorFlushInterval       int              `mapstructure:"aggregator_flush_interval"`
 	AggregatorFlowContextTTL      int              `mapstructure:"aggregator_flow_context_ttl"`
 	AggregatorPortRollupThreshold int              `mapstructure:"aggregator_port_rollup_threshold"`
-	AggregatorPortRollupDisabled  bool             `mapstructure:"aggregator_port_rollup_disabled"`
 	AggregatorMaxFlowsPerPeriod   int              `mapstructure:"aggregator_max_flows_per_flush_interval"`
-
 	// AggregatorRollupTrackerRefreshInterval is useful to speed up testing to avoid wait for 1h default
 	AggregatorRollupTrackerRefreshInterval uint `mapstructure:"aggregator_rollup_tracker_refresh_interval"`
-
-	PrometheusListenerAddress string `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
-	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
-
-	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
+	Enabled                                bool `mapstructure:"enabled"`
+	AggregatorPortRollupDisabled           bool `mapstructure:"aggregator_port_rollup_disabled"`
+	PrometheusListenerEnabled              bool `mapstructure:"prometheus_listener_enabled"`
+	ReverseDNSEnrichmentEnabled            bool `mapstructure:"reverse_dns_enrichment_enabled"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
 type ListenerConfig struct {
 	FlowType            common.FlowType `mapstructure:"flow_type"`
-	Port                uint16          `mapstructure:"port"`
 	BindHost            string          `mapstructure:"bind_host"`
-	Workers             int             `mapstructure:"workers"`
 	Namespace           string          `mapstructure:"namespace"`
 	Mapping             []Mapping       `mapstructure:"mapping"`
+	Workers             int             `mapstructure:"workers"`
+	Port                uint16          `mapstructure:"port"`
 	EnableBiflowParsing bool            `mapstructure:"enable_biflow_parsing"`
 }
 

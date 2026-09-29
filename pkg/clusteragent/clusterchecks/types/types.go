@@ -106,19 +106,18 @@ type ConfigWithInstanceIDs struct {
 
 // Stats holds statistics for the agent status command
 type Stats struct {
-	// Following
-	Follower bool
-	LeaderIP string
-
-	// Leading
-	Leader            bool
-	Active            bool
+	CheckNames        map[string]struct{}
+	LeaderIP          string
 	NodeCount         int
 	ActiveConfigs     int
 	DanglingConfigs   int
 	UnscheduledChecks int
 	TotalConfigs      int
-	CheckNames        map[string]struct{}
+	// Following
+	Follower bool
+	// Leading
+	Leader bool
+	Active bool
 }
 
 // LeaderIPCallback describes the leader-election method we

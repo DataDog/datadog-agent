@@ -37,23 +37,23 @@ type domainForwarder struct {
 	log                     log.Component
 	secrets                 secrets.Component
 	isRetrying              *atomic.Bool
-	domain                  string
-	isMRF                   bool
-	isLocal                 bool
-	numberOfWorkers         int
 	highPrio                chan transaction.Transaction // use to receive new transactions
 	lowPrio                 chan transaction.Transaction // use to retry transactions
 	requeuedTransaction     chan transaction.Transaction
 	stopRetry               chan bool
 	stopConnectionReset     chan bool
 	Client                  *SharedConnection
-	workers                 []*Worker
 	retryQueue              *retry.TransactionRetryQueue
-	connectionResetInterval time.Duration
-	internalState           uint32
-	m                       sync.Mutex // To control Start/Stop races
 	blockedList             *blockedEndpoints
 	pointCountTelemetry     *retry.PointCountTelemetry
+	domain                  string
+	workers                 []*Worker
+	numberOfWorkers         int
+	connectionResetInterval time.Duration
+	m                       sync.Mutex // To control Start/Stop races
+	internalState           uint32
+	isMRF                   bool
+	isLocal                 bool
 }
 
 func newDomainForwarder(

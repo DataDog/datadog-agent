@@ -38,14 +38,14 @@ const (
 
 // mockSidecarPattern implements appsecconfig.SidecarInjectionPattern for testing
 type mockSidecarPattern struct {
-	matchExpression     string
-	podEligible         bool
-	injectSidecar       bool
 	injectSidecarErr    error
+	matchExpression     string
+	sidecarImage        string
 	mutatePodCallCount  int
 	podDeletedCallCount int
-	sidecarImage        string
 	sidecarPort         int32
+	podEligible         bool
+	injectSidecar       bool
 }
 
 func (m *mockSidecarPattern) Mode() appsecconfig.InjectionMode {
@@ -156,14 +156,14 @@ func newGatewayPod(name, namespace, gatewayClassName string) *corev1.Pod {
 // maps to the expected pod mutation for appsec sidecar injection.
 func TestAppsecWebhookIntegration(t *testing.T) {
 	type expected struct {
-		// sidecarInjected indicates whether a sidecar container should be present
-		sidecarInjected bool
 		// sidecarImage is the expected image of the sidecar container
 		sidecarImage string
-		// sidecarPort is the expected port of the sidecar container
-		sidecarPort int32
 		// containerCount is the expected number of containers after mutation
 		containerCount int
+		// sidecarPort is the expected port of the sidecar container
+		sidecarPort int32
+		// sidecarInjected indicates whether a sidecar container should be present
+		sidecarInjected bool
 		// mutatePodCalled indicates MutatePod should have been called
 		mutatePodCalled bool
 	}

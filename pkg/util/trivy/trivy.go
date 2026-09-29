@@ -53,8 +53,8 @@ const (
 // collectorConfig allows to pass configuration
 type collectorConfig struct {
 	cacheDir            string
-	clearCacheOnClose   bool
 	maxCacheSize        int
+	clearCacheOnClose   bool
 	computeDependencies bool
 	simplifyBomRefs     bool
 }

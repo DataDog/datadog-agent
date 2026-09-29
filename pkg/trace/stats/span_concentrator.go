@@ -22,14 +22,8 @@ import (
 
 // SpanConcentratorConfig exposes configuration options for a SpanConcentrator
 type SpanConcentratorConfig struct {
-	// ComputeStatsBySpanKind enables/disables the computing of stats based on a span's `span.kind` field
-	ComputeStatsBySpanKind bool
 	// BucketInterval the size of our pre-aggregation per bucket
 	BucketInterval int64
-
-	// The fields below are tracer-only controls (dd-trace-go imports this package and sets them).
-	// The Agent intentionally leaves them all at zero so all cardinality caps are no-ops in the Agent.
-
 	// AdditionalMetricTagsCardinalityLimit caps distinct additional_metric_tags entries per bucket. 0 = no cap.
 	AdditionalMetricTagsCardinalityLimit int
 	// ResourceCardinalityLimit caps distinct resource values per bucket. 0 = no cap.
@@ -43,13 +37,14 @@ type SpanConcentratorConfig struct {
 	// WholeKeyCardinalityLimit caps the total distinct BucketsAggregationKeys per bucket. 0 = no cap.
 	// This is the backstop that guarantees a hard memory bound regardless of which field causes explosion.
 	WholeKeyCardinalityLimit int
-
-	// ObfuscationEnabled signals that the tracer is performing obfuscation/normalization.
-	// When true, string length caps (service ≤ 100, name ≤ 100, type ≤ 100, resource ≤ ResourceMaxBytes) are applied.
-	ObfuscationEnabled bool
 	// ResourceMaxBytes is the max byte length for resource strings when ObfuscationEnabled is true.
 	// Defaults to 5000; tracers should set to 15000 when the agent /info endpoint advertises the big_resource feature flag.
 	ResourceMaxBytes int
+	// ComputeStatsBySpanKind enables/disables the computing of stats based on a span's `span.kind` field
+	ComputeStatsBySpanKind bool
+	// ObfuscationEnabled signals that the tracer is performing obfuscation/normalization.
+	// When true, string length caps (service ≤ 100, name ≤ 100, type ≤ 100, resource ≤ ResourceMaxBytes) are applied.
+	ObfuscationEnabled bool
 }
 
 // StatSpan holds all the required fields from a span needed to calculate stats

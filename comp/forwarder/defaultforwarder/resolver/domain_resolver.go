@@ -47,27 +47,25 @@ type DomainResolver = *domainResolver
 
 // SingleDomainResolver will always return the same host
 type domainResolver struct {
+	healthChecker ForwarderHealth
+	overrides     map[string]destination
 	// configName is the url as it was configured by the user.
 	configName string
 	// domain is the url base to be used for network requests, it is modified by the forwarder.
-	domain         string
-	apiKeys        []utils.APIKeys
-	keyVersion     int
-	dedupedAPIKeys []string
+	domain              string
+	authToken           string
+	apiKeys             []utils.APIKeys
+	dedupedAPIKeys      []string
+	alternateDomainList []string
+	keyVersion          int
+	destinationType     DestinationType
+	mu                  sync.Mutex
 	// hasPendingDelegatedAuth mirrors HasPendingDelegatedAuth across apiKeys: true when the domain
 	// has no real API key yet but is waiting on one from the delegatedauth component. Kept in sync
 	// with apiKeys by hasPendingDelegatedAuthKeys() wherever apiKeys is replaced.
 	hasPendingDelegatedAuth bool
-	mu                      sync.Mutex
-	healthChecker           ForwarderHealth
-	destinationType         DestinationType
-	authToken               string
-
-	overrides           map[string]destination
-	alternateDomainList []string
-
-	isMRF            bool
-	isMetricToVector bool
+	isMRF                   bool
+	isMetricToVector        bool
 }
 
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys

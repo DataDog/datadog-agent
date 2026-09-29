@@ -11,12 +11,12 @@ import (
 )
 
 type Params struct {
+	GPUInstanceType       string
 	LinuxNodeGroup        bool
 	LinuxARMNodeGroup     bool
 	BottleRocketNodeGroup bool
 	WindowsNodeGroup      bool
 	GPUNodeGroup          bool
-	GPUInstanceType       string
 	DisableFargate        bool
 	WithoutInternetAccess bool
 }

@@ -119,21 +119,21 @@ type ScanStatusMetadata struct {
 
 // InterfaceMetadata contains interface metadata
 type InterfaceMetadata struct {
+	IsPhysical    *bool         `json:"is_physical,omitempty"`    // true for physical ethernet interface types (6, 62, 69, 117)
+	MerakiEnabled *bool         `json:"meraki_enabled,omitempty"` // enabled bool for Meraki devices, use a pointer to determine if the value was actually sent
 	DeviceID      string        `json:"device_id"`
-	IDTags        []string      `json:"id_tags"`               // used to correlate with interface metrics
-	Index         int32         `json:"index"`                 // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
 	RawID         string        `json:"raw_id,omitempty"`      // used to uniquely identify the interface in the context of the device
 	RawIDType     string        `json:"raw_id_type,omitempty"` // used to indicate the type of identifier used (i.e. portId for Meraki switches, uplink for Meraki uplinks, blank for SNMP for compatibility)
 	Name          string        `json:"name,omitempty"`
 	Alias         string        `json:"alias,omitempty"`
 	Description   string        `json:"description,omitempty"`
 	MacAddress    string        `json:"mac_address,omitempty"`
-	AdminStatus   IfAdminStatus `json:"admin_status,omitempty"`   // IF-MIB ifAdminStatus type is INTEGER
-	OperStatus    IfOperStatus  `json:"oper_status,omitempty"`    // IF-MIB ifOperStatus type is INTEGER
-	Type          int32         `json:"type,omitempty"`           // IF-MIB ifType (RFC7224 IANAifType)
-	IsPhysical    *bool         `json:"is_physical,omitempty"`    // true for physical ethernet interface types (6, 62, 69, 117)
-	MerakiEnabled *bool         `json:"meraki_enabled,omitempty"` // enabled bool for Meraki devices, use a pointer to determine if the value was actually sent
-	MerakiStatus  string        `json:"meraki_status,omitempty"`  // status for Meraki devices
+	MerakiStatus  string        `json:"meraki_status,omitempty"` // status for Meraki devices
+	IDTags        []string      `json:"id_tags"`                 // used to correlate with interface metrics
+	AdminStatus   IfAdminStatus `json:"admin_status,omitempty"`  // IF-MIB ifAdminStatus type is INTEGER
+	OperStatus    IfOperStatus  `json:"oper_status,omitempty"`   // IF-MIB ifOperStatus type is INTEGER
+	Index         int32         `json:"index"`                   // IF-MIB ifIndex type is InterfaceIndex (Integer32 (1..2147483647))
+	Type          int32         `json:"type,omitempty"`          // IF-MIB ifType (RFC7224 IANAifType)
 }
 
 // IPAddressMetadata contains ip address metadata

@@ -16,12 +16,12 @@ import (
 
 // Package represents a package known to the installer
 type Package struct {
-	Name                      string
 	version                   func(Package, *env.Env) string
-	released                  bool
-	releasedBySite            []string
-	releasedWithRemoteUpdates bool
 	condition                 func(Package, *env.Env) bool
+	Name                      string
+	releasedBySite            []string
+	released                  bool
+	releasedWithRemoteUpdates bool
 }
 
 // PackagesList lists all known packages. Not all of them are installable

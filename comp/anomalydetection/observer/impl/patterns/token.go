@@ -101,39 +101,33 @@ type Token struct {
 // Keeping them in a separate heap-allocated struct lets the common simple
 // tokens (TypeWord etc.) avoid carrying ~300 bytes of zero-valued fields.
 type tokenExtra struct {
-	// TypeDate, TypeLocalTime
-	DateFormat string
-
-	// TypeAbsolutePath, TypePathQueryFragment, TypeURI
-	Segments []string
-	Query    *string
-	Fragment *string
-
-	// TypeURI
-	Scheme    string
+	Query     *string
+	Fragment  *string
 	Authority *Token
 	Path      *Token
-
 	// TypeAuthority
-	Host     *Token
-	Port     int
-	HasPort  bool
+	Host *Token
+	// TypeDate, TypeLocalTime
+	DateFormat string
+	// TypeURI
+	Scheme   string
 	UserInfo string
-	HasUser  bool
-
 	// TypeEmailAddress
 	LocalPart string
 	Domain    string
-
-	// TypeHexDump
-	DispLen  int
-	HasASCII bool
-
-	// TypeKVSequence
-	KVKeys    []string
 	KVSep     string
 	KVPairSep string
 	KVQuote   string
+	// TypeAbsolutePath, TypePathQueryFragment, TypeURI
+	Segments []string
+	// TypeKVSequence
+	KVKeys []string
+	Port   int
+	// TypeHexDump
+	DispLen  int
+	HasPort  bool
+	HasUser  bool
+	HasASCII bool
 }
 
 func WordToken(text string) Token {

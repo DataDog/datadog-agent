@@ -15,14 +15,13 @@ import (
 
 // bucket is internal state used by combiningAggregator to accumulate log lines.
 type bucket struct {
-	tagTruncatedLogs bool
-	tagMultiLineLogs bool
-	maxContentSize   int
-
+	lines             []AggregatedMessageWithTokens
+	maxContentSize    int
 	originalDataLen   int
 	checkpointDataLen int
 	contentLen        int
-	lines             []AggregatedMessageWithTokens
+	tagTruncatedLogs  bool
+	tagMultiLineLogs  bool
 	// shouldTruncate carries truncation state between emitted frames of one oversized
 	// single-line log.
 	shouldTruncate bool

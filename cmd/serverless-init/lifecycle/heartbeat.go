@@ -53,22 +53,20 @@ type MetricEmitter interface {
 // arrived in the meantime, so a /resume that raced a slow /suspend is not
 // silently dropped.
 type Heartbeat struct {
-	interval      time.Duration
 	metricEmitter MetricEmitter
-	metricSource  metrics.MetricSource
-
+	cancel        context.CancelFunc
+	done          chan struct{}
+	microVMID     string // mutable via SetMicroVMID; "unknown" until set
 	// baseTags are Datadog "key:value" tag strings, immutable after
 	// construction. Supplied by cloudservice.MicroVM.Init, which currently
 	// passes a single entry: "microvm_image_arn:<arn>" (the raw image ARN from
 	// AWS_LAMBDA_MICROVM_IMAGE_ARN, or "unknown" when the env var is unset). The
 	// per-emit "lambda_microvm_id:<id>" tag is appended separately in tagsForEmit.
-	baseTags []string
-
-	mu          sync.Mutex
-	wantRunning bool // desired running state: Start sets true, Stop false
-	cancel      context.CancelFunc
-	done        chan struct{}
-	microVMID   string // mutable via SetMicroVMID; "unknown" until set
+	baseTags     []string
+	interval     time.Duration
+	mu           sync.Mutex
+	metricSource metrics.MetricSource
+	wantRunning  bool // desired running state: Start sets true, Stop false
 }
 
 // NewHeartbeat constructs a Heartbeat. Non-positive interval falls back to

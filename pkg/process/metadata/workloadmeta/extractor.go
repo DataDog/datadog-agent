@@ -29,12 +29,12 @@ var (
 
 // ProcessEntity represents a process exposed by the WorkloadMeta extractor
 type ProcessEntity struct {
-	//nolint:revive // TODO(PROC) Fix revive linter
-	Pid          int32
-	ContainerId  string
-	NsPid        int32
-	CreationTime int64
 	Language     *languagemodels.Language
+	ContainerId  string
+	CreationTime int64
+	//nolint:revive // TODO(PROC) Fix revive linter
+	Pid   int32
+	NsPid int32
 }
 
 // WorkloadMetaExtractor does these two things:

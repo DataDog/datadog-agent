@@ -121,14 +121,14 @@ type FcntlSyscallMsg struct {
 
 // Credentials defines process credentials
 type Credentials struct {
-	UID    uint32
 	User   string
-	EUID   uint32
 	EUser  string
-	GID    uint32
 	Group  string
-	EGID   uint32
 	EGroup string
+	UID    uint32
+	EUID   uint32
+	GID    uint32
+	EGID   uint32
 }
 
 // ExecSyscallMsg defines an exec message
@@ -195,18 +195,18 @@ type ChdirSyscallMsg struct {
 
 // SetUIDSyscallMsg defines a setreuid message
 type SetUIDSyscallMsg struct {
-	UID   int32
 	User  string
-	EUID  int32
 	EUser string
+	UID   int32
+	EUID  int32
 }
 
 // SetGIDSyscallMsg defines a setregid message
 type SetGIDSyscallMsg struct {
-	GID    int32
 	Group  string
-	EGID   int32
 	EGroup string
+	GID    int32
+	EGID   int32
 }
 
 // SetFSUIDSyscallMsg defines a setfsuid message
@@ -321,8 +321,8 @@ type UmountSyscallMsg struct {
 
 // MsgSocketInfo defines the base information for a socket message
 type MsgSocketInfo struct {
-	AddressFamily uint16
 	Addr          net.IP
+	AddressFamily uint16
 	Port          uint16
 }
 
@@ -346,12 +346,12 @@ type AcceptSyscallMsg struct {
 
 // SetsockoptSyscallMsg defines a setsockopt message
 type SetsockoptSyscallMsg struct {
+	Filter         []byte
+	Level          uint32
+	OptName        uint32
 	SocketFamily   uint16
 	SocketProtocol uint16
 	SocketType     uint16
-	Level          uint32
-	OptName        uint32
-	Filter         []byte
 	FilterLen      uint16
 }
 

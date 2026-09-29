@@ -27,19 +27,19 @@ type MultiLineHandler struct {
 	outputFn           func(*message.Message)
 	newContentRe       *regexp.Regexp
 	buffer             *bytes.Buffer
-	flushTimeout       time.Duration
 	flushTimer         *time.Timer
-	lineLimit          int
-	shouldTruncate     bool
-	isBufferTruncated  bool
-	linesLen           int
-	checkpointLinesLen int
 	msg                *message.Message
 	countInfo          *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
-	telemetryEnabled   bool
-	linesCombined      int
 	multiLineTagValue  string
+	flushTimeout       time.Duration
+	lineLimit          int
+	linesLen           int
+	checkpointLinesLen int
+	linesCombined      int
+	shouldTruncate     bool
+	isBufferTruncated  bool
+	telemetryEnabled   bool
 	// patternMatchedOnce tracks whether the multiline pattern has ever matched.
 	// Before the first match, lines are sent individually to prevent misconfigured
 	// patterns (that never match) from joining all lines into a single message.

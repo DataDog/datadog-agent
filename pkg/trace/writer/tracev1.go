@@ -32,40 +32,34 @@ type SampledChunksV1 struct {
 
 // TraceWriterV1 implements TraceWriterV1 interface, and buffers traces and APM events, flushing them to the Datadog API.
 type TraceWriterV1 struct {
-	flushTicker *time.Ticker
-
-	prioritySampler samplerTPSReader
-	errorsSampler   samplerTPSReader
-	rareSampler     samplerEnabledReader
-
-	hostname        string
-	env             string
-	senders         []*sender
-	stop            chan struct{}
-	stats           *info.TraceWriterInfo
-	statsLastMinute *info.TraceWriterInfo // aggregated stats over the last minute. Shared with info package
-	wg              sync.WaitGroup        // waits flusher + reporter + compressor
-	tick            time.Duration         // flush frequency
-	agentVersion    string
-
+	prioritySampler    samplerTPSReader
+	errorsSampler      samplerTPSReader
+	rareSampler        samplerEnabledReader
+	telemetryCollector telemetry.TelemetryCollector
+	statsd             statsd.ClientInterface
+	timing             timing.Reporter
+	compressor         compression.Component
+	flushTicker        *time.Ticker
+	stop               chan struct{}
+	stats              *info.TraceWriterInfo
+	statsLastMinute    *info.TraceWriterInfo // aggregated stats over the last minute. Shared with info package
+	flushChan          chan chan struct{}
+	easylog            *log.ThrottledLogger
+	hostname           string
+	env                string
+	agentVersion       string
+	// apmMode exists here to propagate the value to the AgentPayload
+	apmMode string
+	senders []*sender
 	// preparedPayloadsV1 holds prepared tracer payloads with pre-computed string compaction.
 	// This allows accurate size calculations and avoids recomputing compaction during serialization.
 	preparedPayloadsV1 []*pb.PreparedTracerPayload
-	bufferedSizeV1     int // accurate buffer size (using compacted sizes)
-
+	wg                 sync.WaitGroup // waits flusher + reporter + compressor
+	tick               time.Duration  // flush frequency
+	bufferedSizeV1     int            // accurate buffer size (using compacted sizes)
+	mu                 sync.Mutex
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
-	syncMode  bool
-	flushChan chan chan struct{}
-
-	telemetryCollector telemetry.TelemetryCollector
-
-	easylog    *log.ThrottledLogger
-	statsd     statsd.ClientInterface
-	timing     timing.Reporter
-	mu         sync.Mutex
-	compressor compression.Component
-	// apmMode exists here to propagate the value to the AgentPayload
-	apmMode string
+	syncMode bool
 	// otelGateway exists here to propagate the value to the AgentPayload
 	otelGateway bool
 }

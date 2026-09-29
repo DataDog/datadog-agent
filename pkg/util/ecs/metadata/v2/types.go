@@ -46,8 +46,8 @@ type Network struct {
 
 // Port represents the ports of a container
 type Port struct {
-	ContainerPort uint16 `json:"ContainerPort,omitempty"`
 	Protocol      string `json:"Protocol,omitempty"`
+	ContainerPort uint16 `json:"ContainerPort,omitempty"`
 	HostPort      uint16 `json:"HostPort,omitempty"`
 }
 

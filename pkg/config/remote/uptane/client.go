@@ -24,29 +24,22 @@ import (
 
 // Client is an uptane client
 type Client struct {
-	sync.Mutex
-
-	site            string
-	orgID           int64
-	orgUUIDProvider OrgUUIDProvider
-
-	configLocalStore *localStore
-	configTUFClient  *client.Client
-
-	configRootOverride string
+	cachedVerifyTime   time.Time
+	orgUUIDProvider    OrgUUIDProvider
+	configLocalStore   *localStore
+	configTUFClient    *client.Client
 	directorLocalStore *localStore
 	directorTUFClient  *client.Client
-
-	directorRootOverride string
-	targetStore          *targetStore
-	orgStore             *orgStore
-
-	cachedVerify     bool
-	cachedVerifyTime time.Time
-
+	targetStore        *targetStore
+	orgStore           *orgStore
 	// TUF transaction tracker
-	transactionalStore *transactionalStore
-
+	transactionalStore   *transactionalStore
+	site                 string
+	configRootOverride   string
+	directorRootOverride string
+	orgID                int64
+	sync.Mutex
+	cachedVerify           bool
 	orgVerificationEnabled bool
 }
 

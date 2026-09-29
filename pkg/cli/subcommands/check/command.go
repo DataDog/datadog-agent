@@ -95,41 +95,37 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	// cmd is the running cobra.Command
-	cmd *cobra.Command
-
+	cmd                  *cobra.Command
+	checkName            string
+	checkConfig          string
+	instanceFilter       string
+	instanceID           string
+	logLevel             string
+	breakPoint           string
+	profileMemoryDir     string
+	profileMemoryFrames  string
+	profileMemoryGC      string
+	profileMemoryCombine string
+	profileMemorySort    string
+	profileMemoryLimit   string
+	profileMemoryDiff    string
+	profileMemoryFilters string
+	profileMemoryUnit    string
+	profileMemoryVerbose string
 	// args are the positional command line args
-	args []string
-
-	// subcommand-specific params
-
-	checkRate                 bool
+	args                      []string
 	checkTimes                int
 	checkPause                int
-	checkName                 string
 	checkDelay                int
-	checkConfig               string
-	instanceFilter            string
-	instanceID                string
-	logLevel                  string
-	formatJSON                bool
-	formatTable               bool
-	breakPoint                string
-	fullSketches              bool
-	saveFlare                 bool
-	profileMemory             bool
-	profileMemoryDir          string
-	profileMemoryFrames       string
-	profileMemoryGC           string
-	profileMemoryCombine      string
-	profileMemorySort         string
-	profileMemoryLimit        string
-	profileMemoryDiff         string
-	profileMemoryFilters      string
-	profileMemoryUnit         string
-	profileMemoryVerbose      string
 	discoveryTimeout          uint
 	discoveryRetryInterval    uint
 	discoveryMinInstances     uint
+	checkRate                 bool
+	formatJSON                bool
+	formatTable               bool
+	fullSketches              bool
+	saveFlare                 bool
+	profileMemory             bool
 	generateIntegrationTraces bool
 }
 

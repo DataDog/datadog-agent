@@ -100,16 +100,18 @@ func (s SenderStats) Copy() (result SenderStats) {
 
 // stats holds Stats' fields, split out to ease deep-copy without touching the mutex
 type stats struct {
-	CheckName         string
-	CheckVersion      string
-	CheckConfigSource string
-	CheckLoader       string
-	CheckID           checkid.ID
-	Interval          time.Duration
-	// LongRunning is true if the check is a long running check
-	// converted to a normal check
-	LongRunning              bool
-	Cancelling               bool
+	UpdateTimestamp          time.Time // latest update to this instance, unix timestamp in seconds
+	EventPlatformEvents      map[string]int64
+	TotalEventPlatformEvents map[string]int64
+	CheckName                string
+	CheckVersion             string
+	CheckConfigSource        string
+	CheckLoader              string
+	CheckID                  checkid.ID
+	LastError                string    // error that occurred in the last run, if any
+	LastWarnings             []string  // warnings that occurred in the last run, if any
+	ExecutionTimes           [32]int64 // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
+	Interval                 time.Duration
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64
@@ -121,19 +123,17 @@ type stats struct {
 	TotalEvents              uint64
 	TotalServiceChecks       uint64
 	TotalHistogramBuckets    uint64
-	EventPlatformEvents      map[string]int64
-	TotalEventPlatformEvents map[string]int64
-	ExecutionTimes           [32]int64     // circular buffer of recent run durations, most recent at [(TotalRuns+31) % 32]
 	FirstExecutionTime       int64         // duration of the first run in milliseconds
 	AverageExecutionTime     int64         // average run duration
 	LastExecutionTime        time.Duration // most recent run duration, provided for convenience
 	LastSuccessDate          int64         // most recent successful execution date, unix timestamp in seconds
-	LastError                string        // error that occurred in the last run, if any
 	LastDelay                float64       // most recent check start time delay relative to the previous check run, in seconds
-	LastWarnings             []string      // warnings that occurred in the last run, if any
-	UpdateTimestamp          time.Time     // latest update to this instance, unix timestamp in seconds
-	Telemetry                bool          // do we want telemetry on this Check
-	HASupported              bool
+	// LongRunning is true if the check is a long running check
+	// converted to a normal check
+	LongRunning bool
+	Cancelling  bool
+	Telemetry   bool // do we want telemetry on this Check
+	HASupported bool
 }
 
 // Stats holds basic runtime statistics about check instances

@@ -302,8 +302,8 @@ type bStruct struct {
 }
 
 type cStruct struct {
-	aInt32 int32
 	aUint  uint
+	aInt32 int32
 	nested structWithNoStrings
 }
 

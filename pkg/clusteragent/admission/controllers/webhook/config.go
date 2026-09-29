@@ -21,17 +21,17 @@ import (
 type Config struct {
 	webhookName              string
 	secretName               string
+	namespace                string
+	svcName                  string
+	failurePolicy            string
+	reinvocationPolicy       string
+	svcPort                  int32
+	timeout                  int32
 	validationEnabled        bool
 	mutationEnabled          bool
-	namespace                string
 	admissionV1Enabled       bool
 	namespaceSelectorEnabled bool
 	matchConditionsSupported bool
-	svcName                  string
-	svcPort                  int32
-	timeout                  int32
-	failurePolicy            string
-	reinvocationPolicy       string
 	probeEnabled             bool
 }
 

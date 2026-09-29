@@ -48,19 +48,19 @@ type Resource struct {
 // Serie holds a timeseries (w/ json serialization to DD API format)
 type Serie struct {
 	Name           string               `json:"metric"`
-	Points         []Point              `json:"points"`
-	Tags           tagset.CompositeTags `json:"tags"`
 	Host           string               `json:"host"`
 	Device         string               `json:"device,omitempty"`
-	MType          APIMetricType        `json:"type"`
-	Interval       int64                `json:"interval"`
 	SourceTypeName string               `json:"source_type_name,omitempty"`
 	Unit           string               `json:"unit,omitempty"`
-	ContextKey     ckey.ContextKey      `json:"-"`
 	NameSuffix     string               `json:"-"`
-	NoIndex        bool                 `json:"-"` // This is only used by api V2
+	Tags           tagset.CompositeTags `json:"tags"`
+	Points         []Point              `json:"points"`
 	Resources      []Resource           `json:"-"` // This is only used by api V2
+	MType          APIMetricType        `json:"type"`
+	Interval       int64                `json:"interval"`
+	ContextKey     ckey.ContextKey      `json:"-"`
 	Source         MetricSource         `json:"-"` // This is only used by api V2
+	NoIndex        bool                 `json:"-"` // This is only used by api V2
 }
 
 // GetName returns the name of the Serie

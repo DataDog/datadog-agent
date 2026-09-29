@@ -70,13 +70,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type remoteagentImpl struct {
-	log       log.Component
-	ipc       ipc.Component
-	cfg       config.Component
-	telemetry telemetry.Component
-
-	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	log               log.Component
+	ipc               ipc.Component
+	cfg               config.Component
+	telemetry         telemetry.Component
+	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {

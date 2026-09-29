@@ -598,20 +598,19 @@ func noArgs() {
 // condFields is a struct with fields of every base type, used for condition
 // tests involving member access (getmember) and type coercion.
 type condFields struct {
-	I8  int8
-	I16 int16
-	I32 int32
-	I64 int64
-	U8  uint8
-	U16 uint16
-	U32 uint32
-	U64 uint64
-	F32 float32
-	F64 float64
-	B   bool
 	S   string
-
+	I64 int64
+	U64 uint64
+	F64 float64
+	I32 int32
+	U32 uint32
+	F32 float32
 	arr [3]int16 // prevent this struct from being split to registers
+	I16 int16
+	U16 uint16
+	I8  int8
+	U8  uint8
+	B   bool
 }
 
 // --- Condition test functions: one per base type ---
@@ -1346,8 +1345,8 @@ func anyAllPtrIntSlice(xs []*int, tag string) {
 // rejects any/all over a slice/array with elem_size > the per-iteration
 // scratch budget.
 type oversizedElem struct {
-	I32 int32
 	S   string
+	I32 int32
 	pad [300]byte
 }
 

@@ -23,15 +23,15 @@ import (
 
 // Destination is responsible for shipping logs to a remote server over TCP.
 type Destination struct {
-	prefixer            *prefixer
+	connCreationTime    time.Time
 	delimiter           Delimiter
+	conn                net.Conn
+	lastRetryError      error
+	prefixer            *prefixer
 	connManager         *ConnectionManager
 	destinationsContext *client.DestinationsContext
-	conn                net.Conn
-	connCreationTime    time.Time
-	shouldRetry         bool
 	retryLock           sync.Mutex
-	lastRetryError      error
+	shouldRetry         bool
 	isMRF               bool
 }
 

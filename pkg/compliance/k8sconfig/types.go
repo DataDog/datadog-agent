@@ -151,10 +151,10 @@ type (
 	k8sKubeconfigClusterSource struct {
 		Server                   string `yaml:"server"`
 		TLSServerName            string `yaml:"tls-server-name,omitempty"`
-		InsecureSkipTLSVerify    bool   `yaml:"insecure-skip-tls-verify,omitempty"`
 		CertificateAuthority     string `yaml:"certificate-authority,omitempty"`
 		CertificateAuthorityData string `yaml:"certificate-authority-data,omitempty"`
 		ProxyURL                 string `yaml:"proxy-url,omitempty"`
+		InsecureSkipTLSVerify    bool   `yaml:"insecure-skip-tls-verify,omitempty"`
 		DisableCompression       bool   `yaml:"disable-compression,omitempty"`
 	}
 
@@ -187,11 +187,11 @@ type (
 	}
 
 	K8sKubeconfigCluster struct {
+		CertificateAuthority  *K8sCertFileMeta `json:"certificateAuthority,omitempty"`
 		Server                string           `json:"server"`
 		TLSServerName         string           `json:"tlsServerName,omitempty"`
-		InsecureSkipTLSVerify bool             `json:"insecureSkipTlsVerify,omitempty"`
-		CertificateAuthority  *K8sCertFileMeta `json:"certificateAuthority,omitempty"`
 		ProxyURL              string           `json:"proxyUrl,omitempty"`
+		InsecureSkipTLSVerify bool             `json:"insecureSkipTlsVerify,omitempty"`
 		DisableCompression    bool             `json:"disableCompression,omitempty"`
 	}
 

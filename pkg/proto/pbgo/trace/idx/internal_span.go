@@ -668,13 +668,13 @@ type InternalTraceChunk struct {
 	// This should generally not be accessed directly, but rather through the methods on the InternalTracerPayload
 	// It is only exposed here for use in other packages that need to construct tracer payloads for testing.
 	Strings           *StringTable
-	Priority          int32
-	originRef         uint32
 	Attributes        map[uint32]*AnyValue
 	Spans             []*InternalSpan
-	DroppedTrace      bool
 	TraceID           []byte
+	Priority          int32
+	originRef         uint32
 	samplingMechanism uint32
+	DroppedTrace      bool
 }
 
 // NewInternalTraceChunk creates a new internal trace chunk.

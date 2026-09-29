@@ -14,8 +14,8 @@ import (
 // BaselineConfig controls detector-specific baseline qualification windows.
 // DurationSec is the qualification duration after a detector becomes ready.
 type BaselineConfig struct {
-	Enabled          bool
 	DurationSec      int64
+	Enabled          bool
 	MuteNoisyMetrics bool
 	Verbose          bool // log each muted series when every baseline has completed
 }
@@ -26,33 +26,33 @@ func DefaultBaselineConfig() BaselineConfig {
 }
 
 type detectorBaselineState struct {
-	ready              bool
+	pendingHashes      map[uint64]struct{}
 	warmupEndSec       int64
 	baselineEndSec     int64
-	completed          bool
 	windowAnomalyCount int
-	pendingHashes      map[uint64]struct{}
 	mutedCount         int
+	ready              bool
+	completed          bool
 }
 
 // BaselineDetectorDebugStatus is a testbench-facing snapshot of one detector.
 type BaselineDetectorDebugStatus struct {
 	Name           string `json:"name"`
-	Ready          bool   `json:"ready"`
 	WarmupEndSec   int64  `json:"warmupEndSec,omitempty"`
 	BaselineEndSec int64  `json:"baselineEndSec,omitempty"`
-	Completed      bool   `json:"completed"`
 	MutedCount     int    `json:"mutedCount"`
+	Ready          bool   `json:"ready"`
+	Completed      bool   `json:"completed"`
 }
 
 // BaselineDebugStatus is a testbench-facing snapshot of the baseline union.
 type BaselineDebugStatus struct {
-	Started            bool                          `json:"started"`
+	Detectors          []BaselineDetectorDebugStatus `json:"detectors"`
 	StartSec           int64                         `json:"startSec"`
 	AnalyzedThroughSec int64                         `json:"analyzedThroughSec,omitempty"`
-	AllComplete        bool                          `json:"allComplete"`
 	MutedCount         int                           `json:"mutedCount"`
-	Detectors          []BaselineDetectorDebugStatus `json:"detectors"`
+	Started            bool                          `json:"started"`
+	AllComplete        bool                          `json:"allComplete"`
 }
 
 // baselineController coordinates independent detector windows. All methods

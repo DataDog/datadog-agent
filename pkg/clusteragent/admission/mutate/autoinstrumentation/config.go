@@ -185,14 +185,17 @@ func NewLanguageDetectionConfig(datadogConfig config.Component) *LanguageDetecti
 // InstrumentationConfig is a struct to store the configuration for the autoinstrumentation logic. It can be populated
 // using the datadog config through NewInstrumentationConfig.
 type InstrumentationConfig struct {
-	// Enabled is a flag to enable the auto instrumentation. If false, the auto instrumentation is disabled with the
-	// caveat of the annotation based instrumentation. Full config
-	// key: apm_config.instrumentation.enabled
-	Enabled bool `mapstructure:"enabled" json:"enabled"`
-	// OnDemand keeps the SSI admission webhook available for runtime workload
-	// selection without enabling implicit instrumentation. Full config key:
-	// apm_config.instrumentation.on_demand
-	OnDemand bool `mapstructure:"on_demand" json:"on_demand"`
+	// LibVersions is a map of tracer libraries to inject with their versions. The key is the language and the value is
+	// the version of the library to inject. If empty, the auto instrumentation will inject all libraries. Full config
+	// key: apm_config.instrumentation.lib_versions
+	LibVersions map[string]string `mapstructure:"lib_versions" json:"lib_versions"`
+	// InjectorImageTag is the tag of the image to use for the auto instrumentation injector library. Full config key:
+	// apm_config.instrumentation.injector_image_tag
+	InjectorImageTag string `mapstructure:"injector_image_tag" json:"injector_image_tag"`
+	// InjectionMode determines the default method for injecting libraries into pods.
+	// Possible values: "auto" (default), "init_container" and "csi".
+	// Full config key: apm_config.instrumentation.injection_mode
+	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
 	// EnabledNamespaces is a list of namespaces where the autoinstrumentation is enabled. If empty, it is enabled in
 	// all namespaces. EnabledNamespace and DisabledNamespaces are mutually exclusive and cannot be set together. Full
 	// config key: apm_config.instrumentation.enabled_namespaces
@@ -201,21 +204,18 @@ type InstrumentationConfig struct {
 	// all namespaces. EnabledNamespace and DisabledNamespaces are mutually exclusive and cannot be set together. Full
 	// config key: apm_config.instrumentation.disabled_namespaces
 	DisabledNamespaces []string `mapstructure:"disabled_namespaces" json:"disabled_namespaces"`
-	// LibVersions is a map of tracer libraries to inject with their versions. The key is the language and the value is
-	// the version of the library to inject. If empty, the auto instrumentation will inject all libraries. Full config
-	// key: apm_config.instrumentation.lib_versions
-	LibVersions map[string]string `mapstructure:"lib_versions" json:"lib_versions"`
-	// InjectorImageTag is the tag of the image to use for the auto instrumentation injector library. Full config key:
-	// apm_config.instrumentation.injector_image_tag
-	InjectorImageTag string `mapstructure:"injector_image_tag" json:"injector_image_tag"`
 	// Targets is a list of targets to apply the auto instrumentation to. The first target that matches the pod will be
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets" json:"targets"`
-	// InjectionMode determines the default method for injecting libraries into pods.
-	// Possible values: "auto" (default), "init_container" and "csi".
-	// Full config key: apm_config.instrumentation.injection_mode
-	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
+	// Enabled is a flag to enable the auto instrumentation. If false, the auto instrumentation is disabled with the
+	// caveat of the annotation based instrumentation. Full config
+	// key: apm_config.instrumentation.enabled
+	Enabled bool `mapstructure:"enabled" json:"enabled"`
+	// OnDemand keeps the SSI admission webhook available for runtime workload
+	// selection without enabling implicit instrumentation. Full config key:
+	// apm_config.instrumentation.on_demand
+	OnDemand bool `mapstructure:"on_demand" json:"on_demand"`
 	// CSIDriverDetectionEnabled is a temporary feature flag gating the CSI
 	// auto-detection logic in the library-injection AutoProvider. When true,
 	// AutoProvider may switch to the CSI provider if the Datadog CSI driver

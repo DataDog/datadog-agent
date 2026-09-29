@@ -26,30 +26,25 @@ type bocpdStateKey struct {
 
 // bocpdSeriesState holds per-series streaming BOCPD state.
 type bocpdSeriesState struct {
-
+	// BOCPD posterior state (persists across advances).
+	runProbs   []float64
+	means      []float64
+	precisions []float64
 	// Cursor tracking the last position advanced by Detect.
 	lastProcessedTime  int64
 	lastProcessedCount int   // PointCountUpTo(ref, dataTime) at last Detect
 	lastWriteGen       int64 // WriteGeneration at last Detect; used to catch same-bucket merges
-
-	initialized bool
-
 	// Baseline (set once after warmup).
 	baselineMean   float64
 	baselineStddev float64
 	obsVar         float64
 	priorMean      float64
 	priorPrecision float64
-
-	// BOCPD posterior state (persists across advances).
-	runProbs   []float64
-	means      []float64
-	precisions []float64
-
+	alertStart     int64
+	recoveryCount  int // consecutive non-triggering points since last trigger
+	initialized    bool
 	// Alert lifecycle.
-	inAlert       bool
-	alertStart    int64
-	recoveryCount int // consecutive non-triggering points since last trigger
+	inAlert bool
 }
 
 // BOCPDConfig holds configuration for the BOCPD detector.

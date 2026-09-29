@@ -25,19 +25,19 @@ const regexLinesCombinedTelemetryMetricName = "datadog.logs_agent.auto_multi_lin
 type RegexAggregator struct {
 	newContentRe       *regexp.Regexp
 	buffer             *bytes.Buffer
-	lineLimit          int
-	shouldTruncate     bool
-	isBufferTruncated  bool
-	linesLen           int
-	checkpointLinesLen int
 	msg                *message.Message
-	firstLineTokens    BorrowedTokens
-	linesCombined      int
-	telemetryEnabled   bool
-	multiLineTagValue  string
 	countInfo          *status.CountInfo
 	linesCombinedInfo  *status.CountInfo
+	multiLineTagValue  string
+	firstLineTokens    BorrowedTokens
 	collected          []AggregatedMessageWithTokens
+	lineLimit          int
+	linesLen           int
+	checkpointLinesLen int
+	linesCombined      int
+	shouldTruncate     bool
+	isBufferTruncated  bool
+	telemetryEnabled   bool
 	// patternMatchedOnce tracks whether the regex has ever matched.
 	// Before the first match, lines are sent individually to prevent a misconfigured
 	// pattern from silently joining all lines into a single message.

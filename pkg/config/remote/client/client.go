@@ -142,15 +142,15 @@ type Client struct {
 
 // Options describes the client options
 type Options struct {
-	isUpdater            bool
 	agentVersion         string
 	agentName            string
-	products             []string
 	directorRootOverride string
 	site                 string
-	pollInterval         time.Duration
 	clusterName          string
 	clusterID            string
+	products             []string
+	pollInterval         time.Duration
+	isUpdater            bool
 	skipTufVerification  bool
 }
 

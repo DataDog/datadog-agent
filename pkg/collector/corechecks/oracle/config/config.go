@@ -58,13 +58,13 @@ type queryMetricsTrackerConfig struct {
 }
 
 type QueryMetricsConfig struct {
-	Enabled            bool                        `yaml:"enabled"`
+	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
 	CollectionInterval int64                       `yaml:"collection_interval"`
 	DBRowsLimit        int                         `yaml:"db_rows_limit"`
-	DisableLastActive  bool                        `yaml:"disable_last_active"`
 	Lookback           int64                       `yaml:"lookback"`
-	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
 	MaxRunTime         int64                       `yaml:"max_run_time"`
+	Enabled            bool                        `yaml:"enabled"`
+	DisableLastActive  bool                        `yaml:"disable_last_active"`
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter
@@ -98,8 +98,8 @@ type SharedMemoryConfig struct {
 
 //nolint:revive // TODO(DBM) Fix revive linter
 type ExecutionPlansConfig struct {
-	Enabled              bool `yaml:"enabled"`
 	PlanCacheRetention   int  `yaml:"plan_cache_retention"`
+	Enabled              bool `yaml:"enabled"`
 	LogUnobfuscatedPlans bool `yaml:"log_unobfuscated_plans"`
 }
 

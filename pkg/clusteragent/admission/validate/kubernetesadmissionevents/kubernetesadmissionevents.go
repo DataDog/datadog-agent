@@ -32,15 +32,15 @@ import (
 
 // Webhook is the KubernetesAdmissionEvents webhook.
 type Webhook struct {
+	demultiplexer           aggregator.Demultiplexer
 	name                    string
-	isEnabled               bool
 	endpoint                string
+	checkid                 checkid.ID
 	resources               []common.WebhookResourceRule
 	operations              []admissionregistrationv1.OperationType
 	matchConditions         []admissionregistrationv1.MatchCondition
-	demultiplexer           aggregator.Demultiplexer
+	isEnabled               bool
 	supportsMatchConditions bool
-	checkid                 checkid.ID
 }
 
 // NewWebhook returns a new KubernetesAdmissionEvents webhook.

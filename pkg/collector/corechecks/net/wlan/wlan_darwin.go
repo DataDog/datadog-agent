@@ -60,19 +60,19 @@ const (
 
 // guiWiFiData represents the WiFi data structure from GUI IPC
 type guiWiFiData struct {
-	RSSI               int     `json:"rssi"`
+	Error              *string `json:"error"`
 	SSID               string  `json:"ssid"`
 	BSSID              string  `json:"bssid"`
-	Channel            int     `json:"channel"`
-	Noise              int     `json:"noise"`
-	NoiseValid         bool    `json:"noise_valid"`
-	TransmitRate       float64 `json:"transmit_rate"`
-	ReceiveRate        float64 `json:"receive_rate"`
-	ReceiveRateValid   bool    `json:"receive_rate_valid"`
 	MACAddress         string  `json:"mac_address"`
 	PHYMode            string  `json:"phy_mode"`
+	RSSI               int     `json:"rssi"`
+	Channel            int     `json:"channel"`
+	Noise              int     `json:"noise"`
+	TransmitRate       float64 `json:"transmit_rate"`
+	ReceiveRate        float64 `json:"receive_rate"`
+	NoiseValid         bool    `json:"noise_valid"`
+	ReceiveRateValid   bool    `json:"receive_rate_valid"`
 	LocationAuthorized bool    `json:"location_authorized"`
-	Error              *string `json:"error"`
 }
 
 // guiIPCResponse represents the IPC response from GUI

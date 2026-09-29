@@ -54,13 +54,13 @@ var statFn = os.Stat
 
 // RunCommandHandlerConfig carries agent-side rshell policy settings.
 type RunCommandHandlerConfig struct {
+	OperatorAllowedSystemServices     map[string][]string
+	PrivilegedSocket                  string
 	OperatorAllowedPaths              []string
 	OperatorAllowedCommands           []string
-	OperatorAllowedSystemServices     map[string][]string
+	OperatorElevatableCommands        []string
 	DisableDetailedTelemetry          bool
 	PrivilegedEnabled                 bool
-	PrivilegedSocket                  string
-	OperatorElevatableCommands        []string
 	OperatorAllowedCommandsConfigured bool
 	OperatorAllowedPathsConfigured    bool
 }
@@ -91,14 +91,14 @@ type RunCommandHandlerConfig struct {
 // An explicitly configured empty operator list or service map is the
 // kill-switch for that axis.
 type RunCommandHandler struct {
+	operatorAllowedSystemServices     map[string][]string
+	mode                              interp.Mode
+	privilegedSocket                  string
 	operatorAllowedPaths              []string
 	operatorAllowedCommands           []string
-	operatorAllowedSystemServices     map[string][]string
-	disableCommandTelemetry           bool
-	mode                              interp.Mode
-	privilegedEnabled                 bool
-	privilegedSocket                  string
 	operatorElevatableCommands        []string
+	disableCommandTelemetry           bool
+	privilegedEnabled                 bool
 	operatorAllowedCommandsConfigured bool
 	operatorAllowedPathsConfigured    bool
 }

@@ -32,14 +32,13 @@ type Requires struct {
 }
 
 type configSync struct {
-	Config config.Component
-	Log    log.Component
-
-	url       *url.URL
+	Config    config.Component
+	Log       log.Component
 	client    ipc.HTTPClient
-	connected bool
 	ctx       context.Context
+	url       *url.URL
 	timeout   time.Duration
+	connected bool
 	enabled   bool
 }
 

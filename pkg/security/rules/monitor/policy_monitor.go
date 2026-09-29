@@ -227,17 +227,17 @@ type HashAction struct {
 // RuleSetAction is used to report 'set' action
 // easyjson:json
 type RuleSetAction struct {
-	Name         string      `json:"name,omitempty"`
 	Value        interface{} `json:"value,omitempty"`
 	DefaultValue interface{} `json:"default_value,omitempty"`
+	Name         string      `json:"name,omitempty"`
 	Field        string      `json:"field,omitempty"`
 	Capture      string      `json:"capture,omitempty"`
 	Expression   string      `json:"expression,omitempty"`
-	Append       bool        `json:"append,omitempty"`
 	Scope        string      `json:"scope,omitempty"`
 	ScopeField   string      `json:"scope_field,omitempty"`
-	Size         int         `json:"size,omitempty"`
 	TTL          string      `json:"ttl,omitempty"`
+	Size         int         `json:"size,omitempty"`
+	Append       bool        `json:"append,omitempty"`
 	Inherited    bool        `json:"inherited,omitempty"`
 	Private      bool        `json:"private,omitempty"`
 }

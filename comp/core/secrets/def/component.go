@@ -16,23 +16,23 @@ type SecretBackendConfig struct {
 
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
-	Type                         string
 	Config                       map[string]interface{}
 	MultiBackends                map[string]SecretBackendConfig
+	ImageToHandle                map[string][]string
+	Type                         string
 	Command                      string
+	RunPath                      string
 	Arguments                    []string
+	AllowedNamespace             []string
 	Timeout                      int
 	MaxSize                      int
 	RefreshInterval              int
+	AuditFileMaxSize             int
+	APIKeyFailureRefreshInterval int
 	RefreshIntervalScatter       bool
 	GroupExecPerm                bool
 	RemoveLinebreak              bool
-	RunPath                      string
-	AuditFileMaxSize             int
 	ScopeIntegrationToNamespace  bool
-	AllowedNamespace             []string
-	ImageToHandle                map[string][]string
-	APIKeyFailureRefreshInterval int
 }
 
 // Component is the component type.

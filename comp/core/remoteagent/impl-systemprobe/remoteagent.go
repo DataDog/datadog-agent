@@ -84,16 +84,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 type remoteagentImpl struct {
-	log            log.Component
-	ipc            ipc.Component
-	cfg            config.Component
-	sysProbeConfig sysprobeconfig.Component
-	telemetry      telemetry.Component
-
-	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
 	pbcore.UnimplementedStatusProviderServer
 	pbcore.UnimplementedFlareProviderServer
+	log               log.Component
+	ipc               ipc.Component
+	cfg               config.Component
+	sysProbeConfig    sysprobeconfig.Component
+	telemetry         telemetry.Component
+	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 }
 
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {

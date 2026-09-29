@@ -20,171 +20,94 @@ import (
 
 // USMConfig contains all configuration specific to Universal Service Monitoring (USM)
 type USMConfig struct {
-	// ========================================
-	// Global USM Configuration
-	// ========================================
-
+	// EnvoyPath specifies the envoy path to be used for Istio monitoring
+	EnvoyPath string
+	// HTTPReplaceRules are rules for replacing HTTP path patterns
+	HTTPReplaceRules []*ReplaceRule
+	// USMKernelBufferPages defines the number of pages to allocate for the USM kernel buffer
+	USMKernelBufferPages int
+	// USMDataChannelSize specifies the size of the data channel for USM
+	USMDataChannelSize int
+	// DirectConsumerBufferWakeupCountPerCPU specifies the number of events per CPU that will buffer in a perf buffer before userspace is woken up for USM direct consumer.
+	// For ring buffers (which are shared across all CPUs), this value is multiplied by the CPU count.
+	DirectConsumerBufferWakeupCountPerCPU int
+	// DirectConsumerChannelSize specifies the channel buffer size multiplier for USM direct consumer.
+	DirectConsumerChannelSize int
+	// DirectConsumerKernelBufferSizePerCPU specifies the base buffer size for USM direct consumer kernel buffer.
+	// For perf buffers, this value is rounded up to the nearest page size multiple (per-CPU).
+	// For ring buffers, this value is multiplied by CPU count and rounded to the nearest power of 2 (total size).
+	DirectConsumerKernelBufferSizePerCPU int
+	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory
+	MaxHTTPStatsBuffered int
+	// HTTPMapCleanerInterval is the interval to run the cleaner function
+	HTTPMapCleanerInterval time.Duration
+	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted
+	HTTPIdleConnectionTTL time.Duration
+	// HTTP Windows-specific Configuration
+	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked (Windows only)
+	MaxTrackedHTTPConnections int64
+	// HTTPNotificationThreshold is the number of connections to hold in the kernel before signalling (Windows only)
+	HTTPNotificationThreshold int64
+	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved (Windows only)
+	HTTPMaxRequestFragment int64
+	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function
+	HTTP2DynamicTableMapCleanerInterval time.Duration
+	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory
+	MaxKafkaStatsBuffered int
+	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory
+	MaxPostgresStatsBuffered int
+	// MaxPostgresTelemetryBuffer represents the maximum size of the telemetry buffer size for Postgres
+	MaxPostgresTelemetryBuffer int
+	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory
+	MaxRedisStatsBuffered int
+	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
+	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
+	MaxUSMConcurrentRequests uint32
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
-
 	// DiscoveryServiceMapEnabled indicates discovery service map mode is active.
 	// When true, the USM monitor runs in restricted mode (HTTP/IIS only, not billed).
 	// Mutually exclusive with ServiceMonitoringEnabled — if both are configured,
 	// discovery mode is silently disabled during config adjustment.
 	DiscoveryServiceMapEnabled bool
-
-	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
-	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
-	MaxUSMConcurrentRequests uint32
-
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
-
 	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
 	EnableUSMConnectionRollup bool
-
 	// EnableUSMRingBuffers enables the use of eBPF Ring Buffer types on supported kernels
 	EnableUSMRingBuffers bool
-
 	// EnableUSMEventStream enables USM to use the event stream instead of netlink for receiving process events
 	EnableUSMEventStream bool
-
-	// USMKernelBufferPages defines the number of pages to allocate for the USM kernel buffer
-	USMKernelBufferPages int
-
-	// USMDataChannelSize specifies the size of the data channel for USM
-	USMDataChannelSize int
-
-	// DirectConsumerBufferWakeupCountPerCPU specifies the number of events per CPU that will buffer in a perf buffer before userspace is woken up for USM direct consumer.
-	// For ring buffers (which are shared across all CPUs), this value is multiplied by the CPU count.
-	DirectConsumerBufferWakeupCountPerCPU int
-
-	// DirectConsumerChannelSize specifies the channel buffer size multiplier for USM direct consumer.
-	DirectConsumerChannelSize int
-
-	// DirectConsumerKernelBufferSizePerCPU specifies the base buffer size for USM direct consumer kernel buffer.
-	// For perf buffers, this value is rounded up to the nearest page size multiple (per-CPU).
-	// For ring buffers, this value is multiplied by CPU count and rounded to the nearest power of 2 (total size).
-	DirectConsumerKernelBufferSizePerCPU int
-
 	// DisableMapPreallocation controls whether eBPF maps should disable preallocation (BPF_F_NO_PREALLOC flag).
 	// When true, maps allocate entries on-demand instead of preallocating the full map size, improving memory efficiency.
 	DisableMapPreallocation bool
-
-	// ========================================
-	// HTTP Protocol Configuration
-	// ========================================
-
 	// EnableHTTPMonitoring specifies whether the tracer should monitor HTTP traffic
 	EnableHTTPMonitoring bool
-
-	// MaxHTTPStatsBuffered represents the maximum number of HTTP stats we'll buffer in memory
-	MaxHTTPStatsBuffered int
-
-	// HTTPMapCleanerInterval is the interval to run the cleaner function
-	HTTPMapCleanerInterval time.Duration
-
-	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted
-	HTTPIdleConnectionTTL time.Duration
-
-	// HTTPReplaceRules are rules for replacing HTTP path patterns
-	HTTPReplaceRules []*ReplaceRule
-
 	// HTTPUseDirectConsumer forces the use of direct consumer for HTTP monitoring instead of batch consumer
 	// When true (default), direct consumer is used if kernel supports it (>=5.8.0), otherwise falls back to batch consumer
 	// When false, batch consumer is always used regardless of kernel version
 	HTTPUseDirectConsumer bool
-
-	// HTTP Windows-specific Configuration
-	// MaxTrackedHTTPConnections max number of http(s) flows that will be concurrently tracked (Windows only)
-	MaxTrackedHTTPConnections int64
-
-	// HTTPNotificationThreshold is the number of connections to hold in the kernel before signalling (Windows only)
-	HTTPNotificationThreshold int64
-
-	// HTTPMaxRequestFragment is the size of the HTTP path buffer to be retrieved (Windows only)
-	HTTPMaxRequestFragment int64
-
-	// ========================================
-	// HTTP2 Protocol Configuration
-	// ========================================
-
 	// EnableHTTP2Monitoring specifies whether the tracer should monitor HTTP2 traffic
 	EnableHTTP2Monitoring bool
-
-	// HTTP2DynamicTableMapCleanerInterval is the interval to run the cleaner function
-	HTTP2DynamicTableMapCleanerInterval time.Duration
-
-	// ========================================
-	// Kafka Protocol Configuration
-	// ========================================
-
 	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
 	EnableKafkaMonitoring bool
-
-	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory
-	MaxKafkaStatsBuffered int
-
-	// ========================================
-	// Postgres Protocol Configuration
-	// ========================================
-
 	// EnablePostgresMonitoring specifies whether the tracer should monitor Postgres traffic
 	EnablePostgresMonitoring bool
-
-	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory
-	MaxPostgresStatsBuffered int
-
-	// MaxPostgresTelemetryBuffer represents the maximum size of the telemetry buffer size for Postgres
-	MaxPostgresTelemetryBuffer int
-
-	// ========================================
-	// Redis Protocol Configuration
-	// ========================================
-
 	// EnableRedisMonitoring specifies whether the tracer should monitor Redis traffic
 	EnableRedisMonitoring bool
-
 	// RedisTrackResources specifies whether to track Redis resource names (keys) or only methods
 	RedisTrackResources bool
-
-	// MaxRedisStatsBuffered represents the maximum number of Redis stats we'll buffer in memory
-	MaxRedisStatsBuffered int
-
-	// ========================================
-	// Native TLS Configuration (OpenSSL, GnuTLS, LibCrypto)
-	// ========================================
-
 	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto
 	EnableNativeTLSMonitoring bool
-
-	// ========================================
-	// Go TLS Configuration
-	// ========================================
-
 	// EnableGoTLSSupport specifies whether the tracer should monitor HTTPS traffic done through Go's standard library
 	EnableGoTLSSupport bool
-
 	// GoTLSExcludeSelf specifies whether USM's GoTLS module should avoid hooking the system-probe test binary
 	GoTLSExcludeSelf bool
-
-	// ========================================
-	// NodeJS TLS Configuration
-	// ========================================
-
 	// EnableNodeJSMonitoring specifies whether USM should monitor NodeJS TLS traffic
 	EnableNodeJSMonitoring bool
-
-	// ========================================
-	// Istio Service Mesh TLS Configuration
-	// ========================================
-
 	// EnableIstioMonitoring specifies whether USM should monitor Istio traffic
 	EnableIstioMonitoring bool
-
-	// EnvoyPath specifies the envoy path to be used for Istio monitoring
-	EnvoyPath string
 }
 
 // NewUSMConfig creates a new USM configuration from the system probe config

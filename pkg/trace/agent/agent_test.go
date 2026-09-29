@@ -157,9 +157,9 @@ func (m *mockSpanModifierV1) ModifySpanV1(_ *idx.InternalTraceChunk, span *idx.I
 
 type mockContainerTagsBuffer struct {
 	containertagsbuffer.NoOpTagsBuffer
-	enabled    bool
-	returnTags []string
 	returnErr  error
+	returnTags []string
+	enabled    bool
 	pending    bool
 }
 

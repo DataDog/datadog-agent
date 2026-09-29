@@ -352,33 +352,33 @@ func init() {
 }
 
 type options struct {
-	site                           string
-	rcKey                          string
-	apiKey                         string
-	parJWT                         string
-	traceAgentEnv                  string
-	databaseFileName               string
-	databaseFilePath               string
-	configRootOverride             string
-	directorRootOverride           string
-	clientCacheBypassLimit         int
-	refresh                        time.Duration
-	refreshIntervalOverrideAllowed bool
-	maxBackoff                     time.Duration
-	clientTTL                      time.Duration
-	disableConfigPollLoop          bool
-	orgStatusRefreshInterval       time.Duration
 	// for mocking creating db instance in test
 	uptaneFactory func(md *uptane.Metadata) (coreAgentUptaneClient, error)
 	// The allowed products for each subscription products value. Overridable
 	// to exercise subscriptions to differing product sets in tests.
 	subscriptionProductMappings productsMappings
+	site                        string
+	rcKey                       string
+	apiKey                      string
+	parJWT                      string
+	traceAgentEnv               string
+	databaseFileName            string
+	databaseFilePath            string
+	configRootOverride          string
+	directorRootOverride        string
+	clientCacheBypassLimit      int
+	refresh                     time.Duration
+	maxBackoff                  time.Duration
+	clientTTL                   time.Duration
+	orgStatusRefreshInterval    time.Duration
 	// The maximum number of subscriptions than can be open at the same time.
 	maxConcurrentSubscriptions int
 	// The maximum number of runtime IDs that may be tracked per subscription.
 	maxTrackedRuntimeIDsPerSubscription int
 	// The maximum number of responses that can be queued per subscription.
-	maxSubscriptionQueueSize int
+	maxSubscriptionQueueSize       int
+	refreshIntervalOverrideAllowed bool
+	disableConfigPollLoop          bool
 }
 
 var defaultSubscriptionProductMappings = productsMappings{

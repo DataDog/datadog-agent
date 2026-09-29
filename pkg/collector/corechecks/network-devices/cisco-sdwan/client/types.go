@@ -56,23 +56,22 @@ type chart struct {
 }
 
 type header struct {
-	GeneratedOn int64     `json:"generatedOn"`
+	Chart       chart     `json:"chart"`
 	ViewKeys    viewKeys  `json:"viewKeys"`
 	Columns     []columns `json:"columns"`
 	Fields      []fields  `json:"fields"`
-	Chart       chart     `json:"chart"`
+	GeneratedOn int64     `json:"generatedOn"`
 }
 
 // PageInfo contains API pagination
 type PageInfo struct {
 	// Index based pagination
-	StartID     string `json:"startId"`
-	EndID       string `json:"endId"`
-	MoreEntries bool   `json:"moreEntries"`
-	Count       int    `json:"count"`
-
+	StartID string `json:"startId"`
+	EndID   string `json:"endId"`
 	// ScrollId based pagination
 	ScrollID    string `json:"scrollId"`
+	Count       int    `json:"count"`
+	MoreEntries bool   `json:"moreEntries"`
 	HasMoreData bool   `json:"hasMoreData"`
 }
 
@@ -110,8 +109,6 @@ type Device struct {
 	Personality         string   `json:"personality"`
 	DeviceType          string   `json:"device-type"`
 	Timezone            string   `json:"timezone"`
-	DeviceGroups        []string `json:"device-groups"`
-	Lastupdated         float64  `json:"lastupdated"`
 	DomainID            string   `json:"domain-id"`
 	BoardSerial         string   `json:"board-serial"`
 	CertificateValidity string   `json:"certificate-validity"`
@@ -120,15 +117,11 @@ type Device struct {
 	ControlConnections  string   `json:"controlConnections"`
 	DeviceModel         string   `json:"device-model"`
 	Version             string   `json:"version"`
-	ConnectedVManages   []string `json:"connectedVManages"`
 	SiteID              string   `json:"site-id"`
 	SiteName            string   `json:"site-name"`
 	Latitude            string   `json:"latitude"`
 	Longitude           string   `json:"longitude"`
-	IsDeviceGeoData     bool     `json:"isDeviceGeoData"`
 	Platform            string   `json:"platform"`
-	UptimeDate          float64  `json:"uptime-date"`
-	StatusOrder         float64  `json:"statusOrder"`
 	DeviceOs            string   `json:"device-os"`
 	Validity            string   `json:"validity"`
 	State               string   `json:"state"`
@@ -136,8 +129,14 @@ type Device struct {
 	ModelSku            string   `json:"model_sku"`
 	LocalSystemIP       string   `json:"local-system-ip"`
 	TotalCPUCount       string   `json:"total_cpu_count"`
-	TestbedMode         bool     `json:"testbed_mode"`
+	DeviceGroups        []string `json:"device-groups"`
+	ConnectedVManages   []string `json:"connectedVManages"`
+	Lastupdated         float64  `json:"lastupdated"`
+	UptimeDate          float64  `json:"uptime-date"`
+	StatusOrder         float64  `json:"statusOrder"`
 	LayoutLevel         float64  `json:"layoutLevel"`
+	IsDeviceGeoData     bool     `json:"isDeviceGeoData"`
+	TestbedMode         bool     `json:"testbed_mode"`
 }
 
 // InterfaceState /dataservice/data/device/state/interface

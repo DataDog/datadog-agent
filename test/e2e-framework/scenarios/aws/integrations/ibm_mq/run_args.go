@@ -66,28 +66,25 @@ const (
 // Params holds the run parameters for the single-VM IBM MQ scenario.
 type Params struct {
 	Name            string
+	MQVersion       string
+	DownloadURL     string
+	Channel         string
+	QMPrefix        string
+	QueuePrefix     string
+	QueueRegex      string
 	instanceOptions []ec2.VMOption
 	// agentOptions is nil when the Agent should not be deployed (ddagent:deploy=false).
-	agentOptions []agentparams.Option
-
-	// Workload/topology knobs (queue-count sweep).
-	NQmgrs      int
-	QueuesPerQM int
-	BasePort    int
-	MQVersion   string
-	DownloadURL string
-	Channel     string
-	QMPrefix    string
-	QueuePrefix string
-
-	// ibm_mq check-config toggles.
-	AutoDiscoverQueues    bool
-	QueueRegex            string
+	agentOptions          []agentparams.Option
 	ExplicitQueues        []string
-	CollectResetQueue     bool
-	MinCollectionInterval int
 	MetricPatternsExclude []string
-
+	// Workload/topology knobs (queue-count sweep).
+	NQmgrs                int
+	QueuesPerQM           int
+	BasePort              int
+	MinCollectionInterval int
+	// ibm_mq check-config toggles.
+	AutoDiscoverQueues bool
+	CollectResetQueue  bool
 	// Profiling toggles: Python/ddtrace integration profiling and Go internal
 	// profiling. Both drive datadog.yaml content when enabled.
 	IntegrationProfiling bool

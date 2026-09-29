@@ -20,19 +20,19 @@ import (
 // combining aggregator would do, tracking lines that would be combined and groups that
 // would overflow if auto multiline were enabled by default.
 type detectingAggregator struct {
-	collected             []AggregatedMessageWithTokens
 	previousMsg           *message.Message
-	previousMsgTokens     BorrowedTokens
-	previousWasStartGroup bool
 	multiLineMatchInfo    *status.CountInfo
-	shouldTruncate        bool
+	previousMsgTokens     BorrowedTokens
+	collected             []AggregatedMessageWithTokens
 	maxContentSize        int
+	simulatedBufLen       int
+	linesInCurrentGroup   int
+	previousWasStartGroup bool
+	shouldTruncate        bool
 	tagTruncatedLogs      bool
 	// COAT simulation state
-	isDefaultPath       bool
-	simulatedBufLen     int
-	linesInCurrentGroup int
-	inGroup             bool
+	isDefaultPath bool
+	inGroup       bool
 }
 
 // NewDetectingAggregator creates a new detecting aggregator.

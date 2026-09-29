@@ -41,18 +41,18 @@ type OTLPSpanLink struct {
 
 // OTLPSpan defines an OTLP test span.
 type OTLPSpan struct {
-	TraceID    [16]byte
-	SpanID     [8]byte
-	TraceState string
-	ParentID   [8]byte
-	Name       string
-	Kind       ptrace.SpanKind
-	Start, End uint64
 	Attributes map[string]interface{}
+	TraceState string
+	Name       string
+	StatusMsg  string
 	Events     []OTLPSpanEvent
 	Links      []OTLPSpanLink
-	StatusMsg  string
+	Start, End uint64
+	Kind       ptrace.SpanKind
 	StatusCode ptrace.StatusCode
+	TraceID    [16]byte
+	SpanID     [8]byte
+	ParentID   [8]byte
 }
 
 // OTLPResourceSpan specifies the configuration for generating an OTLP ResourceSpan.

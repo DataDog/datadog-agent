@@ -15,7 +15,6 @@ import (
 	"time"
 	"unique"
 
-	"github.com/dustin/go-humanize"
 	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -129,15 +128,15 @@ type ResolvConf = *utilintern.StringValue
 
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
+	USMData USMProtocolsData
 	BufferedData
 	DNS                         map[util.Address][]dns.Hostname
 	ResolvConfs                 map[ContainerID]ResolvConf
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
-	KernelHeaderFetchResult     int32
 	CORETelemetryByAsset        map[string]int32
 	PrebuiltAssets              []string
-	USMData                     USMProtocolsData
+	KernelHeaderFetchResult     int32
 }
 
 // NewConnections create a new Connections object

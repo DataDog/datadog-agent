@@ -81,66 +81,57 @@ type secretContext struct {
 type handleToContext map[string][]secretContext
 
 type secretResolver struct {
-	lock  sync.Mutex
-	cache map[string]string
-	clk   clock.Clock
-
-	// list of handles and where they were found
-	origin handleToContext
-
-	// resolvedSecretValues is an append-only set of all secret values ever returned by the backend.
-	// old values are retained for IsValueFromSecret lookups.
-	resolvedSecretValues map[string]struct{}
-
-	// secretBackendMethod is set by Configure to the active secret method
-	// ("secret_backend_command", "secret_backend_type", or "multi_secret_backends").
-	// Empty means no backend is configured; Resolve exits early in that case.
-	secretBackendMethod             string
-	backendType                     string
-	backendConfig                   map[string]interface{}
-	multiBackends                   map[string]secrets.SecretBackendConfig
-	backendCommand                  string
-	backendArguments                []string
-	backendTimeout                  int
-	commandAllowGroupExec           bool
-	embeddedBackendPermissiveRights bool
-	removeTrailingLinebreak         bool
-	// responseMaxSize defines max size of the JSON output from a secrets reader backend
-	responseMaxSize int
-	// refresh secrets at a regular interval
-	refreshInterval        time.Duration
-	refreshIntervalScatter bool
-	scatterDuration        time.Duration
-	// filename to write audit records to
-	auditFilename    string
-	auditFileMaxSize int
-	auditRotRecs     *rotatingNDRecords
-	// subscriptions want to be notified about changes to the secrets
-	subscriptions []secrets.SecretChangeCallback
-
-	// can be overridden for testing purposes
-	commandHookFunc func(string) ([]byte, error)
-	versionHookFunc func() (string, error)
-	fetchHookFunc   func([]string) (map[string]string, error)
-	scrubHookFunc   func([]string)
-
-	// secret access limitation on k8s.
-	scopeIntegrationToNamespace bool
-	allowedNamespace            []string
-	imageToHandle               map[string][]string
-
-	unresolvedSecrets map[string]struct{}
-
+	lastThrottledRefresh time.Time
+	clk                  clock.Clock
 	// Telemetry
 	tlmSecretBackendElapsed telemetry.Gauge
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
-
+	cache                   map[string]string
+	// list of handles and where they were found
+	origin handleToContext
+	// resolvedSecretValues is an append-only set of all secret values ever returned by the backend.
+	// old values are retained for IsValueFromSecret lookups.
+	resolvedSecretValues map[string]struct{}
+	backendConfig        map[string]interface{}
+	multiBackends        map[string]secrets.SecretBackendConfig
+	auditRotRecs         *rotatingNDRecords
+	// can be overridden for testing purposes
+	commandHookFunc   func(string) ([]byte, error)
+	versionHookFunc   func() (string, error)
+	fetchHookFunc     func([]string) (map[string]string, error)
+	scrubHookFunc     func([]string)
+	imageToHandle     map[string][]string
+	unresolvedSecrets map[string]struct{}
+	refreshTrigger    chan struct{}
+	// secretBackendMethod is set by Configure to the active secret method
+	// ("secret_backend_command", "secret_backend_type", or "multi_secret_backends").
+	// Empty means no backend is configured; Resolve exits early in that case.
+	secretBackendMethod string
+	backendType         string
+	backendCommand      string
+	// filename to write audit records to
+	auditFilename    string
+	backendArguments []string
+	// subscriptions want to be notified about changes to the secrets
+	subscriptions    []secrets.SecretChangeCallback
+	allowedNamespace []string
+	backendTimeout   int
+	// responseMaxSize defines max size of the JSON output from a secrets reader backend
+	responseMaxSize int
+	// refresh secrets at a regular interval
+	refreshInterval  time.Duration
+	scatterDuration  time.Duration
+	auditFileMaxSize int
 	// Secret refresh throttling
-	apiKeyFailureRefreshInterval time.Duration
-	lastThrottledRefresh         time.Time
-
-	refreshTrigger chan struct{}
+	apiKeyFailureRefreshInterval    time.Duration
+	lock                            sync.Mutex
+	commandAllowGroupExec           bool
+	embeddedBackendPermissiveRights bool
+	removeTrailingLinebreak         bool
+	refreshIntervalScatter          bool
+	// secret access limitation on k8s.
+	scopeIntegrationToNamespace bool
 }
 
 var _ secrets.Component = (*secretResolver)(nil)

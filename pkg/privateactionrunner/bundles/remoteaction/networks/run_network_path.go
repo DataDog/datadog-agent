@@ -36,16 +36,16 @@ func NewRunNetworkPathHandler(traceroute traceroute.Component, eventPlatform eve
 
 type RunNetworkPathInputs struct {
 	Hostname           string            `json:"hostname"`
-	Port               uint16            `json:"port"`
 	SourceService      string            `json:"sourceService,omitempty"`
 	DestinationService string            `json:"destinationService,omitempty"`
-	MaxTTL             uint8             `json:"maxTtl,omitempty"`
 	Protocol           payload.Protocol  `json:"protocol,omitempty"`
 	TCPMethod          payload.TCPMethod `json:"tcpMethod,omitempty"`
+	Namespace          string            `json:"namespace,omitempty"`
 	TimeoutMs          int64             `json:"timeoutMs,omitempty"`
 	TracerouteQueries  int               `json:"tracerouteQueries,omitempty"`
 	E2eQueries         int               `json:"e2eQueries,omitempty"`
-	Namespace          string            `json:"namespace,omitempty"`
+	Port               uint16            `json:"port"`
+	MaxTTL             uint8             `json:"maxTtl,omitempty"`
 	// SendToBackend forwards traceroute data to the network path backend.
 	SendToBackend bool `json:"sendToBackend,omitempty"`
 }

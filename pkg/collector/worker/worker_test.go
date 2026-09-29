@@ -40,15 +40,15 @@ import (
 
 type testCheck struct {
 	stub.StubCheck
+	t        *testing.T
+	runFunc  func(id checkid.ID)
+	runCount *atomic.Uint64
+	id       string
 	sync.Mutex
 	doErr       bool
 	doWarn      bool
 	doPanic     bool
-	id          string
 	longRunning bool
-	t           *testing.T
-	runFunc     func(id checkid.ID)
-	runCount    *atomic.Uint64
 }
 
 func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }

@@ -38,10 +38,10 @@ const FlareServiceName = "datadog.remoteagent.flare.v1.FlareProvider"
 const TelemetryServiceName = "datadog.remoteagent.telemetry.v1.TelemetryProvider"
 
 type remoteAgentServer struct {
-	started time.Time
 	pbcore.UnimplementedStatusProviderServer
 	pbcore.UnimplementedFlareProviderServer
 	pbcore.UnimplementedTelemetryProviderServer
+	started time.Time
 }
 
 func (s *remoteAgentServer) GetStatusDetails(_ context.Context, req *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {

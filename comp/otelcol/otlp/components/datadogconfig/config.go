@@ -59,6 +59,8 @@ type APIConfig struct {
 // TagsConfig defines the tag-related configuration
 // It is embedded in the configuration
 type TagsConfig struct {
+	// prevent unkeyed literal initialization
+	_ struct{}
 	// Hostname is the fallback hostname used for payloads without hostname-identifying attributes.
 	// This option will NOT change the hostname applied to your metrics, traces and logs if they already have hostname-identifying attributes.
 	// If unset, the hostname will be determined automatically. See https://docs.datadoghq.com/opentelemetry/schema_semantics/hostname/?tab=datadogexporter#fallback-hostname-logic for details.
@@ -66,8 +68,6 @@ type TagsConfig struct {
 	// Prefer using the `datadog.host.name` resource attribute over using this setting.
 	// See https://docs.datadoghq.com/opentelemetry/schema_semantics/hostname/?tab=datadogexporter#general-hostname-semantic-conventions for details.
 	Hostname string `mapstructure:"hostname"`
-	// prevent unkeyed literal initialization
-	_ struct{}
 }
 
 // Config defines configuration for the Datadog exporter.

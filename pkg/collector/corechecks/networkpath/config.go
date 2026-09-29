@@ -33,9 +33,9 @@ type Number interface {
 type InitConfig struct {
 	MinCollectionInterval           int64 `yaml:"min_collection_interval"`
 	TimeoutMs                       int64 `yaml:"timeout"`
-	MaxTTL                          uint8 `yaml:"max_ttl"`
 	TracerouteQueries               int   `yaml:"traceroute_queries"`
 	E2eQueries                      int   `yaml:"e2e_queries"`
+	MaxTTL                          uint8 `yaml:"max_ttl"`
 	DisableSourcePublicIPCollection bool  `yaml:"disable_source_public_ip_collection"`
 }
 
@@ -44,60 +44,51 @@ type InstanceConfig struct {
 	// TestConfigID identifies the scheduled Network Path test config that produced this instance.
 	TestConfigID string `yaml:"test_config_id"`
 	// TestConfigName is the user-facing name of the scheduled Network Path test config.
-	TestConfigName string `yaml:"test_config_name"`
-
-	DestHostname string `yaml:"hostname"`
-
-	DestPort uint16 `yaml:"port"`
-
-	Protocol  string `yaml:"protocol"`
-	TCPMethod string `yaml:"tcp_method"`
+	TestConfigName        string   `yaml:"test_config_name"`
+	DestHostname          string   `yaml:"hostname"`
+	Protocol              string   `yaml:"protocol"`
+	TCPMethod             string   `yaml:"tcp_method"`
+	SourceService         string   `yaml:"source_service"`
+	DestinationService    string   `yaml:"destination_service"`
+	Tags                  []string `yaml:"tags"`
+	TimeoutMs             int64    `yaml:"timeout"`
+	MinCollectionInterval int      `yaml:"min_collection_interval"`
+	TracerouteQueries     int      `yaml:"traceroute_queries"`
+	E2eQueries            int      `yaml:"e2e_queries"`
+	DestPort              uint16   `yaml:"port"`
 	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
 	TCPSynParisTracerouteMode bool `yaml:"tcp_syn_paris_traceroute_mode"`
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
 	DisableWindowsDriver bool `yaml:"disable_windows_driver"`
 	// DisableSourcePublicIPCollection disables collection of the source public IP address
-	DisableSourcePublicIPCollection bool `yaml:"disable_source_public_ip_collection"`
-
-	SourceService      string `yaml:"source_service"`
-	DestinationService string `yaml:"destination_service"`
-
-	MaxTTL uint8 `yaml:"max_ttl"`
-
-	TimeoutMs int64 `yaml:"timeout"`
-
-	MinCollectionInterval int `yaml:"min_collection_interval"`
-
-	TracerouteQueries int `yaml:"traceroute_queries"`
-	E2eQueries        int `yaml:"e2e_queries"`
-
-	Tags []string `yaml:"tags"`
+	DisableSourcePublicIPCollection bool  `yaml:"disable_source_public_ip_collection"`
+	MaxTTL                          uint8 `yaml:"max_ttl"`
 }
 
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
-	TestConfigID       string
-	TestConfigName     string
-	DestHostname       string
-	DestPort           uint16
-	SourceService      string
-	DestinationService string
-	MaxTTL             uint8
-	Protocol           payload.Protocol
-	TCPMethod          payload.TCPMethod
+	TestConfigID          string
+	TestConfigName        string
+	DestHostname          string
+	SourceService         string
+	DestinationService    string
+	Protocol              payload.Protocol
+	TCPMethod             payload.TCPMethod
+	Namespace             string
+	Tags                  []string
+	Timeout               time.Duration
+	MinCollectionInterval time.Duration
+	TracerouteQueries     int
+	E2eQueries            int
+	DestPort              uint16
+	MaxTTL                uint8
 	// TCPSynParisTracerouteMode makes TCP SYN traceroute act like paris traceroute (fixed packet ID, randomized seq)
 	TCPSynParisTracerouteMode bool
 	// DisableWindowsDriver disables the use of Windows driver for traceroute
 	DisableWindowsDriver bool
 	// DisableSourcePublicIPCollection disables collection of the source public IP address
 	DisableSourcePublicIPCollection bool
-	Timeout                         time.Duration
-	MinCollectionInterval           time.Duration
-	TracerouteQueries               int
-	E2eQueries                      int
-	Tags                            []string
-	Namespace                       string
 }
 
 // NewCheckConfig builds a new check config

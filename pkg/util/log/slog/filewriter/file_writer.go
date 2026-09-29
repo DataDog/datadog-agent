@@ -77,16 +77,16 @@ type rollerVirtual interface {
 // files count, if you want, and then the rolling writer would delete older ones when
 // the files count exceed the specified limit.
 type rollingFileWriter struct {
+	self            rollerVirtual // Used for virtual calls
+	currentFile     *os.File
 	fileName        string // log file name
 	currentDirPath  string
-	currentFile     *os.File
 	currentName     string
 	currentFileSize int64
-	fullName        bool
 	maxRolls        int
-	nameMode        RollingNameMode
-	self            rollerVirtual // Used for virtual calls
 	rollLock        sync.Mutex
+	fullName        bool
+	nameMode        RollingNameMode
 }
 
 func newRollingFileWriter(fpath string, maxr int, namemode RollingNameMode,

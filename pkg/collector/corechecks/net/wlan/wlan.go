@@ -28,17 +28,17 @@ const (
 
 // wifiInfo contains information about the WiFi connection (defined in Mac wlan_darwin.h and Windows wlan.h)
 type wifiInfo struct {
-	rssi             int
 	ssid             string
 	bssid            string
-	channel          int
-	noise            int
-	noiseValid       bool
-	transmitRate     float64 // in Mbps
-	receiveRate      float64 // in Mbps
-	receiveRateValid bool
 	macAddress       string
 	phyMode          string
+	rssi             int
+	channel          int
+	noise            int
+	transmitRate     float64 // in Mbps
+	receiveRate      float64 // in Mbps
+	noiseValid       bool
+	receiveRateValid bool
 }
 
 // wlanInitConfig mirrors the init_config section of wlan.d/conf.yaml.

@@ -27,7 +27,6 @@ import (
 
 // MutatorConfig contains the settings for the config injector.
 type MutatorConfig struct {
-	csiEnabled               bool
 	mode                     string
 	localServiceName         string
 	traceAgentHostSocket     string
@@ -35,8 +34,9 @@ type MutatorConfig struct {
 	apmSocketFile            string
 	dsdSocketFile            string
 	socketPath               string
-	typeSocketVolumes        bool
 	csiDriver                string
+	csiEnabled               bool
+	typeSocketVolumes        bool
 }
 
 const (

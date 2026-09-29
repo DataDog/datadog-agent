@@ -65,16 +65,16 @@ type EnvOpts struct {
 	SSHKeyPath            string
 	SSHKeyName            string
 	InfraEnv              string
-	ProvisionInstance     bool
-	ProvisionMicrovms     bool
-	ShutdownPeriod        int
-	FailOnMissing         bool
 	DependenciesDirectory string
 	VMConfigPath          string
-	Local                 bool
-	RunAgent              bool
 	APIKey                string
 	AgentVersion          string
+	ShutdownPeriod        int
+	ProvisionInstance     bool
+	ProvisionMicrovms     bool
+	FailOnMissing         bool
+	Local                 bool
+	RunAgent              bool
 	SetupGDB              bool
 }
 

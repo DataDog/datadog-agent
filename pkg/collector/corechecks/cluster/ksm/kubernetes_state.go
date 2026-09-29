@@ -201,13 +201,53 @@ const (
 
 // KSMConfig contains the check config parameters
 type KSMConfig struct {
+	// LabelJoins allows adding the tags to join from other KSM metrics.
+	// Example: Joining for deployment metrics. Based on:
+	// kube_deployment_labels{deployment="kube-dns",label_addonmanager_kubernetes_io_mode="Reconcile"}
+	// Use the following config to add the value of label_addonmanager_kubernetes_io_mode as a tag to your KSM
+	// deployment metrics.
+	// label_joins:
+	//   kube_deployment_labels:
+	//     labels_to_match:
+	//       - deployment
+	//     labels_to_get:
+	//       - label_addonmanager_kubernetes_io_mode
+	LabelJoins map[string]*JoinsConfigWithoutLabelsMapping `yaml:"label_joins"`
+	// LabelsAsTags
+	// Example:
+	// labels_as_tags:
+	//   pod:
+	//     app: pod_app
+	//   node:
+	//     app: node_app
+	//     team: node_team
+	LabelsAsTags map[string]map[string]string `yaml:"labels_as_tags"`
+	// AnnotationsAsTags
+	// Example:
+	// annotations_as_tags:
+	//   pod:
+	//     app: pod_app
+	//   node:
+	//     app: node_app
+	//     team: node_team
+	AnnotationsAsTags map[string]map[string]string `yaml:"annotations_as_tags"`
+	// LabelsMapper can be used to translate kube-state-metrics labels to other tags.
+	// Example: Adding kube_namespace tag instead of namespace.
+	// labels_mapper:
+	//   namespace: kube_namespace
+	LabelsMapper map[string]string `yaml:"labels_mapper"`
+	// Private field containing the label joins configuration built from `LabelJoins`, `LabelsAsTags` and `AnnotationsAsTags`.
+	labelJoins map[string]*joinsConfig
+	// PodCollectionMode defines how pods are collected.
+	// Accepted values are: "default", "node_kubelet", "cluster_unassigned",
+	// and "cluster_aggregates_only".
+	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
 	// Collectors defines the resource type collectors.
 	// Example: Enable pods and nodes collectors.
 	// collectors:
 	//   - nodes
 	//   - pods
 	Collectors []string `yaml:"collectors"`
-
 	// CustomResourceStateMetrics defines the custom resource states metrics
 	// https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md
 	// Example: Enable custom resource state metrics for CRD mycrd.
@@ -226,46 +266,6 @@ type KSMConfig struct {
 	//              gauge:
 	//                path: [status, agent, available]
 	CustomResource customresourcestate.Metrics `yaml:"custom_resource"`
-
-	// LabelJoins allows adding the tags to join from other KSM metrics.
-	// Example: Joining for deployment metrics. Based on:
-	// kube_deployment_labels{deployment="kube-dns",label_addonmanager_kubernetes_io_mode="Reconcile"}
-	// Use the following config to add the value of label_addonmanager_kubernetes_io_mode as a tag to your KSM
-	// deployment metrics.
-	// label_joins:
-	//   kube_deployment_labels:
-	//     labels_to_match:
-	//       - deployment
-	//     labels_to_get:
-	//       - label_addonmanager_kubernetes_io_mode
-	LabelJoins map[string]*JoinsConfigWithoutLabelsMapping `yaml:"label_joins"`
-
-	// LabelsAsTags
-	// Example:
-	// labels_as_tags:
-	//   pod:
-	//     app: pod_app
-	//   node:
-	//     app: node_app
-	//     team: node_team
-	LabelsAsTags map[string]map[string]string `yaml:"labels_as_tags"`
-
-	// AnnotationsAsTags
-	// Example:
-	// annotations_as_tags:
-	//   pod:
-	//     app: pod_app
-	//   node:
-	//     app: node_app
-	//     team: node_team
-	AnnotationsAsTags map[string]map[string]string `yaml:"annotations_as_tags"`
-
-	// LabelsMapper can be used to translate kube-state-metrics labels to other tags.
-	// Example: Adding kube_namespace tag instead of namespace.
-	// labels_mapper:
-	//   namespace: kube_namespace
-	LabelsMapper map[string]string `yaml:"labels_mapper"`
-
 	// DRADeviceClasses restricts DRA collection to claims requesting one of
 	// these DeviceClasses. Empty means every claim is counted, including those
 	// of non-accelerator drivers. Filtering is by DeviceClass, not driver: the
@@ -275,7 +275,6 @@ type KSMConfig struct {
 	// dra_device_classes:
 	//   - gpu.nvidia.com
 	DRADeviceClasses []string `yaml:"dra_device_classes"`
-
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
 	// It is also enriched in `initTags` with `kube_cluster_name` and global tags.
 	// Example:
@@ -283,39 +282,24 @@ type KSMConfig struct {
 	//   - env:prod
 	//   - zone:eu
 	Tags []string `yaml:"tags"`
-
-	// DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG in the Agent config, default false.
-	DisableGlobalTags bool `yaml:"disable_global_tags"`
-
 	// Namespaces contains the namespaces from which we collect metrics
 	// Example: Enable metric collection for objects in prod and kube-system namespaces.
 	// namespaces:
 	//   - prod
 	//   - kube-system
 	Namespaces []string `yaml:"namespaces"`
-
 	// ResyncPeriod is the frequency of resync'ing the metrics cache in seconds, default 5 minutes (kubernetes_informers_resync_period).
 	ResyncPeriod int `yaml:"resync_period"`
-
+	// DisableGlobalTags disables adding the global host tags defined via tags/DD_TAG in the Agent config, default false.
+	DisableGlobalTags bool `yaml:"disable_global_tags"`
 	// Telemetry enables telemetry check's metrics, default false.
 	// Metrics can be found under kubernetes_state.telemetry
 	Telemetry bool `yaml:"telemetry"`
-
 	// LeaderSkip forces ignoring the leader election when running the check
 	// Can be useful when running the check as cluster check
 	LeaderSkip bool `yaml:"skip_leader_election"`
-
-	// Private field containing the label joins configuration built from `LabelJoins`, `LabelsAsTags` and `AnnotationsAsTags`.
-	labelJoins map[string]*joinsConfig
-
 	// UseAPIServerCache enables the use of the API server cache for the check
 	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
-
-	// PodCollectionMode defines how pods are collected.
-	// Accepted values are: "default", "node_kubelet", "cluster_unassigned",
-	// and "cluster_aggregates_only".
-	PodCollectionMode podCollectionMode `yaml:"pod_collection_mode"`
-
 	// ClusterAggregatesEnabled tells a node_kubelet or cluster_unassigned
 	// instance to suppress its .total accumulators, because a dedicated
 	// cluster_aggregates_only instance is deployed elsewhere in the cluster as

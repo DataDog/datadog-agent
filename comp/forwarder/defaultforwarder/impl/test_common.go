@@ -24,20 +24,20 @@ import (
 )
 
 type testTransaction struct {
-	mock.Mock
-	assertClient bool
-	processed    chan bool
-	pointCount   int
-	kind         transaction.Kind
-	destination  transaction.Destination
-	// shouldBlock causes Process to block on the worker's context, simulating
-	// a request that aborts when its context is cancelled.
-	shouldBlock bool
+	processed chan bool
 	// release, if non-nil, causes Process to block until the channel is
 	// closed (or receives a value). Used to simulate an in-flight HTTP
 	// request that hasn't yet returned.
 	release chan struct{}
-	Name    string
+	mock.Mock
+	Name         string
+	pointCount   int
+	kind         transaction.Kind
+	destination  transaction.Destination
+	assertClient bool
+	// shouldBlock causes Process to block on the worker's context, simulating
+	// a request that aborts when its context is cancelled.
+	shouldBlock bool
 }
 
 func newTestTransaction() *testTransaction {

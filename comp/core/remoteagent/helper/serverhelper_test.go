@@ -697,13 +697,13 @@ func (m *mockTelemetryProvider) GetTelemetry(_ context.Context, _ *pbcore.GetTel
 
 // mockCoreAgentServer simulates the core agent's registration server
 type mockCoreAgentServer struct {
-	server       *grpc.Server
-	listener     net.Listener
-	address      string
-	registerFunc func(context.Context, *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error)
-	refreshFunc  func(context.Context, *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error)
 	pbcore.UnimplementedRemoteAgentServer
 	echo.UnimplementedEchoServer
+	listener     net.Listener
+	server       *grpc.Server
+	registerFunc func(context.Context, *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error)
+	refreshFunc  func(context.Context, *pbcore.RefreshRemoteAgentRequest) (*pbcore.RefreshRemoteAgentResponse, error)
+	address      string
 }
 
 func (m *mockCoreAgentServer) RegisterRemoteAgent(ctx context.Context, req *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {

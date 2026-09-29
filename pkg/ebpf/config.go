@@ -20,82 +20,59 @@ const (
 
 // Config stores all common flags used by system-probe
 type Config struct {
-	// BPFDebug enables bpf debug logs
-	BPFDebug bool
-
 	// BPFDir is the directory to load the eBPF program from
 	BPFDir string
-
-	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
-	ExcludedBPFLinuxVersions []string
-
 	// ProcRoot is the root path to the proc filesystem
 	ProcRoot string
-
-	// InternalTelemetryEnabled indicates whether internal prometheus telemetry is enabled
-	InternalTelemetryEnabled bool
-
-	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
-	EnableTracepoints bool
-
-	// EnableCORE enables the use of CO-RE to load eBPF programs
-	EnableCORE bool
-
 	// BTFPath is the path to BTF data for the current kernel
 	BTFPath string
-
-	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
-	EnableRuntimeCompiler bool
-
-	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
-	EnableKernelHeaderDownload bool
-
-	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
-	KernelHeadersDirs []string
-
 	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
 	KernelHeadersDownloadDir string
-
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs.
 	// This directory and every parent up to the filesystem root must be a root-owned directory that is
 	// not writable by other users (a sticky, world-writable parent such as the default /var/tmp is
 	// allowed). If that is not the case system-probe refuses to use the directory and skips runtime
 	// compilation instead of loading objects from an untrusted location; see secureRuntimeDir.
 	RuntimeCompilerOutputDir string
-
 	// BTFOutputDir is the directory where extracted BTF files are stored
 	BTFOutputDir string
-
 	// AptConfigDir is the path to the apt config directory
 	AptConfigDir string
-
 	// YumReposDir is the path to the yum repository directory
 	YumReposDir string
-
 	// ZypperReposDir is the path to the zypper repository directory
 	ZypperReposDir string
-
+	// RemoteConfigBTFDownloadHost is the base URL host for downloading BTF from remote config
+	RemoteConfigBTFDownloadHost string
+	// ExcludedBPFLinuxVersions lists Linux kernel versions that should not use BPF features
+	ExcludedBPFLinuxVersions []string
+	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
+	KernelHeadersDirs []string
+	// RemoteConfigBTFTimeout is how long we will wait for BTF information from remote config
+	RemoteConfigBTFTimeout time.Duration
+	// BPFDebug enables bpf debug logs
+	BPFDebug bool
+	// InternalTelemetryEnabled indicates whether internal prometheus telemetry is enabled
+	InternalTelemetryEnabled bool
+	// EnableTracepoints enables use of tracepoints instead of kprobes for probing syscalls (if available on system)
+	EnableTracepoints bool
+	// EnableCORE enables the use of CO-RE to load eBPF programs
+	EnableCORE bool
+	// EnableRuntimeCompiler enables the use of the embedded compiler to build eBPF programs on-host
+	EnableRuntimeCompiler bool
+	// EnableKernelHeaderDownload enables the use of the automatic kernel header downloading
+	EnableKernelHeaderDownload bool
 	// AllowPrebuiltFallback indicates whether we are allowed to fallback to the prebuilt probes if runtime compilation fails.
 	AllowPrebuiltFallback bool
-
 	// AllowRuntimeCompiledFallback indicates whether we are allowed to fallback to runtime compilation if CO-RE fails.
 	AllowRuntimeCompiledFallback bool
-
 	// AttachKprobesWithKprobeEventsABI uses the kprobe_events ABI to attach kprobes rather than the newer perf ABI.
 	AttachKprobesWithKprobeEventsABI bool
-
 	// BypassEnabled is used in tests only.
 	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
 	BypassEnabled bool
-
 	// RemoteConfigBTFEnabled indicates whether we can use remote config to obtain BTF
 	RemoteConfigBTFEnabled bool
-
-	// RemoteConfigBTFTimeout is how long we will wait for BTF information from remote config
-	RemoteConfigBTFTimeout time.Duration
-
-	// RemoteConfigBTFDownloadHost is the base URL host for downloading BTF from remote config
-	RemoteConfigBTFDownloadHost string
 }
 
 // NewConfig creates a config with ebpf-related settings

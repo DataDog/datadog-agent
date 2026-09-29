@@ -13,11 +13,9 @@ import (
 
 // Params contains the parameters for the demultiplexer
 type Params struct {
-	continueOnMissingHostname bool
-
 	// This is an optional field to override the default flush interval only if it is set
-	flushInterval option.Option[time.Duration]
-
+	flushInterval                           option.Option[time.Duration]
+	continueOnMissingHostname               bool
 	useDogstatsdNoAggregationPipelineConfig bool
 }
 

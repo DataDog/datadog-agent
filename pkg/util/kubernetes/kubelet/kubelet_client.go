@@ -41,16 +41,15 @@ var (
 type kubeletClientConfig struct {
 	scheme         string
 	baseURL        string
-	tlsVerify      bool
 	caPath         string
 	clientCertPath string
 	clientKeyPath  string
 	token          string
 	tokenPath      string
-
-	useAPIServer  bool
-	apiServerHost string
-	nodeName      string
+	apiServerHost  string
+	nodeName       string
+	tlsVerify      bool
+	useAPIServer   bool
 }
 
 type kubeletClient struct {

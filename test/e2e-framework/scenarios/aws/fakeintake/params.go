@@ -11,12 +11,12 @@ import (
 )
 
 type Params struct {
-	LoadBalancerEnabled bool
 	ImageURL            string
+	RetentionPeriod     string
 	CPU                 int
 	Memory              int
+	LoadBalancerEnabled bool
 	DDDevForwarding     bool
-	RetentionPeriod     string
 }
 
 type Option = func(*Params) error

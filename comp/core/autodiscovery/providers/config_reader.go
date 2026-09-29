@@ -32,18 +32,18 @@ import (
 )
 
 type configFormat struct {
-	ADIdentifiers           []string                           `yaml:"ad_identifiers,omitempty"`
-	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers,omitempty"`
-	CELSelector             workloadfilter.Rules               `yaml:"cel_selector,omitempty"`
-	ClusterCheck            bool                               `yaml:"cluster_check,omitempty"`
 	InitConfig              interface{}                        `yaml:"init_config,omitempty"`
 	MetricConfig            interface{}                        `yaml:"jmx_metrics,omitempty"`
 	LogsConfig              interface{}                        `yaml:"logs,omitempty"`
+	Discovery               *integration.DiscoveryConfig       `yaml:"discovery,omitempty"`             // Marks this config as a discovery template (instances are populated at runtime)
+	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"` // Use to set the tag cardinality override for the check
+	CELSelector             workloadfilter.Rules               `yaml:"cel_selector,omitempty"`
+	ADIdentifiers           []string                           `yaml:"ad_identifiers,omitempty"`
+	AdvancedADIdentifiers   []integration.AdvancedADIdentifier `yaml:"advanced_ad_identifiers,omitempty"`
 	Instances               []integration.RawMap               `yaml:"instances,omitempty"`
-	DockerImages            []string                           `yaml:"docker_images,omitempty"`             // Only imported for deprecation warning
+	DockerImages            []string                           `yaml:"docker_images,omitempty"` // Only imported for deprecation warning
+	ClusterCheck            bool                               `yaml:"cluster_check,omitempty"`
 	IgnoreAutodiscoveryTags bool                               `yaml:"ignore_autodiscovery_tags,omitempty"` // Use to ignore tags coming from autodiscovery
-	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"`     // Use to set the tag cardinality override for the check
-	Discovery               *integration.DiscoveryConfig       `yaml:"discovery,omitempty"`                 // Marks this config as a discovery template (instances are populated at runtime)
 }
 
 // ConfigFormatWrapper is a wrapper for the config format

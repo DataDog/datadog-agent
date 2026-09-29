@@ -47,66 +47,15 @@ const (
 // LogsConfig represents a log source config, which can be for instance
 // a file to tail or a port to listen to.
 type LogsConfig struct {
-	Type string
-
-	IntegrationName string
-
-	Port           int    `mapstructure:"port" json:"port" yaml:"port"`                                  // Network (tcp, udp)
-	BindHost       string `mapstructure:"bind_host" json:"bind_host" yaml:"bind_host"`                   // Network (tcp, udp)
-	IdleTimeout    string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"`          // Network (tcp)
-	MaxConnections int    `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"` // Network (tcp)
 	// TLS is under active security review and is not ready for general use.
-	TLS        *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
-	AllowedIPs StringSliceField   `mapstructure:"allowed_ips" json:"allowed_ips,omitempty" yaml:"allowed_ips,omitempty"` // Network (tcp, udp)
-	DeniedIPs  StringSliceField   `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`    // Network (tcp, udp)
-	Path       string             // File, Journald
-
-	Encoding     string           `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
-	ExcludePaths StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`    // File
-	TailingMode  string           `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
-	Format       string           `mapstructure:"format" json:"format" yaml:"format"`                         // Parsing format: "syslog" or "" (unstructured)
-
-	ConfigID           string           `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                            // Journald
-	IncludeSystemUnits StringSliceField `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
-	ExcludeSystemUnits StringSliceField `mapstructure:"exclude_units" json:"exclude_units" yaml:"exclude_units"`                // Journald
-	IncludeUserUnits   StringSliceField `mapstructure:"include_user_units" json:"include_user_units" yaml:"include_user_units"` // Journald
-	ExcludeUserUnits   StringSliceField `mapstructure:"exclude_user_units" json:"exclude_user_units" yaml:"exclude_user_units"` // Journald
-	IncludeMatches     StringSliceField `mapstructure:"include_matches" json:"include_matches" yaml:"include_matches"`          // Journald
-	ExcludeMatches     StringSliceField `mapstructure:"exclude_matches" json:"exclude_matches" yaml:"exclude_matches"`          // Journald
-	ContainerMode      bool             `mapstructure:"container_mode" json:"container_mode" yaml:"container_mode"`             // Journald
+	TLS *TLSListenerConfig `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
 	// Intentionally nillable string, as journald will decide on non-standard defaults if the field is not set.
 	DefaultApplicationName *string `mapstructure:"default_application_name" json:"default_application_name" yaml:"default_application_name"` // Journald
-
-	Image string // Docker
-	Label string // Docker
-	// Name contains the container name
-	Name string // Docker
-	// Identifier contains the container ID.  This is also set for File sources and used to
-	// determine the appropriate tags for the logs.
-	Identifier string // Docker, File
-
-	ChannelPath string `mapstructure:"channel_path" json:"channel_path" yaml:"channel_path"` // Windows Event
-	Query       string // Windows Event
-
 	// used as input only by the Channel tailer.
 	// could have been unidirectional but the tailer could not close it in this case.
 	Channel chan *ChannelMessage
-
-	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
-	// modified at runtime (as long as ChannelTagsMutex is held).
-	ChannelTags StringSliceField
-
-	// ChannelTagsMutex guards ChannelTags.
-	ChannelTagsMutex sync.Mutex
-
-	Service         string
-	Source          string
-	SourceCategory  string
-	Tags            StringSliceField
-	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
 	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
 	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message" yaml:"process_raw_message"`
-
 	// AttributeParsing controls whether the full syslog parser is active for
 	// this source. When true, incoming lines are parsed into structured syslog
 	// messages with metadata extraction, CEF/LEEF detection, and processing
@@ -115,17 +64,13 @@ type LogsConfig struct {
 	// auto-enabled if any remap_source processing rule is defined, and
 	// defaults to off otherwise. See IsAttributeParsingEnabled().
 	AttributeParsing *bool `mapstructure:"attribute_parsing" json:"attribute_parsing" yaml:"attribute_parsing"`
-
 	// DebugAttrParsing controls whether the syslog parser renders structured
 	// JSON output (with "message", "syslog", and optionally "siem" keys) or
 	// passes through the original log line as-is. When false (the default),
 	// only the raw message is sent to intake. Set to true to include the full
 	// structured envelope.
 	DebugAttrParsing *bool `mapstructure:"debug_attr_parsing" json:"debug_attr_parsing" yaml:"debug_attr_parsing"`
-
-	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
-	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
-	AutoMultiLineMatchThreshold float64 `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
+	AutoMultiLine    *bool `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection" yaml:"auto_multi_line_detection"`
 	// AutoMultiLineOptions provides detailed configuration for auto multi-line detection specific to this source.
 	// It maps to the 'auto_multi_line' key in the YAML configuration.
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
@@ -133,21 +78,60 @@ type LogsConfig struct {
 	// It maps to the 'experimental_adaptive_sampling' key in the YAML configuration.
 	ExperimentalAdaptiveSampling *SourceAdaptiveSamplingOptions `mapstructure:"experimental_adaptive_sampling" json:"experimental_adaptive_sampling" yaml:"experimental_adaptive_sampling"`
 	// ExperimentalNoisyLogDetection overrides the global noisy log detection toggle for this source when set.
-	ExperimentalNoisyLogDetection *bool `mapstructure:"experimental_noisy_log_detection" json:"experimental_noisy_log_detection" yaml:"experimental_noisy_log_detection"`
-	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
-	// Downstream code will be responsible for parsing this string.
-	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
-	FingerprintConfig    *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
-
+	ExperimentalNoisyLogDetection *bool                    `mapstructure:"experimental_noisy_log_detection" json:"experimental_noisy_log_detection" yaml:"experimental_noisy_log_detection"`
+	FingerprintConfig             *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
 	// MaxMessageSizeBytes overrides the global logs_config.max_message_size_bytes for this source.
 	// If nil, the global setting is used.
 	MaxMessageSizeBytes *int `mapstructure:"max_message_size_bytes" json:"max_message_size_bytes" yaml:"max_message_size_bytes"`
-
+	Type                string
+	IntegrationName     string
+	BindHost            string `mapstructure:"bind_host" json:"bind_host" yaml:"bind_host"`          // Network (tcp, udp)
+	IdleTimeout         string `mapstructure:"idle_timeout" json:"idle_timeout" yaml:"idle_timeout"` // Network (tcp)
+	Path                string // File, Journald
+	Encoding            string `mapstructure:"encoding" json:"encoding" yaml:"encoding"`                   // File
+	TailingMode         string `mapstructure:"start_position" json:"start_position" yaml:"start_position"` // File
+	Format              string `mapstructure:"format" json:"format" yaml:"format"`                         // Parsing format: "syslog" or "" (unstructured)
+	ConfigID            string `mapstructure:"config_id" json:"config_id" yaml:"config_id"`                // Journald
+	Image               string // Docker
+	Label               string // Docker
+	// Name contains the container name
+	Name string // Docker
+	// Identifier contains the container ID.  This is also set for File sources and used to
+	// determine the appropriate tags for the logs.
+	Identifier     string // Docker, File
+	ChannelPath    string `mapstructure:"channel_path" json:"channel_path" yaml:"channel_path"` // Windows Event
+	Query          string // Windows Event
+	Service        string
+	Source         string
+	SourceCategory string
 	// IntegrationSource is the source of the integration file that contains this source.
-	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
+	IntegrationSource  string           `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
+	AllowedIPs         StringSliceField `mapstructure:"allowed_ips" json:"allowed_ips,omitempty" yaml:"allowed_ips,omitempty"`  // Network (tcp, udp)
+	DeniedIPs          StringSliceField `mapstructure:"denied_ips" json:"denied_ips,omitempty" yaml:"denied_ips,omitempty"`     // Network (tcp, udp)
+	ExcludePaths       StringSliceField `mapstructure:"exclude_paths" json:"exclude_paths" yaml:"exclude_paths"`                // File
+	IncludeSystemUnits StringSliceField `mapstructure:"include_units" json:"include_units" yaml:"include_units"`                // Journald
+	ExcludeSystemUnits StringSliceField `mapstructure:"exclude_units" json:"exclude_units" yaml:"exclude_units"`                // Journald
+	IncludeUserUnits   StringSliceField `mapstructure:"include_user_units" json:"include_user_units" yaml:"include_user_units"` // Journald
+	ExcludeUserUnits   StringSliceField `mapstructure:"exclude_user_units" json:"exclude_user_units" yaml:"exclude_user_units"` // Journald
+	IncludeMatches     StringSliceField `mapstructure:"include_matches" json:"include_matches" yaml:"include_matches"`          // Journald
+	ExcludeMatches     StringSliceField `mapstructure:"exclude_matches" json:"exclude_matches" yaml:"exclude_matches"`          // Journald
+	// ChannelTags are the tags attached to messages on Channel; unlike Tags this can be
+	// modified at runtime (as long as ChannelTagsMutex is held).
+	ChannelTags     StringSliceField
+	Tags            StringSliceField
+	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules" yaml:"log_processing_rules"`
+	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
+	// Downstream code will be responsible for parsing this string.
+	AutoMultiLineSamples        []*AutoMultilineSample `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+	Port                        int                    `mapstructure:"port" json:"port" yaml:"port"`                                  // Network (tcp, udp)
+	MaxConnections              int                    `mapstructure:"max_connections" json:"max_connections" yaml:"max_connections"` // Network (tcp)
+	AutoMultiLineSampleSize     int                    `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size" yaml:"auto_multi_line_sample_size"`
+	AutoMultiLineMatchThreshold float64                `mapstructure:"auto_multi_line_match_threshold" json:"auto_multi_line_match_threshold" yaml:"auto_multi_line_match_threshold"`
 	// IntegrationFileIndex is the index of the integration file that contains this source.
 	IntegrationSourceIndex int `mapstructure:"integration_source_index" json:"integration_source_index" yaml:"integration_source_index"`
-
+	// ChannelTagsMutex guards ChannelTags.
+	ChannelTagsMutex sync.Mutex
+	ContainerMode    bool `mapstructure:"container_mode" json:"container_mode" yaml:"container_mode"` // Journald
 	// NoFollow rejects symbolic links in every path component. It is set internally
 	// and cannot be enabled through user configuration.
 	NoFollow bool `json:"-" yaml:"-" mapstructure:"-"`

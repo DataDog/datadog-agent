@@ -48,35 +48,35 @@ type dependencies struct {
 }
 
 type collector struct {
-	id                   string
 	store                workloadmeta.Component
-	catalog              workloadmeta.AgentType
 	metaV1               v1.Client
 	metaV2               v2.Client
 	metaV4               v3or4.Client
+	config               config.Component
 	metaV3or4            func(metaURI, metaVersion string) v3or4.Client
-	clusterName          string
-	containerInstanceARN string
-	hasResourceTags      bool
-	collectResourceTags  bool
 	resourceTags         map[string]resourceTags
 	seen                 map[workloadmeta.EntityID]struct{}
-	config               config.Component
-	// taskCollectionEnabled is a flag to enable detailed task collection
-	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
-	// that is returned from the v1/tasks endpoint
-	taskCollectionEnabled        bool
-	taskCollectionParser         util.TaskParser
-	taskCache                    *cache.Cache
+	taskCollectionParser util.TaskParser
+	taskCache            *cache.Cache
+	id                   string
+	clusterName          string
+	containerInstanceARN string
+	// deploymentMode tracks whether agent runs as daemon or sidecar
+	deploymentMode deploymentMode
+	// actualLaunchType is the actual AWS ECS launch type (ec2, fargate, or managed_instances)
+	actualLaunchType             workloadmeta.ECSLaunchType
 	taskRateRPS                  int
 	taskRateBurst                int
 	metadataRetryInitialInterval time.Duration
 	metadataRetryMaxElapsedTime  time.Duration
 	metadataRetryTimeoutFactor   int
-	// deploymentMode tracks whether agent runs as daemon or sidecar
-	deploymentMode deploymentMode
-	// actualLaunchType is the actual AWS ECS launch type (ec2, fargate, or managed_instances)
-	actualLaunchType workloadmeta.ECSLaunchType
+	catalog                      workloadmeta.AgentType
+	hasResourceTags              bool
+	collectResourceTags          bool
+	// taskCollectionEnabled is a flag to enable detailed task collection
+	// if the flag is enabled, the collector will query the latest metadata endpoint, currently v4, for each task
+	// that is returned from the v1/tasks endpoint
+	taskCollectionEnabled bool
 }
 
 type resourceTags struct {

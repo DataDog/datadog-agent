@@ -65,20 +65,18 @@ const (
 // if entity is a pod, if entity restarts, a new entity will be created because podname is different
 // if entity is a container, the entity will be same
 type Entity struct {
-	EntityType EntityType // required, PodType or ContainerType
-
 	// Use display_container_name for EntityName if EntityType is container
 	// or use podname for entityName if EntityType is pod
 	// display_container_name = container.Name + pod.Name
 	// if container is restarted, the display_container_name will be the same
-	EntityName string // required
-
+	EntityName    string       // required
 	Namespace     string       // required
 	PodOwnerName  string       // required, parsed from tags kube_ownerref_name
-	PodOwnerkind  PodOwnerType // required, parsed from tags kube_ownerref_kind
 	PodName       string       // required, parsed from tags pod_name
 	ContainerName string       // optional, short container name, empty if EntityType is PodType
 	MetricName    string       // required, metric name of workload
+	EntityType    EntityType   // required, PodType or ContainerType
+	PodOwnerkind  PodOwnerType // required, parsed from tags kube_ownerref_kind
 }
 
 // EntityValue represents a value with a timestamp.

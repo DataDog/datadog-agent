@@ -32,15 +32,15 @@ func NewGetPodLogsHandler() *GetPodLogsHandler {
 // Follow and insecureSkipTLSVerifyBackend are intentionally not exposed because
 // private actions must terminate and retain the Kubernetes client's TLS checks.
 type GetPodLogsInputs struct {
+	SinceSeconds *int64       `json:"sinceSeconds,omitempty"`
+	SinceTime    *metav1.Time `json:"sinceTime,omitempty"`
+	TailLines    *int64       `json:"tailLines,omitempty"`
+	LimitBytes   *int64       `json:"limitBytes,omitempty"`
 	Name         string       `json:"name"`
 	Namespace    string       `json:"namespace"`
 	Container    string       `json:"container,omitempty"`
 	Previous     bool         `json:"previous,omitempty"`
-	SinceSeconds *int64       `json:"sinceSeconds,omitempty"`
-	SinceTime    *metav1.Time `json:"sinceTime,omitempty"`
 	Timestamps   bool         `json:"timestamps,omitempty"`
-	TailLines    *int64       `json:"tailLines,omitempty"`
-	LimitBytes   *int64       `json:"limitBytes,omitempty"`
 }
 
 // GetPodLogsOutputs contains the selected Pod logs.

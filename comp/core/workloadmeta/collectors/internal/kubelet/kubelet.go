@@ -39,19 +39,17 @@ type dependencies struct {
 }
 
 type collector struct {
+	// These fields are used to pull the kubelet config
+	kubeletConfigLastExpire    time.Time
+	store                      workloadmeta.Component
+	kubeUtil                   kubelet.KubeUtilInterface
+	lastSeenPodUIDs            map[string]time.Time
+	lastSeenContainerIDs       map[string]time.Time
 	id                         string
+	pullInterval               time.Duration
 	isCLCRunner                bool
 	catalog                    workloadmeta.AgentType
-	store                      workloadmeta.Component
 	collectEphemeralContainers bool
-	pullInterval               time.Duration
-
-	kubeUtil             kubelet.KubeUtilInterface
-	lastSeenPodUIDs      map[string]time.Time
-	lastSeenContainerIDs map[string]time.Time
-
-	// These fields are used to pull the kubelet config
-	kubeletConfigLastExpire time.Time
 }
 
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector

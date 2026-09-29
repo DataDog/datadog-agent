@@ -29,10 +29,10 @@ const (
 type InstallOption func(*installParams)
 
 type installParams struct {
-	remoteUpdates        bool
-	stablePackages       bool
 	stagingPackages      string
 	pipelineID           string
+	remoteUpdates        bool
+	stablePackages       bool
 	otelCollectorEnabled bool
 }
 

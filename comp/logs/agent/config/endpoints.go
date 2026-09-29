@@ -53,42 +53,37 @@ const (
 
 // Endpoint holds all the organization and network parameters to send logs to Datadog.
 type Endpoint struct {
-	isReliable bool
-	useSSL     bool
-
 	// the apiKey to use for this endpoint
-	apiKey *atomic.String
+	apiKey           *atomic.String
+	ExtraHTTPHeaders map[string]string
 	// The path of the config used to get the API key. This path is used to listen for configuration updates from
 	// the config.
 	configSettingPath string
-	// was this endpoint an "additional_endpoints"
-	isAdditionalEndpoint bool
+	Host              string `mapstructure:"host" json:"host"`
+	PathPrefix        string `mapstructure:"path_prefix" json:"path_prefix"`
+	CompressionKind   string `mapstructure:"compression_kind" json:"compression_kind"`
+	ProxyAddress      string
+	TrackType         IntakeTrackType
+	Protocol          IntakeProtocol
+	Origin            IntakeOrigin
 	// the index of this endpoint config within "additional_endpoints" settings. This is needed to not
 	// wrongly update an endpoint when an API key is linked to multuple endpoints.
-	additionalEndpointsIdx int
-
-	Host                    string `mapstructure:"host" json:"host"`
+	additionalEndpointsIdx  int
 	Port                    int
-	PathPrefix              string `mapstructure:"path_prefix" json:"path_prefix"`
-	UseCompression          bool   `mapstructure:"use_compression" json:"use_compression"`
-	CompressionKind         string `mapstructure:"compression_kind" json:"compression_kind"`
-	CompressionLevel        int    `mapstructure:"compression_level" json:"compression_level"`
-	ProxyAddress            string
-	IsMRF                   bool `mapstructure:"-" json:"-"`
+	CompressionLevel        int `mapstructure:"compression_level" json:"compression_level"`
 	ConnectionResetInterval time.Duration
-
-	BackoffFactor    float64
-	BackoffBase      float64
-	BackoffMax       float64
-	RecoveryInterval int
-	RecoveryReset    bool
-
-	Version   EPIntakeVersion
-	TrackType IntakeTrackType
-	Protocol  IntakeProtocol
-	Origin    IntakeOrigin
-
-	ExtraHTTPHeaders map[string]string
+	BackoffFactor           float64
+	BackoffBase             float64
+	BackoffMax              float64
+	RecoveryInterval        int
+	isReliable              bool
+	useSSL                  bool
+	// was this endpoint an "additional_endpoints"
+	isAdditionalEndpoint bool
+	UseCompression       bool `mapstructure:"use_compression" json:"use_compression"`
+	IsMRF                bool `mapstructure:"-" json:"-"`
+	RecoveryReset        bool
+	Version              EPIntakeVersion
 }
 
 // unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.

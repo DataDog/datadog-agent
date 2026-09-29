@@ -9,29 +9,29 @@ package gosymname
 // A symbol may have multiple interpretations when the parse is ambiguous (e.g.
 // value-receiver method vs function with inlined callee).
 type Interpretation struct {
-	// OuterReceiver is the receiver type name (without '*' or parentheses).
-	OuterReceiver string
-	// OuterReceiverKind is ReceiverPointer, ReceiverValue, or ReceiverNone.
-	OuterReceiverKind ReceiverKind
 	// OuterReceiverGenerics holds the generic type parameters of the receiver,
 	// if any.
 	OuterReceiverGenerics *GenericParams
-	// OuterFunction is the function or method name.
-	OuterFunction string
 	// OuterFuncGenerics holds the generic type parameters of the function, if
 	// any.
 	OuterFuncGenerics *GenericParams
-	// InlinedCalls is the chain of inlined function/method calls, in order.
-	InlinedCalls []InlinedCall
+	// OuterReceiver is the receiver type name (without '*' or parentheses).
+	OuterReceiver string
+	// OuterFunction is the function or method name.
+	OuterFunction string
 	// ClosureSuffix is the closure/nesting/range/wrapper chain, e.g.
 	// "func1.2", "gowrap1", "func1.func4.deferwrap".
 	ClosureSuffix string
-	// ClosureDepth is the nesting depth. 1 for func1, 3 for func1.2.3.
-	ClosureDepth int
-	// Wrapper is the wrapper kind (go, defer, method expression), if any.
-	Wrapper WrapperKind
 	// ABISuffix is "abi0", "abiinternal", or "" (from nm output).
 	ABISuffix string
+	// InlinedCalls is the chain of inlined function/method calls, in order.
+	InlinedCalls []InlinedCall
+	// ClosureDepth is the nesting depth. 1 for func1, 3 for func1.2.3.
+	ClosureDepth int
+	// OuterReceiverKind is ReceiverPointer, ReceiverValue, or ReceiverNone.
+	OuterReceiverKind ReceiverKind
+	// Wrapper is the wrapper kind (go, defer, method expression), if any.
+	Wrapper WrapperKind
 }
 
 // IsMethod returns true if the outer function has a receiver.

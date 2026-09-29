@@ -20,10 +20,10 @@ import (
 
 // FileRemovalPolicy handles the removal policy for `.retry` files.
 type FileRemovalPolicy struct {
-	rootPath           string
-	knownDomainFolders map[string]struct{}
-	outdatedFileTime   time.Time
 	telemetry          FileRemovalPolicyTelemetry
+	outdatedFileTime   time.Time
+	knownDomainFolders map[string]struct{}
+	rootPath           string
 }
 
 // NewFileRemovalPolicy creates a new instance of FileRemovalPolicy

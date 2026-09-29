@@ -132,6 +132,18 @@ func getBuildInfo() (component.BuildInfo, error) {
 type PipelineConfig struct {
 	// OTLPReceiverConfig is the OTLP receiver configuration.
 	OTLPReceiverConfig map[string]interface{}
+	// Logs contains configuration options for the logs
+	Logs map[string]interface{}
+	// Debug contains debug configurations.
+	Debug map[string]interface{}
+	// Metrics contains configuration options for the serializer metrics exporter
+	Metrics map[string]interface{}
+	// MetricsBatch contains configuration options for the sending queue batch
+	MetricsBatch map[string]interface{}
+	// TracesContainerTagPromotion controls how the InfraAttributes processor promotes
+	// custom container tags into `_dd.tags.container` for the Traces pipeline.
+	// Valid values: "off", "duplicate", "rename" (empty is treated as "off").
+	TracesContainerTagPromotion string
 	// TracePort is the trace Agent OTLP port.
 	TracePort uint
 	// MetricsEnabled states whether OTLP metrics support is enabled.
@@ -142,10 +154,6 @@ type PipelineConfig struct {
 	LogsEnabled bool
 	// Enable/disable InfraAttributes processor for Traces pipeline
 	TracesInfraAttributesEnabled bool
-	// TracesContainerTagPromotion controls how the InfraAttributes processor promotes
-	// custom container tags into `_dd.tags.container` for the Traces pipeline.
-	// Valid values: "off", "duplicate", "rename" (empty is treated as "off").
-	TracesContainerTagPromotion string
 	// LogsTagsAsDDTags controls whether the InfraAttributes processor writes custom
 	// tags (e.g. from kubernetesResourcesLabelsAsTags/AnnotationsAsTags) as a
 	// `ddtags` log record attribute (real Datadog log tags) instead of resource
@@ -156,14 +164,6 @@ type PipelineConfig struct {
 	// survive the metrics translator's allowlist and become metric tags for the Metrics
 	// pipeline. Without it, custom tags that are not known DD/OTel conventions are dropped.
 	MetricsInfraAttrsAsTags bool
-	// Logs contains configuration options for the logs
-	Logs map[string]interface{}
-	// Debug contains debug configurations.
-	Debug map[string]interface{}
-	// Metrics contains configuration options for the serializer metrics exporter
-	Metrics map[string]interface{}
-	// MetricsBatch contains configuration options for the sending queue batch
-	MetricsBatch map[string]interface{}
 }
 
 // shouldSetLoggingSection reports whether the debug exporter should be attached to

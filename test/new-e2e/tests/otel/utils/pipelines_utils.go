@@ -61,21 +61,17 @@ type OTelTestSuite interface {
 
 // IAParams contains options for different infra attribute testing scenarios
 type IAParams struct {
-	// InfraAttributes indicates whether this test should check for infra attributes
-	InfraAttributes bool
-
-	// EKS indicates if this test should check for EKS specific properties
-	EKS bool
-
 	// Cardinality represents the tag cardinality used by this test
 	Cardinality types.TagCardinality
-
+	// InfraAttributes indicates whether this test should check for infra attributes
+	InfraAttributes bool
+	// EKS indicates if this test should check for EKS specific properties
+	EKS bool
 	// LogsTagsAsDDTags indicates whether the infraattributes processor's
 	// logs_tags_as_ddtags option is enabled for this test, i.e. whether
 	// custom tagger-derived tags (e.g. customLabelTag) are expected as real
 	// log tags instead of log attributes.
 	LogsTagsAsDDTags bool
-
 	// SkipCustomLabelTag skips testCustomLabelAsTag. Set this for deployments
 	// that don't configure kubernetesResourcesLabelsAsTags (e.g. the
 	// standalone otel-agent DaemonSet, which has no Helm chart / Cluster

@@ -19,19 +19,19 @@ import (
 // ProcessorContext is a test context for processors.
 type ProcessorContext struct {
 	AgentVersion        *model.AgentVersion
+	Clock               *clock.Mock
+	OrchestratorConfig  *config.OrchestratorConfig
+	SystemInfo          *model.SystemInfo
 	APIVersion          string
 	Kind                string
-	Clock               *clock.Mock
 	ClusterID           string
 	CollectorGroup      string
 	CollectorName       string
-	CollectorTags       []string
 	HostName            string
-	ManifestProducer    bool
-	MsgGroupID          int32
+	CollectorTags       []string
 	NodeType            pkgorchestratormodel.NodeType
-	OrchestratorConfig  *config.OrchestratorConfig
-	SystemInfo          *model.SystemInfo
+	MsgGroupID          int32
+	ManifestProducer    bool
 	TerminatedResources bool
 }
 

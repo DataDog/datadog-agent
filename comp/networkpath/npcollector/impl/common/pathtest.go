@@ -27,7 +27,6 @@ type PathtestMetadata struct {
 // Pathtest details of information necessary to run a traceroute
 type Pathtest struct {
 	Hostname           string
-	Port               uint16
 	Protocol           payload.Protocol
 	SourceContainerID  string
 	Namespace          string
@@ -36,8 +35,9 @@ type Pathtest struct {
 	TestConfigName     string
 	TestConfigSource   payload.TestConfigSource
 	DynamicTestProfile payload.DynamicTestProfile
-	Tags               []string
 	Metadata           PathtestMetadata
+	Tags               []string
+	Port               uint16
 	// RunOnce removes this path from the store after its first flush attempt.
 	RunOnce bool
 }

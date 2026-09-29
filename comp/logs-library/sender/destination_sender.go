@@ -18,14 +18,14 @@ import (
 // a destination is retrying
 type DestinationSender struct {
 	config            pkgconfigmodel.Reader
-	sendEnabled       bool
-	input             chan *message.Payload
 	destination       client.Destination
+	input             chan *message.Payload
 	retryReader       chan bool
 	stopChan          <-chan struct{}
-	retryLock         sync.Mutex
-	lastRetryState    bool
 	cancelSendChan    chan struct{}
+	retryLock         sync.Mutex
+	sendEnabled       bool
+	lastRetryState    bool
 	lastSendSucceeded bool
 }
 

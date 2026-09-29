@@ -40,28 +40,26 @@ import (
 )
 
 type atel struct {
-	cfgComp config.Component
-	logComp log.Component
-	telComp telemetry.Component
-
-	enabled bool
-	sender  sender
-	runner  runner
-	atelCfg *Config
-
-	localEmitter string
-
-	lightTracer *installertelemetry.Telemetry
-
-	cancelCtx context.Context
-	cancel    context.CancelFunc
-
-	startupSpan *installertelemetry.Span
-
+	cfgComp                       config.Component
+	logComp                       log.Component
+	telComp                       telemetry.Component
+	sender                        sender
+	runner                        runner
+	cancelCtx                     context.Context
+	atelCfg                       *Config
+	lightTracer                   *installertelemetry.Telemetry
+	cancel                        context.CancelFunc
+	startupSpan                   *installertelemetry.Span
 	prevPromMetricCounterValues   map[string]float64
 	prevPromMetricHistogramValues map[string]uint64
+	errLogsCh                     chan errortracking.ErrorLog
+	errLogsDropped                *atomic.Uint64
+	localEmitter                  string
+	errLogsFlushInterval          time.Duration
+	errLogsStartupJitter          time.Duration
+	shutdownDrainTimeout          time.Duration
 	prevPromMetricValuesMU        sync.Mutex
-
+	enabled                       bool
 	// Errortracking: bounded channel drained by a runner-scheduled job.
 	// SubmitErrorLog enqueues here non-blockingly; flushErrortracking
 	// drains the channel on each tick and on shutdown, dispatching via
@@ -72,11 +70,6 @@ type atel struct {
 	// agent_telemetry.errortracking.enabled), so deployments that don't
 	// opt in pay zero overhead (no buffer, no scheduled job).
 	errortrackingEnabled bool
-	errLogsCh            chan errortracking.ErrorLog
-	errLogsDropped       *atomic.Uint64
-	errLogsFlushInterval time.Duration
-	errLogsStartupJitter time.Duration
-	shutdownDrainTimeout time.Duration
 }
 
 const (

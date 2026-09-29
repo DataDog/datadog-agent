@@ -32,20 +32,19 @@ import (
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
 type vmArgs struct {
-	osInfo          *os.Descriptor
-	ami             string
-	useLatestAMI    bool
-	userData        string
-	instanceType    string
-	instanceProfile string
-	tenancy         string
-	hostID          string
-
-	withoutInternetAccess bool
-	httpTokensRequired    bool
+	osInfo                *os.Descriptor
+	ami                   string
+	userData              string
+	instanceType          string
+	instanceProfile       string
+	tenancy               string
+	hostID                string
+	pulumiResourceOptions []pulumi.ResourceOption
 	volumeThroughput      int // GP3 volume throughput in MiB/s (125-1000, default 125)
 	storageSize           int // root volume size in GiB (0 = account default)
-	pulumiResourceOptions []pulumi.ResourceOption
+	useLatestAMI          bool
+	withoutInternetAccess bool
+	httpTokensRequired    bool
 }
 
 type VMOption = func(*vmArgs) error

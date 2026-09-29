@@ -49,19 +49,19 @@ type ProcessorContext interface {
 
 // BaseProcessorContext is the base context for all processors
 type BaseProcessorContext struct {
+	Clock               clock.Clock
 	Cfg                 *config.OrchestratorConfig
-	NodeType            pkgorchestratormodel.NodeType
-	MsgGroupID          int32
+	AgentVersion        *model.AgentVersion
 	ClusterID           string
-	ManifestProducer    bool
 	Kind                string
 	APIVersion          string
 	CollectorGroup      string
 	CollectorName       string
 	CollectorTags       []string
+	NodeType            pkgorchestratormodel.NodeType
+	MsgGroupID          int32
+	ManifestProducer    bool
 	TerminatedResources bool
-	AgentVersion        *model.AgentVersion
-	Clock               clock.Clock
 }
 
 // GetOrchestratorConfig returns the orchestrator config

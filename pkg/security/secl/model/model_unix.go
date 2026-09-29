@@ -288,17 +288,14 @@ type SyscallEvent struct {
 
 // SyscallContext contains syscall context
 type SyscallContext struct {
-	ID uint32 `field:"-"`
-
-	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only|skip_ad"`
-	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only|skip_ad"`
-	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only|skip_ad"`
-
-	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only|skip_ad"`
-	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only|skip_ad"`
-	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only|skip_ad"`
-
-	Resolved bool `field:"-"`
+	StrArg1  string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only|skip_ad"`
+	StrArg2  string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only|skip_ad"`
+	StrArg3  string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only|skip_ad"`
+	IntArg1  int64  `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only|skip_ad"`
+	IntArg2  int64  `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only|skip_ad"`
+	IntArg3  int64  `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only|skip_ad"`
+	ID       uint32 `field:"-"`
+	Resolved bool   `field:"-"`
 }
 
 // GoLabelsContext is a handle to a set of Go pprof labels captured at syscall
@@ -339,22 +336,22 @@ type ChownEvent struct {
 
 // SetuidEvent represents a setuid event
 type SetuidEvent struct {
-	UID    uint32 `field:"uid"`                                // SECLDoc[uid] Definition:`New UID of the process`
 	User   string `field:"user,handler:ResolveSetuidUser"`     // SECLDoc[user] Definition:`New user of the process`
-	EUID   uint32 `field:"euid"`                               // SECLDoc[euid] Definition:`New effective UID of the process`
 	EUser  string `field:"euser,handler:ResolveSetuidEUser"`   // SECLDoc[euser] Definition:`New effective user of the process`
-	FSUID  uint32 `field:"fsuid"`                              // SECLDoc[fsuid] Definition:`New FileSystem UID of the process`
 	FSUser string `field:"fsuser,handler:ResolveSetuidFSUser"` // SECLDoc[fsuser] Definition:`New FileSystem user of the process`
+	UID    uint32 `field:"uid"`                                // SECLDoc[uid] Definition:`New UID of the process`
+	EUID   uint32 `field:"euid"`                               // SECLDoc[euid] Definition:`New effective UID of the process`
+	FSUID  uint32 `field:"fsuid"`                              // SECLDoc[fsuid] Definition:`New FileSystem UID of the process`
 }
 
 // SetgidEvent represents a setgid event
 type SetgidEvent struct {
-	GID     uint32 `field:"gid"`                                  // SECLDoc[gid] Definition:`New GID of the process`
 	Group   string `field:"group,handler:ResolveSetgidGroup"`     // SECLDoc[group] Definition:`New group of the process`
-	EGID    uint32 `field:"egid"`                                 // SECLDoc[egid] Definition:`New effective GID of the process`
 	EGroup  string `field:"egroup,handler:ResolveSetgidEGroup"`   // SECLDoc[egroup] Definition:`New effective group of the process`
-	FSGID   uint32 `field:"fsgid"`                                // SECLDoc[fsgid] Definition:`New FileSystem GID of the process`
 	FSGroup string `field:"fsgroup,handler:ResolveSetgidFSGroup"` // SECLDoc[fsgroup] Definition:`New FileSystem group of the process`
+	GID     uint32 `field:"gid"`                                  // SECLDoc[gid] Definition:`New GID of the process`
+	EGID    uint32 `field:"egid"`                                 // SECLDoc[egid] Definition:`New effective GID of the process`
+	FSGID   uint32 `field:"fsgid"`                                // SECLDoc[fsgid] Definition:`New FileSystem GID of the process`
 }
 
 // CapsetEvent represents a capset event
@@ -1160,13 +1157,13 @@ func (it *FlowsIterator) Len(ctx *eval.Context) int {
 
 // SysCtlEvent is used to represent a system control parameter event
 type SysCtlEvent struct {
+	Name              string `field:"name"`                // SECLDoc[name] Definition:`Name of the system control parameter`
+	OldValue          string `field:"old_value"`           // SECLDoc[old_value] Definition:`Old value of the system control parameter`
+	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
 	Action            uint32 `field:"action"`              // SECLDoc[action] Definition:`Action performed on the system control parameter` Constants:`SysCtl Actions`
 	FilePosition      uint32 `field:"file_position"`       // SECLDoc[file_position] Definition:`Position in the sysctl control parameter file at which the action occurred`
-	Name              string `field:"name"`                // SECLDoc[name] Definition:`Name of the system control parameter`
 	NameTruncated     bool   `field:"name_truncated"`      // SECLDoc[name_truncated] Definition:`Indicates that the name field is truncated`
-	OldValue          string `field:"old_value"`           // SECLDoc[old_value] Definition:`Old value of the system control parameter`
 	OldValueTruncated bool   `field:"old_value_truncated"` // SECLDoc[old_value_truncated] Definition:`Indicates that the old value field is truncated`
-	Value             string `field:"value"`               // SECLDoc[value] Definition:`New and/or current value for the system control parameter depending on the action type`
 	ValueTruncated    bool   `field:"value_truncated"`     // SECLDoc[value_truncated] Definition:`Indicates that the value field is truncated`
 }
 

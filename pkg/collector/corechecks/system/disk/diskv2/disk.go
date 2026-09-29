@@ -73,22 +73,17 @@ type mount struct {
 
 // diskInstanceConfig represents an instance configuration.
 type diskInstanceConfig struct {
-	UseMount               bool              `yaml:"use_mount"`
-	IncludeAllDevices      bool              `yaml:"include_all_devices"`
-	AllPartitions          bool              `yaml:"all_partitions"`
-	MinDiskSize            uint64            `yaml:"min_disk_size"`
-	TagByFilesystem        bool              `yaml:"tag_by_filesystem"`
-	TagByLabel             bool              `yaml:"tag_by_label"`
-	UseLsblk               bool              `yaml:"use_lsblk"`
+	DeviceTagRe            map[string]string `yaml:"device_tag_re"`
 	BlkidCacheFile         string            `yaml:"blkid_cache_file"`
-	ServiceCheckRw         bool              `yaml:"service_check_rw"`
+	ExcludedDiskRe         string            `yaml:"excluded_disk_re"`
+	ExcludedMountPointRe   string            `yaml:"excluded_mountpoint_re"`
+	ProcMountInfoPath      string            `yaml:"proc_mountinfo_path"`
 	CreateMounts           []mount           `yaml:"create_mounts"`
 	DeviceInclude          []string          `yaml:"device_include"`
 	DeviceWhitelist        []string          `yaml:"device_whitelist"`
 	DeviceExclude          []string          `yaml:"device_exclude"`
 	DeviceBlacklist        []string          `yaml:"device_blacklist"`
 	ExcludedDisks          []string          `yaml:"excluded_disks"`
-	ExcludedDiskRe         string            `yaml:"excluded_disk_re"`
 	FileSystemInclude      []string          `yaml:"file_system_include"`
 	FileSystemWhitelist    []string          `yaml:"file_system_whitelist"`
 	FileSystemExclude      []string          `yaml:"file_system_exclude"`
@@ -98,11 +93,16 @@ type diskInstanceConfig struct {
 	MountPointWhitelist    []string          `yaml:"mount_point_whitelist"`
 	MountPointExclude      []string          `yaml:"mount_point_exclude"`
 	MountPointBlacklist    []string          `yaml:"mount_point_blacklist"`
-	ExcludedMountPointRe   string            `yaml:"excluded_mountpoint_re"`
-	DeviceTagRe            map[string]string `yaml:"device_tag_re"`
-	LowercaseDeviceTag     bool              `yaml:"lowercase_device_tag"`
+	MinDiskSize            uint64            `yaml:"min_disk_size"`
 	Timeout                uint16            `yaml:"timeout"`
-	ProcMountInfoPath      string            `yaml:"proc_mountinfo_path"`
+	UseMount               bool              `yaml:"use_mount"`
+	IncludeAllDevices      bool              `yaml:"include_all_devices"`
+	AllPartitions          bool              `yaml:"all_partitions"`
+	TagByFilesystem        bool              `yaml:"tag_by_filesystem"`
+	TagByLabel             bool              `yaml:"tag_by_label"`
+	UseLsblk               bool              `yaml:"use_lsblk"`
+	ServiceCheckRw         bool              `yaml:"service_check_rw"`
+	LowercaseDeviceTag     bool              `yaml:"lowercase_device_tag"`
 	ResolveRootDevice      bool              `yaml:"resolve_root_device"`
 	TagByPhysicalStorage   bool              `yaml:"tag_by_physical_storage"`
 	CollectPhysicalMetrics bool              `yaml:"collect_physical_metrics"`

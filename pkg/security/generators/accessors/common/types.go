@@ -56,35 +56,35 @@ type FileField struct {
 
 // StructField represents a structure field for which an accessor will be generated
 type StructField struct {
+	Iterator         *StructField
 	Name             string
 	Prefix           string
 	Struct           string
 	BasicType        string
 	ReturnType       string
-	IsArray          bool
-	IsLength         bool
-	IsRootDomain     bool
 	Event            string
 	Handler          string
-	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
-	SkipADResolution bool
 	OrigType         string
-	IsOrigTypePtr    bool
-	Iterator         *StructField
-	Weight           int64
 	CommentText      string
-	OpOverrides      []string
 	Check            string
 	SetHandler       string
 	Alias            string
 	AliasPrefix      string
+	Ref              string
+	DefaultValue     string
+	OpOverrides      []string
+	RestrictedTo     []string
+	Weight           int64
+	IsArray          bool
+	IsLength         bool
+	IsRootDomain     bool
+	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
+	SkipADResolution bool
+	IsOrigTypePtr    bool
 	GettersOnly      bool
 	GenGetters       bool
-	Ref              string
-	RestrictedTo     []string
 	IsIterator       bool
 	ReadOnly         bool
-	DefaultValue     string
 }
 
 // GetEvaluatorType returns the evaluator type name

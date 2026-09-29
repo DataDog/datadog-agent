@@ -20,57 +20,52 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist                   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	MetricsClient               statsd.ClientInterface
+	ActionsAllowlist            map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	RShellAllowedSystemServices map[string][]string
+	PrivateKey                  *ecdsa.PrivateKey
+	TaskTimeoutSeconds          *int32
+	OpmsExtraHeaders            map[string]string
+	RShellPrivilegedSocket      string
+	DDHost                      string
+	DDApiHost                   string
+	RunnerId                    string
+	Urn                         string
+	// RemoteConfig related fields
+	DatadogSite                        string
+	RunnerAccessTokenHeader            string
+	RunnerAccessTokenIdHeader          string
+	HealthCheckEndpoint                string
+	Version                            string
 	Allowlist                          []string
-	AllowIMDSEndpoint                  bool
 	RShellAllowedPaths                 []string
 	RShellAllowedCommands              []string
-	RShellAllowedSystemServices        map[string][]string
-	RShellDisableDetailedTelemetry     bool
-	RShellPrivilegedEnabled            bool
-	RShellPrivilegedSocket             string
 	RShellPrivilegedElevatableCommands []string
-	RShellAllowedCommandsConfigured    bool
-	RShellAllowedPathsConfigured       bool
-	DDHost                             string
-	DDApiHost                          string
 	Modes                              []modes.Mode
-	OrgId                              int64
-	PrivateKey                         *ecdsa.PrivateKey
-	RunnerId                           string
-	Urn                                string
 	Tags                               []observability.Tag
-
-	// RemoteConfig related fields
-	DatadogSite string
-
+	OrgId                              int64
 	// the following are constants with default values. They are part of the config struct to allow for the ability to be overwritten in the YAML config file if needed
-	MaxBackoff                 time.Duration
-	MinBackoff                 time.Duration
-	MaxAttempts                int32
-	WaitBeforeRetry            time.Duration
-	LoopInterval               time.Duration
-	OpmsRequestTimeout         int32
-	RunnerPoolSize             int32
-	HealthCheckInterval        int32
-	HttpServerReadTimeout      int32
-	HttpServerWriteTimeout     int32
-	HTTPTimeout                time.Duration
-	TaskTimeoutSeconds         *int32
-	RunnerAccessTokenHeader    string
-	RunnerAccessTokenIdHeader  string
-	Port                       int32
-	JWTRefreshInterval         time.Duration
-	HealthCheckEndpoint        string
-	HeartbeatInterval          time.Duration
-	EnableProfiling            bool
-	DisableCredentialTemplates bool
-
-	Version string
-
-	OpmsExtraHeaders map[string]string
-
-	MetricsClient statsd.ClientInterface
+	MaxBackoff                      time.Duration
+	MinBackoff                      time.Duration
+	WaitBeforeRetry                 time.Duration
+	LoopInterval                    time.Duration
+	HTTPTimeout                     time.Duration
+	JWTRefreshInterval              time.Duration
+	HeartbeatInterval               time.Duration
+	MaxAttempts                     int32
+	OpmsRequestTimeout              int32
+	RunnerPoolSize                  int32
+	HealthCheckInterval             int32
+	HttpServerReadTimeout           int32
+	HttpServerWriteTimeout          int32
+	Port                            int32
+	AllowIMDSEndpoint               bool
+	RShellDisableDetailedTelemetry  bool
+	RShellPrivilegedEnabled         bool
+	RShellAllowedCommandsConfigured bool
+	RShellAllowedPathsConfigured    bool
+	EnableProfiling                 bool
+	DisableCredentialTemplates      bool
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
