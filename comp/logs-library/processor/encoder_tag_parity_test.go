@@ -136,3 +136,33 @@ func TestEncoderTagWireParity(t *testing.T) {
 		})
 	}
 }
+
+// TestEncoderTagWireParityWithSnapshot runs the same cases with the tag
+// snapshot built, as a converted tailer does right before it sends. The
+// expected bytes are the same literals.
+func TestEncoderTagWireParityWithSnapshot(t *testing.T) {
+	for _, c := range encoderTagParityCases {
+		t.Run(c.name, func(t *testing.T) {
+			assertEncoderTagParity(t, c, func() *message.Message {
+				msg := newEncoderParityMessage(newEncoderParityConfig(), c.attached)
+				msg.Origin.BuildTagSnapshot()
+				return msg
+			})
+		})
+	}
+}
+
+// TestEncoderTagSnapshotIgnoresLateConfigMutation shows the wire-visible
+// effect of the snapshot: a Config.Tags change after the tailer built the
+// snapshot does not reach an already-sent message.
+func TestEncoderTagSnapshotIgnoresLateConfigMutation(t *testing.T) {
+	c := encoderTagParityCases[0]
+	assertEncoderTagParity(t, c, func() *message.Message {
+		cfg := newEncoderParityConfig()
+		msg := newEncoderParityMessage(cfg, c.attached)
+		msg.Origin.BuildTagSnapshot()
+		cfg.Tags[0] = "env:mutated"
+		cfg.Tags = append(cfg.Tags, "late:tag")
+		return msg
+	})
+}

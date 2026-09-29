@@ -26,7 +26,17 @@ type Origin struct {
 	source       string
 	mappedSource string
 	tags         []string
+	// snapshot is the write-once tag view built by BuildTagSnapshot.
+	// nil means "no snapshot": Tags, TagsToString and TagsPayload fall back
+	// to merging the live source config on every read. A non-nil snapshot
+	// with zero tags is still a snapshot and is served as such.
+	snapshot *tagSnapshot
 }
+
+// fallbackMergeHook, when set, is called every time Tags, TagsToString or
+// TagsPayload merges the live source config instead of reading a snapshot.
+// It is nil in production; tests set it to count fallback merges.
+var fallbackMergeHook func()
 
 // NewOrigin returns a new Origin
 func NewOrigin(source *sources.LogSource) *Origin {
@@ -35,9 +45,15 @@ func NewOrigin(source *sources.LogSource) *Origin {
 	}
 }
 
-// Tags returns the tags of the origin.
+// Tags returns the tags of the origin, in JSON/protobuf order: attached tags,
+// then "sourcecategory:X" if set, then the configured tags.
 //
-// The returned slice must not be modified by the caller.
+// When the origin carries a tag snapshot (see BuildTagSnapshot), the returned
+// slice is shared: every call returns the same backing array, and other
+// readers (encoders, possibly on other goroutines) read it too. Callers must
+// not write to it, sort it in place or append to it expecting a private
+// copy. A caller that keeps the slice past the call may keep the reference
+// (the snapshot is never mutated), but must copy it before changing it.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
@@ -46,6 +62,13 @@ func (o *Origin) Tags() []string {
 func (o *Origin) TagsPayload(processingTags []string) []byte {
 	if o == nil || o.LogSource == nil {
 		return []byte{}
+	}
+	// The source stays live: remap_source can change it after the tailer.
+	if o.snapshot != nil {
+		return o.snapshot.payload(o.Source(), processingTags)
+	}
+	if fallbackMergeHook != nil {
+		fallbackMergeHook()
 	}
 
 	var tagsPayload []byte
@@ -118,6 +141,12 @@ func (o *Origin) tagsToStringArray() []string {
 	if o == nil || o.LogSource == nil {
 		return nil
 	}
+	if o.snapshot != nil {
+		return o.snapshot.merged
+	}
+	if fallbackMergeHook != nil {
+		fallbackMergeHook()
+	}
 	sourceCategory := o.LogSource.Config.SourceCategory
 	configTags := o.LogSource.Config.Tags
 
@@ -141,8 +170,32 @@ func (o *Origin) tagsToStringArray() []string {
 }
 
 // SetTags sets the tags of the origin.
+//
+// It drops any tag snapshot built earlier, so a tag writer that runs after
+// BuildTagSnapshot is never silently ignored: the origin falls back to
+// merging the live source config until the snapshot is built again.
 func (o *Origin) SetTags(tags []string) {
 	o.tags = tags
+	o.snapshot = nil
+}
+
+// BuildTagSnapshot freezes the origin's tag view: the tags passed to SetTags
+// (attached), LogSource.Config.SourceCategory and LogSource.Config.Tags
+// (configured). Tailers call it once, right before they send the message.
+// After it, Tags, TagsToString and TagsPayload read the snapshot instead of
+// the live source config, so a later in-place change to Config.Tags does not
+// reach this message. Every input slice is copied.
+//
+// The source and the service are not frozen: Source and Service keep reading
+// the live values (remap_source runs after the tailer).
+//
+// It is a no-op on a nil origin or an origin without a source config, which
+// then keeps the fallback path.
+func (o *Origin) BuildTagSnapshot() {
+	if o == nil || o.LogSource == nil || o.LogSource.Config == nil {
+		return
+	}
+	o.snapshot = newTagSnapshot(o.tags, o.LogSource.Config.Tags, o.LogSource.Config.SourceCategory)
 }
 
 // SetSource sets the source of the origin.

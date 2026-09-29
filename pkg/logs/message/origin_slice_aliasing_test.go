@@ -47,3 +47,28 @@ func TestTags_NoMutation(t *testing.T) {
 	assert.Equal(t, "tag1:value1", origin.tags[0])
 	assert.Equal(t, "tag2:value2", origin.tags[1])
 }
+
+// TestTags_NoMutationWithSnapshot is the snapshot variant of
+// TestTags_NoMutation: building and reading the snapshot must not write into
+// the origin's tags slice, even when it has spare capacity.
+func TestTags_NoMutationWithSnapshot(t *testing.T) {
+	cfg := &config.LogsConfig{SourceCategory: "web", Tags: []string{"env:prod"}}
+	source := sources.NewLogSource("", cfg)
+	origin := NewOrigin(source)
+
+	tagsWithCapacity := make([]string, 2, 10)
+	tagsWithCapacity[0] = "tag1:value1"
+	tagsWithCapacity[1] = "tag2:value2"
+	origin.SetTags(tagsWithCapacity)
+	origin.BuildTagSnapshot()
+
+	result := origin.Tags()
+	_ = origin.TagsPayload([]string{"processing:tag"})
+
+	assert.Equal(t, []string{"tag1:value1", "tag2:value2", "sourcecategory:web", "env:prod"}, result)
+	assert.Len(t, origin.tags, 2, "origin.tags should not be modified")
+	assert.Equal(t, "tag1:value1", origin.tags[0])
+	assert.Equal(t, "tag2:value2", origin.tags[1])
+	// Nothing was written into the spare capacity.
+	assert.Equal(t, "", tagsWithCapacity[:3][2])
+}
