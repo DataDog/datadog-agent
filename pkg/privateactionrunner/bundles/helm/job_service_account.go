@@ -10,7 +10,6 @@ package com_datadoghq_helm
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -19,20 +18,25 @@ import (
 )
 
 const (
-	// ownServiceAccountSuffix is the suffix the Helm chart appends to the
-	// release fullname for the cluster agent's own ServiceAccount.
-	ownServiceAccountSuffix = "-cluster-agent"
-	// jobServiceAccountSuffix is the suffix the Helm chart appends to the
-	// release fullname for the helm-actions Job's ServiceAccount.
+	// fullnameLabel is the standard Helm chart label ("datadog.pod-template-labels")
+	// carrying the release's resolved fullname. The chart sets it to the same
+	// value used to name every release-scoped resource, and — unlike the
+	// cluster agent's own ServiceAccount name — it isn't affected by a custom
+	// clusterAgent.rbac.serviceAccountName override, so it's a reliable way to
+	// recover the fullname from a live cluster without any chart-side changes.
+	fullnameLabel = "app.kubernetes.io/name"
+	// jobServiceAccountSuffix is the fixed suffix the chart appends to the
+	// release fullname for the helm-actions Job's ServiceAccount (see
+	// cluster-agent-helm-actions-rbac.yaml in the helm-charts repo); it is not
+	// configurable, so it's safe to hardcode here.
 	jobServiceAccountSuffix = "-helm-actions"
 )
 
 // jobServiceAccountName derives the name of the ServiceAccount the rollback
-// Job must run as. The chart names it "<fullname>-helm-actions", and the
-// cluster agent's own ServiceAccount "<fullname>-cluster-agent" — the release
-// fullname isn't otherwise recoverable in Go (it depends on Helm's
-// name/fullnameOverride logic), so it's derived by swapping the known suffix
-// on the cluster agent's own ServiceAccount name instead.
+// Job must run as: "<fullname>-helm-actions". The release fullname isn't
+// otherwise recoverable in Go (it depends on Helm's name/fullnameOverride
+// logic), so it's read off the cluster agent's own pod, which the chart always
+// labels with its resolved fullname.
 func jobServiceAccountName(ctx context.Context, client kubernetes.Interface, ownNamespace string) (string, error) {
 	podName, err := common.GetSelfPodName()
 	if err != nil {
@@ -44,11 +48,10 @@ func jobServiceAccountName(ctx context.Context, client kubernetes.Interface, own
 		return "", fmt.Errorf("get self pod %s/%s: %w", ownNamespace, podName, err)
 	}
 
-	ownServiceAccount := pod.Spec.ServiceAccountName
-	if ownServiceAccount == "" {
-		return "", fmt.Errorf("pod %s/%s has no service account name", ownNamespace, podName)
+	fullname := pod.Labels[fullnameLabel]
+	if fullname == "" {
+		return "", fmt.Errorf("pod %s/%s has no %q label", ownNamespace, podName, fullnameLabel)
 	}
 
-	fullname := strings.TrimSuffix(ownServiceAccount, ownServiceAccountSuffix)
 	return fullname + jobServiceAccountSuffix, nil
 }
