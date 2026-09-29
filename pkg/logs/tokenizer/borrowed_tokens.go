@@ -48,6 +48,11 @@ func (b BorrowedTokens) Retained() BorrowedTokens {
 // Limit returns the prefix of the view whose tokens start before maxBytes
 // (maxBytes <= 0 means no limit), giving the labeler a narrower window than the
 // sampler. The result is a sub-view over the same backing.
+//
+// Limit is not the same as tokenizing only the first maxBytes. A token that
+// starts before maxBytes keeps the shape it has in the full input: a run that
+// crosses the boundary keeps its full length bucket (D5, not D2), and an IPv4
+// address that crosses it stays one IPv4 token.
 func (b BorrowedTokens) Limit(maxBytes int) BorrowedTokens {
 	if maxBytes <= 0 {
 		return b
