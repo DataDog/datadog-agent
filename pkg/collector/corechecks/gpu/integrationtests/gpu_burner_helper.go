@@ -31,7 +31,7 @@ const (
 	gpuBurnerBinEnv             = "GPU_BURNER_BIN"
 	gpuBurnerStartupLimit       = 90 * time.Second
 	gpuBurnerStatusTimeout      = 5 * time.Second
-	gpuBurnerRunTime            = 30
+	gpuBurnerRunTime            = 120
 	gpuBurnerCalibrationSeconds = 10
 )
 
@@ -160,6 +160,9 @@ func StartGPUBurner(t *testing.T, visibleDevices string, workers int, targetSM i
 			require.Equal(collect, "running", worker.Stage)
 			require.NotEmpty(collect, worker.GPUUUID)
 			require.NotNil(collect, worker.Metrics)
+			// Workers report "running" before their first step, so wait until NVML sees load.
+			require.NotNil(collect, worker.Metrics.SMActive)
+			require.Positive(collect, *worker.Metrics.SMActive)
 		}
 	}, gpuBurnerStartupLimit, time.Second, "gpu-burner did not become ready")
 

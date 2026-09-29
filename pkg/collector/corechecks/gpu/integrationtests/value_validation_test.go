@@ -8,6 +8,7 @@
 package integrationtests
 
 import (
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -48,18 +49,18 @@ type checkCollectionOptions struct {
 	injectXIDDevices []safenvml.Device
 }
 
-func startNvidiaSmiCollection(optionsByUUID map[string][]testutil.SmiCollectionOption) *nvidiaSmiCollection {
+func startNvidiaSmiCollection(optionsByUUID map[string][]testutil.SmiCollectionOption, extraOptions ...testutil.SmiCollectionOption) *nvidiaSmiCollection {
 	collection := &nvidiaSmiCollection{
 		results: make(map[string]smiResult, len(optionsByUUID)),
 	}
 
-	// Each per-device dmon command takes about three seconds. Run them
-	// concurrently so every SMI sample overlaps the same Agent check window.
+	// Run the per-device dmon commands concurrently so every SMI sample
+	// overlaps the same Agent check window.
 	for uuid, options := range optionsByUUID {
 		collection.wg.Add(1)
 		go func() {
 			defer collection.wg.Done()
-			sample, err := testutil.CollectSmiSample(uuid, options...)
+			sample, err := testutil.CollectSmiSample(uuid, append(slices.Clone(options), extraOptions...)...)
 			collection.mu.Lock()
 			collection.results[strings.ToLower(uuid)] = smiResult{sample: sample, err: err}
 			collection.mu.Unlock()
@@ -131,22 +132,25 @@ func collectCheckAndNvidiaSmiMetrics(t *testing.T, options checkCollectionOption
 		}}))
 	}
 
-	var smiCollection *nvidiaSmiCollection
+	var smiSamples map[string]*testutil.SmiSample
 	for pass := range options.passes {
 		if pass == options.passes-1 {
 			// Compare SMI with the final Agent interval and return only that
 			// interval's metrics. Earlier runs initialize rate collectors.
-			smiCollection = startNvidiaSmiCollection(options.smiOptionsByUUID)
+			// dmon takes three samples spanning roughly one Agent interval and
+			// reports the last one, so run the check as soon as dmon exits to
+			// compare readings taken at about the same moment.
 			mockSender.ResetCalls()
+			smiSamples = startNvidiaSmiCollection(options.smiOptionsByUUID, testutil.WithDelay(options.interval/2)).wait(t)
+		} else {
+			time.Sleep(options.interval)
 		}
-		time.Sleep(options.interval)
 		require.NoError(t, checkInternal.Run(), "Check.Run() pass %d should not return an error", pass+1)
 	}
-	require.NotNil(t, smiCollection)
 
 	metricsByUUID := emittedMetricsByUUID(mockSender)
 	require.NotEmpty(t, metricsByUUID)
-	return metricsByUUID, smiCollection.wait(t)
+	return metricsByUUID, smiSamples
 }
 
 func emittedMetricsByUUID(mockSender *mocksender.MockSender) map[string]map[string][]gpuspec.MetricObservation {

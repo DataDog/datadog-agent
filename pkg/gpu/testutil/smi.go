@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -45,13 +46,22 @@ type SmiSample struct {
 type SmiCollectionOption func(*smiCollectionConfig)
 
 type smiCollectionConfig struct {
-	includeGPM bool
+	includeGPM   bool
+	delaySeconds int
 }
 
 // WithGPM requests the graphics activity GPM metric.
 func WithGPM() SmiCollectionOption {
 	return func(config *smiCollectionConfig) {
 		config.includeGPM = true
+	}
+}
+
+// WithDelay sets the time between dmon samples. dmon only supports whole seconds,
+// so the delay is rounded to the nearest second, with a minimum of one second.
+func WithDelay(delay time.Duration) SmiCollectionOption {
+	return func(config *smiCollectionConfig) {
+		config.delaySeconds = max(1, int(delay.Round(time.Second)/time.Second))
 	}
 }
 
@@ -75,6 +85,9 @@ func CollectSmiSample(deviceID string, options ...SmiCollectionOption) (*SmiSamp
 	// GPM metrics are a delta between consecutive samples, so the first dmon
 	// cycle always reports "-". Run multiple cycles and read a later line.
 	args := []string{"dmon", "--id", deviceID, "-c", "3", "--format", "csv,noheader,nounit"}
+	if config.delaySeconds > 0 {
+		args = append(args, "-d", strconv.Itoa(config.delaySeconds))
+	}
 	if len(gpmMetrics) > 0 {
 		args = append(args, "--gpm-metrics", strings.Join(gpmMetrics, ","))
 	}
