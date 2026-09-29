@@ -85,18 +85,19 @@ fi
 if [ -n "${KUBERNETES_CPU_LIMIT-}" ] && [ "$(uname -s)" = Linux ]; then
   cpu_quota=$(awk '{print $1}' /sys/fs/cgroup/cpu.max) || cpu_quota=max
   if [ "$cpu_quota" = max ]; then
-    max_cpus=$(awk -v n="$KUBERNETES_CPU_LIMIT" 'BEGIN {
-      if (n ~ /m$/) { sub(/m$/, "", n); n = n / 1000 }  # e.g. 1000m -> 1
-      print int(n) + (n != int(n))  # ceil(n)
-    }')
     pivot=$(ps -o psr= -p $$ | tr -d ' ') # pivot at this process' last executed CPU to spread the load
-    end=$((pivot + max_cpus - 1))
-    available=$(getconf _NPROCESSORS_ONLN)
-    if [ "$end" -lt "$available" ]; then
-      cpus="$pivot-$end"
-    else
-      cpus="0-$((end - available)),$pivot-$((available - 1))"
-    fi
+    cpus=$(python3 - <<EOF
+from bisect import bisect_left
+from math import ceil
+from os import sched_getaffinity
+
+limit = "$KUBERNETES_CPU_LIMIT"
+max_cpus = ceil(float(limit[:-1]) / 1000 if limit.endswith("m") else float(limit))
+allowed = sorted(sched_getaffinity(0))
+i = bisect_left(allowed, $pivot)
+print(",".join(str(cpu) for cpu in (allowed[i:] + allowed[:i])[:max_cpus]))
+EOF
+)
     exec taskset -c "$cpus" "$BAZEL_REAL" "$@"
   fi
   >&2 echo "🟡 CPU limits are now visible via cgroup quota - please consider removing the taskset pinning from $0"
