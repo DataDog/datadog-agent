@@ -258,6 +258,33 @@ func TestCollectInstallMarkerAbsent(t *testing.T) {
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
 }
 
+func TestCollectInstallMarkerAbsentButProcmgrSupervises(t *testing.T) {
+	ddot, ok := serviceByID("ddot")
+	require.True(t, ok)
+
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, ddot.ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: ProcessStateRunning},
+		},
+	})
+
+	snapshot := collector.Collect(context.Background())
+
+	service := serviceSnapshotByID(t, snapshot, "ddot")
+	assert.True(t, service.Installed,
+		"procmgr supervision is install evidence when no marker path matches the layout")
+	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
+}
+
 func TestCollectProcmgrConfigAbsent(t *testing.T) {
 	ddot, ok := serviceByID("ddot")
 	require.True(t, ok)
