@@ -72,9 +72,15 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | `--headless` | _(empty)_ | Scenario subdirectory name to run in headless mode (no HTTP server) |
 | `--output` | _(empty)_ | Path for observer JSON output |
 | `--verbose` | `false` | Include full detail in JSON output (titles, member series, individual anomalies) |
+| `--include-detector-anomalies` | `false` | Include every anomaly returned by detectors before baseline/muting/deduplication or correlation. Output is deterministic but grows with detector emissions. |
 | `--memprofile` | _(empty)_ | Write a heap profile to this file after the run |
 | `--cpuprofile` | _(empty)_ | Write a CPU profile covering the scenario replay to this file |
 | `--retain-parquet` | `false` | Retain and sort all parquet rows in headless mode. Use for unordered local recordings; headless runs stream by default. |
+
+`--include-detector-anomalies` adds `metadata.total_detector_anomalies` and a
+sorted `detector_anomalies` array to the output. Each entry has `detector`,
+`timestamp`, canonical `source`, and `title`; it is intended to compare detector
+behavior across two runs without being affected by the correlator output.
 
 ## Components
 
@@ -83,9 +89,10 @@ $ dda inv anomalydetection.eval-component-workspace-report evals # This will fet
 | Name | Default | Description |
 |------|---------|-------------|
 | `bocpd` | enabled | Bayesian Online Change Point Detection — streaming, per-series changepoint detector |
-| `rrcf` | enabled | Robust Random Cut Forest — multivariate anomaly detection over system metrics |
 | `scanmw` | disabled | Mann-Whitney scan statistic detector |
 | `scanwelch` | disabled | Welch t-test scan statistic detector |
+| `holt_residual` | disabled | Holt forecasting residual detector |
+| `tukey_biweight` | disabled | Robust location and scale detector using Tukey biweight |
 
 ### Correlators
 
@@ -108,7 +115,7 @@ Extractors are always enabled and convert raw observations into timeseries:
 ## Examples
 
 ```bash
-# Run with all defaults (bocpd + rrcf + anomaly_scorer)
+# Run with all defaults (bocpd + anomaly_scorer)
 dda inv -- anomalydetection.launch-testbench
 
 # Only BOCPD + TimeCluster
@@ -253,11 +260,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
       "cp_mass_threshold": 0.65,
       "recovery_points": 8
     },
-    "rrcf": {
-      "enabled": true,
-      "threshold_sigma": 2.5,
-      "tree_size": 128
-    },
     "time_cluster": {
       "enabled": true,
       "proximity_seconds": 15,
@@ -283,15 +285,6 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 | `prior_variance_scale` | 10.0 | Diffuseness of prior over the mean |
 | `min_variance` | 1.0 | Variance floor (numerical stability) |
 | `recovery_points` | 10 | Consecutive quiet points needed to exit alert state |
-
-#### `rrcf`
-
-| Param | Default | Description |
-|-------|---------|-------------|
-| `num_trees` | 100 | Number of trees in the forest |
-| `tree_size` | 256 | Sliding window size per tree |
-| `shingle_size` | 4 | Temporal context window (consecutive samples per point) |
-| `threshold_sigma` | 3.0 | σ above score mean to flag an anomaly |
 
 #### `time_cluster`
 
