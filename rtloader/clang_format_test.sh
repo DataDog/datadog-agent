@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 
-echo ARGS: $*
-TESTDATA_DIR="${TEST_SRCDIR}/${WORKSPACE_NAME}/_main/rtloader"
+set -euo pipefail
 
-echo $TESTDATA_DIR
-ls $TESTDATA_DIR
+TESTDATA_DIR="${TEST_SRCDIR}/_main/rtloader"
 
 OUT=$(mktemp)
-find $TESTDATA_DIR -name '*.c' -o -name '*.cpp' -o -name '*.h'  | xargs clang-format --style=file --dry-run >"$OUT"
+FTMP=$(mktemp)
+cd "$TESTDATA_DIR"
+(
+  find . -name '*.c' -o -name '*.cpp' -o -name '*.h'  | while read path ; do
+    clang-format --style=file -Werror "$path" >"$FTMP" || true
+    diff "$path" "$FTMP" || echo "FAIL: $path"
+  done
+) >"$OUT"
 cat "$OUT"
 ERR_COUNT=$(wc -l <$OUT)
 if [[ "$ERR_COUNT" -gt 0 ]] ; then
   exit 1
 fi
+/bin/rm "$OUT" "$FTMP"

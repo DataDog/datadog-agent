@@ -312,11 +312,17 @@ pkg_install(
 
 filegroup(
     name = "c_srcs",
-    srcs = glob([
-        "**/*.c",
-        "**/*.cpp",
-        "**/*.h",
-    ]),
+    srcs = glob(
+        [
+            "**/.clang-format",
+            "**/*.c",
+            "**/*.cpp",
+            "**/*.h",
+        ],
+        # The cmake based test excluded all of these. Most fail. I presume
+        # because they are vendored from a project with different rules.
+        exclude = ["common/**/*.c"],
+    ),
 )
 
 sh_test(
