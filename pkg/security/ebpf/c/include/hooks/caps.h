@@ -90,7 +90,7 @@ int hook_revert_creds(ctx_t *ctx) {
 // Nothing in the arguments of security_capable() tells these apart from a check aimed at a
 // namespace the task owns, because before entering a user namespace the two are the same
 // namespace. The capability is parked here instead, for the security_capable call it precedes.
-static __attribute__((always_inline)) int park_host_userns_cap(u64 cap) {
+static __attribute__((always_inline)) int collect_host_userns_cap(u64 cap) {
     if (cap >= 64) { // a shift past the mask width would park a meaningless capability
         return 0;
     }
@@ -113,12 +113,12 @@ static __attribute__((always_inline)) int park_host_userns_cap(u64 cap) {
 
 HOOK_ENTRY("capable")
 int hook_capable(ctx_t *ctx) {
-    return park_host_userns_cap(CTX_PARM1(ctx));
+    return collect_host_userns_cap(CTX_PARM1(ctx));
 }
 
 HOOK_ENTRY("netlink_capable")
 int hook_netlink_capable(ctx_t *ctx) {
-    return park_host_userns_cap(CTX_PARM2(ctx));
+    return collect_host_userns_cap(CTX_PARM2(ctx));
 }
 
 HOOK_ENTRY("security_capable")
