@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -118,7 +119,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	// (single code path) since GetSharedContainerProvider can fail here due to
 	// component startup ordering.
 	c.processTagger = NewProcessTagger(c.tagger, c.wmeta, nil, c.telemetry)
-	c.processTagger.SetJobsConfig(gpuconfig.NewJobsConfig())
+	jobsConfig := gpuconfig.NewJobsConfig()
+	c.processTagger.SetJobsConfig(jobsConfig)
+	if len(jobsConfig.EnvKeys()) > 0 {
+		c.processTagger.SetJobIDReader(gpu.NewSystemProbeJobIDReader())
+	}
 
 	// Initialize hang detection state
 	c.lastSeenRank = make(map[string]rankStalenessEntry)

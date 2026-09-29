@@ -140,8 +140,9 @@ properties:
             visibility: public
             description: |-
               Where key is read from: a pod `label`, a pod `annotation`, or an `env`
-              (environment variable read from the host's procfs: the environment of the
-              process using the GPU, falling back to the container's main process).
+              (environment variable read by system-probe from the host's procfs: the environment of
+              the process using the GPU, falling back to the container's main process). An `env` key
+              requires the GPU module of system-probe.
       group:
         node_type: section
         type: object
@@ -164,8 +165,9 @@ properties:
             visibility: public
             description: |-
               Where key is read from: a pod `label`, a pod `annotation`, or an `env`
-              (environment variable read from the host's procfs: the environment of the
-              process using the GPU, falling back to the container's main process).
+              (environment variable read by system-probe from the host's procfs: the environment of
+              the process using the GPU, falling back to the container's main process). An `env` key
+              requires the GPU module of system-probe.
   nvlink:
     node_type: section
     type: object

@@ -19,6 +19,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
@@ -57,15 +58,12 @@ type WorkloadTagCache struct {
 	pidToCid          map[int]string                   // pidToCid is the mapping of PIDs to container IDs, retrieved from the container provider until it is invalidated.
 	telemetry         *workloadTagCacheTelemetry       // telemetry is the telemetry component for the workload tag cache
 	jobsConfig        gpuconfig.JobsConfig             // jobsConfig defines which pod label/annotation/env var identifies the training job of a container
-	readEnvVar        envVarReader                     // readEnvVar reads an environment variable of a process, from procfs by default
+	readJobIDs        JobIDReader                      // readJobIDs reads the training job identifiers set in the environment of a process. Env var job identifiers are not available without it.
 }
 
-// envVarReader returns the value of an environment variable of the given process, or an empty string if not found.
-type envVarReader func(pid int, key string) (string, error)
-
-func readProcEnvVar(pid int, key string) (string, error) {
-	return kernel.GetProcessEnvVariable(pid, kernel.ProcFSRoot(), key)
-}
+// JobIDReader returns the training job identifiers set in the environment of the given host process, according to
+// the gpu.jobs configuration.
+type JobIDReader func(pid int) (model.ProcessJobIDs, error)
 
 type workloadTagCacheTelemetry struct {
 	cacheHits        telemetry.Counter
@@ -96,7 +94,6 @@ func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, 
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
 		telemetry:         newWorkloadTagCacheTelemetry(tm),
-		readEnvVar:        readProcEnvVar,
 	}
 
 	var err error
@@ -176,6 +173,12 @@ func (c *WorkloadTagCache) SetJobsConfig(jobs gpuconfig.JobsConfig) {
 	c.jobsConfig = jobs
 }
 
+// SetJobIDReader sets how the training job identifiers of a process are read, which is needed for
+// identifiers configured as environment variables.
+func (c *WorkloadTagCache) SetJobIDReader(reader JobIDReader) {
+	c.readJobIDs = reader
+}
+
 // MarkStale marks all entries in the cache as stale. That way, on the next calls to GetWorkloadTags, we will
 // try to rebuild them, anf if we can't we will return stale data.
 func (c *WorkloadTagCache) MarkStale() {
@@ -233,11 +236,7 @@ func (c *WorkloadTagCache) buildJobTags(container *workloadmeta.Container) []str
 		meta = c.getPodMeta(container.ID)
 	}
 
-	env := func(key string) string {
-		return c.containerEnvVar(container, key)
-	}
-
-	return jobTags(meta, env, jobs)
+	return jobTags(meta, c.getProcessJobIDs(container.PID), jobs)
 }
 
 // getPodMeta returns the metadata of the pod running the container, or empty
@@ -253,37 +252,27 @@ func (c *WorkloadTagCache) getPodMeta(containerID string) workloadmeta.EntityMet
 	return pod.EntityMeta
 }
 
-// containerEnvVar reads an environment variable from the main process of the
-// container (using the host's procfs). Returns an empty string if it cannot be read.
-func (c *WorkloadTagCache) containerEnvVar(container *workloadmeta.Container, key string) string {
-	return c.procEnvVar(container.PID, key)
-}
-
 // buildProcessJobTags returns the training job tags read from the environment
 // of the given process, which is the one using the GPU. Labels and annotations
 // are not looked at, as they are container level and already part of the
 // container tags.
 func (c *WorkloadTagCache) buildProcessJobTags(pid int) []string {
-	env := func(key string) string {
-		return c.procEnvVar(pid, key)
-	}
-
-	return jobTags(workloadmeta.EntityMeta{}, env, c.jobsConfig)
+	return jobTags(workloadmeta.EntityMeta{}, c.getProcessJobIDs(pid), c.jobsConfig)
 }
 
-// procEnvVar reads an environment variable of a process using the host's
-// procfs. Returns an empty string if it cannot be read.
-func (c *WorkloadTagCache) procEnvVar(pid int, key string) string {
-	if pid <= 0 {
-		return ""
+// getProcessJobIDs returns the job identifiers set in the environment of a process. They are empty
+// if no identifier is configured as an environment variable, or if they cannot be read.
+func (c *WorkloadTagCache) getProcessJobIDs(pid int) model.ProcessJobIDs {
+	if pid <= 0 || c.readJobIDs == nil || len(c.jobsConfig.EnvKeys()) == 0 {
+		return model.ProcessJobIDs{}
 	}
 
-	value, err := c.readEnvVar(pid, key)
+	ids, err := c.readJobIDs(pid)
 	if err != nil {
-		log.Debugf("error reading env var %s of process %d to build job tags: %v", key, pid, err)
-		return ""
+		log.Debugf("error reading the job identifiers of process %d: %v", pid, err)
+		return model.ProcessJobIDs{}
 	}
-	return value
+	return ids
 }
 
 // overrideTags returns tags with the ones in overrides added. Existing tags
@@ -307,22 +296,22 @@ func overrideTags(tags []string, overrides []string) []string {
 	return append(result, overrides...)
 }
 
-// jobTags builds the training job tags from the pod metadata, and env, a
-// function that returns the value of an environment variable of the container.
-func jobTags(meta workloadmeta.EntityMeta, env func(key string) string, jobs gpuconfig.JobsConfig) []string {
+// jobTags builds the training job tags from the pod metadata, and from envIDs, the identifiers
+// read from the environment of a process.
+func jobTags(meta workloadmeta.EntityMeta, envIDs model.ProcessJobIDs, jobs gpuconfig.JobsConfig) []string {
 	var tags []string
-	if value, ok := identifierValue(meta, env, jobs.Run); ok {
+	if value, ok := identifierValue(meta, envIDs.Run, jobs.Run); ok {
 		tags = append(tags, trainingJobIDTag+":"+value)
 	}
-	if value, ok := identifierValue(meta, env, jobs.Group); ok {
+	if value, ok := identifierValue(meta, envIDs.Group, jobs.Group); ok {
 		tags = append(tags, trainingGroupIDTag+":"+value)
 	}
 	return tags
 }
 
-// identifierValue returns the non-empty value referenced by id, if id is
-// configured and the value exists.
-func identifierValue(meta workloadmeta.EntityMeta, env func(key string) string, id gpuconfig.IdentifierConfig) (string, bool) {
+// identifierValue returns the non-empty value referenced by id, if id is configured and the value exists.
+// envValue is the value read from the process environment, used for environment variable identifiers.
+func identifierValue(meta workloadmeta.EntityMeta, envValue string, id gpuconfig.IdentifierConfig) (string, bool) {
 	if !id.Configured() {
 		return "", false
 	}
@@ -334,7 +323,7 @@ func identifierValue(meta workloadmeta.EntityMeta, env func(key string) string, 
 	case gpuconfig.IdentifierTypeAnnotation:
 		value = meta.Annotations[id.Key]
 	case gpuconfig.IdentifierTypeEnv:
-		value = env(id.Key)
+		value = envValue
 	}
 
 	return value, value != ""
@@ -488,7 +477,6 @@ func NewWorkloadTagCacheWithSubsystem(subsystemPrefix string, tagger tagger.Comp
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
 		telemetry:         newWorkloadTagCacheTelemetryWithSubsystem(subsystemPrefix, tm),
-		readEnvVar:        readProcEnvVar,
 	}
 
 	var err error

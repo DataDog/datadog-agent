@@ -7,6 +7,7 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -126,6 +127,17 @@ func (i IdentifierConfig) Configured() bool {
 // UsesPodMetadata returns true if the identifier is read from pod labels or annotations.
 func (i IdentifierConfig) UsesPodMetadata() bool {
 	return i.Type == IdentifierTypeLabel || i.Type == IdentifierTypeAnnotation
+}
+
+// EnvKeys returns the names of the environment variables the identifiers are read from.
+func (j JobsConfig) EnvKeys() []string {
+	var keys []string
+	for _, id := range []IdentifierConfig{j.Run, j.Group} {
+		if id.Configured() && id.Type == IdentifierTypeEnv && !slices.Contains(keys, id.Key) {
+			keys = append(keys, id.Key)
+		}
+	}
+	return keys
 }
 
 // NewJobsConfig reads the training job identifiers from the agent configuration.
