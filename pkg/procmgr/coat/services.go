@@ -69,6 +69,20 @@ var migratableServices = []MigratableService{
 		},
 		LegacyWindowsService: "datadog-process-agent",
 	},
+	{
+		ID:                 "sysprobe",
+		ProcmgrProcessName: "datadog-agent-sysprobe",
+		ProcmgrConfigFile:  "datadog-agent-sysprobe.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/system-probe",
+			"bin/agent/system-probe",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-sysprobe.service",
+			"datadog-agent-sysprobe-exp.service",
+		},
+		LegacyWindowsService: "datadog-system-probe",
+	},
 }
 
 func serviceByID(id string) (MigratableService, bool) {

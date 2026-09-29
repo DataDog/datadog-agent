@@ -33,13 +33,27 @@ func NewReceiverStats(sendAllStats bool) *ReceiverStats {
 	return &ReceiverStats{sync.RWMutex{}, map[Tags]*TagStats{}, sendAllStats}
 }
 
+// maxTagStats caps the number of entries in a ReceiverStats map, in normal operation this limit should never be hit.
+// If the limit is hit all entries of the map are cleared to make room for the newer entries.
+const maxTagStats = 10_000
+
 // GetTagStats returns the struct in which the stats will be stored depending of their tags.
 func (rs *ReceiverStats) GetTagStats(tags Tags) *TagStats {
 	rs.Lock()
 	tagStats, ok := rs.Stats[tags]
 	if !ok {
+		reset := len(rs.Stats) >= maxTagStats
+		if reset {
+			clear(rs.Stats)
+		}
 		tagStats = newTagStats(tags)
 		rs.Stats[tags] = tagStats
+		rs.Unlock()
+
+		if reset {
+			log.Warnf("Receiver stats reached %d distinct tag combinations and were reset. Check that tracers report meaningful Datadog-Meta-* headers and service names.", maxTagStats)
+		}
+		return tagStats
 	}
 	rs.Unlock()
 
@@ -67,17 +81,25 @@ func (rs *ReceiverStats) PublishAndReset(statsd statsd.ClientInterface) {
 
 // Languages returns the set of languages reporting traces to the Agent.
 func (rs *ReceiverStats) Languages() []string {
+	rs.RLock()
+	defer rs.RUnlock()
+
+	return rs.languagesLocked()
+}
+
+// languagesLocked is Languages for callers which already hold rs' lock. Taking
+// the read lock twice on the same goroutine deadlocks as soon as a writer is
+// waiting, so a caller holding the lock must never call Languages itself.
+func (rs *ReceiverStats) languagesLocked() []string {
 	langSet := make(map[string]bool)
 	langs := []string{}
 
-	rs.RLock()
 	for tags := range rs.Stats {
 		if _, ok := langSet[tags.Lang]; !ok {
 			langs = append(langs, tags.Lang)
 			langSet[tags.Lang] = true
 		}
 	}
-	rs.RUnlock()
 
 	sort.Strings(langs)
 

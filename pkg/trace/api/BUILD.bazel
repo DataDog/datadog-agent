@@ -184,6 +184,7 @@ dd_agent_go_test(
         "//pkg/trace/testutil",
         "//pkg/trace/timing",
         "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
         "//pkg/trace/transform",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",

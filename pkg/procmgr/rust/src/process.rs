@@ -52,8 +52,12 @@ impl RestartTracker {
     }
 
     fn is_burst_limited(&self, burst: u32, interval: Duration) -> bool {
-        let cutoff = Instant::now() - interval;
-        let recent = self.timestamps.iter().filter(|t| **t > cutoff).count() as u32;
+        // An `Instant` is measured from boot, so an interval longer than the current uptime
+        // has no representable cutoff. Everything recorded so far is inside that window.
+        let recent = match Instant::now().checked_sub(interval) {
+            Some(cutoff) => self.timestamps.iter().filter(|t| **t > cutoff).count(),
+            None => self.timestamps.len(),
+        } as u32;
         recent >= burst
     }
 
@@ -278,15 +282,23 @@ impl ManagedProcess {
 
     #[must_use]
     fn config_gate_met(&self) -> bool {
-        if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
-            return true;
+        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            info!(
+                "[{}] condition_config_any not met: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+            );
+            return false;
         }
-        info!(
-            "[{}] condition_config_any not met: {}",
-            self.name,
-            crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-        );
-        false
+        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
+            info!(
+                "[{}] condition_config_none vetoed: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_none)
+            );
+            return false;
+        }
+        true
     }
 
     #[must_use]
@@ -308,7 +320,9 @@ impl ManagedProcess {
     /// reload would override whatever left it alone.
     #[must_use]
     pub(crate) fn has_start_conditions(&self) -> bool {
-        self.config.condition_path_exists.is_some() || !self.config.condition_config_any.is_empty()
+        self.config.condition_path_exists.is_some()
+            || !self.config.condition_config_any.is_empty()
+            || !self.config.condition_config_none.is_empty()
     }
 
     /// Whether a respawn this process was otherwise due was skipped because a
@@ -742,6 +756,31 @@ pub mod tests {
         assert!(proc.should_start());
     }
 
+    /// The veto has to be consulted by the start path, not merely parsed. The pair also
+    /// pins the direction: only the true value blocks.
+    #[test]
+    fn test_should_start_honours_condition_config_none() {
+        for (body, expected_start) in [
+            ("system_probe_config:\n  external: true\n", false),
+            ("system_probe_config:\n  external: false\n", true),
+        ] {
+            let _env = crate::config_gate::test_env_guard();
+            let dir = tempfile::tempdir().unwrap();
+            let sysprobe = dir.path().join("system-probe.yaml");
+            std::fs::write(&sysprobe, body).unwrap();
+
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut cfg = test_helpers::make_config(cmd, args);
+            cfg.condition_config_none = vec![crate::config_gate::ConditionConfigFile {
+                path: sysprobe.to_string_lossy().into_owned(),
+                keys: vec!["system_probe_config.external".to_string()],
+            }];
+            let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+
+            assert_eq!(proc.should_start(), expected_start, "for {body:?}");
+        }
+    }
+
     #[test]
     fn test_should_start_condition_path_exists_not_met() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1074,6 +1113,30 @@ pub mod tests {
         assert!(
             proc.restarts.is_burst_limited(burst, interval),
             "should be limited after 3 restarts"
+        );
+    }
+
+    /// An `Instant` is measured from boot, so an interval longer than the host's uptime has
+    /// no representable cutoff. Subtracting it used to panic, which on Windows hit every
+    /// host booted less than `start_limit_interval_sec` ago.
+    #[test]
+    fn test_burst_interval_longer_than_uptime() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.start_limit_burst = Some(2);
+        let mut proc = ManagedProcess::new_config("uptime".into(), test_helpers::test_uuid(), cfg);
+        let burst = proc.config.burst_limit();
+
+        assert!(!proc.restarts.is_burst_limited(burst, Duration::MAX));
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!(!proc.restarts.is_burst_limited(burst, Duration::MAX));
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!(
+            proc.restarts.is_burst_limited(burst, Duration::MAX),
+            "the whole history counts when the window starts before boot"
         );
     }
 

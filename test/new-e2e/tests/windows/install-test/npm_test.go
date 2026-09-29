@@ -7,7 +7,6 @@ package installtest
 
 import (
 	"path/filepath"
-	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -15,8 +14,6 @@ import (
 
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -102,6 +99,12 @@ func (s *testNPMInstallWithAddLocalSuite) TestNPMInstallWithAddLocal() {
 	s.Require().True(s.isNPMInstalled(), "NPM should be installed")
 	s.enableNPM()
 	s.testNPMFunctional()
+
+	// The drivers cannot unload while system-probe holds their devices open, and
+	// system-probe now exits with dd-procmgr-service instead of with a Windows service of
+	// its own, so the uninstaller has to stop the supervisor first. This is the only
+	// install-test scenario where system-probe is running when the uninstall starts.
+	s.Require().True(s.uninstallAgent(), "should uninstall the agent with NPM running")
 }
 
 // TestNPMUpgradeNPMToNPM tests the latest installer can successfully upgrade
@@ -189,15 +192,27 @@ func (s *testNPMInstallSuite) enableNPM() {
 func (s *testNPMInstallSuite) testNPMFunctional() {
 	host := s.Env().RemoteHost
 	s.Run("npm running", func() {
-		// services are running
-		expectedServices := []string{"datadog-system-probe", "ddnpm"}
-		for _, serviceName := range expectedServices {
-			s.Assert().EventuallyWithT(func(c *assert.CollectT) {
-				status, err := windowsCommon.GetServiceStatus(host, serviceName)
-				require.NoError(c, err)
-				assert.Equal(c, "Running", status, "%s should be running", serviceName)
-			}, 1*time.Minute, 1*time.Second, "%s should be running", serviceName)
-		}
+		windowsCommon.AssertServiceState(s.T(), host, procmgrServiceName, "Running")
+		windowsCommon.AssertServiceState(s.T(), host, "ddnpm", "Running")
+
+		// dd-procmgr supervises system-probe, so the legacy SCM service stays stopped and
+		// the running instance has to be asserted on the procmgr side. Neither the stopped
+		// service nor ddnpm would catch a system-probe that procmgr failed to start: the
+		// driver stays loaded across a system-probe exit, and on the upgrade scenarios it
+		// may already be loaded from the pre-upgrade Agent.
+		windowsCommon.AssertServiceState(s.T(), host, "datadog-system-probe", "Stopped")
+
+		windowsAgent.AssertProcmgrProcessRunning(s.T(), host, "datadog-agent-sysprobe")
+
+		// The legacy SCM service was registered as LocalSystem, and system-probe needs that
+		// to reconfigure and start the driver services through the SCM. Under dd-procmgrd
+		// the account comes from the privileged spawn profile inheriting the supervisor
+		// token instead, so the only thing that shows it survived the migration is the
+		// token the child actually holds.
+		owner, err := windowsProcessOwnerByName(host, "system-probe.exe")
+		s.Require().NoError(err)
+		s.Assert().Contains(owner, "NT AUTHORITY/SYSTEM",
+			"system-probe should run as LocalSystem under dd-procmgrd")
 	})
 	s.Run("agent npm status", func() {
 		client := s.NewTestClientForHost(host)

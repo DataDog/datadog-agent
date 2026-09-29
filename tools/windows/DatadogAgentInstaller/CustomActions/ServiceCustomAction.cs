@@ -385,14 +385,19 @@ namespace Datadog.CustomActions
                 // ** some services are optionally included in the package at build time.  Including
                 // them here will simply cause a spurious "Service X not found" in the log if the
                 // installer is built without that component.
+                // The driver services must come after every process that opens their devices,
+                // otherwise the driver cannot unload and its stop waits out the timeout below.
+                // system-probe is one of those processes and dd-procmgr-service may be the one
+                // running it, in which case stopping the Windows service by name is a no-op and
+                // only stopping the supervisor takes the process down.
                 var ddservices = new[]
                 {
+                    Constants.ProcmgrServiceName,
                     Constants.SystemProbeServiceName,
                     Constants.NpmServiceName,
                     Constants.ProcmonServiceName,       // might not exist depending on compile time options**
                     Constants.SecurityAgentServiceName, // might not exist depending on compile time options**
                     Constants.PrivateActionRunnerServiceName,
-                    Constants.ProcmgrServiceName,
                     Constants.ProcessAgentServiceName,
                     Constants.TraceAgentServiceName,
                     Constants.InstallerServiceName,
