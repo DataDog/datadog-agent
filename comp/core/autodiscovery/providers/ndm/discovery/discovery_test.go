@@ -45,7 +45,7 @@ const oneRange = `{"ranges":[{
 	"tags":["site:paris"],
 	"probes":{
 		"ping":{"count":2,"interval_ms":500,"timeout_ms":1000},
-		"snmp":{"cred_names":["cred-a"],"port":1161,"timeout_ms":2000,"retries":0}
+		"snmp":{"creds":[{"id":"cred-a","name":"cred-a"}],"port":1161,"timeout_ms":2000,"retries":0}
 	}
 }]}`
 
@@ -74,7 +74,7 @@ func TestSnapshotPassesTheWholePayloadThrough(t *testing.T) {
 
 	require.Len(t, r.Probes, 2)
 	assert.JSONEq(t, `{"count":2,"interval_ms":500,"timeout_ms":1000}`, string(r.Probes["ping"]))
-	assert.JSONEq(t, `{"cred_names":["cred-a"],"port":1161,"timeout_ms":2000,"retries":0}`, string(r.Probes["snmp"]),
+	assert.JSONEq(t, `{"creds":[{"id":"cred-a","name":"cred-a"}],"port":1161,"timeout_ms":2000,"retries":0}`, string(r.Probes["snmp"]),
 		"the handler never interprets a probe block")
 }
 

@@ -20,7 +20,7 @@ import (
 var testDefaults = rangeDefaults{Namespace: "default", IntervalSec: 3600, MaxAddresses: 65536}
 
 func testProbes() map[string]json.RawMessage {
-	return map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_names":["cred-a"]}`)}
+	return map[string]json.RawMessage{"snmp": json.RawMessage(`{"creds":[{"id":"cred-a","name":"cred-a"}]}`)}
 }
 
 func testRange(id, cidr string) ndmdiscovery.Range {
@@ -37,7 +37,7 @@ func TestParseRangeFull(t *testing.T) {
 		Tags:               []string{"site:paris"},
 		Probes: map[string]json.RawMessage{
 			"ping": json.RawMessage(`{"count":2}`),
-			"snmp": json.RawMessage(`{"cred_names":["cred-a"]}`),
+			"snmp": json.RawMessage(`{"creds":[{"id":"cred-a","name":"cred-a"}]}`),
 		},
 	}, testDefaults, available(), logmock.New(t))
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestParseRangeFull(t *testing.T) {
 	require.NotNil(t, cfg.Probes.Ping)
 	assert.Equal(t, 2, cfg.Probes.Ping.Count)
 	require.NotNil(t, cfg.Probes.SNMP)
-	assert.Equal(t, []string{"cred-a"}, cfg.Probes.SNMP.CredNames)
+	assert.Equal(t, []credRef{{ID: "cred-a", Name: "cred-a"}}, cfg.Probes.SNMP.Creds)
 }
 
 func TestParseRangeDefaults(t *testing.T) {
