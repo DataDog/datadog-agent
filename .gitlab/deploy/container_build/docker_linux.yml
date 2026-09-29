@@ -425,6 +425,16 @@ docker_build_agent7_recorder_full:
     TAG_SUFFIX: -7-recorder-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-recorder-agent-7*-amd64.tar.xz
 
+docker_build_agent7_recorder_full_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  rules: !reference [docker_build_agent7_recorder_full, rules]
+  needs:
+    - job: datadog-agent-7-arm64-recorder
+    - job: datadog-otel-agent-arm64
+  variables:
+    TAG_SUFFIX: -7-recorder-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-recorder-agent-7*-arm64.tar.xz
+
 docker_build_agent7_fips_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
