@@ -34,9 +34,6 @@ new-e2e-agent-subcommands-windows:
     - changes:
         paths:
           - pkg/config/schema/**/* # DataDog/datadog-agent#52358
-          # This suite is the only end-to-end check on Windows-specific flare content (the
-          # service dump, event log and counter strings), so it has to run when that content
-          # changes and not only when the tests themselves do.
           - pkg/flare/**/*
           - comp/procmgr/**/*
           - pkg/procmgr/**/*
