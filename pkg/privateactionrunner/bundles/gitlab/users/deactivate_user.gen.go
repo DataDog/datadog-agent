@@ -39,7 +39,7 @@ func (h *DeactivateUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.DeactivateUser(inputs.UserId)
+	_, err = git.Users.DeactivateUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

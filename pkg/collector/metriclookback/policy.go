@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v2" // not v3 in case of YAML 1.1 booleans (yes/no/on/off)
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"

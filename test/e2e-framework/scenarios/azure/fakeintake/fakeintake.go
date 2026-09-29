@@ -21,7 +21,7 @@ import (
 )
 
 func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintake, error) {
-	params, paramsErr := NewParams(option...)
+	params, paramsErr := NewParams(&e, option...)
 	if paramsErr != nil {
 		return nil, paramsErr
 	}

@@ -430,12 +430,12 @@ func TestResolveTemplate(t *testing.T) {
 		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching services
-		matchingService := listeners.CreateDummyKubeService("redis-service", "default", map[string]string{})
+		matchingService := listeners.CreateDummyKubeService("redis-service", "default", map[string]string{}, nil)
 		ac.processNewService(matchingService)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test non-matching services
-		service := listeners.CreateDummyKubeService("other-service", "default", map[string]string{})
+		service := listeners.CreateDummyKubeService("other-service", "default", map[string]string{}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
@@ -459,20 +459,20 @@ func TestResolveTemplate(t *testing.T) {
 		assert.Equal(t, 0, countLoadedConfigs(ac))
 
 		// Test matching endpoints
-		matchingService := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{})
+		matchingService := listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{}, nil)
 		ac.processNewService(matchingService)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
 		// Test non-matching endpoints
-		service := listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{})
+		service := listeners.CreateDummyKubeEndpoint("name", "default", map[string]string{}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
-		service = listeners.CreateDummyKubeEndpoint("exclude-name", "include-ns", map[string]string{})
+		service = listeners.CreateDummyKubeEndpoint("exclude-name", "include-ns", map[string]string{}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
-		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{"team": "exclude"})
+		service = listeners.CreateDummyKubeEndpoint("name", "include-ns", map[string]string{"team": "exclude"}, nil)
 		ac.processNewService(service)
 		assert.Equal(t, 1, countLoadedConfigs(ac))
 
@@ -708,11 +708,11 @@ func TestRefreshConfig(t *testing.T) {
 			expectedFinalValue: "foo: bar_resolved",
 		},
 		{
-			name:               "initial resolution with empty old value",
+			name:               "previously unresolved secret recovery",
 			callbackOrigin:     func(tpl integration.Config) string { return tpl.Digest() },
 			oldValue:           "",
 			newValue:           "new_resolved_value",
-			expectedFinalValue: "foo: bar_resolved",
+			expectedFinalValue: "foo: new_resolved_value",
 		},
 		{
 			name:               "callback with oldValue as unresolved secret",
@@ -778,8 +778,8 @@ func TestRefreshConfig(t *testing.T) {
 				returnedError:  nil,
 			}
 
-			// send subscribers 'secret refreshed' notifications which should
-			// queue up autoconfig.refreshConfig()
+			// Send a secret-refresh notification. An empty old value indicates
+			// that a previously unresolved handle has now been recovered.
 			mockResolver.triggerCallback(
 				"check",
 				tt.callbackOrigin(tpl),
@@ -804,6 +804,48 @@ func TestRefreshConfig(t *testing.T) {
 			}, 5*time.Second, 10*time.Millisecond)
 		})
 	}
+}
+
+func TestSecretRefreshesAreCoalescedByOrigin(t *testing.T) {
+	deps := createDeps(t)
+	// No worker is needed for this test: it asserts the resolver is reprocessed
+	// once after callbacks are coalesced. Keeping the controller stopped avoids
+	// racing its worker against test teardown under the race detector.
+	schedulerController := scheduler.NewController()
+	defer schedulerController.Stop()
+
+	config := integration.Config{
+		Name:      "redisdb",
+		Instances: []integration.Data{integration.Data("foo: ENC[password]")},
+	}
+	resolver := &MockSecretResolver{t: t, scenarios: []mockSecretScenario{
+		{
+			expectedData:   []byte{},
+			expectedOrigin: config.Digest(),
+			returnedData:   []byte{},
+		},
+		{
+			expectedData:   []byte("foo: ENC[password]"),
+			expectedOrigin: config.Digest(),
+			returnedData:   []byte("foo: initial"),
+		},
+	}}
+
+	ac := createNewAutoConfig(schedulerController, resolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp, hpnoopimpl.NewNoopComponent(), nil)
+	changes := ac.processNewConfig(config)
+	require.Len(t, changes.Schedule, 1)
+
+	resolver.scenarios[1].returnedData = []byte("foo: recovered")
+	for range 3 {
+		resolver.triggerCallback("password", config.Digest(), []string{"password"}, "", "recovered")
+	}
+
+	ac.refreshConfigMu.Lock()
+	require.Len(t, ac.pendingSecretRefreshes, 1)
+	ac.refreshConfigMu.Unlock()
+
+	ac.processQueuedSecretRefreshes()
+	assert.Equal(t, 2, resolver.scenarios[1].called, "the config should be reprocessed only once")
 }
 
 func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {

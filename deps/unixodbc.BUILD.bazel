@@ -19,11 +19,6 @@ license(
 COMMON_COPTS = ["-O3"]
 COMMON_INCLUDES = [".", "include"]
 
-# Version info from unixODBC 2.3.9
-# The actual SONAME version would be determined by LIB_VERSION in the autotools build
-# For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
-VERSION = "2.3.9"
-
 # For some reason version of .so in the final package is 2.0.0, not 2.3.9.
 # To ensure the same behavior as the autotools build, we use 2.0.0 here.
 SOVERSION = "2.0.0"
@@ -212,7 +207,7 @@ cc_shared_library(
 pkg_files(
     name = "unixodbc_hdr_files",
     srcs = _UNIXODBC_PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 # We do need this "fake" ltdl.h to use dlopen
@@ -221,12 +216,13 @@ pkg_files(
 pkg_files(
     name = "libltdl_hdr_files",
     srcs = _LIBLTDL_PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "odbcinst_pkg",
     input = ":odbcinst",
+    dest_dir = "embedded/lib",
     version = SOVERSION,
     visibility = ["//visibility:public"],
 )
@@ -234,6 +230,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "odbc_pkg",
     input = ":odbc",
+    dest_dir = "embedded/lib",
     version = SOVERSION,
     installed_files = [
         ":unixodbc_hdr_files",
@@ -246,6 +243,7 @@ dd_cc_packaged(
 dd_cc_packaged(
     name = "odbccr_pkg",
     input = ":odbccr",
+    dest_dir = "embedded/lib",
     version = SOVERSION,
     visibility = ["//visibility:public"],
 )
@@ -256,5 +254,4 @@ pkg_filegroup(
         ":unixodbc_hdr_files",
         ":libltdl_hdr_files",
     ],
-    prefix = "embedded",
 )

@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/contlcycle"
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -46,8 +48,6 @@ const (
 	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
 	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
 )
-
-var GitCommit string
 
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
@@ -213,6 +213,8 @@ func selectPodForExec(pods []corev1.Pod, containerName string) *corev1.Pod {
 func (suite *k8sSuite) TestVersion() {
 	ctx := suite.T().Context()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
+	gitCommit := os.Getenv("E2E_COMMIT_SHA")
+	suite.Require().NotEmpty(gitCommit, "E2E_COMMIT_SHA must be set")
 
 	for _, tt := range []struct {
 		podType     string
@@ -253,15 +255,15 @@ func (suite *k8sSuite) TestVersion() {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
 					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						if suite.Greaterf(len(GitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
+						if suite.Greaterf(len(gitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
 							suite.Greaterf(len(match[1]), 6, "Couldn’t find the version of the agent.") {
 
-							size2compare := len(GitCommit)
+							size2compare := len(gitCommit)
 							if len(match[1]) < size2compare {
 								size2compare = len(match[1])
 							}
 
-							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
+							suite.Equalf(gitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
 						}
 					}
 				}
@@ -1894,18 +1896,47 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
 		require.NoErrorf(c, err, "Failed to query fake intake")
 
+		// kube_service is optional: the tagger drops it once the pod stops being
+		// Ready, which can land before or after the Delete event is flushed.
+		expectedPodEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^domain:deployment$`),
+			regexp.MustCompile(`^kube_deployment:nginx$`),
+			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
+			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
+			regexp.MustCompile(`^kube_ownerref_name:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^kube_qos:Burstable$`),
+			regexp.MustCompile(`^kube_replica_set:nginx-[[:alnum:]]+$`),
+			regexp.MustCompile(`^mail:team-container-platform@datadoghq\.com$`),
+			regexp.MustCompile(`^org:agent-org$`),
+			regexp.MustCompile(`^parent-name:nginx$`),
+			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
+			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			regexp.MustCompile(`^team:contp$`),
+		}
+
+		optionalPodEventTags := []*regexp.Regexp{
+			regexp.MustCompile(`^kube_service:nginx$`),
+		}
+
 		foundPodEvent := false
+		foundPodEventWithTags := false
+		var lastTagsErr error
 
 		for _, event := range events {
-			if podEvent := event.GetPod(); podEvent != nil {
-				if types.UID(podEvent.GetPodUID()) == nginxPod.UID {
-					foundPodEvent = true
-					break
+			if podEvent := event.GetPod(); podEvent != nil && types.UID(podEvent.GetPodUID()) == nginxPod.UID && event.GetEventType() == contlcycle.Event_Delete {
+				foundPodEvent = true
+
+				err := assertTags(event.GetTags(), expectedPodEventTags, optionalPodEventTags, false)
+				if err == nil {
+					foundPodEventWithTags = true
+				} else {
+					lastTagsErr = err
 				}
 			}
 		}
 
 		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
+		assert.Truef(c, foundPodEventWithTags, "Pod lifecycle event for pod %s/%s does not carry the expected dd_tags: %v", nginxPod.Namespace, nginxPod.Name, lastTagsErr)
 	}, 2*time.Minute, 10*time.Second, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
 }
 

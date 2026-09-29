@@ -34,7 +34,6 @@ const (
 // these.
 const (
 	OpenSamplesMaxEntries    = 20000
-	BindSamplesMaxEntries    = 10000
 	ConnectSamplesMaxEntries = 10000
 	SyscallSamplesMaxEntries = 20000
 	// SampledCgroupsMaxEntries sizes the sampled_cgroups LRU: it transiently holds all active
@@ -227,8 +226,6 @@ type MapSpecEditorOpts struct {
 	SecurityProfileSyscallAnomaly bool
 	EventSamplingOpenEnabled      bool
 	EventSamplingConnectEnabled   bool
-	EventSamplingBindEnabled      bool
-	EventSamplingDNSEnabled       bool
 	EventSamplingSyscallsEnabled  bool
 	BasenameApproversSize         int
 }
@@ -321,13 +318,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["open_samples"] = manager.MapSpecEditor{
 			MaxEntries: OpenSamplesMaxEntries,
-			EditorFlag: manager.EditMaxEntries,
-		}
-	}
-
-	if opts.EventSamplingBindEnabled {
-		editors["bind_samples"] = manager.MapSpecEditor{
-			MaxEntries: BindSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

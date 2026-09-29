@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"path/filepath"
 	"reflect"
 	"time"
 
@@ -20,14 +21,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func main() {
-	var output string
-	flag.StringVar(&output, "output", "", "output file")
-	flag.Parse()
+const rulesImportPath = "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 
-	if output == "" {
-		panic("an output file argument is required")
+func generatePolicyJSON(output, rulesDir string) error {
+	// AddGoComments keys its comment map on path.Join(importPath, dir-of-file),
+	// so rulesDir has to be the working directory for the key to come out as
+	// rulesImportPath. Resolve the output path before moving.
+	absOutput, err := filepath.Abs(output)
+	if err != nil {
+		return err
 	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	if err := os.Chdir(rulesDir); err != nil {
+		return err
+	}
+	defer func() { _ = os.Chdir(cwd) }()
 
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
@@ -52,8 +63,8 @@ func main() {
 		},
 	}
 
-	if err := reflector.AddGoComments("github.com/DataDog/datadog-agent/pkg/security/secl/rules/model.go", "../../../secl/rules"); err != nil {
-		panic(err)
+	if err := reflector.AddGoComments(rulesImportPath, "."); err != nil {
+		return err
 	}
 
 	schema := reflector.Reflect(&rules.PolicyDef{})
@@ -61,10 +72,27 @@ func main() {
 
 	data, err := json.MarshalIndent(schema, "", "  ")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	if err := os.WriteFile(output, data, 0644); err != nil {
+	return os.WriteFile(absOutput, data, 0644)
+}
+
+func main() {
+	var (
+		output   string
+		rulesDir string
+	)
+
+	flag.StringVar(&output, "output", "", "output file")
+	flag.StringVar(&rulesDir, "rules-dir", "../../../secl/rules", "Directory containing secl/rules .go source files")
+	flag.Parse()
+
+	if output == "" {
+		panic("an output file argument is required")
+	}
+
+	if err := generatePolicyJSON(output, rulesDir); err != nil {
 		panic(err)
 	}
 }

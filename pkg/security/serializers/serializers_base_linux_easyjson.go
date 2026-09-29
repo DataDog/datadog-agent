@@ -2394,6 +2394,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 			} else {
 				out.Server = string(in.String())
 			}
+		case "credential_source":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.CredentialSource = string(in.String())
+			}
 		case "aws":
 			if in.IsNull() {
 				in.Skip()
@@ -2451,6 +2457,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers15(
 		const prefix string = ",\"server\":"
 		out.RawString(prefix)
 		out.String(string(in.Server))
+	}
+	if in.CredentialSource != "" {
+		const prefix string = ",\"credential_source\":"
+		out.RawString(prefix)
+		out.String(string(in.CredentialSource))
 	}
 	if in.AWS != nil {
 		const prefix string = ",\"aws\":"
@@ -3191,6 +3202,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			} else {
 				out.ID = string(in.String())
 			}
+		case "pod_uid":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.PodUID = string(in.String())
+			}
 		case "source":
 			if in.IsNull() {
 				in.Skip()
@@ -3238,6 +3255,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
+	}
+	if in.PodUID != "" {
+		const prefix string = ",\"pod_uid\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PodUID))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"
