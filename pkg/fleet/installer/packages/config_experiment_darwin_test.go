@@ -8,13 +8,18 @@
 package packages
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 )
 
 // stubJobDir points the job definitions at a temporary directory.
@@ -26,6 +31,33 @@ func stubJobDir(t *testing.T) string {
 	launchdJobDir = dir
 	t.Cleanup(func() { launchdJobDir = original })
 	return dir
+}
+
+// stubConfigExperimentWatcher replaces the detached watcher launcher with a recorder, so tests
+// that exercise postStartConfigExperimentDatadogAgent don't spawn a real process. Returns the
+// number of times it was called.
+func stubConfigExperimentWatcher(t *testing.T) *int {
+	t.Helper()
+
+	calls := new(int)
+	original := launchConfigExperimentWatcher
+	launchConfigExperimentWatcher = func(context.Context) error {
+		*calls++
+		return nil
+	}
+	t.Cleanup(func() { launchConfigExperimentWatcher = original })
+	return calls
+}
+
+// stubDeadlinePath points the deadline file at a temporary path.
+func stubDeadlinePath(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "experiment-deadline")
+	original := configExperimentDeadlinePath
+	configExperimentDeadlinePath = path
+	t.Cleanup(func() { configExperimentDeadlinePath = original })
+	return path
 }
 
 // launchctlCalls flattens the recorded invocations to "verb target" pairs, in order.
@@ -45,8 +77,11 @@ func launchctlCalls(calls [][]string, verb string) []string {
 func TestStartConfigExperimentHandsOverToTheExperimentSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
+	stubDeadlinePath(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
 
 	require.NoError(t, postStartConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Equal(t, 1, *watcherCalls, "the watcher was not launched after a successful start")
 
 	for _, label := range agentJobs {
 		content, err := os.ReadFile(filepath.Join(dir, label+"-exp.plist"))
@@ -91,10 +126,13 @@ func TestStartConfigExperimentHandsOverToTheExperimentSet(t *testing.T) {
 func TestStopConfigExperimentRestoresTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
+	deadlinePath := stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
 	require.NoError(t, postStartConfigExperimentDatadogAgent(testHookContext(t)))
 	*calls = nil
 
 	require.NoError(t, preStopConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.NoFileExists(t, deadlinePath, "the deadline file survived a deliberate stop")
 
 	for _, label := range agentJobs {
 		assert.NoFileExists(t, filepath.Join(dir, label+"-exp.plist"), "an experiment definition survived the revert")
@@ -119,10 +157,13 @@ func TestStopConfigExperimentRestoresTheStableSet(t *testing.T) {
 func TestPromoteConfigExperimentRestartsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
+	deadlinePath := stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
 	require.NoError(t, postStartConfigExperimentDatadogAgent(testHookContext(t)))
 	*calls = nil
 
 	require.NoError(t, postPromoteConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.NoFileExists(t, deadlinePath, "the deadline file survived a promote")
 
 	for _, label := range agentJobs {
 		assert.NoFileExists(t, filepath.Join(dir, label+"-exp.plist"))
@@ -143,4 +184,117 @@ func TestExperimentJobsMatchTheEmbeddedDefinitions(t *testing.T) {
 		assert.Equal(t, label+"-exp", experimentJobs[i])
 	}
 	assert.Len(t, experimentJobs, len(agentJobs))
+}
+
+// stubLaunchdFailing behaves like stubLaunchd, but fails any call whose verb and joined
+// arguments contain match. Used to inject a failure partway through a swap.
+func stubLaunchdFailing(t *testing.T, verb, match string) *[][]string {
+	t.Helper()
+
+	var calls [][]string
+	original := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			calls = append(calls, args)
+			if len(args) > 0 && args[0] == "print" {
+				return []byte(notLoadedOutput), errors.New("exit status 113")
+			}
+			if len(args) > 0 && args[0] == verb && strings.Contains(strings.Join(args, " "), match) {
+				return nil, errors.New("injected failure")
+			}
+			return nil, nil
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = original })
+	return &calls
+}
+
+// TestStartConfigExperimentRollsBackWhenTheExperimentFailsToBootstrap covers the gap PR #55770's
+// review flagged in Start: if writing or starting the experiment set fails partway, the stable
+// set — already stopped by then — must be put back rather than left down with nothing running.
+func TestStartConfigExperimentRollsBackWhenTheExperimentFailsToBootstrap(t *testing.T) {
+	stubLaunchdFailing(t, "bootstrap", "-exp")
+	dir := stubJobDir(t)
+	deadlinePath := stubDeadlinePath(t)
+
+	err := configExperiment{jobs: agentJobSet()}.Start(testHookContext(t))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "injected failure", "expected the original bootstrap failure to be reported, since the rollback itself succeeded")
+
+	for _, label := range agentJobs {
+		content, readErr := os.ReadFile(filepath.Join(dir, label+".plist"))
+		require.NoError(t, readErr, "the stable definition for %s was not restored after the failed handover", label)
+		assert.Contains(t, string(content), "<string>"+label+"</string>")
+	}
+	assert.NoFileExists(t, deadlinePath, "the deadline survived a start that was fully rolled back")
+}
+
+// TestRestoreStableRetriesBeforeGivingUp covers the second gap PR #55770's review flagged: a
+// transient failure restoring the stable set must be retried, not surfaced immediately.
+func TestRestoreStableRetriesBeforeGivingUp(t *testing.T) {
+	originalBackoff := configExperimentRestoreBackoff
+	configExperimentRestoreBackoff = time.Millisecond
+	t.Cleanup(func() { configExperimentRestoreBackoff = originalBackoff })
+
+	originalClient := launchdClient
+	t.Cleanup(func() { launchdClient = originalClient })
+
+	var attempts int
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			if len(args) > 0 && args[0] == "print" {
+				return []byte(notLoadedOutput), errors.New("exit status 113")
+			}
+			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") {
+				attempts++
+			}
+			return nil, nil
+		}
+		return client
+	}
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t)))
+	assert.Equal(t, len(agentJobs), attempts, "expected exactly one bootstrap attempt per job when nothing fails")
+}
+
+// TestRestoreStableGivesUpAfterExhaustingRetries asserts the bounded-retry policy actually has a
+// bound: a failure that never clears must eventually be reported, not retried forever.
+func TestRestoreStableGivesUpAfterExhaustingRetries(t *testing.T) {
+	originalBackoff := configExperimentRestoreBackoff
+	configExperimentRestoreBackoff = time.Millisecond
+	t.Cleanup(func() { configExperimentRestoreBackoff = originalBackoff })
+
+	originalClient := launchdClient
+	t.Cleanup(func() { launchdClient = originalClient })
+
+	var bootstrapAttempts int
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			if len(args) > 0 && args[0] == "print" {
+				return []byte(notLoadedOutput), errors.New("exit status 113")
+			}
+			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") {
+				bootstrapAttempts++
+				return nil, errors.New("injected failure")
+			}
+			return nil, nil
+		}
+		return client
+	}
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	err := configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "after 3 attempts")
+	assert.Equal(t, configExperimentRestoreRetries, bootstrapAttempts, "expected the retries to stop at the configured bound")
 }
