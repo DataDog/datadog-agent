@@ -309,11 +309,6 @@ func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
 	}
 }
 
-// GetExtraData implements ComponentDataProvider.
-func (c *TimeClusterCorrelator) GetExtraData() interface{} {
-	return c.GetClusters()
-}
-
 // PendingEvents drains CorrelationDetected events accumulated during the last Advance.
 func (c *TimeClusterCorrelator) PendingEvents() []observer.CorrelatorEvent {
 	return c.emitter.drain()

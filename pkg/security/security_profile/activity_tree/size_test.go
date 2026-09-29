@@ -147,6 +147,7 @@ func TestApproximateSize_LegacyShallowSemantics(t *testing.T) {
 		{"imds_only", Stats{IMDSNodes: 2}},
 		{"syscall_only", Stats{SyscallNodes: 4}},
 		{"flow_only", Stats{FlowNodes: 7}},
+		{"connect_only", Stats{ConnectNodes: 3}},
 		{"capability_only", Stats{CapabilityNodes: 6}},
 	}
 	for _, tt := range tests {

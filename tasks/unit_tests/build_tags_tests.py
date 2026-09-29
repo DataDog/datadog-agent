@@ -24,7 +24,6 @@ class TestCodegenPayloadSchema(unittest.TestCase):
         "common_tags",
         "unit_test_tags",
         "linux_only_tags",
-        "windows_included_tags",
         "windows_excluded_tags",
         "darwin_excluded_tags",
         "flavor_specific_tags",
@@ -57,11 +56,6 @@ class TestCodegenPayloadData(unittest.TestCase):
 
     def test_base_excludes_requirefips(self):
         self.assertNotIn("requirefips", _payload()["flavor_specific_tags"]["base"])
-
-    def test_wmi_in_windows_included_not_in_linux_only(self):
-        payload = _payload()
-        self.assertIn("wmi", payload["windows_included_tags"])
-        self.assertNotIn("wmi", payload["linux_only_tags"])
 
     def test_common_tags_disjoint_from_flavor_specific(self):
         # The .bzl/.go consumers compose flavor tag sets as

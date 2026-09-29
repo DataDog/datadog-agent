@@ -625,6 +625,239 @@ func TestServiceDiscoverySuccessfulNoServiceIncrementsRetries(t *testing.T) {
 	assert.Equal(t, uint(1), c.collector.serviceRetries[101])
 }
 
+func waitForServiceCollectionCall(t *testing.T, calls <-chan time.Time) time.Time {
+	t.Helper()
+	select {
+	case callTime := <-calls:
+		return callTime
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for service collection")
+		return time.Time{}
+	}
+}
+
+func waitForServiceStartupSignal(t *testing.T, signal <-chan struct{}, description string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for %s", description)
+	}
+}
+
+type resetSignalTimer struct {
+	serviceCollectionTimer
+	reset     chan struct{}
+	resetOnce sync.Once
+}
+
+func (t *resetSignalTimer) Reset(interval time.Duration) bool {
+	active := t.serviceCollectionTimer.Reset(interval)
+	t.resetOnce.Do(func() { close(t.reset) })
+	return active
+}
+
+func TestCollectServicesSchedulesRegularIntervalFromStartupCollection(t *testing.T) {
+	c := setUpCollectorTest(t, nil, nil, nil)
+	c.mockClock.Set(baseTime)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	processesReady := make(chan struct{})
+	calls := make(chan time.Time, 2)
+	done := make(chan struct{})
+	collectionTimer := &resetSignalTimer{
+		serviceCollectionTimer: clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)},
+		reset:                  make(chan struct{}),
+	}
+	go func() {
+		defer close(done)
+		c.collector.collectServicesWithTimer(ctx, collectionTimer, time.Minute, processesReady, func(context.Context) error {
+			return nil
+		}, func(context.Context) {
+			calls <- c.mockClock.Now()
+		})
+	}()
+
+	c.mockClock.Add(45 * time.Second)
+	select {
+	case callTime := <-calls:
+		t.Fatalf("service collection ran before process readiness at %s", callTime)
+	default:
+	}
+	close(processesReady)
+	assert.Equal(t, baseTime.Add(45*time.Second), waitForServiceCollectionCall(t, calls))
+	waitForServiceStartupSignal(t, collectionTimer.reset, "collection timer reset")
+
+	c.mockClock.Add(59 * time.Second)
+	select {
+	case callTime := <-calls:
+		t.Fatalf("service collection ran before a full interval elapsed at %s", callTime)
+	default:
+	}
+	c.mockClock.Add(time.Second)
+	assert.Equal(t, baseTime.Add(105*time.Second), waitForServiceCollectionCall(t, calls))
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for service collection to stop")
+	}
+}
+
+func TestCollectServicesWaitsForSystemProbeStartup(t *testing.T) {
+	c := setUpCollectorTest(t, nil, nil, nil)
+	c.mockClock.Set(baseTime)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	processesReady := make(chan struct{})
+	close(processesReady)
+	waitStarted := make(chan struct{})
+	systemProbeReady := make(chan struct{})
+	calls := make(chan time.Time, 1)
+	done := make(chan struct{})
+	collectionTimer := clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}
+	go func() {
+		defer close(done)
+		c.collector.collectServicesWithTimer(ctx, collectionTimer, time.Minute, processesReady, func(ctx context.Context) error {
+			close(waitStarted)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-systemProbeReady:
+				return nil
+			}
+		}, func(context.Context) {
+			calls <- c.mockClock.Now()
+		})
+	}()
+
+	waitForServiceStartupSignal(t, waitStarted, "system-probe startup wait to begin")
+	select {
+	case callTime := <-calls:
+		t.Fatalf("service collection ran before system-probe readiness at %s", callTime)
+	default:
+	}
+
+	close(systemProbeReady)
+	assert.Equal(t, baseTime, waitForServiceCollectionCall(t, calls))
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for service collection to stop")
+	}
+}
+
+func TestCollectServicesDoesNotRunAfterCancellation(t *testing.T) {
+	c := setUpCollectorTest(t, nil, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	called := false
+	c.collector.collectServicesWithTimer(ctx, clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}, time.Minute, nil, func(ctx context.Context) error {
+		return ctx.Err()
+	}, func(context.Context) {
+		called = true
+	})
+
+	assert.False(t, called)
+}
+
+func TestSendProcessEventStopsWhenCanceled(t *testing.T) {
+	c := setUpCollectorTest(t, nil, nil, nil)
+	c.collector.processEventsCh = make(chan *Event)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.False(t, c.collector.sendProcessEvent(ctx, &Event{Type: EventTypeServiceDiscovery}))
+}
+
+func TestCollectServicesRegularIntervalCancelsStartupWait(t *testing.T) {
+	c := setUpCollectorTest(t, nil, nil, nil)
+	c.mockClock.Set(baseTime)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	waitStarted := make(chan struct{})
+	waitCanceled := make(chan struct{})
+	systemProbeReady := make(chan struct{})
+	calls := make(chan time.Time, 2)
+	done := make(chan struct{})
+	collectionTimer := clockServiceCollectionTimer{c.mockClock.Timer(time.Minute)}
+	go func() {
+		defer close(done)
+		c.collector.collectServicesWithTimer(ctx, collectionTimer, time.Minute, nil, func(ctx context.Context) error {
+			close(waitStarted)
+			select {
+			case <-ctx.Done():
+				close(waitCanceled)
+				return ctx.Err()
+			case <-systemProbeReady:
+				return nil
+			}
+		}, func(context.Context) {
+			calls <- c.mockClock.Now()
+		})
+	}()
+
+	waitForServiceStartupSignal(t, waitStarted, "system-probe startup wait to begin")
+	c.mockClock.Add(time.Minute)
+	assert.Equal(t, baseTime.Add(time.Minute), waitForServiceCollectionCall(t, calls))
+	waitForServiceStartupSignal(t, waitCanceled, "system-probe startup wait cancellation")
+	close(systemProbeReady)
+	select {
+	case callTime := <-calls:
+		t.Fatalf("unexpected startup collection after periodic collection took over at %s", callTime)
+	default:
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for service collection to stop")
+	}
+}
+
+func TestCollectServicesCachedWaitsForProcessCache(t *testing.T) {
+	c := setUpCollectorTest(t, nil, nil, nil)
+	c.mockClock.Set(baseTime)
+	c.collector.store = c.mockStore
+	c.collector.processEventsCh = make(chan *Event, 1)
+
+	socketPath, requests := startScriptedServiceDiscoveryServer(t, func(_ int, _ core.Params) serviceDiscoveryTestResponse {
+		return serviceDiscoveryTestResponse{response: &model.ServicesResponse{
+			Services: []model.Service{makeModelService(101, "cached-service")},
+		}}
+	})
+	c.collector.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	processesReady := make(chan struct{})
+	collectionTimer := c.mockClock.Timer(time.Minute)
+	go c.collector.collectServicesCached(ctx, collectionTimer, time.Minute, processesReady)
+
+	assert.Equal(t, 0, requests())
+
+	c.collector.mux.Lock()
+	c.collector.lastCollectedProcesses = map[int32]*procutil.Process{
+		101: makeProcess(101, baseTime.Add(-2*time.Minute).UnixMilli(), nil),
+	}
+	c.collector.mux.Unlock()
+	close(processesReady)
+
+	select {
+	case event := <-c.collector.processEventsCh:
+		require.Len(t, event.Created, 1)
+		assert.Equal(t, int32(101), event.Created[0].Pid)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for service discovery event")
+	}
+	assert.Equal(t, 1, requests())
+}
+
 func TestCollectServicesCachedReleasesProcessCacheLockBeforeServiceRequests(t *testing.T) {
 	sysConfigOverrides := map[string]interface{}{
 		serviceCollectionBatchSizeConfigKey: 1,
@@ -653,14 +886,13 @@ func TestCollectServicesCachedReleasesProcessCacheLockBeforeServiceRequests(t *t
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ticker := c.mockClock.Ticker(time.Minute)
 	done := make(chan struct{})
+	processesReady := make(chan struct{})
+	close(processesReady)
 	go func() {
 		defer close(done)
-		c.collector.collectServicesCached(ctx, ticker)
+		c.collector.collectServicesCached(ctx, c.mockClock.Timer(time.Minute), time.Minute, processesReady)
 	}()
-
-	c.mockClock.Add(time.Minute)
 
 	select {
 	case locked := <-lockAvailable:

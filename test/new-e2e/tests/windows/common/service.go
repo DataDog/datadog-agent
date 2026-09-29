@@ -11,7 +11,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
@@ -108,6 +112,17 @@ func GetServiceStatus(host *components.RemoteHost, service string) (string, erro
 	cmd := fmt.Sprintf("(Get-Service -Name '%s').Status", service)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
+}
+
+// AssertServiceState fails the test unless service reaches state, for example "Running" or
+// "Stopped". A service that is still transitioning is retried rather than failed.
+func AssertServiceState(t *testing.T, host *components.RemoteHost, service, state string) {
+	t.Helper()
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		status, err := GetServiceStatus(host, service)
+		require.NoError(c, err)
+		assert.Equal(c, state, status, "%s should be %s", service, strings.ToLower(state))
+	}, 1*time.Minute, 1*time.Second, "%s should be %s", service, strings.ToLower(state))
 }
 
 // StopService stops the service.

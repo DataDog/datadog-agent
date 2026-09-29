@@ -35,12 +35,14 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
         return 0;
     }
 
-    approve_syscall(syscall, connect_approvers);
-
-    // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64)
+    // Bail out on failed connects before the approvers, otherwise a dropped event would still
+    // pollute connect_samples and suppress later successful connects to the same endpoint.
+    // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64).
     if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
         return 0;
     }
+
+    approve_syscall(syscall, connect_approvers);
 
     register_connecting_flow(syscall->connect.sk, syscall->connect.pid_tgid ? syscall->connect.pid_tgid : bpf_get_current_pid_tgid());
 

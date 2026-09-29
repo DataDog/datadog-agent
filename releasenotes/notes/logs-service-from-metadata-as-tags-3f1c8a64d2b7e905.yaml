@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Kubernetes and container metadata mapped to the ``service`` tag through the
+    labels-as-tags and annotations-as-tags configurations, for instance
+    ``kubernetes_pod_annotations_as_tags`` or
+    ``kubernetes_resources_annotations_as_tags``, is now used as the reserved
+    ``service`` attribute of container logs. Previously such a mapping only
+    produced a plain ``service`` tag on the log event, and the reserved
+    attribute fell back to the short name of the container image.

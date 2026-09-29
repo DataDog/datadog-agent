@@ -104,6 +104,8 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 
 	// Nothing to set for installDocker from environment at the moment.
 
+	p.instanceOptions = append(p.instanceOptions, WithInternetAccess())
+
 	return p
 }
 

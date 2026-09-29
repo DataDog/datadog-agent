@@ -6,7 +6,6 @@
 package sbom
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -31,8 +30,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 )
 
 const (
@@ -161,26 +158,12 @@ func (s *kubeadmSuite) SetupSuite() {
 // Test00UpAndRunning waits (with a long timeout, hence the 00 prefix so it runs
 // first) for the Agent DaemonSet to be ready before the SBOM assertions run.
 func (s *kubeadmSuite) Test00UpAndRunning() {
-	ctx := context.Background()
-	s.EventuallyWithTf(func(c *assert.CollectT) {
-		nodes, err := s.Env().KubernetesCluster.Client().CoreV1().Nodes().List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
-		})
-		require.NoErrorf(c, err, "Failed to list Linux nodes")
-
-		pods, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-		})
-		require.NoErrorf(c, err, "Failed to list Linux datadog agent pods")
-
-		assert.Len(c, pods.Items, len(nodes.Items))
-		for _, pod := range pods.Items {
-			for _, cs := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-				assert.Truef(c, cs.Ready, "Container %s of pod %s isn't ready", cs.Name, pod.Name)
-				assert.Zerof(c, cs.RestartCount, "Container %s of pod %s has restarted", cs.Name, pod.Name)
-			}
-		}
-	}, 10*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+	err := s.Env().WaitForAgentReady(
+		s.T().Context(),
+		environments.WithLinuxNodeAgentReady(),
+		environments.WithAgentReadinessTimeout(10*time.Minute),
+	)
+	s.Require().NoError(err, "Not all agents eventually became ready in time.")
 }
 
 // expectedComponent describes a meaningful SBOM component to assert on. When name

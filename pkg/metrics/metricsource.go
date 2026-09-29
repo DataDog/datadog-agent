@@ -350,6 +350,9 @@ const (
 	MetricSourceKueue
 	MetricSourceExternalSecrets
 	MetricSourceCiscoCatalystCenter
+	MetricSourceAmazonVpcCni
+	MetricSourceRavendb
+	MetricSourceSglang
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1173,6 +1176,12 @@ func (ms MetricSource) String() string {
 		return "external_secrets"
 	case MetricSourceCiscoCatalystCenter:
 		return "cisco_catalyst_center"
+	case MetricSourceAmazonVpcCni:
+		return "amazon_vpc_cni"
+	case MetricSourceRavendb:
+		return "ravendb"
+	case MetricSourceSglang:
+		return "sglang"
 	default:
 		return "<unknown>"
 	}
@@ -1883,6 +1892,12 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceExternalSecrets
 	case "cisco_catalyst_center":
 		return MetricSourceCiscoCatalystCenter
+	case "amazon_vpc_cni":
+		return MetricSourceAmazonVpcCni
+	case "ravendb":
+		return MetricSourceRavendb
+	case "sglang":
+		return MetricSourceSglang
 	default:
 		return MetricSourceUnknown
 	}

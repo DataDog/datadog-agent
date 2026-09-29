@@ -39,8 +39,12 @@ func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.
 	}
 	return &meta
 }
-func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
-	return s.contexts[ref]
+func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) (observerdef.MetricContext, bool) {
+	context := s.contexts[ref]
+	if context == nil {
+		return observerdef.MetricContext{}, false
+	}
+	return *context, true
 }
 
 func TestFormatScorerContributorMessage(t *testing.T) {
@@ -138,7 +142,6 @@ func (s *sumRangeStorage) GetSeriesRange(_ observerdef.SeriesRef, _, _ int64, _ 
 func (s *sumRangeStorage) ForEachPoint(_ observerdef.SeriesRef, _, _ int64, _ observerdef.Aggregate, _ func(*observerdef.Series, observerdef.Point)) bool {
 	panic("not implemented")
 }
-func (s *sumRangeStorage) PointCount(_ observerdef.SeriesRef) int { panic("not implemented") }
 func (s *sumRangeStorage) PointCountUpTo(_ observerdef.SeriesRef, _ int64) int {
 	panic("not implemented")
 }

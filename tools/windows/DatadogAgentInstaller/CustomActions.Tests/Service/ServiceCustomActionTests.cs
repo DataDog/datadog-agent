@@ -4,7 +4,9 @@ using FluentAssertions;
 using WixToolset.Dtf.WindowsInstaller;
 using Moq;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.ServiceProcess;
 using Xunit;
 
@@ -167,6 +169,48 @@ namespace CustomActions.Tests.Service
                 .Be(ActionResult.Failure);
 
             Test.ServiceController.Verify(c => c.StopService(Constants.AgentServiceName, It.IsAny<TimeSpan>()), Times.Once);
+        }
+
+        /// <summary>
+        /// The network and process monitor drivers cannot unload while system-probe holds their
+        /// devices open, and system-probe runs as a dd-procmgr-service child, so stopping a driver
+        /// before the supervisor waits out the whole stop timeout and fails the uninstall.
+        /// </summary>
+        [Fact]
+        public void StopDDServices_StopsProcmgrBeforeTheDrivers()
+        {
+            var stopped = new List<string>();
+            var services = new[]
+            {
+                Constants.NpmServiceName,
+                Constants.ProcmonServiceName,
+                Constants.ProcmgrServiceName,
+            };
+
+            Test.ServiceController
+                .SetupGet(c => c.Services)
+                .Returns(services.Select(name =>
+                {
+                    var serviceMock = new Mock<IWindowsService>();
+                    serviceMock.SetupGet(s => s.ServiceName).Returns(name);
+                    serviceMock.SetupGet(s => s.DisplayName).Returns(name);
+                    serviceMock.SetupGet(s => s.Status).Returns(ServiceControllerStatus.Running);
+                    serviceMock.Setup(s => s.Refresh());
+                    return serviceMock.Object;
+                }).ToArray());
+            Test.ServiceController
+                .Setup(c => c.StopService(It.IsAny<string>(), It.IsAny<TimeSpan>()))
+                .Callback<string, TimeSpan>((name, _) => stopped.Add(name));
+
+            Test.Create()
+                .StopDDServices(false)
+                .Should()
+                .Be(ActionResult.Success);
+
+            stopped.Should().ContainInOrder(
+                Constants.ProcmgrServiceName,
+                Constants.NpmServiceName,
+                Constants.ProcmonServiceName);
         }
 
         [Fact]

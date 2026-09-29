@@ -31,8 +31,13 @@ func (p *ContainerLifecyclePayload) name() string {
 	return ""
 }
 
-// GetTags is not implemented for container lifecycle payloads
+// GetTags returns the dd_tags of the event, when present
 func (p *ContainerLifecyclePayload) GetTags() []string {
+	if container := p.Event.GetContainer(); container != nil {
+		return container.GetDdTags()
+	} else if pod := p.Event.GetPod(); pod != nil {
+		return pod.GetDdTags()
+	}
 	return nil
 }
 
