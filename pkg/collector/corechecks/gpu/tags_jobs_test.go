@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 )
 
@@ -126,11 +127,19 @@ func TestJobTags(t *testing.T) {
 	}
 }
 
-func setPodForContainer(mockWmeta interface{ Set(workloadmeta.Entity) }, containerID string, meta workloadmeta.EntityMeta) {
+// setContainerInPod sets a container owned by a pod with the given metadata, as
+// workloadmeta resolves a container's pod through the container's owner.
+func setContainerInPod(mockWmeta workloadmetamock.Mock, containerID string, meta workloadmeta.EntityMeta) {
+	podID := workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"}
 	mockWmeta.Set(&workloadmeta.KubernetesPod{
-		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+		EntityID:   podID,
 		EntityMeta: meta,
 		Containers: []workloadmeta.OrchestratorContainer{{ID: containerID}},
+	})
+	mockWmeta.Set(&workloadmeta.Container{
+		EntityID: newContainerWorkloadID(containerID),
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+		Owner:    &podID,
 	})
 }
 
@@ -140,9 +149,8 @@ func TestBuildContainerTagsIncludesJobTags(t *testing.T) {
 
 	containerID := "test-container-id"
 	workloadID := newContainerWorkloadID(containerID)
-	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, workloadID, workloadmeta.ContainerRuntimeContainerd)
 	setWorkloadTags(t, mocks.tagger, workloadID, nil, []string{"pod_name:trainer"}, nil)
-	setPodForContainer(mocks.workloadMeta, containerID, workloadmeta.EntityMeta{
+	setContainerInPod(mocks.workloadMeta, containerID, workloadmeta.EntityMeta{
 		Labels:      map[string]string{"example/job-id-label": "run-1"},
 		Annotations: map[string]string{"example/job-group-annotation": "group-1"},
 	})
@@ -158,9 +166,8 @@ func TestBuildContainerTagsWithoutJobsConfigHasNoJobTags(t *testing.T) {
 
 	containerID := "test-container-id"
 	workloadID := newContainerWorkloadID(containerID)
-	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, workloadID, workloadmeta.ContainerRuntimeContainerd)
 	setWorkloadTags(t, mocks.tagger, workloadID, nil, []string{"pod_name:trainer"}, nil)
-	setPodForContainer(mocks.workloadMeta, containerID, workloadmeta.EntityMeta{
+	setContainerInPod(mocks.workloadMeta, containerID, workloadmeta.EntityMeta{
 		Labels: map[string]string{"example/job-id-label": "run-1"},
 	})
 

@@ -77,8 +77,9 @@ type TargetMutator struct {
 	ssiEnabled                    bool
 
 	// staticPolicies is local targeting: explicit targets, or enabledNamespaces
-	// as a namespace target (Helm, Operator, or datadog.yaml). Empty when SSI
-	// is off or when SSI is on with no targeting.
+	// as a namespace target (Helm, Operator, or datadog.yaml), plus the GPU
+	// target when GPU tracing is enabled. Empty when SSI is off (and GPU tracing
+	// too) or when SSI is on with no targeting.
 	staticPolicies policySet
 	// injectAll is the SSI-on fallback when there is no static targeting and no RC.
 	injectAll *targetInternal
@@ -110,7 +111,9 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		}
 	}
 
-	staticPolicies, err := newPolicySet(config, targets, defaultLibVersions, wmeta)
+	// The GPU target is added on top of the user targets. It does not count as static targeting for the inject-all
+	// fallback below, so enabling GPU instrumentation never narrows what is instrumented.
+	staticPolicies, err := newPolicySet(config, withGPUTarget(config.GPU, targets), defaultLibVersions, wmeta)
 	if err != nil {
 		return nil, err
 	}
@@ -576,14 +579,11 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	if staticMatched {
 		return static
 	}
-	if m.ssiEnabled && !hasTargets(&m.staticPolicies) && remotePolicies == nil {
+	// injectAll is only set when SSI is on and there are no user targets.
+	if m.injectAll != nil && remotePolicies == nil {
 		return m.injectAll
 	}
 	return nil
-}
-
-func hasTargets(set *policySet) bool {
-	return set != nil && len(set.targets) > 0
 }
 
 // applyMatch returns the injection target for a policy set. matched is true

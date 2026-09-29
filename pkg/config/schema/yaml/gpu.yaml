@@ -189,6 +189,23 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  tracing:
+    node_type: section
+    type: object
+    visibility: public
+    description: Configuration for GPU tracing.
+    tags:
+    - template_section:Common
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to instrument GPU workloads with Single Step Instrumentation. Pods labeled
+          admission.datadoghq.com/gpu.enabled: "true" get the GPU tracer injected, along with the
+          training run and group IDs configured in gpu.jobs. Requires the Cluster Agent admission controller.
   use_sp_process_metrics:
     node_type: setting
     type: boolean

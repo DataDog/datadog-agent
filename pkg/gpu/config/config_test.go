@@ -42,7 +42,7 @@ func TestNewJobsConfig(t *testing.T) {
 
 	got := New()
 
-	assert.Equal(t, got.JobsConfig, NewJobsConfig())
+	assert.Equal(t, got.JobsConfig, NewJobsConfig(cfg))
 	assert.Equal(t, IdentifierConfig{Key: "example/job-id-label", Type: IdentifierTypeLabel}, got.JobsConfig.Run)
 	assert.Equal(t, IdentifierConfig{Key: "example/job-group-annotation", Type: IdentifierTypeAnnotation}, got.JobsConfig.Group)
 }
