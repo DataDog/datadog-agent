@@ -10,6 +10,11 @@
 // that package and its subpackages;
 // "# gazelle:dd_agent_go_test on" re-enables a subtree.
 // The directive is inheritable
+//
+// "# gazelle:go_split_generated <glob>" moves the go_library sources that do not
+// match <glob> into a go_source the library embeds, so a code generator can link
+// the package without its own checked-in output. It only applies to the package
+// that declares it.
 package dd_agent_go_test
 
 import (
@@ -18,6 +23,7 @@ import (
 	"go/build/constraint"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -34,6 +40,7 @@ import (
 
 const extName = "dd_agent_go_test"
 const canonicalTagSetDirective = "go_canonical_test_tag_set"
+const splitGeneratedDirective = "go_split_generated"
 const manualTag = "manual"
 
 // Stopping at 12 tags avoids combinatorial explosion and maintains readability.
@@ -69,6 +76,11 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 		},
 		ResolveAttrs: map[string]bool{"deps": true},
 	}
+	kinds["go_source"] = rule.KindInfo{
+		NonEmptyAttrs:  map[string]bool{"srcs": true},
+		MergeableAttrs: map[string]bool{"srcs": true},
+		ResolveAttrs:   map[string]bool{"deps": true},
+	}
 	return kinds
 }
 
@@ -80,6 +92,11 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 	if mal, ok := l.Language.(language.ModuleAwareLanguage); ok {
 		base = mal.ApparentLoads(moduleToApparentName)
 	}
+	for i := range base {
+		if strings.HasSuffix(base[i].Name, "//go:def.bzl") {
+			base[i].Symbols = append(slices.Clone(base[i].Symbols), "go_source")
+		}
+	}
 	return append(base, rule.LoadInfo{
 		Name:    "//bazel/rules/go:dd_agent_go_test.bzl",
 		Symbols: []string{"dd_agent_go_test"},
@@ -89,7 +106,7 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 
 // KnownDirectives registers this extension's directives alongside Go's.
 func (l *lang) KnownDirectives() []string {
-	return append(l.Language.KnownDirectives(), extName, canonicalTagSetDirective)
+	return append(l.Language.KnownDirectives(), extName, canonicalTagSetDirective, splitGeneratedDirective)
 }
 
 // Configure reads the inheritable test conversion and canonical tag-set directives.
@@ -132,6 +149,53 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 			}
 		}
 		result = l.revertDdAgentGoTests(result, args.File)
+	}
+	// After the go_test conversion, which reads the library's full srcs to pick
+	// test tag sets.
+	return splitGenerated(result, splitPattern(args.File))
+}
+
+func splitPattern(f *rule.File) string {
+	if f == nil {
+		return ""
+	}
+	for _, d := range f.Directives {
+		if d.Key == splitGeneratedDirective {
+			return d.Value
+		}
+	}
+	return ""
+}
+
+// splitGenerated keeps the srcs matching pattern in each go_library and moves
+// the others, along with the library's imports, into a <name>_sources go_source
+// the library embeds. Every unsplit library gets an empty go_source candidate so
+// a stale one is deleted once the directive is dropped.
+func splitGenerated(result language.GenerateResult, pattern string) language.GenerateResult {
+	for i, r := range slices.Clone(result.Gen) {
+		if r.Kind() != "go_library" {
+			continue
+		}
+		sourcesName := r.Name() + "_sources"
+		var generated, others []string
+		for _, src := range r.AttrStrings("srcs") {
+			if ok, _ := path.Match(pattern, src); ok && pattern != "" {
+				generated = append(generated, src)
+			} else {
+				others = append(others, src)
+			}
+		}
+		if len(generated) == 0 || len(others) == 0 {
+			result.Empty = append(result.Empty, rule.NewRule("go_source", sourcesName))
+			continue
+		}
+		sources := rule.NewRule("go_source", sourcesName)
+		sources.SetAttr("srcs", others)
+		r.SetAttr("srcs", generated)
+		r.SetAttr("embed", append(r.AttrStrings("embed"), ":"+sourcesName))
+		result.Gen = append(result.Gen, sources)
+		result.Imports = append(result.Imports, result.Imports[i])
+		result.Imports[i] = rule.PlatformStrings{}
 	}
 	return result
 }

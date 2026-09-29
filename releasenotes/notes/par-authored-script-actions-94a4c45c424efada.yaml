@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Private Action Runner: add experimental support for executing
+    Datadog-authored script actions under ``com.datadoghq.authoredscripts``.
+    The runner resolves versioned action packages from the Datadog catalog,
+    downloads them, and executes their declared entrypoints.

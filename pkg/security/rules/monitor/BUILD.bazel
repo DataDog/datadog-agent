@@ -1,43 +1,33 @@
-load("@rules_go//go:def.bzl", "go_library")
-load("//bazel/rules/cws_codegen:defs.bzl", "easyjson")
+load("@rules_go//go:def.bzl", "go_library", "go_source")
+load("//bazel/rules/cws_codegen:defs.bzl", "easyjson", "easyjson_stubs")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:go_split_generated *_easyjson.go
 
 easyjson(
     name = "policy_monitor_easyjson",
     src = "policy_monitor.go",
     output = "policy_monitor_easyjson.go",
-    package = ":monitor",
+    package = ":monitor_easyjson_stubs",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/rules/monitor",
     visibility = ["//pkg/security:__pkg__"],
 )
 
+easyjson_stubs(
+    name = "monitor_easyjson_stubs",
+    package_path = "github.com/DataDog/datadog-agent/pkg/security/rules/monitor",
+    sources = ":monitor_sources",
+    stubs = [
+        ":policy_monitor_easyjson_stub",
+    ],
+)
+
 go_library(
     name = "monitor",
-    srcs = [
-        "policy_monitor.go",
-        "policy_monitor_easyjson.go",
-    ],
+    srcs = ["policy_monitor_easyjson.go"],
+    embed = [":monitor_sources"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/rules/monitor",
     visibility = ["//visibility:public"],
-    deps = [
-        "//comp/core/tagger/types",
-        "//comp/dogstatsd/constants",
-        "//pkg/security/events",
-        "//pkg/security/metrics",
-        "//pkg/security/probe/kfilters",
-        "//pkg/security/secl/compiler/eval",
-        "//pkg/security/secl/containerutils",
-        "//pkg/security/secl/model",
-        "//pkg/security/secl/rules",
-        "//pkg/security/utils",
-        "//pkg/util/log",
-        "//pkg/version",
-        "@com_github_datadog_datadog_go_v5//statsd",
-        "@com_github_hashicorp_go_multierror//:go-multierror",
-        "@com_github_mailru_easyjson//:easyjson",
-        "@com_github_mailru_easyjson//jlexer",
-        "@com_github_mailru_easyjson//jwriter",
-    ],
 )
 
 dd_agent_go_test(
@@ -197,4 +187,28 @@ dd_agent_go_test(
         ],
         "//conditions:default": [],
     }),
+)
+
+go_source(
+    name = "monitor_sources",
+    srcs = ["policy_monitor.go"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/dogstatsd/constants",
+        "//pkg/security/events",
+        "//pkg/security/metrics",
+        "//pkg/security/probe/kfilters",
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/containerutils",
+        "//pkg/security/secl/model",
+        "//pkg/security/secl/rules",
+        "//pkg/security/utils",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_mailru_easyjson//:easyjson",
+        "@com_github_mailru_easyjson//jlexer",
+        "@com_github_mailru_easyjson//jwriter",
+    ],
 )

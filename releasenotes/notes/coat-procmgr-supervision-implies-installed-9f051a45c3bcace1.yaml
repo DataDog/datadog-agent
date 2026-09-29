@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fix Cross-Org Agent Telemetry (COAT) undercounting the installed base for
+    services supervised by **dd-procmgr**: ``runtime.agent_service_installed``
+    is now reported for a service that dd-procmgrd supervises even when no
+    install marker path matches the on-disk layout, matching the existing
+    behavior for services supervised by systemd or the Windows SCM. Previously
+    a service could report ``runtime.agent_service_management_mode{mode:procmgr}``
+    while ``runtime.agent_service_installed`` stayed ``false``, which skewed
+    procmgr adoption rates computed against the installed base (most visibly
+    for DDOT on Windows).

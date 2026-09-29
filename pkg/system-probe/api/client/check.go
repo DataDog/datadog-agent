@@ -26,8 +26,10 @@ import (
 )
 
 const (
-	checkLabelName     = "check"
-	telemetrySubsystem = "system_probe__remote_client"
+	checkLabelName              = "check"
+	telemetrySubsystem          = "system_probe__remote_client"
+	startupRetryInitialInterval = 250 * time.Millisecond
+	startupRetryMaxInterval     = 2 * time.Second
 )
 
 var checkTelemetry = struct {
@@ -53,6 +55,7 @@ type startChecker struct {
 	startTime      time.Time
 	startupTimeout time.Duration
 	started        bool
+	startedCh      chan struct{}
 	inFlight       chan struct{}
 }
 
@@ -61,6 +64,7 @@ var getStartChecker = funcs.MemoizeNoError[*startChecker](func() *startChecker {
 	return &startChecker{
 		startTime:      time.Now(),
 		startupTimeout: pkgconfigsetup.Datadog().GetDuration("check_system_probe_startup_time"),
+		startedCh:      make(chan struct{}),
 	}
 })
 
@@ -69,6 +73,10 @@ var getStartChecker = funcs.MemoizeNoError[*startChecker](func() *startChecker {
 // should be checked with IgnoreStartupError(), to avoid propagating errors to
 // the check infrastructure.
 func (c *startChecker) ensureStarted(ctx context.Context, client *http.Client) error {
+	return c.ensureStartedWarn(ctx, client, true)
+}
+
+func (c *startChecker) ensureStartedWarn(ctx context.Context, client *http.Client, warn bool) error {
 	for {
 		c.mutex.Lock()
 		if c.started {
@@ -101,8 +109,12 @@ func (c *startChecker) ensureStarted(ctx context.Context, client *http.Client) e
 		}
 
 		c.mutex.Lock()
-		if err == nil {
+		if err == nil && !c.started {
 			c.started = true
+			if c.startedCh == nil {
+				c.startedCh = make(chan struct{})
+			}
+			close(c.startedCh)
 		}
 		c.inFlight = nil
 		close(done)
@@ -118,13 +130,60 @@ func (c *startChecker) ensureStarted(ctx context.Context, client *http.Client) e
 			// For the first few minutes after startup, only emit warnings
 			// instead of reporting errors from the check, to allow a reasonable
 			// time for system-probe to become ready to serve requests
-			log.Warnf("system-probe not started yet: %v", err)
+			if warn {
+				log.Warnf("system-probe not started yet: %v", err)
+			}
 
 			// Callers should check for this error and not propagate it to avoid
 			// error logs from the check infrastructure.
 			return ErrNotStartedYet
 		}
 		return err
+	}
+}
+
+type startupRetryWait func(context.Context, <-chan struct{}, time.Duration) error
+
+func waitForStartupRetry(ctx context.Context, started <-chan struct{}, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-started:
+		return nil
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (c *startChecker) waitUntilStarted(ctx context.Context, client *http.Client, wait startupRetryWait) error {
+	retryInterval := startupRetryInitialInterval
+	for {
+		if err := c.ensureStartedWarn(ctx, client, false); err != nil {
+			if !errors.Is(err, ErrNotStartedYet) {
+				return err
+			}
+		} else {
+			return nil
+		}
+
+		c.mutex.Lock()
+		if c.started {
+			c.mutex.Unlock()
+			return nil
+		}
+		if c.startedCh == nil {
+			c.startedCh = make(chan struct{})
+		}
+		startedCh := c.startedCh
+		c.mutex.Unlock()
+
+		if err := wait(ctx, startedCh, retryInterval); err != nil {
+			return err
+		}
+		retryInterval = min(2*retryInterval, startupRetryMaxInterval)
 	}
 }
 
@@ -190,6 +249,13 @@ func NewCheckClient(checkClient, startupClient *http.Client) *CheckClient {
 		startupClient:  startupClient,
 		startupChecker: getStartChecker(),
 	}
+}
+
+// WaitForStartup waits until system-probe is ready to serve module requests.
+// It probes only the lightweight readiness endpoint and returns when ctx is
+// canceled or the configured startup grace period expires.
+func (client *CheckClient) WaitForStartup(ctx context.Context) error {
+	return client.startupChecker.waitUntilStarted(ctx, client.startupClient, waitForStartupRetry)
 }
 
 // WithCheckTimeout configures the check request timeout. This is

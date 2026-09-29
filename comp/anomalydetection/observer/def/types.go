@@ -93,8 +93,9 @@ type MetricOutput struct {
 	Value float64
 	Host  string
 	// Tags is an immutable view retained by the observer storage.
-	Tags    tagset.CompositeTags
-	Context *MetricContext // optional; stored on the series for anomaly enrichment
+	Tags       tagset.CompositeTags
+	Context    MetricContext // stored on the series when HasContext is true
+	HasContext bool
 }
 
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
@@ -570,9 +571,9 @@ type StorageReader interface {
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
 
-	// GetContext returns the optional context associated with a series, or nil
-	// if the series has been evicted or has no context.
-	GetContext(ref SeriesRef) *MetricContext
+	// GetContext returns a value snapshot of the series context. The boolean is
+	// false if the series has been evicted or has no context.
+	GetContext(ref SeriesRef) (MetricContext, bool)
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.

@@ -54,9 +54,6 @@ else
   # Dependencies
   # ------------------------------------
 
-  # creates required build directories
-  dependency 'preparation'
-
   # Datadog agent
   dependency 'datadog-iot-agent'
 
