@@ -63,6 +63,41 @@ var reportNotes = []string{
 		"workload appears in the services list with management_mode=procmgr.",
 }
 
+// flareCollectionBudget is how long Report may spend asking dd-procmgrd about itself and every
+// process it supervises.
+//
+// It is deliberately not clientTimeout. That budget paces a telemetry poll which runs again a moment
+// later, so cutting it short costs a single sample. This one runs once, and what it collects is all
+// support will ever have. Sharing a constant would mean tuning one caller silently retuned the other.
+const flareCollectionBudget = 8 * time.Second
+
+// flareWriteMargin is the part of the caller's budget held back for turning the report into a file.
+//
+// The flare framework gives each provider a deadline of its own (flare_provider_timeout) and
+// abandons a provider that overruns it, writing nothing. Stopping collection before that deadline
+// rather than at it is what keeps the file present: a report full of errors tells support which
+// call failed, and a missing file tells them nothing at all.
+const flareWriteMargin = time.Second
+
+// flareContext bounds collection so it ends before the caller stops waiting, whichever of the two
+// budgets is tighter.
+func flareContext(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+
+	budget := flareCollectionBudget
+	if deadline, ok := parent.Deadline(); ok {
+		// Negative when the caller's deadline is already this close, which is not a case to guard
+		// against: an expired budget fails every call immediately, and a report saying so is
+		// exactly what should reach the flare.
+		if remaining := time.Until(deadline) - flareWriteMargin; remaining < budget {
+			budget = remaining
+		}
+	}
+	return context.WithTimeout(parent, budget)
+}
+
 // Report returns a dump of dd-procmgrd state for a flare. It never fails: every error is
 // recorded in the returned report.
 //
@@ -72,7 +107,7 @@ var reportNotes = []string{
 // ["--password", "--tenant-thing", "s3cret"], a default-words pass leaves the middle argument a
 // placeholder, and "*tenant*" can no longer be recognized there.
 func (c *Collector) Report(ctx context.Context, opts ScrubOptions) SupportReport {
-	ctx, cancel := clientContext(ctx)
+	ctx, cancel := flareContext(ctx)
 	defer cancel()
 
 	out := SupportReport{

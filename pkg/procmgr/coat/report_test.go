@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -530,4 +531,75 @@ func TestReportHonoursOperatorWordsBesideDefaultOnes(t *testing.T) {
 	proc := reportProcessByName(t, report, "datadog-agent-process")
 	assert.NotContains(t, strings.Join(proc.Args, " "), "leaked-beside-a-default-flag",
 		"a declared word must be honoured even when a default-word flag precedes it")
+}
+
+// Collection has to end before the caller stops waiting, because the flare framework abandons a
+// provider that overruns its deadline and then no file is written at all.
+//
+// Asserted on the deadline the context carries rather than by timing a call, so the budget is
+// checked without spending it.
+func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
+	t.Run("a caller without a deadline gets the collection budget", func(t *testing.T) {
+		ctx, cancel := flareContext(context.Background())
+		defer cancel()
+
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok, "collection is always bounded, even when the caller sets no limit")
+		assert.WithinDuration(t, time.Now().Add(flareCollectionBudget), deadline, time.Second)
+	})
+
+	t.Run("a generous caller deadline leaves the collection budget binding", func(t *testing.T) {
+		parent, cancelParent := context.WithTimeout(context.Background(), time.Hour)
+		defer cancelParent()
+		ctx, cancel := flareContext(parent)
+		defer cancel()
+
+		deadline, _ := ctx.Deadline()
+		assert.WithinDuration(t, time.Now().Add(flareCollectionBudget), deadline, time.Second)
+	})
+
+	t.Run("a tighter caller deadline binds instead, less the write margin", func(t *testing.T) {
+		callerDeadline := time.Now().Add(flareCollectionBudget / 2)
+		parent, cancelParent := context.WithDeadline(context.Background(), callerDeadline)
+		defer cancelParent()
+		ctx, cancel := flareContext(parent)
+		defer cancel()
+
+		deadline, _ := ctx.Deadline()
+		assert.WithinDuration(t, callerDeadline.Add(-flareWriteMargin), deadline, time.Second)
+		assert.True(t, deadline.Before(callerDeadline),
+			"there has to be time left to write the file after collection stops")
+	})
+}
+
+// blockingClient answers nothing until the context it was given is done, standing in for a
+// dd-procmgrd that has stopped responding.
+type blockingClient struct{}
+
+func (blockingClient) Connect(ctx context.Context) (ProcmgrSession, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// A caller with almost no time left is the case that decides whether support gets a file. Collection
+// gives up immediately instead of consuming what remains, so the report still reaches the flare, and
+// it says which call failed.
+func TestReportYieldsAReportWhenTheCallerIsAlmostOutOfTime(t *testing.T) {
+	callerDeadline := time.Now().Add(flareWriteMargin / 2)
+	ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
+	defer cancel()
+
+	collector := NewCollectorWithClient(t.TempDir(), blockingClient{})
+
+	start := time.Now()
+	report := collector.Report(ctx, ScrubOptions{})
+
+	assert.True(t, time.Now().Before(callerDeadline),
+		"collection must return with time to spare, not run the caller's deadline out")
+	assert.NotEmpty(t, report.DaemonError, "the report has to say why it is empty")
+	assert.NotEmpty(t, report.Notes, "and still carry the guidance for reading it")
+	assert.Len(t, report.Services, len(migratableServices),
+		"the catalog is read from disk, so it survives a daemon that never answered")
+	assert.Less(t, time.Since(start), flareCollectionBudget,
+		"the collection budget must not be spent waiting on a caller that already gave up")
 }
