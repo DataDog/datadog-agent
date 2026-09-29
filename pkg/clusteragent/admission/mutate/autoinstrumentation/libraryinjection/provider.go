@@ -95,6 +95,10 @@ type LibraryInjectionConfig struct {
 	// Used for gating features that depend on cluster version support (e.g. image volumes).
 	KubeServerVersion *version.Info
 
+	// IsOpenShift is true when the cluster runs OpenShift.
+	// The auto injection mode does not use the CSI driver on OpenShift.
+	IsOpenShift bool
+
 	// Debug enables debug mode for the APM libraries.
 	// When true, additional debug environment variables are injected.
 	Debug bool

@@ -4,8 +4,8 @@ upgrade:
     With the ``auto`` injection mode (the default), APM Single Step
     Instrumentation now uses the Datadog CSI driver when it is installed in
     the cluster with APM support enabled and the injector and tracer images
-    come from a Datadog public registry. Otherwise, it still uses init
-    containers. To keep init containers, set
+    come from a Datadog public registry. Otherwise, and always on OpenShift,
+    it still uses init containers. To keep init containers, set
     ``apm_config.instrumentation.injection_mode`` to ``init_container``.
 
     Detection requires the Cluster Agent to list and watch

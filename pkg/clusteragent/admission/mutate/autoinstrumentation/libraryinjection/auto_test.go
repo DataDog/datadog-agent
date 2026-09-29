@@ -156,8 +156,8 @@ func TestAutoProvider_FallsBackToInitContainerWhenWatcherReportsAPMDisabled(t *t
 }
 
 func TestAutoProvider_FallsBackToInitContainerWhenWatcherIsNil(t *testing.T) {
-	// A nil watcher means CSI auto-detection is disabled (e.g. the temporary
-	// feature flag is off, or the cluster-agent runs without workloadmeta).
+	// A nil watcher means CSI auto-detection is unavailable (e.g. the
+	// cluster-agent runs without workloadmeta).
 	// AutoProvider must behave exactly as before this feature existed.
 	pod := newPod()
 
@@ -171,4 +171,22 @@ func TestAutoProvider_FallsBackToInitContainerWhenWatcherIsNil(t *testing.T) {
 	vol := findInstrumentationVolume(t, pod)
 	assert.Nil(t, vol.CSI, "with nil watcher, AutoProvider must not produce CSI volumes")
 	assert.NotNil(t, vol.EmptyDir, "with nil watcher, AutoProvider must fall back to an EmptyDir volume")
+}
+
+func TestAutoProvider_FallsBackToInitContainerOnOpenShift(t *testing.T) {
+	pod := newPod()
+
+	provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
+		Injector:          injectorConfig(),
+		CSIAutoRegistries: defaultCSIAutoRegistries,
+		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+		IsOpenShift:       true,
+	})
+
+	result := provider.InjectInjector(pod, injectorConfig())
+	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
+
+	vol := findInstrumentationVolume(t, pod)
+	assert.Nil(t, vol.CSI, "on OpenShift, AutoProvider must not produce CSI volumes")
+	assert.NotNil(t, vol.EmptyDir, "on OpenShift, AutoProvider must fall back to an EmptyDir volume")
 }

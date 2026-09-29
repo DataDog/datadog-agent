@@ -28,14 +28,15 @@ import (
 // several components, but consumers of this webhook should not need to care about how the webhook is wired together.
 // When on-demand instrumentation is enabled and rcClient is non-nil, the mutator also subscribes to remote-config SSI
 // policies (APM_POLICIES), evaluated after DDI and static targets with last-TRUE-wins among RC policies.
-func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, serverVersion *version.Info, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, ddiTargets DDITargetProvider) (*Webhook, error) {
+func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.Component, serverVersion *version.Info, isOpenShift bool, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, ddiTargets DDITargetProvider) (*Webhook, error) {
 	config, err := NewConfig(datadogConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
-	// Populate Kubernetes server version for feature gating.
+	// Populate Kubernetes server version and distribution for feature gating.
 	config.kubeServerVersion = serverVersion
+	config.isOpenShift = isOpenShift
 	imageResolver := imageresolver.New(imageresolver.NewConfig(datadogConfig))
 	apm, err := NewTargetMutator(config, wmeta, imageResolver, csiDriverWatcher, rcClient, ddiTargets)
 	if err != nil {

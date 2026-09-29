@@ -184,6 +184,13 @@ func (v *ssiSuite) TestInjectionMode() {
 
 	v.UpdateEnv(Provisioner(opts))
 
+	// "auto" mode with the Datadog CSI driver installed must resolve to the CSI
+	// provider, except on OpenShift where it keeps init containers.
+	autoMode := testutils.InjectionModeCSI
+	if isOpenShift() {
+		autoMode = testutils.InjectionModeInitContainer
+	}
+
 	testCases := []struct {
 		name string
 		mode testutils.InjectionMode
@@ -196,9 +203,7 @@ func (v *ssiSuite) TestInjectionMode() {
 		{"injection-mode-app-csi", testutils.InjectionModeCSI, string(testutils.InjectionModeCSI)},
 		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer, string(testutils.InjectionModeInitContainer)},
 		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)},
-		// "auto" mode with the Datadog CSI driver installed must resolve to
-		// the CSI provider.
-		{"injection-mode-app-auto", testutils.InjectionModeCSI, testutils.EffectiveAutoMode(testutils.InjectionModeCSI)},
+		{"injection-mode-app-auto", autoMode, testutils.EffectiveAutoMode(autoMode)},
 	}
 
 	k8s := v.Env().KubernetesCluster.Client()

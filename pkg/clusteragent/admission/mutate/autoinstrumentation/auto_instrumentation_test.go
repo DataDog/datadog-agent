@@ -2920,7 +2920,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				}
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, ddiTargets)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, false, nil, nil, ddiTargets)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2988,7 +2988,7 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 		mockMeta.(workloadmetamock.Mock).Set(&ns)
 	}
 
-	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, false, nil, nil, nil)
 	require.NoError(t, err)
 
 	pod := common.FakePodSpec{
@@ -3151,7 +3151,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, false, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3350,7 +3350,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, nil, nil, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, false, nil, nil, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.

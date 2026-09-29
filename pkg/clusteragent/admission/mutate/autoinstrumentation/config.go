@@ -101,6 +101,9 @@ type runtimeConfig struct {
 	// It's populated by the webhook constructor (not from static config) and can be used
 	// to gate features that require a minimum Kubernetes version.
 	kubeServerVersion *version.Info
+
+	// isOpenShift is true when the cluster runs OpenShift.
+	isOpenShift bool
 }
 
 var excludedContainerNames = map[string]bool{

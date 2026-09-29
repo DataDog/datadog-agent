@@ -19,7 +19,8 @@ import (
 // It picks the best concrete provider for a pod based on the runtime
 // environment, currently:
 //   - CSIProvider when the Datadog CSI driver is registered in the cluster
-//     with APM SSI advertised and all images use supported registries;
+//     with APM SSI advertised, the cluster is not OpenShift, and all images
+//     use supported registries;
 //   - InitContainerProvider otherwise.
 type AutoProvider struct {
 	realProvider LibraryInjectionProvider
@@ -44,6 +45,11 @@ func NewAutoProvider(cfg LibraryInjectionConfig) *AutoProvider {
 func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
 	if cfg.CSIDriverWatcher == nil || !cfg.CSIDriverWatcher.IsAPMEnabled() {
 		log.Debugf("library injection auto provider: Datadog CSI driver %q is unavailable for APM injection, using InitContainerProvider", csiDriverName)
+		return NewInitContainerProvider(cfg)
+	}
+	if cfg.IsOpenShift {
+		// Pods injected through the CSI driver need extra privileges on OpenShift.
+		log.Debugf("library injection auto provider: cluster runs OpenShift, using InitContainerProvider")
 		return NewInitContainerProvider(cfg)
 	}
 	if registry, found := firstUnsupportedCSIRegistry(cfg); found {
