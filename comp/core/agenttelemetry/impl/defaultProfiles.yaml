@@ -604,3 +604,97 @@ profiles:
     start_after: 120 # 2 minutes
     iterations: 0
     period: 900
+# Support troubleshooting bundle, gated behind a remote flag.
+- name: troubleshooting
+  remote_flag: agent_telemetry_troubleshooting
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      # Delivery failures: why the data never reached the intake. error_type
+      # separates DNS from TLS from timeout without pulling a flare.
+      - name: transactions.errors
+        preserve_tags:
+          - domain
+          - endpoint
+          - error_type
+      - name: transactions.dropped
+        preserve_tags:
+          - domain
+          - endpoint
+      - name: transactions.retry_queue_size
+        preserve_tags:
+          - domain
+      - name: transactions.high_priority_queue_full
+        preserve_tags:
+          - domain
+          - endpoint
+      - name: transactions.connection_events
+        preserve_tags:
+          - connection_event_type
+      # Aggregator: loss upstream of the forwarder. Read against the
+      # already-collected points.sent, aggregator.processed tells whether the
+      # loss happened before or after the forwarder. "shard" is aggregated away.
+      - name: aggregator.flush
+        preserve_tags:
+          - data_type
+          - state
+      - name: aggregator.channel_size
+      - name: aggregator.processed
+        preserve_tags:
+          - data_type
+      # DogStatsD intake: errors and saturation. Only the bytes counters are
+      # collected by default today. "origin" and "listener_id" are unbounded
+      # and deliberately aggregated away.
+      - name: dogstatsd.processed
+        preserve_tags:
+          - message_type
+          - state
+      - name: dogstatsd.udp_packets
+        preserve_tags:
+          - state
+      - name: dogstatsd.uds_packets
+        preserve_tags:
+          - transport
+          - state
+      - name: dogstatsd.uds_origin_detection_error
+        preserve_tags:
+          - transport
+      - name: dogstatsd.packets_channel_size
+      # Check execution quality
+      - name: checks.warnings
+        preserve_tags:
+          - check_name
+      - name: checks.metrics_samples
+        preserve_tags:
+          - check_name
+      - name: scheduler.checks_entered
+        preserve_tags:
+          - check_name
+      - name: scheduler.queue_size
+        preserve_tags:
+          - interval
+          - shadow
+      # Tagging / container metadata on the NODE agent. These exist only in the
+      # cluster-agent profile today, so container-tagging problems on the node
+      # agent are invisible.
+      - name: workloadmeta.stored_entities
+        preserve_tags:
+          - kind
+          - source
+      - name: workloadmeta.pull_errors
+        preserve_tags:
+          - collector_id
+      - name: tagger.stored_entities
+        preserve_tags:
+          - source
+          - prefix
+      - name: tagger.queries
+        preserve_tags:
+          - cardinality
+          - status
+      - name: tagger.client_stream_errors
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
