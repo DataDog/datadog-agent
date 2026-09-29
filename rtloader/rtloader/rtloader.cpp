@@ -108,5 +108,5 @@ char *RtLoader::_createInternalErrorDiagnoses(const char *errorMessage)
 
     o << GET_DIANGOSES_FAILURE_DIAGNOSES_END;
 
-	return strdupe(o.str().c_str());
+    return strdupe(o.str().c_str());
 }
