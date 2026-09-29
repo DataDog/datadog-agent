@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -140,97 +141,109 @@ func TestGetIntegrationConfig(t *testing.T) {
 }
 
 func TestReadConfigFiles(t *testing.T) {
-	paths := []string{"testdata"}
-	ResetReader(paths)
+	mockConfig := configmock.New(t)
 
-	configs, errors, err := ReadConfigFiles(GetAll)
-	require.Nil(t, err)
-	require.Equal(t, 23, len(configs))
-	require.Equal(t, 4, len(errors))
+	readConfigFilesTest := func(t *testing.T, numWorkers int) {
+		mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
 
-	for _, c := range configs {
-		if c.Name == "empty" {
-			require.Fail(t, "empty config should not be returned")
+		paths := []string{"testdata"}
+		ResetReader(paths)
+
+		configs, errors, err := ReadConfigFiles(GetAll)
+		require.Nil(t, err)
+		require.Equal(t, 23, len(configs))
+		require.Equal(t, 4, len(errors))
+
+		for _, c := range configs {
+			if c.Name == "empty" {
+				require.Fail(t, "empty config should not be returned")
+			}
 		}
-	}
 
-	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
-	require.Nil(t, err)
-	require.Equal(t, 21, len(configs))
+		configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
+		require.Nil(t, err)
+		require.Equal(t, 21, len(configs))
 
-	expectedConfig1 := integration.Config{
-		Name: "advanced_ad",
-		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
-			{
-				KubeService: integration.KubeNamespacedName{
-					Name:      "svc-name",
-					Namespace: "svc-ns",
-				},
-			},
-		},
-		Instances: []integration.Data{
-			integration.Data("foo: bar\n"),
-		},
-		Source: "file:testdata/advanced_ad.yaml",
-	}
-
-	expectedConfig2 := integration.Config{
-		Name: "advanced_ad_kube_endpoints",
-		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
-			{
-				KubeEndpoints: integration.KubeEndpointsIdentifier{
-					KubeNamespacedName: integration.KubeNamespacedName{
+		expectedConfig1 := integration.Config{
+			Name: "advanced_ad",
+			AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+				{
+					KubeService: integration.KubeNamespacedName{
 						Name:      "svc-name",
 						Namespace: "svc-ns",
 					},
-					Resolve: "ip",
 				},
 			},
-		},
-		Instances: []integration.Data{
-			integration.Data("foo: bar\n"),
-		},
-		Source: "file:testdata/advanced_ad_kube_endpoints.yaml",
-	}
-
-	configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
-	require.Nil(t, err)
-	require.Equal(t, 2, len(configs))
-
-	// Ignore the Source field for comparison because varies by OS
-	// Ignore the matchingPrograms field for comparison since it's not relevant for the test
-	ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingPrograms")
-
-	// Check if expectedConfig1 is in the configs slice
-	found := false
-	for _, config := range configs {
-		if cmp.Equal(config, expectedConfig1, ignoreFields) {
-			found = true
-			break
+			Instances: []integration.Data{
+				integration.Data("foo: bar\n"),
+			},
+			Source: "file:testdata/advanced_ad.yaml",
 		}
-	}
-	if !found {
-		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
-			expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreFields))
-	}
 
-	// Check if expectedConfig2 is in the configs slice
-	found = false
-	for _, config := range configs {
-		if cmp.Equal(config, expectedConfig2, ignoreFields) {
-			found = true
-			break
+		expectedConfig2 := integration.Config{
+			Name: "advanced_ad_kube_endpoints",
+			AdvancedADIdentifiers: []integration.AdvancedADIdentifier{
+				{
+					KubeEndpoints: integration.KubeEndpointsIdentifier{
+						KubeNamespacedName: integration.KubeNamespacedName{
+							Name:      "svc-name",
+							Namespace: "svc-ns",
+						},
+						Resolve: "ip",
+					},
+				},
+			},
+			Instances: []integration.Data{
+				integration.Data("foo: bar\n"),
+			},
+			Source: "file:testdata/advanced_ad_kube_endpoints.yaml",
 		}
-	}
-	if !found {
-		t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
-			expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreFields))
+
+		configs, _, err = ReadConfigFiles(WithAdvancedADOnly)
+		require.Nil(t, err)
+		require.Equal(t, 2, len(configs))
+
+		// Ignore the Source field for comparison because varies by OS
+		// Ignore the matchingPrograms field for comparison since it's not relevant for the test
+		ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingPrograms")
+
+		// Check if expectedConfig1 is in the configs slice
+		found := false
+		for _, config := range configs {
+			if cmp.Equal(config, expectedConfig1, ignoreFields) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+				expectedConfig1, configs, cmp.Diff(expectedConfig1, configs, ignoreFields))
+		}
+
+		// Check if expectedConfig2 is in the configs slice
+		found = false
+		for _, config := range configs {
+			if cmp.Equal(config, expectedConfig2, ignoreFields) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expectedConfig not found in configs.\nExpected: %+v\nActual configs: %+v\nDiff: %s",
+				expectedConfig2, configs, cmp.Diff(expectedConfig2, configs, ignoreFields))
+		}
+
+		configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
+		require.Nil(t, err)
+		require.Equal(t, 1, len(configs))
+		require.Equal(t, configs[0].Name, "baz")
 	}
 
-	configs, _, err = ReadConfigFiles(func(c integration.Config) bool { return c.Name == "baz" })
-	require.Nil(t, err)
-	require.Equal(t, 1, len(configs))
-	require.Equal(t, configs[0].Name, "baz")
+	for _, numWorkers := range []int{1, 2, 4, 8, 64} {
+		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			readConfigFilesTest(t, numWorkers)
+		})
+	}
 }
 
 // TestReadConfigFilesErrorClearing checks that when multiple files share an
@@ -239,33 +252,47 @@ func TestReadConfigFiles(t *testing.T) {
 // a single `<integration>.d/` directory and across two independent top-level
 // entries. See errorAction/applyErrorAction in config_reader.go.
 func TestReadConfigFilesErrorClearing(t *testing.T) {
-	ResetReader([]string{"testdata/errorclearing"})
+	mockConfig := configmock.New(t)
 
-	configs, errs, err := ReadConfigFiles(GetAll)
-	require.Nil(t, err)
+	readConfigFilesErrorClearingTest := func(t *testing.T, numWorkers int) {
+		ResetReader([]string{"testdata/errorclearing"})
+		mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
 
-	names := map[string]bool{}
-	for _, c := range configs {
-		names[c.Name] = true
+		configs, errs, err := ReadConfigFiles(GetAll)
+		require.Nil(t, err)
+
+		names := map[string]bool{}
+		for _, c := range configs {
+			names[c.Name] = true
+		}
+
+		// cleared.d/1.yaml (invalid) sets an error, then cleared.d/2.yaml (valid,
+		// processed after in the same directory) clears it: the config is
+		// returned and no error is recorded for the name.
+		require.True(t, names["cleared"], "valid file's config should be returned")
+		require.NotContains(t, errs, "cleared", "later valid file should clear the earlier error")
+
+		// notcleared.d/1.yaml (valid) clears nothing yet, then notcleared.d/2.yaml
+		// (invalid, processed last) sets the error: it should survive.
+		// Note: config still exists for the integration since notcleared.d/1.yaml was valid
+		require.True(t, names["notcleared"], "valid file's config should be returned")
+		require.Contains(t, errs, "notcleared", "later invalid file's error should not be erased")
+
+		// Same ordering guarantee across two different top-level entries handled
+		// by the worker pool (not just within one directory) - results are still
+		// merged back in original, deterministic entry order.
+		require.True(t, names["siblingcleared"])
+		require.NotContains(t, errs, "siblingcleared")
 	}
 
-	// cleared.d/1.yaml (invalid) sets an error, then cleared.d/2.yaml (valid,
-	// processed after in the same directory) clears it: the config is
-	// returned and no error is recorded for the name.
-	require.True(t, names["cleared"], "valid file's config should be returned")
-	require.NotContains(t, errs, "cleared", "later valid file should clear the earlier error")
-
-	// notcleared.d/1.yaml (valid) clears nothing yet, then notcleared.d/2.yaml
-	// (invalid, processed last) sets the error: it should survive.
-	// Note: config still exists for the integration since notcleared.d/1.yaml was valid
-	require.True(t, names["notcleared"], "valid file's config should be returned")
-	require.Contains(t, errs, "notcleared", "later invalid file's error should not be erased")
-
-	// Same ordering guarantee across two different top-level entries handled
-	// by the worker pool (not just within one directory) - results are still
-	// merged back in original, deterministic entry order.
-	require.True(t, names["siblingcleared"])
-	require.NotContains(t, errs, "siblingcleared")
+	// 64 is more than the number of entries in testdata, so it also covers the worker count cap
+	for _, numWorkers := range []int{1, 2, 4, 8, 64} {
+		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			for range 5 {
+				readConfigFilesErrorClearingTest(t, numWorkers)
+			}
+		})
+	}
 }
 
 func TestReadConfigFilesCache(t *testing.T) {
@@ -277,40 +304,50 @@ instances:
   # No configuration is needed for this check.
   - foo: bar`
 
-	tempDir := t.TempDir()
-	testFilePath := path.Join(tempDir, "foo.yaml")
-	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+	readConfigFilesCacheTest := func(t *testing.T, numWorkers int) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
 
-	// Init reader with default config, cache is activated with 5mins TTL
-	ResetReader([]string{tempDir})
+		tempDir := t.TempDir()
+		testFilePath := path.Join(tempDir, "foo.yaml")
+		assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
 
-	// Remove file, Sleep 2s, cache should give us same result
-	assert.NoError(t, os.Remove(testFilePath))
-	time.Sleep(2 * time.Second)
-	configs, errors, err := ReadConfigFiles(GetAll)
-	require.Nil(t, err)
-	require.Equal(t, 1, len(configs))
-	require.Equal(t, 0, len(errors))
+		// Init reader with default config, cache is activated with 5mins TTL
+		ResetReader([]string{tempDir})
 
-	// Change config
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("autoconf_config_files_poll", true)
-	mockConfig.SetInTest("autoconf_config_files_poll_interval", 2)
+		// Remove file, Sleep 2s, cache should give us same result
+		assert.NoError(t, os.Remove(testFilePath))
+		time.Sleep(2 * time.Second)
+		configs, errors, err := ReadConfigFiles(GetAll)
+		require.Nil(t, err)
+		require.Equal(t, 1, len(configs))
+		require.Equal(t, 0, len(errors))
 
-	// Write file + reset reader (trigger a read on all files)
-	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
-	ResetReader([]string{tempDir})
-	// Verify that we do have the file (hitting the cache)
-	configs, errors, err = ReadConfigFiles(GetAll)
-	require.Nil(t, err)
-	require.Equal(t, 1, len(configs))
-	require.Equal(t, 0, len(errors))
+		// Change config
+		mockConfig.SetInTest("autoconf_config_files_poll", true)
+		mockConfig.SetInTest("autoconf_config_files_poll_interval", 2)
 
-	// Remove file, Sleep 2s, we should read again and have nothing
-	assert.NoError(t, os.Remove(testFilePath))
-	time.Sleep(2 * time.Second)
-	configs, errors, err = ReadConfigFiles(GetAll)
-	require.Nil(t, err)
-	require.Equal(t, 0, len(configs))
-	require.Equal(t, 0, len(errors))
+		// Write file + reset reader (trigger a read on all files)
+		assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+		ResetReader([]string{tempDir})
+		// Verify that we do have the file (hitting the cache)
+		configs, errors, err = ReadConfigFiles(GetAll)
+		require.Nil(t, err)
+		require.Equal(t, 1, len(configs))
+		require.Equal(t, 0, len(errors))
+
+		// Remove file, Sleep 2s, we should read again and have nothing
+		assert.NoError(t, os.Remove(testFilePath))
+		time.Sleep(2 * time.Second)
+		configs, errors, err = ReadConfigFiles(GetAll)
+		require.Nil(t, err)
+		require.Equal(t, 0, len(configs))
+		require.Equal(t, 0, len(errors))
+	}
+
+	for _, numWorkers := range []int{1, 2, 4, 8, 64} {
+		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			readConfigFilesCacheTest(t, numWorkers)
+		})
+	}
 }
