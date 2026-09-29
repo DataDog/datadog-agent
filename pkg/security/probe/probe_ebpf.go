@@ -232,6 +232,10 @@ type EBPFProbe struct {
 	// the stats tick logs only when one of them moves. Debug aid, see logExecInoReadStats.
 	lastExecInoReads atomic.Uint64
 
+	// execInoReadsLogged records that logExecInoReadStats has reported at least once, so a
+	// healthy run still says so out loud instead of being silent. Debug aid.
+	execInoReadsLogged atomic.Bool
+
 	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
 	// container, so the debug log below reports only transitions instead of one line
 	// per exec. Debug aid, see setProcessContext.
@@ -1668,20 +1672,30 @@ func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
 func (p *EBPFProbe) logExecInoReadStats() {
 	m, _, err := p.Manager.Get().GetMap("exec_ino_read_stats")
 	if err != nil || m == nil {
+		if !p.execInoReadsLogged.Swap(true) {
+			seclog.Warnf("exec path_key inode reads: exec_ino_read_stats unavailable: %v", err)
+		}
 		return
 	}
 
 	var v [5]uint64
 	for i := range v {
 		if err := m.Lookup(uint32(i), &v[i]); err != nil {
+			if !p.execInoReadsLogged.Swap(true) {
+				seclog.Warnf("exec path_key inode reads: slot %d unreadable: %v", i, err)
+			}
 			return
 		}
 	}
 
-	// slot 0 is the attempt count, so it alone changing means the reads are all healthy
-	if prev := p.lastExecInoReads.Swap(v[1] + v[2] + v[3] + v[4]); prev == v[1]+v[2]+v[3]+v[4] {
+	// Slot 0 is the attempt count, so it alone changing means the reads are all healthy.
+	// Report once regardless, because otherwise a healthy run and a broken instrument
+	// (map missing, lookup failing) both produce exactly no output.
+	failures := v[1] + v[2] + v[3] + v[4]
+	if prev := p.lastExecInoReads.Swap(failures); prev == failures && p.execInoReadsLogged.Swap(true) {
 		return
 	}
+	p.execInoReadsLogged.Store(true)
 
 	seclog.Warnf("exec path_key inode reads: %d attempts, %d failed from inode, %d failed from path, %d returned zero, %d returned a kernel pointer",
 		v[0], v[1], v[2], v[3], v[4])
