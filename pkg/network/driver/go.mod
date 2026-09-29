@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.72.0-rc.1
 	github.com/stretchr/testify v1.12.1
-	go.uber.org/atomic v1.11.0
+	go.uber.org/atomic v1.12.0
 	golang.org/x/sys v0.48.0
 )
 
@@ -158,6 +158,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../pkg/serializer

@@ -21,6 +21,8 @@ func TestMetadataAsTags(t *testing.T) {
 		v              string
 		metadataAsTags map[string]string
 		want           []string
+		wantHigh       []string
+		wantStandard   []string
 	}{
 		{
 			name:           "nominal case",
@@ -120,14 +122,49 @@ func TestMetadataAsTags(t *testing.T) {
 			metadataAsTags: map[string]string{"foo": "app_foo,%%annotation%%_suffix"},
 			want:           []string{"app_foo:bar", "foo_suffix:bar"},
 		},
+		{
+			name:           "service is also a standard tag",
+			k:              "ns.nl/tags-service",
+			v:              "bar",
+			metadataAsTags: map[string]string{"ns.nl/tags-service": "service"},
+			want:           []string{"service:bar"},
+			wantStandard:   []string{"service:bar"},
+		},
+		{
+			name:           "service through a template variable is also a standard tag",
+			k:              "service",
+			v:              "bar",
+			metadataAsTags: map[string]string{"*": "%%annotation%%"},
+			want:           []string{"service:bar"},
+			wantStandard:   []string{"service:bar"},
+		},
+		{
+			name:           "service in a split list is also a standard tag",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "app_foo, service"},
+			want:           []string{"app_foo:bar", "service:bar"},
+			wantStandard:   []string{"service:bar"},
+		},
+		{
+			name:           "high cardinality service is not a standard tag",
+			k:              "foo",
+			v:              "bar",
+			metadataAsTags: map[string]string{"foo": "+service"},
+			want:           nil,
+			wantHigh:       []string{"service:bar"},
+			wantStandard:   nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tagList := taglist.NewTagList()
 			m, g := InitMetadataAsTags(tt.metadataAsTags)
 			AddMetadataAsTags(tt.k, tt.v, m, g, tagList)
-			tags, _, _, _ := tagList.Compute()
+			tags, _, high, standard := tagList.Compute()
 			assert.ElementsMatch(t, tt.want, tags)
+			assert.ElementsMatch(t, tt.wantHigh, high)
+			assert.ElementsMatch(t, tt.wantStandard, standard)
 		})
 	}
 }

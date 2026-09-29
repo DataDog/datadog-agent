@@ -384,18 +384,20 @@
 /Dockerfiles/agent/bouncycastle-fips     @DataDog/agent-metric-pipelines
 /Dockerfiles/manifests/                  @DataDog/container-integrations
 
+/doc/                                                        @DataDog/agent-devx
 /docs/                                                       @DataDog/agent-devx
 /docs/dev/agent_api.md                                       @DataDog/agent-runtimes
 /docs/dev/checks/                                            @DataDog/agent-runtimes
 /docs/cloud-workload-security/                               @DataDog/documentation @DataDog/agent-security
-/docs/public/architecture/components/                        @DataDog/agent-runtimes
-/docs/public/tutorials/components/                           @DataDog/agent-runtimes
+/doc/architecture/components/                                @DataDog/agent-runtimes
+/doc/tutorials/components/                                   @DataDog/agent-runtimes
+/doc/how-to/components/                                      @DataDog/agent-runtimes
 /docs/public/how-to/components/                              @DataDog/agent-runtimes
-/docs/public/guidelines/components.md                        @DataDog/agent-runtimes
-/docs/public/reference/components/                           @DataDog/agent-runtimes
-/docs/public/how-to/run-jmxfetch.md                           @DataDog/agent-runtimes
+/doc/guidelines/components.md                                @DataDog/agent-runtimes
+/doc/reference/components/                                   @DataDog/agent-runtimes
+/doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
 /docs/public/hostname/                                       @DataDog/agent-runtimes
-/docs/public/architecture/dogstatsd/                         @DataDog/agent-metric-pipelines
+/doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-community-eng causes a lot of spam
@@ -1134,3 +1136,7 @@
 # Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
 # Must stay last for the same reason as the /**/*.bzl rule above.
 /cmd/agent/dist/**/BUILD.bazel     @DataDog/agent-build
+
+# CWS syscall tester Bazel build logic is test tooling maintained by agent-security
+/pkg/security/tests/syscall_tester/c/*.bzl           @DataDog/agent-security
+/pkg/security/tests/syscall_tester/c/BUILD.bazel     @DataDog/agent-security
