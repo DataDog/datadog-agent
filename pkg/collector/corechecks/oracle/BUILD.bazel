@@ -25,6 +25,7 @@ go_library(
         "processes.go",
         "resource_manager.go",
         "schemas.go",
+        "schemas_queries.go",
         "schemas_worker.go",
         "sender_util.go",
         "shared_memory.go",
