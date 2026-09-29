@@ -162,12 +162,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/json v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0 // indirect

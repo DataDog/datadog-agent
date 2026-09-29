@@ -296,9 +296,14 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric)
+	var wi workloadIdentity
+	if e.ipath == ddot {
+		wi = detectWorkloadIdentity(ctx, e.params.Logger)
+	}
+
+	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric, wi)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
-	consumer.addRunningMetric(hostname)
+	consumer.addRunningMetric(hostname, wi)
 	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric)
 	if err := consumer.Send(e.s); err != nil {
 		errFlush := fmt.Errorf("failed to flush metrics: %w", err)

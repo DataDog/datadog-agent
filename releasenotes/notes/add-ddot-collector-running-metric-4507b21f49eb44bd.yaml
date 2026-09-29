@@ -8,8 +8,9 @@
 ---
 enhancements:
   - |
-    The OTel Datadog exporter now emits ``otel.ddot_collector.metrics.running`` when
+    The OTel Datadog exporter now emits ``otel.ddot_collector.metrics.running`` (and its
+    ``.fargate``, ``.azurecontainerapps`` workload variants) when
     otel-agent is running standalone (``DD_OTEL_STANDALONE=true``), mirroring the
-    ``otel.datadog_exporter.metrics.running`` metric already emitted for the OSS
-    Collector. This metric is not emitted when otel-agent is connected to a core or
+    ``otel.datadog_exporter.metrics.running`` metrics already emitted for the OSS
+    Collector. These metrics are not emitted when otel-agent is connected to a core or
     cluster Agent, since that Agent already reports its own running state.
