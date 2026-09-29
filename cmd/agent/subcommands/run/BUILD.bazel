@@ -22,8 +22,6 @@ go_library(
         "dependent_services_windows.go",
         "metriclookback.go",
         "metriclookback_nopython.go",
-        "recorder_build.go",
-        "recorder_build_default.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run",
     visibility = ["//visibility:public"],

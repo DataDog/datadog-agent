@@ -648,9 +648,6 @@ func startAgent(
 	} else {
 		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
-	if recorderBuild {
-		log.Info("[anomalydetection] Recorder build tag enabled (recorder implementation is currently no-op)")
-	}
 
 	if err := coredump.Setup(cfg); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
