@@ -6,6 +6,7 @@ go_library(
         "model.go",
         "nvml_release.go",
         "prm.go",
+        "process_job_ids.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model",
     visibility = ["//visibility:public"],

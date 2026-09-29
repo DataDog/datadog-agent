@@ -188,6 +188,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
 	workloadTagCache.SetJobsConfig(c.gpuConfig.JobsConfig)
+	if len(c.gpuConfig.JobsConfig.EnvKeys()) > 0 {
+		workloadTagCache.SetJobIDReader(NewSystemProbeJobIDReader())
+	}
 	c.workloadTagCache = workloadTagCache
 
 	c.spCache = nil

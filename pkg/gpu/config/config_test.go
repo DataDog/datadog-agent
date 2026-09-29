@@ -23,6 +23,7 @@ func TestIdentifierConfigConfigured(t *testing.T) {
 		{"label", IdentifierConfig{Key: "a/b", Type: IdentifierTypeLabel}, true},
 		{"annotation", IdentifierConfig{Key: "a/b", Type: IdentifierTypeAnnotation}, true},
 		{"missing key", IdentifierConfig{Type: IdentifierTypeLabel}, false},
+		{"env", IdentifierConfig{Key: "JOB_ID", Type: IdentifierTypeEnv}, true},
 		{"unknown type", IdentifierConfig{Key: "a/b", Type: "other"}, false},
 	}
 	for _, tt := range tests {
@@ -53,4 +54,17 @@ func TestNewJobsConfigDefaults(t *testing.T) {
 
 	assert.False(t, got.JobsConfig.Run.Configured())
 	assert.False(t, got.JobsConfig.Group.Configured())
+}
+
+func TestJobsConfigEnvKeys(t *testing.T) {
+	label := IdentifierConfig{Key: "example/job-id-label", Type: IdentifierTypeLabel}
+	envRun := IdentifierConfig{Key: "JOB_ID", Type: IdentifierTypeEnv}
+	envGroup := IdentifierConfig{Key: "JOB_GROUP", Type: IdentifierTypeEnv}
+
+	assert.Empty(t, JobsConfig{}.EnvKeys())
+	assert.Empty(t, JobsConfig{Run: label}.EnvKeys())
+	assert.Equal(t, []string{"JOB_ID"}, JobsConfig{Run: envRun, Group: label}.EnvKeys())
+	assert.Equal(t, []string{"JOB_ID", "JOB_GROUP"}, JobsConfig{Run: envRun, Group: envGroup}.EnvKeys())
+	assert.Equal(t, []string{"JOB_ID"}, JobsConfig{Run: envRun, Group: envRun}.EnvKeys(), "keys are not duplicated")
+	assert.Empty(t, JobsConfig{Run: IdentifierConfig{Type: IdentifierTypeEnv}}.EnvKeys(), "an env identifier needs a key")
 }
