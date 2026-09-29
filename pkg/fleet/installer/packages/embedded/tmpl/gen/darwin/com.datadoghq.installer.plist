@@ -38,6 +38,9 @@
         <string>/opt/datadog-agent/logs/launchd_installer.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
-        <!-- No UserName: the daemon runs as root throughout. -->
+        <key>UserName</key>
+        <string>root</string>
+        <key>GroupName</key>
+        <string>admin</string>
     </dict>
 </plist>
