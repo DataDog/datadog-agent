@@ -434,11 +434,18 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 //
 //nolint:revive // TODO(CINT) Fix revive linter
 func getClusterID(w http.ResponseWriter, r *http.Request) {
+	var spanErr error
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.cluster_id",
+		tracer.ResourceName("clusterID"),
+	)
+	defer func() { span.Finish(tracer.WithError(spanErr)) }()
+
 	// As HTTP query handler, we do not retry getting the APIServer
 	// Client will have to retry query in case of failure
 	cl, err := as.GetAPIClient()
 	if err != nil {
 		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
+		spanErr = err
 		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -448,6 +455,7 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	clusterID, err := apicommon.GetOrCreateClusterID(coreCl)
 	if err != nil {
 		log.Errorf("Failed to generate or retrieve the cluster ID: %v", err) //nolint:errcheck
+		spanErr = err
 		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -456,6 +464,7 @@ func getClusterID(w http.ResponseWriter, r *http.Request) {
 	j, err := json.Marshal(clusterID)
 	if err != nil {
 		log.Errorf("Failed to marshal the cluster ID: %v", err) //nolint:errcheck
+		spanErr = err
 		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

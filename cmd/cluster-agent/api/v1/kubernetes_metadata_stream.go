@@ -222,12 +222,18 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 		case <-ticker.C:
 			// Send empty keepalive
+			keepaliveSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_keepalive",
+				tracer.ResourceName("sendKeepalive"),
+				tracer.Tag("node_name", nodeName),
+			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(&pb.KubeMetadataStreamResponse{})
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending kube metadata keepalive for node %s: %s", nodeName, err)
+				keepaliveSpan.Finish(tracer.WithError(err))
 				return err
 			}
+			keepaliveSpan.Finish()
 		}
 	}
 }

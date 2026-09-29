@@ -8,9 +8,6 @@
 ---
 enhancements:
   - |
-    Reduce the Cluster Agent's APM self-tracing volume by removing low-value spans.
-    Per-message metadata stream spans (``sendDiff``, ``sendKeepalive``), the
-    ``clusterID`` request child span, and leadership event spans
-    (``leader_warmup``, ``leadership_lost``, ``leadership_change``) are no longer
-    emitted; leadership transitions are logged instead. The ``check_names`` tag on
-    ``cluster_checks.dispatcher.schedule`` is now deduplicated and capped at 10 names.
+    Reduce the Cluster Agent's APM self-tracing volume by no longer emitting a
+    ``sendDiff`` span for each metadata stream diff sent to a node agent. The
+    ``sendFullState`` span is kept and now includes a ``mapping_count`` tag.

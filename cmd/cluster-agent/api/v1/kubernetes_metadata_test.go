@@ -405,12 +405,13 @@ func TestGetAllMetadata_SpanCreation(t *testing.T) {
 	assert.NotNil(t, span.Tag("error.message"))
 }
 
-func TestGetClusterID_ErrorOnRequestSpan(t *testing.T) {
+func TestGetClusterID_SpanCreation(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
 	// getClusterID calls as.GetAPIClient which will fail without a real apiserver.
-	handler := http.HandlerFunc(api.WithTelemetryWrapper("getClusterID", getClusterID))
+	// This tests the error path, which still verifies span creation.
+	handler := http.HandlerFunc(getClusterID)
 
 	req := httptest.NewRequest("GET", "/cluster/id", nil)
 	rec := httptest.NewRecorder()
@@ -419,10 +420,10 @@ func TestGetClusterID_ErrorOnRequestSpan(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 
 	spans := mt.FinishedSpans()
-	require.Len(t, spans, 1, "only the request span is expected")
+	require.Len(t, spans, 1)
 	span := spans[0]
-	assert.Equal(t, "cluster_agent.api.request", span.OperationName())
-	assert.Equal(t, "getClusterID", span.Tag("resource.name"))
+	assert.Equal(t, "cluster_agent.metadata.cluster_id", span.OperationName())
+	assert.Equal(t, "clusterID", span.Tag("resource.name"))
 	assert.NotNil(t, span.Tag("error.message"))
 }
 

@@ -11,8 +11,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -24,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"google.golang.org/grpc/metadata"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // mockStream implements pb.AgentSecure_StreamKubeMetadataServer for testing.
@@ -105,7 +108,7 @@ func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 	assert.Equal(t, "test-node", fullStateSpan.Tag("node_name"))
 	assert.EqualValues(t, 0, fullStateSpan.Tag("mapping_count"))
 	assert.Nil(t, fullStateSpan.Tag("error.message"))
-	assert.Len(t, spans, 1, "only send_full_state is traced on the stream")
+	assert.Len(t, spans, 1, "only send_full_state is traced on the initial send")
 }
 
 func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
@@ -144,4 +147,65 @@ func TestStreamKubeMetadata_InitialFullStateSendErrorSpan(t *testing.T) {
 	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
 	assert.Equal(t, "test-node", fullStateSpan.Tag("node_name"))
 	assert.NotNil(t, fullStateSpan.Tag("error.message"))
+}
+
+func TestStreamKubeMetadata_DiffSendEmitsNoSpan(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	wmetaMock, store := newTestWmetaAndStore(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	srv := NewKubeMetadataStreamServer(store, wmetaMock)
+	srv.Start(ctx)
+
+	sentCh := make(chan *pb.KubeMetadataStreamResponse, 2)
+	stream := &mockStream{
+		ctx: ctx,
+		sendFunc: func(resp *pb.KubeMetadataStreamResponse) error {
+			sentCh <- resp
+			return nil
+		},
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.StreamKubeMetadata(&pb.KubeMetadataStreamRequest{NodeName: "test-node"}, stream)
+	}()
+
+	select {
+	case resp := <-sentCh:
+		require.True(t, resp.IsFullState)
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for full state")
+	}
+
+	namespace := "ns1"
+	wmetaMock.Set(&workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace)),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   namespace,
+			Labels: map[string]string{"l1": "v1"},
+		},
+		GVR: &schema.GroupVersionResource{Resource: "namespaces"},
+	})
+
+	select {
+	case resp := <-sentCh:
+		require.False(t, resp.IsFullState)
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for diff")
+	}
+
+	cancel()
+	require.NoError(t, <-errCh)
+
+	for _, s := range mt.FinishedSpans() {
+		assert.NotEqual(t, "cluster_agent.metadata_stream.send_diff", s.OperationName())
+	}
+	assert.Len(t, mt.FinishedSpans(), 1, "only send_full_state is traced")
 }

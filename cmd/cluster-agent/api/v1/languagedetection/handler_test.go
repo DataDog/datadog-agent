@@ -203,8 +203,13 @@ func TestHandleLeadershipState_BecameLeader(t *testing.T) {
 	ctx := context.Background()
 	handler.handleLeadershipState(ctx)
 
-	assert.True(t, handler.wasLeader)
-	assert.Empty(t, mt.FinishedSpans(), "leadership changes are logged, not traced")
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+
+	assert.Equal(t, "cluster_agent.language_detection.leadership_change", span.OperationName())
+	assert.Equal(t, "leadershipChange", span.Tag("resource.name"))
+	assert.Equal(t, "leader", span.Tag("became"))
 }
 
 func TestHandleLeadershipState_BecameFollower(t *testing.T) {
@@ -233,8 +238,13 @@ func TestHandleLeadershipState_BecameFollower(t *testing.T) {
 
 	handler.handleLeadershipState(ctx)
 
-	assert.False(t, handler.wasLeader)
-	assert.Empty(t, mt.FinishedSpans(), "leadership changes are logged, not traced")
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	span := spans[0]
+
+	assert.Equal(t, "cluster_agent.language_detection.leadership_change", span.OperationName())
+	assert.Equal(t, "leadershipChange", span.Tag("resource.name"))
+	assert.Equal(t, "follower", span.Tag("became"))
 }
 
 func TestHandleLeadershipState_NoChange(t *testing.T) {
@@ -254,6 +264,6 @@ func TestHandleLeadershipState_NoChange(t *testing.T) {
 	ctx := context.Background()
 	handler.handleLeadershipState(ctx)
 
-	assert.True(t, handler.wasLeader)
-	assert.Empty(t, mt.FinishedSpans())
+	spans := mt.FinishedSpans()
+	assert.Empty(t, spans, "no span should be created when leadership state doesn't change")
 }
