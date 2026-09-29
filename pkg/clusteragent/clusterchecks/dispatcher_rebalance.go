@@ -8,10 +8,10 @@
 package clusterchecks
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
@@ -397,73 +397,92 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	}()
 
 	currentConfigsDistribution := d.currentDistribution()
-	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
-	// Place configs in proposed: pinned ones stay on their current runner,
+	// Partition configs by eligible runner set (cohort) and rebalance each
+	// cohort independently within its own runners. Cohorts are disjoint: a
+	// check name is claimed by at most one runner group.
+	cohorts := make(map[string]map[string]*ConfigStatus)
+	var cohortKeys []string
 	for digest, config := range currentConfigsDistribution.Configs {
-		if config.Pinned {
-			proposedDistribution.addConfigWithEligibility(config.EligibleRunners, digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
-		}
-	}
-	// the rest go greedily on the least busy runner (descending workersNeeded),
-	// restricted to the runners eligible for each config per the workers'
-	// compatibility declarations.
-	for _, digest := range currentConfigsDistribution.configsSortedByWorkersNeeded() {
-		config := currentConfigsDistribution.Configs[digest]
-		if config.Pinned {
-			continue
-		}
-		if config.EligibleRunners != nil && len(config.EligibleRunners) == 0 {
-			// No eligible worker (e.g. the runner group claiming this check is
-			// entirely down): leave the config where it is rather than moving
-			// it onto a worker that refuses it, and count it.
+		if len(config.EligibleRunners) == 0 {
+			// No eligible worker (the group claiming this check is down): nothing to rebalance.
 			log.Debugf("No eligible runner for config %s (%s), leaving it on %s", digest, config.CheckName, config.Runner)
-			proposedDistribution.addConfigWithEligibility(config.EligibleRunners, digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
 			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
 			continue
 		}
-		proposedDistribution.addToLeastBusyIn(
-			config.EligibleRunners,
-			digest,
-			config.CheckName,
-			config.WorkersNeeded,
-			config.Runner,
-			"",
-			false,
-		)
-	}
-
-	// We don't calculate the optimal distribution, so it might be worse than
-	// the current one or not good enough so that it's worth it to schedule and
-	// unschedule checks. When that's the case, return without moving any
-	// checks. The stddev is per-cohort (utilizationStdDevWeighted), so a skewed group is not imbalance.
-	currentUtilizationStdDev := currentConfigsDistribution.utilizationStdDevWeighted()
-	proposedUtilizationStdDev := proposedDistribution.utilizationStdDevWeighted()
-	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
-
-	if force || rebalanceIsWorthIt(currentConfigsDistribution, proposedDistribution, minPercImprovement) {
-
-		jsonDistribution, _ := json.Marshal(proposedDistribution)
-
-		calculatedMoves := d.applyDistribution(proposedDistribution, currentConfigsDistribution)
-		numOfMoves, numOfConfigs, numOfRunners := len(calculatedMoves), len(proposedDistribution.Configs), len(proposedDistribution.Runners)
-
-		prefixMessage := "Found a better distribution for the cluster checks. "
-		if force {
-			prefixMessage = "Forcing rebalance proposed distribution for the cluster checks. "
+		key := strings.Join(config.EligibleRunners, ",")
+		if _, ok := cohorts[key]; !ok {
+			cohortKeys = append(cohortKeys, key)
+			cohorts[key] = make(map[string]*ConfigStatus)
 		}
+		cohorts[key][digest] = config
+	}
+	sort.Strings(cohortKeys)
 
-		log.Infof("%s Moving %d checks out of %d configs on %d runners. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
-			prefixMessage, numOfMoves, numOfConfigs, numOfRunners, proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
+	var allMoves []types.RebalanceResponse
+	for _, key := range cohortKeys {
+		allMoves = append(allMoves, d.rebalanceCohort(force, currentConfigsDistribution, cohorts[key])...)
+	}
+	return allMoves
+}
 
-		setPredictedUtilization(proposedDistribution)
-		return calculatedMoves
+// rebalanceCohort rebalances one cohort's configs within its eligible runner set.
+func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, cohort map[string]*ConfigStatus) []types.RebalanceResponse {
+	// Seed the cohort's runners with their worker counts.
+	runners := make(map[string]int)
+	for _, config := range cohort {
+		for _, r := range config.EligibleRunners {
+			if _, ok := runners[r]; !ok {
+				workers := 0
+				if runnerStatus, found := current.Runners[r]; found {
+					workers = runnerStatus.Workers
+				}
+				runners[r] = workers
+			}
+		}
 	}
 
-	log.Debugf("Didn't find a distribution better enough so that rescheduling checks is worth it (current utilization stddev: %.3f, found utilization stddev: %.3f)",
-		currentUtilizationStdDev, proposedUtilizationStdDev)
-	setPredictedUtilization(currentConfigsDistribution)
-	return nil
+	config := pkgconfigsetup.Datadog()
+	stickinessEnabled := config.GetBool("cluster_checks.stickiness_enabled")
+	stickinessFactor := config.GetFloat64("cluster_checks.stickiness_factor")
+	stickinessUpperLimit := config.GetFloat64("cluster_checks.stickiness_upper_limit")
+	stickinessLowerLimit := config.GetFloat64("cluster_checks.stickiness_lower_limit")
+	currentCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
+	proposedCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
+
+	// Current: each config on its runner. Proposed: pinned configs stay, the
+	// rest go greedily to the least busy eligible runner.
+	for digest, configInfo := range cohort {
+		currentCohort.addConfig(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, configInfo.Pinned)
+		// Pinned configs are placed first so the greedy pass accounts for their load.
+		if configInfo.Pinned {
+			proposedCohort.addConfig(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, true)
+		}
+	}
+	for _, digest := range currentCohort.configsSortedByWorkersNeeded() {
+		configInfo := currentCohort.Configs[digest]
+		if configInfo.Pinned {
+			continue
+		}
+		proposedCohort.addToLeastBusyIn(configInfo.EligibleRunners, digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, "", false)
+	}
+
+	minPercImprovement := config.GetInt("cluster_checks.rebalance_min_percentage_improvement")
+	currentStdDev, proposedStdDev := currentCohort.utilizationStdDev(), proposedCohort.utilizationStdDev()
+	if !force && !rebalanceIsWorthIt(currentCohort, proposedCohort, minPercImprovement) {
+		log.Debugf("Cohort rebalance not worth it (current stddev: %.3f, proposed: %.3f)", currentStdDev, proposedStdDev)
+		setPredictedUtilization(currentCohort)
+		return nil
+	}
+
+	moves := d.applyDistribution(proposedCohort, currentCohort)
+	prefix := "Cohort rebalance: moved"
+	if force {
+		prefix = "Forced cohort rebalance: moved"
+	}
+	log.Infof("%s %d of %d checks on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), len(proposedCohort.Runners), currentStdDev, proposedStdDev)
+	setPredictedUtilization(proposedCohort)
+	return moves
 }
 
 func (d *dispatcher) currentDistribution() configsDistribution {
@@ -515,10 +534,7 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 			_, excluded := d.excludedChecksFromDispatching[conf.Name]
 			pinned := excluded || workersNeeded == 0
 
-			// Compatibility declarations restrict the runners this config may
-			// be placed on; candidatesFromStore applies the preference rule
-			// (restricted workers first, unrestricted workers only as a
-			// fallback).
+			// Compatibility declarations restrict the runners this config may be placed on.
 			eligible := d.candidatesFromStore(conf.Name)
 
 			distribution.addConfigWithEligibility(eligible, digest, conf.Name, workersNeeded, nodeName, pinned)
@@ -574,13 +590,11 @@ func rebalanceIsWorthIt(currentDistribution configsDistribution, proposedDistrib
 	// If the current utilization stddev is already good enough, consider that
 	// rescheduling checks is not worth it, unless the new distribution has
 	// fewer runners with a high utilization or leaves fewer runners empty.
-	// The stddev is compatibility-aware (per-cohort, weighted): see
-	// utilizationStdDevWeighted.
-	if currentDistribution.utilizationStdDevWeighted() < 0.1 {
+	if currentDistribution.utilizationStdDev() < 0.1 {
 		return proposedDistribution.numRunnersWithHighUtilization() < currentDistribution.numRunnersWithHighUtilization() ||
 			proposedDistribution.numEmptyRunners() < currentDistribution.numEmptyRunners()
 	}
 
-	maxStdDevAccepted := currentDistribution.utilizationStdDevWeighted() * ((100 - float64(minPercImprovement)) / 100)
-	return proposedDistribution.utilizationStdDevWeighted() < maxStdDevAccepted
+	maxStdDevAccepted := currentDistribution.utilizationStdDev() * ((100 - float64(minPercImprovement)) / 100)
+	return proposedDistribution.utilizationStdDev() < maxStdDevAccepted
 }

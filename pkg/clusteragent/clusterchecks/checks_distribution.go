@@ -10,7 +10,6 @@ package clusterchecks
 import (
 	"math"
 	"sort"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,8 +24,6 @@ type ConfigStatus struct {
 	CheckName       string
 	Pinned          bool
 	EligibleRunners []string
-	// Cohort is the config's eligibility cohort key (sorted, comma-joined EligibleRunners); "" = legacy/global cohort.
-	Cohort string
 }
 
 // RunnerStatus represents the status of a check runner
@@ -151,12 +148,7 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 	distribution.addConfigWithEligibility(nil, digest, checkName, workersNeeded, runner, pinned)
 }
 
-// addConfigWithEligibility records a config instance in the distribution along
-// with its eligibility cohort. eligibleRunners is the sorted candidate set for
-// this config; nil means no compatibility info (the config belongs to the
-// global cohort spanning every runner of the distribution), while an empty
-// non-nil slice means no eligible worker at all (the config is expected to be
-// pinned in place; its cohort is its current runner alone).
+// addConfigWithEligibility records a config instance with its eligible runner set (nil = no eligibility info, empty = no eligible worker).
 func (distribution *configsDistribution) addConfigWithEligibility(eligibleRunners []string, digest, checkName string, workersNeeded float64, runner string, pinned bool) {
 	// Initialize the runner and attribute work
 	runnerInfo, runnerExists := distribution.Runners[runner]
@@ -166,19 +158,6 @@ func (distribution *configsDistribution) addConfigWithEligibility(eligibleRunner
 	}
 	runnerInfo.WorkersUsed += workersNeeded
 	runnerInfo.NumChecks++
-
-	// Cohort key for the compatibility-aware stddev: the sorted candidate
-	// runner set, or "" for legacy configs with no eligibility info. Configs
-	// with no eligible worker at all are pinned in place and form a
-	// single-runner cohort of their own.
-	cohort := ""
-	if eligibleRunners != nil {
-		if len(eligibleRunners) == 0 {
-			cohort = "pinned:" + runner
-		} else {
-			cohort = strings.Join(eligibleRunners, ",")
-		}
-	}
 
 	// Initialize the config and attribute work
 	configInfo, configExists := distribution.Configs[digest]
@@ -190,7 +169,6 @@ func (distribution *configsDistribution) addConfigWithEligibility(eligibleRunner
 		distribution.Configs[digest] = configInfo
 	}
 	configInfo.EligibleRunners = eligibleRunners
-	configInfo.Cohort = cohort
 
 	// Prioritize the new assigned runner over the existing one
 	// Note: this edge case should never happen in practice
@@ -300,70 +278,4 @@ func (distribution *configsDistribution) utilizationStdDev() float64 {
 	variance := sumSquaredDeviations / float64(len(distribution.Runners))
 
 	return math.Sqrt(variance)
-}
-
-// utilizationStdDevWeighted is the compat-aware utilizationStdDev: per-cohort stddev weighted by config count (a global stddev would fight isolation). Cohort "" spans all runners, degrading to the plain stddev without compat.
-func (distribution *configsDistribution) utilizationStdDevWeighted() float64 {
-	cohortRunners := map[string]map[string]struct{}{} // cohort key -> runner names
-	cohortConfigs := map[string]int{}
-
-	for _, configInfo := range distribution.Configs {
-		cohort := configInfo.Cohort
-		runners, ok := cohortRunners[cohort]
-		if !ok {
-			runners = map[string]struct{}{}
-			cohortRunners[cohort] = runners
-		}
-		switch {
-		case cohort == "":
-			// Legacy cohort: all runners of the distribution.
-			for runnerName := range distribution.Runners {
-				runners[runnerName] = struct{}{}
-			}
-		case strings.HasPrefix(cohort, "pinned:"):
-			// No eligible worker: the config is pinned to its current runner.
-			runners[configInfo.Runner] = struct{}{}
-		default:
-			for _, runnerName := range configInfo.EligibleRunners {
-				runners[runnerName] = struct{}{}
-			}
-		}
-		cohortConfigs[cohort]++
-	}
-
-	if len(cohortRunners) == 0 {
-		return 0
-	}
-
-	weightedStdDev := 0.0
-	totalConfigs := 0
-	for cohort, runners := range cohortRunners {
-		if len(runners) == 0 {
-			continue
-		}
-		totalUtilization := 0.0
-		for runnerName := range runners {
-			if runnerStatus, ok := distribution.Runners[runnerName]; ok {
-				totalUtilization += runnerStatus.utilization()
-			}
-		}
-		avgUtilization := totalUtilization / float64(len(runners))
-
-		sumSquaredDeviations := 0.0
-		for runnerName := range runners {
-			if runnerStatus, ok := distribution.Runners[runnerName]; ok {
-				sumSquaredDeviations += math.Pow(runnerStatus.utilization()-avgUtilization, 2)
-			}
-		}
-		variance := sumSquaredDeviations / float64(len(runners))
-
-		weightedStdDev += math.Sqrt(variance) * float64(cohortConfigs[cohort])
-		totalConfigs += cohortConfigs[cohort]
-	}
-
-	if totalConfigs == 0 {
-		return 0
-	}
-
-	return weightedStdDev / float64(totalConfigs)
 }

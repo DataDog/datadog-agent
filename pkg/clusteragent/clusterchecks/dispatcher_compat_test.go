@@ -8,7 +8,6 @@
 package clusterchecks
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -293,42 +292,4 @@ func TestRebalanceUsingUtilizationRespectsEligibility(t *testing.T) {
 	// The overloaded runners were relieved: at least one move per family.
 	assert.True(t, moved["digest-kube-a"] || moved["digest-kube-b"])
 	assert.True(t, moved["digest-http-a"] || moved["digest-http-b"])
-}
-
-func TestUtilizationStdDevWeightedDegeneratesToGlobal(t *testing.T) {
-	dist := newConfigsDistribution(map[string]int{"a": 4, "b": 4, "c": 4, "d": 4}, false, 4, 1, 0.05)
-	// Legacy placement: no eligibility info anywhere.
-	dist.addConfig("d1", "check1", 2, "a", false)
-	dist.addConfig("d2", "check2", 1, "a", false)
-	dist.addConfig("d3", "check3", 4, "c", false)
-
-	assert.InDelta(t, dist.utilizationStdDev(), dist.utilizationStdDevWeighted(), 1e-9)
-}
-
-// TestUtilizationStdDevWeightedIgnoresIsolationSkew verifies the RFC 3a
-// property that a deliberately skewed runner group does not read as a global
-// imbalance: with two cohorts each perfectly balanced within itself but with
-// different utilization levels (group heavy, general light), the weighted
-// stddev is low while the global stddev is high.
-func TestUtilizationStdDevWeightedIgnoresIsolationSkew(t *testing.T) {
-	// group cohort: runners a, b (heavy: 3 workers used each). general cohort:
-	// runners c, d (light: 1 worker used each). Every cohort is perfectly
-	// balanced within itself; the global distribution is skewed.
-	dist := newConfigsDistribution(map[string]int{"a": 4, "b": 4, "c": 4, "d": 4}, false, 4, 1, 0.05)
-	groupCohort := []string{"a", "b"}
-	generalCohort := []string{"c", "d"}
-
-	for i := 0; i < 3; i++ {
-		for _, runner := range []string{"a", "b"} {
-			dist.addConfigWithEligibility(groupCohort, fmt.Sprintf("group-%d-%s", i, runner), "kube_check", 1, runner, false)
-		}
-	}
-	for _, runner := range []string{"c", "d"} {
-		dist.addConfigWithEligibility(generalCohort, "general-"+runner, "http_check", 1, runner, false)
-	}
-
-	// Each cohort is balanced: weighted stddev is zero.
-	assert.InDelta(t, 0.0, dist.utilizationStdDevWeighted(), 1e-9)
-	// The global distribution is skewed: plain stddev is high.
-	assert.Greater(t, dist.utilizationStdDev(), 0.2)
 }
