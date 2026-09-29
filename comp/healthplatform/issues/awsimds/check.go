@@ -27,7 +27,8 @@ var (
 // metadataURL is the IMDSv1 GET endpoint, derived from the shared token URL.
 var metadataURL = strings.Replace(ec2.TokenURL, "/latest/api/token", "/latest/meta-data/instance-id", 1)
 
-// probe reports true when the agent cannot retrieve EC2 metadata over IMDS.
+// probe reports true when the agent cannot retrieve EC2 metadata over IMDS. It is only called when
+// the agent prefers IMDSv2 (the hop-limit issue is IMDSv2-specific); IMDSv1-only setups are skipped.
 func probe() (bool, error) {
 	// A failed handshake is not the hop-limit symptom (non-AWS host, refused, etc.).
 	conn, err := net.DialTimeout("tcp", imdsAddress, dialTimeout)
@@ -51,8 +52,7 @@ func probe() (bool, error) {
 	}
 	defer client.CloseIdleConnections()
 
-	// The agent prefers IMDSv2 (ec2_imdsv2_transition_payload_enabled defaults to true), so
-	// probe the token PUT first. A 200 means the token path works and metadata is reachable.
+	// Probe the token PUT first: a 200 means the token path works and metadata is reachable.
 	tokenStatus, err := probeStatus(client, http.MethodPut, ec2.TokenURL, map[string]string{ec2.TokenTTLHeader: "21600"})
 	if err != nil && !isTimeout(err) {
 		return false, nil

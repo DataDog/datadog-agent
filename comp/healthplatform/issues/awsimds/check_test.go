@@ -143,6 +143,22 @@ func TestCheck_IMDSBlocked(t *testing.T) {
 	require.Len(t, reports, 1)
 }
 
+// TestCheck_IMDSv1OnlySkipped: when the agent uses IMDSv1 only (both IMDSv2 flags off), the check is
+// skipped entirely — the hop-limit issue is IMDSv2-specific — even though the probe would time out.
+func TestCheck_IMDSv1OnlySkipped(t *testing.T) {
+	srv := unresponsiveServer(t)
+	withProbeTarget(t, srv.Listener.Addr().String())
+	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname("h"))
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_prefer_imdsv2", false)
+	cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
+	m := newModule(issues.ModuleDeps{Hostname: hn, Config: cfg})
+
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
 func TestCheck_ConnectionRefused(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)

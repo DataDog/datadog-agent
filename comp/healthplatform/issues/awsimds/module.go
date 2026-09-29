@@ -102,6 +102,12 @@ func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
 		return nil, nil
 	}
 
+	// The hop-limit issue is IMDSv2-specific; skip when the agent uses IMDSv1 only (no known issue).
+	// Mirrors ec2internal.UseIMDSv2: IMDSv2 is used unless both flags are off.
+	if m.cfg != nil && !m.cfg.GetBool("ec2_prefer_imdsv2") && !m.cfg.GetBool("ec2_imdsv2_transition_payload_enabled") {
+		return nil, nil
+	}
+
 	// Environment is gated at registration; a clean probe here resolves any stored issue.
 	detected, err := probe()
 	if err != nil || !detected {
