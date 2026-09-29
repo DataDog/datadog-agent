@@ -41,33 +41,39 @@ func TestInstanceIssueID(t *testing.T) {
 	assert.NotEqual(t, id, testModule(t, "host-b").instanceIssueID())
 }
 
-// TestNewModule_RegistrationGate verifies the module registers only in a container on AWS.
+// TestNewModule_RegistrationGate verifies the module registers only inside a container (an immutable
+// condition); the config-dependent AWS gate is evaluated in check(), not at registration.
 func TestNewModule_RegistrationGate(t *testing.T) {
 	deps := testDeps(t, "host")
 
-	t.Run("aws and containerized registers", func(t *testing.T) {
+	t.Run("containerized registers", func(t *testing.T) {
 		t.Setenv("DOCKER_DD_AGENT", "true")
-		dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
 		assert.NotNil(t, NewModule(deps))
 	})
 
 	t.Run("not containerized declines", func(t *testing.T) {
 		t.Setenv("DOCKER_DD_AGENT", "")
-		dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
-		assert.Nil(t, NewModule(deps))
-	})
-
-	t.Run("not aws declines", func(t *testing.T) {
-		t.Setenv("DOCKER_DD_AGENT", "true")
-		dmi.SetupMock(t, "", "", "", "not AWS")
 		assert.Nil(t, NewModule(deps))
 	})
 }
 
+// TestCheck_NotAWS verifies check() resolves to no issue when DMI/UUID detection reports non-AWS,
+// so a stored issue can still resolve after a restart even though the module stays registered.
+func TestCheck_NotAWS(t *testing.T) {
+	dmi.SetupMock(t, "", "", "", "not AWS")
+	m := testModule(t, "host")
+
+	reports, err := m.check()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
 // TestCheck_CloudProviderDisabled verifies the probe is skipped when AWS metadata collection is disabled.
 func TestCheck_CloudProviderDisabled(t *testing.T) {
+	dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname("h"))
 	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
 	cfg.SetInTest("cloud_provider_metadata", []string{"gcp"})
 	m := newModule(issues.ModuleDeps{Hostname: hn, Config: cfg})
 

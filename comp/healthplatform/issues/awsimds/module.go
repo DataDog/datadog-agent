@@ -55,9 +55,10 @@ type awsIMDSModule struct {
 	cfg      config.Component
 }
 
-// NewModule returns the module, or nil to decline registration when not a container on AWS.
+// NewModule returns the module, or nil to decline registration outside a container. Containerization
+// is immutable for a host, so gating it here is safe; config-dependent gates live in check().
 func NewModule(deps issues.ModuleDeps) issues.Module {
-	if !env.IsContainerized() || !ec2.IsRunningOnFromDMI() {
+	if !env.IsContainerized() {
 		return nil
 	}
 	return newModule(deps)
@@ -97,6 +98,12 @@ func (m *awsIMDSModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthChec
 }
 
 func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
+	// Not on AWS (DMI/UUID detection, gated by ec2_use_dmi). Config-dependent, so it lives here
+	// rather than at registration: an empty result still resolves a stored issue after a restart.
+	if !ec2.IsRunningOnFromDMI() {
+		return nil, nil
+	}
+
 	// Skip when AWS metadata collection is intentionally disabled, so we don't nag to re-enable it.
 	if m.cfg != nil && !configutils.IsCloudProviderEnabled(ec2.CloudProviderName, m.cfg) {
 		return nil, nil
@@ -108,7 +115,7 @@ func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
 		return nil, nil
 	}
 
-	// Environment is gated at registration; a clean probe here resolves any stored issue.
+	// Containerization is gated at registration; a clean probe here resolves any stored issue.
 	detected, err := probe()
 	if err != nil || !detected {
 		return nil, err

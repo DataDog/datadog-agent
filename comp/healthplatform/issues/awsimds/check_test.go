@@ -21,6 +21,8 @@ import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
 // withProbeTarget points the probe at a local listener with short timeouts.
@@ -34,9 +36,11 @@ func withProbeTarget(t *testing.T, addr string) {
 	})
 }
 
-// setupCheck points the probe at a local listener and builds a module (env gate lives in NewModule).
+// setupCheck points the probe at a local listener and builds a module. DMI reports EC2 so check()
+// passes its AWS gate and reaches the probe (containerization is gated in NewModule).
 func setupCheck(t *testing.T, addr string) *awsIMDSModule {
 	t.Helper()
+	dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
 	withProbeTarget(t, addr)
 	return testModule(t, "test-host")
 }
@@ -70,10 +74,12 @@ func TestCheck_HopLimitTooLow(t *testing.T) {
 // TestCheck_HostnameConfigured flags the report when DD_HOSTNAME is set so severity can be lowered.
 func TestCheck_HostnameConfigured(t *testing.T) {
 	srv := unresponsiveServer(t)
+	dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
 	withProbeTarget(t, srv.Listener.Addr().String())
 
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname("h"))
 	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
 	cfg.SetInTest("hostname", "explicit-host")
 	m := newModule(issues.ModuleDeps{Hostname: hn, Config: cfg})
 
@@ -147,9 +153,11 @@ func TestCheck_IMDSBlocked(t *testing.T) {
 // skipped entirely — the hop-limit issue is IMDSv2-specific — even though the probe would time out.
 func TestCheck_IMDSv1OnlySkipped(t *testing.T) {
 	srv := unresponsiveServer(t)
+	dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
 	withProbeTarget(t, srv.Listener.Addr().String())
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname("h"))
 	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
 	cfg.SetInTest("ec2_prefer_imdsv2", false)
 	cfg.SetInTest("ec2_imdsv2_transition_payload_enabled", false)
 	m := newModule(issues.ModuleDeps{Hostname: hn, Config: cfg})
