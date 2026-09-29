@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -103,31 +102,14 @@ func (c *hostCapabilities) removeContainer(containerName string) error {
 
 // RunContainerWorkloadWithGPUs runs a container workload with GPUs on the host using Docker
 func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments ...string) (string, error) {
-	return c.RunContainerWorkloadWithGPUsAndEnv(nil, image, arguments...)
-}
-
-// RunContainerWorkloadWithGPUsAndEnv runs a container workload with GPUs on the host using Docker, setting the given
-// environment variables in the container.
-func (c *hostCapabilities) RunContainerWorkloadWithGPUsAndEnv(env map[string]string, image string, arguments ...string) (string, error) {
 	if c.containerIDToName == nil {
 		c.containerIDToName = make(map[string]string)
 	}
 
 	containerName := strings.ToLower("workload-" + common.RandString(5))
 
-	// Sort the variables so that the command is deterministic
-	envKeys := make([]string, 0, len(env))
-	for key := range env {
-		envKeys = append(envKeys, key)
-	}
-	sort.Strings(envKeys)
-	envFlags := make([]string, 0, len(envKeys))
-	for _, key := range envKeys {
-		envFlags = append(envFlags, fmt.Sprintf("-e %s=%s", key, env[key]))
-	}
-
 	args := strings.Join(arguments, " ")
-	cmd := fmt.Sprintf("sudo docker run --gpus all %s --name %s %s %s", strings.Join(envFlags, " "), containerName, image, args)
+	cmd := fmt.Sprintf("sudo docker run --gpus all --name %s %s %s", containerName, image, args)
 
 	var err error
 	var out string

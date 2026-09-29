@@ -60,15 +60,6 @@ func (pt *ProcessTagger) SetJobsConfig(jobs gpuconfig.JobsConfig) {
 	pt.cache.SetJobsConfig(jobs)
 }
 
-// SetJobIDReader sets how the training job identifiers of a process are read, needed for identifiers
-// configured as environment variables.
-func (pt *ProcessTagger) SetJobIDReader(reader gpu.JobIDReader) {
-	if pt.cache == nil {
-		return
-	}
-	pt.cache.SetJobIDReader(reader)
-}
-
 // GetTagsForPID returns tags for a given PID by correlating to container/pod
 func (pt *ProcessTagger) GetTagsForPID(pid int) ([]string, error) {
 	pidTag := fmt.Sprintf("pid:%d", pid)

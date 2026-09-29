@@ -177,50 +177,6 @@ func (s *gpuHostSuite) SetupSuite() {
 	s.gpuBaseSuite.SetupSuite()
 }
 
-// TestJobTagsFromEnv checks that the training job identifiers configured in gpu.jobs (see testdata/config/agent_config.yaml)
-// are read from the environment of the process using the GPU, through procfs, and reported as tags in the GPU metrics.
-func (s *gpuHostSuite) TestJobTagsFromEnv() {
-	if !s.systemData.hasAllNVMLCriticalAPIs {
-		s.T().Skip("skipping test as system does not have all the critical NVML APIs")
-	}
-
-	if !s.systemData.supportsSystemProbeComponent {
-		s.T().Skip("skipping test as system does not support the system-probe component")
-	}
-
-	flake.MarkOnLog(s.T(), errMsgNoCudaCapableDevice)
-	flake.MarkOnLog(s.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
-
-	const (
-		runID   = "e2e-training-run"
-		groupID = "e2e-training-group"
-	)
-
-	hostCaps, ok := s.caps.(*hostCapabilities)
-	s.Require().True(ok, "expected host capabilities")
-
-	vectorSize, numLoops, waitTimeSeconds := 2000000, 10000000, 30
-	containerID, err := hostCaps.RunContainerWorkloadWithGPUsAndEnv(
-		map[string]string{"E2E_TRAINING_RUN_ID": runID, "E2E_TRAINING_GROUP_ID": groupID},
-		dockerImageName(),
-		"/usr/local/bin/cuda-basic", strconv.Itoa(vectorSize), strconv.Itoa(numLoops), strconv.Itoa(waitTimeSeconds),
-	)
-	s.Require().NoError(err)
-	s.Require().NotEmpty(containerID)
-
-	expectedTags := []string{"training_job_id:" + runID, "training_group_id:" + groupID}
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		assert.NoError(c, s.caps.CheckWorkloadErrors(containerID), "workload container should not have errors")
-
-		metrics, err := s.caps.FakeIntake().Client().FilterMetrics("gpu.process.core.usage",
-			client.WithMetricValueHigherThan(0),
-			client.WithTags[*aggregator.MetricSeries](expectedTags),
-		)
-		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics, "no 'gpu.process.core.usage' metrics with tags %v", expectedTags)
-	}, 5*time.Minute, 10*time.Second)
-}
-
 type gpuK8sSuite struct {
 	gpuBaseSuite[environments.Kubernetes]
 }

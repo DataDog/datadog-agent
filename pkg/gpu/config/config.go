@@ -7,7 +7,6 @@
 package config
 
 import (
-	"slices"
 	"strings"
 	"time"
 
@@ -99,15 +98,13 @@ const (
 	IdentifierTypeLabel IdentifierType = "label"
 	// IdentifierTypeAnnotation means the identifier is read from a pod annotation.
 	IdentifierTypeAnnotation IdentifierType = "annotation"
-	// IdentifierTypeEnv means the identifier is read from an environment variable of the container.
-	IdentifierTypeEnv IdentifierType = "env"
 )
 
-// IdentifierConfig points at a pod label, pod annotation or container environment variable holding an identifier.
+// IdentifierConfig points at a pod label or annotation holding an identifier.
 type IdentifierConfig struct {
-	// Key is the name of the label, annotation or environment variable. Empty means not configured.
+	// Key is the name of the label or annotation. Empty means not configured.
 	Key string
-	// Type is whether Key is a label, an annotation or an environment variable.
+	// Type is whether Key is a label or an annotation.
 	Type IdentifierType
 }
 
@@ -116,28 +113,7 @@ func (i IdentifierConfig) Configured() bool {
 	if i.Key == "" {
 		return false
 	}
-	switch i.Type {
-	case IdentifierTypeLabel, IdentifierTypeAnnotation, IdentifierTypeEnv:
-		return true
-	default:
-		return false
-	}
-}
-
-// UsesPodMetadata returns true if the identifier is read from pod labels or annotations.
-func (i IdentifierConfig) UsesPodMetadata() bool {
 	return i.Type == IdentifierTypeLabel || i.Type == IdentifierTypeAnnotation
-}
-
-// EnvKeys returns the names of the environment variables the identifiers are read from.
-func (j JobsConfig) EnvKeys() []string {
-	var keys []string
-	for _, id := range []IdentifierConfig{j.Run, j.Group} {
-		if id.Configured() && id.Type == IdentifierTypeEnv && !slices.Contains(keys, id.Key) {
-			keys = append(keys, id.Key)
-		}
-	}
-	return keys
 }
 
 // NewJobsConfig reads the training job identifiers from the agent configuration.

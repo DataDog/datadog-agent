@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	gpuconfigconsts "github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
-	"github.com/DataDog/datadog-agent/pkg/gpu/jobids"
 	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -214,13 +213,6 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 			defer ddnvml.EndNVMLUse()
 			t.prmHandler.HandlePRMMetrics(w, req)
 		}))
-	}
-
-	// The core agent gets the training job identifiers configured as environment variables (gpu.jobs) through this
-	// endpoint, as system-probe can read the environment of processes the agent may not have access to. Only the
-	// identifiers are served, never the environment itself.
-	if t.cfg != nil && len(t.cfg.JobsConfig.EnvKeys()) > 0 {
-		httpMux.HandleFunc("/process-job-ids", jobids.NewHandler(t.cfg.JobsConfig, kernel.ProcFSRoot()).ServeHTTP)
 	}
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
