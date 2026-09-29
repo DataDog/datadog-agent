@@ -298,9 +298,9 @@ type ProcessSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// CapsUsed lists the capabilities that this process effectively made use of
 	CapsUsed []string `json:"caps_used,omitempty"`
-	// CapsAttemptedHostUserNS lists the capabilities that this process tried to use in the initial user namespace
+	// CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace
 	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
-	// CapsUsedHostUserNS lists the capabilities that this process effectively made use of in the initial user namespace
+	// CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace
 	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
@@ -891,9 +891,9 @@ type CapabilitiesEventSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// Capabilities that the process successfully used since it started running
 	CapsUsed []string `json:"caps_used,omitempty"`
-	// Capabilities that the process attempted to use in the initial user namespace since it started running
+	// Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace
 	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
-	// Capabilities that the process successfully used in the initial user namespace since it started running
+	// Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace
 	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 }
 

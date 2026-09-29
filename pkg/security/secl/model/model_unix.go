@@ -437,8 +437,8 @@ type Process struct {
 	CapsAttempted uint64 `field:"caps_attempted"` // SECLDoc[caps_attempted] Definition:`Bitmask of the capabilities that the process attempted to use` Constants:`Kernel Capability constants`
 	CapsUsed      uint64 `field:"caps_used"`      // SECLDoc[caps_used] Definition:`Bitmask of the capabilities that the process successfully used` Constants:`Kernel Capability constants`
 
-	CapsAttemptedHostUserNS uint64 `field:"caps_attempted_host_userns"` // SECLDoc[caps_attempted_host_userns] Definition:`Bitmask of the capabilities that the process attempted to use in the initial user namespace` Constants:`Kernel Capability constants`
-	CapsUsedHostUserNS      uint64 `field:"caps_used_host_userns"`      // SECLDoc[caps_used_host_userns] Definition:`Bitmask of the capabilities that the process successfully used in the initial user namespace` Constants:`Kernel Capability constants`
+	CapsAttemptedHostUserNS uint64 `field:"caps_attempted_host_userns"` // SECLDoc[caps_attempted_host_userns] Definition:`Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace` Constants:`Kernel Capability constants`
+	CapsUsedHostUserNS      uint64 `field:"caps_used_host_userns"`      // SECLDoc[caps_used_host_userns] Definition:`Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace` Constants:`Kernel Capability constants`
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
@@ -1215,8 +1215,8 @@ type CapabilitiesEvent struct {
 
 	// A check against the initial user namespace is denied as soon as the process lives in a
 	// descendant one, so these two subsets are what running in a user namespace would take away.
-	AttemptedHostUserNS uint64 `field:"attempted_host_userns,handler:ResolveCapabilitiesAttemptedHostUserNS"` // SECLDoc[attempted_host_userns] Definition:`Bitmask of the capabilities that the process attempted to use in the initial user namespace since it started running` Constants:`Kernel Capability constants`
-	UsedHostUserNS      uint64 `field:"used_host_userns,handler:ResolveCapabilitiesUsedHostUserNS"`           // SECLDoc[used_host_userns] Definition:`Bitmask of the capabilities that the process successfully used in the initial user namespace since it started running` Constants:`Kernel Capability constants`
+	AttemptedHostUserNS uint64 `field:"attempted_host_userns,handler:ResolveCapabilitiesAttemptedHostUserNS"` // SECLDoc[attempted_host_userns] Definition:`Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace` Constants:`Kernel Capability constants`
+	UsedHostUserNS      uint64 `field:"used_host_userns,handler:ResolveCapabilitiesUsedHostUserNS"`           // SECLDoc[used_host_userns] Definition:`Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace` Constants:`Kernel Capability constants`
 
 	// Cookie identifies the program the usage was aggregated for. It is matched against the
 	// resolved process cache entry, which is the wrong one whenever the exec or fork event

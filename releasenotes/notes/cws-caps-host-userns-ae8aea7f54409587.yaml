@@ -2,7 +2,7 @@
 features:
   - |
     Capabilities monitoring now reports which capabilities a process used
-    against the initial user namespace, through the
+    through checks that always target the initial user namespace, in the
     ``capabilities.attempted_host_userns`` and
     ``capabilities.used_host_userns`` event fields and the matching
     ``caps_attempted_host_userns`` and ``caps_used_host_userns`` process
