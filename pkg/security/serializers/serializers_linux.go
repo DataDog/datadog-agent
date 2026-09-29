@@ -1080,9 +1080,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Tracer = tracer
 		}
 
-		if len(ps.ContainerContext.ContainerID) != 0 {
+		if ps.ContainerContext.ContainerID != "" || ps.ContainerContext.PodUID != "" {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				PodUID:    ps.ContainerContext.PodUID,
 				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
@@ -1698,9 +1699,10 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
-	if !event.ProcessContext.ContainerContext.IsNull() {
+	if event.ProcessContext.ContainerContext.ContainerID != "" || event.ProcessContext.ContainerContext.PodUID != "" {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			PodUID:    event.ProcessContext.ContainerContext.PodUID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),

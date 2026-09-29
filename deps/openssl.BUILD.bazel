@@ -56,30 +56,48 @@ DEFAULT_CONFIG = [
 # Unfortunately, it creates one output_group per each
 # library file. Thus, these constants.
 WIN_LIBSSL = "libssl-3-x64.dll"
+
 WIN_LIBCRYPTO = "libcrypto-3-x64.dll"
 
 # We want the filenames matching the library SONAMEs here such that we can run targets from the bazel tree
 # Hence the inclusion of the major version
 LINUX_LIBSSL = "libssl.so.3"
+
 LINUX_LIBCRYPTO = "libcrypto.so.3"
 
 MACOS_LIBSSL = "libssl.3.dylib"
+
 MACOS_LIBCRYPTO = "libcrypto.3.dylib"
 
 configure_make(
     name = "openssl",
-    configure_prefix = select({
-        "@platforms//os:windows": "perl",
-        "//conditions:default": "",
+    args = select({
+        # Stage `make install` under the sandbox instead of the absolute
+        # --prefix. DESTDIR is prepended to INSTALLTOP, so files land at
+        # $BUILD_TMPDIR/dest/$(INSTALL_DIR)/embedded/...; postfix_script flattens
+        # them into $INSTALLDIR. Wrapped $$BUILD_TMPDIR$$ is required: make `args`
+        # skip make-variable expansion, so only the $$..$$ placeholder resolves.
+        "@platforms//os:windows": [],
+        "//conditions:default": ["DESTDIR=$$BUILD_TMPDIR$$/dest"],
     }),
-    configure_in_place = select({
-        "@platforms//os:windows": True,
-        "//conditions:default": False,
+    build_data = select({
+        "@platforms//os:windows": [
+            "@winlibs_mingw64//:windres",
+        ],
+        "@platforms//os:macos": [
+            # Pull hermetic llvm-ar into the sandbox so $(execpath) below resolves.
+            "@llvm_toolchain_llvm//:ar",
+        ],
+        "//conditions:default": [],
     }),
     configure_command = select({
         "@platforms//os:linux": "config",
         "@platforms//os:macos": "Configure",
         "@platforms//os:windows": "Configure",
+    }),
+    configure_in_place = select({
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
     }),
     configure_options = select({
         "@//:macos_arm64": [
@@ -119,23 +137,12 @@ configure_make(
         "@platforms//os:windows": [],
         "//conditions:default": ["--prefix=$(INSTALL_DIR)/embedded"],
     }),
-    args = select({
-        # Stage `make install` under the sandbox instead of the absolute
-        # --prefix. DESTDIR is prepended to INSTALLTOP, so files land at
-        # $BUILD_TMPDIR/dest/$(INSTALL_DIR)/embedded/...; postfix_script flattens
-        # them into $INSTALLDIR. Wrapped $$BUILD_TMPDIR$$ is required: make `args`
-        # skip make-variable expansion, so only the $$..$$ placeholder resolves.
-        "@platforms//os:windows": [],
-        "//conditions:default": ["DESTDIR=$$BUILD_TMPDIR$$/dest"],
+    configure_prefix = select({
+        "@platforms//os:windows": "perl",
+        "//conditions:default": "",
     }),
-    build_data = select({
-        "@platforms//os:windows": [
-            "@winlibs_mingw64//:windres",
-        ],
-        "@platforms//os:macos": [
-            # Pull hermetic llvm-ar into the sandbox so $(execpath) below resolves.
-            "@llvm_toolchain_llvm//:ar",
-        ],
+    copts = ["-O2"] + select({
+        "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
         "//conditions:default": [],
     }),
     env = select({
@@ -153,10 +160,37 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
-    toolchains = ["@@//:install_dir"],
     lib_source = ":all_srcs",
-    resource_size = "enormous",
+    # For whatever reason rules_foreign_cc does not respect
+    # out_dll_dir parameter and tries to find Windows DLLs in
+    # lib instead of bin. Technically, those are binaries,
+    # hence, we can treat them as such.
+    out_binaries = select({
+        "@platforms//os:windows": [
+            WIN_LIBSSL,
+            WIN_LIBCRYPTO,
+            "openssl.exe",
+        ],
+        "//conditions:default": ["openssl"],
+    }),
+    out_data_dirs = select({
+        # ssl/ is empty on Windows because --openssldir above points outside the sandbox; rules_python 1.9.0 skips
+        # empty dirs when copying runfiles to a temp dir for `bazel run`, causing FileNotFoundError in pkg_install.
+        ":fips_windows": [
+            "lib/ossl-modules",
+            "lib/engines-3",
+        ],  #TODO(agent-build): remove special case
+        "@@//packages/agent:fips_flavor": [
+            "ssl",
+            "lib/ossl-modules",
+            "lib/engines-3",
+        ],
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "lib/ossl-modules",
+            "lib/engines-3",
+        ],
+    }),
     out_include_dir = "include",
     out_interface_libs = select({
         "@platforms//os:windows": [
@@ -176,37 +210,6 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_data_dirs = select({
-        # ssl/ is empty on Windows because --openssldir above points outside the sandbox; rules_python 1.9.0 skips
-        # empty dirs when copying runfiles to a temp dir for `bazel run`, causing FileNotFoundError in pkg_install.
-        ":fips_windows": ["lib/ossl-modules", "lib/engines-3"],  #TODO(agent-build): remove special case
-        "@@//packages/agent:fips_flavor": ["ssl", "lib/ossl-modules", "lib/engines-3"],
-        "@platforms//os:windows": [],
-        "//conditions:default": ["lib/ossl-modules", "lib/engines-3"],
-    }),
-    # For whatever reason rules_foreign_cc does not respect
-    # out_dll_dir parameter and tries to find Windows DLLs in
-    # lib instead of bin. Technically, those are binaries,
-    # hence, we can treat them as such.
-    out_binaries = select({
-        "@platforms//os:windows": [
-            WIN_LIBSSL,
-            WIN_LIBCRYPTO,
-            "openssl.exe",
-        ],
-        "//conditions:default": ["openssl"],
-    }),
-    deps = select({
-        "//conditions:default": [
-            "@zlib//:zlib",
-        ],
-        "@platforms//os:windows": [],
-    }),
-    copts = ["-O2"] + select({
-        "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
-        "//conditions:default": [],
-    }),
-    targets = ["depend", "", "install_sw", "install_ssldirs"],
     postfix_script = select({
         # Rename .dll.a files into the appropriate extension for import libraries (.lib)
         "@platforms//os:windows": """
@@ -216,6 +219,21 @@ configure_make(
         # Flatten the DESTDIR-staged install (see `args`) into $INSTALLDIR, the
         # flat layout rules_foreign_cc collects outputs from.
         "//conditions:default": 'cp -a "$$BUILD_TMPDIR/dest$(INSTALL_DIR)/embedded/." "$$INSTALLDIR/"',
+    }),
+    resource_size = "enormous",
+    targets = [
+        "depend",
+        "",
+        "install_sw",
+        "install_ssldirs",
+    ],
+    # $(INSTALL_DIR) is the make-variable provided by //:install_dir.
+    toolchains = ["@@//:install_dir"],
+    deps = select({
+        "//conditions:default": [
+            "@zlib",
+        ],
+        "@platforms//os:windows": [],
     }),
 )
 
@@ -263,28 +281,28 @@ _EMBEDDED_ROOT = select({
 
 dd_cc_packaged(
     name = "libssl_shared_pkg",
-    input = ":_libssl_shared_input",
     dest_dir = "embedded/lib",
-    version = OPENSSL_VERSION,
+    input = ":_libssl_shared_input",
     libname = "libssl",
+    version = OPENSSL_VERSION,
 )
 
 pkg_files(
     name = "_fips_openssl_cnf",
     srcs = ["@openssl_fips//:openssl_cnf_tmp"],
+    attributes = pkg_attributes(mode = "0644"),
     prefix = _EMBEDDED_ROOT + "/ssl",
     # Bazel genrule adds .out suffix; strip it so fipsinstall.sh finds openssl.cnf.tmp.
     renames = {"@openssl_fips//:openssl_cnf_tmp": "openssl.cnf.tmp"},
-    attributes = pkg_attributes(mode = "0644"),
 )
 
 pkg_files(
     name = "_fips_fipsinstall_sh",
     srcs = ["@openssl_fips//:fipsinstall_sh"],
+    attributes = pkg_attributes(mode = "0755"),
     prefix = "embedded/bin",
     # Bazel genrule adds .out suffix; strip it so the post-install hook finds fipsinstall.sh.
     renames = {"@openssl_fips//:fipsinstall_sh": "fipsinstall.sh"},
-    attributes = pkg_attributes(mode = "0755"),
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
@@ -301,22 +319,8 @@ pkg_filegroup(
 
 dd_cc_packaged(
     name = "libcrypto_shared_pkg",
-    input = ":_libcrypto_shared_input",
     dest_dir = "embedded/lib",
-    version = OPENSSL_VERSION,
-    libname = "libcrypto",
-    installed_files = select({
-        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
-        # import libs and headers are only required for the FIPS cryptography source
-        # build, and copy_to_directory produces a non-existent TreeArtifact when all
-        # files are excluded, which would break the installer.
-        ":fips_windows": [":_openssl_files"],
-        "@platforms//os:windows": [],
-        "//conditions:default": [":_openssl_files"],
-    }) + select({
-        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
-        "//conditions:default": [],
-    }),
+    input = ":_libcrypto_shared_input",
     installed_executables = select({
         "@platforms//os:windows": {":openssl_binary": "embedded3/bin"},
         "//conditions:default": {":openssl_binary": "embedded/bin"},
@@ -349,6 +353,20 @@ dd_cc_packaged(
         },
         "//conditions:default": {},
     }),
+    installed_files = select({
+        # On non-FIPS Windows, nothing from the OpenSSL install tree is needed:
+        # import libs and headers are only required for the FIPS cryptography source
+        # build, and copy_to_directory produces a non-existent TreeArtifact when all
+        # files are excluded, which would break the installer.
+        ":fips_windows": [":_openssl_files"],
+        "@platforms//os:windows": [],
+        "//conditions:default": [":_openssl_files"],
+    }) + select({
+        "@@//packages/agent:fips_flavor": [":_fips_extra_files"],
+        "//conditions:default": [],
+    }),
+    libname = "libcrypto",
+    version = OPENSSL_VERSION,
 )
 
 filegroup(
@@ -423,7 +441,6 @@ filegroup(
 copy_to_directory(
     name = "_openssl_extra_files",
     srcs = [":openssl"],
-    root_paths = ["openssl"],
     out = "openssl_extra",
     exclude_srcs_patterns = [
         # Binary handled via installed_executables
@@ -445,6 +462,7 @@ copy_to_directory(
             "lib/libcrypto*",
         ],
     }),
+    root_paths = ["openssl"],
 )
 
 pkg_files(

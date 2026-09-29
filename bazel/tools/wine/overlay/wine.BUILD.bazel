@@ -1,0 +1,17 @@
+filegroup(
+    name = "runtime",
+    srcs = [
+        "bin/wine",
+        "bin/wineserver",
+    ] + glob(
+        [
+            # Two levels: lib/wine/<arch> and share/wine/<dir>, plus wine.inf.
+            "lib/wine/*/*",
+            "share/wine/*",
+            "share/wine/*/*",
+        ],
+        # Static import libraries are only needed to build against Wine.
+        exclude = ["lib/wine/*/*.a"],
+    ),
+    visibility = ["@//bazel/tools/wine:__pkg__"],
+)

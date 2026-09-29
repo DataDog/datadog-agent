@@ -148,6 +148,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "process.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "process.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -728,6 +733,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "process.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "process.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -1191,6 +1201,11 @@
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -2891,6 +2906,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "exec.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "exec.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -3528,6 +3548,11 @@
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exit.container.tags",
@@ -5548,6 +5573,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -6128,6 +6158,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "ptrace.tracee.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "ptrace.tracee.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -6591,6 +6626,11 @@
           "name": "ptrace.tracee.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.parent.container.tags",
@@ -7952,6 +7992,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -8532,6 +8577,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "setrlimit.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "setrlimit.target.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -8995,6 +9045,11 @@
           "name": "setrlimit.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.parent.container.tags",
@@ -9933,6 +9988,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "signal.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -10513,6 +10573,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "signal.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
+        },
+        {
           "name": "signal.target.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -10976,6 +11041,11 @@
           "name": "signal.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.parent.container.tags",
@@ -14803,6 +14873,31 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.pod_uid",
+      "link": "common-containercontext-pod_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes pod UID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",

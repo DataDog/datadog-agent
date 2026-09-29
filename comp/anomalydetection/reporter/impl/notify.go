@@ -160,7 +160,11 @@ func formatScorerContributorMessage(contributors []observerdef.ScorerContributor
 		if meta == nil {
 			continue
 		}
-		context := storage.GetContext(contributor.Handle.Ref)
+		contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+		var context *observerdef.MetricContext
+		if hasContext {
+			context = &contextValue
+		}
 		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
 		compactDisplay := fullDisplay
 		if meta.Tags.Len() > 0 {

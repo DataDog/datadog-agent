@@ -20,7 +20,7 @@ def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_
         srcs = [src_c] + header_deps,
         outs = ["{}/{}.c".format(name, out_name)],
         args = [
-            "$(location {})".format(src_c),
+            "$(execpath {})".format(src_c),
             "$@",
         ] + include_dirs,
         target_compatible_with = _LINUX_ONLY,
@@ -33,7 +33,7 @@ def _runtime_compilation_bundle_impl(name, visibility, src_c, out_name, include_
         srcs = [":{}".format(flat_name)],
         outs = ["{}/{}_raw.go".format(name, out_name)],
         args = [
-            "$(location :{})".format(flat_name),
+            "$(execpath :{})".format(flat_name),
             "$@",
             "runtime",
         ],

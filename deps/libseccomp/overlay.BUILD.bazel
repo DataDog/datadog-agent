@@ -54,5 +54,5 @@ cc_library(
         "src",
     ],
     linkstatic = True,
-    deps = ["@linux_headers//:linux_headers"],
+    deps = ["@linux_headers"],
 )

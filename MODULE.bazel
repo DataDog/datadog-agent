@@ -572,4 +572,7 @@ include("//deps:go.MODULE.bazel")
 # buildifier: leave-alone
 include("//deps/agent_integrations:integrations.MODULE.bazel")
 
+# buildifier: leave-alone
+include("//bazel/tools/wine:wine.MODULE.bazel")
+
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")

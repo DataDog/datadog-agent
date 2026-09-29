@@ -241,10 +241,11 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 
 	group, _ := e.registry.Lookup(groupHash)
 	result.Metrics = []observerdef.MetricOutput{{
-		Name:  metricName,
-		Value: 1,
-		Tags:  tagset.CompositeTagsFromSlice(log.Tags()),
-		Context: &observerdef.MetricContext{
+		Name:       metricName,
+		Value:      1,
+		Tags:       tagset.CompositeTagsFromSlice(log.Tags()),
+		HasContext: true,
+		Context: observerdef.MetricContext{
 			Pattern:   cluster.PatternString(),
 			Example:   truncate(message, 160),
 			Source:    e.Name(),

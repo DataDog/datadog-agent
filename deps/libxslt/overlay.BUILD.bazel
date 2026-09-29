@@ -115,7 +115,7 @@ cc_shared_library(
     # Ensure we don't statically link with libxml2
     dynamic_deps = ["@libxml2//:xml2_pkg"],
     user_link_flags = [
-        "-Wl,--version-script=$(location libxslt/libxslt.syms)",
+        "-Wl,--version-script=$(execpath libxslt/libxslt.syms)",
     ],
     visibility = ["//visibility:public"],
     deps = [":libxslt"],

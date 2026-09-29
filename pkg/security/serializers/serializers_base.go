@@ -30,6 +30,8 @@ import (
 type ContainerContextSerializer struct {
 	// Container ID
 	ID string `json:"id,omitempty"`
+	// Kubernetes pod UID
+	PodUID string `json:"pod_uid,omitempty"`
 	// Source of the container entry (event or procfs)
 	Source string `json:"source,omitempty"`
 	// Creation time of the container
