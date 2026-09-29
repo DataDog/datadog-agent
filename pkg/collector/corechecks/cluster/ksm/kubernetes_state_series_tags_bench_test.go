@@ -137,7 +137,7 @@ func benchmarkSeriesTagsRun(b *testing.B, precompute bool, pods, nodes int) {
 		var joiner *labelJoiner
 		if precompute {
 			joins, version := k.seriesTags.runJoins()
-			k.run = &seriesRun{namespaceTags: map[string][]string{}, planVersion: version}
+			k.run = newSeriesRun(version)
 			joiner = k.buildJoiner(joins)
 		} else {
 			joiner = k.buildJoiner(k.instance.labelJoins)

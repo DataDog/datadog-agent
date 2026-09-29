@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 )
@@ -45,7 +46,7 @@ type seriesTagsPlan struct {
 	mu      sync.RWMutex
 	cross   map[string]map[string]struct{} // kind -> joins seen matching its series, resolved per run
 	legacy  map[string]struct{}            // kinds that must keep the per-run path
-	version int                            // bumped when cross or legacy change
+	version atomic.Int64                   // bumped when cross or legacy change
 }
 
 // newSeriesTagsPlan classifies the joins. aggregatorLabels are the labels the
@@ -147,7 +148,7 @@ func (p *seriesTagsPlan) noteCrossJoins(kind string, seen map[string]struct{}) {
 	for name := range seen {
 		if _, found := p.cross[kind][name]; !found {
 			p.cross[kind][name] = struct{}{}
-			p.version++
+			p.version.Add(1)
 		}
 		if crossJoinBringsSpecialLabels(p.joins[name]) {
 			p.legacy[kind] = struct{}{}
@@ -158,7 +159,7 @@ func (p *seriesTagsPlan) noteCrossJoins(kind string, seen map[string]struct{}) {
 // runJoins returns the joins a run must resolve: those the aggregators can
 // match and the cross-object joins seen so far, and the plan's version they
 // were read at.
-func (p *seriesTagsPlan) runJoins() (map[string]*joinsConfig, int) {
+func (p *seriesTagsPlan) runJoins() (map[string]*joinsConfig, int64) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	joins := map[string]*joinsConfig{}
@@ -170,18 +171,23 @@ func (p *seriesTagsPlan) runJoins() (map[string]*joinsConfig, int) {
 			joins[name] = p.joins[name]
 		}
 	}
-	return joins, p.version
+	return joins, p.version.Load()
 }
 
 // crossJoins returns the cross-object joins seen for a kind, and whether that
 // kind must keep the per-run path. It also keeps the per-run path when the
 // plan changed since the run took its joins (version), because the run's
 // joiner may lack a join an object was just found to need.
-func (p *seriesTagsPlan) crossJoins(kind string, version int) (cross map[string]struct{}, legacy bool) {
+func (p *seriesTagsPlan) crossJoins(kind string, version int64) (cross map[string]struct{}, legacy bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	_, legacy = p.legacy[kind]
-	return p.cross[kind], legacy || p.version != version
+	return p.cross[kind], legacy || p.version.Load() != version
+}
+
+// changedSince reports whether the plan changed after the given version.
+func (p *seriesTagsPlan) changedSince(version int64) bool {
+	return p.version.Load() != version
 }
 
 // seriesTagsFuncs returns, for the builder, the store hook of each resource
@@ -339,7 +345,85 @@ func matchesJoin(labels map[string]string, config *joinsConfig) bool {
 type seriesRun struct {
 	namespaceTags map[string][]string
 	fullJoiner    *labelJoiner // every join, built on first need
-	planVersion   int          // version of the plan the run's joins were read at
+	planVersion   int64        // version of the plan the run's joins were read at
+	kinds         map[string]*kindRun
+	crossTags     map[crossTagsKey][]string
+}
+
+func newSeriesRun(planVersion int64) *seriesRun {
+	return &seriesRun{
+		namespaceTags: map[string][]string{},
+		planVersion:   planVersion,
+		kinds:         map[string]*kindRun{},
+		crossTags:     map[crossTagsKey][]string{},
+	}
+}
+
+// kindRun is what a run resolves once per resource type of the series it sees.
+type kindRun struct {
+	cross     []crossJoin
+	legacy    bool
+	crossHint int // number of cross-join tags of the last series, to size the next
+}
+
+// crossJoin is a cross-object join to resolve per run.
+type crossJoin struct {
+	name   string
+	config *joinsConfig
+}
+
+// crossTagsKey identifies the tags a cross-object join adds to the series of a
+// family that match on the same value. They are the same for every series of a
+// run, so they are built once.
+type crossTagsKey struct {
+	join, family, value string
+}
+
+// kind returns what the run knows of a resource type, resolving it on first use.
+func (r *seriesRun) kind(plan *seriesTagsPlan, resourceType string) *kindRun {
+	if kr, found := r.kinds[resourceType]; found {
+		return kr
+	}
+	cross, legacy := plan.crossJoins(kindOfStore(resourceType), r.planVersion)
+	kr := &kindRun{legacy: legacy}
+	for name := range cross {
+		kr.cross = append(kr.cross, crossJoin{name: name, config: plan.joins[name]})
+	}
+	r.kinds[resourceType] = kr
+	return kr
+}
+
+// appendCrossTags appends the tags the cross-object join adds to a series. When
+// the join matches on at most one label, the tags only depend on that label's
+// value, and are built once per value and family and run.
+func (k *KSMCheck) appendCrossTags(tags []string, join crossJoin, family string, labels map[string]string, runJoiner *labelJoiner, lMapperOverride map[string]string) []string {
+	matchLabels := join.config.labelsToMatch
+	if len(matchLabels) > 1 { // the tags depend on several values: not worth a cache
+		for _, l := range runJoiner.getLabelsToAddForJoin(labels, join.name) {
+			tag, _ := k.buildTag(l.key, l.value, lMapperOverride)
+			tags = append(tags, tag)
+		}
+		return tags
+	}
+
+	var value string
+	if len(matchLabels) == 1 {
+		var found bool
+		if value, found = labels[matchLabels[0]]; !found {
+			return tags
+		}
+	}
+
+	key := crossTagsKey{join: join.name, family: family, value: value}
+	joined, found := k.run.crossTags[key]
+	if !found {
+		for _, l := range runJoiner.getLabelsToAddForJoin(labels, join.name) {
+			tag, _ := k.buildTag(l.key, l.value, lMapperOverride)
+			joined = append(joined, tag)
+		}
+		k.run.crossTags[key] = joined
+	}
+	return append(tags, joined...)
 }
 
 // precomputedHostnameAndTags returns the hostname and tags of a series from its
@@ -350,8 +434,8 @@ func (k *KSMCheck) precomputedHostnameAndTags(family *ksmstore.DDMetricsFam, m k
 	if object == nil || k.seriesTags == nil {
 		return "", nil, false
 	}
-	cross, legacy := k.seriesTags.crossJoins(kindOfStore(family.Type), k.run.planVersion)
-	if legacy {
+	kind := k.run.kind(k.seriesTags, family.Type)
+	if kind.legacy || k.seriesTags.changedSince(k.run.planVersion) {
 		return "", nil, false
 	}
 
@@ -361,18 +445,14 @@ func (k *KSMCheck) precomputedHostnameAndTags(family *ksmstore.DDMetricsFam, m k
 		k.run.namespaceTags[object.Namespace] = namespaceTags
 	}
 
-	var labelsToAdd []label
-	if len(cross) > 0 {
-		labelsToAdd = runJoiner.getLabelsToAddFrom(m.Labels, cross)
-	}
-
-	tags := make([]string, 0, len(object.Tags)+len(m.ExtraTags)+len(labelsToAdd)+len(namespaceTags))
+	tags := make([]string, 0, len(object.Tags)+len(m.ExtraTags)+kind.crossHint+len(namespaceTags))
 	tags = append(tags, object.Tags...)
 	tags = append(tags, m.ExtraTags...)
-	for _, l := range labelsToAdd {
-		tag, _ := k.buildTag(l.key, l.value, lMapperOverride)
-		tags = append(tags, tag)
+	before := len(tags)
+	for _, join := range kind.cross {
+		tags = k.appendCrossTags(tags, join, family.Name, m.Labels, runJoiner, lMapperOverride)
 	}
+	kind.crossHint = max(kind.crossHint, len(tags)-before)
 	tags = append(tags, namespaceTags...)
 	return object.Hostname, tags, true
 }

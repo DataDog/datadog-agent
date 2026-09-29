@@ -248,13 +248,11 @@ func (lj *labelJoiner) getLabelsToAddOne(inputLabels map[string]string, config *
 	*labelsToAdd = append(*labelsToAdd, node.labelsToAdd...)
 }
 
-// getLabelsToAddFrom is getLabelsToAdd restricted to the given joins. Joins the
-// joiner does not have are ignored.
-func (lj *labelJoiner) getLabelsToAddFrom(inputLabels map[string]string, joins map[string]struct{}) (labelsToAdd []label) {
-	for name := range joins {
-		if metricToJoin, found := lj.metricsToJoin[name]; found {
-			lj.getLabelsToAddOne(inputLabels, metricToJoin.config, metricToJoin.tree, &labelsToAdd)
-		}
+// getLabelsToAddForJoin is getLabelsToAdd restricted to one join. A join the
+// joiner does not have adds nothing.
+func (lj *labelJoiner) getLabelsToAddForJoin(inputLabels map[string]string, name string) (labelsToAdd []label) {
+	if metricToJoin, found := lj.metricsToJoin[name]; found {
+		lj.getLabelsToAddOne(inputLabels, metricToJoin.config, metricToJoin.tree, &labelsToAdd)
 	}
 	return
 }

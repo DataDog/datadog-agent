@@ -146,7 +146,7 @@ func TestPrecomputedSeriesTagsMatchPerRunTags(t *testing.T) {
 			// One simulated run: per-run joins for the new path, every join for
 			// the old one.
 			joins, version := k.seriesTags.runJoins()
-			k.run = &seriesRun{namespaceTags: map[string][]string{}, planVersion: version}
+			k.run = newSeriesRun(version)
 			runJoiner := k.buildJoiner(joins)
 			fullJoiner := k.buildJoiner(k.instance.labelJoins)
 

@@ -831,7 +831,7 @@ func (k *KSMCheck) Run() error {
 		// Series tags are precomputed: only the joins that depend on other
 		// objects, or that aggregates can match, are resolved per run.
 		joins, version := k.seriesTags.runJoins()
-		k.run = &seriesRun{namespaceTags: map[string][]string{}, planVersion: version}
+		k.run = newSeriesRun(version)
 		defer func() { k.run = nil }()
 		joiner = k.buildJoiner(joins)
 	} else {
