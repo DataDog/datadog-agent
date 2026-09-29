@@ -43,6 +43,7 @@ GAZELLE_BUILD_TAGS = _data.GAZELLE_BUILD_TAGS
 
 # Per-binary inclusion lists
 AGENT_TAGS = _data.AGENT_TAGS
+AGENT_RECORDER_TAGS = _data.AGENT_RECORDER_TAGS
 AGENT_HEROKU_TAGS = _data.AGENT_HEROKU_TAGS
 FIPS_TAGS = _data.FIPS_TAGS
 CLUSTER_AGENT_TAGS = _data.CLUSTER_AGENT_TAGS
@@ -155,6 +156,15 @@ build_tags = {
     },
 }
 
+# Keep non-Agent binaries identical to the base flavor.
+build_tags[AgentFlavor.recorder] = {
+    **build_tags[AgentFlavor.base],
+    "agent": AGENT_RECORDER_TAGS,
+    "test": build_tags[AgentFlavor.base]["test"].union({"anomalydetection_recorder"}),
+    "lint": build_tags[AgentFlavor.base]["lint"].union({"anomalydetection_recorder"}),
+    "unit-tests": build_tags[AgentFlavor.base]["unit-tests"].union({"anomalydetection_recorder"}),
+}
+
 
 def build_tags_codegen_payload() -> dict[str, object]:
     """Structured view of the tag data consumed by the codegen.
@@ -184,7 +194,6 @@ def compute_build_tags_for_flavor(
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     platform: str | None = None,
-    extra_build_tags: str | None = None,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
@@ -193,7 +202,7 @@ def compute_build_tags_for_flavor(
     the flavor or arch. Otherwise, use the list of build tags to include, minus incompatible tags
     for the given architecture.
 
-    Then, add any validated extra build tags and remove the provided exclusions.
+    Then, remove the provided exclusions.
     """
     target_platform = _resolve_target_platform(platform)
 
@@ -203,11 +212,9 @@ def compute_build_tags_for_flavor(
         else filter_incompatible_tags(build_include.split(","), platform=target_platform)
     )
 
-    extra_tags = [] if extra_build_tags is None else extra_build_tags.split(",")
-    extra_tags = filter_incompatible_tags(extra_tags, platform=target_platform)
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
-    list = get_build_tags(set(build_include).union(extra_tags), build_exclude)
+    list = get_build_tags(build_include, build_exclude)
 
     return list
 

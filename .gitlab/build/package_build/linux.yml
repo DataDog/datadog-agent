@@ -59,6 +59,10 @@
   variables:
     FLAVOR: fips
 
+.agent_recorder_flavor:
+  variables:
+    FLAVOR: recorder
+
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
   extends: [.agent_build_common, .agent_build_x86, .agent_base_flavor]
@@ -67,14 +71,12 @@ datadog-agent-7-x64:
 
 # TODO: make the recorder package on-demand once its development workflow is established.
 datadog-agent-7-x64-recorder:
-  extends: [.agent_build_common, .agent_build_x86, .agent_base_flavor]
+  extends: [.agent_build_common, .agent_build_x86, .agent_recorder_flavor]
   rules:
     - !reference [.except_light_pipeline]
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
       when: on_success
     - when: never
-  variables:
-    DD_AGENT_EXTRA_BUILD_TAGS: anomalydetection_recorder
 
 # build Agent 7 binaries for arm64
 datadog-agent-7-arm64:

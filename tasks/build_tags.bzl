@@ -133,6 +133,9 @@ AGENT_TAGS = set([
     "cel",
 ])
 
+# The recorder flavor is the base Agent with the recorder build marker.
+AGENT_RECORDER_TAGS = AGENT_TAGS.union(set(["anomalydetection_recorder"]))
+
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     set([

@@ -26,7 +26,6 @@ def build(
     race=False,
     build_include=None,
     build_exclude=None,
-    extra_build_tags=None,
     flavor=AgentFlavor.base.name,
     install_path=None,
     go_mod="readonly",
@@ -41,10 +40,8 @@ def build(
     if enable_bazel:
         if race:
             raise NotImplementedError("--enable-bazel does not support --race.")
-        if build_include is not None or build_exclude is not None or extra_build_tags is not None:
-            raise NotImplementedError(
-                "--enable-bazel does not support --build-include/--build-exclude/--extra-build-tags."
-            )
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
         if flavor != AgentFlavor.base:
             raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
         if install_path is not None:
@@ -74,11 +71,7 @@ def build(
         )
 
     build_tags = compute_build_tags_for_flavor(
-        build="trace-agent",
-        flavor=flavor,
-        build_include=build_include,
-        build_exclude=build_exclude,
-        extra_build_tags=extra_build_tags,
+        build="trace-agent", flavor=flavor, build_include=build_include, build_exclude=build_exclude
     )
     agent_bin = os.path.join(BIN_PATH, bin_name("trace-agent"))
 

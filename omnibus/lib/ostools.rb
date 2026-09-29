@@ -68,7 +68,9 @@ end
 # 💡 Mirrors `_insert_omnibazel_flags` in tasks/libs/build/bazel.py.
 def omnibazel_flags()
   flags = []
-  flags << "--//packages/agent:flavor=#{ENV['AGENT_FLAVOR']}" if ENV['AGENT_FLAVOR']
+  # Recorder uses the base package assets; only its Agent Go build tags differ.
+  bazel_flavor = ENV['AGENT_FLAVOR'] == 'recorder' ? 'base' : ENV['AGENT_FLAVOR']
+  flags << "--//packages/agent:flavor=#{bazel_flavor}" if bazel_flavor
   # In macos, omnibus install_dir is the build location, which is different from the expected install location
   flags << (osx_target? ? "--//:install_dir=/opt/datadog-agent" : "--//:install_dir=#{install_dir}")
   flags << "--//:output_config_dir=#{ENV['OUTPUT_CONFIG_DIR']}"

@@ -54,39 +54,35 @@ class TestCodegenPayloadSchema(unittest.TestCase):
 
 
 class TestCodegenPayloadData(unittest.TestCase):
-    def test_extra_build_tags_extend_defaults_once(self):
-        defaults = set(
-            compute_build_tags_for_flavor(
-                build="agent",
-                flavor=AgentFlavor.base,
-                build_include=None,
-                build_exclude=None,
-                platform="linux",
-            )
-        )
-        with_recorder = compute_build_tags_for_flavor(
-            build="agent",
-            flavor=AgentFlavor.base,
-            build_include=None,
-            build_exclude=None,
-            extra_build_tags="anomalydetection_recorder,anomalydetection_recorder",
-            platform="linux",
-        )
+    def test_recorder_flavor_is_base_agent_plus_recorder_tag(self):
+        for platform in ("linux", "darwin", "win32"):
+            with self.subTest(platform=platform):
+                base = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform=platform))
+                recorder = set(
+                    build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.recorder, platform=platform)
+                )
+                self.assertEqual(recorder, base | {"anomalydetection_recorder"})
 
-        self.assertTrue(defaults.issubset(with_recorder))
-        self.assertEqual(with_recorder.count("anomalydetection_recorder"), 1)
+    def test_recorder_flavor_keeps_other_binaries_at_base_tags(self):
+        for build in ("trace-agent", "process-agent", "privateactionrunner"):
+            with self.subTest(build=build):
+                self.assertEqual(
+                    build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.recorder, platform="linux"),
+                    build_tags.get_default_build_tags(build=build, flavor=AgentFlavor.base, platform="linux"),
+                )
 
-    def test_unknown_extra_build_tags_are_not_included(self):
+    def test_recorder_tag_survives_agent_build_tag_computation(self):
         tags = compute_build_tags_for_flavor(
-            build="agent",
-            flavor=AgentFlavor.base,
-            build_include=None,
-            build_exclude=None,
-            extra_build_tags="not_a_build_tag",
-            platform="linux",
+            build="agent", flavor=AgentFlavor.recorder, build_include=None, build_exclude=None, platform="linux"
         )
+        self.assertIn("anomalydetection_recorder", tags)
 
-        self.assertNotIn("not_a_build_tag", tags)
+    def test_recorder_test_tag_sets_extend_base(self):
+        for build in ("test", "lint", "unit-tests"):
+            with self.subTest(build=build):
+                base = build_tags.build_tags[AgentFlavor.base][build]
+                recorder = build_tags.build_tags[AgentFlavor.recorder][build]
+                self.assertEqual(recorder, base | {"anomalydetection_recorder"})
 
     def test_fips_includes_goexperiment_systemcrypto(self):
         self.assertIn("goexperiment.systemcrypto", _payload()["flavor_specific_tags"]["fips"])
