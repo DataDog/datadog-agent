@@ -1383,6 +1383,8 @@ func TestMergeIntoAdditionalEndpointsListFallsBackToValueScanWhenIndexStale(t *t
 }
 
 // updateInjectingConfig completes another config write immediately before the atomic update.
+// Tests using it check the merge builds on the value Update hands it; Update's atomicity is
+// covered by TestUpdateSerializesConcurrentWriters in nodetreemodel.
 type updateInjectingConfig struct {
 	pkgconfigmodel.ReaderWriter
 	watchKey  string
@@ -1491,7 +1493,7 @@ additional_endpoints:
 	assert.Equal(t, []string{"sibling-key"}, got["https://sibling-org.datadoghq.com"])
 }
 
-func TestAtomicWritebackPreservesConcurrentUpdate(t *testing.T) {
+func TestAtomicWritebackPreservesPriorUpdate(t *testing.T) {
 	mockConfig := mock.New(t)
 	const domain = "https://our-org.datadoghq.com"
 	mockConfig.SetInTest("additional_endpoints", map[string][]string{
@@ -1534,7 +1536,7 @@ func TestAtomicWritebackPreservesConcurrentUpdate(t *testing.T) {
 	assert.Equal(t, []string{"sibling-v1"}, mockConfig.GetStringMapStringSlice("additional_endpoints")["https://sibling-org.datadoghq.com"])
 }
 
-func TestWritebackBlockedByHigherPrioritySourceDoesNotFastRetry(t *testing.T) {
+func TestWritebackBlockedByHigherPrioritySource(t *testing.T) {
 	mockConfig := mock.New(t)
 	const domain = "https://our-org.datadoghq.com"
 	value := map[string][]string{domain: {"DELA(our-org-uuid, aws)"}}
@@ -1557,7 +1559,7 @@ func TestWritebackBlockedByHigherPrioritySourceDoesNotFastRetry(t *testing.T) {
 	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
 }
 
-func TestMergeIntoAdditionalEndpointsListPreservesConcurrentUpdate(t *testing.T) {
+func TestMergeIntoAdditionalEndpointsListPreservesPriorUpdate(t *testing.T) {
 	mockConfig := mock.New(t)
 	configKey := "logs_config.additional_endpoints"
 	mockConfig.SetInTest(configKey, []any{
@@ -1624,7 +1626,7 @@ func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) 
 	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue)
 }
 
-func TestMergeIntoAdditionalEndpointsSerializesConcurrentWriter(t *testing.T) {
+func TestMergeIntoAdditionalEndpointsBuildsOnPriorSecretRotation(t *testing.T) {
 	// The injected secret rotation completes before the atomic delegated-auth update. The update
 	// must build on that latest value so neither side is lost.
 	mockConfig := mock.New(t)
@@ -1654,7 +1656,7 @@ func TestMergeIntoAdditionalEndpointsSerializesConcurrentWriter(t *testing.T) {
 
 	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.ElementsMatch(t, []string{"resolved-secret-v2", "wif-key-v1"}, got["https://mixed-org.datadoghq.com"],
-		"neither the concurrent secret rotation nor this component's own write should be lost")
+		"neither the prior secret rotation nor this component's own write should be lost")
 	assert.Equal(t, "wif-key-v1", instance.lastWrittenValue)
 }
 

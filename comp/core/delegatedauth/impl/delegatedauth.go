@@ -49,7 +49,7 @@ const (
 )
 
 var (
-	errWritebackBlocked       = errors.New("delegated auth config writeback blocked by a higher-priority source")
+	errWritebackBlocked       = errors.New("delegated auth config writeback did not take effect")
 	errWritebackTargetChanged = errors.New("delegated auth config writeback target changed")
 )
 
@@ -149,8 +149,8 @@ type delegatedAuthComponent struct {
 	// disabledReason explains why no provider was resolved, for status display.
 	disabledReason string
 
-	// additionalEndpointsMu serializes read-modify-write access to additional_endpoints config
-	// values across concurrent instances. Separate from mu to avoid deadlocking with OnUpdate callbacks.
+	// additionalEndpointsMu guards each instance's lastWrittenValue across writeback, target
+	// validation, and replacement handoff. Separate from mu to avoid deadlocking with OnUpdate callbacks.
 	additionalEndpointsMu sync.Mutex
 
 	clock              clock.Clock
@@ -868,7 +868,7 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 
 // mergeIntoAdditionalEndpoints writes apiKey into the map-shape config at
 // additionalEndpointsConfigKey under additionalEndpointDomain, replacing the previous value.
-// Serialized via the config's atomic Update operation. Writes at SourceSecret (not
+// The config write is atomic via config.Update. Writes at SourceSecret (not
 // SourceAgentRuntime) to avoid permanently shadowing secret rotations.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) error {
 	d.additionalEndpointsMu.Lock()

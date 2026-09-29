@@ -1690,8 +1690,8 @@ func TestSequenceID(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetDefault("a", 0)
+	config.SetDefault("nullable", nil)
 	config.BuildSchema()
-	config.SetTestOnlyDynamicSchema(true)
 
 	config.Set("a", 1, model.SourceAgentRuntime)
 	assert.False(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
@@ -1722,6 +1722,66 @@ func TestUpdate(t *testing.T) {
 		return current, false
 	}))
 	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
+}
+
+func TestUpdateShadowedByHigherSource(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	config.Set("a", 10, model.SourceCLI)
+	assert.False(t, config.Update("a", model.SourceSecret, func(current interface{}) (interface{}, bool) {
+		// The callback sees the resolved value, not the secret layer.
+		assert.Equal(t, 10, current)
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 10, config.GetInt("a"))
+
+	// The write still landed in the secret layer.
+	config.UnsetForSource("a", model.SourceCLI)
+	assert.Equal(t, 11, config.GetInt("a"))
+	assert.Equal(t, model.SourceSecret, config.GetSource("a"))
+}
+
+func TestUpdateUnknownKeySkipsCallback(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	called := false
+	assert.False(t, config.Update("missing", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) {
+		called = true
+		return 1, true
+	}))
+	assert.False(t, called)
+}
+
+func TestUpdateNotifiesAfterUnlock(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	var notified []interface{}
+	config.OnUpdate(func(key string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
+		// Would deadlock if receivers ran under the write lock.
+		notified = append(notified, config.Get(key))
+	})
+
+	var applied []bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) { return 1, true }))
+		// Unchanged value: no notification.
+		applied = append(applied, config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) { return 1, true }))
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Update deadlocked notifying receivers")
+	}
+	assert.Equal(t, []bool{true, true}, applied)
+	assert.Equal(t, []interface{}{1}, notified)
 }
 
 func TestUpdateRejectsNilCallback(t *testing.T) {
