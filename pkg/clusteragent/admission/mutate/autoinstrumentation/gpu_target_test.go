@@ -47,7 +47,7 @@ func TestNewGPUTarget(t *testing.T) {
 	assert.Equal(t, Target{
 		Name:           "gpu-monitoring",
 		PodSelector:    &PodSelector{MatchLabels: map[string]string{"admission.datadoghq.com/gpu.enabled": "true"}},
-		TracerVersions: map[string]string{"c": "0.24.0"},
+		TracerVersions: map[string]string{"c": "0"},
 		TracerConfigs: []TracerConfig{
 			{Name: "DD_INJECT_NATIVE", Value: "always"},
 			{Name: "DD_TRACE_HOOK_MODULES", Value: "gpu"},
