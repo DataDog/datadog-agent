@@ -235,8 +235,11 @@ func parseMinorPrefix(s string) (int, error) {
 // requestedAgentVersion != "" before calling.
 func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) error {
 	// Reject mismatches before handing setup to an older installer without this check.
-	if err := msi.CheckAgentFlavor(e.FIPSMode); err != nil {
-		return err
+	_, noAgentInstall := os.LookupEnv("DD_NO_AGENT_INSTALL")
+	if e.DefaultPackagesInstallOverride[agentPackage] || (flavor != "APM SSI" && !noAgentInstall) {
+		if err := msi.CheckAgentFlavor(e.FIPSMode); err != nil {
+			return err
+		}
 	}
 	if err := paths.SetupInstallerDataDir(); err != nil {
 		return fmt.Errorf("could not ensure installer data dir: %w", err)
