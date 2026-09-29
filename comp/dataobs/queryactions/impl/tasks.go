@@ -285,7 +285,7 @@ func (c *component) resolveTaskInstance(configID string, dbID *DBIdentifier) (*i
 // connection fields of the matched instance plus the do_task block, which the integration runs
 // instead of its regular collection. The task ID inside do_task makes the digest unique per task.
 func buildTaskCheckConfig(configID string, payload *DOTaskPayload, baseCfg *integration.Config, instance map[string]any) (integration.Config, error) {
-	fields := make(map[string]any, len(taskConnectionFields)+5)
+	fields := make(map[string]any, len(taskConnectionFields)+2)
 	for _, key := range taskConnectionFields {
 		if value, ok := instance[key]; ok {
 			fields[key] = value
@@ -304,10 +304,6 @@ func buildTaskCheckConfig(configID string, payload *DOTaskPayload, baseCfg *inte
 		})
 	}
 
-	fields["dbm"] = false
-	// Makes a check without task mode do (almost) nothing: no metrics, and no global custom queries.
-	fields["only_custom_queries"] = true
-	fields["use_global_custom_queries"] = "false"
 	// Python checks need run_once for a one-shot run; min_collection_interval 0 means the default 15s.
 	fields["run_once"] = true
 	fields["do_task"] = map[string]any{
