@@ -147,7 +147,7 @@ func (s *instrumentedStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observer
 	return s.inner.GetSeriesMeta(ref)
 }
 
-func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) *observerdef.MetricContext {
+func (s *instrumentedStorage) GetContext(ref observerdef.SeriesRef) (observerdef.MetricContext, bool) {
 	return s.inner.GetContext(ref)
 }
 
@@ -231,17 +231,6 @@ func (s *instrumentedStorage) ForEachPoint(ref observerdef.SeriesRef, start, end
 	}
 	s.callHashes = append(s.callHashes, ch.sum())
 	return found
-}
-
-func (s *instrumentedStorage) PointCount(ref observerdef.SeriesRef) int {
-	s.readCount++
-	result := s.inner.PointCount(ref)
-
-	ch := newCallHasher()
-	ch.mixString("PointCount")
-	ch.mixInt64(int64(result))
-	s.callHashes = append(s.callHashes, ch.sum())
-	return result
 }
 
 func (s *instrumentedStorage) PointCountUpTo(ref observerdef.SeriesRef, endTime int64) int {

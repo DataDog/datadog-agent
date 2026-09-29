@@ -65,6 +65,31 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
+	s := newTimeSeriesStorage()
+	result := s.Add("logs", "log.pattern.count", 1, 1, nil)
+	_, ok := s.GetContext(result.Ref)
+	require.False(t, ok)
+
+	s.SetContext(result.Ref, observer.MetricContext{Pattern: "first", Example: "first log"})
+	stored := s.seriesIDStats[result.Ref].context
+	first, ok := s.GetContext(result.Ref)
+	require.True(t, ok)
+
+	s.SetContext(result.Ref, observer.MetricContext{Pattern: "second", Example: "second log"})
+	require.Same(t, stored, s.seriesIDStats[result.Ref].context, "updates should reuse the series context allocation")
+	second, ok := s.GetContext(result.Ref)
+	require.True(t, ok)
+	assert.Equal(t, "first", first.Pattern)
+	assert.Equal(t, "first log", first.Example)
+	assert.Equal(t, "second", second.Pattern)
+	assert.Equal(t, "second log", second.Example)
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{result.Ref})
+	_, ok = s.GetContext(result.Ref)
+	assert.False(t, ok)
+}
+
 func TestTimeSeriesStorage_AddWithKeyAndHost(t *testing.T) {
 	s := newTimeSeriesStorage()
 	tags := []string{"env:prod"}
@@ -579,12 +604,6 @@ func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	assert.Equal(t, 1, s.PointCountUpTo(rangeID, 10))
 	// Non-existent series
 	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesRef(999), 100)) // non-existent ID
-}
-
-func TestPointCount_ColumnarLayout(t *testing.T) {
-	s := makeRangeStorage()
-	assert.Equal(t, 5, s.PointCount(rangeID))
-	assert.Equal(t, 0, s.PointCount(observer.SeriesRef(999))) // non-existent ID
 }
 
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {

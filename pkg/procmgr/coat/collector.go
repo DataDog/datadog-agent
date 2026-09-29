@@ -136,6 +136,10 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 	}
 
 	if process, ok := processes[service.ProcmgrProcessName]; ok {
+		// Install marker may be missing for layouts the marker paths don't cover
+		// (e.g. Windows DDOT installed outside the checked roots); procmgr
+		// supervision is as strong an install signal as systemd/SCM below.
+		status.Installed = true
 		status.ProcmgrState = process.State
 		status.ManagementMode = ManagementModeProcmgr
 		return status
