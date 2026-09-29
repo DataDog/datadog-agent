@@ -61,7 +61,6 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
-| Detector | `rrcf` | on |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | off |
 | Correlator | `anomaly_scorer` | off |
@@ -194,6 +193,11 @@ not embed a `correlationEmitter`.
 
 ### Detector-output deduplication vs replay history
 
+Every detector output must set `Anomaly.SourceRef` to its storage series and
+aggregate, including anomalies from log-derived metrics. The engine discards
+outputs without a reference. Display names are not deduplication identities.
+The standalone scorer can also accept inputs without storage references.
+
 The engine deduplicates detector outputs across advances before feeding them to
 correlators. Live mode keeps only a fixed-size dedup cache;
 it does not retain full raw anomalies because reporters receive advance-local
@@ -243,6 +247,10 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 ```bash
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
+
+# The testbench reporter requires its own build tag, passed through extra args
+# because it is not part of the Agent's selectable build-tag set.
+dda inv test --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.

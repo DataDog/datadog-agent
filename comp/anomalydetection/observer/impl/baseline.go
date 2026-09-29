@@ -59,13 +59,11 @@ type BaselineDebugStatus struct {
 // run on the engine goroutine.
 //
 //	data time ──►  [ warmup ] [ qualification ] [ detection ]
-//	normal detector  model       suppress + mute    forward
-//	RRCF             model       suppress           forward
+//	detector        model       suppress + mute    forward
 //
 // Each detector owns its first two windows and must not emit anomalies during
-// warmup. A normal detector's anomalies observed while analysing can mute their
-// source series globally; RRCF has no source series and therefore only uses the
-// windows to suppress its own reports.
+// warmup. Detector anomalies observed while analysing can mute their
+// storage-backed source series globally.
 type baselineController struct {
 	config    BaselineConfig
 	startSec  int64

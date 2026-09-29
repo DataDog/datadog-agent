@@ -1227,17 +1227,6 @@ func (s *timeSeriesStorage) ListSeriesRefsInto(filter observer.SeriesFilter, dst
 	return dst
 }
 
-// PointCount returns the number of raw data points for a series.
-func (s *timeSeriesStorage) PointCount(ref observer.SeriesRef) int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if stats := s.resolveByID(ref); stats != nil {
-		return stats.pointCount()
-	}
-	return 0
-}
-
 // TotalSampleCount returns the total number of stored samples across all series,
 // excluding series in excludeNamespace (pass "" to include all namespaces).
 // A point can contain multiple samples if it is aggregated.
