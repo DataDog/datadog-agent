@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    Add a Cross-Org Agent Telemetry (COAT) gauge reporting the state
+    **dd-procmgr** reports for each managed process.
+
+    | Metric Name | Type | Description |
+    | --- | --- | --- |
+    | ``runtime.procmgr_process_state`` | Gauge | State of a procmgr-managed process (``process``, ``state`` tags) |
+
+    ``runtime.procmgr_process_running`` only distinguishes running from
+    everything else, so a process that is deliberately stopped could not be
+    told apart from one that is crash looping. The new gauge carries the
+    reported state (``starting``, ``running``, ``crashed``, ``failed`` and so
+    on) as a tag, and is only set while procmgr supervises the service.

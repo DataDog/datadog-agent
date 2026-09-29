@@ -369,6 +369,10 @@ profiles:
       - name: runtime.procmgr_process_running
         preserve_tags:
           - process
+      - name: runtime.procmgr_process_state
+        preserve_tags:
+          - process
+          - state
       - name: runtime.agent_service_installed
         preserve_tags:
           - service
