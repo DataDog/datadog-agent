@@ -196,8 +196,8 @@ func (v *ssiSuite) TestInjectionMode() {
 		{"injection-mode-app-csi", testutils.InjectionModeCSI, string(testutils.InjectionModeCSI)},
 		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer, string(testutils.InjectionModeInitContainer)},
 		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)},
-		// "auto" mode with CSI auto-detection enabled and the Datadog CSI
-		// driver installed must resolve to the CSI provider.
+		// "auto" mode with the Datadog CSI driver installed must resolve to
+		// the CSI provider.
 		{"injection-mode-app-auto", testutils.InjectionModeCSI, testutils.EffectiveAutoMode(testutils.InjectionModeCSI)},
 	}
 
@@ -298,13 +298,8 @@ func (v *ssiSuite) TestLocalSDKInjection() {
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
 
-		// CSI driver detection is not enabled in this suite, so "auto" mode
-		// resolves to init containers and the webhook reports a successful injection.
-		// The csi-driver-status annotation must be absent since detection is off.
-		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
 		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -371,13 +366,8 @@ func (v *ssiSuite) TestNamespaceSelection() {
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
 
-		// CSI driver detection is not enabled in this suite, so "auto" mode
-		// resolves to init containers and the webhook reports a successful injection.
-		// The csi-driver-status annotation must be absent since detection is off.
-		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
 		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -446,13 +436,8 @@ func (v *ssiSuite) TestWorkloadSelection() {
 		})
 		podValidator.RequireInjectorVersion(v.T(), "0.52.0")
 
-		// CSI driver detection is not enabled in this suite, so "auto" mode
-		// resolves to init containers and the webhook reports a successful injection.
-		// The csi-driver-status annotation must be absent since detection is off.
-		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
 		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		// Ensure the service has traces.
 		require.Eventually(v.T(), func() bool {
@@ -535,10 +520,8 @@ func (v *ssiSuite) TestRegistryAllowList() {
 		podValidator.RequireInjection(v.T(), []string{"registry-allow-list-allowed"})
 		podValidator.RequireInjectorVersion(v.T(), "0.54.0")
 		podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
-		podValidator.RequireEffectiveInjectionMode(v.T(), testutils.EffectiveAutoMode(testutils.InjectionModeInitContainer))
 		podValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusInjected)
 		podValidator.RequireInjectedLibraries(v.T(), map[string]string{"injector": "injected", "python": "injected"})
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.CSIDriverStatusAnnotation})
 
 		require.Eventually(v.T(), func() bool {
 			traces := FindTracesForService(v.T(), intake, "registry-allow-list-allowed")

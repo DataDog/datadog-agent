@@ -82,8 +82,8 @@ const (
 	// Example value: csi
 	EffectiveInjectionMode = "internal.apm.datadoghq.com/effective-injection-mode"
 	// CSIDriverStatus is set with the observed state of the Datadog CSI driver at
-	// injection time. It is only present when CSI driver detection is active
-	// (i.e. CSIDriverWatcher is non-nil). See the CSIDriverStatus* constants below.
+	// injection time. It is set whenever the CSIDriverWatcher exists, which is the
+	// case when auto instrumentation is enabled. See the CSIDriverStatus* constants below.
 	CSIDriverStatus = "internal.apm.datadoghq.com/csi-driver-status"
 	// InjectionStatus is set with the overall outcome of the APM injection attempt.
 	// See the InjectionStatus* constants below for possible values.

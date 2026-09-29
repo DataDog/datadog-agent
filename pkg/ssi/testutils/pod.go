@@ -18,7 +18,7 @@ import (
 type InjectionMode string
 
 const (
-	// InjectionModeAuto uses init containers (the current default injection method).
+	// InjectionModeAuto lets the webhook pick the injection method.
 	InjectionModeAuto InjectionMode = "auto"
 	// InjectionModeInitContainer uses init containers to copy library files.
 	InjectionModeInitContainer InjectionMode = "init_container"
@@ -37,7 +37,7 @@ const (
 const (
 	// EffectiveInjectionModeAnnotation records the injection mode actually used by the webhook.
 	EffectiveInjectionModeAnnotation = "internal.apm.datadoghq.com/effective-injection-mode"
-	// CSIDriverStatusAnnotation records the observed Datadog CSI driver state; only set when CSI detection is active.
+	// CSIDriverStatusAnnotation records the observed Datadog CSI driver state.
 	CSIDriverStatusAnnotation = "internal.apm.datadoghq.com/csi-driver-status"
 	// InjectionStatusAnnotation records the overall outcome of the injection attempt.
 	InjectionStatusAnnotation = "internal.apm.datadoghq.com/injection-status"
@@ -97,7 +97,8 @@ type PodValidator struct {
 }
 
 // NewPodValidator initializes a new PodValidator from a Kubernetes pod spec. It creates container validators for
-// every container and init container in the pod.
+// every container and init container in the pod. With InjectionModeAuto, the mode is read from the
+// effective-injection-mode annotation, and defaults to init containers when the annotation is absent.
 func NewPodValidator(pod *corev1.Pod, mode InjectionMode) *PodValidator {
 	v := &PodValidator{
 		raw:                 pod,
@@ -106,15 +107,16 @@ func NewPodValidator(pod *corev1.Pod, mode InjectionMode) *PodValidator {
 		volumes:             newVolumeMap(pod.Spec.Volumes),
 	}
 
+	if effective, ok := pod.Annotations[EffectiveInjectionModeAnnotation]; mode == InjectionModeAuto && ok {
+		mode = InjectionMode(strings.TrimSuffix(effective, " (auto)"))
+	}
+
 	// Set injection validator based on mode
 	switch mode {
 	case InjectionModeCSI:
 		v.injection = newCSIInjectionValidator(v, pod)
 	case InjectionModeImageVolume:
 		v.injection = newImageVolumeInjectionValidator(v, pod)
-	// Auto mode currently uses init containers as the default injection method
-	case InjectionModeAuto, InjectionModeInitContainer:
-		fallthrough
 	default:
 		v.injection = newInitContainerInjectionValidator(v, pod)
 	}
@@ -225,7 +227,6 @@ func (v *PodValidator) RequireInjectionStatus(t *testing.T, expected string) {
 }
 
 // RequireCSIDriverStatus ensures the webhook recorded the given Datadog CSI driver status on the pod.
-// This annotation is only present when CSI driver detection is enabled on the cluster-agent.
 // Use the CSIDriverStatus* constants for the expected value.
 func (v *PodValidator) RequireCSIDriverStatus(t *testing.T, expected string) {
 	v.RequireAnnotations(t, map[string]string{CSIDriverStatusAnnotation: expected})
