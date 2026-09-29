@@ -14,6 +14,7 @@ go_library(
         "//pkg/api/security/cert",
         "//pkg/config/setup",
         "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/devtracing",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",
@@ -34,6 +35,7 @@ dd_agent_go_test(
     embed = [":queries"],
     deps = [
         "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner/devtracing",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/types",

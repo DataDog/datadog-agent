@@ -154,7 +154,11 @@ func (e *WorkflowTaskExecutor) RunTask(
 	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
 	span.SetResourceName(fqn)
 	span.SetTag("task_id", task.Data.ID)
-	defer func() { span.Finish(err) }()
+	finishMirror := startDevelopmentActionRunMirror(ctx, task, fqn) // DEVELOPMENT-ONLY (Remote Queries POC)
+	defer func() {
+		span.Finish(err)
+		finishMirror(err)
+	}()
 
 	startTime := observability.ReportExecutionStart(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
 	output, err = action.Run(ctx, task, preparedTask.Credential)

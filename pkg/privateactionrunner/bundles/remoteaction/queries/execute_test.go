@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/devtracing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -41,7 +42,7 @@ const (
 // pointed at the development endpoint. The span path itself stays under test
 // through the mocktracer; only the process-wide tracer start is stubbed out.
 func TestMain(m *testing.M) {
-	ensureDevelopmentTracer = func() {}
+	devtracing.DisableTracerStartForTest()
 	os.Exit(m.Run())
 }
 
@@ -49,9 +50,7 @@ func TestMain(m *testing.M) {
 // restores the production value on cleanup.
 func setDevelopmentTracing(t *testing.T, enabled bool) func() {
 	t.Helper()
-	previous := developmentTracingEnabled
-	developmentTracingEnabled = enabled
-	return func() { developmentTracingEnabled = previous }
+	return devtracing.SetEnabledForTest(enabled)
 }
 
 func resultDeliveryInputs() map[string]interface{} {

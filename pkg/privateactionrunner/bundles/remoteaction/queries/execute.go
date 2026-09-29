@@ -11,20 +11,18 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/devtracing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // remoteQueryOperationProduceJSONPages is the one supported integration operation: the
@@ -59,39 +57,14 @@ const (
 
 // ---------------------------------------------------------------------------
 // Development tracing — Remote Queries POC. DEVELOPMENT-ONLY: delete this whole
-// section with the POC (see the removal plan); the trace-context propagation
-// above and below it stays.
+// section with the POC (and the devtracing package); the trace-context
+// propagation above and below it stays. The tracer setup and the explicit
+// development endpoint live in the devtracing package.
 //
 // While development tracing is enabled, the bundle wraps every remote-query
-// execution in a normal dd-trace-go span and reports it to the POC's dedicated
-// development trace-agent, so the Agent's part of a run is visible in the same
-// ddstaging trace as rq, ITS, Delancie, its-agent, and the integrations. This
-// is tooling for the standing test harness, never a product feature: a
-// customer's Agent reports to the customer's own org. No Agent-side span ever
-// relies on a default trace-agent address — the explicit endpoint below is the
-// only one used (fail closed), because the workspace's own trace-agent on
-// 127.0.0.1:8126 reports to a different org and must never receive these
-// spans.
-
-// developmentTraceAgentURL is the explicit endpoint of the POC's development
-// trace-agent — a dedicated container publishing only 127.0.0.1:8127 and
-// reporting to ddstaging. Setting it to the empty string disables development
-// tracing entirely: the tracer never starts, no span is created, and the
-// AgentSecure request carries the runner's own trace identity, exactly as
-// before the POC.
-const developmentTraceAgentURL = "http://127.0.0.1:8127"
-
-// developmentTracingEnabled gates the development span path at runtime. It
-// derives from the endpoint constant above; it is a variable only so the unit
-// tests can exercise the disabled path — production code never reassigns it.
-var developmentTracingEnabled = developmentTraceAgentURL != ""
+// execution in a normal dd-trace-go span.
 
 const (
-	// developmentService is the dd-trace-go service name reported for the
-	// Agent's remote-queries execution.
-	developmentService = "datadog-agent-remote-queries"
-	// developmentEnv is the dd-trace-go env tag of the development spans.
-	developmentEnv = "staging"
 	// developmentExecuteOperation is the span wrapping one remote-query
 	// execution; the integration's producer and upload spans nest beneath it.
 	developmentExecuteOperation = "remote_queries.agent_execute"
@@ -109,48 +82,6 @@ const (
 	developmentDispatchErrorStatus = "ERROR"
 )
 
-var (
-	// developmentTracerOnce starts the development tracer at most once per
-	// process, lazily, on the first remote-query execution with development
-	// tracing enabled.
-	developmentTracerOnce sync.Once
-
-	// ensureDevelopmentTracer starts the development tracer on first use. It is
-	// a variable so the unit tests can substitute a no-op while the mocktracer
-	// owns the process's global tracer; production code never reassigns it.
-	ensureDevelopmentTracer = func() {
-		developmentTracerOnce.Do(startDevelopmentTracer)
-	}
-)
-
-// startDevelopmentTracer starts the standard Datadog Go tracer against the
-// development endpoint. The private-action-runner process owns no other
-// dd-trace-go tracer, so the process-wide global tracer is exclusively the
-// development one. Instrumentation telemetry, remote configuration, and
-// runtime metrics are configured only through dd-trace-go environment
-// variables, so they are turned off on the process before the first start:
-// the development tracer must send nothing but the remote_queries spans to the
-// development agent. The 128-bit trace-ID generation is disabled for the same
-// reason — the runner's propagation contract carries 64-bit decimal IDs, and
-// every span of a run must share that ID space. A start failure is fail-open:
-// a remote query must never fail because development observability could not
-// start; the span calls then run on the no-op tracer and the request falls
-// back to the runner's identity.
-func startDevelopmentTracer() {
-	os.Setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "false")
-	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
-	os.Setenv("DD_RUNTIME_METRICS_V2_ENABLED", "false")
-	os.Setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
-	if err := tracer.Start(
-		tracer.WithAgentURL(developmentTraceAgentURL),
-		tracer.WithService(developmentService),
-		tracer.WithEnv(developmentEnv),
-		tracer.WithLogStartup(false),
-	); err != nil {
-		log.Warnf("remote queries: development tracer failed to start, development spans disabled: %v", err)
-	}
-}
-
 // startDevelopmentExecutionSpan starts the development remote_queries.agent_execute
 // span wrapping one remote-query execution, continuing the runner's trace: the
 // span is a child of the action.run span active on ctx (read through the
@@ -163,10 +94,10 @@ func startDevelopmentTracer() {
 // behavior. With no runner trace the span is a fresh root of its own.
 func startDevelopmentExecutionSpan(ctx context.Context, inputs ExecuteInputs) (*tracer.Span, context.Context, *pb.RemoteQueryTraceContext) {
 	runnerTraceContext := remoteQueryTraceContextFromContext(ctx)
-	if !developmentTracingEnabled {
+	if !devtracing.Enabled() {
 		return nil, ctx, runnerTraceContext
 	}
-	ensureDevelopmentTracer()
+	devtracing.EnsureTracer()
 	// The standard Datadog propagation headers: the propagator extracts the
 	// runner's trace and sampling priority, making the development span their
 	// child. Without a runner trace the empty carrier starts a fresh root span.

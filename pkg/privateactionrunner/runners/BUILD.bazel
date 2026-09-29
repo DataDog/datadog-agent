@@ -5,6 +5,7 @@ go_library(
     name = "runners",
     srcs = [
         "common_runner.go",
+        "dev_action_run_mirror.go",
         "workflow_runner.go",
         "workflow_task_executor.go",
     ],
@@ -23,6 +24,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/bundles",
         "//pkg/privateactionrunner/credentials/resolver",
+        "//pkg/privateactionrunner/devtracing",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
@@ -32,6 +34,7 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/util/log",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
     ],
 )
 
@@ -39,12 +42,16 @@ dd_agent_go_test(
     name = "runners_test",
     srcs = [
         "common_runner_test.go",
+        "dev_action_run_mirror_test.go",
         "workflow_task_executor_test.go",
     ],
     embed = [":runners"],
     deps = [
+        "//pkg/fleet/installer/telemetry",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/bundles",
+        "//pkg/privateactionrunner/devtracing",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/opms",
@@ -54,8 +61,11 @@ dd_agent_go_test(
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@com_github_google_uuid//:uuid",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/util/sets",
     ],
 )

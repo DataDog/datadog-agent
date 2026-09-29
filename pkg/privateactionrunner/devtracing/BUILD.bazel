@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "devtracing",
+    srcs = ["devtracing.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/devtracing",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
+    ],
+)
