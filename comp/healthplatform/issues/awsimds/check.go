@@ -61,13 +61,15 @@ func probe() (bool, error) {
 		return false, nil
 	}
 
-	// IMDSv1 is disabled (HttpTokens=required): metadata now depends on the IMDSv2
-	// token, whose PUT response is dropped when the hop limit is too low.
-	_, err = probeStatus(client, http.MethodPut, ec2.TokenURL, map[string]string{ec2.TokenTTLHeader: "21600"})
+	// IMDSv1 is unavailable (HttpTokens=required, or blocked by Kube2IAM/kiam): metadata
+	// now depends on the IMDSv2 token, whose PUT is dropped by a low hop limit and rejected
+	// (401/403) by an IMDS-blocking intermediary.
+	status, err = probeStatus(client, http.MethodPut, ec2.TokenURL, map[string]string{ec2.TokenTTLHeader: "21600"})
 	if err != nil {
 		return isTimeout(err), nil
 	}
-	return false, nil
+	// Only a successful token response means the agent can obtain metadata.
+	return status != http.StatusOK, nil
 }
 
 // probeStatus issues one request and returns its status code, closing the body.

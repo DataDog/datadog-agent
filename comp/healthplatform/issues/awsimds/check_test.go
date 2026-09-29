@@ -134,6 +134,15 @@ func TestCheck_IMDSv2RequiredHopLimit(t *testing.T) {
 	require.Len(t, reports, 1)
 }
 
+// TestCheck_IMDSBlocked: an intermediary (e.g. Kube2IAM/kiam) rejects both IMDSv1 and the token PUT.
+func TestCheck_IMDSBlocked(t *testing.T) {
+	srv := routedServer(t, http.StatusForbidden, http.StatusForbidden)
+	m := setupCheck(t, srv.Listener.Addr().String())
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+}
+
 func TestCheck_ConnectionRefused(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
