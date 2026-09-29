@@ -77,7 +77,7 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 func TestDeviceCacheRefreshReturnsReleasedErrorWhenReleaseStartsDuringRefresh(t *testing.T) {
 	mockNvml := testutil.NewMockNVML(
 		testutil.WithSymbolsMock(allSymbols),
-		testutil.WithDeviceHandleByIndexCallback(func(index int, device nvml.Device) (nvml.Device, nvml.Return) {
+		testutil.WithDeviceHandleByIndexCallback(func(_ int, device nvml.Device) (nvml.Device, nvml.Return) {
 			nvmlReleased.Store(true)
 			return device, nvml.SUCCESS
 		}),
