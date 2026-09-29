@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The GPU check now keeps lost NVIDIA GPUs visible and reports them with the new ``gpu.device.lost`` metric.
