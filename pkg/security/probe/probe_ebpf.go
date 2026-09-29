@@ -467,8 +467,8 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
 	}
 
-	// without these the initial-user-namespace subsets stay empty, which reads like a process
-	// using no capability that a user namespace would take away rather than like missing data
+	// without these capable and netlink_capable hooks, the initial/host user ns capabilities fields stay empty
+	// which reads like a process that uses no capability in this user namespace rather than missing data, so better warn about this
 	if p.config.Probe.CapabilitiesMonitoringEnabled {
 		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
 			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
