@@ -275,16 +275,15 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 
 		numWorkers := pkgconfigsetup.Datadog().GetInt("autoconf_config_files_num_workers")
 		if numWorkers < 1 {
+			log.Warnf("autoconf_config_files_num_workers is less than 1, setting to 1")
 			numWorkers = 1
 		}
 		if len(entries) < numWorkers {
 			numWorkers = len(entries)
 		}
 		var wg sync.WaitGroup
-		wg.Add(numWorkers)
 		for w := 0; w < numWorkers; w++ {
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for i := range indices {
 					fileEntry := entries[i]
 					// We support only one level of nesting for check configs
@@ -296,10 +295,9 @@ func (r *configFilesReader) read(keep FilterFunc) ([]integration.Config, []Confi
 						results[i] = entryResult{entry: entry, entryAction: entryAction}
 					}
 				}
-			}()
+			})
 		}
 		wg.Wait()
-
 		for _, res := range results {
 			if res.isDir {
 				dirConfigs := res.dirConfigs
