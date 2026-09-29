@@ -354,7 +354,7 @@ func TestGetHostname(t *testing.T) {
 func TestFailoverConfigUpdateDoesNotBlock(t *testing.T) {
 	cfg := configmock.New(t)
 	// Not started, like a processor stopped by a pipeline restart: nothing consumes its config updates.
-	p := New(cfg, make(chan *message.Message), make(chan *message.Message), nil, nil, JSONEncoder, nil, nil, metrics.NewNoopPipelineMonitor(""), "")
+	p := New(cfg, make(chan *message.Message), make(chan *message.Message), nil, nil, JSONEncoder, nil, nil, nil, metrics.NewNoopPipelineMonitor(""), "")
 
 	done := make(chan struct{})
 	go func() {
