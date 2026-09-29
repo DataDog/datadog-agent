@@ -127,6 +127,16 @@ properties:
         type: string
         default: ""
         comment: Overrides only the main foldspace host. Empty uses the main HTTP endpoint host.
+      tap_channel_size:
+        node_type: setting
+        type: integer
+        default: 0
+        comment: |
+          Capacity of the channel carrying messages to foldspace. Zero uses
+          `logs_config.message_channel_size`. When dual shipping, this buffer is
+          what absorbs a rate difference between foldspace and the primary
+          destination, so sizing it independently decides how much divergence is
+          tolerated before the two paths affect each other.
       max_inflight_payloads:
         node_type: setting
         type: integer
