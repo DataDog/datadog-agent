@@ -87,6 +87,10 @@ BPF_LRU_MAP(exec_zero_key_diag, u32, struct exec_zero_key_diag_t, 1024)
 // Standalone because the recovery makes the key non-zero, so nothing on the zero-key
 // path would ever read a flag recorded there.
 BPF_ARRAY_MAP(exec_key_repaired, u64, 1)
+// Outcome of the inode read that produces an exec path_key, per EXEC_INO_* slot. A counter
+// rather than a per-event log: it needs no comparison against anything that can go stale,
+// so a zero reading means the reads are fine and the cause is elsewhere.
+BPF_ARRAY_MAP(exec_ino_read_stats, u64, 5)
 // Counts the execs whose popped entry did not belong to the execve being reported, split by
 // which lookup produced it. Standalone and unconditional: gating a diagnostic behind the
 // anomaly it describes has already made two of them unreadable.

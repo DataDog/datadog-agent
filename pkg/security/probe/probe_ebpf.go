@@ -228,6 +228,10 @@ type EBPFProbe struct {
 	// logExecEntryMismatches.
 	lastExecEntryMismatches atomic.Uint64
 
+	// lastExecInoReads is the last total of the non-healthy exec_ino_read_stats slots, so
+	// the stats tick logs only when one of them moves. Debug aid, see logExecInoReadStats.
+	lastExecInoReads atomic.Uint64
+
 	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
 	// container, so the debug log below reports only transitions instead of one line
 	// per exec. Debug aid, see setProcessContext.
@@ -1299,6 +1303,7 @@ func (p *EBPFProbe) SendStats() error {
 	// with no exposure.
 	p.logExecKeyRepairs()
 	p.logExecEntryMismatches()
+	p.logExecInoReadStats()
 
 	p.processKiller.SendStats(p.statsdClient)
 
@@ -1653,6 +1658,33 @@ func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
 		d.EntryIno, d.EntryMountID, d.Flags&execDiagHasDentry != 0,
 		uint32(d.OpenPIDTGID>>32), uint32(d.OpenPIDTGID), d.OpenCtxID,
 		d.Flags&execDiagHasOpenStamp != 0, route, verdict)
+}
+
+// logExecInoReadStats reports the outcome of the inode read behind every exec path_key.
+// The slots separate the candidate causes: a failed bpf_probe_read (whose destination the
+// helper zeroes, so it is indistinguishable from a real 0 without this), a read that
+// succeeded but yielded 0, and one that yielded a kernel pointer -- which is what the
+// unchecked helper returns from an uninitialised local.
+func (p *EBPFProbe) logExecInoReadStats() {
+	m, _, err := p.Manager.Get().GetMap("exec_ino_read_stats")
+	if err != nil || m == nil {
+		return
+	}
+
+	var v [5]uint64
+	for i := range v {
+		if err := m.Lookup(uint32(i), &v[i]); err != nil {
+			return
+		}
+	}
+
+	// slot 0 is the attempt count, so it alone changing means the reads are all healthy
+	if prev := p.lastExecInoReads.Swap(v[1] + v[2] + v[3] + v[4]); prev == v[1]+v[2]+v[3]+v[4] {
+		return
+	}
+
+	seclog.Warnf("exec path_key inode reads: %d attempts, %d failed from inode, %d failed from path, %d returned zero, %d returned a kernel pointer",
+		v[0], v[1], v[2], v[3], v[4])
 }
 
 // logExecEntryMismatches reports how often send_exec_event popped an entry that did not
