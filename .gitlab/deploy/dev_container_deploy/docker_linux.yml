@@ -219,9 +219,10 @@ dev_branch-recorder-full:
     - when: never
   needs:
     - docker_build_agent7_recorder_full
+    - docker_build_agent7_recorder_full_arm64
   variables:
     IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-recorder-full-amd64
+    IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-recorder-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-recorder-full-arm64
     IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-recorder-full,agent-dev:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-recorder-full
 
 dev_branch-ot-standalone:
