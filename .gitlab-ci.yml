@@ -542,6 +542,9 @@ variables:
 #
 workflow:
   rules:
+    # Temporary opt-out for evaluation-only PR #57126. Remove before merging.
+    - if: $CI_COMMIT_BRANCH == "focus/create-eudm-simulator"
+      when: never
     - <<: *if_scheduled_main
       variables:
         WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
