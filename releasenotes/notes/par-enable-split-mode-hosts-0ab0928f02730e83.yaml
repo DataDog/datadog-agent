@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Enable split mode by default for the Private Action Runner on Linux and
+    Windows host installations. Split mode remains disabled by default in
+    container deployments. Set ``private_action_runner.split_enabled`` to
+    ``false`` to retain monolithic mode on hosts.
