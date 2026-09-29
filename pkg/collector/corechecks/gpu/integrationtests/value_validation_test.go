@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mockcontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
@@ -92,6 +93,14 @@ func setupGPUCheck(t *testing.T) (*gpu.Check, *mocksender.MockSender) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(checkInstance.ID(), senderManager)
 	mockSender.SetupAcceptAll()
 	gpu.WithGPUConfigEnabled(t)
+
+	// Only the final pass is validated, so static metrics must be emitted on every pass
+	// instead of on their fixed reporting interval.
+	previousStaticInterval := pkgconfigsetup.Datadog().GetDuration("gpu.static_metrics_reporting_interval")
+	pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", time.Duration(0))
+	t.Cleanup(func() {
+		pkgconfigsetup.Datadog().SetInTest("gpu.static_metrics_reporting_interval", previousStaticInterval)
+	})
 
 	checkInternal, ok := checkInstance.(*gpu.Check)
 	require.True(t, ok)
