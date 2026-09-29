@@ -9,7 +9,10 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":package_metadata"],
-    default_visibility = ["@@//packages:__subpackages__", "@@//deps:__pkg__"],
+    default_visibility = [
+        "@@//deps:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )
 
 VERSION = "10.46"
@@ -20,9 +23,9 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{version}/pcre2-{version}.tar.bz2",
         package = "pcre2",
         version = VERSION,
-        download_url = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{version}/pcre2-{version}.tar.bz2",
     ),
 )
 
@@ -60,6 +63,7 @@ cc_library(
         "src/pcre2_auto_possess.c",
         "src/pcre2_chkdint.c",
         "src/pcre2_compile.c",
+        "src/pcre2_compile.h",
         "src/pcre2_compile_class.c",
         "src/pcre2_config.c",
         "src/pcre2_context.c",
@@ -68,6 +72,8 @@ cc_library(
         "src/pcre2_error.c",
         "src/pcre2_extuni.c",
         "src/pcre2_find_bracket.c",
+        "src/pcre2_internal.h",
+        "src/pcre2_intmodedep.h",
         "src/pcre2_jit_compile.c",
         "src/pcre2_maketables.c",
         "src/pcre2_match.c",
@@ -83,24 +89,17 @@ cc_library(
         "src/pcre2_substring.c",
         "src/pcre2_tables.c",
         "src/pcre2_ucd.c",
-        "src/pcre2_valid_utf.c",
-        "src/pcre2_xclass.c",
-        ":pcre2_chartables_c",
-        "src/pcre2_compile.h",
-        "src/pcre2_internal.h",
-        "src/pcre2_intmodedep.h",
         "src/pcre2_ucp.h",
         "src/pcre2_util.h",
+        "src/pcre2_valid_utf.c",
+        "src/pcre2_xclass.c",
         ":config_h_generic",
-    ],
-    textual_hdrs = [
-        "src/pcre2_jit_match.c",
-        "src/pcre2_jit_misc.c",
-        "src/pcre2_ucptables.c",
+        ":pcre2_chartables_c",
     ],
     hdrs = [
         ":pcre2_h_generic",
     ],
+    includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",
         "HAVE_MEMMOVE",
@@ -108,8 +107,12 @@ cc_library(
         "PCRE2_STATIC",
         "SUPPORT_UNICODE",
     ],
-    includes = ["src"],
     strip_include_prefix = "src",
+    textual_hdrs = [
+        "src/pcre2_jit_match.c",
+        "src/pcre2_jit_misc.c",
+        "src/pcre2_ucptables.c",
+    ],
     visibility = ["//visibility:public"],
 )
 
@@ -122,6 +125,7 @@ cc_library(
     hdrs = [
         "src/pcre2posix.h",
     ],
+    includes = ["src"],
     local_defines = [
         "HAVE_CONFIG_H",
         "HAVE_MEMMOVE",
@@ -129,7 +133,6 @@ cc_library(
         "PCRE2_STATIC",
         "SUPPORT_UNICODE",
     ],
-    includes = ["src"],
     strip_include_prefix = "src",
     visibility = ["//visibility:public"],
     deps = [":libpcre2"],
@@ -164,6 +167,14 @@ cc_binary(
         "src/pcre2test.c",
         ":config_h_generic",
     ],
+    dynamic_deps = [
+        ":pcre2-8_pkg",
+        ":pcre2-posix_pkg",
+    ],
+    linkopts = select({
+        "@platforms//os:windows": ["-STACK:2500000"],
+        "//conditions:default": [],
+    }),
     local_defines = [
         "HAVE_CONFIG_H",
         "HAVE_MEMMOVE",
@@ -175,13 +186,12 @@ cc_binary(
         "@platforms//os:windows": [],
         "//conditions:default": ["HAVE_UNISTD_H"],
     }),
-    linkopts = select({
-        "@platforms//os:windows": ["-STACK:2500000"],
-        "//conditions:default": [],
-    }),
     visibility = ["//visibility:public"],
-    deps = [":pcre2test_dotc_headers", ":libpcre2", ":libpcre2-posix"],
-    dynamic_deps = [":pcre2-8_pkg", ":pcre2-posix_pkg"],
+    deps = [
+        ":libpcre2",
+        ":libpcre2-posix",
+        ":pcre2test_dotc_headers",
+    ],
 )
 
 filegroup(
@@ -191,6 +201,7 @@ filegroup(
 
 native_test(
     name = "pcre2_test",
+    size = "small",
     src = select({
         "@platforms//os:windows": "RunTest.bat",
         "//conditions:default": "RunTest",
@@ -199,21 +210,23 @@ native_test(
         "@platforms//os:windows": "RunTest.bat",
         "//conditions:default": "RunTest",
     }),
-    data = [":pcre2test", ":testdata"],
-    size = "small",
+    data = [
+        ":pcre2test",
+        ":testdata",
+    ],
 )
 
 cc_shared_library(
     name = "pcre2-8",
-    deps = [":libpcre2"],
     visibility = ["//visibility:public"],
+    deps = [":libpcre2"],
 )
 
 cc_shared_library(
     name = "pcre2-posix",
-    deps = [":libpcre2-posix"],
     dynamic_deps = [":pcre2-8_pkg"],
     visibility = ["//visibility:public"],
+    deps = [":libpcre2-posix"],
 )
 
 pkg_files(
@@ -227,17 +240,17 @@ pkg_files(
 
 dd_cc_packaged(
     name = "pcre2-8_pkg",
-    input = ":pcre2-8",
     dest_dir = "embedded/lib",
-    version = "0.11.2",
+    input = ":pcre2-8",
     installed_files = [":headers"],
+    version = "0.11.2",
     visibility = ["//visibility:public"],
 )
 
 dd_cc_packaged(
     name = "pcre2-posix_pkg",
-    input = ":pcre2-posix",
     dest_dir = "embedded/lib",
+    input = ":pcre2-posix",
     version = "3.0.4",
     visibility = ["//visibility:public"],
 )
@@ -247,5 +260,8 @@ pkg_filegroup(
     srcs = [
         ":headers",
     ],
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )
