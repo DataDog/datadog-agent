@@ -58,8 +58,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	defer node.Unlock()
 	node.heartbeat = timestampNow()
 	node.nodetype = status.NodeType
-	// Compat is fixed at registration: a worker's declared check list never
-	// changes over its lifetime, later values are ignored.
+	// Compat is fixed at registration; later values are ignored.
 	if node.checkCompat == nil {
 		node.checkCompat = status.CheckCompatibility
 	}
@@ -113,10 +112,7 @@ func (d *dispatcher) getNodeToScheduleCheck(checkName string) string {
 	return d.getNodeWithLessChecks(checkName)
 }
 
-// isEligible reports whether a worker advertising the given compatibility
-// may run a check with the given name. nil compat means unrestricted.
-// When Include is non-empty only checks in it are accepted; Exclude names
-// are always refused, subtracted after Include.
+// isEligible reports whether a worker with the given compatibility may run a check (nil = unrestricted).
 func isEligible(compat *types.CheckCompatibility, checkName string) bool {
 	if compat == nil {
 		return true
@@ -130,11 +126,7 @@ func isEligible(compat *types.CheckCompatibility, checkName string) bool {
 	return true
 }
 
-// placementCandidates returns the live workers eligible for a check with
-// the given name, sorted for determinism. Empty means no worker is
-// eligible: the caller should let the config dangle (strict isolation —
-// the operator propagates group excludes to node agents so claimed checks
-// only ever run on their group).
+// placementCandidates returns the sorted live workers eligible for a check; empty means the config dangles.
 func (d *dispatcher) placementCandidates(checkName string) []string {
 	d.store.RLock()
 	defer d.store.RUnlock()
@@ -195,9 +187,7 @@ func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
 	return selectedNode
 }
 
-// anyCompatDeclared returns whether any live worker advertised a check
-// compatibility. When false, dispatching behaves exactly as before the
-// feature existed.
+// anyCompatDeclared returns whether any live worker declared a compatibility; false = legacy behavior.
 func (d *dispatcher) anyCompatDeclared() bool {
 	d.store.RLock()
 	defer d.store.RUnlock()

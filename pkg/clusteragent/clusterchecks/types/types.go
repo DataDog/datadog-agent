@@ -30,10 +30,7 @@ const (
 	NodeTypeNodeAgent NodeType = 2
 )
 
-// CheckCompatibility declares which check names a worker accepts to run as
-// cluster checks, advertised in its NodeStatus. nil means unrestricted.
-// When Include is non-empty only checks in it are accepted; Exclude names
-// are always refused, subtracted after Include.
+// CheckCompatibility declares which check names a worker accepts as cluster checks (nil = unrestricted).
 type CheckCompatibility struct {
 	Include []string `json:"include,omitempty"`
 	Exclude []string `json:"exclude,omitempty"`
@@ -43,8 +40,7 @@ type CheckCompatibility struct {
 type NodeStatus struct {
 	LastChange int64    `json:"last_change"`
 	NodeType   NodeType `json:"node_type,omitempty"`
-	// CheckCompatibility restricts the checks dispatched to this worker when
-	// set. Sent on every status POST; fixed at worker registration.
+	// CheckCompatibility restricts the checks dispatched to this worker; fixed at worker registration.
 	CheckCompatibility *CheckCompatibility `json:"check_compatibility,omitempty"`
 }
 

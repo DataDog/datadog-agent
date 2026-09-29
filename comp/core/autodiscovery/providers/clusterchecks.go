@@ -137,10 +137,7 @@ func (c *ClusterChecksConfigProvider) newNodeStatus(lastChange int64) types.Node
 	}
 }
 
-// checkCompatibilityFromConfig derives the advertised check compatibility
-// from the experimental.clc_runner_checks_* config keys
-// (DD_EXPERIMENTAL_CLC_RUNNER_CHECKS_*, space-separated as usual for
-// []string env vars). Both empty means unrestricted (nil).
+// checkCompatibilityFromConfig derives the advertised compat from the experimental.clc_runner_checks_* keys (DD_EXPERIMENTAL_* env, space-separated). Both empty means unrestricted (nil).
 func checkCompatibilityFromConfig(config pkgconfigmodel.Reader) *types.CheckCompatibility {
 	include := config.GetStringSlice("experimental.clc_runner_checks_include")
 	exclude := config.GetStringSlice("experimental.clc_runner_checks_exclude")

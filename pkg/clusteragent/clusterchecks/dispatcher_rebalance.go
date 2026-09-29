@@ -256,10 +256,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	return result
 }
 
-// useUtilizationRebalance picks the rebalance algorithm: the utilization one
-// is the only compatibility-aware one (busyness can move checks onto workers
-// that refuse them), so compat declarations force it regardless of the
-// cluster_checks.rebalance_with_utilization setting.
+// useUtilizationRebalance picks the rebalance algorithm; compat declarations force the utilization one (the only compat-aware).
 func (d *dispatcher) useUtilizationRebalance() bool {
 	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
 		return true
@@ -439,8 +436,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// We don't calculate the optimal distribution, so it might be worse than
 	// the current one or not good enough so that it's worth it to schedule and
 	// unschedule checks. When that's the case, return without moving any
-	// checks. The stddev is per-cohort (see utilizationStdDevWeighted), so a
-	// deliberately skewed runner group does not read as a global imbalance.
+	// checks. The stddev is per-cohort (utilizationStdDevWeighted), so a skewed group is not imbalance.
 	currentUtilizationStdDev := currentConfigsDistribution.utilizationStdDevWeighted()
 	proposedUtilizationStdDev := proposedDistribution.utilizationStdDevWeighted()
 	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")

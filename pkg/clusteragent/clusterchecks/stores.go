@@ -124,8 +124,7 @@ type nodeStore struct {
 	busyness         int
 	workers          int
 	nodetype         types.NodeType
-	// checkCompat holds the worker's advertised check compatibility, fixed at
-	// registration. nil means unrestricted.
+	// checkCompat holds the worker's advertised check compatibility; nil means unrestricted.
 	checkCompat *types.CheckCompatibility
 }
 

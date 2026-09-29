@@ -18,20 +18,14 @@ import (
 // ConfigStatus is one config's entry in a distribution.
 // WorkersNeeded is summed across the config's instances.
 // Pinned configs are kept on their current runner during rebalancing.
-// EligibleRunners is the sorted set of runners the config may be placed on per
-// the workers' advertised check compatibility (see placementCandidates); it is
-// empty for configs built without compatibility info (legacy callers), which
-// Cohort == "" denotes.
+// EligibleRunners is the sorted set of runners the config may be placed on (compat); empty for legacy configs without compat info.
 type ConfigStatus struct {
 	WorkersNeeded   float64
 	Runner          string
 	CheckName       string
 	Pinned          bool
 	EligibleRunners []string
-	// Cohort is the eligibility cohort key this config belongs to: the sorted,
-	// comma-joined EligibleRunners, or "" when no compatibility info is
-	// available (legacy/global cohort covering all runners of the
-	// distribution).
+	// Cohort is the config's eligibility cohort key (sorted, comma-joined EligibleRunners); "" = legacy/global cohort.
 	Cohort string
 }
 
@@ -308,13 +302,7 @@ func (distribution *configsDistribution) utilizationStdDev() float64 {
 	return math.Sqrt(variance)
 }
 
-// utilizationStdDevWeighted is the compatibility-aware variant of
-// utilizationStdDev: configs are partitioned into eligibility cohorts (by
-// their candidate runner set), each cohort's stddev is computed over its
-// candidate runners, and the result is the config-count-weighted average.
-// A single global stddev would fight isolation (a deliberately skewed group
-// reads as a fixable imbalance). Cohort "" spans all runners, so with no
-// compatibility declared the result degrades to the plain utilizationStdDev.
+// utilizationStdDevWeighted is the compat-aware utilizationStdDev: per-cohort stddev weighted by config count (a global stddev would fight isolation). Cohort "" spans all runners, degrading to the plain stddev without compat.
 func (distribution *configsDistribution) utilizationStdDevWeighted() float64 {
 	cohortRunners := map[string]map[string]struct{}{} // cohort key -> runner names
 	cohortConfigs := map[string]int{}
