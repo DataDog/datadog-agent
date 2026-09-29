@@ -199,6 +199,40 @@ func TestSweepReportsPerChunkNotAtTheEnd(t *testing.T) {
 	assert.Len(t, scanner.recorded(), 4)
 }
 
+func TestSweepReportsProgressOnTheInterval(t *testing.T) {
+	reporter := &recordingReporter{}
+	s := newTestSweeper(t, answerAll(), reporter, newMemCursorStore(), 10)
+	clock := int64(1700000000000)
+	s.now = func() int64 {
+		clock += s.progressEvery.Milliseconds()
+		return clock
+	}
+
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil)))
+
+	require.Len(t, reporter.runs, 5)
+	scanned := []int64{}
+	for _, run := range reporter.runs[1:4] {
+		assert.Equal(t, metadata.AutodiscoveryRunInProgress, run.Status)
+		assert.Equal(t, "run-fixed", run.RunID)
+		scanned = append(scanned, run.AddressesScanned)
+	}
+	assert.Equal(t, []int64{256, 512, 768}, scanned)
+	assert.Equal(t, metadata.AutodiscoveryRunCompleted, reporter.runs[4].Status)
+	assert.Equal(t, int64(1024), reporter.runs[4].AddressesScanned)
+}
+
+func TestSweepReportsNoProgressWithinTheInterval(t *testing.T) {
+	reporter := &recordingReporter{}
+	s := newTestSweeper(t, answerAll(), reporter, newMemCursorStore(), 10)
+
+	require.NoError(t, s.sweep(context.Background(), testSweepRequest(t, "10.0.0.0/22", nil)))
+
+	require.Len(t, reporter.runs, 2)
+	assert.Equal(t, metadata.AutodiscoveryRunInProgress, reporter.runs[0].Status)
+	assert.Equal(t, metadata.AutodiscoveryRunCompleted, reporter.runs[1].Status)
+}
+
 func TestSweepCountsIgnoredAddressesTowardsProgress(t *testing.T) {
 	reporter := &recordingReporter{}
 	s := newTestSweeper(t, answerAll(), reporter, newMemCursorStore(), 10)

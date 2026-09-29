@@ -24,6 +24,9 @@ const (
 	statusUnreachable = "unreachable"
 )
 
+// progressInterval is the shortest delay between two progress reports of a run.
+const progressInterval = 30 * time.Second
+
 // scanFunc probes a batch of addresses. It is satisfied by probe.Scan.
 type scanFunc func(ctx context.Context, workers int, targets []string, opts probe.Options) ([]probe.Result, error)
 
@@ -48,6 +51,8 @@ type sweeper struct {
 	// budget is the size of sem.
 	budget int64
 	log    log.Component
+	// progressEvery rate-limits the in_progress reports, and disables them at zero.
+	progressEvery time.Duration
 
 	now      func() int64
 	newRunID func() string
@@ -58,14 +63,15 @@ func newSweeper(scan scanFunc, reporter discoveryReporter, cursors cursorStore, 
 		budget = 1
 	}
 	return &sweeper{
-		scan:     scan,
-		reporter: reporter,
-		cursors:  cursors,
-		sem:      sem,
-		budget:   budget,
-		log:      logger,
-		now:      func() int64 { return time.Now().UnixMilli() },
-		newRunID: func() string { return uuid.New().String() },
+		scan:          scan,
+		reporter:      reporter,
+		cursors:       cursors,
+		sem:           sem,
+		budget:        budget,
+		log:           logger,
+		progressEvery: progressInterval,
+		now:           func() int64 { return time.Now().UnixMilli() },
+		newRunID:      func() string { return uuid.New().String() },
 	}
 }
 
@@ -92,6 +98,7 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 
 	// reported is a lower bound after a restart: a resumed run inherits no count.
 	reported := 0
+	lastProgressMs := s.now()
 	for state.NextChunk < total {
 		chunk := r.Plan.chunk(state.NextChunk)
 
@@ -130,6 +137,10 @@ func (s *sweeper) sweep(ctx context.Context, r sweepRequest) error {
 		state.NextChunk++
 		state.Scanned += int64(len(chunk.Targets))
 		s.saveCursor(id, state)
+
+		if state.NextChunk < total {
+			lastProgressMs = s.reportProgress(r, state, lastProgressMs)
+		}
 	}
 
 	s.log.Infof("ndmdiscovery: completed the scan of range %s (%s): %d addresses scanned, %d devices reported, run %s",
@@ -224,6 +235,24 @@ func (s *sweeper) saveCursor(id string, state cursorState) {
 	if err := s.cursors.Save(id, state); err != nil {
 		s.log.Warnf("ndmdiscovery: failed to persist the cursor of range %s: %v", id, err)
 	}
+}
+
+// reportProgress reports how far the run has got, no more than once per
+// progressEvery, and returns when it last did so.
+func (s *sweeper) reportProgress(r sweepRequest, state cursorState, lastMs int64) int64 {
+	now := s.now()
+	if s.progressEvery <= 0 || now-lastMs < s.progressEvery.Milliseconds() {
+		return lastMs
+	}
+
+	s.reportRun(r, metadata.AutodiscoveryRunMetadata{
+		AutodiscoveryID:  r.Config.AutodiscoveryID,
+		RunID:            state.RunID,
+		Status:           metadata.AutodiscoveryRunInProgress,
+		AddressesScanned: state.Scanned,
+		StartedAtMs:      state.StartedAtMs,
+	})
+	return now
 }
 
 func (s *sweeper) reportRun(r sweepRequest, run metadata.AutodiscoveryRunMetadata) {
