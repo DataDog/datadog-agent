@@ -19,11 +19,6 @@ license(
 COMMON_COPTS = ["-O3"]
 COMMON_INCLUDES = [".", "include"]
 
-# Version info from unixODBC 2.3.9
-# The actual SONAME version would be determined by LIB_VERSION in the autotools build
-# For unixODBC 2.3.9, the libraries typically have SONAME like libodbc.so.2
-VERSION = "2.3.9"
-
 # For some reason version of .so in the final package is 2.0.0, not 2.3.9.
 # To ensure the same behavior as the autotools build, we use 2.0.0 here.
 SOVERSION = "2.0.0"
