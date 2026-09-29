@@ -13,7 +13,9 @@ observer-ablation-driver-tests:
           - .gitlab/test/functional_test/anomalydetection.yml
         compare_to: $COMPARE_TO_BRANCH
   script:
-    - dda inv --dep 'optuna==4.5.0' invoke-unit-tests.run --directory=tasks/unit_tests --tests=anomalydetection_ablation,anomalydetection_ddeval,anomalydetection_eval
+    - pip install 'dda==0.39.0'
+    - dda self dep sync -f legacy-tasks -f anomalydetection
+    - dda inv --feat anomalydetection invoke-unit-tests.run --directory=tasks/unit_tests --tests=anomalydetection_ablation,anomalydetection_ddeval,anomalydetection_eval
 
 observer-ablation-ddeval:
   extends: .dd_octo_sts
@@ -62,7 +64,9 @@ observer-ablation-ddeval:
       chmod +x "$identity_client"
       mkdir -p "$(dirname "$AWS_SHARED_CREDENTIALS_FILE")"
       "$identity_client" assume-role
-    - dda inv --dep 'optuna==4.5.0' anomalydetection.ablation-ci
+    - pip install 'dda==0.39.0'
+    - dda self dep sync -f legacy-tasks -f anomalydetection
+    - dda inv --feat anomalydetection anomalydetection.ablation-ci
   artifacts:
     when: always
     expire_in: 2 weeks

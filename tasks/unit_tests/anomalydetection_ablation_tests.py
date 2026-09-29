@@ -279,7 +279,7 @@ class TestAblationArtifacts(unittest.TestCase):
 
 
 @unittest.skipUnless(
-    importlib.util.find_spec("optuna"), "Run with dda inv --dep optuna for the optimizer integration test"
+    importlib.util.find_spec("optuna"), "Run with dda inv --feat anomalydetection for the optimizer integration test"
 )
 class TestAblationHTTPIntegration(unittest.TestCase):
     def test_search_tune_and_resume_use_real_http_without_duplicate_submissions(self):

@@ -1164,7 +1164,7 @@ def eval_bayesian(
     Each trial enables the specified components, sampling hyperparameters and scoring via
     eval_scenarios (mean F1). Locked components (--lock) are enabled but use Go defaults (not tuned).
 
-    Requires optuna: dda inv --dep optuna anomalydetection.eval-bayesian ...
+    Requires optuna: dda inv --feat anomalydetection anomalydetection.eval-bayesian ...
 
     Output layout:
         <output_dir>/trial_NNN/config.json     - sampled component config for this trial
@@ -1200,11 +1200,11 @@ def eval_bayesian(
         ddeval_workflow_timeout: Polling timeout in seconds; resume to continue a running workflow.
 
     Examples:
-        dda inv --dep optuna anomalydetection.eval-bayesian
-        dda inv --dep optuna anomalydetection.eval-bayesian --components bocpd,rrcf,time_cluster
-        dda inv --dep optuna anomalydetection.eval-bayesian --only bocpd
-        dda inv --dep optuna anomalydetection.eval-bayesian --n-trials 100 --seed 42
-        dda inv --dep optuna anomalydetection.eval-bayesian --eval-backend ddeval \
+        dda inv --feat anomalydetection anomalydetection.eval-bayesian
+        dda inv --feat anomalydetection anomalydetection.eval-bayesian --components bocpd,rrcf,time_cluster
+        dda inv --feat anomalydetection anomalydetection.eval-bayesian --only bocpd
+        dda inv --feat anomalydetection anomalydetection.eval-bayesian --n-trials 100 --seed 42
+        dda inv --feat anomalydetection anomalydetection.eval-bayesian --eval-backend ddeval \
             --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
             --ddeval-testbench-sha256 <sha256> \
             --n-trials 3
@@ -1218,7 +1218,9 @@ def eval_bayesian(
     except Exception:
         import sys
 
-        print(color_message('Please use dda inv --dep optuna ... to run this task', Color.RED), file=sys.stderr)
+        print(
+            color_message('Please use dda inv --feat anomalydetection ... to run this task', Color.RED), file=sys.stderr
+        )
         raise Exit from None
 
     only_list = [c.strip() for c in only.split(",") if c.strip()]
@@ -1716,11 +1718,11 @@ def eval_pipeline(
         ddeval_workflow_timeout: Polling timeout in seconds; resume to continue a running workflow.
 
     Examples:
-        dda inv --dep optuna anomalydetection.eval-pipeline
-        dda inv --dep optuna anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
-        dda inv --dep optuna anomalydetection.eval-pipeline --force-enable scanmw
-        dda inv --dep optuna anomalydetection.eval-pipeline --force-disable scanwelch
-        dda inv --dep optuna anomalydetection.eval-pipeline --eval-backend ddeval \
+        dda inv --feat anomalydetection anomalydetection.eval-pipeline
+        dda inv --feat anomalydetection anomalydetection.eval-pipeline --n-combos 20 --n-trials-search 10 --n-trials-tune 50 --seed 42
+        dda inv --feat anomalydetection anomalydetection.eval-pipeline --force-enable scanmw
+        dda inv --feat anomalydetection anomalydetection.eval-pipeline --force-disable scanwelch
+        dda inv --feat anomalydetection anomalydetection.eval-pipeline --eval-backend ddeval \
             --ddeval-testbench-binary-s3-uri s3://.../anomalydetection-testbench \
             --ddeval-testbench-sha256 <sha256> \
             --n-combos 3 --n-trials-search 2 --n-trials-tune 3
@@ -2052,10 +2054,10 @@ def eval_component(
         scenarios: Comma-separated scenario names (default: all SCENARIOS).
 
     Examples:
-        dda inv --dep optuna anomalydetection.eval-component --component scanmw
-        dda inv --dep optuna anomalydetection.eval-component --component bocpd --seed 42 --n-trials 10
-        dda inv --dep optuna anomalydetection.eval-component --component bocpd --timeout 120
-        dda inv --dep optuna anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
+        dda inv --feat anomalydetection anomalydetection.eval-component --component scanmw
+        dda inv --feat anomalydetection anomalydetection.eval-component --component bocpd --seed 42 --n-trials 10
+        dda inv --feat anomalydetection anomalydetection.eval-component --component bocpd --timeout 120
+        dda inv --feat anomalydetection anomalydetection.eval-component --component bocpd --scenarios food_delivery_redis
     """
     all_known = DETECTORS + SUPPORTED_CORRELATORS + EXTRACTORS
     if component not in all_known:

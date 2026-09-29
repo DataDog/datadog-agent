@@ -69,10 +69,11 @@ old study before starting unrelated runs that could overlap it.
 
 ## Command line
 
+Requires DDA 0.39.0 or newer for the `anomalydetection` dependency group.
 With `testbench.json` downloaded from the ablation job's artifacts:
 
 ```sh
-dda inv --dep 'optuna==4.5.0' anomalydetection.eval-pipeline \
+dda inv --feat anomalydetection anomalydetection.eval-pipeline \
   --eval-backend ddeval \
   --ddeval-config-template testbench.json \
   --ddeval-dataset 'Golden 25' --ddeval-dataset-version 0 \
