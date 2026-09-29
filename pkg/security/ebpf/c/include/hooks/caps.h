@@ -85,13 +85,11 @@ int hook_revert_creds(ctx_t *ctx) {
 }
 
 // capable() is ns_capable(&init_user_ns, cap) and netlink_capable() reaches the same check through
-// a netlink wrapper: both ask for the capability in the initial user namespace whatever user
-// namespace the task lives in, so they are denied outright once it lives in a descendant one.
-// Nothing in the arguments of security_capable() tells these apart from a check aimed at a
-// namespace the task owns, because before entering a user namespace the two are the same
-// namespace. The capability is parked here instead, for the security_capable call it precedes.
+// a netlink wrapper: both check for the capability in the initial user namespace (init_user_ns).
+// Nothing in the arguments of security_capable() tells apart a check against init_user_ns from a check aimed at the
+// user namespace of the task, so we have to rely on these two hooks to make that distinction.
 static __attribute__((always_inline)) int collect_host_userns_cap(u64 cap) {
-    if (cap >= 64) { // a shift past the mask width would park a meaningless capability
+    if (cap >= 64) { // a shift past the mask width would collect a meaningless capability
         return 0;
     }
 
@@ -144,6 +142,9 @@ int hook_security_capable(ctx_t *ctx) {
     }
 
     u64 cap = CTX_PARM3(ctx); // The capability being checked
+    if (cap >= 64) { // a shift past the mask width would collect a meaningless capability
+        return 0;
+    }
 
     // capabilities are a per-thread attribute, but as our process model is process-based we use
     // the tgid to aggregate capabilities usage per process.
@@ -167,10 +168,10 @@ int hook_security_capable(ctx_t *ctx) {
     // we can use a bitmask here because CAP_LAST_CAP is less than 64
     u64 cap_as_mask = 1ULL << cap;
 
-    // claim what one of the wrappers above parked for this call; anything parked for a different
-    // capability belongs to a call we never saw the entry of, so it is dropped rather than carried
+    // merge what collect_host_userns_cap collected for this call
     u64 host_userns_cap_as_mask = 0;
     if (cap_context) {
+        // anything collected for a different capability belongs to a call we never saw the entry, so better drop it
         if (cap_context->host_userns_cap_as_mask == cap_as_mask) {
             host_userns_cap_as_mask = cap_as_mask;
         }
@@ -187,8 +188,6 @@ int hook_security_capable(ctx_t *ctx) {
         update_dirty(&new_entry, 1); // Mark as dirty since we are creating a new entry
         bpf_map_update_elem(&capabilities_usage, &key, &new_entry, BPF_ANY);
     } else {
-        // a capability already attempted against a namespace the task owns is new information
-        // again the first time it is attempted against the initial one, so both sets mark dirty
         int is_new = (entry->usage.attempted & cap_as_mask) == 0 || (host_userns_cap_as_mask && (entry->usage.attempted_host_userns & cap_as_mask) == 0);
         update_dirty(entry, is_new);
         entry->usage.attempted |= cap_as_mask; // Mark the capability as checked
@@ -224,15 +223,17 @@ int rethook_security_capable(ctx_t *ctx) {
     u64 override_creds_depth = cap_context->override_creds_depth;
     u64 host_userns_check = cap_context->host_userns_check;
 
-    // consume on every path, a leftover mask would be picked up by an untracked call's return
+    // netlink_capable() asks about the socket opener's credentials before asking about the
+    // current task's, and that first call is untracked: dropping the context here would take
+    // the collected capability with it and leave the real check looking namespace-scoped
     if (override_creds_depth == 0 && cap_context->host_userns_cap_as_mask == 0) {
+        // delete the context now to prevent a previous cap from being picked up by an another call to security_capable
         bpf_map_delete_elem(&capabilities_contexts, &tid);
     } else {
-        // netlink_capable() asks about the socket opener's credentials before asking about the
-        // current task's, and that first call is untracked: dropping the context here would take
-        // the parked capability with it and leave the real check looking namespace-scoped
-        cap_context->cap_as_mask = 0; // the depth counter has to outlive the call
+        // reset the caps in case of override_creds or an uncleared host_userns cap
+        cap_context->cap_as_mask = 0;
         cap_context->host_userns_check = 0;
+        // the depth counter has to outlive the call
     }
 
     if (!cap_as_mask || override_creds_depth != 0 || is_in_creds_override()) {
