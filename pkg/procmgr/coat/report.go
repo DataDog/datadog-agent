@@ -196,12 +196,15 @@ func redactSecretValues(args []string, patterns []procutil.DataScrubberPattern) 
 		// whatever it looks like: a value is not disqualified from being one by starting with a
 		// dash or a slash, and "--password /etc/creds" is an ordinary way to write one. A flag
 		// that took no value is worth losing to a redaction, a credential is not worth risking on
-		// a guess.
+		// a guess. Nor does the name have to be spelled as a flag, because procutil recognizes a
+		// bare "password" and a flare has no business keeping what procutil would redact.
 		//
-		// Only an argument spelled as a flag is read as taking a separate value. That keeps a
-		// value that happens to name a secret, "separate-token-secret" say, from swallowing the
-		// unrelated argument behind it.
-		if arg.isFlag && i+1 < len(args) {
+		// The exception is an argument that has itself been replaced as a value, which does not go
+		// on to claim the argument behind it. Otherwise a value that happens to name a secret,
+		// "my-api-key-value" say, would swallow the unrelated argument that follows. One written
+		// as a flag is not treated that way: in ["--password", "--api-key", "s3cret"] the middle
+		// argument is a flag with a value of its own, and that value still has to go.
+		if (!wasValue[i] || arg.isFlag) && i+1 < len(args) {
 			args[i+1] = redactedValue
 			wasValue[i+1] = true
 		}

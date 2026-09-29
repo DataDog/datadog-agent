@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -336,6 +337,13 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 			want: []string{"--password", wantRedacted, wantRedacted},
 		},
 		{
+			// procutil redacts this, so a flare must too: a bare name is how "key value" style
+			// arguments are written, and nothing says a secret has to arrive behind a dash.
+			name: "a bare secret name carries its value in the next argument",
+			args: []string{"password", "leaked-by-bareness"},
+			want: []string{"password", wantRedacted},
+		},
+		{
 			// A value is not disqualified from being one by starting with a dash or a slash. Paths
 			// are ordinary values, and a token can start with either.
 			name: "a secret value spelled like a flag is still a value",
@@ -417,6 +425,58 @@ func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
 		assert.Nil(t, processes[0].Args, "no argument should survive, not even a harmless one")
 		assert.NotEmpty(t, processes[0].Command, "the executable is not an argument and stays")
 	})
+}
+
+// Every leak found in this scrubber has been one instance of a single invariant: a flare must keep
+// nothing procutil would have redacted. The cases above pin the shapes known to have gone wrong,
+// which only ever catches the next one if somebody thinks to write it down. This asserts the
+// invariant itself over a corpus of argv shapes, so a value procutil removes and this package
+// leaves behind fails here whether or not anyone anticipated that spelling.
+func TestRedactionKeepsNothingProcutilWouldRedact(t *testing.T) {
+	corpus := [][]string{
+		{"--password", "s3cret"},
+		{"--password", "secret with spaces"},
+		{"--password", "/etc/datadog-agent/creds"},
+		{"--password", "-dash-leading-value"},
+		{"--password", "--api-key", "s3cret"},
+		{"--password", "my-api-key-value", "--verbose"},
+		{"--api_key=inline", "--config", `C:\Program Files\Datadog\datadog.yaml`},
+		{"--password:colon-delimited"},
+		{"--password bundled-in-one-token"},
+		{"password", "bare-name-value"},
+		{"password=bare-inline"},
+		{"PASSWORD", "upper-case-value"},
+		{"--AUTH-TOKEN=upper-inline"},
+		{"--passwd", "alias-value"},
+		{"--credentials", "creds-value"},
+		{"--mysql_pwd", "pwd-value"},
+		{"--password"},
+		{"--verbose", "--config", "/etc/datadog-agent/datadog.yaml"},
+	}
+
+	scrubber := procutil.NewDefaultDataScrubber()
+	scrubber.AddCustomSensitiveWords(slices.Clone(hyphenSpelledSecretWords))
+
+	for _, args := range corpus {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			// procutil's own verdict on the same command line, used only to decide which text is
+			// secret. Its re-splitting is why this package does not use it to redact.
+			byProcutil, _ := scrubber.ScrubCommand(append([]string{"agent"}, args...))
+			procutilOutput := strings.Join(byProcutil, " ")
+
+			processes := []ProcessSnapshot{{Args: slices.Clone(args)}}
+			scrubProcessArgs(processes, ScrubOptions{})
+			ourOutput := strings.Join(processes[0].Args, " ")
+
+			for _, token := range args {
+				if strings.Contains(procutilOutput, token) {
+					continue // procutil kept it, so it is not a secret and we may keep it too
+				}
+				assert.NotContains(t, ourOutput, token,
+					"procutil redacted %q out of this command line, so the flare must not carry it", token)
+			}
+		})
+	}
 }
 
 // namesSecret probes procutil's patterns with a synthetic "<flag>=x", which assumes the shape of the
