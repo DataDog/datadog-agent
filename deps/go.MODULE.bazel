@@ -3,8 +3,23 @@ go_sdk.from_file(
     name = "go_work_sdk",
     go_work = "//:go.work",
 )
-use_repo(go_sdk, "go_work_sdk")
+use_repo(go_sdk, "go_toolchains", "go_work_sdk")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
+
+msgo = use_extension("//bazel/rules/msgo:extension.bzl", "msgo")
+msgo.from_file(
+    go_work = "//:go.work",
+    msgo_revision = 1,
+)
+use_repo(msgo, "msgo", "msgo_toolchains")
+
+inject_repo(
+    msgo,
+    io_bazel_rules_go = "rules_go",
+)
+
+# Control registration order so the first toolchain takes precedence when @rules_go//go/toolchain:sdk_name is not set
+register_toolchains("@go_toolchains//:all", "@msgo_toolchains//:all")
 
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 
