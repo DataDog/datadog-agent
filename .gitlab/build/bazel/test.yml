@@ -39,7 +39,7 @@
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --jobs=$KUBERNETES_CPU_REQUEST --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - bazel coverage --config=go --config=gorace --config=dd-agent-go-tests-only --build_tests_only --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
   after_script:
     - !reference [.bazel:test:reporting, after_script]
     - cp "$(bazel info output_path)/_coverage/_coverage_report.dat" "$CI_PROJECT_DIR/coverage-bazel-$CI_JOB_NAME_SLUG.out"
@@ -53,7 +53,6 @@
       - coverage-bazel-*.out
   variables:
     COVERAGE_FILE: coverage-bazel-*.out
-    KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "64Gi"
     KUBERNETES_MEMORY_LIMIT: "64Gi"
 
@@ -61,7 +60,7 @@
   extends: [.bazel:test:reporting, .bazel:test]
   script:
     - !reference [.bazel:test:reporting:ci_links]
-    - bazel test --jobs=$KUBERNETES_CPU_REQUEST --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
+    - bazel test --keep_going --remote_download_outputs=toplevel --build_event_json_file=$BEP_FILE //...
 
 bazel:test:linux-amd64:
   extends: [.bazel:runner:linux-amd64, .bazel:test:linux]
