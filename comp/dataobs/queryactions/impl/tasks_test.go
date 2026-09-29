@@ -496,13 +496,10 @@ func TestOnTaskUpdate_CheckConfigCopiesOnlyConnectionFields(t *testing.T) {
 	assert.Equal(t, map[string]any{"ca": "/etc/ssl/ca.pem"}, instance["ssl"])
 	assert.Equal(t, []any{"env:prod"}, instance["tags"])
 
-	for _, key := range []string{"data_observability", "custom_queries", "query_metrics"} {
+	for _, key := range []string{"data_observability", "custom_queries", "query_metrics", "dbm"} {
 		assert.NotContains(t, instance, key)
 	}
 	assert.False(t, instanceHasDOEnabled(instance), "a task config must never be picked as a DO base")
-	assert.Equal(t, false, instance["dbm"])
-	assert.Equal(t, true, instance["only_custom_queries"])
-	assert.Equal(t, "false", instance["use_global_custom_queries"])
 	assert.Equal(t, true, instance["run_once"])
 
 	doTask, ok := instance["do_task"].(map[string]any)

@@ -15,5 +15,4 @@ features:
     the matching instance with ``data_observability.enabled: true``. The instance's
     own check and its Data Observability monitor queries are never restarted by a
     task. A task the Agent cannot run, because it has expired or no matching instance
-    exists, is reported back immediately. Running a task requires a ``mysql``
-    integration version with task support.
+    exists, is reported back immediately.
