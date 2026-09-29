@@ -104,8 +104,8 @@ genrule(
     outs = ["mpi/asm-syntax.h"],
     cmd = select({
         "@@//:linux_x86_64": """echo '#define ELF_SYNTAX' > $@ && \
-            cat $(location mpi/i386/syntax.h) >> $@ && \
-            cat $(location mpi/amd64/func_abi.h) >> $@ && \
+            cat $(execpath mpi/i386/syntax.h) >> $@ && \
+            cat $(execpath mpi/amd64/func_abi.h) >> $@ && \
             cat <<EOF >> $@
 #if defined(__ASSEMBLER__) && defined(__CET__)
 # include <cet.h>
@@ -169,7 +169,7 @@ cc_binary(
 genrule(
     name = "gost-sb_h",
     outs = ["cipher/gost-sb.h"],
-    cmd = "$(location :gost-s-box) $@",
+    cmd = "$(execpath :gost-s-box) $@",
     tools = [":gost-s-box"],
 )
 
@@ -755,7 +755,7 @@ cc_shared_library(
         "@gpg-error//:gpg-error_pkg",
     ],
     user_link_flags = [
-        "-Wl,--version-script=$(location src/libgcrypt.vers)",
+        "-Wl,--version-script=$(execpath src/libgcrypt.vers)",
     ],
     visibility = ["//visibility:public"],
     deps = [

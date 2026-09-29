@@ -76,7 +76,7 @@ cc_shared_library(
     ],
     user_link_flags = [
         "-Wl,-soname=libsepol.so",
-        "-Wl,--version-script=$(location src/libsepol.map.in)",
+        "-Wl,--version-script=$(execpath src/libsepol.map.in)",
     ],
     visibility = ["//visibility:public"],
 )
