@@ -26,7 +26,7 @@ python_externals = {
     "tcltk": "8.6.15.0",
 }
 
-# These rules will make it easier to get a reference to their folder via $(location)
+# These rules will make it easier to get a reference to their folder via $(execpath)
 # and they add the version in the folder name (as some of the vcxproj stuff relies on that)
 [
     copy_to_directory(
@@ -89,24 +89,24 @@ run_binary(
     env = {
         "PROCESSOR_ARCHITECTURE": "AMD64",
         # Input and output paths
-        "SRCFILE": r"$(location LICENSE)",  # Any file at the root of the repo works here
+        "SRCFILE": r"$(execpath LICENSE)",  # Any file at the root of the repo works here
         "OUTDIR": "$(@D)/build",
         # Paths to dependencies:
-        "BZ2_DIR": "$(location bzip2_win_dir)",
-        "MPDECIMAL_DIR": "$(location mpdecimal_win_dir)",
-        "SQLITE3_DIR": "$(location sqlite_win_dir)",
-        "XZ_DIR": "$(location xz_win_dir)",
-        "ZLIB_DIR": "$(location zlib_win_dir)",
-        "LIBFFI_DIR": "$(location libffi_win_dir)",
-        "OPENSSL_DIR": r"$(location openssl-bin_win_dir)",
-        "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
+        "BZ2_DIR": "$(execpath bzip2_win_dir)",
+        "MPDECIMAL_DIR": "$(execpath mpdecimal_win_dir)",
+        "SQLITE3_DIR": "$(execpath sqlite_win_dir)",
+        "XZ_DIR": "$(execpath xz_win_dir)",
+        "ZLIB_DIR": "$(execpath zlib_win_dir)",
+        "LIBFFI_DIR": "$(execpath libffi_win_dir)",
+        "OPENSSL_DIR": r"$(execpath openssl-bin_win_dir)",
+        "TCLTK_DIR": r"$(execpath tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
-        "MSBUILD": "$(location @msvc_toolchains//msbuild:msbuild)",
-        "PYTHON_FOR_BUILD": "$(location {})".format(DEFAULT_PYTHON),
+        "MSBUILD": "$(execpath @msvc_toolchains//msbuild:msbuild)",
+        "PYTHON_FOR_BUILD": "$(execpath {})".format(DEFAULT_PYTHON),
         # Marker files; build_python.bat derives each toolchain root from them.
-        "VCTOOLS_VERSION_FILE": "$(location @msvc_toolchains//msvc/tree:version_marker)",
-        "WINSDK_MARKER": "$(location @msvc_toolchains//winsdk/tree:root_marker)",
-        "VCTARGETS_MARKER": "$(location @msvc_toolchains//msbuild:vctargets_marker)",
+        "VCTOOLS_VERSION_FILE": "$(execpath @msvc_toolchains//msvc/tree:version_marker)",
+        "WINSDK_MARKER": "$(execpath @msvc_toolchains//winsdk/tree:root_marker)",
+        "VCTARGETS_MARKER": "$(execpath @msvc_toolchains//msbuild:vctargets_marker)",
     },
     outs = [
         "build/{}".format(file)

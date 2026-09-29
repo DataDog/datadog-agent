@@ -75,7 +75,7 @@ cc_library(
     include_prefix = "attr",
     strip_include_prefix = "include",
     copts = [
-        "-include $(location libattr/libattr.h)",
+        "-include $(execpath libattr/libattr.h)",
         "-O2",
     ],
     implementation_deps = [
@@ -95,7 +95,7 @@ cc_shared_library(
         "exports",
     ],
     user_link_flags = [
-        "-Wl,--version-script=$(location exports)",
+        "-Wl,--version-script=$(execpath exports)",
     ],
     visibility = ["//visibility:public"],
 )
