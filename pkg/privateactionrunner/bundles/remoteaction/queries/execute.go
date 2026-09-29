@@ -11,8 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
+	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -20,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // remoteQueryOperationProduceJSONPages is the one supported integration operation: the
@@ -27,6 +32,204 @@ import (
 // its-agent-intake. The AP input carries no operation field; the native request mapping
 // emits it.
 const remoteQueryOperationProduceJSONPages = "produce_json_pages"
+
+// The fleet mini-tracer's trace-propagation environment contract (see
+// telemetry.EnvFromContext): the decimal DATADOG_* variables a child of the
+// private-action-runner reads to continue the runner's trace. The bundle reads
+// the same contract on the in-process side of the boundary.
+const (
+	miniTracerTraceIDEnv          = "DATADOG_TRACE_ID"
+	miniTracerParentIDEnv         = "DATADOG_PARENT_ID"
+	miniTracerSamplingPriorityEnv = "DATADOG_SAMPLING_PRIORITY"
+)
+
+const (
+	// miniTracerDropTraceID is the trace ID the fleet mini-tracer assigns to a trace
+	// it will not report — head-sampled fresh traces and traces carrying a drop
+	// sampling priority (it mirrors the tracer's unexported dropTraceID). Such a
+	// trace has no real identity to continue, so the propagation field stays
+	// absent for it.
+	miniTracerDropTraceID = 1
+	// miniTracerDefaultSamplingPriority is the mini-tracer's effective sampling
+	// priority for a trace that propagated none: the flush stamps 2 (user keep) on
+	// every completed span without one, so 2 is also the effective keep priority
+	// reported for such traces.
+	miniTracerDefaultSamplingPriority = 2
+)
+
+// ---------------------------------------------------------------------------
+// Development tracing — Remote Queries POC. DEVELOPMENT-ONLY: delete this whole
+// section with the POC (see the removal plan); the trace-context propagation
+// above and below it stays.
+//
+// While development tracing is enabled, the bundle wraps every remote-query
+// execution in a normal dd-trace-go span and reports it to the POC's dedicated
+// development trace-agent, so the Agent's part of a run is visible in the same
+// ddstaging trace as rq, ITS, Delancie, its-agent, and the integrations. This
+// is tooling for the standing test harness, never a product feature: a
+// customer's Agent reports to the customer's own org. No Agent-side span ever
+// relies on a default trace-agent address — the explicit endpoint below is the
+// only one used (fail closed), because the workspace's own trace-agent on
+// 127.0.0.1:8126 reports to a different org and must never receive these
+// spans.
+
+// developmentTraceAgentURL is the explicit endpoint of the POC's development
+// trace-agent — a dedicated container publishing only 127.0.0.1:8127 and
+// reporting to ddstaging. Setting it to the empty string disables development
+// tracing entirely: the tracer never starts, no span is created, and the
+// AgentSecure request carries the runner's own trace identity, exactly as
+// before the POC.
+const developmentTraceAgentURL = "http://127.0.0.1:8127"
+
+// developmentTracingEnabled gates the development span path at runtime. It
+// derives from the endpoint constant above; it is a variable only so the unit
+// tests can exercise the disabled path — production code never reassigns it.
+var developmentTracingEnabled = developmentTraceAgentURL != ""
+
+const (
+	// developmentService is the dd-trace-go service name reported for the
+	// Agent's remote-queries execution.
+	developmentService = "datadog-agent-remote-queries"
+	// developmentEnv is the dd-trace-go env tag of the development spans.
+	developmentEnv = "staging"
+	// developmentExecuteOperation is the span wrapping one remote-query
+	// execution; the integration's producer and upload spans nest beneath it.
+	developmentExecuteOperation = "remote_queries.agent_execute"
+
+	// The development span's identity tags: the run's identity and its terminal
+	// status only — never the query text, the target, or any credential, token,
+	// or upload instruction.
+	developmentRunIDTag       = "run_id"
+	developmentTaskIDTag      = "task_id"
+	developmentIntegrationTag = "integration"
+	developmentStatusTag      = "status"
+
+	// developmentDispatchErrorStatus is the terminal status of a dispatch that
+	// failed before the AgentSecure stream produced a terminal event.
+	developmentDispatchErrorStatus = "ERROR"
+)
+
+var (
+	// developmentTracerOnce starts the development tracer at most once per
+	// process, lazily, on the first remote-query execution with development
+	// tracing enabled.
+	developmentTracerOnce sync.Once
+
+	// ensureDevelopmentTracer starts the development tracer on first use. It is
+	// a variable so the unit tests can substitute a no-op while the mocktracer
+	// owns the process's global tracer; production code never reassigns it.
+	ensureDevelopmentTracer = func() {
+		developmentTracerOnce.Do(startDevelopmentTracer)
+	}
+)
+
+// startDevelopmentTracer starts the standard Datadog Go tracer against the
+// development endpoint. The private-action-runner process owns no other
+// dd-trace-go tracer, so the process-wide global tracer is exclusively the
+// development one. Instrumentation telemetry, remote configuration, and
+// runtime metrics are configured only through dd-trace-go environment
+// variables, so they are turned off on the process before the first start:
+// the development tracer must send nothing but the remote_queries spans to the
+// development agent. The 128-bit trace-ID generation is disabled for the same
+// reason — the runner's propagation contract carries 64-bit decimal IDs, and
+// every span of a run must share that ID space. A start failure is fail-open:
+// a remote query must never fail because development observability could not
+// start; the span calls then run on the no-op tracer and the request falls
+// back to the runner's identity.
+func startDevelopmentTracer() {
+	os.Setenv("DD_INSTRUMENTATION_TELEMETRY_ENABLED", "false")
+	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
+	os.Setenv("DD_RUNTIME_METRICS_V2_ENABLED", "false")
+	os.Setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
+	if err := tracer.Start(
+		tracer.WithAgentURL(developmentTraceAgentURL),
+		tracer.WithService(developmentService),
+		tracer.WithEnv(developmentEnv),
+		tracer.WithLogStartup(false),
+	); err != nil {
+		log.Warnf("remote queries: development tracer failed to start, development spans disabled: %v", err)
+	}
+}
+
+// startDevelopmentExecutionSpan starts the development remote_queries.agent_execute
+// span wrapping one remote-query execution, continuing the runner's trace: the
+// span is a child of the action.run span active on ctx (read through the
+// mini-tracer's environment contract), inherits the trace's sampling priority,
+// and is tagged with the run's identity only. It returns the span (nil when
+// development tracing is disabled), the context carrying it, and the trace
+// context the AgentSecure request must propagate: the span's own identity when
+// the span is real, so the integration's spans nest beneath the agent_execute
+// span; otherwise the runner's identity, which is also the disabled path's
+// behavior. With no runner trace the span is a fresh root of its own.
+func startDevelopmentExecutionSpan(ctx context.Context, inputs ExecuteInputs) (*tracer.Span, context.Context, *pb.RemoteQueryTraceContext) {
+	runnerTraceContext := remoteQueryTraceContextFromContext(ctx)
+	if !developmentTracingEnabled {
+		return nil, ctx, runnerTraceContext
+	}
+	ensureDevelopmentTracer()
+	// The standard Datadog propagation headers: the propagator extracts the
+	// runner's trace and sampling priority, making the development span their
+	// child. Without a runner trace the empty carrier starts a fresh root span.
+	carrier := tracer.TextMapCarrier{}
+	if runnerTraceContext != nil {
+		carrier[tracer.DefaultTraceIDHeader] = strconv.FormatUint(runnerTraceContext.GetTraceId(), 10)
+		carrier[tracer.DefaultParentIDHeader] = strconv.FormatUint(runnerTraceContext.GetParentId(), 10)
+		carrier[tracer.DefaultPriorityHeader] = strconv.FormatInt(int64(runnerTraceContext.GetSamplingPriority()), 10)
+	}
+	span, spanCtx := tracer.StartSpanFromPropagatedContext(ctx, developmentExecuteOperation, carrier)
+	if delivery := inputs.ResultDelivery; delivery != nil {
+		span.SetTag(developmentRunIDTag, delivery.RunID)
+		span.SetTag(developmentTaskIDTag, delivery.TaskID)
+	}
+	span.SetTag(developmentIntegrationTag, inputs.Integration)
+	if spanTraceContext := remoteQueryTraceContextFromSpan(span); spanTraceContext != nil {
+		return span, spanCtx, spanTraceContext
+	}
+	// The tracer did not start (fail-open): the span is a no-op with no identity,
+	// so the request carries the runner's own identity as in the disabled path.
+	return span, spanCtx, runnerTraceContext
+}
+
+// remoteQueryTraceContextFromSpan reads the development span's own identity for
+// downstream propagation: the integration's spans become children of this
+// span. It returns nil when the span carries no identity — the tracer did not
+// start and the span is a no-op.
+func remoteQueryTraceContextFromSpan(span *tracer.Span) *pb.RemoteQueryTraceContext {
+	if span == nil {
+		return nil
+	}
+	spanContext := span.Context()
+	traceID := spanContext.TraceIDLower()
+	spanID := spanContext.SpanID()
+	if traceID == 0 || spanID == 0 {
+		return nil
+	}
+	samplingPriority := miniTracerDefaultSamplingPriority
+	if propagated, ok := spanContext.SamplingPriority(); ok {
+		samplingPriority = propagated
+	}
+	return &pb.RemoteQueryTraceContext{
+		TraceId:          traceID,
+		ParentId:         spanID,
+		SamplingPriority: int32(samplingPriority),
+	}
+}
+
+// remoteQueryTerminalStatus maps the dispatch outcome to the development span's
+// terminal-status tag: the AgentSecure terminal status on success and on
+// terminal error events (the error code), and ERROR when the dispatch failed
+// before a terminal event existed.
+func remoteQueryTerminalStatus(output interface{}, err error) string {
+	if err != nil {
+		return developmentDispatchErrorStatus
+	}
+	if out, ok := output.(map[string]interface{}); ok {
+		if status, ok := out["status"].(string); ok && status != "" {
+			return status
+		}
+	}
+	return developmentDispatchErrorStatus
+}
 
 // BridgeClient is the narrow AgentSecure gRPC client surface required by this
 // bundle: the streaming execute RPC and the unary side-effect-free resolve RPC that
@@ -307,7 +510,30 @@ func (a *ExecuteAction) Run(
 		return output, nil
 	}
 
-	stream, err := client.RemoteQueryExecuteStream(ctx, remoteQueryExecuteRequestFromInputs(ctx, inputs))
+	return a.executeRemoteQuery(ctx, client, inputs)
+}
+
+// executeRemoteQuery dispatches the customer SQL through the streaming AgentSecure
+// execute RPC and maps the response stream to the AP action output. When development
+// tracing is enabled, the dispatch is wrapped in the remote_queries.agent_execute
+// span continuing the runner's trace, and the request's trace context carries that
+// span's identity so the integration's spans join the same trace beneath it. The
+// development span is observability only: it never gates or fails the execution.
+func (a *ExecuteAction) executeRemoteQuery(ctx context.Context, client BridgeClient, inputs ExecuteInputs) (interface{}, error) {
+	span, spanCtx, traceContext := startDevelopmentExecutionSpan(ctx, inputs)
+	output, err := dispatchRemoteQueryExecute(spanCtx, client, inputs, traceContext)
+	if span != nil {
+		span.SetTag(developmentStatusTag, remoteQueryTerminalStatus(output, err))
+		span.Finish()
+	}
+	return output, err
+}
+
+// dispatchRemoteQueryExecute runs the streaming AgentSecure execute RPC with the
+// backend-injected upload contract and maps the response stream to the AP action
+// output, failing closed on transport and contract violations.
+func dispatchRemoteQueryExecute(ctx context.Context, client BridgeClient, inputs ExecuteInputs, traceContext *pb.RemoteQueryTraceContext) (interface{}, error) {
+	stream, err := client.RemoteQueryExecuteStream(ctx, remoteQueryExecuteRequestFromInputs(inputs, traceContext))
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
@@ -321,12 +547,13 @@ func (a *ExecuteAction) Run(
 // remoteQueryExecuteRequestFromInputs maps the AP action input to the credential-free
 // AgentSecure request. The fixed operation is emitted by the Agent's native request
 // mapping; the bundle carries the integration, target, query, the explicit includeSchema
-// flag, and the backend-owned result delivery. The active action.run trace context rides
-// along as optional observability metadata: the parent ID is the action.run span's own
-// ID — the span active on the context, not the AP-supplied parent — and an absent or
-// dropped trace context leaves the field unset so the request executes exactly as
-// before.
-func remoteQueryExecuteRequestFromInputs(ctx context.Context, inputs ExecuteInputs) *pb.RemoteQueryExecuteRequest {
+// flag, and the backend-owned result delivery. The active trace context rides along
+// as optional observability metadata: with development tracing it is the wrapping
+// agent_execute span's own identity, so the integration's spans nest beneath it;
+// otherwise it is the runner's identity read from the mini-tracer's environment
+// contract. An absent or dropped trace context leaves the field unset so the request
+// executes exactly as before.
+func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs, traceContext *pb.RemoteQueryTraceContext) *pb.RemoteQueryExecuteRequest {
 	req := &pb.RemoteQueryExecuteRequest{
 		Integration: inputs.Integration,
 		Target: &pb.RemoteQueryTarget{
@@ -359,23 +586,53 @@ func remoteQueryExecuteRequestFromInputs(ctx context.Context, inputs ExecuteInpu
 		}
 		req.ResultDelivery = protoDelivery
 	}
-	req.TraceContext = remoteQueryTraceContextFromContext(ctx)
+	req.TraceContext = traceContext
 	return req
 }
 
-// remoteQueryTraceContextFromContext attaches the active private-action-runner trace
-// to the AgentSecure request. The mini-tracer reports no context for a background
-// context or a dropped trace, in which case the optional field stays absent: trace
-// propagation is fail-open and never gates execution.
+// remoteQueryTraceContextFromContext reads the runner's active trace identity through
+// the fleet mini-tracer's environment-variable contract (telemetry.EnvFromContext):
+// the same DATADOG_TRACE_ID, DATADOG_PARENT_ID, and DATADOG_SAMPLING_PRIORITY values
+// the mini-tracer propagates to child processes. The parent is the span currently
+// active on the context — the action.run span's own ID, never the AP-supplied parent.
+// The field stays absent when there is no identity to continue: no active span, the
+// mini-tracer's drop sentinel (a head-sampled or priority-dropped trace), or malformed
+// values — propagation is fail-open and never gates execution.
 func remoteQueryTraceContextFromContext(ctx context.Context) *pb.RemoteQueryTraceContext {
-	traceCtx, ok := telemetry.TraceContextFromContext(ctx)
-	if !ok {
+	var traceID, parentID uint64
+	var samplingPriority int
+	haveTraceID, haveParentID, haveSamplingPriority := false, false, false
+	for _, entry := range telemetry.EnvFromContext(ctx) {
+		key, value, _ := strings.Cut(entry, "=")
+		var err error
+		switch key {
+		case miniTracerTraceIDEnv:
+			traceID, err = strconv.ParseUint(value, 10, 64)
+			haveTraceID = err == nil
+		case miniTracerParentIDEnv:
+			parentID, err = strconv.ParseUint(value, 10, 64)
+			haveParentID = err == nil
+		case miniTracerSamplingPriorityEnv:
+			samplingPriority, err = strconv.Atoi(value)
+			haveSamplingPriority = err == nil
+		}
+		if err != nil {
+			return nil
+		}
+	}
+	if !haveTraceID || !haveParentID {
 		return nil
 	}
+	if traceID == 0 || parentID == 0 || traceID == miniTracerDropTraceID {
+		return nil
+	}
+	if !haveSamplingPriority {
+		samplingPriority = miniTracerDefaultSamplingPriority
+	}
 	return &pb.RemoteQueryTraceContext{
-		TraceId:          traceCtx.TraceID,
-		ParentId:         traceCtx.SpanID,
-		SamplingPriority: int32(traceCtx.SamplingPriority),
+		TraceId:          traceID,
+		ParentId:         parentID,
+		SamplingPriority: int32(samplingPriority),
 	}
 }
 

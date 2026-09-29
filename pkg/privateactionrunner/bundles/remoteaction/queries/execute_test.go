@@ -9,6 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -17,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -29,6 +33,26 @@ const (
 	testUploadID = "upload-01k"
 	testBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
 )
+
+// TestMain keeps the real development tracer out of every unit test. Development
+// tracing is enabled by default (the development endpoint constant is non-empty),
+// and letting a test start the real tracer would replace whichever tracer owns the
+// process — the mocktracer in the development-span tests — with a live flush loop
+// pointed at the development endpoint. The span path itself stays under test
+// through the mocktracer; only the process-wide tracer start is stubbed out.
+func TestMain(m *testing.M) {
+	ensureDevelopmentTracer = func() {}
+	os.Exit(m.Run())
+}
+
+// setDevelopmentTracing flips the development-tracing gate for one test and
+// restores the production value on cleanup.
+func setDevelopmentTracing(t *testing.T, enabled bool) func() {
+	t.Helper()
+	previous := developmentTracingEnabled
+	developmentTracingEnabled = enabled
+	return func() { developmentTracingEnabled = previous }
+}
 
 func resultDeliveryInputs() map[string]interface{} {
 	return map[string]interface{}{
@@ -999,15 +1023,44 @@ func (s *captureRemoteQueryExecuteStream) Recv() (*pb.RemoteQueryExecuteChunk, e
 
 // activeActionRunContext mirrors the private-action-runner task executor: the
 // action.run span is started from the task-supplied trace and parent IDs, so the
-// context the action runs under carries the action.run span's own identity.
-func activeActionRunContext(t *testing.T, taskTraceID, taskParentSpanID uint64) (context.Context, telemetry.TraceContext) {
+// context the action runs under carries the action.run span's own identity. It
+// returns the context together with the identity the mini-tracer would propagate
+// to a child process (telemetry.EnvFromContext): the trace ID is the task's
+// trace, and the parent is the action.run span's own ID.
+func activeActionRunContext(t *testing.T, taskTraceID, taskParentSpanID uint64) (context.Context, uint64, uint64) {
 	t.Helper()
 	ctx := telemetry.WithService(context.Background(), observability.ParService)
 	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, taskTraceID, taskParentSpanID)
 	t.Cleanup(func() { span.Finish(nil) })
-	traceCtx, ok := telemetry.TraceContextFromContext(ctx)
-	require.True(t, ok, "the action.run context must report an active trace")
-	return ctx, traceCtx
+
+	propagatedTraceID, propagatedParentID := miniTracerEnvTraceIdentity(t, ctx)
+	require.Equal(t, taskTraceID, propagatedTraceID, "the action.run context must propagate the task's trace")
+	return ctx, propagatedTraceID, propagatedParentID
+}
+
+// miniTracerEnvTraceIdentity reads the trace identity the mini-tracer propagates
+// for ctx through the raw environment contract the bundle consumes — the
+// DATADOG_TRACE_ID and DATADOG_PARENT_ID entries of telemetry.EnvFromContext,
+// pinned here by their literal names so a contract drift on either side fails
+// the test.
+func miniTracerEnvTraceIdentity(t *testing.T, ctx context.Context) (traceID, parentID uint64) {
+	t.Helper()
+	var haveTraceID, haveParentID bool
+	for _, entry := range telemetry.EnvFromContext(ctx) {
+		key, value, _ := strings.Cut(entry, "=")
+		switch key {
+		case "DATADOG_TRACE_ID":
+			id, err := strconv.ParseUint(value, 10, 64)
+			require.NoError(t, err)
+			traceID, haveTraceID = id, true
+		case "DATADOG_PARENT_ID":
+			id, err := strconv.ParseUint(value, 10, 64)
+			require.NoError(t, err)
+			parentID, haveParentID = id, true
+		}
+	}
+	require.True(t, haveTraceID && haveParentID, "the action.run context must propagate an active trace")
+	return traceID, parentID
 }
 
 // executeInputsForTraceContextTests is the minimal valid execute-mode input.
@@ -1021,12 +1074,17 @@ func executeInputsForTraceContextTests() map[string]interface{} {
 }
 
 // TestExecuteActionAttachesActiveActionRunTraceContext proves the execute dispatch
-// carries the active action.run trace through the AgentSecure request: the trace ID
-// is the task's trace, the parent ID is the action.run span's own ID — not the
-// task-supplied parent — and the sampling priority is the mini-tracer's effective
-// keep priority. The typed field also survives a binary proto round-trip, so the
-// generated bindings carry it on the real gRPC boundary.
+// carries the runner's active action.run trace through the AgentSecure request:
+// the trace ID is the task's trace, the parent ID is the action.run span's own
+// ID — not the task-supplied parent — and the sampling priority is the mini-tracer's
+// effective keep priority. The identity is read through the mini-tracer's
+// environment contract (EnvFromContext). The typed field also survives a binary
+// proto round-trip, so the generated bindings carry it on the real gRPC boundary.
 func TestExecuteActionAttachesActiveActionRunTraceContext(t *testing.T) {
+	// Development tracing disabled: the propagation-only path, where the request
+	// carries the runner's own identity.
+	defer setDevelopmentTracing(t, false)()
+
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
 		finalEvent(0, validReceipt(), nil),
 		finalMarker(1),
@@ -1035,7 +1093,7 @@ func TestExecuteActionAttachesActiveActionRunTraceContext(t *testing.T) {
 
 	const taskTraceID = uint64(1234567890123456789)
 	const taskParentSpanID = uint64(200)
-	ctx, activeTrace := activeActionRunContext(t, taskTraceID, taskParentSpanID)
+	ctx, _, activeParentID := activeActionRunContext(t, taskTraceID, taskParentSpanID)
 
 	_, err := action.Run(ctx, taskWithInputs(executeInputsForTraceContextTests()), nil)
 
@@ -1044,7 +1102,7 @@ func TestExecuteActionAttachesActiveActionRunTraceContext(t *testing.T) {
 	traceContext := client.request.GetTraceContext()
 	require.NotNil(t, traceContext, "the AgentSecure execute request must carry the active action.run trace context")
 	assert.Equal(t, taskTraceID, traceContext.GetTraceId())
-	assert.Equal(t, activeTrace.SpanID, traceContext.GetParentId())
+	assert.Equal(t, activeParentID, traceContext.GetParentId())
 	assert.NotEqual(t, taskParentSpanID, traceContext.GetParentId(), "the parent ID must be the action.run span, not its parent")
 	assert.Equal(t, int32(2), traceContext.GetSamplingPriority())
 
@@ -1099,7 +1157,7 @@ func TestExecuteActionResolveOnlyIsUnchangedByTraceContext(t *testing.T) {
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
-	ctx, _ := activeActionRunContext(t, 1234567890123456789, 200)
+	ctx, _, _ := activeActionRunContext(t, 1234567890123456789, 200)
 
 	output, err := action.Run(ctx, resolveOnlyTaskWithInputs(map[string]interface{}{
 		"integration": "postgres",
@@ -1141,4 +1199,123 @@ func TestExecuteActionIgnoresTaskSuppliedTraceContext(t *testing.T) {
 	evidence, err := json.Marshal(client.request)
 	require.NoError(t, err)
 	assert.NotContains(t, string(evidence), "1111111111111111111")
+}
+
+// TestExecuteActionDevelopmentSpanWrapsExecution proves the development tracing
+// span: with the development endpoint configured, the execution is wrapped in
+// exactly one remote_queries.agent_execute span that continues the runner's
+// trace (the task's trace ID, the action.run span as parent, the propagated
+// sampling priority), is tagged with the run's identity and terminal status
+// only, and becomes the parent the AgentSecure request propagates so the
+// integration's spans nest beneath it.
+func TestExecuteActionDevelopmentSpanWrapsExecution(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	const taskTraceID = uint64(1234567890123456789)
+	const taskParentSpanID = uint64(200)
+	ctx, activeTraceID, activeParentID := activeActionRunContext(t, taskTraceID, taskParentSpanID)
+
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	_, err := action.Run(ctx, taskWithInputs(executeInputsForTraceContextTests()), nil)
+
+	require.NoError(t, err)
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1, "development tracing must record exactly the agent_execute span")
+	span := spans[0]
+	assert.Equal(t, "remote_queries.agent_execute", span.OperationName())
+
+	// Parenting: the span continues the runner's trace as a child of the active
+	// action.run span, inheriting its sampling priority.
+	assert.Equal(t, activeTraceID, span.TraceID())
+	assert.Equal(t, activeParentID, span.ParentID())
+	assert.Equal(t, float64(2), span.Tag("_sampling_priority_v1"))
+
+	// Tags: the run's identity, the integration, and the terminal status only.
+	assert.Equal(t, testRunID, span.Tag("run_id"))
+	assert.Equal(t, testTaskID, span.Tag("task_id"))
+	assert.Equal(t, "postgres", span.Tag("integration"))
+	assert.Equal(t, "SUCCEEDED", span.Tag("status"))
+
+	// The span never carries the query text, the target, the upload session, or
+	// any credential or token.
+	spanEvidence, err := json.Marshal(span.Tags())
+	require.NoError(t, err)
+	assert.NotContains(t, string(spanEvidence), "SELECT")
+	assert.NotContains(t, string(spanEvidence), "localhost")
+	assert.NotContains(t, string(spanEvidence), testUploadID)
+	assert.NotContains(t, string(spanEvidence), testBaseURL)
+
+	// The request's trace context is the span's own identity, so the integration's
+	// spans nest beneath the agent_execute span rather than beside it.
+	traceContext := client.request.GetTraceContext()
+	require.NotNil(t, traceContext, "the development span's identity must become the propagated trace context")
+	assert.Equal(t, span.TraceID(), traceContext.GetTraceId())
+	assert.Equal(t, span.SpanID(), traceContext.GetParentId())
+	assert.NotEqual(t, activeParentID, traceContext.GetParentId(), "the propagated parent must be the agent_execute span, not the action.run span")
+	assert.Equal(t, int32(2), traceContext.GetSamplingPriority())
+}
+
+// TestExecuteActionDevelopmentSpanContinuesPropagatedSamplingPriority proves the
+// development span inherits a runner-propagated sampling priority (here user
+// keep, 1) instead of falling back to the mini-tracer's flush default, and that
+// the propagated request context carries the same priority.
+func TestExecuteActionDevelopmentSpanContinuesPropagatedSamplingPriority(t *testing.T) {
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	ctx := telemetry.WithSamplingPriority(context.Background(), 1)
+	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, 1234567890123456789, 200)
+	t.Cleanup(func() { span.Finish(nil) })
+
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	_, err := action.Run(ctx, taskWithInputs(executeInputsForTraceContextTests()), nil)
+
+	require.NoError(t, err)
+	spans := mt.FinishedSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, float64(1), spans[0].Tag("_sampling_priority_v1"))
+	traceContext := client.request.GetTraceContext()
+	require.NotNil(t, traceContext)
+	assert.Equal(t, int32(1), traceContext.GetSamplingPriority())
+}
+
+// TestExecuteActionDevelopmentTracingDisabledCreatesNoSpan proves the disabled
+// development switch (the endpoint constant empty): no span is created at all,
+// and the AgentSecure request carries the runner's own identity exactly as
+// before development tracing existed.
+func TestExecuteActionDevelopmentTracingDisabledCreatesNoSpan(t *testing.T) {
+	defer setDevelopmentTracing(t, false)()
+
+	mt := mocktracer.Start()
+	defer mt.Stop()
+
+	const taskTraceID = uint64(1234567890123456789)
+	ctx, activeTraceID, activeParentID := activeActionRunContext(t, taskTraceID, 200)
+
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, validReceipt(), nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	_, err := action.Run(ctx, taskWithInputs(executeInputsForTraceContextTests()), nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, mt.FinishedSpans(), "the disabled development tracer must not create spans")
+	traceContext := client.request.GetTraceContext()
+	require.NotNil(t, traceContext)
+	assert.Equal(t, activeTraceID, traceContext.GetTraceId())
+	assert.Equal(t, activeParentID, traceContext.GetParentId())
+	assert.Equal(t, int32(2), traceContext.GetSamplingPriority())
 }
