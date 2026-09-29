@@ -133,9 +133,9 @@ archive_override(
         # Windows runfiles junctions cannot point at files; follow them on copy.
         "//bazel/patches:rules_pkg-windows-junction-copy.patch",
     ],
-    sha256 = "9923c6c8855b153f837a953760159908507f571b4b77cb24ed862dda1de20f90",
-    strip_prefix = "rules_pkg-401969d4367c42dcbb45d33a637eae87788d025e",
-    urls = ["https://github.com/bazelbuild/rules_pkg/archive/401969d4367c42dcbb45d33a637eae87788d025e.tar.gz"],  # main as of April 22, 2026
+    sha256 = "54a824c8d57c4f1e9dad9aee7ffab63eeff90e793afd1a20fe42b4c3dc060cfe",
+    strip_prefix = "rules_pkg-4d04b6cb28e65c52af84a0e80808e883e581a43e",
+    urls = ["https://github.com/bazelbuild/rules_pkg/archive/4d04b6cb28e65c52af84a0e80808e883e581a43e.tar.gz"],  # main as of Oct 01, 2026
 )
 
 # Temporary until https://github.com/bazel-contrib/toolchains_llvm/pull/790 lands in a release
