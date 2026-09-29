@@ -12,7 +12,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -22,7 +21,6 @@ import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
 // withProbeTarget points the probe at a local listener with short timeouts.
@@ -85,23 +83,55 @@ func TestCheck_HostnameConfigured(t *testing.T) {
 	assert.Equal(t, "true", reports[0].Context[contextKeyHostnameConfigured])
 }
 
-func TestCheck_IMDSReachable(t *testing.T) {
-	for _, status := range []int{http.StatusOK, http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError, http.StatusFound} {
-		t.Run(strconv.Itoa(status), func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodPut, r.Method)
-				assert.Equal(t, "/latest/api/token", r.URL.Path)
-				assert.Equal(t, "21600", r.Header.Get(ec2.TokenTTLHeader))
-				w.Header().Set("Location", "http://127.0.0.1:1/unreachable")
-				w.WriteHeader(status)
-			}))
-			defer srv.Close()
-			m := setupCheck(t, srv.Listener.Addr().String())
-			reports, err := m.BuiltInStartupHealthCheck().Fn()
-			require.NoError(t, err)
-			assert.Empty(t, reports)
-		})
-	}
+// routedServer answers GET (IMDSv1) and PUT (IMDSv2 token) with fixed status codes.
+func routedServer(t *testing.T, getStatus, putStatus int) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(getStatus)
+			return
+		}
+		w.WriteHeader(putStatus)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestCheck_IMDSv1Reachable covers the optional-token case (incl. hop limit 1): the IMDSv1
+// GET succeeds, so metadata is available and no issue is reported even though IMDSv2 may be down.
+func TestCheck_IMDSv1Reachable(t *testing.T) {
+	srv := routedServer(t, http.StatusOK, http.StatusInternalServerError)
+	m := setupCheck(t, srv.Listener.Addr().String())
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
+// TestCheck_IMDSv2RequiredReachable: IMDSv1 disabled (401) but the token PUT succeeds, so no issue.
+func TestCheck_IMDSv2RequiredReachable(t *testing.T) {
+	srv := routedServer(t, http.StatusUnauthorized, http.StatusOK)
+	m := setupCheck(t, srv.Listener.Addr().String())
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
+// TestCheck_IMDSv2RequiredHopLimit: IMDSv1 disabled (401) and the token PUT is dropped, so the
+// agent cannot retrieve metadata and the issue is reported.
+func TestCheck_IMDSv2RequiredHopLimit(t *testing.T) {
+	stop := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		<-stop // token PUT response dropped by the hop limit
+	}))
+	t.Cleanup(func() { close(stop); srv.Close() })
+	m := setupCheck(t, srv.Listener.Addr().String())
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
 }
 
 func TestCheck_ConnectionRefused(t *testing.T) {
