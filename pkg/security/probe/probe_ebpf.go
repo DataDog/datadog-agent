@@ -1684,7 +1684,7 @@ func (p *EBPFProbe) logExecInoReadStats() {
 		return
 	}
 
-	var v [5]uint64
+	var v [7]uint64
 	for i := range v {
 		if err := m.Lookup(uint32(i), &v[i]); err != nil {
 			if !p.execInoReadsLogged.Swap(true) {
@@ -1694,17 +1694,22 @@ func (p *EBPFProbe) logExecInoReadStats() {
 		}
 	}
 
-	// Slot 0 is the attempt count, so it alone changing means the reads are all healthy.
-	// Report once regardless, because otherwise a healthy run and a broken instrument
-	// (map missing, lookup failing) both produce exactly no output.
-	failures := v[1] + v[2] + v[3] + v[4]
-	if prev := p.lastExecInoReads.Swap(failures); prev == failures && p.execInoReadsLogged.Swap(true) {
+	// Log on ANY movement, attempts included. Keying this on the failure sum alone meant the
+	// line printed once and then went quiet, so its attempt count froze at the first tick
+	// and a clean reading only ever covered the start of the run -- which is how the
+	// previous round produced a number that looked like a whole-run result and was not.
+	// Still report once even when nothing moved, so silence cannot mean a dead instrument.
+	var total uint64
+	for _, n := range v {
+		total += n
+	}
+	if prev := p.lastExecInoReads.Swap(total); prev == total && p.execInoReadsLogged.Swap(true) {
 		return
 	}
 	p.execInoReadsLogged.Store(true)
 
-	seclog.Warnf("exec path_key inode reads: %d attempts, %d failed from inode, %d failed from path, %d returned zero, %d returned a kernel pointer",
-		v[0], v[1], v[2], v[3], v[4])
+	seclog.Warnf("exec path_key inode reads: %d attempts, %d failed from inode, %d failed from path, %d returned zero, %d returned a kernel pointer; early returns: %d with the key already written, %d with a stale dentry and no key",
+		v[0], v[1], v[2], v[3], v[4], v[5], v[6])
 }
 
 // logExecZeroKeyClass reports what kind of syscall-cache entry send_exec_event actually

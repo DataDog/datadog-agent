@@ -12,18 +12,24 @@
 #define EXEC_INO_ERR_FROM_PATH 2
 #define EXEC_INO_ZERO 3
 #define EXEC_INO_POINTER_SHAPED 4
+#define EXEC_INO_SECOND_PASS_KEYED 5
+#define EXEC_INO_STALE_DENTRY 6
 
 // Kernel addresses on both supported architectures sit in the top half, so an "inode number"
 // in that range was never one. Distinguishing it from 0 matters: a failed bpf_probe_read
 // zeroes its destination, so 0 and a pointer point at different causes.
 #define KERNEL_POINTER_FLOOR 0xffff000000000000ULL
 
-static void __attribute__((always_inline)) record_exec_ino_read(int from_inode, long err, unsigned long ino) {
-    u32 slot = EXEC_INO_ATTEMPTS;
+static void __attribute__((always_inline)) bump_exec_ino_slot(u32 slot) {
     u64 *counter = bpf_map_lookup_elem(&exec_ino_read_stats, &slot);
     if (counter != NULL) {
         __sync_fetch_and_add(counter, 1);
     }
+}
+
+static void __attribute__((always_inline)) record_exec_ino_read(int from_inode, long err, unsigned long ino) {
+    u32 slot = EXEC_INO_ATTEMPTS;
+    bump_exec_ino_slot(slot);
 
     if (err != 0) {
         slot = from_inode ? EXEC_INO_ERR_FROM_INODE : EXEC_INO_ERR_FROM_PATH;
@@ -35,10 +41,7 @@ static void __attribute__((always_inline)) record_exec_ino_read(int from_inode, 
         return;
     }
 
-    counter = bpf_map_lookup_elem(&exec_ino_read_stats, &slot);
-    if (counter != NULL) {
-        __sync_fetch_and_add(counter, 1);
-    }
+    bump_exec_ino_slot(slot);
 }
 
 int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_cache_t *syscall, struct file *file, struct inode *inode) {
@@ -54,6 +57,16 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
                 set_overlayfs_nlink(dentry, &syscall->exec.file);
             }
         }
+
+        // Which kind of early return is this? The key and the dentry are written together
+        // below, so a key that is still 0/0 here means no earlier call wrote one and the
+        // dentry this entry arrived with is not ours. exec shares its union with unlink,
+        // rmdir, xattr, selinux and chdir, every one of which places a dentry * at this
+        // same offset, so a stale dentry is a concrete possibility -- and it would return
+        // here without writing a key, which is exactly what exec_zero_key_class sees:
+        // a real ctx_id, a dentry set, and a 0/0 key.
+        int keyed = syscall->exec.file.path_key.ino != 0 || syscall->exec.file.path_key.mount_id != 0;
+        bump_exec_ino_slot(keyed ? EXEC_INO_SECOND_PASS_KEYED : EXEC_INO_STALE_DENTRY);
         return 0;
     }
     syscall->exec.dentry = dentry;
