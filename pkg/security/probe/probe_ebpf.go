@@ -1966,14 +1966,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
-		// Remember who asked, so the matching response can be attributed back to this process.
-		// The sample flag covers two kernel-side cases (reset_dns_event in
-		// helpers/network/dns.h): a pid an activity dump is tracing, and a rate-limited sample of
-		// everything else, taken by approve_dns_sample when
-		// runtime_security_config.event_sampling.dns.enabled is set (off by default, rate 500/s).
-		// Both genuinely feed profiles under the V2 manager, so both are recorded. Under sampling
-		// those extra requests do compete for the tracker's 1024 slots, but the cost of losing one
-		// is only a miss, never a misattribution: an evicted key simply stops matching.
+		// remember who sent the request, so that the response can be attributed to it
 		if event.Error == nil && event.IsActivityDumpSample() && p.dnsRequests != nil {
 			p.dnsRequests.recordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
 		}
@@ -3612,10 +3605,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	dnsRequests, err := newDNSRequestTracker(dnsRequestTrackerSize, dnsRequestTrackerTTL)
-	if err != nil {
-		cancelFnc()
-		return nil, fmt.Errorf("couldn't create the DNS request tracker: %w", err)
+	var dnsRequests *dnsRequestTracker
+	if config.RuntimeSecurity.SecurityProfileV2Enabled {
+		if dnsRequests, err = newDNSRequestTracker(dnsRequestTrackerSize, dnsRequestTrackerTTL); err != nil {
+			cancelFnc()
+			return nil, fmt.Errorf("couldn't create the DNS request tracker: %w", err)
+		}
 	}
 
 	p := &EBPFProbe{

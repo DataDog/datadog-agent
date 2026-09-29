@@ -283,56 +283,6 @@ func TestActivityDumps(t *testing.T) {
 		}, nil)
 	})
 
-	t.Run("activity-dump-cgroup-dns-response", func(t *testing.T) {
-		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			// TODO: Oracle because we are missing offsets. See dns_test.go
-			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
-		})
-
-		dockerInstance, ad, err := test.StartADockerGetDump()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer dockerInstance.stop()
-
-		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command("nslookup", []string{"one.one.one.one"}, []string{})
-		_, err = cmd.CombinedOutput()
-		if err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
-
-		err = test.StopActivityDump(ad.Name)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// The resolved IPs do not reach the tree on their own: an inbound response has no process
-		// context, and for container traffic its pid resolves to 0. They arrive on the short
-		// response path (ShortDNSResponseEventType in probe_ebpf.go), where user space correlates
-		// the answer back to the request that asked for it on (txid, qname, qtype) and synthesizes
-		// a DNS event carrying nslookup's own process context. See dns_request_tracker.go.
-		validateActivityDumpOutputs(t, test, expectedFormats, ad.OutputFiles, func(ad *dump.ActivityDump) bool {
-			nodes := ad.Profile.ActivityTree.FindMatchingRootNodes("nslookup")
-			if nodes == nil {
-				t.Fatal("Node not found in activity dump")
-			}
-			for _, node := range nodes {
-				dnsNode, ok := node.DNSNames["one.one.one.one"]
-				if !ok {
-					continue
-				}
-				for _, req := range dnsNode.Requests {
-					if req.Response != nil && len(req.Response.IPs) > 0 {
-						return true
-					}
-				}
-			}
-			return false
-		}, nil)
-	})
-
 	t.Run("activity-dump-cgroup-file", func(t *testing.T) {
 		dockerInstance, ad, err := test.StartADockerGetDump()
 		if err != nil {

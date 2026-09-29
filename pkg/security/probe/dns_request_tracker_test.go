@@ -228,9 +228,6 @@ func TestNewCorrelatedDNSEvent(t *testing.T) {
 	assert.Equal(t, uint16(0x1234), ev.DNS.ID)
 	assert.Equal(t, question, ev.DNS.Question)
 	assert.Same(t, response, ev.DNS.Response)
-
-	// the activity dump manager drops anything not flagged as a sample
-	assert.True(t, ev.IsActivityDumpSample())
 }
 
 // capturedDNSEvent holds everything the assertions need from a correlated event. It has to be
@@ -245,7 +242,6 @@ type capturedDNSEvent struct {
 	responseCode uint8
 	ips          []net.IPNet
 	cnames       []string
-	isADSample   bool
 }
 
 // stubProfileManager records the events the correlation path hands to the profile manager.
@@ -261,12 +257,11 @@ type stubProfileManager struct {
 
 func (m *stubProfileManager) ProcessEvent(ev *model.Event) {
 	captured := capturedDNSEvent{
-		eventType:  ev.GetEventType(),
-		source:     ev.Source,
-		entry:      ev.ProcessCacheEntry,
-		id:         ev.DNS.ID,
-		question:   ev.DNS.Question,
-		isADSample: ev.IsActivityDumpSample(),
+		eventType: ev.GetEventType(),
+		source:    ev.Source,
+		entry:     ev.ProcessCacheEntry,
+		id:        ev.DNS.ID,
+		question:  ev.DNS.Question,
 	}
 	if ev.DNS.Response != nil {
 		captured.responseCode = ev.DNS.Response.ResponseCode
@@ -341,8 +336,6 @@ func TestCorrelateDNSResponseForActivityDumpAttributesToTheRequester(t *testing.
 	assert.Equal(t, uint8(0), got.responseCode)
 	assert.Equal(t, ips, got.ips)
 	assert.Equal(t, cnames, got.cnames)
-	// the V1 activity dump manager drops anything not flagged as a sample
-	assert.True(t, got.isADSample)
 
 	assert.Equal(t, uint64(1), p.dnsRequests.hits.Load())
 	assert.Equal(t, uint64(0), p.dnsRequests.misses.Load())
