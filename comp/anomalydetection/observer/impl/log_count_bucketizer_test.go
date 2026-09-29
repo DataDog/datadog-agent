@@ -24,10 +24,11 @@ func testLogStorageKey(namespace string, metric observerdef.MetricOutput, host s
 func (*fixedLogCountExtractor) Name() string { return "fixed_log_count" }
 func (*fixedLogCountExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
 	return observerdef.LogMetricsExtractorOutput{Metrics: []observerdef.MetricOutput{{
-		Name:    "log.fixed.count",
-		Value:   1,
-		Tags:    tagset.CompositeTagsFromSlice(log.Tags()),
-		Context: &observerdef.MetricContext{Pattern: "fixed"},
+		Name:       "log.fixed.count",
+		Value:      1,
+		Tags:       tagset.CompositeTagsFromSlice(log.Tags()),
+		HasContext: true,
+		Context:    observerdef.MetricContext{Pattern: "fixed"},
 	}}}
 }
 
@@ -35,9 +36,10 @@ func TestMaterializedLogCountBucketizerCountsAndZeros(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 10})
 	metric := observerdef.MetricOutput{
-		Name:    "log.pattern.count",
-		Value:   1,
-		Context: &observerdef.MetricContext{Pattern: "request <*>"},
+		Name:       "log.pattern.count",
+		Value:      1,
+		HasContext: true,
+		Context:    observerdef.MetricContext{Pattern: "request <*>"},
 	}
 	tags := tagset.CompositeTagsFromSlice([]string{"service:api"})
 
@@ -53,9 +55,36 @@ func TestMaterializedLogCountBucketizerCountsAndZeros(t *testing.T) {
 	}, series.Points)
 	meta := storage.ListSeries(observerdef.WorkloadSeriesFilter())
 	require.Len(t, meta, 1)
-	assert.Equal(t, "request <*>", storage.GetContext(meta[0].Ref).Pattern)
+	context, ok := storage.GetContext(meta[0].Ref)
+	require.True(t, ok)
+	assert.Equal(t, "request <*>", context.Pattern)
 	assert.True(t, storage.SupportsAggregate(meta[0].Ref, observerdef.AggregateAverage))
 	assert.False(t, storage.SupportsAggregate(meta[0].Ref, observerdef.AggregateCount))
+}
+
+func TestMaterializedLogCountBucketizerKeepsLatestContext(t *testing.T) {
+	storage := newTimeSeriesStorageWith(StorageConfig{})
+	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})
+	metric := observerdef.MetricOutput{
+		Name:       "log.pattern.count",
+		Value:      1,
+		HasContext: true,
+		Context:    observerdef.MetricContext{Example: "first"},
+	}
+	tags := tagset.CompositeTags{}
+	key := testLogStorageKey("logs", metric, "", tags)
+	require.True(t, b.observe("logs", metric, "", 1, tags, key))
+	metric.Context.Example = "second"
+	require.True(t, b.observe("logs", metric, "", 2, tags, key))
+	metric.HasContext = false
+	require.True(t, b.observe("logs", metric, "", 3, tags, key))
+	b.flush(storage, 5)
+
+	series := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	require.Len(t, series, 1)
+	context, ok := storage.GetContext(series[0].Ref)
+	require.True(t, ok)
+	assert.Equal(t, "second", context.Example)
 }
 
 func TestMaterializedLogCountBucketizerRetainsSeriesKey(t *testing.T) {
