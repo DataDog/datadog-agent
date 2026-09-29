@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
@@ -24,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// watchConfigExperimentCommand is the package-command name the detached watcher process runs,
+// dispatched through runDatadogAgentPackageCommand (see packages_darwin.go's packageCommands).
+const watchConfigExperimentCommand = "watchConfigExperiment"
 
 var datadogAgentPackage = hooks{
 	preInstall:  preInstallDatadogAgent,
@@ -492,10 +498,59 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
-// postStartConfigExperimentDatadogAgent hands the Agent over to the experiment job set. The
-// installer has already published the experiment configuration directory by the time it runs.
+// postStartConfigExperimentDatadogAgent hands the Agent over to the experiment job set, then
+// launches the detached watcher process that supervises it. The installer has already published
+// the experiment configuration directory by the time it runs.
+//
+// A watcher that fails to launch is treated the same as a failed start: an experiment running
+// with no process watching its deadline or its exit is exactly the gap this feature exists to
+// close, so it is reverted rather than left running unsupervised.
 func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
-	return configExperiment{jobs: agentJobSet()}.Start(ctx)
+	if err := (configExperiment{jobs: agentJobSet()}).Start(ctx); err != nil {
+		return err
+	}
+	if err := launchConfigExperimentWatcher(ctx); err != nil {
+		log.Errorf("could not launch the configuration experiment watcher, reverting: %v", err)
+		if revertErr := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); revertErr != nil {
+			return fmt.Errorf("watcher failed to launch (%w) and the experiment could not be reverted: %w", err, revertErr)
+		}
+		return fmt.Errorf("watcher failed to launch, experiment reverted: %w", err)
+	}
+	return nil
+}
+
+// launchConfigExperimentWatcher starts the detached watcher process, mirroring the Windows
+// experiment watchdog's launchPackageCommandInBackground: it re-execs the installer binary with
+// the hidden `package-command` subcommand, detached from this process's context so it outlives
+// the hook that launched it.
+//
+// Indirected so tests can stub it without spawning a real process, the same way launchdClient is
+// indirected for launchd.
+var launchConfigExperimentWatcher = func(ctx context.Context) error {
+	installerBin, err := exec.GetExecutable()
+	if err != nil {
+		return fmt.Errorf("could not get the installer executable path: %w", err)
+	}
+	installerBin, err = filepath.EvalSymlinks(installerBin)
+	if err != nil {
+		return fmt.Errorf("could not resolve the installer executable path: %w", err)
+	}
+	installer := exec.NewInstallerExec(env.FromEnv(), installerBin)
+	return installer.StartPackageCommandDetached(ctx, agentPackage, watchConfigExperimentCommand)
+}
+
+// runDatadogAgentPackageCommand dispatches commands run by a detached process launched via
+// launchConfigExperimentWatcher. Registered into packageCommands in packages_darwin.go.
+func runDatadogAgentPackageCommand(ctx context.Context, command string) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, command)
+	defer func() { span.Finish(err) }()
+
+	switch command {
+	case watchConfigExperimentCommand:
+		return watchExperiment(ctx)
+	default:
+		return fmt.Errorf("unknown package command: %s", command)
+	}
 }
 
 // preStopConfigExperimentDatadogAgent hands the Agent back to the stable job set, before the
