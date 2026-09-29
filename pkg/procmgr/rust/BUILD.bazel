@@ -203,12 +203,13 @@ rust_test(
     }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    # runfiles: schema sync on every platform. Windows also pulls it in via
-    # _TEST_HELPERS_DEPS for graceful-sleeper; Bazel dedupes the label.
+    # runfiles: schema sync resolves DD_CONFIG_SCHEMA_CORE_YAML on every OS.
+    # Do not also append _TEST_HELPERS_DEPS: on Windows that select already
+    # lists @crates//:runfiles, and Bazel rejects the duplicate label.
     deps = [
         "@crates//:runfiles",
         "@crates//:tempfile",
-    ] + _TEST_HELPERS_DEPS,
+    ],
 )
 
 rust_test(
