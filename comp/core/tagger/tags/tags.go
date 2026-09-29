@@ -105,6 +105,8 @@ const (
 	KubeAppPartOf = "kube_app_part_of"
 	// KubeAppManagedBy is the tag for the "app.kubernetes.io/managed-by" Kubernetes label
 	KubeAppManagedBy = "kube_app_managed_by"
+	// DynamoGraphDeployment is the name of the DynamoGraphDeployment that owns a Kubernetes pod
+	DynamoGraphDeployment = "dynamo_graph_deployment"
 	// KueueLocalQueue is the tag for the admitted Kueue local queue name from pod labels
 	KueueLocalQueue = "kueue_local_queue"
 	// KueueClusterQueue is the tag for the admitted Kueue cluster queue name from pod labels
