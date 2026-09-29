@@ -3053,7 +3053,6 @@ properties:
     node_type: setting
     type: integer
     default: 1
-    visibility: public
     description: |-
       Number of goroutines used to read and parse integration configuration files
       concurrently when scanning a configuration directory. This value must be >= 1.
