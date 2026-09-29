@@ -77,6 +77,22 @@ func installMarkerForTest(t *testing.T, root string, service MigratableService, 
 	return markers[index]
 }
 
+// requireNoInstallMarkers asserts the "no install marker" premise the absent-marker tests rely on.
+// Most marker paths live under the test's temp root, but on Windows one points at the machine-wide
+// fleet packages directory, so a real install on the host would otherwise make those tests pass or
+// fail for the wrong reason.
+func requireNoInstallMarkers(t *testing.T, root string, service MigratableService) {
+	t.Helper()
+
+	for _, marker := range installMarkerPaths(root, service) {
+		if marker == "" {
+			continue
+		}
+		require.NoFileExists(t, marker,
+			"test requires a host with no %s install marker on disk", service.ID)
+	}
+}
+
 func setupDDOTInstallFixture(t *testing.T) string {
 	t.Helper()
 
@@ -247,6 +263,7 @@ func TestCollectInstallMarkerAbsent(t *testing.T) {
 		[]byte("cfg"),
 		0o644,
 	))
+	requireNoInstallMarkers(t, root, ddot)
 
 	collector := NewCollectorWithClient(root, &mockClient{})
 
@@ -269,6 +286,7 @@ func TestCollectInstallMarkerAbsentButProcmgrSupervises(t *testing.T) {
 		[]byte("cfg"),
 		0o644,
 	))
+	requireNoInstallMarkers(t, root, ddot)
 
 	collector := NewCollectorWithClient(root, &mockClient{
 		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
