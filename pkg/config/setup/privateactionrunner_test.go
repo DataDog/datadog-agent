@@ -57,6 +57,15 @@ func TestPrivateActionRunnerKubernetesAllowedCustomResourcesFromEnv(t *testing.T
 	assert.Equal(t, []string{"cert-manager.io/v1/certificates", "argoproj.io/v1alpha1/applications"}, cfg.GetStringSlice(PARKubernetesAllowedCustomResources))
 }
 
+func TestPrivateActionRunnerKubernetesAllowedCustomResourcesFromCommaSeparatedEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_KUBERNETES_ALLOWED_CUSTOM_RESOURCES", "v1/pods")
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARKubernetesAllowedCustomResources))
+	assert.Equal(t, []string{"v1/pods"}, cfg.GetStringSlice(PARKubernetesAllowedCustomResources))
+}
+
 func TestPrivateActionRunnerKubernetesAllowedCustomResourcesEmptyEnv(t *testing.T) {
 	t.Setenv("DD_PRIVATE_ACTION_RUNNER_KUBERNETES_ALLOWED_CUSTOM_RESOURCES", `[]`)
 

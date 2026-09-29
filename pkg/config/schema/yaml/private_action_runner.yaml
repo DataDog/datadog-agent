@@ -95,7 +95,7 @@ properties:
     node_type: setting
     type: array
     default: []
-    env_parser: json
+    env_parser: json_list_or_comma_separated
     items:
       type: string
     visibility: public
