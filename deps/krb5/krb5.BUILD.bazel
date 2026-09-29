@@ -20,7 +20,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
+        download_url = "https://kerberos.org/dist/krb5/1.21/krb5-{version}.tar.gz",
         package = "krb5",
         version = VERSION,
     ),
