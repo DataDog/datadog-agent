@@ -84,6 +84,7 @@ func getMinRemainingRequestsTracker() *minTracker {
 }
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
+// Queries must be validated by QueryExternalMetric before calling this function.
 // It should ALWAYS return either: (nil, err) or (map[string]Point, nil)
 // The former is used to signal a global error with the query, the latter is used to signal a successful query with potentially some errors per query.
 func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
@@ -91,11 +92,6 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 	if ddQueriesLen == 0 {
 		log.Tracef("No query in input - nothing to do")
 		return nil, nil
-	}
-	for _, query := range ddQueries {
-		if err := validateDatadogExternalQuery(query); err != nil {
-			return nil, NewProcessingError(fmt.Sprintf("invalid query %q: %v", query, err))
-		}
 	}
 
 	batchedQuery := strings.Join(ddQueries, ",")
