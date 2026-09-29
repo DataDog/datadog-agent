@@ -9,6 +9,7 @@ easyjson(
     output = "serializers_linux_easyjson.go",
     package = ":serializers",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/serializers",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 # The second //go:generate directive in serializers_linux.go generates from
@@ -20,6 +21,7 @@ easyjson(
     output = "serializers_base_linux_easyjson.go",
     package = ":serializers",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/serializers",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 go_library(

@@ -8,6 +8,7 @@ easyjson(
     output = "policy_monitor_easyjson.go",
     package = ":monitor",
     package_path = "github.com/DataDog/datadog-agent/pkg/security/rules/monitor",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 go_library(

@@ -1,4 +1,12 @@
 {
+    "alma-linux": {
+        "arm64": {
+            "9": "ami-0e45a8ceb7f9316a7"
+        },
+        "x86_64": {
+            "9": "ami-00a43ffa1aad6a150"
+        }
+    },
     "amazon-linux": {
         "arm64": {
             "2": "ami-014a2929b68fa9931",
@@ -54,20 +62,22 @@
     },
     "redhat": {
         "x86_64": {
-            "8": "ami-031eff1ae75bb87e4",
+            "8": "ami-0fbdded980e0521d5",
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-0d424760e95da7d14",
-            "10": "ami-07b1b74df74f960a5"
+            "9": "ami-05c74561bdbc47d40",
+            "9-fapolicyd": "ami-01f0a4c82982b7042",
+            "9-selinux-npm": "ami-0bc45d2baad82a17f",
+            "10": "ami-0adac54b92c530a04"
         }
     },
     "suse": {
         "arm64": {
-            "15-4": "ami-0d7334a81571ed818"
+            "15-4": "ami-0d4afd2f545696595"
         },
         "x86_64": {
             "12": "ami-073614fc408ea4c0e",
-            "15-4": "ami-0e0dc7f06ad915a7f"
+            "15-4": "ami-011fc7361d5dd06d1"
         }
     },
     "ubuntu": {
@@ -81,7 +91,7 @@
             "18-04": "ami-016df41acf36b4cc7",
             "20-04": "ami-08b7b6b1a33c2c5c4",
             "22-04": "ami-0c75be60114191340",
-            "22-04-e2e": "ami-0c75be60114191340",
+            "22-04-e2e": "ami-02c30d29c56aabc9f",
             "24-04": "ami-0b958b92f3311629a",
             "24-04-e2e": "ami-0b958b92f3311629a"
         }
