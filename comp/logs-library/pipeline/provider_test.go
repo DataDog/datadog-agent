@@ -393,7 +393,7 @@ func TestFoldspaceDualShipKeepsHTTPSender(t *testing.T) {
 	cfg.SetInTest("logs_config.message_channel_size", 10)
 
 	orig := newFoldspaceCore
-	newFoldspaceCore = func(dest *foldspace.DestinationConfig) (foldspace.Core, error) {
+	newFoldspaceCore = func(_ *foldspace.DestinationConfig) (foldspace.Core, error) {
 		return foldspace.NewFakeCore(foldspace.FakeCoreConfig{Classes: []foldspace.SenderClass{foldspace.Reliable}}), nil
 	}
 	defer func() { newFoldspaceCore = orig }()
