@@ -154,6 +154,43 @@ func TestBuildMessageAdvancesLastSince(t *testing.T) {
 	assert.Equal(t, expected.Add(time.Nanosecond), tailer.getLastSince())
 }
 
+// TestBuildMessageTagWireOrder pins the container tailer's tag wire order:
+// parsing tags, then provider tags, followed by the source category and the
+// configured tags (JSON/protobuf), or configured first (raw).
+func TestBuildMessageTagWireOrder(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Source:         "nginx",
+		SourceCategory: "web",
+		Tags:           []string{"env:prod", "team:infra"},
+	})
+	tailer := &Tailer{
+		ContainerID: "abc123",
+		Source:      source,
+		tagProvider: tag.NewLocalProvider([]string{"container_name:nginx", "image_name:nginx"}),
+	}
+	output := message.NewMessageWithParsingExtra(
+		[]byte("hello"),
+		message.NewOrigin(source),
+		message.StatusInfo,
+		0,
+		message.ParsingExtra{
+			Timestamp: "2026-09-29T12:00:00.000000000Z",
+			Tags:      []string{"truncated:single_line", "noisy_log:true"},
+		},
+	)
+
+	built := buildMessage(tailer, output)
+
+	assert.Equal(t, []string{
+		"truncated:single_line", "noisy_log:true", "container_name:nginx", "image_name:nginx",
+		"sourcecategory:web", "env:prod", "team:infra",
+	}, built.Origin.Tags())
+	assert.Equal(t, "truncated:single_line,noisy_log:true,container_name:nginx,image_name:nginx,sourcecategory:web,env:prod,team:infra",
+		built.Origin.TagsToString())
+	assert.Equal(t, `[dd ddsource="nginx"][dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra,truncated:single_line,noisy_log:true,container_name:nginx,image_name:nginx"]`,
+		string(built.Origin.TagsPayload(nil)))
+}
+
 func TestRead(t *testing.T) {
 	tailer := NewTestTailer(&mockReaderNoSleep{}, nil, func() {})
 	inBuf := make([]byte, 4096)

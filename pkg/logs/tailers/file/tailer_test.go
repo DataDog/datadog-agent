@@ -26,6 +26,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
@@ -324,6 +325,43 @@ func (suite *TailerTestSuite) TestOriginTagsWhenTailingFiles() {
 		"filename:" + filepath.Base(suite.testFile.Name()),
 		"dirname:" + filepath.Dir(suite.testFile.Name()),
 	}, tags)
+}
+
+// TestOriginTagWireOrder pins the file tailer's tag wire order end to end:
+// path tags, then provider tags, then parsing tags, followed by the source
+// category and the configured tags (JSON/protobuf), or configured first (raw).
+func (suite *TailerTestSuite) TestOriginTagWireOrder() {
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetInTest("logs_config.max_message_size_bytes", 3)
+	mockConfig.SetInTest("logs_config.tag_truncated_logs", true)
+	mockConfig.SetInTest("logs_config.auto_multi_line_detection_tagging", false)
+
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Type:           config.FileType,
+		Path:           suite.testPath,
+		Source:         "nginx",
+		SourceCategory: "web",
+		Tags:           []string{"env:prod", "team:infra"},
+	})
+	suite.tailer = NewTailer(suite.createTailerOptions(&tailerTestOptions{source: source}))
+	suite.tailer.tagProvider = tag.NewLocalProvider([]string{"container_name:nginx"})
+	suite.Require().NoError(suite.tailer.StartFromBeginning())
+
+	_, err := suite.testFile.WriteString("1234\n")
+	suite.Require().NoError(err)
+
+	msg := <-suite.outputChan
+	filename := "filename:" + filepath.Base(suite.testPath)
+	dirname := "dirname:" + filepath.Dir(suite.testPath)
+	suite.Equal([]string{
+		filename, dirname, "container_name:nginx", "truncated:single_line",
+		"sourcecategory:web", "env:prod", "team:infra",
+	}, msg.Origin.Tags())
+	suite.Equal(filename+","+dirname+",container_name:nginx,truncated:single_line,sourcecategory:web,env:prod,team:infra",
+		msg.Origin.TagsToString())
+	suite.Equal(`[dd ddsource="nginx"][dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra,`+
+		filename+","+dirname+`,container_name:nginx,truncated:single_line"]`,
+		string(msg.Origin.TagsPayload(nil)))
 }
 
 func (suite *TailerTestSuite) TestDirTagWhenTailingFiles() {

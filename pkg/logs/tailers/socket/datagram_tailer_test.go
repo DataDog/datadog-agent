@@ -185,3 +185,45 @@ func TestDatagramTailer_Unstructured_EndToEnd(t *testing.T) {
 
 	tailer.Stop()
 }
+
+// TestDatagramTailer_TagWireOrder pins the datagram tailer's tag wire order:
+// parsing tags only, followed by the source category and the configured tags
+// (JSON/protobuf), or configured first (raw).
+func TestDatagramTailer_TagWireOrder(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("logs_config.use_sourcehost_tag", true)
+
+	serverConn, serverAddr := newTestUDPConn(t)
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("", &logsConfig.LogsConfig{
+		Source:         "nginx",
+		SourceCategory: "web",
+		Tags:           []string{"env:prod", "team:infra"},
+	})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewDatagramTailer(source, serverConn, outputChan, true, 0, nil)
+	tailer.Start()
+
+	clientConn, err := net.DialUDP("udp", nil, serverAddr)
+	require.NoError(t, err)
+	defer clientConn.Close()
+
+	_, err = clientConn.Write([]byte("plain text log line"))
+	require.NoError(t, err)
+
+	var msg *message.Message
+	select {
+	case msg = <-outputChan:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for UDP message")
+	}
+
+	assert.Equal(t, []string{"source_host:127.0.0.1", "sourcecategory:web", "env:prod", "team:infra"}, msg.Origin.Tags())
+	assert.Equal(t, "source_host:127.0.0.1,sourcecategory:web,env:prod,team:infra", msg.Origin.TagsToString())
+	assert.Equal(t, `[dd ddsource="nginx"][dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra,source_host:127.0.0.1"]`,
+		string(msg.Origin.TagsPayload(nil)))
+
+	tailer.Stop()
+}
