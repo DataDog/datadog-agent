@@ -138,6 +138,7 @@ type payloadsBuilderV3 struct {
 	deltaOriginRef         deltaEncoder
 	deltaUnitRef           deltaEncoder
 
+	itemsThisPayload    int
 	pointsThisPayload   int
 	maxPointsPerPayload int
 
@@ -166,8 +167,42 @@ func newPayloadsBuilderV3WithConfig(
 	pipelineConfig PipelineConfig,
 	pipelineContext *PipelineContext,
 ) (*payloadsBuilderV3, error) {
-	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
-	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
+	return newPayloadsBuilderV3WithLimits(
+		config,
+		compression,
+		pipelineConfig,
+		pipelineContext,
+		"serializer_max_series_payload_size",
+		"serializer_max_series_uncompressed_payload_size",
+	)
+}
+
+func newSketchPayloadsBuilderV3WithConfig(
+	config config.Component,
+	compression compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+) (*payloadsBuilderV3, error) {
+	return newPayloadsBuilderV3WithLimits(
+		config,
+		compression,
+		pipelineConfig,
+		pipelineContext,
+		"serializer_max_payload_size",
+		"serializer_max_uncompressed_payload_size",
+	)
+}
+
+func newPayloadsBuilderV3WithLimits(
+	config config.Component,
+	compression compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+	maxCompressedSizeKey string,
+	maxUncompressedSizeKey string,
+) (*payloadsBuilderV3, error) {
+	maxCompressedSize := config.GetInt(maxCompressedSizeKey)
+	maxUncompressedSize := config.GetInt(maxUncompressedSizeKey)
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
 
 	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
@@ -242,7 +277,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 	// field headers and column data. gzip and zstd decompressors will handle such concatenated
 	// streams transparently as if it was compressed in one go.
 
-	if pb.pointsThisPayload > 0 {
+	if pb.itemsThisPayload > 0 {
 		err := pb.compressor.Close()
 		if err != nil {
 			return err
@@ -306,6 +341,7 @@ func (pb *payloadsBuilderV3) appendProtobufFieldHeader(dst []byte, id int, len i
 }
 
 func (pb *payloadsBuilderV3) reset() {
+	pb.itemsThisPayload = 0
 	pb.pointsThisPayload = 0
 	pb.dict.reset()
 	pb.deltaNameRef.reset()
@@ -380,6 +416,7 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 		}
 		return nil
 	case nil:
+		pb.itemsThisPayload++
 		pb.pointsThisPayload += numPoints
 		return nil
 	default:
@@ -520,8 +557,13 @@ func (pb *payloadsBuilderV3) writeSketch(dist metrics.Distribution) error {
 
 // WriteDDSketch implements metrics.DistributionWriter.
 func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata, numPoints int, points metrics.DDSketchPoints) error {
-	if ok, err := pb.checkPointsLimit(numPoints); !ok {
-		return err
+	// An empty sketch series is still a semantic distribution record. API v2
+	// preserves it, and the API v3 shadow payload must do the same for parity.
+	// Empty scalar series remain filtered by writeSerie.
+	if numPoints > 0 {
+		if ok, err := pb.checkPointsLimit(numPoints); !ok {
+			return err
+		}
 	}
 
 	pb.txn.Reset()
