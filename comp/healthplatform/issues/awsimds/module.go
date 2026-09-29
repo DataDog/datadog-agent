@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
@@ -50,6 +51,7 @@ const (
 type awsIMDSModule struct {
 	template *AWSIMDSIssue
 	hostname hostnameinterface.Component
+	cfg      config.Component
 }
 
 // NewModule returns the module, or nil to decline registration when not a container on AWS.
@@ -64,6 +66,7 @@ func newModule(deps issues.ModuleDeps) *awsIMDSModule {
 	return &awsIMDSModule{
 		template: NewAWSIMDSIssue(),
 		hostname: deps.Hostname,
+		cfg:      deps.Config,
 	}
 }
 
@@ -98,11 +101,16 @@ func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
 	if err != nil || !detected {
 		return nil, err
 	}
+	hostnameConfigured := "false"
+	if m.cfg != nil && m.cfg.GetString("hostname") != "" {
+		hostnameConfigured = "true"
+	}
 	return []runnerdef.IssueReport{{
 		IssueID:   m.instanceIssueID(),
 		IssueName: IssueName,
 		Context: map[string]string{
-			contextKeyIMDSAddress: imdsAddress,
+			contextKeyIMDSAddress:        imdsAddress,
+			contextKeyHostnameConfigured: hostnameConfigured,
 		},
 		Tags: []string{"aws", "imds", "hop-limit", "container"},
 	}}, nil

@@ -19,11 +19,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
-// setupCheck points the probe at a local listener with short timeouts (env gate lives in NewModule).
-func setupCheck(t *testing.T, addr string) *awsIMDSModule {
+// withProbeTarget points the probe at a local listener with short timeouts.
+func withProbeTarget(t *testing.T, addr string) {
 	t.Helper()
 	originalAddress, originalDialTimeout, originalResponseTimeout := imdsAddress, dialTimeout, responseTimeout
 	imdsAddress = addr
@@ -31,7 +34,13 @@ func setupCheck(t *testing.T, addr string) *awsIMDSModule {
 	t.Cleanup(func() {
 		imdsAddress, dialTimeout, responseTimeout = originalAddress, originalDialTimeout, originalResponseTimeout
 	})
-	return testModule("test-host")
+}
+
+// setupCheck points the probe at a local listener and builds a module (env gate lives in NewModule).
+func setupCheck(t *testing.T, addr string) *awsIMDSModule {
+	t.Helper()
+	withProbeTarget(t, addr)
+	return testModule(t, "test-host")
 }
 
 func unresponsiveServer(t *testing.T) *httptest.Server {
@@ -56,7 +65,24 @@ func TestCheck_HopLimitTooLow(t *testing.T) {
 	assert.Equal(t, m.instanceIssueID(), reports[0].IssueID)
 	assert.Equal(t, IssueName, reports[0].IssueName)
 	assert.Equal(t, imdsAddress, reports[0].Context[contextKeyIMDSAddress])
+	assert.Equal(t, "false", reports[0].Context[contextKeyHostnameConfigured])
 	assert.Equal(t, []string{"aws", "imds", "hop-limit", "container"}, reports[0].Tags)
+}
+
+// TestCheck_HostnameConfigured flags the report when DD_HOSTNAME is set so severity can be lowered.
+func TestCheck_HostnameConfigured(t *testing.T) {
+	srv := unresponsiveServer(t)
+	withProbeTarget(t, srv.Listener.Addr().String())
+
+	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname("h"))
+	cfg := configmock.New(t)
+	cfg.SetInTest("hostname", "explicit-host")
+	m := newModule(issues.ModuleDeps{Hostname: hn, Config: cfg})
+
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, "true", reports[0].Context[contextKeyHostnameConfigured])
 }
 
 func TestCheck_IMDSReachable(t *testing.T) {

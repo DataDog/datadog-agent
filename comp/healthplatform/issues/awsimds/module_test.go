@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
@@ -18,30 +20,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
-func testDeps(hostname string) issues.ModuleDeps {
+func testDeps(t *testing.T, hostname string) issues.ModuleDeps {
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname(hostname))
-	return issues.ModuleDeps{Hostname: hn}
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	return issues.ModuleDeps{Hostname: hn, Config: cfg}
 }
 
 // testModule builds the module directly, bypassing NewModule's environment gate.
-func testModule(hostname string) *awsIMDSModule {
-	return newModule(testDeps(hostname))
+func testModule(t *testing.T, hostname string) *awsIMDSModule {
+	return newModule(testDeps(t, hostname))
 }
 
 func TestInstanceIssueID(t *testing.T) {
-	m := testModule("host-a")
+	m := testModule(t, "host-a")
 	id := m.instanceIssueID()
 	assert.True(t, strings.HasPrefix(id, IssueID+":"))
 	assert.Len(t, id, len(IssueID)+1+16)
-	assert.Equal(t, id, testModule("host-a").instanceIssueID())
-	assert.NotEqual(t, id, testModule("host-b").instanceIssueID())
+	assert.Equal(t, id, testModule(t, "host-a").instanceIssueID())
+	assert.NotEqual(t, id, testModule(t, "host-b").instanceIssueID())
 }
 
 // TestNewModule_RegistrationGate verifies the module registers only in a container on AWS.
 func TestNewModule_RegistrationGate(t *testing.T) {
-	cfg := configmock.New(t)
-	cfg.SetInTest("ec2_use_dmi", true)
-	deps := testDeps("host")
+	deps := testDeps(t, "host")
 
 	t.Run("aws and containerized registers", func(t *testing.T) {
 		t.Setenv("DOCKER_DD_AGENT", "true")
@@ -60,4 +62,17 @@ func TestNewModule_RegistrationGate(t *testing.T) {
 		dmi.SetupMock(t, "", "", "", "not AWS")
 		assert.Nil(t, NewModule(deps))
 	})
+}
+
+// TestBuildIssue_SeverityByHostnameConfig verifies severity drops to medium once a hostname is configured.
+func TestBuildIssue_SeverityByHostnameConfig(t *testing.T) {
+	tmpl := NewAWSIMDSIssue()
+
+	high, err := tmpl.BuildIssue(map[string]string{contextKeyHostnameConfigured: "false"})
+	require.NoError(t, err)
+	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, high.Severity)
+
+	medium, err := tmpl.BuildIssue(map[string]string{contextKeyHostnameConfigured: "true"})
+	require.NoError(t, err)
+	assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM, medium.Severity)
 }
