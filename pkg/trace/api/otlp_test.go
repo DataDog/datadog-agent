@@ -1400,7 +1400,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			},
 		}).Traces().ResourceSpans().At(0), http.Header{}, nil)
 		assert.Equal(t, src.Kind, source.HostnameKind)
-		assert.Equal(t, src.Identifier, tt.out) //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		assert.Equal(t, src.SourceIdentifier.Primary, tt.out)
 		timeout := time.After(500 * time.Millisecond)
 		select {
 		case <-timeout:
