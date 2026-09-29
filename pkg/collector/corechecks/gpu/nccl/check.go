@@ -118,7 +118,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	// (single code path) since GetSharedContainerProvider can fail here due to
 	// component startup ordering.
 	c.processTagger = NewProcessTagger(c.tagger, c.wmeta, nil, c.telemetry)
-	c.processTagger.SetJobsConfig(gpuconfig.NewJobsConfig())
+	c.processTagger.SetJobsConfig(gpuconfig.NewJobsConfig(pkgconfigsetup.Datadog()))
 
 	// Initialize hang detection state
 	c.lastSeenRank = make(map[string]rankStalenessEntry)

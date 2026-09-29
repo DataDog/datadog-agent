@@ -43,6 +43,9 @@ type staticConfig struct {
 	// Instrumentation is the configuration for the autoinstrumentation logic
 	Instrumentation *InstrumentationConfig
 
+	// GPU is the configuration for the instrumentation of GPU workloads
+	GPU *GPUConfig
+
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
@@ -144,6 +147,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			Webhook:                       NewWebhookConfig(datadogConfig),
 			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 			Instrumentation:               instrumentationConfig,
+			GPU:                           NewGPUConfig(datadogConfig),
 			containerRegistry:             containerRegistry,
 			registryAllowList:             registryAllowList,
 			defaultDDRegistries:           defaultDDRegistries,

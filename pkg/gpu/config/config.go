@@ -116,12 +116,11 @@ func (i IdentifierConfig) Configured() bool {
 	return i.Type == IdentifierTypeLabel || i.Type == IdentifierTypeAnnotation
 }
 
-// NewJobsConfig reads the training job identifiers from the agent configuration.
-func NewJobsConfig() JobsConfig {
-	agentCfg := pkgconfigsetup.Datadog()
+// NewJobsConfig reads the training job identifiers from the given agent configuration.
+func NewJobsConfig(cfg model.Reader) JobsConfig {
 	return JobsConfig{
-		Run:   newIdentifierConfig(agentCfg, "gpu.jobs.run"),
-		Group: newIdentifierConfig(agentCfg, "gpu.jobs.group"),
+		Run:   newIdentifierConfig(cfg, "gpu.jobs.run"),
+		Group: newIdentifierConfig(cfg, "gpu.jobs.group"),
 	}
 }
 
@@ -165,6 +164,6 @@ func New() *Config {
 		DeviceCacheRefreshInterval: spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "device_cache_refresh_interval")),
 		CgroupReapplyInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_interval")),
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
-		JobsConfig:                 NewJobsConfig(),
+		JobsConfig:                 NewJobsConfig(agentCfg),
 	}
 }

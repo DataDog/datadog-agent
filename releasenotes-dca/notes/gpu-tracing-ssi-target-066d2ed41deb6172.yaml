@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add ``gpu.tracing.enabled`` to instrument GPU workloads with Single Step Instrumentation.
+    When enabled, pods labeled ``admission.datadoghq.com/gpu.enabled: "true"`` get the GPU tracer
+    injected, even if ``apm_config.instrumentation.enabled`` is not set. The training run and group
+    IDs configured in ``gpu.jobs.run`` and ``gpu.jobs.group`` are injected as ``DD_TRAINING_RUN_ID``
+    and ``DD_TRAINING_GROUP_ID`` from the pod label or annotation they point to. Existing Single Step Instrumentation targeting is unchanged.

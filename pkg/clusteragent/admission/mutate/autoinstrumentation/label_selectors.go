@@ -18,6 +18,7 @@ import (
 // LabelSelectorsConfig provides configuration values for NewLabelSelectors.
 type LabelSelectorsConfig struct {
 	Enabled            bool
+	GPUTracing         bool
 	OnDemand           bool
 	MutateUnlabelled   bool
 	DisabledNamespaces []string
@@ -27,6 +28,7 @@ type LabelSelectorsConfig struct {
 func NewLabelSelectorsConfig(datadogConfig config.Component) *LabelSelectorsConfig {
 	return &LabelSelectorsConfig{
 		Enabled:            datadogConfig.GetBool("apm_config.instrumentation.enabled"),
+		GPUTracing:         datadogConfig.GetBool("gpu.tracing.enabled"),
 		OnDemand:           datadogConfig.GetBool("apm_config.instrumentation.on_demand"),
 		MutateUnlabelled:   datadogConfig.GetBool("admission_controller.mutate_unlabelled"),
 		DisabledNamespaces: datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
@@ -75,8 +77,8 @@ func (ls *LabelSelectors) Get(useNamespaceSelector bool) (*metav1.LabelSelector,
 }
 
 func (ls *LabelSelectors) setupObjectSelector(selector *metav1.LabelSelector) {
-	if ls.config.Enabled || ls.config.OnDemand || ls.config.MutateUnlabelled {
-		// If instrumentation, on-demand instrumentation, or mutate unlabelled is enabled, then we want to receive
+	if ls.config.Enabled || ls.config.GPUTracing || ls.config.OnDemand || ls.config.MutateUnlabelled {
+		// If instrumentation, GPU tracing, on-demand instrumentation, or mutate unlabelled is enabled, then we want to receive
 		// webhooks for everything but workloads that have explicitly opted out.
 		selector.MatchExpressions = []metav1.LabelSelectorRequirement{
 			{
