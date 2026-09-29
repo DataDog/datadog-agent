@@ -107,23 +107,25 @@ func replayFixture(t *testing.T, platform string) *bundle.Loaded {
 	return loaded
 }
 
-func TestMixedPlatformReplayThroughAgentPayloadDelivery(t *testing.T) {
+func TestSharedBaselineReplayThroughAgentPayloadDelivery(t *testing.T) {
+	for _, platform := range []string{"macos", "windows"} {
+		t.Run(platform, func(t *testing.T) { testSharedBaselineReplay(t, platform) })
+	}
+}
+
+func testSharedBaselineReplay(t *testing.T, platform string) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	scenario := &schema.Scenario{
-		Version: schema.Version, Meta: schema.ScenarioMeta{Name: "private-mixed-platform-validation"},
+		Version: schema.Version, Meta: schema.ScenarioMeta{Name: "private-shared-baseline-validation"},
 		Expectation: schema.Expectation{Conclusion: schema.Healthy},
-		Fleet:       []schema.GroupDef{{Group: "private-mac-cohort", OS: "macos", Count: 30}, {Group: "private-win-cohort", OS: "windows", Count: 30}},
+		Fleet:       []schema.GroupDef{{Group: "private-primary-cohort", OS: platform, Count: 30}, {Group: "private-comparison-cohort", OS: platform, Count: 30}},
 		Phases:      []schema.Phase{{Name: "healthy", Duration: schema.Duration{Duration: 31 * time.Second}}},
 	}
-	loaded := map[string]*bundle.Loaded{}
-	assignments := map[string]schema.BundleRef{}
-	for _, group := range scenario.Fleet {
-		capture := replayFixture(t, group.OS)
-		loaded[capture.Digest], assignments[group.Group] = capture, capture.Ref()
-	}
+	capture := replayFixture(t, platform)
 	start := time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC)
-	plan, err := schema.NewPlan(scenario, schema.Digest([]byte("mixed-platform-agent-wire-integration")), fixtureCommit, 7, start, assignments)
+	plan, err := schema.NewPlan(scenario, schema.Digest([]byte("shared-baseline-agent-wire-integration")), fixtureCommit, 7, start, capture.Ref())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +139,7 @@ func TestMixedPlatformReplayThroughAgentPayloadDelivery(t *testing.T) {
 	// Select the supported v2 Agent protocol to inspect its public protobuf
 	// fields, including origin metadata, instead of relying on packed v3 bytes.
 	pipeline.Config.Set("use_v3_api.series.enabled", "false", configmodel.SourceAgentRuntime)
-	result, err := engine.Run(ctx, engine.Request{Scenario: scenario, Plan: plan, Bundles: loaded}, engine.Options{Workers: 6, QueueCapacity: 1, Clock: &replayClock{now: start.Add(-time.Second)}, Delivery: engine.AgentDelivery{Pipeline: pipeline}})
+	result, err := engine.Run(ctx, engine.Request{Scenario: scenario, Plan: plan, Bundle: capture}, engine.Options{Workers: 6, QueueCapacity: 1, Clock: &replayClock{now: start.Add(-time.Second)}, Delivery: engine.AgentDelivery{Pipeline: pipeline}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,11 +162,12 @@ func TestMixedPlatformReplayThroughAgentPayloadDelivery(t *testing.T) {
 		hosts, software int
 	}
 	devices := map[string]*deviceEvidence{}
-	for i, assignment := range plan.Assignments {
-		group := scenario.Fleet[i]
-		for j := range group.Count {
-			id := identity.New(plan.RunID, plan.Seed, group.Group, assignment.FirstOrdinal+j)
-			devices[id.Hostname] = &deviceEvidence{id: id, os: group.OS, metricNames: loaded[assignment.BundleDigest].Manifest.Profile.MetricNames, metrics: map[string][]int64{}, processPIDs: map[int32]bool{}}
+	ordinal := 0
+	for _, group := range scenario.Fleet {
+		for range group.Count {
+			id := identity.New(plan.RunID, plan.Seed, group.Group, ordinal)
+			devices[id.Hostname] = &deviceEvidence{id: id, os: group.OS, metricNames: capture.Manifest.Profile.MetricNames, metrics: map[string][]int64{}, processPIDs: map[int32]bool{}}
+			ordinal++
 		}
 	}
 	device := func(host string) *deviceEvidence {
@@ -322,7 +325,7 @@ func TestMixedPlatformReplayThroughAgentPayloadDelivery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, forbidden := range []string{"capture-host", scenario.Meta.Name, "private-mac-cohort", "private-win-cohort", "expectation", "affected_cohorts"} {
+		for _, forbidden := range []string{"capture-host", scenario.Meta.Name, "private-primary-cohort", "private-comparison-cohort", "expectation", "affected_cohorts"} {
 			if strings.Contains(string(encoded), forbidden) {
 				t.Fatalf("local or captured identity leaked into %s: %s", ref.Path, forbidden)
 			}

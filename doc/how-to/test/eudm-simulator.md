@@ -10,15 +10,17 @@ Start with the [project overview](../../reference/eudm-simulator/index.md) for m
 
 ## Current status
 
-The command implements separate `capture`, `validate`, `plan`, and `run`
-lifecycles. Replay uses a real wall clock, cloned typed samples, Agent serializers
-and forwarders, bounded queues, and a local delivery report. One process can
-replay Windows, macOS, or mixed-platform cohorts from compatible bundles.
+The command implements `capture`, optional `validate`, and `run` lifecycles.
+`run` validates its inputs and starts replay directly. Replay uses a real wall
+clock, cloned typed samples, Agent serializers and forwarders, bounded queues,
+and a local delivery report. Each run uses one
+baseline bundle for every cohort, with scenario overlays applied to its copies.
+All cohorts must match the baseline's Windows or macOS platform.
 
 Both required staging proofs below remain **NOT RUN — DEFERRED**. Local replay
 and scenario implementation proceeded with the operator's explicit approval to
 defer these external proofs. They remain acceptance requirements. Unit tests,
-recording transports, synthetic fixtures, and successfully generated plans do
+recording transports, synthetic fixtures, and successful local validation do
 not establish either backend relationship. No staging telemetry has been sent
 during this implementation session.
 
@@ -53,18 +55,17 @@ On macOS, for example:
 
 ```sh
 ./bin/eudm-simulator/eudm-simulator capture \
-  --output /private/tmp/eudm-macos-baseline \
-  --deadline 35m
+  --output /private/tmp/eudm-macos-baseline
 ```
 
 On Windows, from PowerShell:
 
 ```powershell
-.\bin\eudm-simulator\eudm-simulator.exe capture --output C:\Temp\eudm-windows-baseline --deadline 35m
+.\bin\eudm-simulator\eudm-simulator.exe capture --output C:\Temp\eudm-windows-baseline
 ```
 
 The parent directory must exist and the output directory must be new. Allow the
-35-minute default deadline for this one-time operation, including the roughly
+35-minute internal timeout for this one-time operation, including the roughly
 30-minute long-term host-metadata cadence. Capture can finish earlier when host metadata
 and a complete software snapshot are present and multiple distinct collection
 cycles of metrics, processes, and, on Windows, connections are recorded. A
@@ -96,7 +97,7 @@ and fully sanitized.
 
 ## Windows walkthrough
 
-Run these PowerShell commands from the repository root after preparing the Windows build environment. They use the two-device host-enrichment probe first, so application-specific overlays do not obscure missing baseline evidence. The example starts with offline capture/validation; only the final `run` step sends staging telemetry.
+Run these PowerShell commands from the repository root after preparing the Windows build environment. They use the two-device host-enrichment probe first, so application-specific overlays do not obscure missing baseline evidence. Capture is offline; the `run` step validates its inputs and sends staging telemetry.
 
 Windows capture requires a separately running, matching system-probe with network collection and its required Windows driver available. In that service's configuration, enable `network_config.enabled: true` and set `network_config.direct_send: false`. The simulator reads connections from the default system-probe endpoint; it does not install/start that service or load a custom endpoint from the operator's `datadog.yaml`. A healthy Windows capture still requires two nonempty connection cycles, so generate ordinary healthy TCP traffic during collection. Use the existing Agent/system-probe setup procedures for that device.
 
@@ -112,52 +113,38 @@ $eudmRoot = 'C:\Temp\eudm-evaluation'
 New-Item -ItemType Directory -Force -Path $eudmRoot | Out-Null
 $bundle = Join-Path $eudmRoot 'windows-baseline'
 $scenario = 'cmd/eudm-simulator/testdata/probes/host-enrichment-windows.yaml'
-$config = Join-Path $eudmRoot 'staging.yaml'
-'site: datad0g.com' | Set-Content -Encoding ascii $config
+$env:DD_SITE = 'datad0g.com'
 
-& $eudm capture --output $bundle --deadline 35m
+& $eudm capture --output $bundle
 if ($LASTEXITCODE -ne 0) { throw 'Capture failed; inspect missing-stream error' }
-& $eudm validate --scenario $scenario --config $config --bundle "baseline=$bundle"
-if ($LASTEXITCODE -ne 0) { throw 'Bundle/scenario validation failed' }
 ```
 
-If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build every participating capture/replay binary at the same commit. Copy a completed macOS bundle too when preparing a mixed-platform scenario.
+If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build every participating capture/replay binary at the same commit. Use separate runs and matching baselines for Windows and macOS scenarios.
 
-Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. `staging.yaml` is simulator configuration, not a full Agent configuration. Prepare credentials before creating the plan so its start does not expire while you are signing in.
+Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. To check the scenario without sending telemetry, optionally run `& $eudm validate --scenario $scenario --bundle $bundle`; this needs no API key.
 
 ```powershell
 if (-not $env:DD_API_KEY) { throw 'Load the staging API key into DD_API_KEY first' }
-$runFiles = [Guid]::NewGuid().ToString('N')
-$plan = Join-Path $eudmRoot "$runFiles-plan.json"
-$report = Join-Path $eudmRoot "$runFiles-report.json"
-$start = [DateTime]::UtcNow.AddMinutes(5).ToString('o')
-
-& $eudm plan --scenario $scenario --config $config --bundle "baseline=$bundle" --seed 17 --start $start --output $plan
-if ($LASTEXITCODE -ne 0) { throw 'Planning failed' }
-& $eudm run --scenario $scenario --config $config --bundle "baseline=$bundle" --plan $plan --workers 2 --queue-capacity 128 --delivery-grace 5m --report $report
-$runExitCode = $LASTEXITCODE
-if (Test-Path $report) {
-    $result = Get-Content -Raw $report | ConvertFrom-Json
-    $result | Select-Object status, run_id, declared_devices, selectors, errors
-}
-if ($runExitCode -ne 0) { throw 'Replay failed; inspect the local report and stderr' }
+& $eudm run --scenario $scenario --bundle $bundle
+if ($LASTEXITCODE -ne 0) { throw 'Replay failed; inspect the printed report path and stderr' }
 ```
 
-The probe waits for the planned start, then runs for 35 minutes, with up to five further minutes for retries. Inspect the complete ledger in the JSON report, then follow [proof 1](#required-proof-1-normal-eudm-host-enrichment) to establish actual device visibility. The full healthy Windows scenario uses cohort `endpoints`, so change both the scenario path and the `--bundle` key when switching to it. Every incident scenario needs its own explicit assignments and new plan/report files.
+After validation and setup, the probe runs for 35 minutes, with up to five further minutes for retries. The command prints its report path, which defaults to `eudm-run-<run_id>.json` in the current directory. Inspect the complete ledger in that JSON report, then follow [proof 1](#required-proof-1-normal-eudm-host-enrichment) to establish actual device visibility. To switch to the full healthy Windows scenario, change the scenario path and keep the same baseline bundle. Every run checks the baseline evidence and creates a fresh run identity and report.
 
-## Validate and create a plan
+## Configure the environment and optionally validate
 
-The simulator configuration is separate from `datadog.yaml`. Save this as a
-local `staging.yaml`:
+The simulator reads its site from `DD_SITE` and its replay credentials from
+`DD_API_KEY`. It does not read a configuration file. Set the site before
+validation or replay:
 
-```yaml
-site: datad0g.com
+```sh
+export DD_SITE=datad0g.com
 ```
 
-The site must be explicit. Empty sites and production defaults are rejected.
-All six routes are resolved before any replay starts:
+`DD_SITE` must be `datad0g.com`; unset, empty, and production sites are rejected.
+All six routes are derived from the site before any replay starts:
 
-| Configuration route | Default HTTPS origin |
+| Delivery route | HTTPS origin |
 | --- | --- |
 | `metrics` | `https://app.datad0g.com` |
 | `metadata` | `https://app.datad0g.com` |
@@ -166,49 +153,42 @@ All six routes are resolved before any replay starts:
 | `event_platform` | `https://softinv-intake.datad0g.com` |
 | `ndm` | `https://ndm-intake.datad0g.com` |
 
-Optional `endpoints` entries are lists of HTTPS origins under `datad0g.com`.
-Paths, credentials embedded in URLs, query strings, non-443 ports, and external
-domains are rejected. A conflicting `DD_SITE` or inherited Agent endpoint
-override is also rejected; the command names the variable that must be removed
-from its environment. Staging credentials belong in the delivery environment,
-not the scenario, configuration, bundle, or plan. `run` reads `DD_API_KEY` from
-its environment and rejects a missing key. Use the API key for the intended
-staging organization. Capture, validation, and planning do not require it.
+Endpoint overrides are not supported. Inherited Agent endpoint overrides are
+rejected; the command names the variable that must be removed from its
+environment. Staging credentials belong in the delivery environment, not the
+scenario, bundle, or report. `run` reads `DD_API_KEY` from its environment and
+rejects a missing key. Use the API key for the intended staging organization.
+Validation needs `DD_SITE` but no API key. Capture needs neither
+environment variable.
 
 The checked-in host-enrichment probes each declare two baseline devices without
-overlays. This macOS example validates all required bundle files, digests,
+overlays. This optional macOS check validates all required bundle files, digests,
 typed evidence inventories, scenario declarations, platform compatibility,
 replay schedules, and staging routes:
 
 ```sh
 ./bin/eudm-simulator/eudm-simulator validate \
   --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
-  --config staging.yaml \
-  --bundle baseline=/private/tmp/eudm-macos-baseline
-
-./bin/eudm-simulator/eudm-simulator plan \
-  --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
-  --config staging.yaml \
-  --bundle baseline=/private/tmp/eudm-macos-baseline \
-  --seed 17 \
-  --output /private/tmp/eudm-host-enrichment-plan.json
+  --bundle /private/tmp/eudm-macos-baseline
 ```
 
-For Windows, use `host-enrichment-windows.yaml` and its Windows bundle. Each
-cohort requires an explicit `--bundle cohort=directory` argument, even when
-several cohorts reuse the same bundle. A mixed-platform scenario supplies both
-Windows and macOS assignments to the same command process. The assigned cohort
-OS is checked against its capture; it is not checked against the replay host OS.
+For Windows, use `host-enrichment-windows.yaml` and its Windows bundle. Supply
+exactly one `--bundle /path/to/capture` for the whole scenario. Every cohort
+starts from that baseline; scenario overlays produce the differences between
+cohorts. Group-to-bundle assignments and multiple bundles are unsupported.
+Every cohort's OS must match the capture, independently of the replay host OS.
+Use separate runs for Windows and macOS baselines. Missing required process,
+software, metric, or connection evidence rejects the scenario before replay.
 
-`plan` writes a new, versioned JSON file containing the exact scenario digest,
-opaque run ID, seed, absolute UTC start, Agent commit, bundle digests/profiles,
-and cohort assignments with their counts and ordinals. It refuses to overwrite
-an existing file. The default start is one minute after plan creation; use
-`--start` with a future RFC3339 timestamp when more preparation time is needed.
-Once that start is in the past, generate a new plan in a new file. Editing any scenario bytes, including comments or formatting, or changing a bundle requires a new plan. Configuration routes are resolved again at `run`; the plan does not store credentials or pin a staging organization. Keep the same staging configuration and organization/key for the evaluation.
+`run` performs this validation automatically, so a separate `validate` command
+is optional. Each run reads the current scenario and baseline, generates a fresh
+opaque run ID, and records their digests, its seed, Agent commit, and actual
+start in the report. The scenario supplies cohort counts and ordinal order.
+There is no plan command or saved plan file to prepare. Routes and credentials
+are resolved from `DD_SITE` and `DD_API_KEY` for each run.
 
 There is no standalone bundle-only `validate` mode. Validate a bundle using a
-compatible scenario and the explicit cohort assignment above. A successful
+compatible scenario and its baseline path as above. A successful
 validation does not start native collectors or send telemetry. The loader
 verifies each typed sample as well as its digest, checks profile inventories
 against observed samples, and rejects missing or incompatible evidence before
@@ -219,37 +199,38 @@ phase fails before delivery starts.
 
 ## Replay and inspect delivery accounting
 
-After loading the staging key into `DD_API_KEY`, use a plan whose start is still
-in the future and a new local report path:
+After setting `DD_SITE` and loading the staging key into `DD_API_KEY`, start
+replay directly:
 
 ```sh
 ./bin/eudm-simulator/eudm-simulator run \
   --scenario cmd/eudm-simulator/testdata/probes/host-enrichment-macos.yaml \
-  --config staging.yaml \
-  --bundle baseline=/private/tmp/eudm-macos-baseline \
-  --plan /private/tmp/eudm-host-enrichment-plan.json \
-  --workers 2 \
-  --queue-capacity 128 \
-  --delivery-grace 5m \
-  --report /private/tmp/eudm-host-enrichment-report.json
+  --bundle /private/tmp/eudm-macos-baseline
 ```
 
-Replay loads every assigned bundle before submission and never starts native
+`--seed` controls deterministic variation and defaults to `1`. The report
+defaults to `eudm-run-<run_id>.json` in the current directory; the command prints
+the path. Use `--report /path/to/new-report.json` to choose another location.
+Each invocation creates a fresh run ID even when the scenario, bundle, and seed
+are unchanged. Its phase clock starts after validation and setup.
+
+Replay loads the baseline bundle before submission and never starts native
 collectors on its host. Captured offsets and cadences drive each stream; every
-cohort shares the plan's phase clock. Worker count controls concurrency, and
-full queues apply backpressure across the entire declared fleet. Defaults are
-8 workers, queue capacity 128, and 5 minutes of delivery grace. The run deadline
-is its planned start plus scenario duration plus delivery grace. Agent retry
-behavior continues until that deadline; permanent failures cancel the run.
+cohort shares the run's phase clock. Worker count controls concurrency, and
+full queues apply backpressure across the entire declared fleet. The runner
+internally uses eight workers and a queue capacity of 128, with up to five
+minutes after the scenario ends to finish delivery. These are not CLI options.
+The run deadline is its actual start plus scenario duration plus that allowance.
+Agent retry behavior continues until that deadline; permanent failures cancel the run.
 Staging runs use wall-clock time; no accelerated-time flag is provided.
 
 The command reserves the report path before starting forwarders and refuses to
 overwrite an existing report. It writes an initial `running` report and a final
 report on termination; it does not continuously persist progress. A hard kill
 can leave `running` behind, while graceful interruption attempts final failure
-accounting. Its final report contains scenario and bundle
-digests, seed, Agent commit, replay OS, run-relative phase timings, the complete
-device/stream ledger, AP/NDM accounting, and errors. Ledger counts represent
+accounting. Its version-2 final report contains the scenario digest, one
+`bundle_digest`, seed, Agent commit, replay OS, run-relative phase timings, the
+complete device/stream ledger, AP/NDM accounting, and errors. Ledger counts represent
 scheduled collection cycles; a cycle is delivered only after all of its chunks
 or batches are accepted. Success requires `status: succeeded`, matching
 `expected` and `delivered` counts for every stream, and no failures. A successful
@@ -276,7 +257,7 @@ namespace. Hostnames also contain this opaque run ID.
 
 Incident scenarios have healthy, onset, sustained, and recovery phases. Current
 declarations use a 10-minute monitor window and 5-minute visibility delay; verify
-these against the actual staging monitor before planning. Healthy and sustained
+these against the actual staging monitor before replay. Healthy and sustained
 phases must each cover at least their sum. Application and security-agent
 scenarios restore captured process/software baselines during recovery and leave
 comparison cohorts unchanged. The Wi-Fi scenario changes only affected client
@@ -290,13 +271,13 @@ bundle. Validation rejects the placeholder; a synthetic fixture's selector is
 not evidence that a real device used a VPN. RTT declarations use milliseconds;
 the overlay converts them into Agent connection units.
 
-For mixed-platform replay, define both OS cohorts in one scenario and repeat
-the bundle flag, for example `--bundle macs=/path/to/macos-bundle` and
-`--bundle windows=/path/to/windows-bundle`, where `macs` and `windows` are the exact
-cohort names. The same bundle may serve several matching cohorts, but each
-assignment must be explicit. Test fixtures exercise this portable path without
-contacting staging; cross-platform native builds and real staging replay remain
-separate acceptance work.
+Each scenario uses one matching baseline for all its cohorts, including healthy
+comparison groups. Scenario overlays modify copies of that baseline; they do
+not fill in absent evidence. A scenario mixing Windows and macOS cohorts is
+rejected because one capture cannot match both platforms. Use separate runs for
+the two platforms. Test fixtures exercise portable replay without contacting
+staging; cross-platform native builds and real staging replay remain separate
+acceptance work.
 
 ## Required proof 1: normal EUDM host enrichment
 
@@ -308,8 +289,8 @@ and API key; and access to that organization's EUDM device, process, software,
 metric, and host metadata views. A recording fixture cannot substitute for the
 real-device capture.
 
-1. Validate and plan the matching two-device host-enrichment probe. Adjust its
-   35-minute phase before creating the plan if the staging visibility delay
+1. Select the matching two-device host-enrichment probe. Adjust its
+   35-minute phase before running if the staging visibility delay
    requires a longer observation period.
 2. Replay it through the common Agent serializer/forwarder adapters into two
    distinct cloned identities. Save the complete delivery report and the opaque
@@ -369,7 +350,7 @@ The following record is deliberately unpopulated:
 | --- | --- | --- |
 | Status | NOT RUN — DEFERRED | NOT RUN — DEFERRED |
 | Agent commit | Not recorded | Not recorded |
-| Bundle digest(s) | Not recorded | Not recorded |
+| Bundle digest | Not recorded | Not recorded |
 | Scenario digest and run ID | Not recorded | Not recorded |
 | Replay host OS/architecture | Not recorded | Not recorded |
 | Staging organization | Not established | Not established |
@@ -395,32 +376,37 @@ operator-approved cleanup queries. Keep local reports and proof artifacts
 separate from telemetry, and exclude secrets from them. Cleanup must be scoped
 to that run; do not use scenario names or broad staging-wide queries. Refresh
 this feature branch when staging moves to a different Agent revision, rebuild
-on both capture devices, recapture the baselines, and generate new plans.
+on both capture devices, and recapture the baselines before the next runs.
 
 ## Troubleshooting
 
 | Symptom | Meaning and next step |
 | --- | --- |
 | Build dependencies or Windows native libraries missing | Use the repository's configured platform build environment. Native Windows build is an outstanding acceptance step; record the exact build failure rather than claiming the macOS result covers it. |
-| Capture deadline reports missing connections | Verify the matching Windows system-probe, driver/network collection, default endpoint, and active TCP traffic. `network_config` in the simulator staging YAML does not configure system-probe. |
+| Capture deadline reports missing connections | Verify the matching Windows system-probe, driver/network collection, default endpoint, and active TCP traffic. Configure system-probe itself; the simulator does not read a configuration file. |
 | Capture has no `COMPLETE` marker | It did not finish required coverage. Preserve its error for diagnosis and recapture into a new directory; do not manufacture a completion marker. |
 | Agent commit mismatch | Rebuild all participating binaries from one exact commit and recapture. A documentation-only commit also changes the stamped revision on the next build. |
 | Digest/checksum mismatch or unsafe file layout | Copy the whole original bundle as regular files without modifying bytes. Do not edit JSON, normalize line endings, substitute symlinks, or recalculate checksums to hide corruption. |
 | Missing application/process/metric/selector, or absent from a later cycle | The bundle does not support the overlay. Keep the needed process/connection active while recapturing, or select another healthy device. Inventory presence in the manifest alone is not sufficient. |
+| Cohort OS does not match the baseline | Every cohort uses the same capture and must match its OS. Use separate Windows and macOS scenarios and runs. |
 | WLAN status exists, but Wi-Fi validation fails | Wi-Fi scenarios require signal/noise/TX/RX metrics and wireless identity tags. Status and error counters alone do not supply that evidence. |
 | Resource-capacity or declared RAM mismatch | Lower overlay values/variation or capture the required hardware profile. `total_ram_gb` constrains the capture; it does not create RAM. |
-| Plan start is in the past | Generate a new plan with a comfortably future `--start` and a new output filename; do not reuse its run identity by editing the JSON. |
-| File already exists | Capture directories, plans, and reports are exclusive outputs. Choose a new name. Compatible completed bundles can still be reused as input. |
-| Production site or inherited endpoint rejected | Use explicit `site: datad0g.com` and remove the conflicting environment variable identified by the command. All routes and redirected destinations must remain staging. |
+| File already exists | Capture directories and reports are exclusive outputs. Choose a new name, or omit `--report` to use the new run ID's default filename. Compatible completed bundles can still be reused as input. |
+| Missing/production site or inherited endpoint rejected | Set `DD_SITE=datad0g.com` and remove any unsupported endpoint environment variable identified by the command. All routes and redirected destinations must remain staging. |
 | Missing key, permanent rejection, or retries exhausted | Check the staging organization/key and endpoint access. Preserve the failure report. Do not count partially delivered devices as success; start a new run after fixing the cause. |
-| Report is still `running` after process death | It is not a successful completion record. Reports are not live checkpoints and there is no resume command. Keep the artifact and generate a new plan/report for another run. |
+| Report is still `running` after process death | It is not a successful completion record. Reports are not live checkpoints and there is no resume command. Keep the artifact; another `run` invocation creates a new identity and report. |
 | `expected` exceeds `delivered` but `failed` is small | Cancellation can leave cycles unsent. `failed` counts failed attempted cycles, not every missing cycle; compare all counts and final status. |
 | AP evidence stays degraded during recovery | Endpoint overlays reset to captured values, but omitted AP metrics carry forward. Explicitly restore AP values in the recovery phase. |
 | Delivery succeeded, but devices/issue/Bits result are missing | Follow the staging proof gates above and record the backend/monitor/permission dependency. HTTP acceptance is not product acceptance. |
 
-Use `capture --help`, `validate --help`, `plan --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new plan with a new opaque run identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
+Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
+
+These dated results precede removal of per-cohort bundle assignments and the
+`plan` command. The mixed-platform runs and saved plans below describe the
+earlier implementation. Current runs use one baseline for all cohorts and
+validate and start directly, without a plan file.
 
 On 2026-09-29, the native macOS arm64 capture completed in 30.868 seconds,
 using the default 35-minute deadline and offline recording transports. The

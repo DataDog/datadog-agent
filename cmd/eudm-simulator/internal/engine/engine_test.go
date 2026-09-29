@@ -106,24 +106,14 @@ func capturedFixture(t *testing.T, platform string) *bundle.Loaded {
 	return loaded
 }
 
-func requestFor(t *testing.T, scenario *schema.Scenario, digest string, captures map[string]*bundle.Loaded) Request {
+func requestFor(t *testing.T, scenario *schema.Scenario, digest string, capture *bundle.Loaded) Request {
 	t.Helper()
-	assignments := map[string]schema.BundleRef{}
-	bundles := map[string]*bundle.Loaded{}
-	for _, group := range scenario.Fleet {
-		capture := captures[group.OS]
-		if capture == nil {
-			t.Fatalf("fixture missing platform %s", group.OS)
-		}
-		assignments[group.Group] = capture.Ref()
-		bundles[capture.Digest] = capture
-	}
-	plan, err := schema.NewPlan(scenario, digest, fixtureCommit, 481516, time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC), assignments)
+	plan, err := schema.NewPlan(scenario, digest, fixtureCommit, 481516, time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC), capture.Ref())
 	if err != nil {
 		t.Fatal(err)
 	}
 	plan.RunID = strings.Repeat("7", 32)
-	return Request{Scenario: scenario, Plan: plan, Bundles: bundles}
+	return Request{Scenario: scenario, Plan: plan, Bundle: capture}
 }
 
 func shippedRequest(t *testing.T, name string) Request {
@@ -140,13 +130,13 @@ func shippedRequest(t *testing.T, name string) Request {
 	if err := schema.DecodeStrict(data, &scenario); err != nil {
 		t.Fatal(err)
 	}
-	return requestFor(t, &scenario, schema.Digest(data), captures)
+	return requestFor(t, &scenario, schema.Digest(data), captures[scenario.Fleet[0].OS])
 }
 
-func mixedRequest(t *testing.T) Request {
+func sharedBaselineRequest(t *testing.T) Request {
 	t.Helper()
-	scenario := &schema.Scenario{Version: schema.Version, Meta: schema.ScenarioMeta{Name: "mixed-fixture"}, Expectation: schema.Expectation{Conclusion: schema.Healthy}, Fleet: []schema.GroupDef{{Group: "mac", OS: "macos", Count: 2}, {Group: "win", OS: "windows", Count: 3}}, Phases: []schema.Phase{{Name: "healthy", Duration: schema.Duration{Duration: 2 * time.Minute}}}}
-	return requestFor(t, scenario, schema.Digest([]byte("mixed-fixture-v1")), map[string]*bundle.Loaded{"macos": capturedFixture(t, "macos"), "windows": capturedFixture(t, "windows")})
+	scenario := &schema.Scenario{Version: schema.Version, Meta: schema.ScenarioMeta{Name: "shared-baseline-fixture"}, Expectation: schema.Expectation{Conclusion: schema.Healthy}, Fleet: []schema.GroupDef{{Group: "primary", OS: "windows", Count: 2}, {Group: "comparison", OS: "windows", Count: 3}}, Phases: []schema.Phase{{Name: "healthy", Duration: schema.Duration{Duration: 2 * time.Minute}}}}
+	return requestFor(t, scenario, schema.Digest([]byte("shared-baseline-fixture-v1")), capturedFixture(t, "windows"))
 }
 
 type deliveryRecord struct {
@@ -318,6 +308,14 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 	if result.ReplayOS != runtime.GOOS || !reflect.DeepEqual(result.Expectation, request.Scenario.Expectation) {
 		t.Fatal("report lost replay OS or local expectation")
 	}
+	if result.BundleDigest != request.Bundle.Digest {
+		t.Fatal("report lost the shared baseline identity")
+	}
+	for name, digest := range request.Bundle.Manifest.Files {
+		if schema.Digest(request.Bundle.Files[name]) != digest {
+			t.Fatal("scenario overlays modified the shared baseline capture")
+		}
+	}
 	duration := testDuration(request.Scenario)
 	if result.End.Sub(result.Start) != duration {
 		t.Fatal("fake clock did not traverse entire declared duration")
@@ -330,7 +328,10 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 		seen[record.Host][record.Stream] = append(seen[record.Host][record.Stream], record.Offset)
 	}
 	for _, device := range result.Ledger {
-		capture := request.Bundles[device.BundleDigest]
+		capture := request.Bundle
+		if device.BundleDigest != capture.Digest {
+			t.Fatal("device did not use the shared baseline")
+		}
 		for stream, cadence := range capture.Manifest.Cadences {
 			// Committed fixtures contain uniformly spaced cycles starting at zero.
 			// Assert actual timestamps, not just counters reported by the engine.
@@ -385,35 +386,24 @@ func TestEveryShippedFleetRunsAtNativeCadence(t *testing.T) {
 	}
 }
 
-func TestMixedReplayDeterministicAcrossWorkersAndMapOrder(t *testing.T) {
-	request := mixedRequest(t)
+func TestSharedBaselineReplayDeterministicAcrossWorkersAndMapOrder(t *testing.T) {
+	request := sharedBaselineRequest(t)
 	var first []deliveryRecord
 	for run, workers := range []int{1, 4} {
 		if run != 0 {
 			request.Plan.Start = request.Plan.Start.Add(7 * 24 * time.Hour)
-			shuffled := map[string]*bundle.Loaded{}
-			keys := make([]string, 0, len(request.Bundles))
-			for key := range request.Bundles {
-				keys = append(keys, key)
+			capture := request.Bundle
+			files := map[string][]byte{}
+			var names []string
+			for name := range capture.Files {
+				names = append(names, name)
 			}
-			slices.Sort(keys)
-			slices.Reverse(keys)
-			for _, key := range keys {
-				capture := request.Bundles[key]
-				files := map[string][]byte{}
-				var names []string
-				for name := range capture.Files {
-					names = append(names, name)
-				}
-				slices.Sort(names)
-				slices.Reverse(names)
-				for _, name := range names {
-					files[name] = capture.Files[name]
-				}
-				capture.Files = files
-				shuffled[key] = capture
+			slices.Sort(names)
+			slices.Reverse(names)
+			for _, name := range names {
+				files[name] = capture.Files[name]
 			}
-			request.Bundles = shuffled
+			capture.Files = files
 		}
 		sink := &recordingDelivery{start: request.Plan.Start, retainPayload: true}
 		result, err := Run(context.Background(), request, Options{Workers: workers, QueueCapacity: 1, Clock: &advancingClock{now: request.Plan.Start}, Delivery: sink})
@@ -435,7 +425,7 @@ func TestMixedReplayDeterministicAcrossWorkersAndMapOrder(t *testing.T) {
 }
 
 func TestBackpressureDoesNotTruncateFleet(t *testing.T) {
-	request := mixedRequest(t)
+	request := sharedBaselineRequest(t)
 	gate := make(chan struct{})
 	entered := make(chan struct{})
 	sink := &recordingDelivery{start: request.Plan.Start, gate: gate, entered: entered}
@@ -476,7 +466,7 @@ func TestBackpressureDoesNotTruncateFleet(t *testing.T) {
 
 func TestMidRunAndDrainFailuresKeepIncompleteLedger(t *testing.T) {
 	for _, atDrain := range []bool{false, true} {
-		request := mixedRequest(t)
+		request := sharedBaselineRequest(t)
 		sink := &recordingDelivery{start: request.Plan.Start, failAt: 7}
 		if atDrain {
 			sink.failAt = 0
@@ -508,12 +498,9 @@ func TestMidRunAndDrainFailuresKeepIncompleteLedger(t *testing.T) {
 }
 
 func TestCorruptedBundleRejectedBeforeAnyDelivery(t *testing.T) {
-	request := mixedRequest(t)
-	for _, capture := range request.Bundles {
-		for name := range capture.Files {
-			capture.Files[name] = []byte("corrupted after loading")
-			break
-		}
+	request := sharedBaselineRequest(t)
+	for name := range request.Bundle.Files {
+		request.Bundle.Files[name] = []byte("corrupted after loading")
 		break
 	}
 	sink := &recordingDelivery{start: request.Plan.Start}
@@ -523,27 +510,43 @@ func TestCorruptedBundleRejectedBeforeAnyDelivery(t *testing.T) {
 	}
 }
 
+func TestExecuteDoesNotRequireAFuturePlannedStart(t *testing.T) {
+	request := sharedBaselineRequest(t)
+	request.Plan.Start = time.Now().UTC().Add(-time.Minute)
+	reportPath := filepath.Join(t.TempDir(), "report.json")
+	err := Execute(context.Background(), request, ExecutionOptions{
+		ReportPath: reportPath,
+	})
+	// Stop before constructing live forwarders. An ordinary immediate run must
+	// reach the credential check instead of rejecting its provisional start time.
+	if err == nil || !strings.Contains(err.Error(), "DD_API_KEY") {
+		t.Fatalf("expected the missing-key error, got %v", err)
+	}
+	if _, err := os.Stat(reportPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing credentials created a report: %v", err)
+	}
+}
+
 func rewriteFixtureSamples(t *testing.T, request Request, stream schema.Stream, mutate func(*telemetry.Sample, int)) {
 	t.Helper()
-	for _, capture := range request.Bundles {
-		index := 0
-		for _, ref := range capture.Manifest.Samples {
-			if ref.Stream != stream {
-				continue
-			}
-			sample, err := telemetry.Decode(stream, capture.Files[ref.File])
-			if err != nil {
-				t.Fatal(err)
-			}
-			mutate(sample, index)
-			index++
-			data, err := normalizedSample(sample, stream, time.Unix(0, 0))
-			if err != nil {
-				t.Fatal(err)
-			}
-			capture.Files[ref.File] = data
-			capture.Manifest.Files[ref.File] = schema.Digest(data)
+	capture := request.Bundle
+	index := 0
+	for _, ref := range capture.Manifest.Samples {
+		if ref.Stream != stream {
+			continue
 		}
+		sample, err := telemetry.Decode(stream, capture.Files[ref.File])
+		if err != nil {
+			t.Fatal(err)
+		}
+		mutate(sample, index)
+		index++
+		data, err := normalizedSample(sample, stream, time.Unix(0, 0))
+		if err != nil {
+			t.Fatal(err)
+		}
+		capture.Files[ref.File] = data
+		capture.Manifest.Files[ref.File] = schema.Digest(data)
 	}
 }
 

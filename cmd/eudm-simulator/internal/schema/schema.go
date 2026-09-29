@@ -77,7 +77,7 @@ type Phase struct {
 }
 
 // ProcessDef defines a named process within a group for a phase.
-// Every named process must exist in the assigned captured baseline. Unspecified
+// Every named process must exist in the baseline capture. Unspecified
 // background processes retain their captured values.
 type ProcessDef struct {
 	Name   string   `yaml:"name"`

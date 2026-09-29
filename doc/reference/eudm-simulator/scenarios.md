@@ -6,7 +6,7 @@ Scenarios describe cohorts and changes to captured evidence. Read the [overview]
 
 Definitions are in <<<repo("cmd/eudm-simulator/scenarios")>>>. Counts refer to the complete fleet, including healthy comparison cohorts.
 
-| File | Cohorts to assign with `--bundle` | Required evidence beyond the common baseline |
+| File | Cohorts sharing the baseline | Required evidence beyond the common baseline |
 | --- | --- | --- |
 | `healthy-macos.yaml` | `endpoints` (3 macOS) | No incident overlay |
 | `healthy-windows.yaml` | `endpoints` (3 Windows) | No incident overlay; native Windows capture includes connections |
@@ -19,33 +19,33 @@ Every endpoint requires metrics, host metadata, processes, and software inventor
 
 The application, security-agent, and VPN files use 20-minute healthy, 5-minute onset, 20-minute sustained, and 15-minute recovery phases, totaling 60 minutes. Wi-Fi uses 15, 5, 20, and 10 minutes respectively, totaling 50 minutes. Their monitor window is 10 minutes and visibility delay 5 minutes; these are scenario inputs to confirm against the real staging monitor, not discovered backend settings. Healthy-only files run for 20 minutes. The separate host-enrichment probes in <<<repo("cmd/eudm-simulator/testdata/probes")>>> use two devices and a 35-minute healthy phase.
 
-## Minimal mixed-platform scenario
+## Minimal multi-cohort scenario
 
-Save this as a local YAML file and supply completed bundles from the same Agent commit. Unknown YAML fields and additional YAML documents are rejected.
+Save this as a local YAML file and supply one completed macOS baseline bundle from the same Agent commit. Unknown YAML fields and additional YAML documents are rejected.
 
 ```yaml
 version: 1
 scenario:
-  name: mixed-baseline
-  description: Baseline evidence from two captured platform profiles.
+  name: shared-baseline
+  description: Two cohorts cloned from one captured platform profile.
 expectation:
   affected_cohorts: []
   conclusion: healthy
 fleet:
-  - group: macs
+  - group: engineering
     count: 2
     os: macos
     tags: [dept:engineering, site:remote]
-  - group: windows
+  - group: sales
     count: 2
-    os: windows
+    os: macos
     tags: [dept:sales, site:remote]
 phases:
   - name: healthy
     duration: 35m
 ```
 
-Validate, plan, and run with both `--bundle macs=/path/to/macos-bundle` and `--bundle windows=/path/to/windows-bundle`. On Windows, use native directory paths. Paths are command arguments, not part of the scenario. Assign every cohort explicitly, even when the same bundle serves several cohorts. A capture OS is matched to its cohort, not to the replay host.
+Run with `--scenario /path/to/scenario.yaml --bundle /path/to/macos-bundle`; validation is automatic. Use the same arguments with optional `validate` to check without sending telemetry. On Windows, use native directory paths. The one bundle path is a command argument, not part of the scenario, and supplies the baseline for every cohort. Per-cohort bundle assignments and multiple bundles are unsupported. Every cohort's OS must match the capture; the replay host OS is independent. Run Windows and macOS scenarios separately with their corresponding baselines.
 
 ## Top-level fields
 
@@ -54,7 +54,7 @@ Validate, plan, and run with both `--bundle macs=/path/to/macos-bundle` and `--b
 | `version` | Required; currently `1` |
 | `scenario.name`, `scenario.description` | Local scenario identity and explanation; do not copy these into emitted tags |
 | `expectation` | Local affected-cohort list and typed conclusion; never emitted as telemetry |
-| `fleet` | Ordered cohorts, each with a unique `group`, positive `count`, and `os: macos` or `os: windows` |
+| `fleet` | Ordered cohorts, each with a unique `group`, positive `count`, and `os: macos` or `os: windows`; all must match the baseline's OS |
 | `monitor_window`, `visibility_delay` | Duration strings; incident healthy and sustained phases must each cover their sum |
 | `software_inventory` | Optional map from cohort to software overrides applied in every phase |
 | `phases` | Ordered phase definitions with positive durations and optional evidence overlays |
@@ -62,7 +62,7 @@ Validate, plan, and run with both `--bundle macs=/path/to/macos-bundle` and `--b
 
 The conclusions are `healthy`, `process_software_version`, `vpn_path`, and `wireless_access_points`. Healthy requires an empty affected list. An incident requires declared affected cohorts and exactly four phases named `healthy`, `onset`, `sustained`, and `recovery`, in that order. The expectation is an acceptance declaration, not an instruction that automatically changes cohort behavior: put the intended changes under the relevant phase/cohort.
 
-All names referenced by process, software, metric, and connection overlays must exist in the assigned capture. Validation checks resource capacity and all relevant captured cycles. A scenario that parses successfully can still fail evidence validation. Validation requires each stream to have a scheduled collection before the scenario ends. Phase transitions do not force additional collections; where an investigation needs a phase-specific software version or metadata snapshot, choose phase lengths that contain a relevant native collection cycle.
+All names referenced by process, software, metric, and connection overlays must exist in the baseline capture. Missing required evidence rejects the scenario; overlays do not create missing processes, installations, metrics, or connections. Validation checks resource capacity and all relevant captured cycles. A scenario that parses successfully can still fail evidence validation. Validation requires each stream to have a scheduled collection before the scenario ends. Phase transitions do not force additional collections; where an investigation needs a phase-specific software version or metadata snapshot, choose phase lengths that contain a relevant native collection cycle.
 
 ## Cohorts, identities, and variation
 
@@ -74,7 +74,7 @@ All names referenced by process, software, metric, and connection overlays must 
 | `ssid`, `bssid` | Association inputs that become run-scoped emitted identities; require captured WLAN metrics and identity tags |
 | `access_point`, `radio` | Associate clients to a declared AP and radio; `radio` defaults to that AP's first radio. `access_point` and literal `bssid` are mutually exclusive. |
 
-The runner assigns device ordinals in fleet declaration order. Changing that order changes identities and variation. Increasing worker count does not change membership or normalized values. Every new plan has a fresh opaque run ID even when its seed is unchanged.
+The runner assigns device ordinals in fleet declaration order. Changing that order changes identities and variation. Increasing worker count does not change membership or normalized values. Every run has a fresh opaque run ID even when its seed is unchanged. Set the seed with `run --seed`; its default is `1`.
 
 `baseline_variance` does not randomize unspecified captured background telemetry. A phase's `jitter_scale` multiplies the configured spread, capped at `1`; omitted or `0` means `1`, so set `baseline_variance: 0` to disable endpoint variation. The independent key includes seed, cohort, device ordinal, phase, stream, sample ordinal, and field.
 
@@ -145,9 +145,8 @@ Keep a healthy comparison AP and its clients. During degradation, change the aff
 ## Editing and verifying a scenario
 
 1. Inspect a verified bundle profile and samples, then choose an existing scenario with the required evidence. Use a local scenario copy for operator-specific selectors and values.
-1. Declare all cohorts and explicit bundle assignments. Preserve a comparison cohort and give the incident enough time for the real monitor window, visibility delay, and slow stream cadences.
-1. Validate before obtaining a staging run plan. Fix evidence or capacity errors by changing the declaration or capturing an appropriate healthy device, rather than altering bundle manifests.
-1. Generate a new plan after any scenario-byte change, including comments or formatting. Digests bind the original bytes. Use a future start and a new output filename.
-1. Run at normal wall-clock speed, inspect the complete ledger and opaque selectors, and record the actual product outcome separately from the expectation.
+1. Declare all cohorts against the same baseline profile and OS. Preserve a comparison cohort and give the incident enough time for the real monitor window, visibility delay, and slow stream cadences.
+1. Optionally use `validate` to check without sending telemetry. Fix evidence or capacity errors by changing the declaration or capturing an appropriate healthy device, rather than altering bundle manifests.
+1. Run at normal wall-clock speed. Each invocation validates the current inputs and records their digests, its seed, start time, and fresh run identity in the report. Inspect the complete ledger and opaque selectors, and record the actual product outcome separately from the expectation.
 
 For a checked-in scenario, add progression and complete-fleet coverage alongside <<<repo("cmd/eudm-simulator/internal/engine/engine_test.go")>>> and the recording integration tests. Run the simulator suite with `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python`. The current largest tested shipped fleet is 60 endpoints; a larger declaration requires a new constrained-queue load test before claiming support.

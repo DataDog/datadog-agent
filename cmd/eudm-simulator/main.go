@@ -24,7 +24,7 @@ func main() {
 	runtime := command.Runtime{Capture: func(ctx context.Context, request command.CaptureRequest) error {
 		return native.Run(ctx, request.Directory)
 	}, Replay: func(ctx context.Context, request command.ReplayRequest) error {
-		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundles: request.Bundles}, engine.ExecutionOptions{Workers: request.Workers, QueueCapacity: request.QueueCapacity, DeliveryGrace: request.DeliveryGrace, ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations})
+		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundle: request.Bundle}, engine.ExecutionOptions{ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations})
 	}}
 	if err := command.MakeCommand(runtime).ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)

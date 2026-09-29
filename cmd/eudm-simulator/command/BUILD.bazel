@@ -26,5 +26,11 @@ go_library(
 dd_agent_go_test(
     name = "command_test",
     srcs = ["command_test.go"],
+    data = ["//cmd/eudm-simulator:replay_testdata"],
     embed = [":command"],
+    deps = [
+        "//cmd/eudm-simulator/internal/bundle",
+        "//pkg/version",
+        "@rules_go//go/runfiles",
+    ],
 )

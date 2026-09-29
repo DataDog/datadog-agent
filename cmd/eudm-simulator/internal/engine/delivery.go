@@ -110,11 +110,17 @@ func (a AgentDelivery) NetworkMetadata(ctx context.Context, payloads []metadata.
 }
 func (a AgentDelivery) Wait(ctx context.Context) error { return a.Pipeline.Wait(ctx) }
 
+// Execution limits bound concurrency, memory, and retry time without changing
+// the scenario's fleet size or scheduled collection cycles.
+const (
+	replayWorkers       = 8
+	replayQueueCapacity = 128
+	deliveryGrace       = 5 * time.Minute
+)
+
 type ExecutionOptions struct {
-	Workers, QueueCapacity int
-	DeliveryGrace          time.Duration
-	ReportPath, APIKey     string
-	Destinations           map[safety.Destination][]string
+	ReportPath, APIKey string
+	Destinations       map[safety.Destination][]string
 }
 
 // Execute is the wall-clock staging lifecycle. Reserve the report before any
@@ -123,12 +129,6 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 	prepared, err := prepare(request)
 	if err != nil {
 		return err
-	}
-	if options.Workers <= 0 || options.QueueCapacity <= 0 || options.DeliveryGrace <= 0 {
-		return errors.New("positive worker, queue, and delivery grace settings are required")
-	}
-	if !request.Plan.Start.After(time.Now()) {
-		return errors.New("run-plan start is in the past; generate a new plan")
 	}
 	if options.APIKey == "" {
 		return errors.New("set DD_API_KEY to the target staging organization's API key")
@@ -158,10 +158,9 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 	if err := write(prepared.report); err != nil {
 		return err
 	}
-	deadline := request.Plan.Start.Add(prepared.duration).Add(options.DeliveryGrace)
-	ctx, cancel := context.WithDeadline(ctx, deadline)
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	pipeline, err := output.New(ctx, options.Destinations, options.APIKey, nil, output.Options{QueueCapacity: options.QueueCapacity})
+	pipeline, err := output.New(ctx, options.Destinations, options.APIKey, nil, output.Options{QueueCapacity: replayQueueCapacity})
 	if err != nil {
 		prepared.report.Status = "failed"
 		prepared.report.End = time.Now()
@@ -172,7 +171,17 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 		return err
 	}
 	defer pipeline.Close()
-	result, runErr := prepared.run(ctx, Options{Workers: options.Workers, QueueCapacity: options.QueueCapacity, Clock: WallClock{}, Delivery: AgentDelivery{Pipeline: pipeline}})
+	// Validation and forwarder startup must not consume the scenario's duration.
+	// The CLI supplies provisional metadata; execution establishes the real start.
+	request.Plan.Start = time.Now().UTC()
+	prepared.report.Start = request.Plan.Start
+	if err := write(prepared.report); err != nil {
+		return err
+	}
+	deadline := request.Plan.Start.Add(prepared.duration).Add(deliveryGrace)
+	ctx, cancelDeadline := context.WithDeadline(ctx, deadline)
+	defer cancelDeadline()
+	result, runErr := prepared.run(ctx, Options{Workers: replayWorkers, QueueCapacity: replayQueueCapacity, Clock: WallClock{}, Delivery: AgentDelivery{Pipeline: pipeline}})
 	if err := write(result); err != nil {
 		return fmt.Errorf("write final local report (run error: %v): %w", runErr, err)
 	}

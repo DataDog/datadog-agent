@@ -31,19 +31,20 @@ const (
 
 var destinations = []Destination{Metrics, Metadata, Processes, Connections, EventPlatform, NDM}
 
-// Config is deliberately separate from the live Agent configuration. Unknown
-// fields are rejected by the command's strict YAML decoder. Secrets are read
-// at delivery time from DD_API_KEY and are never persisted in a plan.
+// Config is internal delivery configuration, separate from the live Agent
+// configuration. The command reads Site from DD_SITE; capture uses Site without
+// consulting the environment. Secrets are read at delivery time from DD_API_KEY
+// and are never written to simulation artifacts.
 type Config struct {
-	Site      string                   `yaml:"site"`
-	Endpoints map[Destination][]string `yaml:"endpoints"`
+	Site      string
+	Endpoints map[Destination][]string
 }
 
 // Resolve returns the complete destination set before any forwarder starts.
 // getenv is injected so callers cannot silently inherit a production DD_SITE.
 func (c Config) Resolve(getenv func(string) string) (map[Destination][]string, error) {
 	if c.Site != Site {
-		return nil, fmt.Errorf("site must explicitly be %q; empty and production sites are forbidden", Site)
+		return nil, fmt.Errorf("DD_SITE must be %q; empty and production sites are forbidden", Site)
 	}
 	if site := getenv("DD_SITE"); site != "" && site != Site {
 		return nil, errors.New("DD_SITE conflicts with required staging site")
@@ -53,11 +54,11 @@ func (c Config) Resolve(getenv func(string) string) (map[Destination][]string, e
 			return nil, fmt.Errorf("unsupported destination %q", dest)
 		}
 	}
-	// These settings must be supplied in the isolated config. Rejecting them
-	// prevents a later Agent constructor from accidentally enabling a second route.
+	// Reject inherited Agent endpoint overrides so a later Agent constructor
+	// cannot accidentally enable a second route.
 	for _, key := range []string{"DD_DD_URL", "DD_URL", "DD_ADDITIONAL_ENDPOINTS", "DD_PROCESS_CONFIG_PROCESS_DD_URL", "DD_PROCESS_CONFIG_ADDITIONAL_ENDPOINTS", "DD_SOFTWARE_INVENTORY_FORWARDER_LOGS_DD_URL", "DD_SOFTWARE_INVENTORY_FORWARDER_ADDITIONAL_ENDPOINTS", "DD_NETWORK_DEVICES_METADATA_LOGS_DD_URL", "DD_NETWORK_DEVICES_METADATA_ADDITIONAL_ENDPOINTS", "DD_MULTI_REGION_FAILOVER_ENABLED"} {
 		if getenv(key) != "" {
-			return nil, fmt.Errorf("%s is not supported: configure all simulator destinations through endpoints", key)
+			return nil, fmt.Errorf("%s is not supported: unset it; simulator destinations are derived from DD_SITE", key)
 		}
 	}
 	resolved := map[Destination][]string{

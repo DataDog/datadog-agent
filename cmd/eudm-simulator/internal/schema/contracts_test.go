@@ -8,6 +8,7 @@ package schema
 import (
 	"encoding/json"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -32,27 +33,28 @@ func healthy(t *testing.T) *Scenario {
 	return &scenario
 }
 
-func refs() map[string]BundleRef {
-	result := map[string]BundleRef{}
-	for group, platform := range map[string]string{"mac": "macos", "win": "windows"} {
-		result[group] = BundleRef{Digest: Digest([]byte(platform)), AgentCommit: strings.Repeat("a", 40), Profile: Profile{OS: platform, Architecture: "arm64", Streams: []Stream{Metrics, HostMetadata, Processes, Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Chrome"}, SoftwareNames: []string{"Google Chrome"}}}
-	}
-	return result
+func baselineRef(platform string) BundleRef {
+	return BundleRef{Digest: Digest([]byte(platform)), AgentCommit: strings.Repeat("a", 40), Profile: Profile{OS: platform, Architecture: "arm64", Streams: []Stream{Metrics, HostMetadata, Processes, Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Chrome"}, SoftwareNames: []string{"Google Chrome"}}}
 }
 
-func TestMixedPlatformPlanRoundTrip(t *testing.T) {
+func TestSingleBaselinePlanRoundTrip(t *testing.T) {
 	s := healthy(t)
+	s.Fleet[1].OS = "macos"
 	digest, commit := Digest([]byte(healthyYAML)), strings.Repeat("a", 40)
-	p, err := NewPlan(s, digest, commit, 42, time.Date(2026, 9, 29, 1, 2, 3, 0, time.UTC), refs())
+	baseline := baselineRef("macos")
+	p, err := NewPlan(s, digest, commit, 42, time.Date(2026, 9, 29, 1, 2, 3, 0, time.UTC), baseline)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Assignments[0].FirstOrdinal != 0 || p.Assignments[1].FirstOrdinal != 3 || p.Assignments[1].Count != 4 {
-		t.Fatal("fleet was truncated or reordered", p.Assignments)
+	if p.Version != RunPlanVersion || !reflect.DeepEqual(p.Bundle, baseline) {
+		t.Fatal("plan did not retain the single baseline capture", p)
 	}
 	data, err := json.Marshal(p)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"bundles"`) || strings.Contains(string(data), `"assignments"`) {
+		t.Fatal("plan retained the removed cohort assignment contract")
 	}
 	var restored RunPlan
 	if err := json.Unmarshal(data, &restored); err != nil {
@@ -69,31 +71,31 @@ func TestMixedPlatformPlanRoundTrip(t *testing.T) {
 func TestPlanRejectsMissingAndIncompatibleEvidence(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
-		mutate func(*Scenario, map[string]BundleRef)
+		mutate func(*Scenario, *BundleRef)
 	}{
-		{"missing cohort", func(_ *Scenario, r map[string]BundleRef) { delete(r, "mac") }},
-		{"OS mismatch", func(_ *Scenario, r map[string]BundleRef) { r["mac"] = r["win"] }},
-		{"missing stream", func(_ *Scenario, r map[string]BundleRef) {
-			b := r["win"]
-			b.Profile.Streams = []Stream{Metrics}
-			r["win"] = b
-		}},
-		{"wrong commit", func(_ *Scenario, r map[string]BundleRef) {
-			b := r["win"]
-			b.AgentCommit = strings.Repeat("b", 40)
-			r["win"] = b
-		}},
-		{"invented hardware", func(s *Scenario, _ map[string]BundleRef) { s.Fleet[0].TotalRAMGB = 128 }},
-		{"invented metric", func(s *Scenario, _ map[string]BundleRef) {
+		{"missing baseline", func(_ *Scenario, r *BundleRef) { *r = BundleRef{} }},
+		{"OS mismatch", func(_ *Scenario, r *BundleRef) { r.Profile.OS = "windows" }},
+		{"incompatible second group", func(s *Scenario, _ *BundleRef) { s.Fleet[1].OS = "windows" }},
+		{"missing stream", func(_ *Scenario, r *BundleRef) { r.Profile.Streams = []Stream{Metrics} }},
+		{"wrong commit", func(_ *Scenario, r *BundleRef) { r.AgentCommit = strings.Repeat("b", 40) }},
+		{"invented hardware", func(s *Scenario, _ *BundleRef) { s.Fleet[0].TotalRAMGB = 128 }},
+		{"invented metric", func(s *Scenario, _ *BundleRef) {
 			s.Phases[0].Metrics = map[string]map[string]Pattern{"mac": {"system.wlan.rssi": {Steady: &SteadyPattern{Value: -55}}}}
 		}},
-		{"invented process", func(s *Scenario, _ map[string]BundleRef) {
+		{"missing metric for second group", func(s *Scenario, _ *BundleRef) {
+			s.Phases[0].Metrics = map[string]map[string]Pattern{"win": {"system.wlan.rssi": {Steady: &SteadyPattern{Value: -55}}}}
+		}},
+		{"missing connections for second group", func(s *Scenario, _ *BundleRef) {
+			s.Phases[0].Connections = map[string][]ConnectionOverlay{"win": {{Selector: "vpn-1", RTTMilliseconds: &Pattern{Steady: &SteadyPattern{Value: 400}}}}}
+		}},
+		{"invented process", func(s *Scenario, _ *BundleRef) {
 			s.Phases[0].Processes = map[string][]ProcessDef{"win": {{Name: "not-captured", CPU: Pattern{Steady: &SteadyPattern{Value: 1}}, Memory: Pattern{Steady: &SteadyPattern{Value: 20}}}}}
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s, r := healthy(t), refs()
-			tc.mutate(s, r)
+			s, r := healthy(t), baselineRef("macos")
+			s.Fleet[1].OS = "macos"
+			tc.mutate(s, &r)
 			if _, err := NewPlan(s, Digest([]byte(healthyYAML)), strings.Repeat("a", 40), 1, time.Now(), r); err == nil {
 				t.Fatal("accepted invalid evidence")
 			}
@@ -124,8 +126,7 @@ func TestStrictScenarioRejectsUnsupportedEvidence(t *testing.T) {
 func TestConnectionSelectorsRequireCapturedStream(t *testing.T) {
 	s := healthy(t)
 	s.Phases[0].Connections = map[string][]ConnectionOverlay{"win": {{Selector: "vpn-1", RTTMilliseconds: &Pattern{Steady: &SteadyPattern{Value: 400}}, TCPFailures: map[uint32]Pattern{110: {Steady: &SteadyPattern{Value: 1}}}}}}
-	r := refs()
-	b := r["win"]
+	b := baselineRef("windows")
 	if err := s.ValidateEvidence(s.Fleet[1], b.Profile); err == nil {
 		t.Fatal("accepted uncaptured connections")
 	}
@@ -182,12 +183,15 @@ func TestPersistedPlanTampering(t *testing.T) {
 	for _, mutate := range []func(*RunPlan){
 		func(p *RunPlan) { p.Version++ }, func(p *RunPlan) { p.ScenarioDigest = Digest([]byte("changed")) },
 		func(p *RunPlan) { p.RunID = "healthy-mixed" }, func(p *RunPlan) { p.Start = time.Time{} },
-		func(p *RunPlan) { p.Assignments[1].Count-- }, func(p *RunPlan) { p.Assignments[1].FirstOrdinal = 0 },
-		func(p *RunPlan) { p.Bundles[0].AgentCommit = strings.Repeat("b", 40) },
+		func(p *RunPlan) { p.Version = 1 }, func(p *RunPlan) { p.Bundle = BundleRef{} },
+		func(p *RunPlan) { p.Bundle.AgentCommit = strings.Repeat("b", 40) },
+		func(p *RunPlan) { p.Bundle.Digest = "invalid" },
+		func(p *RunPlan) { p.Bundle.Profile.Streams = nil },
 	} {
 		s := healthy(t)
+		s.Fleet[1].OS = "macos"
 		digest, commit := Digest([]byte(healthyYAML)), strings.Repeat("a", 40)
-		p, err := NewPlan(s, digest, commit, 1, time.Now(), refs())
+		p, err := NewPlan(s, digest, commit, 1, time.Now(), baselineRef("macos"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -211,7 +215,7 @@ func TestIdentityTagsCannotBeOverridden(t *testing.T) {
 func TestProcessEvidenceRequiresReconciliationMetrics(t *testing.T) {
 	s := healthy(t)
 	s.Phases[0].Processes = map[string][]ProcessDef{"mac": {{Name: "Chrome", CPU: Pattern{Steady: &SteadyPattern{Value: 2}}, Memory: Pattern{Steady: &SteadyPattern{Value: 100}}}}}
-	profile := refs()["mac"].Profile
+	profile := baselineRef("macos").Profile
 	if err := s.ValidateEvidence(s.Fleet[0], profile); err == nil {
 		t.Fatal("accepted process overlay without host resource metrics")
 	}

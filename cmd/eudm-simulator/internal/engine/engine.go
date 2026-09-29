@@ -40,7 +40,7 @@ var streamOrder = []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Pr
 type Request struct {
 	Scenario *schema.Scenario
 	Plan     *schema.RunPlan
-	Bundles  map[string]*bundle.Loaded
+	Bundle   *bundle.Loaded
 }
 
 // Delivery returns only after every chunk in its collection cycle is accepted.
@@ -84,23 +84,18 @@ func prepare(request Request) (*prepared, error) {
 	if err := request.Plan.Validate(request.Scenario, request.Plan.ScenarioDigest, request.Plan.AgentCommit); err != nil {
 		return nil, err
 	}
-	if len(request.Bundles) != len(request.Plan.Bundles) {
-		return nil, errors.New("supply exactly the run plan's verified bundles")
+	b := request.Bundle
+	if b == nil || !reflect.DeepEqual(b.Ref(), request.Plan.Bundle) {
+		return nil, errors.New("baseline bundle differs from run plan")
 	}
-	for _, ref := range request.Plan.Bundles {
-		b := request.Bundles[ref.Digest]
-		if b == nil || !reflect.DeepEqual(b.Ref(), ref) {
-			return nil, errors.New("assigned bundle differs from run plan")
+	for name, digest := range b.Manifest.Files {
+		if schema.Digest(b.Files[name]) != digest {
+			return nil, errors.New("verified bundle bytes changed before replay")
 		}
-		for name, digest := range b.Manifest.Files {
-			if schema.Digest(b.Files[name]) != digest {
-				return nil, errors.New("verified bundle bytes changed before replay")
-			}
-		}
-		for _, ref := range b.Manifest.Samples {
-			if _, err := telemetry.Decode(ref.Stream, b.Files[ref.File]); err != nil {
-				return nil, fmt.Errorf("invalid captured %s sample: %w", ref.Stream, err)
-			}
+	}
+	for _, ref := range b.Manifest.Samples {
+		if _, err := telemetry.Decode(ref.Stream, b.Files[ref.File]); err != nil {
+			return nil, fmt.Errorf("invalid captured %s sample: %w", ref.Stream, err)
 		}
 	}
 	aps, err := accesspoint.New(request.Scenario, request.Plan.RunID, request.Plan.Seed)
@@ -108,9 +103,8 @@ func prepare(request Request) (*prepared, error) {
 		return nil, err
 	}
 	p := &prepared{request: request, duration: durationOf(request.Scenario), accessPoints: aps, report: report.New(request.Plan, request.Scenario, runtime.GOOS)}
-	for i, assignment := range request.Plan.Assignments {
-		group := request.Scenario.Fleet[i]
-		b := request.Bundles[assignment.BundleDigest]
+	ordinal := 0
+	for _, group := range request.Scenario.Fleet {
 		timelines := map[schema.Stream]*timeline{}
 		var streams []schema.Stream
 		for _, stream := range streamOrder {
@@ -136,8 +130,7 @@ func prepare(request Request) (*prepared, error) {
 		if err != nil {
 			return nil, err
 		}
-		for j := 0; j < assignment.Count; j++ {
-			ordinal := assignment.FirstOrdinal + j
+		for j := 0; j < group.Count; j++ {
 			id := identity.New(request.Plan.RunID, request.Plan.Seed, group.Group, ordinal)
 			d := &device{group: group, ordinal: ordinal, id: id, capture: b, timelines: timelines, wireless: wireless}
 			p.devices = append(p.devices, d)
@@ -145,6 +138,7 @@ func prepare(request Request) (*prepared, error) {
 			for _, stream := range streams {
 				p.report.Ledger[ordinal].Streams[stream].Expected = uint64(timelines[stream].count)
 			}
+			ordinal++
 		}
 	}
 	if len(request.Scenario.NetworkDevices.AccessPoints) > 0 {

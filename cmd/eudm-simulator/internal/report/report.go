@@ -46,7 +46,7 @@ type Report struct {
 	Version         int                       `json:"version"`
 	Status          string                    `json:"status"`
 	ScenarioDigest  string                    `json:"scenario_digest"`
-	BundleDigests   []string                  `json:"bundle_digests"`
+	BundleDigest    string                    `json:"bundle_digest"`
 	AgentCommit     string                    `json:"agent_commit"`
 	Seed            uint64                    `json:"seed"`
 	RunID           string                    `json:"run_id"`
@@ -65,12 +65,9 @@ type Report struct {
 
 // New copies the inputs required to explain and select one run.
 func New(plan *schema.RunPlan, scenario *schema.Scenario, replayOS string) *Report {
-	r := &Report{Version: 1, Status: "planned", ScenarioDigest: plan.ScenarioDigest, AgentCommit: plan.AgentCommit, Seed: plan.Seed, RunID: plan.RunID, Start: plan.Start, ReplayOS: replayOS, Expectation: schema.Expectation{Conclusion: scenario.Expectation.Conclusion, AffectedCohorts: slices.Clone(scenario.Expectation.AffectedCohorts)}, Selectors: map[string]string{"telemetry": "eudm_run_id:" + plan.RunID, "ndm_namespace": identity.Namespace(plan.RunID)}, Errors: []string{}, NetworkStreams: map[schema.Stream]*Counts{}, NetworkDevices: []string{}}
-	for _, assignment := range plan.Assignments {
-		r.DeclaredDevices += assignment.Count
-	}
-	for _, b := range plan.Bundles {
-		r.BundleDigests = append(r.BundleDigests, b.Digest)
+	r := &Report{Version: 2, Status: "planned", ScenarioDigest: plan.ScenarioDigest, BundleDigest: plan.Bundle.Digest, AgentCommit: plan.AgentCommit, Seed: plan.Seed, RunID: plan.RunID, Start: plan.Start, ReplayOS: replayOS, Expectation: schema.Expectation{Conclusion: scenario.Expectation.Conclusion, AffectedCohorts: slices.Clone(scenario.Expectation.AffectedCohorts)}, Selectors: map[string]string{"telemetry": "eudm_run_id:" + plan.RunID, "ndm_namespace": identity.Namespace(plan.RunID)}, Errors: []string{}, NetworkStreams: map[schema.Stream]*Counts{}, NetworkDevices: []string{}}
+	for _, group := range scenario.Fleet {
+		r.DeclaredDevices += group.Count
 	}
 	var offset time.Duration
 	for _, phase := range scenario.Phases {

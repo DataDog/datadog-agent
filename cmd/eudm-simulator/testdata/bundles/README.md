@@ -8,8 +8,8 @@ pipeline with an in-memory recording transport. No live device collection or
 staging request is involved.
 
 These fixtures exercise bundle compatibility, sanitization contracts, portable
-mixed-platform replay, process/software overlays, Windows connection evidence,
-wireless correlation, and delivery accounting. They do not prove native Windows
+replay from one baseline per run, process/software overlays, Windows connection
+evidence, wireless correlation, and delivery accounting. They do not prove native Windows
 capture, staging device enrichment, monitor behavior, or Command Center/Bits
 acceptance.
 
@@ -54,7 +54,7 @@ through `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python`
 after regeneration. Generator success alone is not a replay acceptance result.
 
 Real Windows and macOS captures remain outside the repository as
-operator-managed artifacts. Their run plans record their actual digests and
+operator-managed artifacts. Their run reports record their actual digests and
 Agent revisions; an Agent revision change requires recapture. Follow the
 [simulator runbook](../../../../doc/how-to/test/eudm-simulator.md) for native
 capture and the deferred staging proofs.

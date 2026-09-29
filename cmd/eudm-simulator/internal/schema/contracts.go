@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// Version identifies the scenario and run-plan contracts.
+// Version identifies the scenario contract.
 const Version = 1
 
 // Conclusion is a local acceptance criterion, never a telemetry dimension.

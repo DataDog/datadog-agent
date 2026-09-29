@@ -17,11 +17,11 @@ import (
 )
 
 func fixture() *Report {
-	plan := &schema.RunPlan{RunID: strings.Repeat("a", 32), ScenarioDigest: strings.Repeat("b", 64), AgentCommit: strings.Repeat("c", 40), Seed: 123, Start: time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC), Bundles: []schema.BundleRef{{Digest: strings.Repeat("d", 64)}}, Assignments: []schema.Assignment{{Cohort: "affected", Count: 2}}}
-	scenario := &schema.Scenario{Expectation: schema.Expectation{Conclusion: schema.VPNPath, AffectedCohorts: []string{"affected"}}, Phases: []schema.Phase{{Name: "healthy", Duration: schema.Duration{Duration: 20 * time.Minute}}, {Name: "onset", Duration: schema.Duration{Duration: time.Minute}}}}
+	plan := &schema.RunPlan{RunID: strings.Repeat("a", 32), ScenarioDigest: strings.Repeat("b", 64), AgentCommit: strings.Repeat("c", 40), Seed: 123, Start: time.Date(2026, 9, 29, 12, 0, 0, 0, time.UTC), Bundle: schema.BundleRef{Digest: strings.Repeat("d", 64)}}
+	scenario := &schema.Scenario{Fleet: []schema.GroupDef{{Group: "affected", Count: 2}}, Expectation: schema.Expectation{Conclusion: schema.VPNPath, AffectedCohorts: []string{"affected"}}, Phases: []schema.Phase{{Name: "healthy", Duration: schema.Duration{Duration: 20 * time.Minute}}, {Name: "onset", Duration: schema.Duration{Duration: time.Minute}}}}
 	r := New(plan, scenario, "linux")
 	for i := range 2 {
-		r.AddDevice(i, "opaque-host-"+string(rune('a'+i)), "affected", plan.Bundles[0].Digest, []schema.Stream{schema.Metrics, schema.Processes})
+		r.AddDevice(i, "opaque-host-"+string(rune('a'+i)), "affected", plan.Bundle.Digest, []schema.Stream{schema.Metrics, schema.Processes})
 		for _, counts := range r.Ledger[i].Streams {
 			counts.Expected, counts.Delivered = 80, 80
 		}
@@ -73,7 +73,7 @@ func TestLocalReportContainsPortableEvidenceAndRefusesOverwrite(t *testing.T) {
 	if err := json.Unmarshal(data, &got); err != nil {
 		t.Fatal(err)
 	}
-	if !got.Complete() || got.Version != 1 || got.ReplayOS != "linux" || got.Seed != 123 || got.Status != "succeeded" || got.Expectation.Conclusion != schema.VPNPath || got.ScenarioDigest != r.ScenarioDigest || got.BundleDigests[0] != r.BundleDigests[0] {
+	if !got.Complete() || got.Version != 2 || got.ReplayOS != "linux" || got.Seed != 123 || got.Status != "succeeded" || got.Expectation.Conclusion != schema.VPNPath || got.ScenarioDigest != r.ScenarioDigest || got.BundleDigest != r.BundleDigest {
 		t.Fatal("lost local report contract")
 	}
 	if got.Phases[1].StartOffset != 20*time.Minute || got.Phases[1].Duration != time.Minute || got.Selectors["telemetry"] != "eudm_run_id:"+r.RunID || strings.Contains(got.Selectors["telemetry"], "affected") {
