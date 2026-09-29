@@ -600,6 +600,46 @@ func fromQuantile(name string, startTime, timeNow time.Time, quantile sketchtest
 	return fromGoExpoHisto(name, agg, startTime, timeNow)
 }
 
+func TestExponentialHistogramPartialMinMax(t *testing.T) {
+	tests := []struct {
+		name             string
+		values           []float64
+		hasMin           bool
+		hasMax           bool
+		wantMin, wantMax float64
+	}{
+		// The translator clamps the extremes so they may differ from the true value.
+		// Here, the translator replaces the sketch estimate of the missing extremum with the one the point sets.
+		{name: "min only", values: []float64{93, 93}, hasMin: true, wantMin: 93, wantMax: 93},
+		{name: "max only", values: []float64{1000, 1001}, hasMax: true, wantMin: 1001, wantMax: 1001},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agg := new(structure.Histogram[float64])
+			agg.Init(structure.NewConfig())
+			for _, v := range tt.values {
+				agg.Update(v)
+			}
+			md := fromGoExpoHisto("test", agg, time.Unix(1, 0), time.Unix(2, 0))
+			p := md.ResourceMetrics().At(0).ScopeMetrics().At(0).Metrics().At(0).ExponentialHistogram().DataPoints().At(0)
+			if !tt.hasMin {
+				p.RemoveMin()
+			}
+			if !tt.hasMax {
+				p.RemoveMax()
+			}
+
+			consumer := &sketchConsumer{}
+			_, err := newTranslator(t, zap.NewNop()).MapMetrics(t.Context(), md, consumer, nil)
+			require.NoError(t, err)
+			require.NotNil(t, consumer.sk)
+			assert.Equal(t, tt.wantMin, consumer.sk.Basic.Min)
+			assert.Equal(t, tt.wantMax, consumer.sk.Basic.Max)
+		})
+	}
+}
+
 func TestKnownDistributionsQuantile(t *testing.T) {
 	timeNow := time.Now()
 	startTime := timeNow.Add(-10 * time.Second)
