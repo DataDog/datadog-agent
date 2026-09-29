@@ -29,6 +29,7 @@ go_library(
 dd_agent_go_test(
     name = "processor_test",
     srcs = [
+        "encoder_tag_parity_test.go",
         "encoder_test.go",
         "processor_test.go",
     ],
@@ -40,5 +41,6 @@ dd_agent_go_test(
         "//pkg/logs/sources",
         "@com_github_datadog_agent_payload_v5//pb",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

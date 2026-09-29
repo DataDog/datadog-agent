@@ -12,7 +12,9 @@ services:
             "type": "udp",
             "port": 10518,
             "source": "logger",
-            "service": "test-app"
+            "service": "test-app",
+            "sourcecategory": "web",
+            "tags": ["env:e2e", "team:logs"]
           }
         ]
 

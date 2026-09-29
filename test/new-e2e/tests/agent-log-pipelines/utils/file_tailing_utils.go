@@ -301,6 +301,62 @@ func CheckLogsExpected(t *testing.T, fakeIntake *components.FakeIntake, service,
 	}, WaitFor, Tick)
 }
 
+// CheckLogsTagsExactOrder verifies that a log with the given service and
+// content arrives with exactly expectedTags in ddtags, in that order. Use it
+// to pin the tag wire order (attached tags, then sourcecategory, then the
+// configured tags) for a tailer family. fakeintake decodes only the JSON
+// logs intake, so this covers the JSON encoder.
+func CheckLogsTagsExactOrder(t *testing.T, fakeIntake *components.FakeIntake, service, content string, expectedTags []string) {
+	t.Helper()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs, err := FetchAndFilterLogs(fakeIntake, service, content)
+		if !assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
+			return
+		}
+		if !assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, logsToString(logs)) {
+			return
+		}
+		for _, log := range logs {
+			assert.Equal(c, expectedTags, log.GetTags(), "ddtags order for service '%s'", service)
+		}
+	}, WaitFor, Tick)
+}
+
+// CheckLogsTagsOrderedSuffix verifies that a log with the given service and
+// content ends its ddtags with exactly expectedSuffix, in that order, that no
+// suffix tag also appears earlier, and that the earlier (attached) tags
+// contain every tag in expectedAttached. Use it when the attached group comes
+// from the tagger and its full content is environment-specific (containers).
+func CheckLogsTagsOrderedSuffix(t *testing.T, fakeIntake *components.FakeIntake, service, content string, expectedSuffix, expectedAttached []string) {
+	t.Helper()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		logs, err := FetchAndFilterLogs(fakeIntake, service, content)
+		if !assert.NoErrorf(c, err, "Error fetching logs: %s", err) {
+			return
+		}
+		if !assert.NotEmpty(c, logs, "Expected logs with content: '%s' not found. Instead, found: %s", content, logsToString(logs)) {
+			return
+		}
+		for _, log := range logs {
+			tags := log.GetTags()
+			if !assert.GreaterOrEqual(c, len(tags), len(expectedSuffix), "too few ddtags: %v", tags) {
+				continue
+			}
+			split := len(tags) - len(expectedSuffix)
+			attached, suffix := tags[:split], tags[split:]
+			assert.Equal(c, expectedSuffix, suffix, "ddtags must end with sourcecategory then the configured tags: %v", tags)
+			for _, tag := range expectedSuffix {
+				assert.NotContains(c, attached, tag, "configured tag duplicated in the attached group: %v", tags)
+			}
+			for _, tag := range expectedAttached {
+				assert.Contains(c, attached, tag, "attached group: %v", tags)
+			}
+		}
+	}, WaitFor, Tick)
+}
+
 // CheckLogsNotExpected verifies the absence of unexpected logs.
 func CheckLogsNotExpected(t *testing.T, fakeIntake *components.FakeIntake, service, content string) {
 	t.Helper()

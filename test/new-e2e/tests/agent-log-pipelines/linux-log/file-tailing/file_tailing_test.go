@@ -45,6 +45,10 @@ const (
 	// intake message contains both.
 	iisGetToken  = "GET /ZenIT/Service/v13/core/Consent"
 	iisPostToken = "POST /ZenIT/Service/v13/core/Logger"
+
+	tagParityLogFileName = "tag-parity.log"
+	tagParityLogFilePath = utils.LinuxLogsFolderPath + "/" + tagParityLogFileName
+	tagParityService     = "tag-parity"
 )
 
 // iisW3CRecords is a timestamped #Date header plus two 10.1.48.10 records.
@@ -280,4 +284,27 @@ func (s *LinuxFakeintakeSuite) TestIISW3CRecordsStaySeparate() {
 		require.GreaterOrEqual(c, postOnly, 1, "POST IIS record was not received as its own message; got %d logs for service %s", len(logs), iisService)
 		assert.Zero(c, combined, "GET and POST IIS records were concatenated into one intake message")
 	}, 2*time.Minute, 10*time.Second)
+}
+
+// TestTagWireOrder pins the file tailer's ddtags order on the wire: path tags
+// (filename, dirname), then sourcecategory, then the configured tags, each
+// exactly once. Run it against a main pipeline and a branch pipeline; the
+// same assertion must pass on both.
+func (s *LinuxFakeintakeSuite) TestTagWireOrder() {
+	t := s.T()
+	s.Env().RemoteHost.MustExecute("sudo touch " + tagParityLogFilePath)
+	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", tagParityLogFilePath))
+	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file '%s'.", tagParityLogFilePath)
+	assert.Equalf(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '%s'.", tagParityLogFilePath)
+
+	utils.AssertAgentTailerOK(s, tagParityLogFileName)
+	utils.AppendLog(s, tagParityLogFileName, "tag-parity-file", 1)
+
+	utils.CheckLogsTagsExactOrder(t, s.Env().FakeIntake, tagParityService, "tag-parity-file", []string{
+		"filename:" + tagParityLogFileName,
+		"dirname:" + utils.LinuxLogsFolderPath,
+		"sourcecategory:web",
+		"env:e2e",
+		"team:logs",
+	})
 }

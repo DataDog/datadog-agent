@@ -7,6 +7,7 @@ go_library(
         "message.go",
         "origin.go",
         "status.go",
+        "tag_snapshot.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/message",
     visibility = ["//visibility:public"],
@@ -24,6 +25,8 @@ dd_agent_go_test(
         "origin_slice_aliasing_test.go",
         "origin_test.go",
         "status_test.go",
+        "tag_parity_test.go",
+        "tag_snapshot_test.go",
     ],
     embed = [":message"],
     deps = [

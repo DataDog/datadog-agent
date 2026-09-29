@@ -334,3 +334,60 @@ func TestStreamTailer_Syslog_AttributeParsingDisabled(t *testing.T) {
 	clientConn.Close()
 	tailer.Stop()
 }
+
+// TestStreamTailer_TagWireOrder pins the stream tailer's tag wire order:
+// parsing tags only, followed by the source category and the configured tags
+// (JSON/protobuf), or configured first (raw).
+func TestStreamTailer_TagWireOrder(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("logs_config.use_sourcehost_tag", true)
+
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	source := sources.NewLogSource("", &config.LogsConfig{
+		Source:         "nginx",
+		SourceCategory: "web",
+		Tags:           []string{"env:prod", "team:infra"},
+	})
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "10.0.0.1", nil)
+	tailer.Start()
+
+	clientConn.Write([]byte("foo\n"))
+	msg := recvMsg(t, outputChan)
+	assert.Equal(t, []string{"source_host:10.0.0.1", "sourcecategory:web", "env:prod", "team:infra"}, msg.Origin.Tags())
+	assert.Equal(t, "source_host:10.0.0.1,sourcecategory:web,env:prod,team:infra", msg.Origin.TagsToString())
+	assert.Equal(t, `[dd ddsource="nginx"][dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra,source_host:10.0.0.1"]`,
+		string(msg.Origin.TagsPayload(nil)))
+
+	clientConn.Close()
+	tailer.Stop()
+}
+
+// TestStreamTailer_TagSnapshotIgnoresConfigMutation checks that a sent
+// message keeps its tags when Config.Tags is changed in place afterwards.
+func TestStreamTailer_TagSnapshotIgnoresConfigMutation(t *testing.T) {
+	serverConn, clientConn := net.Pipe()
+	defer serverConn.Close()
+
+	cfg := &config.LogsConfig{SourceCategory: "web", Tags: []string{"env:prod", "team:infra"}}
+	source := sources.NewLogSource("", cfg)
+	outputChan := make(chan *message.Message, 10)
+
+	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
+	tailer.Start()
+
+	clientConn.Write([]byte("foo\n"))
+	msg := recvMsg(t, outputChan)
+	clientConn.Close()
+	tailer.Stop()
+
+	cfg.Tags[0] = "env:mutated"
+	cfg.Tags = append(cfg.Tags, "late:tag")
+	cfg.SourceCategory = "mutated"
+
+	assert.Equal(t, []string{"sourcecategory:web", "env:prod", "team:infra"}, msg.Origin.Tags())
+	assert.Equal(t, `[dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra"]`, string(msg.Origin.TagsPayload(nil)))
+}
