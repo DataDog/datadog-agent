@@ -29,6 +29,7 @@ only be set when Bazel is invoked with the --stamp flag.
 """
 
 load("@rules_go//go:def.bzl", "go_binary")
+load("@with_cfg.bzl", "with_cfg")
 load("//bazel/rules/variables:variables.bzl", "compute_version_variables", "standard_to_url_safe")
 load(
     "//tasks:build_tags.bzl",
@@ -37,7 +38,6 @@ load(
     "FIPS_TAGS",
     "LINUX_ONLY_TAGS",
     "WINDOWS_EXCLUDED_TAGS",
-    "WINDOWS_INCLUDED_TAGS",
 )
 
 _REPO = "github.com/DataDog/datadog-agent"
@@ -151,8 +151,8 @@ def dd_agent_go_binary(
         kwargs["gotags"] = select({
             "@platforms//os:macos": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - DARWIN_EXCLUDED_TAGS),
             "//packages/agent:linux_fips": sorted(COMMON_TAGS | gotags | FIPS_TAGS),
-            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
-            "//:windows_x86_64": sorted((COMMON_TAGS | gotags | WINDOWS_INCLUDED_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//packages/agent:windows_x86_64_fips": sorted((COMMON_TAGS | gotags | FIPS_TAGS) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
+            "//:windows_x86_64": sorted((COMMON_TAGS | gotags) - LINUX_ONLY_TAGS - WINDOWS_EXCLUDED_TAGS),
             "//conditions:default": sorted(COMMON_TAGS | gotags),
         })
 
@@ -165,3 +165,14 @@ def dd_agent_go_binary(
         }),
         **kwargs
     )
+
+# Bazel's default --strip=sometimes strips rules_go binaries in fastbuild mode.
+# We have cases (like fixture binaries for tests) that rely on having
+# unconditionally unstripped binaries. This creates a target with a transition
+# that enforces that.
+unstripped_go_binary, _unstripped_go_binary_internal = with_cfg(
+    go_binary,
+).set(
+    "strip",
+    "never",
+).build()
