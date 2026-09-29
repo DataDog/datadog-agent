@@ -125,9 +125,13 @@ int hook_security_capable(ctx_t *ctx) {
     u32 tid = (u32)tgid_tid;
     struct capabilities_context_t *cap_context = bpf_map_lookup_elem(&capabilities_contexts, &tid);
 
-    // clear before any early return: this program can be skipped while the return still runs
+    // clear before any early return: this program can be skipped while the return still runs, and a
+    // collected capability left behind would be attributed to the next check of that capability
+    u64 collected_host_userns_cap = 0;
     if (cap_context) {
         cap_context->cap_as_mask = 0;
+        collected_host_userns_cap = cap_context->host_userns_cap_as_mask;
+        cap_context->host_userns_cap_as_mask = 0;
     }
 
     if (is_in_creds_override() || (cap_context && cap_context->override_creds_depth != 0)) {
@@ -135,9 +139,14 @@ int hook_security_capable(ctx_t *ctx) {
         return 0;
     }
 
-    // security_capable() is also asked about credentials that are not the current task's: another
+    // security_capable() can be called for credentials that are not the current task's: another
     // task's real_cred, a file's f_cred, a tracer
     if (!is_current_task_cred((void *)CTX_PARM1(ctx))) {
+        // netlink_capable() checks the socket opener's f_cred before the current task's credentials:
+        // keep what was collected for that second check
+        if (cap_context) {
+            cap_context->host_userns_cap_as_mask = collected_host_userns_cap;
+        }
         return 0;
     }
 
@@ -168,14 +177,11 @@ int hook_security_capable(ctx_t *ctx) {
     // we can use a bitmask here because CAP_LAST_CAP is less than 64
     u64 cap_as_mask = 1ULL << cap;
 
-    // merge what collect_host_userns_cap collected for this call
+    // merge what collect_host_userns_cap collected for this call: anything collected for a different
+    // capability belongs to a call we never saw the entry, so better drop it
     u64 host_userns_cap_as_mask = 0;
-    if (cap_context) {
-        // anything collected for a different capability belongs to a call we never saw the entry, so better drop it
-        if (cap_context->host_userns_cap_as_mask == cap_as_mask) {
-            host_userns_cap_as_mask = cap_as_mask;
-        }
-        cap_context->host_userns_cap_as_mask = 0;
+    if (collected_host_userns_cap == cap_as_mask) {
+        host_userns_cap_as_mask = cap_as_mask;
     }
 
     // Look up the capabilities usage entry for this process
@@ -222,15 +228,21 @@ int rethook_security_capable(ctx_t *ctx) {
     u64 cap_as_mask = cap_context->cap_as_mask; // The capability being checked as a bitmask
     u64 override_creds_depth = cap_context->override_creds_depth;
     u64 host_userns_check = cap_context->host_userns_check;
+    int retval = CTX_PARMRET(ctx); // The return value of the capability check, (0 for success, !0 for failure)
 
-    // netlink_capable() asks about the socket opener's credentials before asking about the
-    // current task's, and that first call is untracked: dropping the context here would take
-    // the collected capability with it and leave the real check looking namespace-scoped
+    // the entry only keeps a collected capability pending for the socket opener check of netlink_capable():
+    // if that check failed, __netlink_ns_capable() short-circuits and never checks the current task's credentials
+    // so we need to clear host_userns_cap_as_mask here.
+    if (retval != 0) {
+        cap_context->host_userns_cap_as_mask = 0;
+    }
+
+    // a pending capability has to outlive this call, for the check against the current task's credentials
     if (override_creds_depth == 0 && cap_context->host_userns_cap_as_mask == 0) {
         // delete the context now to prevent a previous cap from being picked up by an another call to security_capable
         bpf_map_delete_elem(&capabilities_contexts, &tid);
     } else {
-        // reset the caps in case of override_creds or an uncleared host_userns cap
+        // reset the caps in case of override_creds or a pending host_userns cap
         cap_context->cap_as_mask = 0;
         cap_context->host_userns_check = 0;
         // the depth counter has to outlive the call
@@ -240,7 +252,6 @@ int rethook_security_capable(ctx_t *ctx) {
         return 0;
     }
 
-    int retval = CTX_PARMRET(ctx); // The return value of the capability check, (0 for success, !0 for failure)
     if (retval != 0) { // If the capability check was not successful, we do not need to update the used capabilities set
         return 0;
     }
