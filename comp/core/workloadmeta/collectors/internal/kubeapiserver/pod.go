@@ -375,16 +375,16 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 	}
 }
 
-func newPodStore(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStore(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore) {
 	// The REST client approach doesn't work with protobuf, so fallback to typed
 	// client.
 	if config.GetBool("kubernetes_apiserver_use_protobuf") {
-		return newPodStoreWithTypedClient(wlm, config, client)
+		return newPodStoreWithTypedClient(wlm, config, client, entityRelationships)
 	}
-	return newPodStoreWithRestClient(wlm, config, client)
+	return newPodStoreWithRestClient(wlm, config, client, entityRelationships)
 }
 
-func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore) {
 	restClient := client.CoreV1().RESTClient()
 
 	listFunc := func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -422,7 +422,7 @@ func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader,
 		WatchFuncWithContext: watchFunc,
 	}
 
-	podStore := newPodReflectorStoreWithMinimalPodParser(wlm, config)
+	podStore := newPodReflectorStoreWithMinimalPodParser(wlm, config, entityRelationships)
 	podReflector := cache.NewNamedReflector(
 		componentName,
 		podListerWatcher,
@@ -434,7 +434,7 @@ func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader,
 	return podReflector, podStore
 }
 
-func newPodStoreWithTypedClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStoreWithTypedClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore) {
 	podListerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
@@ -444,7 +444,7 @@ func newPodStoreWithTypedClient(wlm workloadmeta.Component, config config.Reader
 		},
 	}
 
-	podStore := newPodReflectorStoreWithFullPodParser(wlm, config)
+	podStore := newPodReflectorStoreWithFullPodParser(wlm, config, entityRelationships)
 	podReflector := cache.NewNamedReflector(
 		componentName,
 		podListerWatcher,
@@ -456,7 +456,7 @@ func newPodStoreWithTypedClient(wlm workloadmeta.Component, config config.Reader
 	return podReflector, podStore
 }
 
-func newPodReflectorStoreWithMinimalPodParser(wlmetaStore workloadmeta.Component, config config.Reader) *reflectorStore {
+func newPodReflectorStoreWithMinimalPodParser(wlmetaStore workloadmeta.Component, config config.Reader, entityRelationships *entityRelationships) *reflectorStore {
 	annotationsExclude := config.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	filters, err := kubernetesresourceparsers.ParseFilters(annotationsExclude)
 	if err != nil {
@@ -464,13 +464,14 @@ func newPodReflectorStoreWithMinimalPodParser(wlmetaStore workloadmeta.Component
 	}
 
 	return &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      minimalPodParser{annotationsFilter: filters},
+		wlmetaStore:         wlmetaStore,
+		seen:                make(map[string]seenEntity),
+		parser:              minimalPodParser{annotationsFilter: filters},
+		entityRelationships: entityRelationships,
 	}
 }
 
-func newPodReflectorStoreWithFullPodParser(wlmetaStore workloadmeta.Component, config config.Reader) *reflectorStore {
+func newPodReflectorStoreWithFullPodParser(wlmetaStore workloadmeta.Component, config config.Reader, entityRelationships *entityRelationships) *reflectorStore {
 	annotationsExclude := config.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude")
 	parser, err := kubernetesresourceparsers.NewPodParser(annotationsExclude)
 	if err != nil {
@@ -479,8 +480,9 @@ func newPodReflectorStoreWithFullPodParser(wlmetaStore workloadmeta.Component, c
 	}
 
 	return &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      parser,
+		wlmetaStore:         wlmetaStore,
+		seen:                make(map[string]seenEntity),
+		parser:              parser,
+		entityRelationships: entityRelationships,
 	}
 }

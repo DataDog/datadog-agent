@@ -34,6 +34,14 @@ func mapToScrubbedJSONString(m map[string]string) string {
 	return sb.String()
 }
 
+func printReferences(entities []EntityID) string {
+	var sb strings.Builder
+	for _, e := range entities {
+		fmt.Fprintf(&sb, "%s ", e.ID)
+	}
+	return sb.String()
+}
+
 func sliceToString(s []string) string {
 	return strings.Join(s, " ")
 }

@@ -32,7 +32,7 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	return deployment == nil
 }
 
-func newDeploymentStore(wlm workloadmeta.Component, cfg config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newDeploymentStore(wlm workloadmeta.Component, cfg config.Reader, client kubernetes.Interface, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore) {
 	deploymentListerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
@@ -42,7 +42,7 @@ func newDeploymentStore(wlm workloadmeta.Component, cfg config.Reader, client ku
 		},
 	}
 
-	deploymentStore := newDeploymentReflectorStore(wlm, cfg)
+	deploymentStore := newDeploymentReflectorStore(wlm, cfg, entityRelationships)
 	deploymentReflector := cache.NewNamedReflector(
 		componentName,
 		deploymentListerWatcher,
@@ -53,7 +53,7 @@ func newDeploymentStore(wlm workloadmeta.Component, cfg config.Reader, client ku
 	return deploymentReflector, deploymentStore
 }
 
-func newDeploymentReflectorStore(wlmetaStore workloadmeta.Component, cfg config.Reader) *reflectorStore {
+func newDeploymentReflectorStore(wlmetaStore workloadmeta.Component, cfg config.Reader, entityRelationships *entityRelationships) *reflectorStore {
 	annotationsExclude := cfg.GetStringSlice("cluster_agent.kubernetes_resources_collection.deployment_annotations_exclude")
 	parser, err := kubernetesresourceparsers.NewDeploymentParser(annotationsExclude)
 	if err != nil {
@@ -62,10 +62,11 @@ func newDeploymentReflectorStore(wlmetaStore workloadmeta.Component, cfg config.
 	}
 
 	store := &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      parser,
-		filter:      &deploymentFilter{},
+		wlmetaStore:         wlmetaStore,
+		seen:                make(map[string]seenEntity),
+		parser:              parser,
+		filter:              &deploymentFilter{},
+		entityRelationships: entityRelationships,
 	}
 
 	return store

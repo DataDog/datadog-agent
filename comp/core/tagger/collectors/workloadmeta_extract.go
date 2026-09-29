@@ -780,44 +780,61 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*types.TagInfo {
 	deployment := ev.Entity.(*workloadmeta.KubernetesDeployment)
 
+	var tagInfos []*types.TagInfo
+
 	groupResource := "deployments.apps"
 
 	labelsAsTags := c.k8sResourcesLabelsAsTags[groupResource]
 	annotationsAsTags := c.k8sResourcesAnnotationsAsTags[groupResource]
 
-	if len(labelsAsTags)+len(annotationsAsTags) == 0 {
-		return nil
+	if len(labelsAsTags)+len(annotationsAsTags) > 0 {
+		globLabels := c.globK8sResourcesLabels[groupResource]
+		globAnnotations := c.globK8sResourcesAnnotations[groupResource]
+
+		tagList := taglist.NewTagList()
+
+		for name, value := range deployment.Labels {
+			k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
+		}
+
+		for name, value := range deployment.Annotations {
+			k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
+		}
+
+		low, orch, high, standard := tagList.Compute()
+
+		if len(low)+len(orch)+len(high)+len(standard) > 0 {
+			deploymentTagInfo := &types.TagInfo{
+				Source:               deploymentSource,
+				EntityID:             common.BuildTaggerEntityID(deployment.EntityID),
+				HighCardTags:         high,
+				OrchestratorCardTags: orch,
+				LowCardTags:          low,
+				StandardTags:         standard,
+				IsComplete:           ev.IsComplete,
+			}
+			tagInfos = append(tagInfos, deploymentTagInfo)
+
+			// commit the deployment's own tags now so the child cascade below reads the
+			// deployment's fresh tags via GetEntity, rather than the value from before this update
+			c.tagProcessor.ProcessTagInfo([]*types.TagInfo{deploymentTagInfo})
+		}
 	}
 
-	globLabels := c.globK8sResourcesLabels[groupResource]
-	globAnnotations := c.globK8sResourcesAnnotations[groupResource]
-
-	tagList := taglist.NewTagList()
-
-	for name, value := range deployment.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, labelsAsTags, globLabels, tagList)
-	}
-
-	for name, value := range deployment.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, annotationsAsTags, globAnnotations, tagList)
-	}
-
-	low, orch, high, standard := tagList.Compute()
-
-	if len(low)+len(orch)+len(high)+len(standard) == 0 {
-		return nil
-	}
-
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               deploymentSource,
-			EntityID:             common.BuildTaggerEntityID(deployment.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-			IsComplete:           ev.IsComplete,
-		},
+	// TODO: deployments never inherit tags from their own OwnerReferences (e.g. an Argo
+	// Rollout or Flux Kustomization owning this deployment), unlike handleKubeMetadata,
+	// which pulls owner tags for generic KubernetesMetadata entities. Known PoC gap.
+	for _, dependentID := range deployment.GetChildReferences() {
+		kubeMetadata, err := c.store.GetKubernetesMetadata(workloadmeta.KubeMetadataEntityID(dependentID.ID))
+		if err != nil {
+			// entity was removed since the child reference was recorded
+			continue
+		}
+		tagInfos = append(tagInfos, c.handleKubeMetadata(workloadmeta.Event{
+			Type:       workloadmeta.EventTypeSet,
+			Entity:     kubeMetadata,
+			IsComplete: c.entityCompleteness[kubeMetadata.EntityID],
+		})...)
 	}
 
 	return tagInfos
@@ -859,8 +876,42 @@ func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.T
 
 func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
 	kubeMetadata := ev.Entity.(*workloadmeta.KubernetesMetadata)
+	c.entityCompleteness[kubeMetadata.EntityID] = ev.IsComplete
 
 	tagList := taglist.NewTagList()
+
+	// collect all owner entities from workloadmeta and then extract their tags from the tagger
+	var ownerEntities []*types.Entity
+	owners := kubeMetadata.OwnerReferences
+
+	for _, owner := range owners {
+		var ownerEntity workloadmeta.EntityID
+
+		switch owner.Kind {
+		case workloadmeta.KindKubernetesDeployment:
+			deployment, err := c.store.GetKubernetesDeployment(owner.ID)
+			if err != nil {
+				log.Debugf("wmeta does not contain %s", owner.ID)
+				continue
+			}
+			ownerEntity = deployment.EntityID
+		default:
+			entity, err := c.store.GetKubernetesMetadata(workloadmeta.KubeMetadataEntityID(owner.ID))
+			if err != nil {
+				log.Debugf("wmeta does not contain %s", owner.ID)
+				continue
+			}
+			ownerEntity = entity.EntityID
+		}
+
+		ownerTags, err := c.tagger.GetEntity(common.BuildTaggerEntityID(ownerEntity))
+		if err != nil {
+			log.Debugf("tagger does not contain %s", common.BuildTaggerEntityID(ownerEntity))
+			continue
+		}
+
+		ownerEntities = append(ownerEntities, ownerTags)
+	}
 
 	// Generic resource annotations and labels as tags
 	groupResource := kubeMetadata.GVR.GroupResource().String()
@@ -880,6 +931,35 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 	}
 
 	low, orch, high, standard := tagList.Compute()
+
+	// check owner entities for inherited tags and append them to the current entity
+	// if they are in the inherited list
+	for _, ownerEntity := range ownerEntities {
+		for _, pair := range ownerEntity.LowCardinalityTags {
+			parts := strings.Split(pair, ":")
+			if _, ok := c.k8sInheritedTags[parts[0]]; ok {
+				low = append(low, pair)
+			}
+		}
+		for _, pair := range ownerEntity.OrchestratorCardinalityTags {
+			parts := strings.Split(pair, ":")
+			if _, ok := c.k8sInheritedTags[parts[0]]; ok {
+				orch = append(orch, pair)
+			}
+		}
+		for _, pair := range ownerEntity.HighCardinalityTags {
+			parts := strings.Split(pair, ":")
+			if _, ok := c.k8sInheritedTags[parts[0]]; ok {
+				high = append(high, pair)
+			}
+		}
+		for _, pair := range ownerEntity.StandardTags {
+			parts := strings.Split(pair, ":")
+			if _, ok := c.k8sInheritedTags[parts[0]]; ok {
+				standard = append(standard, pair)
+			}
+		}
+	}
 
 	if len(low)+len(orch)+len(high)+len(standard) == 0 {
 		return nil

@@ -48,7 +48,7 @@ func shouldHaveKueueMetadata(cfg config.Reader) bool {
 	return cfg.GetBool("cluster_agent.kueue.enabled")
 }
 
-func newKueueQueueStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType) (*cache.Reflector, *reflectorStore, error) {
+func newKueueQueueStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, queueType workloadmeta.KueueQueueType, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
@@ -72,10 +72,11 @@ func newKueueQueueStore(wlmetaStore workloadmeta.Component, client dynamic.Inter
 	}
 
 	store := &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      parser,
-		filter:      nil,
+		wlmetaStore:         wlmetaStore,
+		seen:                make(map[string]seenEntity),
+		parser:              parser,
+		filter:              nil,
+		entityRelationships: entityRelationships,
 	}
 	reflector := cache.NewNamedReflector(
 		componentName,
@@ -87,7 +88,7 @@ func newKueueQueueStore(wlmetaStore workloadmeta.Component, client dynamic.Inter
 	return reflector, store, nil
 }
 
-func newKueueResourceFlavorStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
+func newKueueResourceFlavorStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
@@ -106,10 +107,11 @@ func newKueueResourceFlavorStore(wlmetaStore workloadmeta.Component, client dyna
 	}
 
 	store := &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      kubernetesresourceparsers.NewKueueResourceFlavorParser(),
-		filter:      nil,
+		wlmetaStore:         wlmetaStore,
+		seen:                make(map[string]seenEntity),
+		parser:              kubernetesresourceparsers.NewKueueResourceFlavorParser(),
+		filter:              nil,
+		entityRelationships: entityRelationships,
 	}
 	reflector := cache.NewNamedReflector(
 		componentName,
@@ -121,7 +123,7 @@ func newKueueResourceFlavorStore(wlmetaStore workloadmeta.Component, client dyna
 	return reflector, store, nil
 }
 
-func newKueueWorkloadStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore, error) {
+func newKueueWorkloadStore(wlmetaStore workloadmeta.Component, client dynamic.Interface, gvr schema.GroupVersionResource, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore, error) {
 	listerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			obj, err := client.Resource(gvr).Namespace(metav1.NamespaceAll).List(ctx, options)
@@ -140,10 +142,11 @@ func newKueueWorkloadStore(wlmetaStore workloadmeta.Component, client dynamic.In
 	}
 
 	store := &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      kubernetesresourceparsers.NewKueueWorkloadParser(),
-		filter:      nil,
+		wlmetaStore:         wlmetaStore,
+		seen:                make(map[string]seenEntity),
+		parser:              kubernetesresourceparsers.NewKueueWorkloadParser(),
+		filter:              nil,
+		entityRelationships: entityRelationships,
 	}
 	reflector := cache.NewNamedReflector(
 		componentName,

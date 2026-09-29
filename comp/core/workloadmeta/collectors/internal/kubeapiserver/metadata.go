@@ -23,7 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newMetadataStore(wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
+func newMetadataStore(wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource, kindMapper kubernetesresourceparsers.KindMapper, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore) {
+	log.Debugf("newMetadataStore for %s/%s/%s", gvr.Group, gvr.Version, gvr.Resource)
 	metadataListerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			return metadataclient.Resource(gvr).List(ctx, options)
@@ -34,17 +35,18 @@ func newMetadataStore(wlmetaStore workloadmeta.Component, config config.Reader, 
 	}
 
 	annotationsExclude := config.GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
-	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, annotationsExclude)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, annotationsExclude, kindMapper)
 	if err != nil {
 		_ = log.Errorf("unable to parse all resource_annotations_exclude: %v, err:", err)
-		parser, _ = kubernetesresourceparsers.NewMetadataParser(gvr, nil)
+		parser, _ = kubernetesresourceparsers.NewMetadataParser(gvr, nil, kindMapper)
 	}
 
 	metadataStore := &reflectorStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      parser,
-		filter:      nil,
+		wlmetaStore:         wlmetaStore,
+		seen:                make(map[string]seenEntity),
+		parser:              parser,
+		filter:              nil,
+		entityRelationships: entityRelationships,
 	}
 	metadataReflector := cache.NewNamedReflector(
 		componentName,

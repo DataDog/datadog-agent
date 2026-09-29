@@ -59,6 +59,7 @@ type WorkloadMetaCollector struct {
 	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
+	tagger       taggerdef.Component
 
 	containerEnvAsTags              map[string]string
 	containerLabelsAsTags           map[string]string
@@ -67,6 +68,7 @@ type WorkloadMetaCollector struct {
 	staticTags                    map[string][]string // for ECS, EKS Fargate, and DCA
 	k8sResourcesAnnotationsAsTags map[string]map[string]string
 	k8sResourcesLabelsAsTags      map[string]map[string]string
+	k8sInheritedTags              map[string]struct{}
 	globContainerLabels           map[string]glob.Glob
 	globContainerEnvLabels        map[string]glob.Glob
 	globContainerImageAnnotations map[string]glob.Glob
@@ -215,9 +217,13 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 }
 
 // NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p taggerdef.Processor) *WorkloadMetaCollector {
+func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p taggerdef.Processor, comp taggerdef.Component) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
-		tagProcessor:                      p,
+		tagProcessor: p,
+		tagger:       comp,
+		k8sInheritedTags: map[string]struct{}{
+			"inherited_team": {},
+		},
 		store:                             store,
 		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),

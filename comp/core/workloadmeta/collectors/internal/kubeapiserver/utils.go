@@ -9,14 +9,17 @@ package kubeapiserver
 
 import (
 	"fmt"
+	"iter"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/discovery"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -193,4 +196,103 @@ func discoverGroupResourceVersions(discoveryClient discovery.DiscoveryInterface)
 	}
 
 	return groupResourceToVersion, nil
+}
+
+type entityRelationships struct {
+	mu              sync.Mutex
+	ownerToChildren map[workloadmeta.EntityID]Set[workloadmeta.EntityID]
+}
+
+func newEntityRelationships() *entityRelationships {
+	return &entityRelationships{ownerToChildren: make(map[workloadmeta.EntityID]Set[workloadmeta.EntityID])}
+}
+
+// addChild records child as a relative of owner.
+func (f *entityRelationships) addChild(owner, child workloadmeta.EntityID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	set := f.ownerToChildren[owner]
+	set.Add(child)
+	f.ownerToChildren[owner] = set
+}
+
+// removeChild removes child from owner's ownerToChildren, if present. If owner
+// has no remaining children afterwards, its entry is removed from the map.
+func (f *entityRelationships) removeChild(owner, child workloadmeta.EntityID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	set, ok := f.ownerToChildren[owner]
+	if !ok {
+		return
+	}
+	set.Remove(child)
+	if len(set.elements) == 0 {
+		delete(f.ownerToChildren, owner)
+		return
+	}
+	f.ownerToChildren[owner] = set
+}
+
+// removeOwner deletes owner's entry entirely, regardless of whether it still
+// has children. Used when the owner entity itself is removed from workloadmeta.
+func (f *entityRelationships) removeOwner(owner workloadmeta.EntityID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	delete(f.ownerToChildren, owner)
+}
+
+// children returns a snapshot of owner's ownerToChildren, safe to use without holding the lock.
+func (f *entityRelationships) children(owner workloadmeta.EntityID) []workloadmeta.EntityID {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	set, ok := f.ownerToChildren[owner]
+	if !ok {
+		return nil
+	}
+
+	children := make([]workloadmeta.EntityID, 0, len(set.elements))
+	for child := range set.All() {
+		children = append(children, child)
+	}
+	return children
+}
+
+type Set[T comparable] struct {
+	elements map[T]struct{}
+}
+
+func (s *Set[T]) Add(element T) {
+	if s.elements == nil {
+		s.elements = make(map[T]struct{})
+	}
+	s.elements[element] = struct{}{}
+}
+
+func (s *Set[T]) Contains(element T) bool {
+	_, ok := s.elements[element]
+	return ok
+}
+
+func (s *Set[T]) Remove(element T) {
+	if s.Contains(element) {
+		delete(s.elements, element)
+	}
+}
+
+func (s *Set[T]) All() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for e := range s.elements {
+			if !yield(e) {
+				return
+			}
+		}
+	}
+}
+
+func (s *Set[T]) Equals(x *Set[T]) bool {
+	return false
 }

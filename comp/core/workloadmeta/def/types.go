@@ -122,6 +122,13 @@ const (
 
 	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
 	SourceKubeAPIServer Source = "kubeapiserver"
+
+	// SourceKubernetesChildReferences represents the reverse of an entity's
+	// OwnerReferences: the set of entities that reference it as an owner.
+	// It's computed locally from other sources' OwnerReferences rather than
+	// observed directly from the API server, so it's kept on its own source
+	// to avoid clobbering the owner's other fields on merge.
+	SourceKubernetesChildReferences Source = "kubernetes_child_references"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -263,6 +270,17 @@ type Entity interface {
 	// String provides a summary of the entity.  The string may span several lines,
 	// especially if verbose.
 	String(verbose bool) string
+
+	// GetOwnerReferences returns the EntityIDs of this entity's owners, if any.
+	GetOwnerReferences() []EntityID
+
+	// GetChildReferences returns the EntityIDs of the entities that reference
+	// this entity as an owner.
+	GetChildReferences() []EntityID
+
+	// SetChildReferences sets the EntityIDs of the entities that reference
+	// this entity as an owner.
+	SetChildReferences(children []EntityID)
 }
 
 // EntityID represents the ID of an Entity.  Note that entities from different sources
@@ -283,11 +301,29 @@ func (i EntityID) String(_ bool) string {
 
 // EntityMeta represents generic metadata about an Entity.
 type EntityMeta struct {
-	Name        string
-	Namespace   string
-	Annotations map[string]string
-	Labels      map[string]string
-	UID         string `proto:"ignore"`
+	Name            string
+	Namespace       string
+	Annotations     map[string]string
+	Labels          map[string]string
+	OwnerReferences []EntityID
+	ChildReferences []EntityID
+
+	UID string `proto:"ignore"`
+}
+
+// GetOwnerReferences implements Entity#GetOwnerReferences.
+func (e EntityMeta) GetOwnerReferences() []EntityID {
+	return e.OwnerReferences
+}
+
+// GetChildReferences implements Entity#GetChildReferences.
+func (e EntityMeta) GetChildReferences() []EntityID {
+	return e.ChildReferences
+}
+
+// SetChildReferences implements Entity#SetChildReferences.
+func (e *EntityMeta) SetChildReferences(children []EntityID) {
+	e.ChildReferences = children
 }
 
 // String returns a string representation of EntityMeta.
@@ -299,6 +335,8 @@ func (e EntityMeta) String(verbose bool) string {
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
 		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
+		_, _ = fmt.Fprintln(&sb, "OwnerReferences:", printReferences(e.OwnerReferences))
+		_, _ = fmt.Fprintln(&sb, "ChildReferences:", printReferences(e.ChildReferences))
 	}
 
 	return sb.String()
@@ -1275,6 +1313,19 @@ func (km *KubeletMetrics) GetID() EntityID {
 	return km.EntityID
 }
 
+// SetChildReferences implements Entity#SetChildReferences.
+func (km *KubeletMetrics) SetChildReferences(_ []EntityID) {}
+
+// GetOwnerReferences implements Entity#GetOwnerReferences.
+func (km *KubeletMetrics) GetOwnerReferences() []EntityID {
+	return nil
+}
+
+// GetChildReferences implements Entity#GetChildReferences.
+func (km *KubeletMetrics) GetChildReferences() []EntityID {
+	return nil
+}
+
 // Merge implements Entity#Merge.
 func (km *KubeletMetrics) Merge(e Entity) error {
 	other, ok := e.(*KubeletMetrics)
@@ -2035,6 +2086,19 @@ func (p Process) GetID() EntityID {
 	return p.EntityID
 }
 
+// GetOwnerReferences implements Entity#GetOwnerReferences.
+func (p Process) GetOwnerReferences() []EntityID {
+	return nil
+}
+
+// GetChildReferences implements Entity#GetChildReferences.
+func (p Process) GetChildReferences() []EntityID {
+	return nil
+}
+
+// SetChildReferences implements Entity#SetChildReferences.
+func (p Process) SetChildReferences(_ []EntityID) {}
+
 // DeepCopy implements Entity#DeepCopy.
 func (p Process) DeepCopy() Entity {
 	cp := deepcopy.Copy(p).(Process)
@@ -2123,6 +2187,19 @@ type HostTags struct {
 
 var _ Entity = &HostTags{}
 
+// GetOwnerReferences implements Entity#GetOwnerReferences.
+func (p HostTags) GetOwnerReferences() []EntityID {
+	return nil
+}
+
+// GetChildReferences implements Entity#GetChildReferences.
+func (p HostTags) GetChildReferences() []EntityID {
+	return nil
+}
+
+// SetChildReferences implements Entity#SetChildReferences.
+func (p HostTags) SetChildReferences(_ []EntityID) {}
+
 // GetID implements Entity#GetID.
 func (p HostTags) GetID() EntityID {
 	return p.EntityID
@@ -2187,6 +2264,8 @@ type Event struct {
 	// for this entity. For example, in Kubernetes, a pod is complete when both
 	// the kubelet and kubemetadata collectors have reported.
 	IsComplete bool
+
+	Retries int
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers

@@ -27,11 +27,19 @@ type entityUID struct {
 	uid    types.UID
 }
 
+// seenEntity records enough about a previously-notified entity to later
+// retract its ownership relationships, even once the originating object is
+// no longer available (e.g. when Replace() diffs it away).
+type seenEntity struct {
+	entityID        workloadmeta.EntityID
+	ownerReferences []workloadmeta.EntityID
+}
+
 type reflectorStore struct {
 	wlmetaStore workloadmeta.Component
 
 	mu     sync.Mutex
-	seen   map[string]workloadmeta.EntityID // needs to be updated only if the object is added
+	seen   map[string]seenEntity // needs to be updated only if the object is added
 	parser kubernetesresourceparsers.ObjectParser
 	// hasSynced logic is based on the logic see in FIFO queue (client-go/tools/cache/fifo.go)
 	// Normally `Replace` is called first and then `Add/Update/Delete`.
@@ -40,11 +48,56 @@ type reflectorStore struct {
 
 	// filter to keep only resources that the Cluster-Agent needs
 	filter reflectorStoreFilter
+
+	// entityRelationships is the collector-wide owner->children index, shared
+	// across every reflectorStore instance since a child's owner may be
+	// discovered by a different GVR's reflector than the child itself.
+	entityRelationships *entityRelationships
 }
 
 // The filter is called in Replace/Add/Delete functions before the obj is parsed
 type reflectorStoreFilter interface {
 	filteredOut(workloadmeta.Entity) bool
+}
+
+// pushChildReferences notifies wlmetaStore of owner's current set of
+// children, under a dedicated source so that the per-source merge combines
+// it with owner's canonical fields (from its own collector source) instead
+// of overwriting them. If owner's kind isn't one workloadmeta tracks, or the
+// owner doesn't otherwise exist, this is a no-op.
+func (r *reflectorStore) pushChildReferences(owner workloadmeta.EntityID) {
+	entity, err := entityFromEntityID(owner)
+	if err != nil {
+		return
+	}
+
+	entity.SetChildReferences(r.entityRelationships.children(owner))
+
+	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceKubernetesChildReferences,
+			Entity: entity,
+		},
+	})
+}
+
+// retractChildReferences retracts any SourceKubernetesChildReferences
+// contribution previously pushed for id, since id is being removed and can no
+// longer be tracked as an owner. It's a no-op if no such contribution exists.
+func (r *reflectorStore) retractChildReferences(id workloadmeta.EntityID) {
+	entity, err := entityFromEntityID(id)
+	if err != nil {
+		return
+	}
+
+	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceKubernetesChildReferences,
+			Entity: entity,
+		},
+	})
 }
 
 // Add notifies the workloadmeta store with  an EventTypeSet for the given
@@ -56,13 +109,19 @@ func (r *reflectorStore) Add(obj interface{}) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Update ownership map
+	for _, owner := range entity.GetOwnerReferences() {
+		r.entityRelationships.addChild(owner, entity.GetID())
+		r.pushChildReferences(owner)
+	}
+
 	r.hasSynced = true
 	if r.filter != nil && r.filter.filteredOut(entity) {
 		// Don't store the object in memory if it is filtered out
 		return nil
 	}
 
-	r.seen[string(metaObj.GetUID())] = entity.GetID()
+	r.seen[string(metaObj.GetUID())] = seenEntity{entityID: entity.GetID(), ownerReferences: entity.GetOwnerReferences()}
 	r.wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
@@ -98,11 +157,18 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 
 	var events []workloadmeta.CollectorEvent
 
-	seenNow := make(map[string]workloadmeta.EntityID)
+	seenNow := make(map[string]seenEntity)
 	seenBefore := r.seen
 
 	for _, entityuid := range entities {
 		entity := entityuid.entity
+
+		// Update ownership map
+		for _, owner := range entity.GetOwnerReferences() {
+			r.entityRelationships.addChild(owner, entity.GetID())
+			r.pushChildReferences(owner)
+		}
+
 		uid := string(entityuid.uid)
 
 		events = append(events, workloadmeta.CollectorEvent{
@@ -113,14 +179,23 @@ func (r *reflectorStore) Replace(list []interface{}, _ string) error {
 
 		delete(seenBefore, uid)
 
-		seenNow[uid] = entity.GetID()
+		seenNow[uid] = seenEntity{entityID: entity.GetID(), ownerReferences: entity.GetOwnerReferences()}
 	}
 
-	for _, entityID := range seenBefore {
-		entity, err := entityFromEntityID(entityID)
+	for _, stale := range seenBefore {
+		entity, err := entityFromEntityID(stale.entityID)
 		if err != nil {
 			return err
 		}
+
+		// Update ownership map: this entity is no longer a child of its
+		// owners, and can no longer be an owner of anything itself.
+		for _, owner := range stale.ownerReferences {
+			r.entityRelationships.removeChild(owner, stale.entityID)
+			r.pushChildReferences(owner)
+		}
+		r.entityRelationships.removeOwner(stale.entityID)
+		r.retractChildReferences(stale.entityID)
 
 		events = append(events, workloadmeta.CollectorEvent{
 			Type:   workloadmeta.EventTypeUnset,
@@ -167,6 +242,15 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	delete(r.seen, string(uid))
 
 	entity = r.parser.Parse(obj)
+
+	// Update ownership map: this entity is no longer a child of its owners,
+	// and can no longer be an owner of anything itself.
+	for _, owner := range entity.GetOwnerReferences() {
+		r.entityRelationships.removeChild(owner, entity.GetID())
+		r.pushChildReferences(owner)
+	}
+	r.entityRelationships.removeOwner(entity.GetID())
+	r.retractChildReferences(entity.GetID())
 
 	if r.filter != nil && r.filter.filteredOut(entity) {
 		return nil

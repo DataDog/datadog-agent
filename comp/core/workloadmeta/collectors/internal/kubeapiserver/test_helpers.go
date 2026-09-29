@@ -121,7 +121,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// Create a fake metadata client to mock API calls.
 	_, err = metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
-	store, _ := newMetadataStore(wlm, wlm.GetConfig(), metadataclient, gvr)
+	store, _ := newMetadataStore(wlm, wlm.GetConfig(), metadataclient, gvr, nil, newEntityRelationships())
 
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)

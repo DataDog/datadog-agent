@@ -22,7 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-func newNodeStore(wlm workloadmeta.Component, _ config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newNodeStore(wlm workloadmeta.Component, _ config.Reader, client kubernetes.Interface, entityRelationships *entityRelationships) (*cache.Reflector, *reflectorStore) {
 	nodeListerWatcher := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Nodes().List(ctx, options)
@@ -33,9 +33,10 @@ func newNodeStore(wlm workloadmeta.Component, _ config.Reader, client kubernetes
 	}
 
 	nodeStore := &reflectorStore{
-		wlmetaStore: wlm,
-		seen:        make(map[string]workloadmeta.EntityID),
-		parser:      kubernetesresourceparsers.NewNodeParser(),
+		wlmetaStore:         wlm,
+		seen:                make(map[string]seenEntity),
+		parser:              kubernetesresourceparsers.NewNodeParser(),
+		entityRelationships: entityRelationships,
 	}
 	nodeReflector := cache.NewNamedReflector(
 		componentName,

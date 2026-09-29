@@ -37,7 +37,7 @@ func Test_AddDelete_Deployment(t *testing.T) {
 	t.Parallel()
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
+	deploymentStore := newDeploymentReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig(), newEntityRelationships())
 
 	deployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -71,7 +71,7 @@ func Test_AddDelete_Pod(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		workloadmetaComponent := mockedWorkloadmeta(t)
 
-		podStore := newPodReflectorStoreWithFullPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig())
+		podStore := newPodReflectorStoreWithFullPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig(), newEntityRelationships())
 
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -107,7 +107,7 @@ func Test_AddDelete_MinimalPod(t *testing.T) {
 	t.Parallel()
 	workloadmetaComponent := mockedWorkloadmeta(t)
 
-	podStore := newPodReflectorStoreWithMinimalPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig())
+	podStore := newPodReflectorStoreWithMinimalPodParser(workloadmetaComponent, workloadmetaComponent.GetConfig(), newEntityRelationships())
 
 	pod := MinimalPod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -147,12 +147,12 @@ func Test_AddDelete_PartialObjectMetadata(t *testing.T) {
 		Version:  "v1",
 		Resource: "namespaces",
 	}
-	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil)
+	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, nil, nil)
 	require.NoError(t, err)
 
 	metadataStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string]seenEntity),
 		parser:      parser,
 	}
 
@@ -257,7 +257,7 @@ func TestReplace(t *testing.T) {
 
 	nodeStore := &reflectorStore{
 		wlmetaStore: workloadmetaComponent,
-		seen:        make(map[string]workloadmeta.EntityID),
+		seen:        make(map[string]seenEntity),
 		parser:      kubernetesresourceparsers.NewNodeParser(),
 	}
 

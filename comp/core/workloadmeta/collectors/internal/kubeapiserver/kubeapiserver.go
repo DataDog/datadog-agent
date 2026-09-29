@@ -44,7 +44,7 @@ type dependencies struct {
 }
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface, *entityRelationships) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
 	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
@@ -78,7 +78,6 @@ func resourcesWithMetadataCollectionEnabled(cfg config.Reader) []string {
 		resourcesWithRequiredMetadataCollection(cfg),
 		resourcesWithExplicitMetadataCollectionEnabled(cfg)...,
 	)
-
 	// Remove duplicates and return
 	return cleanDuplicateVersions(resources)
 }
@@ -200,20 +199,22 @@ func resourcesForCSIDetection(cfg config.Reader) []string {
 }
 
 type collector struct {
-	id              string
-	catalog         workloadmeta.AgentType
-	config          config.Reader
-	autoscalingGate *autoscalinggate.Gate
+	id                  string
+	catalog             workloadmeta.AgentType
+	config              config.Reader
+	autoscalingGate     *autoscalinggate.Gate
+	entityRelationships *entityRelationships
 }
 
 // NewCollector returns a kubeapiserver CollectorProvider that instantiates its colletor
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:              collectorID,
-			catalog:         workloadmeta.ClusterAgent,
-			config:          deps.Config,
-			autoscalingGate: deps.AutoscalingGate,
+			id:                  collectorID,
+			catalog:             workloadmeta.ClusterAgent,
+			config:              deps.Config,
+			autoscalingGate:     deps.AutoscalingGate,
+			entityRelationships: newEntityRelationships(),
 		},
 	}, nil
 }
@@ -237,20 +238,44 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		return err
 	}
 
+	kindMapper := make(kubernetesresourceparsers.KindMapper)
+	_, apiResourceLists, err := client.Discovery().ServerGroupsAndResources()
+	if err == nil {
+		for _, apiResourceList := range apiResourceLists {
+			gv, err := schema.ParseGroupVersion(apiResourceList.GroupVersion)
+			if err != nil {
+				continue
+			}
+			for _, apiResource := range apiResourceList.APIResources {
+				if strings.Contains(apiResource.Name, "/") {
+					// Skip subresources (e.g. "deployments/status"), which share
+					// the same Kind as their parent resource.
+					continue
+				}
+				if apiResource.Group == "" {
+					apiResource.Group = gv.Group
+				}
+				if apiResource.Version == "" {
+					apiResource.Version = gv.Version
+				}
+				kindMapper[apiResource.Kind] = apiResource
+			}
+		}
+	}
+
 	// Initialize metadata collection informers
 	gvrs, err := metadataCollectionGVRs(c.config, client.Discovery())
-
 	if err != nil {
 		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
 	} else {
 		for _, gvr := range gvrs {
-			reflector, store := newMetadataStore(wlmetaStore, c.config, metadataclient, gvr)
+			reflector, store := newMetadataStore(wlmetaStore, c.config, metadataclient, gvr, kindMapper, c.entityRelationships)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 		}
 	}
 
-	nodeReflector, nodeStore := newNodeStore(wlmetaStore, c.config, client)
+	nodeReflector, nodeStore := newNodeStore(wlmetaStore, c.config, client, c.entityRelationships)
 	objectStores = append(objectStores, nodeStore)
 	go nodeReflector.Run(ctx.Done())
 
@@ -263,7 +288,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			// block the startup readiness check.
 			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
 		} else {
-			reflector, store := newPodStore(wlmetaStore, c.config, client)
+			reflector, store := newPodStore(wlmetaStore, c.config, client, c.entityRelationships)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 			if autoscalingEnabled {
@@ -273,7 +298,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	}
 
 	if shouldHaveDeploymentStore(c.config) {
-		reflector, store := newDeploymentStore(wlmetaStore, c.config, client)
+		reflector, store := newDeploymentStore(wlmetaStore, c.config, client, c.entityRelationships)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
@@ -289,7 +314,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 					log.Errorf("failed to get Kueue queue type for %s: %v", gvr.Resource, err)
 					continue
 				}
-				reflector, store, err := newKueueQueueStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				reflector, store, err := newKueueQueueStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType, c.entityRelationships)
 				if err != nil {
 					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
 					continue
@@ -304,7 +329,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueResourceFlavorStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueResourceFlavorStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, c.entityRelationships)
 				if err != nil {
 					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
 					continue
@@ -319,7 +344,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue Workload resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, c.entityRelationships)
 				if err != nil {
 					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
 					continue
@@ -355,7 +380,7 @@ func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloa
 	}
 
 	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
-	reflector, store := newStore(wlmetaStore, c.config, client)
+	reflector, store := newStore(wlmetaStore, c.config, client, c.entityRelationships)
 	go reflector.Run(ctx.Done())
 
 	c.markPodCollectionSyncedWhenReady(ctx, store)

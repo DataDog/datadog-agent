@@ -125,6 +125,7 @@ func NewComponent(req Requires) (Provides, error) {
 			taggerInstance.cfg,
 			taggerInstance.workloadStore,
 			taggerInstance.tagStore,
+			taggerInstance,
 		)
 
 		// Start the TagStore and the WorkloadMeta collector.

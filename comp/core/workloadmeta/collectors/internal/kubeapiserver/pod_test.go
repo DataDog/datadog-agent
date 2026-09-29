@@ -87,7 +87,7 @@ func Test_CollectEventsWithMinimalPod(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	store := newPodReflectorStoreWithMinimalPodParser(wmeta, wmeta.GetConfig())
+	store := newPodReflectorStoreWithMinimalPodParser(wmeta, wmeta.GetConfig(), newEntityRelationships())
 
 	ch := wmeta.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 	defer wmeta.Unsubscribe(ch)

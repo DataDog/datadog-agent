@@ -48,6 +48,6 @@ func (p *PodTagExtractor) Extract(podEntity *workloadmeta.KubernetesPod, cardina
 // NewPodTagExtractor creates a new Pod Tag Extractor
 func NewPodTagExtractor(cfg config.Component, store workloadmeta.Component) *PodTagExtractor {
 	return &PodTagExtractor{
-		c: *NewWorkloadMetaCollector(context.Background(), cfg, store, nil),
+		c: *NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil),
 	}
 }
