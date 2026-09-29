@@ -200,19 +200,27 @@ func (c *component) onRCUpdate(updates map[string]state.RawConfig, applyStatus f
 			continue
 		}
 
-		// Remove previous DO config version if this config_id was already active.
-		c.removeActiveConfig(configID, &changes)
-
 		c.activeConfigsMu.Lock()
+		prev, existed := c.activeConfigs[configID]
 		c.activeConfigs[configID] = activeConfigEntry{
 			checkConfig:   checkConfig,
 			baseCfg:       baseCfg,
 			matchInstance: matchInstance,
 		}
 		c.activeConfigsMu.Unlock()
+		applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+
+		// RC delivers the whole product on every change, including changes to other configs and
+		// one-off tasks. Re-sending an unchanged check as unschedule + schedule can make
+		// autodiscovery restart it, so an unchanged check is left alone.
+		if existed && prev.checkConfig.Digest() == checkConfig.Digest() {
+			continue
+		}
+		if existed {
+			changes.Unschedule = append(changes.Unschedule, prev.checkConfig)
+		}
 		changes.Schedule = append(changes.Schedule, checkConfig)
 		c.log.Infof("Scheduled Data Observability query action check: %s (%d queries)", configID, len(payload.Queries))
-		applyStatus(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 	}
 
 	// Reconcile: unschedule previously active configs absent from this snapshot

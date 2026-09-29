@@ -109,11 +109,10 @@ func (c *component) GetConfigErrors() map[string]types.ErrorMsgSet {
 // providers sequentially and blocks on each streaming provider until its first message arrives,
 // before proceeding to the next provider.
 //
-// RC configs are declarative snapshots so only the latest matters. The RC callback writes to
-// outCh with replace semantics: if autodiscovery hasn't consumed the previous update yet, the
-// old entry is replaced with the latest one. Unschedule entries from the dropped update are
-// preserved to prevent check leaks. outCh is closed when ctx is cancelled so the config poller
-// goroutine can observe teardown.
+// The RC callback writes to outCh with merge semantics: if autodiscovery hasn't consumed the
+// previous update yet, it is merged into the latest one (see mergeConfigChanges). onRCUpdate only
+// emits what changed, so a dropped update's entries are never sent again and must be kept.
+// outCh is closed when ctx is cancelled so the config poller goroutine can observe teardown.
 func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges {
 	outCh := make(chan integration.ConfigChanges, 1)
 	// Unblock autodiscovery's LoadAndRun — it blocks on <-ch until the first message arrives.
@@ -125,8 +124,8 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 	)
 
 	// sendChanges delivers changes to outCh under mu. The channel is capacity-1; when full,
-	// the old entry is drained and its Unschedule events are merged into changes to prevent
-	// check leaks. mu also guards against writing to a closed channel after shutdown.
+	// the old entry is drained and merged into changes. mu also guards against writing to a
+	// closed channel after shutdown.
 	sendChanges := func(changes integration.ConfigChanges) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -136,18 +135,12 @@ func (c *component) Stream(ctx context.Context) <-chan integration.ConfigChanges
 		select {
 		case outCh <- changes:
 		default:
-			// Channel full: drain old entry. Only preserve Unschedule events from the
-			// dropped update so checks already in autodiscovery are not orphaned.
-			// dropped.Schedule is NOT preserved: the latest RC snapshot is authoritative,
-			// and re-adding stale Schedule entries would resurrect configs that the new
-			// snapshot intentionally removed.
 			var dropped integration.ConfigChanges
 			select {
 			case dropped = <-outCh:
 			default:
 			}
-			changes.Unschedule = append(dropped.Unschedule, changes.Unschedule...)
-			outCh <- changes // safe: mu held, closed=false, channel was just drained
+			outCh <- mergeConfigChanges(dropped, changes) // safe: mu held, closed=false, channel was just drained
 		}
 	}
 
@@ -216,4 +209,38 @@ func (c *component) hasSupportedIntegration() bool {
 		}
 	}
 	return false
+}
+
+// mergeConfigChanges combines an undelivered update with the one that follows it, as if both had
+// been applied in order. Autodiscovery applies every Unschedule before any Schedule, so:
+//   - every Unschedule of both updates is kept, so no check already running is orphaned;
+//   - a Schedule of the older update is kept unless the newer one unschedules the same config,
+//     which means the newer snapshot removed or replaced it. Checks left unchanged by the newer
+//     update appear in neither of its lists, so their older Schedule must survive.
+func mergeConfigChanges(older, newer integration.ConfigChanges) integration.ConfigChanges {
+	unscheduled := make(map[string]bool, len(newer.Unschedule))
+	for _, cfg := range newer.Unschedule {
+		unscheduled[cfg.Digest()] = true
+	}
+	scheduled := make(map[string]bool, len(older.Schedule)+len(newer.Schedule))
+	merged := integration.ConfigChanges{
+		Unschedule: append(append([]integration.Config(nil), older.Unschedule...), newer.Unschedule...),
+	}
+	for _, cfg := range older.Schedule {
+		digest := cfg.Digest()
+		if unscheduled[digest] || scheduled[digest] {
+			continue
+		}
+		scheduled[digest] = true
+		merged.Schedule = append(merged.Schedule, cfg)
+	}
+	for _, cfg := range newer.Schedule {
+		digest := cfg.Digest()
+		if scheduled[digest] {
+			continue
+		}
+		scheduled[digest] = true
+		merged.Schedule = append(merged.Schedule, cfg)
+	}
+	return merged
 }
