@@ -143,6 +143,7 @@ enum TC_RAWPACKET_KEYS {
 
 #define EXIT_SYSCALL_KEY 1
 #define EXECVE_SYSCALL_KEY 2
+#define SAMPLING_IGNORED_SYSCALL_KEY 3
 
 #ifndef USE_RING_BUFFER
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
@@ -240,6 +241,18 @@ static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
     u64 anomaly;
     LOAD_CONSTANT("anomaly_syscalls", anomaly);
     return anomaly;
+};
+
+static __attribute__((always_inline)) u64 is_event_sampling_syscalls_enabled() {
+    u64 enabled;
+    LOAD_CONSTANT("event_sampling_syscalls_enabled", enabled);
+    return enabled;
+};
+
+static __attribute__((always_inline)) u64 is_security_profile_v2_enabled() {
+    u64 enabled;
+    LOAD_CONSTANT("security_profile_v2_enabled", enabled);
+    return enabled;
 };
 
 static __attribute__((always_inline)) u64 get_imds_ip() {

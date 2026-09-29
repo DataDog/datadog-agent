@@ -361,7 +361,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -377,7 +377,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -393,7 +393,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -417,7 +417,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -433,7 +433,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer

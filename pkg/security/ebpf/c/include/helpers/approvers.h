@@ -126,6 +126,11 @@ static __always_inline int sample_entry_is_stale(struct sample_entry_t *entry, u
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(struct bind_connect_sample_key_t *key, u64 *out_cookie, u32 *out_refresh_needed) {
+    // Sampling only feeds v2 profiles.
+    if (!is_security_profile_v2_enabled()) {
+        return DISCARDED;
+    }
+
     u64 event_sampling_bind_enabled = 0;
     LOAD_CONSTANT("event_sampling_bind_enabled", event_sampling_bind_enabled);
     u64 event_sampling_bind_rate = 0;
@@ -199,6 +204,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_bind_sample(str
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 pid) {
+    // Sampling only feeds v2 profiles.
+    if (!is_security_profile_v2_enabled()) {
+        return DISCARDED;
+    }
+
     u64 event_sampling_dns_enabled = 0;
     LOAD_CONSTANT("event_sampling_dns_enabled", event_sampling_dns_enabled);
     u64 event_sampling_dns_rate = 0;
@@ -228,6 +238,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_dns_sample(u32 
 // approve_syscall_sample dedups (exec_cookie, syscall_id) tuples via an LRU map:
 // first hit is sampled, later hits only emit a refresh heartbeat. Mirrors approve_bind_sample.
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(u64 exec_cookie, u32 syscall_id, u64 *out_cookie, u32 *out_refresh_needed) {
+    // Sampling only feeds v2 profiles.
+    if (!is_security_profile_v2_enabled()) {
+        return DISCARDED;
+    }
+
     u64 event_sampling_syscalls_enabled = 0;
     LOAD_CONSTANT("event_sampling_syscalls_enabled", event_sampling_syscalls_enabled);
     u64 event_sampling_syscalls_rate = 0;
@@ -299,6 +314,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_sample(
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_connect_sample(struct bind_connect_sample_key_t *key, struct syscall_cache_t *syscall) {
+    // Sampling only feeds v2 profiles.
+    if (!is_security_profile_v2_enabled()) {
+        return DISCARDED;
+    }
+
     u64 event_sampling_connect_enabled = 0;
     LOAD_CONSTANT("event_sampling_connect_enabled", event_sampling_connect_enabled);
     u64 event_sampling_connect_rate = 0;
@@ -625,6 +645,11 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(s
 }
 
 static enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct dentry *dentry, struct file_t *file, struct syscall_cache_t *syscall) {
+    // Sampling only feeds v2 profiles.
+    if (!is_security_profile_v2_enabled()) {
+        return DISCARDED;
+    }
+
     u64 event_sampling_open_enabled = 0;
     LOAD_CONSTANT("event_sampling_open_enabled", event_sampling_open_enabled);
 

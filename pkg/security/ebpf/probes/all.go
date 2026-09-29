@@ -37,6 +37,9 @@ const (
 	BindSamplesMaxEntries    = 10000
 	ConnectSamplesMaxEntries = 10000
 	SyscallSamplesMaxEntries = 20000
+	// SampledCgroupsMaxEntries sizes the sampled_cgroups LRU: it transiently holds all active
+	// cgroups (containers + not-yet-pruned host), so it needs more room than the profile count.
+	SampledCgroupsMaxEntries = 4096
 )
 
 var (
@@ -342,7 +345,7 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["sampled_cgroups"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			MaxEntries: SampledCgroupsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

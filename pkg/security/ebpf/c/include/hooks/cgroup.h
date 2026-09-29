@@ -147,6 +147,13 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
 
+    // Arm the v2 syscall sampler early so a container's first syscalls aren't missed. Every cgroup
+    // is armed here (can't classify in-kernel); userspace prunes non-containers in onCGroupCreated.
+    if (is_event_sampling_syscalls_enabled() && is_security_profile_v2_enabled()) {
+        u8 sampled = 1;
+        bpf_map_update_elem(&sampled_cgroups, &resolver->key.ino, &sampled, BPF_ANY);
+    }
+
     if (new_cookie) {
         struct pid_cache_t new_pid_entry = {
             .cookie = cookie,

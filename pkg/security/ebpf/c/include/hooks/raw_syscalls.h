@@ -104,11 +104,16 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
         }
     }
 
-    // Workload profiles v2 syscall sampler. Only sample container cgroups: userspace drops
-    // non-container events anyway, so gating here keeps systemd/host syscalls out of the
-    // sample LRU and rate limiter. The map is populated by userspace on container cgroup creation.
+    // Workload profiles v2 syscall sampler. Gate on sampled_cgroups to keep host/systemd syscalls
+    // out of the sample LRU and rate limiter. Armed in-kernel at cgroup_write, pruned by userspace.
     if (!event->process.is_kworker && bpf_map_lookup_elem(&sampled_cgroups, &event->cgroup.path_key.ino) != NULL) {
-        struct pid_cache_t *pid_entry = get_pid_cache(pid);
+        // Fast-exit high-frequency, low-signal syscalls (read/write/futex/poll/...). Userspace
+        // seeds them into profiles so a KILL-default seccomp profile stays valid.
+        struct syscall_table_key_t ignore_key = {
+            .id = args->id,
+            .syscall_key = SAMPLING_IGNORED_SYSCALL_KEY,
+        };
+        struct pid_cache_t *pid_entry = is_syscall(&ignore_key) ? NULL : get_pid_cache(pid);
         if (pid_entry != NULL) {
             u64 sample_cookie = 0;
             u32 refresh_needed = 0;

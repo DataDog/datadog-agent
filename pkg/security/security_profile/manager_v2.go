@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strconv"
 	"sync"
@@ -451,14 +452,18 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 	return time.NewTicker(10 * time.Second).C
 }
 
-// onCGroupCreated is called when a cgroup is created. For container cgroups it registers the
-// cgroup inode in the kernel sampled_cgroups map so the syscall sampler only runs for containers.
+// onCGroupCreated keeps container cgroups armed in sampled_cgroups and prunes the host/systemd
+// ones the kernel armed optimistically at cgroup_write time.
 func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
+	inode := cgce.GetCGroupInode()
+
 	if cgce.IsContainerContextNull() {
+		if err := m.sampledCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Debugf("couldn't prune non-container cgroup inode %d from sampled_cgroups: %v", inode, err)
+		}
 		return
 	}
 
-	inode := cgce.GetCGroupInode()
 	if err := m.sampledCgroupsMap.Put(inode, uint8(1)); err != nil {
 		seclog.Debugf("couldn't register cgroup inode %d in sampled_cgroups: %v", inode, err)
 	}
@@ -630,6 +635,14 @@ func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSi
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
+		// A host cgroup re-armed in-kernel at cgroup_write can leak a syscall sample; prune it here.
+		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
+				if err := m.sampledCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+					seclog.Debugf("couldn't prune non-container cgroup inode %d from sampled_cgroups: %v", inode, err)
+				}
+			}
+		}
 		return
 	}
 
@@ -1032,6 +1045,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Use the current event's tag, not the profile's: a profile is shared across an image's tags.
 	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 	if imageTag == "" {
+		seclog.Warnf("no image_tag for %s, falling back to 'latest'", secprof.GetSelectorStr())
 		imageTag = "latest"
 	}
 	m.ensureVersionContext(secprof, imageTag)
@@ -1323,16 +1337,39 @@ func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
 	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
 	profileTags := secprof.GetTags()
 
+	syscalls := secprof.ComputeSyscallsList()
+	if m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		// The v2 sampler fast-exits the ignore list in-kernel, so seed it back into the
+		// reported syscall set to keep the profile complete (e.g. for seccomp suggestions).
+		syscalls = mergeSampledIgnoredSyscalls(syscalls)
+	}
+
 	vCtx := &profile.VersionContext{
 		FirstSeenNano:  nowNano,
 		LastSeenNano:   nowNano,
 		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       secprof.ComputeSyscallsList(),
+		Syscalls:       syscalls,
 		Tags:           make([]string, len(profileTags)),
 	}
 	copy(vCtx.Tags, profileTags)
 
 	secprof.AddVersionContext(tag, vCtx)
+}
+
+// mergeSampledIgnoredSyscalls unions the sampler ignore list into an existing syscall id
+// list, deduplicating and keeping the result sorted.
+func mergeSampledIgnoredSyscalls(syscalls []uint32) []uint32 {
+	seen := make(map[uint32]struct{}, len(syscalls))
+	for _, s := range syscalls {
+		seen[s] = struct{}{}
+	}
+	for _, id := range utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH) {
+		if _, ok := seen[uint32(id)]; !ok {
+			syscalls = append(syscalls, uint32(id))
+		}
+	}
+	slices.Sort(syscalls)
+	return syscalls
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos

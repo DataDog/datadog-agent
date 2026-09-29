@@ -3232,6 +3232,10 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
 		},
 		manager.ConstantEditor{
+			Name:  "security_profile_v2_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled),
+		},
+		manager.ConstantEditor{
 			Name: "ring_buffer_size",
 			Value: func() uint64 {
 				if p.config.Probe.EventStreamBufferSize != 0 {

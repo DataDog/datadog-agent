@@ -422,7 +422,7 @@ type RuntimeSecurityConfig struct {
 	// Per-type event sampling config
 	// description: EventSamplingOpenEnabled defines if the agent should sample open events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingOpenEnabled bool
 
 	// description: EventSamplingOpenRate defines the rate at which the agent should sample open events
@@ -437,7 +437,7 @@ type RuntimeSecurityConfig struct {
 	EventSamplingOpenThreshold int
 	// description: EventSamplingConnectEnabled defines if the agent should sample connect events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingConnectEnabled bool
 
 	// description: EventSamplingConnectRate defines the rate at which the agent should sample connect events
@@ -452,7 +452,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: EventSamplingBindEnabled defines if the agent should sample bind events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingBindEnabled bool
 
 	// description: EventSamplingBindRate defines the rate at which the agent should sample bind events
@@ -467,7 +467,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: EventSamplingDNSEnabled defines if the agent should sample DNS events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingDNSEnabled bool
 
 	// description: EventSamplingDNSRate defines the rate at which the agent should sample DNS events
@@ -482,7 +482,7 @@ type RuntimeSecurityConfig struct {
 
 	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingSyscallsEnabled bool
 
 	// description: EventSamplingSyscallsRate defines the rate at which the agent should sample syscall events
@@ -1141,14 +1141,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
-
-	if rsConfig.SecurityProfileV2Enabled {
-		rsConfig.EventSamplingOpenEnabled = true
-		rsConfig.EventSamplingConnectEnabled = true
-		rsConfig.EventSamplingBindEnabled = true
-		rsConfig.EventSamplingDNSEnabled = true
-		rsConfig.EventSamplingSyscallsEnabled = true
-	}
 
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
