@@ -308,6 +308,7 @@ const (
 	maxSchemaOwners            = 1000
 	maxSchemaRelationsPerQuery = 1000
 	schemaRelationPageSize     = 100
+	schemaColumnBindSlots      = 50
 )
 
 const (
@@ -316,25 +317,6 @@ const (
 )
 
 var schemaOwnerPattern = regexp.MustCompile(`^[A-Z0-9_$#]+$`)
-
-func escapeSQLLiteral(s string) string {
-	return strings.ReplaceAll(s, "'", "''")
-}
-
-func regexSQLClauses(column string, include, exclude []string) string {
-	var b strings.Builder
-	for _, p := range exclude {
-		b.WriteString(" AND NOT REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "', 'i')")
-	}
-	if len(include) > 0 {
-		parts := make([]string, len(include))
-		for i, p := range include {
-			parts[i] = "REGEXP_LIKE(" + column + ", '" + escapeSQLLiteral(p) + "', 'i')"
-		}
-		b.WriteString(" AND (" + strings.Join(parts, " OR ") + ")")
-	}
-	return b.String()
-}
 
 type schemaRowDB struct {
 	ConID            int64          `db:"CON_ID"`
@@ -985,7 +967,8 @@ type ownerKey struct {
 func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (map[ownerKey]string, []string, error) {
 	owners := make(map[ownerKey]string)
 	names := make(map[string]struct{})
-	query := schemaOwnersQuery + regexSQLClauses("username", c.config.Schemas.IncludeSchemas, c.config.Schemas.ExcludeSchemas)
+	filter := regexSQLClauses("username", c.config.Schemas.IncludeSchemas, c.config.Schemas.ExcludeSchemas)
+	query := schemaOwnersQuery + filter.text
 	err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 		var (
 			conID  int64
@@ -1009,7 +992,7 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		owners[ownerKey{conID: conID, owner: name}] = id
 		names[name] = struct{}{}
 		return nil
-	})
+	}, filter.args...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to query schema owners: %w", err)
 	}
@@ -1022,22 +1005,19 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 	return owners, distinct, nil
 }
 
-func ownerListChunks(names []string) []string {
+func ownerListChunks(names []string) []schemaSQL {
 	if len(names) == 0 {
 		return nil
 	}
-	chunks := make([]string, 0, (len(names)+maxSchemaOwners-1)/maxSchemaOwners)
+	chunks := make([]schemaSQL, 0, (len(names)+maxSchemaOwners-1)/maxSchemaOwners)
 	for i := 0; i < len(names); i += maxSchemaOwners {
 		end := i + maxSchemaOwners
 		if end > len(names) {
 			end = len(names)
 		}
-		batch := names[i:end]
-		quoted := make([]string, len(batch))
-		for j, n := range batch {
-			quoted[j] = "'" + n + "'"
-		}
-		chunks = append(chunks, strings.Join(quoted, ", "))
+		var query schemaSQL
+		query.text = query.stringList("owner", names[i:end], maxSchemaOwners)
+		chunks = append(chunks, query)
 	}
 	return chunks
 }
@@ -1053,7 +1033,7 @@ type columnKey struct {
 	column string
 }
 
-func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnNames) []string {
+func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnNames) []schemaSQL {
 	keys := make([]tableKey, 0, len(allowed))
 	for key := range allowed {
 		keys = append(keys, key)
@@ -1068,13 +1048,21 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 		return keys[i].table < keys[j].table
 	})
 
-	filters := make([]string, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
+	filters := make([]schemaSQL, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
 	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
 		end := start + maxSchemaRelationsPerQuery
 		if end > len(keys) {
 			end = len(keys)
 		}
 		var groups []string
+		var filter schemaSQL
+		ownerGroups := 1
+		for i := start + 1; i < end; i++ {
+			if keys[i].conID != keys[i-1].conID || keys[i].owner != keys[i-1].owner {
+				ownerGroups++
+			}
+		}
+		bindSlots := min(schemaRelationPageSize, maxSchemaRelationsPerQuery/ownerGroups)
 		for i := start; i < end; {
 			j := i + 1
 			for j < end && keys[j].conID == keys[i].conID && keys[j].owner == keys[i].owner {
@@ -1082,20 +1070,22 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 			}
 			names := make([]string, 0, j-i)
 			for _, key := range keys[i:j] {
-				names = append(names, "'"+escapeSQLLiteral(key.table)+"'")
+				names = append(names, key.table)
 			}
-			groups = append(groups, fmt.Sprintf("(%s = %d AND %s = '%s' AND %s IN (%s))",
-				columns.conID, keys[i].conID,
-				columns.owner, escapeSQLLiteral(keys[i].owner),
-				columns.relation, strings.Join(names, ", ")))
+			prefix := "rel" + strconv.Itoa(len(groups))
+			groups = append(groups, fmt.Sprintf("(%s = %s AND %s = %s AND %s IN (%s))",
+				columns.conID, filter.bind(prefix+"con", keys[i].conID),
+				columns.owner, filter.bind(prefix+"owner", keys[i].owner),
+				columns.relation, filter.stringList(prefix+"name", names, bindSlots)))
 			i = j
 		}
-		filters = append(filters, "("+strings.Join(groups, " OR ")+")")
+		filter.text = "(" + strings.Join(groups, " OR ") + ")"
+		filters = append(filters, filter)
 	}
 	return filters
 }
 
-func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNames, columnName string) []string {
+func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNames, columnName string) []schemaSQL {
 	keys := make([]columnKey, 0, len(allowed))
 	for key := range allowed {
 		keys = append(keys, key)
@@ -1113,13 +1103,21 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 		return keys[i].column < keys[j].column
 	})
 
-	filters := make([]string, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
+	filters := make([]schemaSQL, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
 	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
 		end := start + maxSchemaRelationsPerQuery
 		if end > len(keys) {
 			end = len(keys)
 		}
 		var groups []string
+		var filter schemaSQL
+		tableGroups := 1
+		for i := start + 1; i < end; i++ {
+			if keys[i].tableKey != keys[i-1].tableKey {
+				tableGroups++
+			}
+		}
+		bindSlots := min(schemaColumnBindSlots, maxSchemaRelationsPerQuery/tableGroups)
 		for i := start; i < end; {
 			j := i + 1
 			for j < end && keys[j].tableKey == keys[i].tableKey {
@@ -1127,25 +1125,27 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 			}
 			names := make([]string, 0, j-i)
 			for _, key := range keys[i:j] {
-				names = append(names, "'"+escapeSQLLiteral(key.column)+"'")
+				names = append(names, key.column)
 			}
-			groups = append(groups, fmt.Sprintf("(%s = %d AND %s = '%s' AND %s = '%s' AND %s IN (%s))",
-				columns.conID, keys[i].conID,
-				columns.owner, escapeSQLLiteral(keys[i].owner),
-				columns.relation, escapeSQLLiteral(keys[i].table),
-				columnName, strings.Join(names, ", ")))
+			prefix := "col" + strconv.Itoa(len(groups))
+			groups = append(groups, fmt.Sprintf("(%s = %s AND %s = %s AND %s = %s AND %s IN (%s))",
+				columns.conID, filter.bind(prefix+"con", keys[i].conID),
+				columns.owner, filter.bind(prefix+"owner", keys[i].owner),
+				columns.relation, filter.bind(prefix+"table", keys[i].table),
+				columnName, filter.stringList(prefix+"name", names, bindSlots)))
 			i = j
 		}
-		filters = append(filters, "("+strings.Join(groups, " OR ")+")")
+		filter.text = "(" + strings.Join(groups, " OR ") + ")"
+		filters = append(filters, filter)
 	}
 	return filters
 }
 
-func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx.Rows) error) error {
+func (c *Check) queryMetadata(ctx context.Context, query string, scan func(*sqlx.Rows) error, args ...any) error {
 	queryCtx, cancel := context.WithTimeout(ctx, c.config.Schemas.MaxQueryDurationDuration())
 	defer cancel()
 
-	rows, err := c.db.QueryxContext(queryCtx, query)
+	rows, err := c.db.QueryxContext(queryCtx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -1196,10 +1196,10 @@ func truncateLongValue(s string) string {
 	return string(r[:4000])
 }
 
-func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []string, scan func(*sqlx.Rows) error) {
+func (c *Check) queryDetailFilters(ctx context.Context, name, template string, filters []schemaSQL, scan func(*sqlx.Rows) error) {
 	for _, filter := range filters {
-		query := strings.Replace(template, "/*RELATIONS*/", filter, 1)
-		if err := c.queryMetadata(ctx, query, scan); err != nil {
+		query := strings.Replace(template, "/*RELATIONS*/", filter.text, 1)
+		if err := c.queryMetadata(ctx, query, scan, filter.args...); err != nil {
 			if strings.Contains(err.Error(), oracleErrorTableOrViewDoesNotExist) || strings.Contains(err.Error(), oracleErrorInvalidIdentifier) {
 				log.Debugf("%s table detail %q unavailable: %s", c.logPrompt, name, err)
 				return
@@ -1235,7 +1235,7 @@ func (c *Check) validateSchemaContainer(ctx context.Context, containerID string)
 		return err
 	}
 	available := false
-	query := containerNamesQuery + fmt.Sprintf(" AND con_id = %d", conID)
+	query := containerNamesQuery + " AND con_id = :con_id"
 	if err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 		var id int64
 		var name string
@@ -1244,7 +1244,7 @@ func (c *Check) validateSchemaContainer(ctx context.Context, containerID string)
 		}
 		available = true
 		return nil
-	}); err != nil {
+	}, sql.Named("con_id", conID)); err != nil {
 		return fmt.Errorf("failed to validate container %d: %w", conID, err)
 	}
 	if !available {
@@ -1255,7 +1255,8 @@ func (c *Check) validateSchemaContainer(ctx context.Context, containerID string)
 
 func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 	names := make(map[int64]string)
-	query := containerNamesQuery + regexSQLClauses("name", c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases)
+	filter := regexSQLClauses("name", c.config.Schemas.IncludeDatabases, c.config.Schemas.ExcludeDatabases)
+	query := containerNamesQuery + filter.text
 	err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 		var (
 			conID int64
@@ -1266,7 +1267,7 @@ func (c *Check) containerNames(ctx context.Context) (map[int64]string, error) {
 		}
 		names[conID] = name
 		return nil
-	})
+	}, filter.args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query container names: %w", err)
 	}
@@ -1590,7 +1591,7 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 	return details
 }
 
-func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners map[ownerKey]string, tableFilters string, maxTables int) ([]tableKey, map[int64]struct{}, error) {
+func (c *Check) tableIdentities(ctx context.Context, ownerLists []schemaSQL, owners map[ownerKey]string, tableFilters schemaSQL, maxTables int) ([]tableKey, map[int64]struct{}, error) {
 	byContainer := make(map[int64][]tableKey)
 	seen := make(map[tableKey]struct{})
 	containerSet := make(map[int64]struct{})
@@ -1608,10 +1609,12 @@ func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners
 			if remaining == 0 {
 				break
 			}
-			query := strings.ReplaceAll(tableIdentitiesQueryTemplate, "/*OWNERS*/", ownerList)
-			query = strings.ReplaceAll(query, "/*TABLE_FILTERS*/", tableFilters)
-			query = strings.ReplaceAll(query, "/*CON_ID*/", strconv.FormatInt(conID, 10))
-			query = strings.ReplaceAll(query, "/*IDENTITY_LIMIT*/", strconv.Itoa(remaining))
+			query := strings.ReplaceAll(tableIdentitiesQueryTemplate, "/*OWNERS*/", ownerList.text)
+			query = strings.ReplaceAll(query, "/*TABLE_FILTERS*/", tableFilters.text)
+			query = strings.ReplaceAll(query, "/*CON_ID*/", ":con_id")
+			query = strings.ReplaceAll(query, "/*IDENTITY_LIMIT*/", ":identity_limit")
+			args := append([]any{sql.Named("con_id", conID), sql.Named("identity_limit", remaining)}, ownerList.args...)
+			args = append(args, tableFilters.args...)
 			err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 				var (
 					rowConID int64
@@ -1631,7 +1634,7 @@ func (c *Check) tableIdentities(ctx context.Context, ownerLists []string, owners
 				seen[key] = struct{}{}
 				byContainer[rowConID] = append(byContainer[rowConID], key)
 				return nil
-			})
+			}, args...)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -1679,10 +1682,13 @@ func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns i
 	filters := relationFilterChunks(allowed, relationColumnNames{conID: "t.con_id", owner: "t.owner", relation: "t.table_name"})
 	columnFilters := relationFilterChunks(allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"})
 	for i, filter := range filters {
-		query := strings.ReplaceAll(schemasQueryTemplate, "/*OWNERS*/", ownerListForKeys(keys))
-		query = strings.ReplaceAll(query, "/*RELATIONS*/", filter)
-		query = strings.ReplaceAll(query, "/*COLUMN_RELATIONS*/", columnFilters[i])
-		query = strings.ReplaceAll(query, "/*MAX_COLUMNS*/", strconv.Itoa(maxColumns))
+		ownerList := ownerListForKeys(keys)
+		query := strings.ReplaceAll(schemasQueryTemplate, "/*OWNERS*/", ownerList.text)
+		query = strings.ReplaceAll(query, "/*RELATIONS*/", filter.text)
+		query = strings.ReplaceAll(query, "/*COLUMN_RELATIONS*/", columnFilters[i].text)
+		query = strings.ReplaceAll(query, "/*MAX_COLUMNS*/", ":max_columns")
+		args := append([]any{sql.Named("max_columns", maxColumns)}, filter.args...)
+		args = append(args, ownerList.args...)
 		if err := c.queryMetadata(ctx, query, func(rows *sqlx.Rows) error {
 			var row schemaRowDB
 			if err := rows.StructScan(&row); err != nil {
@@ -1690,14 +1696,14 @@ func (c *Check) tablePageRows(ctx context.Context, keys []tableKey, maxColumns i
 			}
 			pageRows = append(pageRows, row)
 			return nil
-		}); err != nil {
+		}, args...); err != nil {
 			return nil, err
 		}
 	}
 	return pageRows, nil
 }
 
-func ownerListForKeys(keys []tableKey) string {
+func ownerListForKeys(keys []tableKey) schemaSQL {
 	owners := make(map[string]struct{})
 	for _, key := range keys {
 		owners[key.owner] = struct{}{}
@@ -1707,10 +1713,9 @@ func ownerListForKeys(keys []tableKey) string {
 		names = append(names, owner)
 	}
 	sort.Strings(names)
-	for i := range names {
-		names[i] = "'" + escapeSQLLiteral(names[i]) + "'"
-	}
-	return strings.Join(names, ", ")
+	var query schemaSQL
+	query.text = query.stringList("pageOwner", names, schemaRelationPageSize)
+	return query
 }
 
 func forEachTablePage(keys []tableKey, process func([]tableKey) error) error {
