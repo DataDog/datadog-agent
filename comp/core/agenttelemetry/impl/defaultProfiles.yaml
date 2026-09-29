@@ -86,10 +86,10 @@ profiles:
       - name: logs.auto_multi_line_default_would_combine
       - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
-      - name: point.sent
+      - name: points.sent
         preserve_tags:
           - domain
-      - name: point.dropped
+      - name: points.dropped
         preserve_tags:
           - domain
       - name: transactions.input_count

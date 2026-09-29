@@ -2,6 +2,7 @@ single_machine_performance-regression_detector-merge_base_check:
   stage: functional_test
   timeout: 10m
   rules:
+    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     # On main: wait for the agent image to land in ECR before checking for baselines.
     - if: $CI_COMMIT_BRANCH == "main"
@@ -223,6 +224,7 @@ trigger-single-machine-performance-regression_detector:
   extends:
     - .trigger-single-machine-performance-regression_detector
   rules:
+    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   allow_failure: true

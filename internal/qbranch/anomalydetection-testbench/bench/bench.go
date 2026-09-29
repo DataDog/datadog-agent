@@ -95,6 +95,9 @@ type Config struct {
 	// StreamParquet ingests globally ordered parquet data without retaining raw rows.
 	// It is intended for one-shot headless runs, which do not need interactive reruns.
 	StreamParquet bool
+	// IncludeDetectorAnomalies retains every detector return value before downstream
+	// filtering so headless output can compare detector behavior directly.
+	IncludeDetectorAnomalies bool
 }
 
 // ScenarioInfo describes an available scenario.
@@ -198,7 +201,8 @@ type Bench struct {
 	// API server
 	api *BenchAPI
 
-	replayStats *ReplayStats
+	replayStats        *ReplayStats
+	replayKeyGenerator *observerimpl.SliceKeyGenerator
 
 	streamInputMetricsCount int64
 	streamInputMetricSeries map[uint64]struct{}
@@ -236,6 +240,7 @@ func New(obs observerdef.Component, debug observerimpl.DebugView, sseAccess test
 		logAnomalies:           []observerdef.Anomaly{},
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 		sseStop:                stop,
+		replayKeyGenerator:     observerimpl.NewSliceKeyGenerator(),
 	}
 
 	if sseAccess != nil {
@@ -545,7 +550,7 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 			tb.streamInputMetricsCount++
 			tb.extendStreamBounds(metric.Timestamp, metric.Timestamp)
 
-			tb.debug.IngestMetricSync("parquet", &view)
+			tb.debug.IngestMetricSync("parquet", &view, tb.parquetMetricContextKey(&view))
 			return nil
 		}
 
@@ -585,7 +590,7 @@ func (tb *Bench) extendStreamBounds(startSec, endSec int64) {
 // component toggle).
 func (tb *Bench) feedRawMetrics() {
 	for _, m := range tb.rawMetrics {
-		tb.debug.IngestMetricSync("parquet", m)
+		tb.debug.IngestMetricSync("parquet", m, tb.parquetMetricContextKey(m))
 	}
 
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
@@ -681,6 +686,10 @@ func metricSeriesHash(name, host string, sortedTags []string) uint64 {
 	return hash
 }
 
+func (tb *Bench) parquetMetricContextKey(metric *parquetMetricView) uint64 {
+	return uint64(tb.replayKeyGenerator.Generate(metric.name, metric.host, metric.tags))
+}
+
 func (m *parquetMetricView) GetName() string   { return m.name }
 func (m *parquetMetricView) GetValue() float64 { return m.value }
 func (m *parquetMetricView) GetTags() tagset.CompositeTags {
@@ -694,7 +703,7 @@ func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
 // anomaly and correlation history accumulation enabled (disabled in live mode
 // because production reporters consume advance-local events directly).
-func unboundedStorageCfg() observerimpl.StorageConfig {
+func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.PointRetentionSecs = 0
 	cfg.InactiveSeriesTTLSeconds = 0
@@ -702,18 +711,20 @@ func unboundedStorageCfg() observerimpl.StorageConfig {
 	cfg.MaxCorrelations = -1           // unlimited — testbench must show all patterns
 	cfg.TrackCorrelationHistory = true // accumulate history for replay UI / output
 	cfg.TrackAnomalyHistory = true     // retain raw detector output for replay UI / output
+	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
 	return cfg
 }
 
 // streamingStorageCfg uses the production point-retention and series limits,
 // but disables inactivity eviction so headless output retains complete scenario state.
-func streamingStorageCfg() observerimpl.StorageConfig {
+func streamingStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConfig {
 	cfg := observerimpl.DefaultStorageConfig()
 	cfg.InactiveSeriesTTLSeconds = 0
 	cfg.InactiveSeriesCheckIntervalSeconds = 0
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	cfg.TrackAnomalyHistory = true
+	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
 	return cfg
 }
 
@@ -724,9 +735,9 @@ func (tb *Bench) resetAllState() {
 	tb.baselineWindowEndSec = 0
 	tb.baselineMutedSeries = nil
 	tb.baselineMu.Unlock()
-	storageCfg := unboundedStorageCfg()
+	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg()
+		storageCfg = streamingStorageCfg(tb.config.IncludeDetectorAnomalies)
 	}
 	tb.debug.Reset(tb.settings, storageCfg)
 }
@@ -856,7 +867,7 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() {
 	// Reset engine with current settings (clears all storage).
-	tb.debug.Reset(tb.settings, unboundedStorageCfg())
+	tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies))
 
 	// Re-feed parquet metrics synchronously into the fresh storage.
 	tb.feedRawMetrics()
