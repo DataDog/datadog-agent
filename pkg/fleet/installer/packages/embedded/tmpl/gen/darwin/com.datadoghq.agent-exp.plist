@@ -4,8 +4,11 @@
     <dict>
         <key>Label</key>
         <string>com.datadoghq.agent-exp</string>
+        <!-- RunAtLoad only on the stable set: the experiment set must not restart itself, since
+             the stable definition stays on disk (unloaded, not removed) for the whole time an
+             experiment runs, and a reboot mid-experiment must bring back only the stable job. -->
         <key>RunAtLoad</key>
-        <true/>
+        <false/>
         <key>EnvironmentVariables</key>
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
