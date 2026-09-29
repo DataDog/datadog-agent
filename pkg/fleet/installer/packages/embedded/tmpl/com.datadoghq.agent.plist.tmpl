@@ -4,8 +4,11 @@
     <dict>
         <key>Label</key>
         <string>com.datadoghq.agent{{.LabelSuffix}}</string>
+        <!-- RunAtLoad only on the stable set: the experiment set must not restart itself, since
+             the stable definition stays on disk (unloaded, not removed) for the whole time an
+             experiment runs, and a reboot mid-experiment must bring back only the stable job. -->
         <key>RunAtLoad</key>
-        <true/>
+        <{{if .Supervised}}true{{else}}false{{end}}/>
 {{- if .Supervised}}
         <key>KeepAlive</key>
         <dict>
