@@ -112,6 +112,31 @@ func TestWriteCertDirListing(t *testing.T) {
 	assert.Len(t, loaded, 1)
 }
 
+func TestWriteCertDirListingUnreadableDir(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "aix" {
+		t.Skipf("skipping on %s", runtime.GOOS)
+	}
+	// A mode 0000 directory does not block root, which is common in CI containers.
+	if os.Geteuid() == 0 {
+		t.Skip("skipping when running as root")
+	}
+
+	dir := t.TempDir()
+	unreachable := filepath.Join(dir, "unreachable")
+	require.NoError(t, os.Mkdir(unreachable, 0000))
+	t.Cleanup(func() { require.NoError(t, os.Chmod(unreachable, 0755)) })
+
+	b := new(bytes.Buffer)
+	stats := &certDirStats{}
+	writeCertDirListing(b, unreachable, 0, stats, nil)
+
+	out := b.String()
+	// The underlying error must be reported, not masked as "not found": an
+	// existing but unreadable directory looks absent otherwise.
+	assert.Contains(t, out, "permission denied")
+	assert.NotContains(t, out, "not found")
+}
+
 func TestGetCertificateSourcesReport(t *testing.T) {
 	if _, ok := certFilesByOS[runtime.GOOS]; !ok {
 		t.Skipf("skipping on %s", runtime.GOOS)

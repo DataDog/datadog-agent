@@ -171,7 +171,11 @@ func writeCertDirListing(b *bytes.Buffer, dir string, depth int, stats *certDirS
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		fmt.Fprintf(b, "%s: not found\n", dir)
+		if os.IsNotExist(err) {
+			fmt.Fprintf(b, "%s: not found\n", dir)
+		} else {
+			fmt.Fprintf(b, "%s: %v\n", dir, err)
+		}
 		return
 	}
 
