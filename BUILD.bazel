@@ -116,6 +116,12 @@ gazelle_binary(
     ],
 )
 
+# bazel run //:buildozer -- ...
+go_shim(
+    name = "buildozer",
+    tool = "@multitool//tools/buildozer",
+)
+
 # bazel run //:go -- ...
 alias(
     name = "go",

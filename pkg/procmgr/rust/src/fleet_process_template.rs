@@ -123,6 +123,29 @@ fn fleet_process_template_gate_closed_when_collection_disabled() {
     assert!(!condition_config_any_met(&gate));
 }
 
+/// Collecting connections from an externally managed system-probe is process-agent's job,
+/// so `system_probe_config.external` must not reach this gate. The derived
+/// `system_probe_config.enabled` term is the only thing holding it open here, which is
+/// what a fold-in of `external` into that term would take away.
+#[test]
+fn fleet_process_template_gate_stays_open_for_an_external_system_probe() {
+    let _env = test_env_guard();
+    let etc = tempfile::tempdir().expect("tempdir");
+    // network_config is left unset on purpose: that is what makes the legacy
+    // `system_probe_config.enabled` back-compat rule derive NPM, and with it the term.
+    write_gated_files(
+        etc.path(),
+        DISABLED_AGENT_YAML,
+        "system_probe_config:\n  enabled: true\n  external: true\n",
+    );
+    let gate = load_template(etc.path()).condition_config_any;
+
+    assert!(
+        condition_config_any_met(&gate),
+        "process-agent must still start against an external system-probe"
+    );
+}
+
 fn load_template(etc: &Path) -> ProcessConfig {
     crate::fleet_template_support::load_template(PROCESS_TEMPLATE, DATADOG_AGENT_PROCESS, etc)
 }

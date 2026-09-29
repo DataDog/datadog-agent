@@ -46,7 +46,7 @@ write_source_file(
 # generator, so it only builds on Linux.
 run_binary(
     name = "backend_linux_schema_gen",
-    srcs = ["//pkg/security/serializers:serializers_sources"],
+    srcs = ["//pkg/security/serializers:serializers_go_files"],
     outs = ["backend_linux_schema_gen/backend_linux.schema.json"],
     args = [
         "-serializers-dir=pkg/security/serializers",
@@ -59,7 +59,7 @@ run_binary(
 # Native Windows. The generator is the tool and takes only its own flags.
 run_binary(
     name = "backend_windows_schema_gen_native",
-    srcs = ["//pkg/security/serializers:serializers_sources"],
+    srcs = ["//pkg/security/serializers:serializers_go_files"],
     outs = ["backend_windows_schema_gen_native/backend_windows.schema.json"],
     args = [
         "-serializers-dir=pkg/security/serializers",
@@ -75,7 +75,7 @@ run_binary(
     name = "backend_windows_schema_gen_wine",
     srcs = [
         "//pkg/security/generators/backend_doc:backend_doc_windows",
-        "//pkg/security/serializers:serializers_sources",
+        "//pkg/security/serializers:serializers_go_files",
     ],
     outs = ["backend_windows_schema_gen_wine/backend_windows.schema.json"],
     args = [
