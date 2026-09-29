@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "gentokentables_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tokenizer/gentokentables",
+    visibility = ["//visibility:private"],
+    deps = ["//pkg/template/text"],
+)
+
+go_binary(
+    name = "gentokentables",
+    embed = [":gentokentables_lib"],
+    visibility = ["//visibility:public"],
+)

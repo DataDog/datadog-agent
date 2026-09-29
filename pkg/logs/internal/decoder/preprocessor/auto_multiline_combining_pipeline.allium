@@ -13,7 +13,7 @@
 --     JSONAggregator slot →  MultilineJSONAggregation surface
 --                            (multiline_json_aggregator.allium)
 --     Tokenization slot   →  the default Tokenizer surface
---                            (tokenizer.allium fulfilment via
+--                            (pkg/logs/tokenizer/tokenizer.allium fulfilment via
 --                            the production NewTokenizer)
 --     Labeler slot        →  AutoMultilineLabeling surface
 --                            (auto_multiline_labeler.allium)

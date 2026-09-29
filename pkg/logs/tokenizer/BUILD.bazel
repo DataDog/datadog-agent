@@ -1,0 +1,49 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# Produced by :token_tables_gen and materialized into token_tables_gen.go via
+# :token_tables. This copy lives only in bazel-bin; the in-tree
+# token_tables_gen.go is the actual source. Exclude it so Gazelle doesn't list
+# it in srcs.
+# gazelle:exclude token_tables_generated.go
+
+run_binary(
+    name = "token_tables_gen",
+    outs = ["token_tables_generated.go"],
+    args = ["-output=$(execpath token_tables_generated.go)"],
+    tool = "//pkg/logs/tokenizer/gentokentables",
+)
+
+# bazel run //pkg/logs/tokenizer:token_tables
+# The companion :token_tables_test fails when the committed file is stale.
+write_source_file(
+    name = "token_tables",
+    in_file = ":token_tables_gen",
+    out_file = "token_tables_gen.go",
+)
+
+go_library(
+    name = "tokenizer",
+    srcs = [
+        "borrowed_tokens.go",
+        "doc.go",
+        "token_tables.go",
+        "token_tables_gen.go",
+        "tokenizer.go",
+        "tokens.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tokenizer",
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "tokenizer_test",
+    srcs = [
+        "tokenizer_benchmark_test.go",
+        "tokenizer_test.go",
+    ],
+    embed = [":tokenizer"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

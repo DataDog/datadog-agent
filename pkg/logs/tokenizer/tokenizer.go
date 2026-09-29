@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package preprocessor provides tokenization functionality for log messages.
-package preprocessor
+package tokenizer
 
 import (
 	"math"
@@ -23,9 +22,8 @@ const (
 
 // maxSpecialTokenLen and the special-token/debug-string tables are generated
 // from the master list in gentokentables/main.go into token_tables_gen.go.
-// `bazel run //pkg/logs/internal/decoder/preprocessor:token_tables` is
-// equivalent, and its companion :token_tables_test fails if the committed file
-// is stale.
+// `bazel run //pkg/logs/tokenizer:token_tables` is equivalent, and its
+// companion :token_tables_test fails if the committed file is stale.
 //go:generate go run ./gentokentables -output token_tables_gen.go
 
 // Clearing the ASCII case bit uppercases letters. The wider masks apply the
