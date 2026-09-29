@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx //comp/anomalydetection/recorder/fx:fx
+
 # gazelle:dd_agent_go_test on
 
 # The procmgr e2e suite reads the legacy SCM service definitions to check that the shipped
@@ -44,7 +46,7 @@ go_library(
         "//comp/aggregator/dogstatsdclienttelemetry/fx",
         "//comp/anomalydetection/logssource/fx",
         "//comp/anomalydetection/observer/fx",
-        "//comp/anomalydetection/recorder/fx-noop",
+        "//comp/anomalydetection/recorder/fx",
         "//comp/anomalydetection/reporter/fx",
         "//comp/api/api/apiimpl",
         "//comp/api/api/def",
