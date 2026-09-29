@@ -133,7 +133,7 @@ func TestGetPodLogsMaskSequences(t *testing.T) {
 	})
 	handler := newGetPodLogsHandler(config)
 
-	logs, err := handler.maskSequences("first token=secret\ndrop this\nsecond token=another-secret")
+	logs, err := handler.maskSequences("first token=secret\ndrop this\nsecond token=another-secret", false)
 	require.NoError(t, err)
 	require.Equal(t, "first token=[MASKED]\ndrop this\nsecond token=[MASKED]", logs)
 }
@@ -152,9 +152,10 @@ func TestGetPodLogsMaskSequencesAppliesAnchoredRulesPerEntry(t *testing.T) {
 
 	handler := newGetPodLogsHandler(config)
 	tests := []struct {
-		name string
-		logs string
-		want string
+		name       string
+		logs       string
+		timestamps bool
+		want       string
 	}{
 		{
 			name: "newline-delimited entries",
@@ -166,11 +167,17 @@ func TestGetPodLogsMaskSequencesAppliesAnchoredRulesPerEntry(t *testing.T) {
 			logs: "token=first\r\ntoken=second\r\nvisible",
 			want: "token=[MASKED]\r\ntoken=[MASKED]\r\nvisible",
 		},
+		{
+			name:       "Kubernetes timestamp prefixes",
+			logs:       "2026-09-28T12:00:00Z token=first\n2026-09-28T12:00:01.123456789Z token=second\n",
+			timestamps: true,
+			want:       "2026-09-28T12:00:00Z token=[MASKED]\n2026-09-28T12:00:01.123456789Z token=[MASKED]\n",
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			logs, err := handler.maskSequences(test.logs)
+			logs, err := handler.maskSequences(test.logs, test.timestamps)
 			require.NoError(t, err)
 			require.Equal(t, test.want, logs)
 		})
@@ -184,7 +191,7 @@ func TestGetPodLogsMaskSequencesRejectsInvalidRules(t *testing.T) {
 		},
 	})
 
-	_, err := newGetPodLogsHandler(config).maskSequences("token=secret")
+	_, err := newGetPodLogsHandler(config).maskSequences("token=secret", false)
 	require.ErrorContains(t, err, "could not load global log processing rules")
 }
 
@@ -200,7 +207,7 @@ func TestGetPodLogsMaskSequencesEnforcesOutputLimit(t *testing.T) {
 		},
 	})
 
-	_, err := newGetPodLogsHandler(config).maskSequences(strings.Repeat("x", int(maxPodLogsBytes)))
+	_, err := newGetPodLogsHandler(config).maskSequences(strings.Repeat("x", int(maxPodLogsBytes)), false)
 	require.ErrorContains(t, err, "output limit")
 }
 

@@ -82,14 +82,14 @@ func (h *GetPodLogsHandler) Run(
 	if err != nil {
 		return nil, err
 	}
-	logs, err = h.maskSequences(logs)
+	logs, err = h.maskSequences(logs, inputs.Timestamps)
 	if err != nil {
 		return nil, err
 	}
 	return &GetPodLogsOutputs{Logs: logs}, nil
 }
 
-func (h *GetPodLogsHandler) maskSequences(logs string) (string, error) {
+func (h *GetPodLogsHandler) maskSequences(logs string, timestamps bool) (string, error) {
 	rules, err := logsconfig.GlobalProcessingRules(h.config)
 	if err != nil {
 		return "", fmt.Errorf("could not load global log processing rules: %w", err)
@@ -105,7 +105,15 @@ func (h *GetPodLogsHandler) maskSequences(logs string) (string, error) {
 			}
 		}
 
-		message := entry[:messageEnd]
+		messageStart := 0
+		if timestamps {
+			if timestampEnd := bytes.IndexByte(entry[:messageEnd], ' '); timestampEnd >= 0 {
+				messageStart = timestampEnd + 1
+			}
+		}
+
+		masked = append(masked, entry[:messageStart]...)
+		message := entry[messageStart:messageEnd]
 		for _, rule := range rules {
 			message, _ = logsconfig.ApplyMaskSequence(message, rule)
 		}
