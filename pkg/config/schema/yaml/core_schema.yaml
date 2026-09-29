@@ -5434,8 +5434,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
-            comment: Parquet recording of raw ingested signals for offline analysis
-              and replay.
+            comment: Recording of raw ingested signals for offline analysis
+              when a writer backend is registered.
           flush_interval:
             node_type: setting
             type: integer
