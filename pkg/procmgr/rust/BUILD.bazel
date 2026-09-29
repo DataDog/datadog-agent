@@ -178,24 +178,37 @@ rust_test(
         "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
     ],
     crate = ":dd-procmgrd-lib",
-    data = select({
+    data = [
+        # env_bindings schema sync test resolves $ref across these files.
+        "//pkg/config/schema:core_schema_subfiles",
+        "//pkg/config/schema:system_probe_schema_subfiles",
+        "//pkg/config/schema:yaml/core_schema.yaml",
+    ] + select({
         "@platforms//os:windows": [":graceful-sleeper"],
         "//conditions:default": [],
     }),
     edition = "2024",
     env = select({
         "@platforms//os:windows": {
+            "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
             "GRACEFUL_SLEEPER_BIN": "$(rlocationpath :graceful-sleeper)",
             # Graceful stop detaches the supervisor from its own console and
             # attaches to the child's, which is per-process state. Spawn-heavy
             # tests must therefore not overlap.
             "RUST_TEST_THREADS": "1",
         },
-        "//conditions:default": {},
+        "//conditions:default": {
+            "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
+        },
     }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"] + _TEST_HELPERS_DEPS,
+    # runfiles: schema sync on every platform. Windows also pulls it in via
+    # _TEST_HELPERS_DEPS for graceful-sleeper; Bazel dedupes the label.
+    deps = [
+        "@crates//:runfiles",
+        "@crates//:tempfile",
+    ] + _TEST_HELPERS_DEPS,
 )
 
 rust_test(
