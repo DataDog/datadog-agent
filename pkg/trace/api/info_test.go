@@ -446,6 +446,32 @@ func TestInfoHandler(t *testing.T) {
 	assert.Equal(t, expectedContainerHash, rec.Header().Get(containerTagsHashHeader))
 }
 
+func TestInfoHandlerEmptyObfuscationArrays(t *testing.T) {
+	for name, obfuscationConfig := range map[string]*config.ObfuscationConfig{
+		"nil config":   nil,
+		"empty config": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			conf := config.New()
+			conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+			conf.Obfuscation = obfuscationConfig
+			rcv := newTestReceiverFromConfig(conf)
+			_, h := rcv.makeInfoHandler()
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest("GET", "/info", nil))
+
+			var payload map[string]any
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+			obfuscation := payload["config"].(map[string]any)["obfuscation"].(map[string]any)
+			assert.Equal(t, []any{}, obfuscation["tag_replace_rules"])
+			assert.Equal(t, []any{}, obfuscation["credit_cards"].(map[string]any)["keep_values"])
+			for _, key := range []string{"elasticsearch", "opensearch", "mongodb"} {
+				assert.Equal(t, []any{}, obfuscation[key].(map[string]any)["keep_keys"], key)
+			}
+		})
+	}
+}
+
 func TestInfoHandler_OPMAbsent(t *testing.T) {
 	conf := config.New()
 	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
@@ -461,7 +487,7 @@ func TestInfoHandler_OPMAbsent(t *testing.T) {
 	_, hasOPM := m["org_prop_marker"]
 	assert.False(t, hasOPM, "org_prop_marker must be absent from /info when OPM is not set")
 	obfuscation := m["config"].(map[string]any)["obfuscation"].(map[string]any)
-	assert.Nil(t, obfuscation["tag_replace_rules"])
+	assert.Equal(t, []any{}, obfuscation["tag_replace_rules"])
 }
 
 func TestInfoHandler_OPMPresent(t *testing.T) {

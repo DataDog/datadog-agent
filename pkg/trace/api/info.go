@@ -130,6 +130,13 @@ type filterTags struct {
 	Reject  []string `json:"reject,omitempty"`
 }
 
+func nilToEmpty[T any](values []T) []T {
+	if values == nil {
+		return []T{}
+	}
+	return values
+}
+
 // makeInfoHandler returns a new handler for handling the discovery endpoint.
 // As a side effect it initialises r.computeInfoAndHash and r.agentState so that
 // the Datadog-Agent-State header reflects the current /info payload (including
@@ -192,6 +199,12 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		oconf.OpenSearch = reducedJSONObfuscationConfig{Enabled: o.OpenSearch.Enabled, KeepKeys: o.OpenSearch.KeepValues}
 		oconf.MongoDB = reducedJSONObfuscationConfig{Enabled: o.Mongo.Enabled, KeepKeys: o.Mongo.KeepValues}
 	}
+	// Encode empty obfuscation arrays as [] without modifying the source config.
+	oconf.TagReplaceRules = nilToEmpty(oconf.TagReplaceRules)
+	oconf.CreditCards.KeepValues = nilToEmpty(oconf.CreditCards.KeepValues)
+	oconf.Elasticsearch.KeepKeys = nilToEmpty(oconf.Elasticsearch.KeepKeys)
+	oconf.OpenSearch.KeepKeys = nilToEmpty(oconf.OpenSearch.KeepKeys)
+	oconf.MongoDB.KeepKeys = nilToEmpty(oconf.MongoDB.KeepKeys)
 
 	// obfuscation_version is bumped to 2 to disable client-side stats obfuscation only when the
 	// effective SQL config changes the obfuscated query produced by obfuscateStatsGroup.
