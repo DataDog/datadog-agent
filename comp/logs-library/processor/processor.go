@@ -43,6 +43,7 @@ type Processor struct {
 	outputChan                chan *message.Message // strategy input
 	processingRules           []*config.ProcessingRule
 	encoder                   Encoder
+	tap                       Tap
 	done                      chan struct{}
 	diagnosticMessageReceiver diagnostic.MessageReceiver
 	mu                        sync.Mutex
@@ -58,8 +59,9 @@ type Processor struct {
 }
 
 // New returns an initialized Processor with config support for failover notifications.
+// tap may be nil; when set it receives every rendered message before encoding.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
-	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
+	encoder Encoder, tap Tap, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
 	p := &Processor{
@@ -68,6 +70,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		outputChan:                outputChan, // strategy input
 		processingRules:           processingRules,
 		encoder:                   encoder,
+		tap:                       tap,
 		configChan:                make(chan failoverConfig, 1),
 		done:                      make(chan struct{}),
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
@@ -206,6 +209,13 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)
+		}
+
+		// Fan out to a secondary destination while the message still holds its
+		// rendered content: the encoder below rewrites it in place. A Tap may
+		// block here, which is how a secondary destination applies back-pressure.
+		if p.tap != nil {
+			p.tap.Tap(msg)
 		}
 
 		// encode the message to its final format, it is done in-place
