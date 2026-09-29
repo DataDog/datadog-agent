@@ -479,9 +479,11 @@ func (m *defaultMapper) getSketchBuckets(
 			sketch.Basic.Max = math.Min(p.Max(), sketch.Basic.Max)
 		}
 
-		// Unbounded buckets may leave min above max; keep the extremum that is a true bound.
+		// Inf bounds buckets can make min > max; keep the non infinite bound.
 		if sketch.Basic.Min > sketch.Basic.Max {
-			if p.HasMax() || (minBoundSet && !math.IsInf(maxBound, 0)) {
+			// Max comes from either the point or a finite bucket bound, so it is an upper bound on the values.
+			maxIsBound := p.HasMax() || (minBoundSet && !math.IsInf(maxBound, 0))
+			if maxIsBound {
 				sketch.Basic.Min = sketch.Basic.Max
 			} else {
 				sketch.Basic.Max = sketch.Basic.Min
