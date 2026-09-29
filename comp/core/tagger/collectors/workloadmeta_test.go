@@ -2366,6 +2366,51 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	t.Fatal("container tag info not found")
 }
 
+func TestDynamoGraphDeploymentTagPropagatesToPodAndContainer(t *testing.T) {
+	const containerID = "dynamo-worker-container"
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+	})
+
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+	tagInfos := collector.handleKubePod(workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesPod{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   "dynamo-worker-pod",
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "dynamo-worker",
+				Namespace: "inference",
+				Labels: map[string]string{
+					kubernetes.DynamoGraphDeploymentNameLabelKey: "my-model",
+				},
+			},
+			Containers: []workloadmeta.OrchestratorContainer{
+				{ID: containerID, Name: "worker"},
+			},
+		},
+		IsComplete: true,
+	})
+
+	require.Len(t, tagInfos, 2)
+	for _, tagInfo := range tagInfos {
+		assert.Contains(t, tagInfo.LowCardTags, "dynamo_graph_deployment:my-model")
+		assert.NotContains(t, tagInfo.HighCardTags, "dynamo_graph_deployment:my-model")
+	}
+}
+
 func TestHandleKubeCRD(t *testing.T) {
 	const (
 		crdNamespace = "datadog"

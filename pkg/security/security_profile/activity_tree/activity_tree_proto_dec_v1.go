@@ -496,6 +496,30 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode, getIDFromImageTag func(strin
 		socketNode.Bind = append(socketNode.Bind, psn)
 	}
 
+	for _, connectNode := range sn.GetConnect() {
+		cn := &ConnectNode{
+			MatchedRules: make([]*model.MatchedRule, 0, len(connectNode.MatchedRules)),
+			Port:         uint16(connectNode.Port),
+			IP:           connectNode.Ip,
+			Protocol:     uint16(connectNode.Protocol),
+			NodeBase:     NewNodeBase(),
+		}
+
+		if connectNode.NodeBase != nil {
+			for tag, imageTagTimes := range connectNode.NodeBase.Seen {
+				firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+				lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+				cn.RecordWithTimestamps(getIDFromImageTag(tag), firstSeen, lastSeen)
+			}
+		}
+
+		for _, rule := range connectNode.MatchedRules {
+			cn.MatchedRules = append(cn.MatchedRules, protoDecodeProtoMatchedRule(rule))
+		}
+
+		socketNode.Connect = append(socketNode.Connect, cn)
+	}
+
 	return socketNode
 }
 

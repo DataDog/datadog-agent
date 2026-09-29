@@ -723,6 +723,7 @@ properties:
             - open
             - dns
             - bind
+            - connect
             items:
               type: string
           excluded_images:

@@ -621,7 +621,7 @@ def process_test_result(
 
 @task
 @run_on_devcontainer
-def test(
+def test_legacy(
     ctx,
     module=None,
     targets=None,
@@ -885,7 +885,7 @@ def test(
         "bazel_args": "Additional flags passed directly to bazel test. Quote the value when passing multiple flags.",
     },
 )
-def test_new(
+def test(
     ctx,
     module=None,
     targets=None,
@@ -897,8 +897,7 @@ def test_new(
     """
     Run go tests.
 
-    This task uses Bazel to run the tests and will soon replace the existing `test` task, which
-    will be renamed to `legacy` and eventually be dropped.
+    This task is a thin wrapper around Bazel.
     """
 
     if only_modified_packages:
