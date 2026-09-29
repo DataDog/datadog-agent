@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    On Windows, **dd-procmgrd** no longer stops listening on its named pipe after a single
+    failed connection accept. Previously, one accept error (for example a pipe instance in
+    a bad state) ended the accept loop permanently, leaving the daemon unreachable over
+    IPC (``dd-procmgr status``, ``dd-procmgr reload``, ...) until the service was restarted.
+    The failed pipe instance is now dropped and replaced, matching how the Unix transport
+    already survives accept errors. Connection-level I/O errors are also logged with their
+    raw OS error code, so dropped client connections can be diagnosed from the daemon log
+    instead of showing only a reason-less ``h2 protocol error`` on the CLI side.

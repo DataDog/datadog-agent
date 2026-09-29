@@ -5,7 +5,7 @@
 
 use anyhow::{Context as _, Result};
 use log::{info, warn};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io;
 use std::os::windows::io::AsRawHandle;
@@ -81,13 +81,23 @@ impl tonic::transport::server::Connected for NamedPipeIo {
     }
 }
 
+fn log_pipe_io_error(op: &str, e: &io::Error) {
+    warn!("named pipe {op} error: {e:?}");
+}
+
 impl AsyncRead for NamedPipeIo {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.pipe).poll_read(cx, buf)
+        match Pin::new(&mut self.pipe).poll_read(cx, buf) {
+            Poll::Ready(Err(e)) => {
+                log_pipe_io_error("read", &e);
+                Poll::Ready(Err(e))
+            }
+            poll => poll,
+        }
     }
 }
 
@@ -97,11 +107,23 @@ impl AsyncWrite for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.pipe).poll_write(cx, buf)
+        match Pin::new(&mut self.pipe).poll_write(cx, buf) {
+            Poll::Ready(Err(e)) => {
+                log_pipe_io_error("write", &e);
+                Poll::Ready(Err(e))
+            }
+            poll => poll,
+        }
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.pipe).poll_flush(cx)
+        match Pin::new(&mut self.pipe).poll_flush(cx) {
+            Poll::Ready(Err(e)) => {
+                log_pipe_io_error("flush", &e);
+                Poll::Ready(Err(e))
+            }
+            poll => poll,
+        }
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -158,14 +180,16 @@ async fn accept_loop(
     tx: tokio::sync::mpsc::Sender<io::Result<NamedPipeIo>>,
 ) -> Result<()> {
     loop {
-        if let Err(e) = server.connect().await {
-            let msg = format!(
-                "named pipe accept failed on {}: {}",
-                pipe_name.to_string_lossy(),
-                e
-            );
-            let _ = tx.send(Err(e)).await;
-            anyhow::bail!(msg);
+        match server.connect().await {
+            Ok(()) => {}
+            Err(e) => {
+                warn!(
+                    "named pipe accept failed on {}: {e}; recreating pipe instance",
+                    pipe_name.to_string_lossy()
+                );
+                server = create_pipe_instance(&pipe_name).await;
+                continue;
+            }
         }
 
         let connected = server;
@@ -173,22 +197,23 @@ async fn accept_loop(
             break;
         }
 
-        loop {
-            match create_pipe_server(&ServerOptions::new(), &pipe_name) {
-                Ok(next) => {
-                    server = next;
-                    break;
-                }
-                Err(e) => {
-                    warn!(
-                        "failed to create next named pipe instance on {}: {e}; retrying",
-                        pipe_name.to_string_lossy()
-                    );
-                    tokio::time::sleep(Duration::from_millis(100)).await;
-                }
-            }
-        }
+        server = create_pipe_instance(&pipe_name).await;
     }
 
     Ok(())
+}
+
+async fn create_pipe_instance(pipe_name: &OsStr) -> NamedPipeServer {
+    loop {
+        match create_pipe_server(&ServerOptions::new(), pipe_name) {
+            Ok(next) => return next,
+            Err(e) => {
+                warn!(
+                    "failed to create next named pipe instance on {}: {e}; retrying",
+                    pipe_name.to_string_lossy()
+                );
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
+    }
 }
