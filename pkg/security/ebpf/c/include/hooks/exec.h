@@ -41,6 +41,13 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
         bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
     }
 
+    // debug aid: record which execve created the entry about to be cached, under the same
+    // key it is cached with. Must precede cache_syscall_update_cgroup: that tail-calls, so
+    // anything after it never runs.
+    u64 stamp_key = pid_tgid;
+    u32 stamp_ctx_id = syscall.ctx_id;
+    bpf_map_update_elem(&exec_entry_stamp, &stamp_key, &stamp_ctx_id, BPF_ANY);
+
     cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
@@ -780,18 +787,66 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     return 0;
 }
 
+#define EXEC_ZK_TOTAL 0           // every exec event emitted, the denominator
+#define EXEC_ZK_ZEROKEY_ZEROCTX 1 // 0/0 key on an entry collect_syscall_ctx never touched
+#define EXEC_ZK_ZEROKEY_GOODCTX 2 // 0/0 key on a real execve entry: the key was never written
+#define EXEC_ZK_GOODKEY_ZEROCTX 3 // should be impossible; a non-zero key needs a real entry
+#define EXEC_ZK_ZEROKEY_NO_DENTRY 4 // 0/0 key and handle_exec_event demonstrably never ran
+#define EXEC_ZK_ZEROKEY_HAS_DENTRY 5 // 0/0 key although it did run -- see the read counter
+#define EXEC_ZK_ZEROKEY_IMPERSONATED 6
+#define EXEC_ZK_ZEROKEY_DIRECT 7
+
+
+static void __attribute__((always_inline)) bump_exec_zero_key_class(u32 slot) {
+    u64 *counter = bpf_map_lookup_elem(&exec_zero_key_class, &slot);
+    if (counter != NULL) {
+        __sync_fetch_and_add(counter, 1);
+    }
+}
+
 int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
+    // Work out which key the entry will be found under before popping, since the pop
+    // deletes it. This separates "a later execve replaced the entry under our own key"
+    // from "the impersonation fallback handed us a sibling thread's entry".
+    u64 probe_pid_tgid = bpf_get_current_pid_tgid();
+    u32 probe_tgid = probe_pid_tgid >> 32;
+    u64 found_key = 0;
+    u32 route_flags = 0;
+    if (peek_task_syscall(probe_pid_tgid, EVENT_EXEC) != NULL) {
+        found_key = probe_pid_tgid;
+        route_flags = EXEC_DIAG_ROUTE_DIRECT;
+    } else {
+        u64 *transferred = bpf_map_lookup_elem(&exec_pid_transfer, &probe_tgid);
+        if (transferred != NULL) {
+            found_key = *transferred;
+            route_flags = EXEC_DIAG_ROUTE_IMPERSONATED;
+        }
+    }
+
+    // Peek, do not pop. Popping releases the map element to the head of its CPU's LRU free
+    // list while this function still reads through the returned pointer for another ~230
+    // lines, and the next cache_syscall on that CPU -- from any of the 37 syscall types that
+    // share this map -- claims it and overwrites the value. The entry is released by
+    // release_peeked_exec_syscall below, after the last dereference.
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
+
+    // Snapshot the entry on entry, compared again just before it is released. This measured
+    // the corruption before the fix (ctx_id changed 17/7/4 per ~1200 execs, every zeroed key
+    // among them carrying a changed ctx_id); with the entry now held rather than released it
+    // is a regression check, and every slot but STABLE should read zero. Both reads are
+    // volatile so the compiler cannot fold them into one and pass vacuously. Only ctx_id is
+    // snapshotted: found_key now has to stay live to the release below, and a second u64
+    // alongside it exceeds the 512-byte BPF stack limit. ctx_id is enough -- every zeroed key
+    // measured before the fix came with a changed ctx_id, none with ours still in place.
+    u32 peeked_ctx_id = *(volatile u32 *)&syscall->ctx_id;
 
     // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
-
-    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
     struct proc_cache_t pc = {
         .entry = {
@@ -816,6 +871,98 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // store the process path key (copy to stack for older kernel verifiers)
     struct path_key_t on_stack_exec_path_key = syscall->exec.file.path_key;
     bpf_map_update_elem(&pid_path_keys, &tgid, &on_stack_exec_path_key, BPF_ANY);
+
+    // The syscall cache is keyed by pid_tgid and send_exec_event runs late, at
+    // mprotect_fixup, so the entry populated for *this* execve can be gone by now and the
+    // lookup can hand back a later one whose key was never filled. That is how an exec
+    // event reaches userspace with an all-zero path_key, and userspace then reports it as a
+    // path resolution error. handle_exec_event recorded the key it resolved along with the
+    // ctx_id of the entry it resolved it against, and trace__sys_execveat recorded the
+    // ctx_id of the entry it cached for this task; when the popped entry matches neither,
+    // prefer the recorded key, which does belong to the execve being reported.
+    struct exec_zero_key_diag_t diag = {
+        .send_pid_tgid = pid_tgid,
+        .open_pid_tgid = 0,
+        .entry_ino = syscall->exec.file.path_key.ino,
+        .entry_mount_id = syscall->exec.file.path_key.mount_id,
+        .found_key = found_key,
+        .send_ctx_id = syscall->ctx_id,
+        .open_ctx_id = 0,
+        .stamped_ctx_id = 0,
+        .flags = route_flags | (syscall->exec.dentry != NULL ? EXEC_DIAG_HAS_DENTRY : 0),
+        .padding = 0,
+    };
+
+    // each NULL test has to dominate its loads: folded into a ternary these compile to a
+    // select that dereferences first, and the verifier rejects it
+    u32 stamped_ctx_id = 0;
+    u32 *entry_stamp = bpf_map_lookup_elem(&exec_entry_stamp, &pid_tgid);
+    if (entry_stamp != NULL) {
+        stamped_ctx_id = *entry_stamp;
+        diag.stamped_ctx_id = stamped_ctx_id;
+        diag.flags |= EXEC_DIAG_HAS_ENTRY_STAMP;
+    }
+
+    // Count the mismatch itself, before and independently of any repair: this is the
+    // measurement that says which route delivers the foreign entry, and it has to survive
+    // the repair being enabled or disabled.
+    if (stamped_ctx_id != 0 && syscall->ctx_id != stamped_ctx_id) {
+        u32 slot = (route_flags & EXEC_DIAG_ROUTE_IMPERSONATED) ? 1 : 0;
+        u64 *mismatch = bpf_map_lookup_elem(&exec_entry_mismatch, &slot);
+        if (mismatch != NULL) {
+            __sync_fetch_and_add(mismatch, 1);
+        }
+    }
+
+    // The read counter proved handle_exec_event's ino reads never fail, so a 0/0 key cannot
+    // have been produced by one of its calls -- the entry consumed here was never given a
+    // key. Classify that entry using only facts intrinsic to it, since exec_entry_stamp
+    // cannot be trusted to say whether it was initialised:
+    //   ctx_id == 0     collect_syscall_ctx never ran for it (its ids start at 1)
+    //   dentry == NULL  handle_exec_event never ran for it at all
+    // ZEROKEY_ZEROCTX is the wholly-uninitialised entry; ZEROKEY_GOODCTX is a real execve
+    // whose do_dentry_open never filled the key. Those are different bugs with different
+    // fixes, and this is the counter that separates them. ZEROKEY_HAS_DENTRY should be
+    // empty: non-empty means handle_exec_event ran and still left a zero key, contradicting
+    // the read counter.
+    int zero_key = syscall->exec.file.path_key.ino == 0 && syscall->exec.file.path_key.mount_id == 0;
+    bump_exec_zero_key_class(EXEC_ZK_TOTAL);
+    if (zero_key) {
+        bump_exec_zero_key_class(syscall->ctx_id == 0 ? EXEC_ZK_ZEROKEY_ZEROCTX : EXEC_ZK_ZEROKEY_GOODCTX);
+        bump_exec_zero_key_class(syscall->exec.dentry != NULL ? EXEC_ZK_ZEROKEY_HAS_DENTRY : EXEC_ZK_ZEROKEY_NO_DENTRY);
+        bump_exec_zero_key_class((route_flags & EXEC_DIAG_ROUTE_IMPERSONATED) ? EXEC_ZK_ZEROKEY_IMPERSONATED : EXEC_ZK_ZEROKEY_DIRECT);
+    } else if (syscall->ctx_id == 0) {
+        bump_exec_zero_key_class(EXEC_ZK_GOODKEY_ZEROCTX);
+    }
+
+    struct exec_open_stamp_t *open_stamp = bpf_map_lookup_elem(&exec_dentry_open_stamp, &tgid);
+    if (open_stamp != NULL) {
+        diag.open_pid_tgid = open_stamp->pid_tgid;
+        diag.open_ctx_id = open_stamp->ctx_id;
+        diag.flags |= EXEC_DIAG_HAS_OPEN_STAMP;
+
+        // only repair when the stamp is demonstrably the right execve and the popped entry
+        // is demonstrably not, so a correct entry is never overwritten.
+        // Off while measuring: repairing makes the key non-zero, which stops userspace
+        // logging the zero-key verdict that carries the per-sample route and ctx_ids.
+        if (EXEC_KEY_REPAIR_ENABLED && stamped_ctx_id != 0 && open_stamp->ctx_id == stamped_ctx_id && syscall->ctx_id != stamped_ctx_id) {
+            pc.entry.executable.path_key.ino = open_stamp->ino;
+            pc.entry.executable.path_key.mount_id = open_stamp->mount_id;
+            pc.entry.executable.path_key.path_id = open_stamp->path_id;
+
+            on_stack_exec_path_key = pc.entry.executable.path_key;
+            bpf_map_update_elem(&pid_path_keys, &tgid, &on_stack_exec_path_key, BPF_ANY);
+
+            diag.flags |= EXEC_DIAG_KEY_REPAIRED;
+
+            u32 repaired_key = 0;
+            u64 *repaired = bpf_map_lookup_elem(&exec_key_repaired, &repaired_key);
+            if (repaired != NULL) {
+                __sync_fetch_and_add(repaired, 1);
+            }
+        }
+    }
+    bpf_map_update_elem(&exec_zero_key_diag, &tgid, &diag, BPF_ANY);
 
     u64 parent_inode = 0;
 
@@ -857,12 +1004,14 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (fork_entry == NULL) {
             // should never happen, ignore
+            release_peeked_exec_syscall(tgid);
             return 0;
         }
     }
 
     struct process_event_t *event = new_process_event(0);
     if (event == NULL) {
+        release_peeked_exec_syscall(tgid);
         return 0;
     }
 
@@ -900,6 +1049,30 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // Through symlink
     event->is_through_symlink = syscall->exec.is_through_symlink;
+    // Re-read the same fields after ~1200 instructions of building the event off the freed
+    // pointer. A disagreement here is the direct proof that the element changed under us.
+    // ZERO_AT_POP separates the two timings: already zero when popped means the element was
+    // reused before the pop, WENT_ZERO means after it.
+    u64 late_ino = *(volatile u64 *)&syscall->exec.file.path_key.ino;
+    u32 late_ctx_id = *(volatile u32 *)&syscall->ctx_id;
+
+    bump_exec_uaf(EXEC_UAF_TOTAL);
+    if (late_ctx_id != peeked_ctx_id) {
+        bump_exec_uaf(EXEC_UAF_CTX_CHANGED);
+    }
+    if (late_ino == 0) {
+        bump_exec_uaf(EXEC_UAF_KEY_ZERO);
+        if (late_ctx_id == peeked_ctx_id) {
+            bump_exec_uaf(EXEC_UAF_KEY_ZERO_SAME_CTX);
+        }
+    } else if (late_ctx_id == peeked_ctx_id) {
+        bump_exec_uaf(EXEC_UAF_STABLE);
+    }
+
+    // Last dereference of the entry is above; release it now. Nothing below touches it --
+    // send_event_ptr works off `event`, and unregister_span_context off the TLS maps.
+    release_peeked_exec_syscall(tgid);
+
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 

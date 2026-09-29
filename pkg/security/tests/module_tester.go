@@ -97,6 +97,73 @@ func (tm *testModule) HandleEvent(event *model.Event) {
 
 func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
 
+// maxAbnormalPathSamples caps how many abnormal_path payloads a test module keeps. The rate
+// limiter allows one every 30s, so a handful covers any single test.
+const maxAbnormalPathSamples = 4
+
+// abnormalPathRecorder keeps the abnormal_path custom events a test module saw, so that
+// validateAbnormalPaths can report *what* went wrong. The statsd counter it asserts on
+// carries no pid, no path and no error, which leaves a failure unreadable without
+// cross-referencing the probe logs -- and those live in whichever subtest happened to be
+// running, which gotestsum only prints in its end-of-run failure summary.
+type abnormalPathRecorder struct {
+	sync.Mutex
+	count   int
+	samples []string
+}
+
+func (r *abnormalPathRecorder) record(event *events.CustomEvent) {
+	r.Lock()
+	defer r.Unlock()
+
+	r.count++
+	if len(r.samples) >= maxAbnormalPathSamples {
+		return
+	}
+
+	data, err := event.MarshalJSON()
+	if err != nil {
+		r.samples = append(r.samples, fmt.Sprintf("<marshal failed: %v>", err))
+		return
+	}
+
+	// keep the whole payload rather than picking fields out of it: it already carries the
+	// file, the process ancestry, the container and the error, and compacting it to one
+	// line keeps the failure message greppable in a job trace
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, data); err != nil {
+		r.samples = append(r.samples, string(data))
+		return
+	}
+	r.samples = append(r.samples, compact.String())
+}
+
+func (r *abnormalPathRecorder) reset() {
+	r.Lock()
+	defer r.Unlock()
+
+	r.count = 0
+	r.samples = nil
+}
+
+func (r *abnormalPathRecorder) report() string {
+	r.Lock()
+	defer r.Unlock()
+
+	if r.count == 0 {
+		// the counter is read after SendStats, so a non-zero counter with nothing recorded
+		// means the event was allowed by the rate limiter before this module took over
+		return "no abnormal_path event reached this test module's event sender"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d abnormal_path event(s), showing %d:", r.count, len(r.samples))
+	for _, sample := range r.samples {
+		b.WriteString("\n  " + sample)
+	}
+	return b.String()
+}
+
 func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	tm.eventHandlers.RLock()
 	onCustom := tm.eventHandlers.onCustomSendEvent
@@ -110,6 +177,9 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 
 	switch ev := event.(type) {
 	case *events.CustomEvent:
+		if rule != nil && rule.ID == events.AbnormalPathRuleID {
+			tm.abnormalPaths.record(ev)
+		}
 		if onCustom != nil {
 			onCustom(rule, ev)
 		}

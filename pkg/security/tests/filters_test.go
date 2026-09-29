@@ -378,9 +378,16 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	var testActivityDumpTracedEventTypes = []string{"exec", "open"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{
 		// this exercises the v1 activity dump manager, which is inactive under security profile v2
-		disableSecurityProfileV2:            true,
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             testActivityDumpRateLimiter,
+		disableSecurityProfileV2: true,
+		enableActivityDump:       true,
+		activityDumpRateLimiter:  testActivityDumpRateLimiter,
+		// Unlike the tests in activity_dumps_test.go this one runs on the cws_host
+		// vmset, where the host's ~13 systemd cgroups are offered for tracing too.
+		// They re-offer themselves on every event, so they refill each of the
+		// testActivityDumpTracedCgroupsCount (5) traced_cgroups slots as soon as an
+		// eviction frees one, and reserve_traced_cgroup_spot() rejects the container
+		// with E2BIG for the whole of StartADockerGetDump's retry budget. Take the
+		// production ceiling so the host cgroups cannot crowd the container out.
 		activityDumpTracedCgroupsCount:      model.MaxTracedCgroupsCount,
 		activityDumpDuration:                testActivityDumpDuration,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,

@@ -72,6 +72,51 @@ BPF_HASH_MAP_FLAGS(inet_bind_args, u64, struct inet_bind_args_t, 1, BPF_F_NO_PRE
 BPF_LRU_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(cgroup_wait_list, u64, u64, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
+// Debug aid: counts the offers reserve_traced_cgroup_spot() rejected per cgroup inode,
+// the one drop that leaves no other trace in any map. See describeADKernelState.
+BPF_LRU_MAP(ad_cgroup_reserve_failed, u64, u64, 512)
+// Debug aid: exec_dentry_open_stamp records, per tgid, which task ran handle_exec_event()
+// and the ctx_id it saw. send_exec_event() folds it into exec_zero_key_diag, which it
+// writes for every exec so that a missing record is itself informative.
+BPF_LRU_MAP(exec_dentry_open_stamp, u32, struct exec_open_stamp_t, 1024)
+// written by trace__sys_execveat under the pid_tgid the exec entry is cached under, so
+// send_exec_event can tell whether the entry it popped is the one that execve created
+BPF_LRU_MAP(exec_entry_stamp, u64, u32, 4096)
+BPF_LRU_MAP(exec_zero_key_diag, u32, struct exec_zero_key_diag_t, 1024)
+// counts the execs whose path_key send_exec_event had to recover from the open stamp.
+// Standalone because the recovery makes the key non-zero, so nothing on the zero-key
+// path would ever read a flag recorded there.
+BPF_ARRAY_MAP(exec_key_repaired, u64, 1)
+// Outcome of the inode read that produces an exec path_key, per EXEC_INO_* slot. A counter
+// rather than a per-event log: it needs no comparison against anything that can go stale,
+// so a zero reading means the reads are fine and the cause is elsewhere.
+BPF_ARRAY_MAP(exec_ino_read_stats, u64, 7)
+// Counts the execs whose popped entry did not belong to the execve being reported, split by
+// which lookup produced it. Standalone and unconditional: gating a diagnostic behind the
+// anomaly it describes has already made two of them unreadable.
+//   slot 0: found under our own pid_tgid, so a later cache_syscall replaced the entry
+//   slot 1: found via exec_pid_transfer, so the impersonation fallback aliased another task
+BPF_ARRAY_MAP(exec_entry_mismatch, u64, 2)
+// Stamp-free classification of the syscall-cache entry that send_exec_event actually
+// consumed, per EXEC_ZK_* slot. The mismatch counter above needs exec_entry_stamp, which is
+// never deleted and is read under the leader's key after de_thread, so it cannot say whether
+// the entry was ever initialised. These slots read only the entry itself.
+BPF_ARRAY_MAP(exec_zero_key_class, u64, 8)
+// Does the popped syscall entry change under us? pop_task_syscall deletes the map element
+// and returns a pointer into its value, so send_exec_event builds the whole event out of a
+// freed LRU element. Slots compare the same fields read right after the pop against the same
+// fields read just before the event is sent, per EXEC_UAF_* slot.
+BPF_ARRAY_MAP(exec_uaf_probe, u64, 7)
+#define EXEC_UAF_TOTAL 0       // popped entries examined, the denominator
+#define EXEC_UAF_KEY_ZERO 2    // ino is 0 by the time the event is sent: the failure condition
+// ctx_id is minted per-execve by collect_syscall_ctx from a global counter, so it identifies
+// WHICH execve an entry belongs to. These two slots split the two remaining explanations for
+// a key that goes to zero: the element now holds a different execve's entry (reuse), or it is
+// still our entry and something zeroed the key in place (a stray write, a different bug).
+#define EXEC_UAF_CTX_CHANGED 3      // ctx_id differs: the element holds another entry now
+#define EXEC_UAF_KEY_ZERO_SAME_CTX 4 // key zero while ctx_id stayed ours: NOT reuse
+#define EXEC_UAF_STABLE 5             // ino good at both reads and ctx_id unchanged
+#define EXEC_UAF_COLLATERAL_AVOIDED 6 // live sibling entry the old unconditional pop would have deleted
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)

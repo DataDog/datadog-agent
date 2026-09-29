@@ -247,6 +247,7 @@ type testModule struct {
 	tracePipe     *tracePipeLogger
 	msgSender     *fakeMsgSender
 	grpcServer    *grpcutils.Server
+	abnormalPaths abnormalPathRecorder
 }
 
 //nolint:unused
@@ -705,6 +706,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.opts.staticOpts = opts.staticOpts
 		testMod.proFile = proFile
 		testMod.statsdClient.Flush()
+		testMod.abnormalPaths.reset()
 
 		if opts.staticOpts.preStartCallback != nil {
 			opts.staticOpts.preStartCallback(testMod)
@@ -724,6 +726,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.opts.dynamicOpts = opts.dynamicOpts
 		testMod.proFile = proFile
 		testMod.statsdClient.Flush()
+		testMod.abnormalPaths.reset()
 
 		if !disableTracePipe && !ebpfLessEnabled {
 			if testMod.tracePipe, err = testMod.startTracing(); err != nil {
@@ -1016,7 +1019,7 @@ func (tm *testModule) startTracing() (*tracePipeLogger, error) {
 }
 
 func (tm *testModule) validateAbnormalPaths() {
-	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected")
+	assert.Zero(tm.t, tm.statsdClient.Get("datadog.runtime_security.rules.rate_limiter.allow:rule_id:abnormal_path"), "abnormal error detected\n%s", tm.abnormalPaths.report())
 }
 
 func (tm *testModule) validateSyscallsInFlight() {
@@ -1040,6 +1043,7 @@ func (tm *testModule) ValidateEndOfTest(zombieCheck bool) {
 	tm.validateSyscallsInFlight()
 
 	tm.statsdClient.Flush()
+	tm.abnormalPaths.reset()
 
 	if tm.msgSender != nil {
 		tm.msgSender.flush()
@@ -1424,9 +1428,20 @@ func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*acti
 	}
 	dump := findLearningContainerID(dumps, containerutils.ContainerID(dockerInstance.containerID))
 	if dump == nil {
-		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%+v)", dockerInstance.containerID, dumps)
+		// dumps is a slice of pointers, so %+v prints addresses and hides whether the
+		// list was empty or held a dump for some other cgroup -- the whole question
+		// when this fails. Spell the entries out instead.
+		return nil, fmt.Errorf("ContainerID %s not found on activity dump list (%d dump(s): %s)", dockerInstance.containerID, len(dumps), formatActivityDumps(dumps))
 	}
 	return dump, nil
+}
+
+func formatActivityDumps(dumps []*activityDumpIdentifier) string {
+	entries := make([]string, 0, len(dumps))
+	for _, d := range dumps {
+		entries = append(entries, fmt.Sprintf("{name:%s container:%s cgroup:%s timeout:%s}", d.Name, d.ContainerID, d.CGroupID, d.Timeout))
+	}
+	return "[" + strings.Join(entries, " ") + "]"
 }
 
 func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIdentifier, error) {
@@ -1448,6 +1463,8 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	}
 	var dump *activityDumpIdentifier
 	if err := retry(tm.t, func() error {
+		// check that the kernel offered a dump for this container's cgroup when it started,
+		// rather than requesting one ourselves
 		d, err := tm.GetDumpFromDocker(dockerInstance)
 		if err != nil {
 			return err
@@ -1455,13 +1472,139 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		if d == nil {
 			return fmt.Errorf("no dump found for container %s", dockerInstance.containerID)
 		}
+		if d.CGroupID == "" {
+			return fmt.Errorf("dump for container %s has no cgroup yet", dockerInstance.containerID)
+		}
 		dump = d
 		return nil
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(5)); err != nil {
+		err = fmt.Errorf("%w\n%s", err, tm.describeADKernelState(dockerInstance.containerID))
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
+}
+
+// describeADKernelState reports the kernel side activity dump state for a container.
+// should_trace_new_process_cgroup() drops an offer at several points without a log or a
+// counter -- an unset mount id, the discarded blacklist, a live wait list entry, or a full
+// traced_cgroups -- and they are indistinguishable from userspace after the fact. Reading
+// the maps tells them apart.
+func (tm *testModule) describeADKernelState(containerID string) string {
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return "activity dump kernel state: not an eBPF probe"
+	}
+
+	var b strings.Builder
+	b.WriteString("activity dump kernel state:\n")
+
+	// the cgroup the offer would have been made for. Note this mount id is the
+	// resolver's, which keys on the inode alone and takes its path_key from whichever
+	// cgroup_write populated the entry -- it is NOT the per-process kernel value that
+	// is_cgroup_mount_id_filter_valid() tests. The "exec in container" probe log
+	// carries that one.
+	if entry := p.Resolvers.CGroupResolver.GetCacheEntryContainerID(containerutils.ContainerID(containerID)); entry != nil {
+		cg := entry.GetCGroupContext()
+		b.WriteString(fmt.Sprintf("  container cgroup (resolver): id=%s inode=%d mount_id=%d\n",
+			cg.CGroupID, cg.CGroupPathKey.Inode, cg.CGroupPathKey.MountID))
+	} else {
+		b.WriteString("  container cgroup: no cgroup resolver entry for this container\n")
+	}
+
+	for _, m := range []struct {
+		name     string
+		valueLen int
+	}{
+		{"traced_cgroups", 8},
+		{"cgroup_wait_list", 8},
+		{"traced_cgroups_discarded", 1},
+	} {
+		b.WriteString(fmt.Sprintf("  %s: %s\n", m.name, tm.dumpInodeKeyedMap(p, m.name, m.valueLen)))
+	}
+
+	// A successful reserve writes traced_cgroups *and* cgroup_wait_list together, with a
+	// 4500s deadline nothing can clear inside a test, so a cgroup missing from both never
+	// reserved. This counter is what says so directly, and its errno separates a full
+	// 5-slot traced_cgroups (E2BIG) from an already-reserved cgroup (EEXIST).
+	b.WriteString(fmt.Sprintf("  ad_cgroup_reserve_failed: %s\n", tm.dumpReserveFailures(p)))
+
+	// a lost cgroup_tracing event is indistinguishable from an offer the kernel never
+	// made, and onEventLost's SyncTracedCgroups frees the traced_cgroups slot while
+	// leaving the wait list entry, which blocks every later offer for that cgroup.
+	// The -status-metrics counters are the only way to tell, and KMT never passes it.
+	if monitors := p.GetMonitors(); monitors != nil {
+		if esm := monitors.GetEventStreamMonitor(); esm != nil {
+			stats, kernelStats := esm.GetEventStats(model.CgroupTracingEventType, "events", -1)
+			b.WriteString(fmt.Sprintf("  cgroup_tracing events: user=%d kernel=%d kernel-lost=%d (all events lost=%d)\n",
+				stats.Count.Load(), kernelStats.Count.Load(), kernelStats.Lost.Load(),
+				esm.GetKernelLostCount("events", -1, model.MaxKernelEventType)))
+		}
+	}
+
+	return b.String()
+}
+
+// dumpInodeKeyedMap renders the keys of one of the inode-keyed activity dump maps, with
+// their values when they carry one worth reading (a cookie, a wait list deadline).
+func (tm *testModule) dumpInodeKeyedMap(p *sprobe.EBPFProbe, name string, valueLen int) string {
+	m, _, err := p.Manager.Get().GetMap(name)
+	if err != nil || m == nil {
+		return fmt.Sprintf("unavailable (%v)", err)
+	}
+
+	var (
+		entries []string
+		inode   uint64
+		u64Val  uint64
+		u8Val   uint8
+		value   interface{} = &u64Val
+	)
+	if valueLen == 1 {
+		value = &u8Val
+	}
+
+	it := m.Iterate()
+	for it.Next(&inode, value) {
+		if valueLen == 1 {
+			entries = append(entries, strconv.FormatUint(inode, 10))
+		} else {
+			entries = append(entries, fmt.Sprintf("%d=%d", inode, u64Val))
+		}
+	}
+	if err := it.Err(); err != nil {
+		entries = append(entries, fmt.Sprintf("<iteration failed: %v>", err))
+	}
+
+	return fmt.Sprintf("%d entr(ies) [%s]", len(entries), strings.Join(entries, " "))
+}
+
+// dumpReserveFailures renders ad_cgroup_reserve_failed, whose value packs the
+// rejection count in the high half and the latest errno in the low half.
+func (tm *testModule) dumpReserveFailures(p *sprobe.EBPFProbe) string {
+	m, _, err := p.Manager.Get().GetMap("ad_cgroup_reserve_failed")
+	if err != nil || m == nil {
+		return fmt.Sprintf("unavailable (%v)", err)
+	}
+
+	var (
+		entries       []string
+		inode, packed uint64
+	)
+	it := m.Iterate()
+	for it.Next(&inode, &packed) {
+		errno := unix.Errno(packed & 0xFFFFFFFF)
+		name := unix.ErrnoName(errno)
+		if name == "" {
+			name = strconv.FormatUint(uint64(errno), 10)
+		}
+		entries = append(entries, fmt.Sprintf("%d=%dx%s", inode, packed>>32, name))
+	}
+	if err := it.Err(); err != nil {
+		entries = append(entries, fmt.Sprintf("<iteration failed: %v>", err))
+	}
+
+	return fmt.Sprintf("%d entr(ies) [%s]", len(entries), strings.Join(entries, " "))
 }
 
 func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd string) (*systemdCmdWrapper, *activityDumpIdentifier, error) {

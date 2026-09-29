@@ -244,6 +244,19 @@ static struct syscall_cache_t *__attribute__((always_inline)) pop_syscall(u64 ty
 // the following functions must use the {peek,pop}_current_or_impersonated_exec_syscall to retrieve the syscall context
 // because the task performing the exec syscall may change its pid in the flush_old_exec() kernel function
 
+// Release an entry that was peeked rather than popped. send_exec_event has to peek:
+// pop_task_syscall deletes the map element and returns a pointer into it, and on the pre-5.11
+// LRU hash that element goes to the HEAD of a free list (__bpf_lru_node_move -> list_move ->
+// list_add) from which the next cache_syscall takes it and memcpys a new key and value over
+// it. Which free list is node->cpu's, fixed when the map was populated -- not necessarily the
+// CPU we are on, since the task can migrate between execve entry and mprotect_fixup. So the
+// claimant can be another CPU running in parallel, not only an interrupt. Holding the entry
+// keeps the element off the free list for the whole window.
+//
+// Re-runs the route logic rather than taking a key, so the caller needs no extra live
+// variable: send_exec_event is already at the 512-byte BPF stack limit. That requires the
+// exec_pid_transfer entry to still exist, so this deletes it here instead.
+
 static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
 #if USE_SYSCALL_TASK_STORAGE == 1
     u64 use_syscall_task_storage;
@@ -277,6 +290,13 @@ static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_im
     return syscall;
 }
 
+static void __attribute__((always_inline)) bump_exec_uaf(u32 slot) {
+    u64 *counter = bpf_map_lookup_elem(&exec_uaf_probe, &slot);
+    if (counter != NULL) {
+        __sync_fetch_and_add(counter, 1);
+    }
+}
+
 static struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
 #if USE_SYSCALL_TASK_STORAGE == 1
     u64 use_syscall_task_storage;
@@ -296,13 +316,29 @@ static struct syscall_cache_t *__attribute__((always_inline)) pop_current_or_imp
         u32 tgid_execing = pid_tgid_execing >> 32;
         u32 pid_execing = pid_tgid_execing;
         u32 pid = pid_tgid;
-        struct syscall_cache_t *imp_syscall = pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
+        // Pop the impersonated entry only once this guard says we want it. It used to be
+        // popped unconditionally, one line above the guard, so a thread that was not
+        // impersonating anything still deleted the entry named by exec_pid_transfer --
+        // which is keyed by tgid, i.e. a *sibling thread's* entry, potentially one another
+        // CPU is at that moment reading through the pointer its own pop returned. Deleting
+        // it releases the LRU element for reuse underneath that reader. peek_current_or_
+        // impersonated_exec_syscall already orders its guard this way.
         if (tgid == tgid_execing && pid != pid_execing && !syscall) {
             // the current task is impersonating its thread group leader
-            return imp_syscall;
+            return pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
+        }
+        // Measure the exposure this removes: a live sibling entry the old code would have
+        // deleted for nothing. peek does not delete, so this is safe to ask.
+        if (peek_task_syscall(pid_tgid_execing, EVENT_EXEC) != NULL) {
+            bump_exec_uaf(EXEC_UAF_COLLATERAL_AVOIDED);
         }
     }
     return syscall;
+}
+
+static void __attribute__((always_inline)) release_peeked_exec_syscall(u32 tgid) {
+    pop_current_or_impersonated_exec_syscall();
+    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 }
 
 static __attribute__((always_inline)) int capture_all_errors_enabled(void) {

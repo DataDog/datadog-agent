@@ -8,6 +8,30 @@
 
 struct mount;
 
+// get_inode_ino_checked and get_dentry_inode_checked report whether the read succeeded.
+// The unchecked versions below return an uninitialised local when bpf_probe_read fails, so
+// a failure is indistinguishable from a real value: 0 where the helper zeroes the
+// destination, otherwise whatever the stack slot held -- which is the leading explanation
+// for exec path_keys carrying kernel pointers. They also read sizeof(ino) rather than
+// sizeof(inode); those are equal on 64-bit, so it is a latent typo rather than a live bug.
+static unsigned long __attribute__((always_inline)) get_inode_ino_checked(struct inode *inode, long *err) {
+    u64 inode_ino_offset;
+    LOAD_CONSTANT("inode_ino_offset", inode_ino_offset);
+
+    unsigned long ino = 0;
+    *err = bpf_probe_read(&ino, sizeof(ino), (void *)inode + inode_ino_offset);
+    return ino;
+}
+
+static __attribute__((always_inline)) struct inode *get_dentry_inode_checked(struct dentry *dentry, long *err) {
+    u64 offset;
+    LOAD_CONSTANT("dentry_d_inode_offset", offset);
+
+    struct inode *inode = NULL;
+    *err = bpf_probe_read(&inode, sizeof(inode), (void *)dentry + offset);
+    return inode;
+}
+
 static unsigned long __attribute__((always_inline)) get_inode_ino(struct inode *inode) {
     u64 inode_ino_offset;
     LOAD_CONSTANT("inode_ino_offset", inode_ino_offset);
@@ -332,11 +356,6 @@ static u32 __attribute__((always_inline)) get_dentry_nlink(struct dentry *dentry
 
 static struct dentry *__attribute__((always_inline)) get_file_dentry(struct file *file) {
     return get_path_dentry(get_file_f_path_addr(file));
-}
-
-static unsigned long __attribute__((always_inline)) get_path_ino(struct path *path) {
-    struct dentry *dentry = get_path_dentry(path);
-    return get_dentry_ino(dentry);
 }
 
 static u64 __attribute__((always_inline)) get_dentry_name_offset(void) {

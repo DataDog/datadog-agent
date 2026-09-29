@@ -219,6 +219,36 @@ type EBPFProbe struct {
 	// usable, which requires kernel >= 4.18 and a pure cgroup v2 hierarchy. Cached because it
 	// is read on the event hot path.
 	kernelTracksCGroupID bool
+
+	// lastExecKeyRepairs is the last value read from the exec_key_repaired counter, so the
+	// stats tick can log only the delta. Debug aid, see logExecKeyRepairs.
+	lastExecKeyRepairs atomic.Uint64
+
+	// lastExecEntryMismatches is the same for the route counters. Debug aid, see
+	// logExecEntryMismatches.
+	lastExecEntryMismatches atomic.Uint64
+
+	// lastExecInoReads is the last total of the non-healthy exec_ino_read_stats slots, so
+	// the stats tick logs only when one of them moves. Debug aid, see logExecInoReadStats.
+	lastExecInoReads atomic.Uint64
+
+	// execInoReadsLogged records that logExecInoReadStats has reported at least once, so a
+	// healthy run still says so out loud instead of being silent. Debug aid.
+	execInoReadsLogged atomic.Bool
+
+	// lastExecZeroKeyClass / execZeroKeyClassLogged mirror the pair above for
+	// logExecZeroKeyClass: log on any movement, but always at least once per run.
+	lastExecZeroKeyClass   atomic.Uint64
+	execZeroKeyClassLogged atomic.Bool
+
+	// lastExecUAF / execUAFLogged: same pair for logExecUseAfterFreeProbe.
+	lastExecUAF   atomic.Uint64
+	execUAFLogged atomic.Bool
+
+	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
+	// container, so the debug log below reports only transitions instead of one line
+	// per exec. Debug aid, see setProcessContext.
+	lastExecCGroupKey sync.Map
 }
 
 // GetUseRingBuffers returns p.useRingBuffers
@@ -267,6 +297,17 @@ func (p *EBPFProbe) selectSyscallTaskStorageMode() {
 		seclog.Warnf("syscall task storage enabled but map type not supported on this kernel version, falling back to LRU hash map")
 		return
 	}
+
+	// the zero-key execs seen so far are confined to kernels that land on the LRU hash
+	// fallback, so record which side of that boundary a run is on rather than inferring it
+	// from the distro's kernel version afterwards
+	defer func() {
+		mode := "LRU hash (pre-5.11 fallback)"
+		if p.useSyscallTaskStorage {
+			mode = "task storage"
+		}
+		seclog.Warnf("syscall cache mode: %s (kernel %s)", mode, p.kernelVersion.Code)
+	}()
 
 	var supported bool
 	var programType lib.ProgramType
@@ -1268,6 +1309,17 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 func (p *EBPFProbe) SendStats() error {
 	p.Resolvers.TCResolver.SendTCProgramsStats(p.statsdClient)
 
+	// The path_key recovery in send_exec_event makes the key non-zero, so the zero-key log
+	// never runs for a repaired exec and the flag recorded in exec_zero_key_diag is never
+	// read. Report the standalone counter here instead, on the stats tick, so the repair
+	// rate is observable at all -- without it a clean run cannot be told apart from a run
+	// with no exposure.
+	p.logExecKeyRepairs()
+	p.logExecEntryMismatches()
+	p.logExecInoReadStats()
+	p.logExecZeroKeyClass()
+	p.logExecUseAfterFreeProbe()
+
 	p.processKiller.SendStats(p.statsdClient)
 
 	if p.profileManager != nil {
@@ -1401,6 +1453,8 @@ func (p *EBPFProbe) newRelatedProcessEvent(pce *model.ProcessCacheEntry, err err
 	relatedEvent.Source = model.EventSourceRelated
 
 	if errResolution != nil {
+		f := &relatedEvent.ProcessCacheEntry.FileEvent
+		seclog.Errorf("path resolution error on related process event for %s, inode %d, mountid %d, basename %q: %s", p.fieldHandlers.pathErrorDiag(relatedEvent), f.Inode, f.MountID, f.BasenameStr, err)
 		relatedEvent.SetPathResolutionError(&relatedEvent.ProcessCacheEntry.FileEvent, err)
 	}
 
@@ -1445,6 +1499,12 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			// For all other processes it is a genuine resolution error.
 			if !event.ProcessContext.IsKworker {
 				event.Error = model.ErrNoProcessContext
+				// GetPlaceholderProcessCacheEntry has substituted the shared zero entry,
+				// so event.Exec.Process now points at an all-zero FileEvent. That is what
+				// used to be reported as a path resolution error and counted as an
+				// abnormal_path; log the substitution so the population stays visible.
+				seclog.Warnf("placeholder process entry substituted for %s event, pid %d tid %d ppid %d: process resolution failed",
+					eventType, event.PIDContext.Pid, event.PIDContext.Tid, event.PIDContext.PPid)
 			}
 		} else {
 			// If the kernel reports a different ppid than the one in our
@@ -1491,10 +1551,289 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 		}
 	}
 
+	// The cgroup resolver keys on the inode alone, so a container process whose
+	// kernel-side path_key carries mount_id 0 still resolves to a perfectly correct
+	// cgroup and container id -- while is_cgroup_mount_id_filter_valid() rejects
+	// mount_id 0 before every activity dump gate, even under CGROUP_MOUNT_ID_NO_FILTER.
+	// Log the event-time key, which is the one that filter actually tests.
+	if eventType == model.ExecEventType && event.ProcessCacheEntry != nil &&
+		event.ProcessCacheEntry.Process.ContainerContext.ContainerID != "" {
+		containerID := event.ProcessCacheEntry.Process.ContainerContext.ContainerID
+		if prev, ok := p.lastExecCGroupKey.Load(containerID); !ok || prev != cgroupContext.CGroupPathKey {
+			p.lastExecCGroupKey.Store(containerID, cgroupContext.CGroupPathKey)
+			seclog.Warnf("exec in container %s: event-time cgroup path_key %+v, resolved cgroup %s",
+				containerID, cgroupContext.CGroupPathKey,
+				event.ProcessCacheEntry.Process.CGroup.CGroupID)
+		}
+	}
+
+	// an exec event whose file path_key is 0/0 has no path, no filesystem and no binary
+	// metadata, and the empty basename means nothing in the event itself identifies it.
+	// The kernel side records who populated the key (or that nobody did) in
+	// exec_zero_key_diag; read it here, where the manager is reachable.
+	if eventType == model.ExecEventType && event.ProcessCacheEntry != nil &&
+		event.ProcessCacheEntry.Source != model.ProcessCacheEntryFromPlaceholder {
+		if f := &event.ProcessCacheEntry.FileEvent; f.Inode == 0 && f.MountID == 0 {
+			// report both key views: the cache entry's and the exec event's own. They are
+			// copied from the same kernel field, so a divergence localises the loss to
+			// userspace rather than the probe.
+			var execIno uint64
+			var execMountID uint32
+			if event.Exec.Process != nil {
+				execIno, execMountID = event.Exec.Process.FileEvent.Inode, event.Exec.Process.FileEvent.MountID
+			}
+			seclog.Errorf("zero exec path_key for pid %d (%s): pce_key=%d/%d exec_key=%d/%d "+
+				"event_source=%s entry_source=%s event_ctx_id=%d | %s",
+				event.ProcessCacheEntry.Pid, event.ProcessCacheEntry.Comm,
+				f.Inode, f.MountID, execIno, execMountID,
+				event.Source, processEntrySource(event.ProcessCacheEntry.Source),
+				event.Exec.SyscallContext.ID,
+				p.describeZeroExecKey(event.ProcessCacheEntry.Pid))
+		}
+	}
+
 	// flush exited process
 	p.Resolvers.ProcessResolver.DequeueExited()
 
 	return true
+}
+
+// execZeroKeyDiag mirrors struct exec_zero_key_diag_t. Keep it padding-free and in the
+// same field order so binary.Size equals unsafe.Sizeof, otherwise Lookup fails at runtime.
+type execZeroKeyDiag struct {
+	SendPIDTGID  uint64
+	OpenPIDTGID  uint64
+	EntryIno     uint64
+	FoundKey     uint64
+	EntryMountID uint32
+	SendCtxID    uint32
+	OpenCtxID    uint32
+	StampedCtxID uint32
+	Flags        uint32
+	Padding      uint32
+}
+
+const (
+	execDiagHasDentry = 1 << iota
+	execDiagHasOpenStamp
+	execDiagHasEntryStamp
+	execDiagRouteDirect
+	execDiagRouteImpersonated
+	execDiagKeyRepaired
+)
+
+// describeZeroExecKey reports what the kernel recorded for an exec whose file path_key
+// reached userspace as 0/0. The diag is written for every exec, so a missing record now
+// means send_exec_event did not run, rather than being ambiguous with "the key was fine".
+func (p *EBPFProbe) describeZeroExecKey(pid uint32) string {
+	m, _, err := p.Manager.Get().GetMap("exec_zero_key_diag")
+	if err != nil || m == nil {
+		return fmt.Sprintf("exec_zero_key_diag unavailable (%v)", err)
+	}
+
+	var d execZeroKeyDiag
+	if err := m.Lookup(pid, &d); err != nil {
+		return fmt.Sprintf("send_exec_event recorded nothing for tgid %d (%v)", pid, err)
+	}
+
+	// The stamp is what ties the popped entry to an execve. ctx_ids come from
+	// collect_syscall_ctx starting at 1, so 0 means the entry was never initialised there.
+	var verdict string
+	switch {
+	case d.Flags&execDiagHasEntryStamp == 0:
+		verdict = "no execve stamp for this pid_tgid: the popped entry was cached under another key"
+	case d.StampedCtxID != d.SendCtxID:
+		verdict = fmt.Sprintf("POPPED A FOREIGN ENTRY: execve stamped ctx_id %d but the entry carries %d", d.StampedCtxID, d.SendCtxID)
+	case d.EntryIno != 0 || d.EntryMountID != 0:
+		verdict = "the kernel had a valid key here, so it was lost after send_exec_event"
+	case d.Flags&execDiagHasDentry == 0:
+		verdict = "right entry, but exec.dentry is NULL: do_dentry_open never populated the key"
+	default:
+		verdict = "right entry with a dentry, yet the key is zero"
+	}
+
+	// which lookup produced the entry: our own key, or the impersonation fallback. This is
+	// what separates "a later execve replaced our entry" from "we were handed a sibling
+	// thread's entry", since both present as a foreign ctx_id.
+	route := "route=none"
+	switch {
+	case d.Flags&execDiagRouteDirect != 0:
+		route = fmt.Sprintf("route=direct key=%d/%d", uint32(d.FoundKey>>32), uint32(d.FoundKey))
+	case d.Flags&execDiagRouteImpersonated != 0:
+		route = fmt.Sprintf("route=impersonated key=%d/%d", uint32(d.FoundKey>>32), uint32(d.FoundKey))
+	}
+	if d.Flags&execDiagKeyRepaired != 0 {
+		route += " KEY_REPAIRED"
+	}
+
+	return fmt.Sprintf("send_task=%d/%d send_ctx_id=%d stamped_ctx_id=%d(present=%t) "+
+		"kernel_key=%d/%d dentry=%t open_task=%d/%d open_ctx_id=%d(present=%t) %s -> %s",
+		uint32(d.SendPIDTGID>>32), uint32(d.SendPIDTGID), d.SendCtxID,
+		d.StampedCtxID, d.Flags&execDiagHasEntryStamp != 0,
+		d.EntryIno, d.EntryMountID, d.Flags&execDiagHasDentry != 0,
+		uint32(d.OpenPIDTGID>>32), uint32(d.OpenPIDTGID), d.OpenCtxID,
+		d.Flags&execDiagHasOpenStamp != 0, route, verdict)
+}
+
+// logExecInoReadStats reports the outcome of the inode read behind every exec path_key.
+// The slots separate the candidate causes: a failed bpf_probe_read (whose destination the
+// helper zeroes, so it is indistinguishable from a real 0 without this), a read that
+// succeeded but yielded 0, and one that yielded a kernel pointer -- which is what the
+// unchecked helper returns from an uninitialised local.
+func (p *EBPFProbe) logExecInoReadStats() {
+	m, _, err := p.Manager.Get().GetMap("exec_ino_read_stats")
+	if err != nil || m == nil {
+		if !p.execInoReadsLogged.Swap(true) {
+			seclog.Warnf("exec path_key inode reads: exec_ino_read_stats unavailable: %v", err)
+		}
+		return
+	}
+
+	var v [7]uint64
+	for i := range v {
+		if err := m.Lookup(uint32(i), &v[i]); err != nil {
+			if !p.execInoReadsLogged.Swap(true) {
+				seclog.Warnf("exec path_key inode reads: slot %d unreadable: %v", i, err)
+			}
+			return
+		}
+	}
+
+	// Log on ANY movement, attempts included. Keying this on the failure sum alone meant the
+	// line printed once and then went quiet, so its attempt count froze at the first tick
+	// and a clean reading only ever covered the start of the run -- which is how the
+	// previous round produced a number that looked like a whole-run result and was not.
+	// Still report once even when nothing moved, so silence cannot mean a dead instrument.
+	var total uint64
+	for _, n := range v {
+		total += n
+	}
+	if prev := p.lastExecInoReads.Swap(total); prev == total && p.execInoReadsLogged.Swap(true) {
+		return
+	}
+	p.execInoReadsLogged.Store(true)
+
+	seclog.Warnf("exec path_key inode reads: %d attempts, %d failed from inode, %d failed from path, %d returned zero, %d returned a kernel pointer; early returns: %d with the key already written, %d with a stale dentry and no key",
+		v[0], v[1], v[2], v[3], v[4], v[5], v[6])
+}
+
+// logExecZeroKeyClass reports what kind of syscall-cache entry send_exec_event actually
+// consumed, for every exec event and for the zero-key ones specifically. The read counter
+// established that handle_exec_event's ino reads never fail, so a zero key means the entry it
+// consumed was never given one -- this splits that into the two candidate bugs. An entry with
+// ctx_id 0 was never through collect_syscall_ctx at all (a recycled or never-initialised
+// slot); one with a good ctx_id is a genuine execve whose do_dentry_open never filled the
+// key. Deliberately independent of exec_entry_stamp, which cannot answer either question.
+func (p *EBPFProbe) logExecZeroKeyClass() {
+	m, _, err := p.Manager.Get().GetMap("exec_zero_key_class")
+	if err != nil || m == nil {
+		if !p.execZeroKeyClassLogged.Swap(true) {
+			seclog.Warnf("exec entry class: exec_zero_key_class unavailable: %v", err)
+		}
+		return
+	}
+
+	var v [8]uint64
+	for i := range v {
+		if err := m.Lookup(uint32(i), &v[i]); err != nil {
+			if !p.execZeroKeyClassLogged.Swap(true) {
+				seclog.Warnf("exec entry class: slot %d unreadable: %v", i, err)
+			}
+			return
+		}
+	}
+
+	// Report once regardless of movement: a run with no zero keys at all must say so, or its
+	// silence is indistinguishable from the instrument never having run.
+	moved := v[1] + v[2] + v[3] + v[4] + v[5] + v[6] + v[7]
+	if prev := p.lastExecZeroKeyClass.Swap(moved); prev == moved && p.execZeroKeyClassLogged.Swap(true) {
+		return
+	}
+	p.execZeroKeyClassLogged.Store(true)
+
+	seclog.Warnf("exec entry class: %d exec events; zero key: %d on an entry with ctx_id 0 (never initialised), %d on an entry with a real ctx_id (key never written), %d without a dentry, %d with a dentry, %d impersonated route, %d direct route; %d good key with ctx_id 0 (impossible)",
+		v[0], v[1], v[2], v[4], v[5], v[6], v[7], v[3])
+}
+
+// logExecUseAfterFreeProbe reports whether the popped syscall cache entry changes underneath
+// send_exec_event. pop_task_syscall deletes the map element and hands back a pointer into its
+// value, so the entire event is built out of a freed element; on the pre-5.11 LRU hash that
+// element can be recycled and rewritten mid-program, which is the only remaining explanation
+// for an entry arriving with a dentry set and a 0/0 key. KEY_CHANGED or CTX_CHANGED moving at
+// all is the proof; ZERO_AT_POP versus WENT_ZERO says whether the reuse beat the pop or not.
+func (p *EBPFProbe) logExecUseAfterFreeProbe() {
+	m, _, err := p.Manager.Get().GetMap("exec_uaf_probe")
+	if err != nil || m == nil {
+		if !p.execUAFLogged.Swap(true) {
+			seclog.Warnf("exec popped-entry stability: exec_uaf_probe unavailable: %v", err)
+		}
+		return
+	}
+
+	var v [7]uint64
+	for i := range v {
+		if err := m.Lookup(uint32(i), &v[i]); err != nil {
+			if !p.execUAFLogged.Swap(true) {
+				seclog.Warnf("exec popped-entry stability: slot %d unreadable: %v", i, err)
+			}
+			return
+		}
+	}
+
+	var total uint64
+	for _, n := range v {
+		total += n
+	}
+	if prev := p.lastExecUAF.Swap(total); prev == total && p.execUAFLogged.Swap(true) {
+		return
+	}
+	p.execUAFLogged.Store(true)
+
+	seclog.Warnf("exec entry stability: %d examined; %d key zero at send, of which %d with OUR ctx_id still in place (stray write, not reuse); %d ctx_id changed (element holds another entry); %d stable; %d collateral sibling deletes avoided",
+		v[0], v[2], v[4], v[3], v[5], v[6])
+}
+
+// logExecEntryMismatches reports how often send_exec_event popped an entry that did not
+// belong to the execve it was reporting, split by which lookup produced it. Reported on the
+// stats tick rather than from the zero-key log, so it stays readable whether or not the
+// repair is enabled and whether or not any test fails.
+func (p *EBPFProbe) logExecEntryMismatches() {
+	m, _, err := p.Manager.Get().GetMap("exec_entry_mismatch")
+	if err != nil || m == nil {
+		return
+	}
+
+	var direct, impersonated uint64
+	if err := m.Lookup(uint32(0), &direct); err != nil {
+		return
+	}
+	if err := m.Lookup(uint32(1), &impersonated); err != nil {
+		return
+	}
+
+	total := direct + impersonated
+	if prev := p.lastExecEntryMismatches.Swap(total); prev != total {
+		seclog.Warnf("exec syscall cache entry did not belong to the execve being reported: %d via our own pid_tgid (a later cache_syscall replaced it), %d via exec_pid_transfer (impersonation aliased another task)",
+			direct, impersonated)
+	}
+}
+
+// logExecKeyRepairs reports how many exec events needed their path_key recovered from the
+// open stamp, cumulatively. Logged only when it changes, so a quiet system stays quiet.
+func (p *EBPFProbe) logExecKeyRepairs() {
+	m, _, err := p.Manager.Get().GetMap("exec_key_repaired")
+	if err != nil || m == nil {
+		return
+	}
+
+	var count uint64
+	if err := m.Lookup(uint32(0), &count); err != nil {
+		return
+	}
+
+	if prev := p.lastExecKeyRepairs.Swap(count); prev != count {
+		seclog.Warnf("exec path_key recovered from the open stamp %d time(s) so far (+%d): send_exec_event popped an entry belonging to another execve", count, count-prev)
+	}
 }
 
 func (p *EBPFProbe) zeroEvent() *model.Event {
@@ -2236,7 +2575,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 
 		cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(event.CgroupTracing.CGroupContext.CGroupPathKey.Inode)
 		if cacheEntry == nil {
-			seclog.Debugf("failed to resolve cgroup: %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
+			// dropping the offer here loses it for good: the kernel keeps its traced_cgroups
+			// slot and its cgroup_wait_list entry, so nothing re-offers this cgroup
+			seclog.Warnf("dropping cgroup tracing offer, cgroup resolver has no entry for %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
 			return false
 		}
 
