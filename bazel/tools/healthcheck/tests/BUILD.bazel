@@ -33,7 +33,7 @@ cc_shared_library(
 py_test(
     name = "file_type_test",
     srcs = ["file_type_test.py"],
-    args = ["$(location :shared_lib_fixture)"],
+    args = ["$(rootpath :shared_lib_fixture)"],
     data = [":shared_lib_fixture"],
     target_compatible_with = _LINUX_OR_MACOS,
     deps = ["//bazel/tools/healthcheck:lib"],
@@ -159,10 +159,10 @@ py_test(
     name = "broken_install_test",
     srcs = ["broken_install_test.py"],
     args = [
-        "$(location :libbroken_absolute_rpath)",
-        "$(location :libbroken_bogus_rpath)",
-        "$(location :libbroken_origin_rpath)",
-        "$(location :libdummybad)",
+        "$(rootpath :libbroken_absolute_rpath)",
+        "$(rootpath :libbroken_bogus_rpath)",
+        "$(rootpath :libbroken_origin_rpath)",
+        "$(rootpath :libdummybad)",
     ],
     data = [
         ":libbroken_absolute_rpath",

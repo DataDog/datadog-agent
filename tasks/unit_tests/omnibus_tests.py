@@ -365,6 +365,25 @@ class TestRpathEdit(unittest.TestCase):
         assert mock.call('objdump -x some/file | grep "RPATH"', warn=True, hide=True) in call_list
         assert mock.call('patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file') in call_list
 
+    def test_rpath_edit_preserves_installer_only(self):
+        self.mock_ctx.set_result_for(
+            'run',
+            r"find some/path -type f -exec file --mime-type \{\} \+",
+            Result("some/installer:application/x-executable\nsome/file:application/x-executable"),
+        )
+        self.mock_ctx.set_result_for('run', 'objdump -x some/file | grep "RPATH"', Result("some/path/embedded/lib"))
+        self.mock_ctx.set_result_for(
+            'run', 'patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file', Result()
+        )
+
+        omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path", preserve_rpath="some/installer")
+
+        assert self.mock_ctx.run.mock_calls == [
+            mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True),
+            mock.call('objdump -x some/file | grep "RPATH"', warn=True, hide=True),
+            mock.call('patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file'),
+        ]
+
     def test_rpath_edit_macos(self):
         self.mock_ctx.set_result_for(
             'run',
