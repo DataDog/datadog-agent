@@ -1,6 +1,6 @@
 ---
 enhancements:
   - |
-    The ``datasecurity`` check scanning rule pattern capture groups and secondary
-    validators are now scrubbed from flares, ``agent configcheck``, and the
+    All ``datasecurity`` check scanning rule fields other than ``id`` and
+    ``license`` are now scrubbed from flares, ``agent configcheck``, and the
     reported integration configuration.

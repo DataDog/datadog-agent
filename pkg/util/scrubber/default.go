@@ -195,15 +195,15 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	snmpMultilineReplacer.LastUpdated = parseVersion("7.34.0") // https://github.com/DataDog/datadog-agent/pull/10305
 
-	// Scoped to scanning_rules: these keys can be common elsewhere (e.g. `pattern`).
+	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
 		walk(&data, func(key string, _ any) (bool, any) {
 			switch key {
-			// ADD rule info that must be scrubbed
-			case "pattern", "pattern_capture_groups", "validator":
-				return true, defaultReplacement
+			// ADD rule info that can be shown
+			case "id", "license":
+				return false, nil
 			}
-			return false, nil
+			return true, defaultReplacement
 		})
 		return data
 	})

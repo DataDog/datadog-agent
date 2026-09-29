@@ -73,7 +73,7 @@ func TestScrubDataObj(t *testing.T) {
 						"license":                "proprietary",
 						"pattern":                "********",
 						"pattern_capture_groups": "********",
-						"proximity_keywords":     map[string]interface{}{"included_keywords": []interface{}{"card"}},
+						"proximity_keywords":     "********",
 						"validator":              "********",
 					},
 				},
