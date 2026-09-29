@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
+load("//tasks:build_tags.bzl", "AGENT_TAGS")
+
+filegroup(
+    name = "replay_testdata",
+    srcs = glob([
+        "scenarios/*.yaml",
+        "testdata/bundles/**/*.json",
+        "testdata/bundles/**/COMPLETE",
+    ]),
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+)
+
+go_library(
+    name = "eudm-simulator_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/eudm-simulator/command",
+        "//cmd/eudm-simulator/internal/capture/native",
+        "//cmd/eudm-simulator/internal/engine",
+    ],
+)
+
+# Feature-branch development tool: deliberately absent from production packages.
+dd_agent_go_binary(
+    name = "eudm-simulator",
+    embed = [":eudm-simulator_lib"],
+    gotags = AGENT_TAGS.difference(["python"]),
+    visibility = ["//visibility:public"],
+)

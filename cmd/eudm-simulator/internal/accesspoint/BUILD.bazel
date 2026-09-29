@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "accesspoint",
+    srcs = [
+        "metrics.go",
+        "model.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/accesspoint",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/identity",
+        "//cmd/eudm-simulator/internal/overlay",
+        "//cmd/eudm-simulator/internal/schema",
+        "//pkg/metrics",
+        "//pkg/networkdevice/integrations",
+        "//pkg/networkdevice/metadata",
+        "//pkg/tagset",
+    ],
+)
+
+dd_agent_go_test(
+    name = "accesspoint_test",
+    srcs = ["model_test.go"],
+    embed = [":accesspoint"],
+    deps = [
+        "//cmd/eudm-simulator/internal/identity",
+        "//cmd/eudm-simulator/internal/overlay",
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "//pkg/metrics",
+        "//pkg/networkdevice/metadata",
+        "//pkg/tagset",
+    ],
+)

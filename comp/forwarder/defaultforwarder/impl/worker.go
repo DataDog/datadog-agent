@@ -7,6 +7,7 @@ package defaultforwarderimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptrace"
 	"sync"
@@ -282,6 +283,7 @@ func (w *Worker) requeue(t transaction.Transaction) {
 	select {
 	case w.RequeueChan <- t:
 	default:
+		transaction.ReportDeliveryFailure(t, errors.New("forwarder retry channel capacity exhausted"))
 		w.pointCountTelemetry.OnPointDropped(t.GetPointCount())
 		w.log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
 	}

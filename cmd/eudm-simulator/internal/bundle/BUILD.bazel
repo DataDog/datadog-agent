@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "bundle",
+    srcs = [
+        "bundle.go",
+        "typed.go",
+        "writer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+    ],
+)
+
+dd_agent_go_test(
+    name = "bundle_test",
+    srcs = ["bundle_test.go"],
+    embed = [":bundle"],
+    deps = [
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "//comp/softwareinventory/impl",
+        "//pkg/inventory/software",
+        "//pkg/metrics",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)

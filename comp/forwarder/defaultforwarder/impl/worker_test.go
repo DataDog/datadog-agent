@@ -8,6 +8,7 @@
 package defaultforwarderimpl
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -25,6 +26,22 @@ import (
 
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+func TestWorkerReportsTrackedRetryQueueRejection(t *testing.T) {
+	tracker := transaction.NewDeliveryTracker()
+	tx := transaction.NewHTTPTransaction()
+	tracker.Track(tx)
+	w := &Worker{
+		RequeueChan:         make(chan transaction.Transaction),
+		pointCountTelemetry: &PointSuccessfullySentMock{},
+		log:                 logmock.New(t),
+	}
+	w.requeue(tx)
+	assert.Error(t, tracker.Wait(context.Background()))
+	expected, accepted := tracker.Counts()
+	assert.Equal(t, 1, expected)
+	assert.Zero(t, accepted)
+}
 
 func TestNewWorker(t *testing.T) {
 	highPrio := make(chan transaction.Transaction)

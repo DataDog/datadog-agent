@@ -116,7 +116,8 @@ type serieWriter interface {
 // single pass over the input data. If a compressed payload is larger than the
 // max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
-func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet) error {
+func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet, strict ...bool) error {
+	requireAll := len(strict) > 0 && strict[0]
 	pbs := make([]serieWriter, 0, len(pipelines))
 	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
@@ -127,6 +128,7 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 				return err
 			}
 			sw = &pb
+			pb.requireAll = requireAll
 			pbs = append(pbs, sw)
 		} else {
 			pb, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
@@ -134,6 +136,7 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 				return err
 			}
 			sw = pb
+			pb.requireAll = requireAll
 			pbs = append(pbs, sw)
 		}
 		err := sw.startPayload()
@@ -197,6 +200,7 @@ func (series *IterableSeries) NewPayloadsBuilder(
 
 // PayloadsBuilder represents an in-progress serialization of a series into potentially multiple payloads.
 type PayloadsBuilder struct {
+	requireAll    bool
 	bufferContext *marshaler.BufferContext
 	strategy      compression.Component
 
@@ -442,6 +446,9 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 		// Add it to the new compression buffer
 		err = addToPayload()
 		if err == stream.ErrItemTooBig {
+			if pb.requireAll {
+				return err
+			}
 			// Since it was too big to fit into a empty payload, there is
 			// nothing left to do but track the failure and drop the item.
 			// Returning nil here lets us continue adding any other items to the
@@ -457,6 +464,9 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 			return err
 		}
 	case stream.ErrItemTooBig:
+		if pb.requireAll {
+			return err
+		}
 		// Item was too big, drop it
 		expvarsItemTooBig.Add(1)
 		tlmItemTooBig.Add(1)

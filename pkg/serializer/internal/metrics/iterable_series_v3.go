@@ -125,6 +125,7 @@ const (
 )
 
 type payloadsBuilderV3 struct {
+	requireAll  bool
 	compression compression.Component
 	compressor  stream.ColumnCompressor
 	txn         *stream.ColumnTransaction
@@ -345,6 +346,9 @@ func (pb *payloadsBuilderV3) checkPointsLimit(numPoints int) (bool, error) {
 	}
 
 	if numPoints > pb.maxPointsPerPayload {
+		if pb.requireAll {
+			return false, stream.ErrItemTooBig
+		}
 		tlmItemTooBig.Inc()
 		return false, nil
 	}
@@ -372,6 +376,9 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 		}
 		return errRetry
 	case stream.ErrItemTooBig:
+		if pb.requireAll {
+			return err
+		}
 		tlmItemTooBig.Inc()
 		tlmSplitReason.Inc("item_too_big")
 		err = pb.finishPayload()

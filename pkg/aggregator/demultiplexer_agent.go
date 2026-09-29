@@ -84,7 +84,9 @@ type AgentDemultiplexer struct {
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
-	FlushInterval time.Duration
+	// CaptureTransformer is optional and is fixed before serializers start.
+	CaptureTransformer serializer.CaptureTransformer
+	FlushInterval      time.Duration
 
 	NoAggregationPipelineWorkersCount int
 
@@ -174,7 +176,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.CaptureTransformer)
 	if options.DogStatsDLookback == nil && options.DogStatsDLookbackFactory != nil {
 		options.DogStatsDLookback = options.DogStatsDLookbackFactory(sharedSerializer)
 	}
@@ -217,7 +219,7 @@ func initAgentDemultiplexer(log log.Component,
 		noAggSerializers = make([]serializer.MetricSerializer, workersCount)
 		noAggSamplesChan = make(chan metrics.MetricSampleBatch, pkgconfigsetup.Datadog().GetInt("dogstatsd_queue_size"))
 		for i := 0; i < workersCount; i++ {
-			noAggSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname)
+			noAggSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, pkgconfigsetup.Datadog(), log, hostname, options.CaptureTransformer)
 			noAggWorkers[i] = newNoAggregationStreamWorker(
 				pkgconfigsetup.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 				metricSamplePool,

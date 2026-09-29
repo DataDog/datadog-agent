@@ -1,0 +1,75 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "output",
+    srcs = [
+        "pipeline.go",
+        "record.go",
+        "staging.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/output",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/bundle",
+        "//cmd/eudm-simulator/internal/safety",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/log/impl",
+        "//comp/core/secrets/noop-impl/types",
+        "//comp/forwarder/connectionsforwarder/def",
+        "//comp/forwarder/defaultforwarder/def",
+        "//comp/forwarder/defaultforwarder/impl",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/forwarder/eventplatform/impl",
+        "//comp/process/types",
+        "//comp/serializer/logscompression/impl",
+        "//pkg/config/model",
+        "//pkg/config/nodetreemodel",
+        "//pkg/config/setup",
+        "//pkg/config/utils",
+        "//pkg/logs/message",
+        "//pkg/process/checks",
+        "//pkg/process/runner",
+        "//pkg/serializer",
+        "//pkg/system-probe/config/types",
+        "//pkg/util/compression/selector",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+dd_agent_go_test(
+    name = "output_test",
+    srcs = [
+        "delivery_test.go",
+        "pipeline_test.go",
+        "record_test.go",
+    ],
+    embed = [":output"],
+    gotags_sets = [["zlib"]],
+    include_default = False,
+    deps = [
+        "//cmd/eudm-simulator/internal/bundle",
+        "//cmd/eudm-simulator/internal/capture",
+        "//cmd/eudm-simulator/internal/safety",
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "//comp/core/log/mock",
+        "//comp/forwarder/defaultforwarder/impl",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/serializer/logscompression/impl",
+        "//comp/softwareinventory/impl",
+        "//pkg/config/mock",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/inventory/software",
+        "//pkg/metrics",
+        "//pkg/process/util/api/headers",
+        "//pkg/serializer",
+        "//pkg/util/compression/impl-zlib",
+        "@com_github_datadog_agent_payload_v5//process",
+    ],
+)

@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
@@ -115,6 +116,7 @@ func (d *DestinationSender) Send(payload *message.Payload) bool {
 		// if we can't send, we consider the send call as successful because we don't want to block the
 		// pipeline when HA failover is knowingly disabled
 		if !d.canSend() {
+			notifyDeliveryError(payload.MessageMetas, errors.New("event-platform destination is disabled"))
 			d.lastSendSucceeded = true
 			return true
 		}
@@ -137,5 +139,6 @@ func (d *DestinationSender) NonBlockingSend(payload *message.Payload) bool {
 		return true
 	default:
 	}
+	notifyDeliveryError(payload.MessageMetas, errors.New("event-platform destination queue capacity exhausted"))
 	return false
 }

@@ -48,8 +48,14 @@ var _ Submitter = &CheckSubmitter{}
 
 type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
+// CaptureTransformer optionally replaces complete native messages with sanitized
+// copies before encoding. Implementations report failures out of band to cancel
+// capture, and return only errors that contain no raw telemetry.
+type CaptureTransformer func(string, []model.MessageBody) ([]model.MessageBody, error)
+
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
+	capture        CaptureTransformer
 	log            log.Component
 	queues         []*api.WeightedQueue
 	resultsQueue   map[string]*api.WeightedQueue
@@ -88,7 +94,7 @@ type CheckSubmitter struct {
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
-func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, statsd statsd.ClientInterface, hostname string, sysprobeconfig sysprobeconfig.Component) (*CheckSubmitter, error) {
+func NewSubmitter(config config.Component, log log.Component, forwarders forwarders.Component, statsd statsd.ClientInterface, hostname string, sysprobeconfig sysprobeconfig.Component, capture ...CaptureTransformer) (*CheckSubmitter, error) {
 	queueBytes := config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
 		log.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
@@ -130,8 +136,13 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	processFwd := forwarders.GetProcessForwarder()
 	rtProcessFwd := forwarders.GetRTProcessForwarder()
 
+	var transformer CaptureTransformer
+	if len(capture) > 0 {
+		transformer = capture[0]
+	}
 	return &CheckSubmitter{
-		log: log,
+		capture: transformer,
+		log:     log,
 		queues: []*api.WeightedQueue{
 			processResults,
 			rtProcessResults,
@@ -196,6 +207,14 @@ func printStartMessage(log log.Component, hostname string, processAPIEndpoints [
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
+	if s.capture != nil {
+		transformed, err := s.capture(name, messages.Message)
+		if err != nil {
+			s.log.Errorf("Capture transformation failed: %s", err)
+			return
+		}
+		messages = &types.Payload{Message: transformed}
+	}
 	results := s.resultsQueue[name]
 	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
@@ -282,6 +301,10 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 			return
 		}
 		result := item.(*checkResult)
+		if result.deliveryResult != nil {
+			result.deliveryResult <- s.deliverTracked(result)
+			continue
+		}
 		for _, payload := range result.payloads {
 			var (
 				forwarderPayload = transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&payload.body})

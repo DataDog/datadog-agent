@@ -1,0 +1,49 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "integration_test",
+    srcs = [
+        "fixtures_test.go",
+        "native_capture_test.go",
+        "replay_test.go",
+    ],
+    data = ["//cmd/eudm-simulator:replay_testdata"],
+    gotags_sets = [["zlib"]],
+    deps = [
+        "//cmd/eudm-simulator/internal/accesspoint",
+        "//cmd/eudm-simulator/internal/bundle",
+        "//cmd/eudm-simulator/internal/capture",
+        "//cmd/eudm-simulator/internal/engine",
+        "//cmd/eudm-simulator/internal/identity",
+        "//cmd/eudm-simulator/internal/output",
+        "//cmd/eudm-simulator/internal/overlay",
+        "//cmd/eudm-simulator/internal/schema",
+        "//cmd/eudm-simulator/internal/telemetry",
+        "//comp/forwarder/eventplatform/def",
+        "//comp/serializer/logscompression/impl",
+        "//comp/softwareinventory/impl",
+        "//pkg/config/model",
+        "//pkg/inventory/software",
+        "//pkg/metrics",
+        "//pkg/networkdevice/metadata",
+        "//pkg/process/util/api/headers",
+        "//pkg/tagset",
+        "@com_github_datadog_agent_payload_v5//gogen",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@rules_go//go/runfiles",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/process/checks",
+            "//pkg/version",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/process/checks",
+            "//pkg/version",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/process/checks",
+            "//pkg/version",
+        ],
+        "//conditions:default": [],
+    }),
+)

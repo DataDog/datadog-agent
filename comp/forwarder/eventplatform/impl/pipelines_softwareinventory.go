@@ -16,18 +16,20 @@ func getSoftwareInventoryPipelines() []passthroughPipelineDesc {
 	if !pkgconfigsetup.Datadog().GetBool("software_inventory.enabled") {
 		return nil
 	}
-	return []passthroughPipelineDesc{
-		{
-			eventType:                     eventplatform.EventTypeSoftwareInventory,
-			category:                      "EUDM",
-			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "software_inventory.forwarder.",
-			hostnameEndpointPrefix:        "softinv-intake.",
-			intakeTrackType:               "softinv",
-			defaultBatchMaxConcurrentSend: constants.DefaultBatchMaxConcurrentSend,
-			defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
-			defaultInputChanSize:          constants.DefaultInputChanSize,
-		},
+	return []passthroughPipelineDesc{softwareInventoryPipeline()}
+}
+
+func softwareInventoryPipeline() passthroughPipelineDesc {
+	return passthroughPipelineDesc{
+		eventType:                     eventplatform.EventTypeSoftwareInventory,
+		category:                      "EUDM",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "software_inventory.forwarder.",
+		hostnameEndpointPrefix:        "softinv-intake.",
+		intakeTrackType:               "softinv",
+		defaultBatchMaxConcurrentSend: constants.DefaultBatchMaxConcurrentSend,
+		defaultBatchMaxContentSize:    constants.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           constants.DefaultBatchMaxSize,
+		defaultInputChanSize:          constants.DefaultInputChanSize,
 	}
 }

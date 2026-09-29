@@ -6,6 +6,7 @@
 package metadata
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -14,6 +15,56 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestBatchPayloadsWithWirelessInterfaces(t *testing.T) {
+	at := mockTimeNow()
+	devices := []DeviceMetadata{{ID: DeviceID("run", "192.0.2.1")}}
+	interfaces := []InterfaceMetadata{{DeviceID: devices[0].ID, Index: 1}}
+	wireless := make([]WirelessInterfaceMetadata, 205)
+	for i := range wireless {
+		wireless[i] = WirelessInterfaceMetadata{Namespace: "run", DeviceByIntegrationID: devices[0].ID, InterfaceByIntegrationID: InterfaceID(devices[0].ID, int32(i+1)), BSSID: fmt.Sprintf("02:00:00:00:00:%02x", i), SSID: "ssid", Band: "5GHz", AdminStatus: AdminStatusUp, OperStatus: OperStatusUp}
+	}
+	addresses := []IPAddressMetadata{{InterfaceID: InterfaceID(devices[0].ID, 1), IPAddress: "192.0.2.1"}}
+	for _, size := range []int{1, 100} {
+		payloads := BatchPayloadsWithWirelessInterfaces(integrations.SNMP, "run", "", at, size, devices, interfaces, wireless, addresses, nil, nil, nil, nil)
+		var actual []WirelessInterfaceMetadata
+		total := 0
+		for _, payload := range payloads {
+			count := len(payload.Devices) + len(payload.Interfaces) + len(payload.WirelessInterfaces) + len(payload.IPAddresses)
+			require.Positive(t, count)
+			require.LessOrEqual(t, count, size)
+			assert.Equal(t, "run", payload.Namespace)
+			assert.Equal(t, integrations.SNMP, payload.Integration)
+			assert.Equal(t, at.Unix(), payload.CollectTimestamp)
+			total += count
+			actual = append(actual, payload.WirelessInterfaces...)
+		}
+		assert.Equal(t, len(devices)+len(interfaces)+len(wireless)+len(addresses), total)
+		assert.Equal(t, wireless, actual)
+	}
+
+	legacy := BatchPayloads(integrations.SNMP, "run", "", at, 100, devices, interfaces, addresses, nil, nil, nil, nil)
+	withNoWireless := BatchPayloadsWithWirelessInterfaces(integrations.SNMP, "run", "", at, 100, devices, interfaces, nil, addresses, nil, nil, nil, nil)
+	assert.Equal(t, legacy, withNoWireless)
+	encoded, err := json.Marshal(legacy)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "wireless_interfaces")
+	encoded, err = json.Marshal(BatchPayloadsWithWirelessInterfaces(integrations.SNMP, "run", "", at, 100, nil, nil, wireless[:1], nil, nil, nil, nil, nil))
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"wireless_interfaces"`)
+	assert.Contains(t, string(encoded), `"ndm_device_by_integration_id":"run:192.0.2.1"`)
+	assert.Contains(t, string(encoded), `"ndm_interface_by_integration_id":"run:192.0.2.1:1"`)
+}
+
+func TestNDMIdentityHelpers(t *testing.T) {
+	deviceID := DeviceID("run", "192.0.2.1")
+	assert.Equal(t, "run:192.0.2.1", deviceID)
+	assert.Equal(t, []string{"device_namespace:run", "snmp_device:192.0.2.1"}, DeviceIDTags("run", "192.0.2.1"))
+	assert.Equal(t, "run:192.0.2.1:2", InterfaceID(deviceID, 2))
+	assert.Equal(t, []string{"interface:radio", "interface_index:2"}, InterfaceIDTags("radio", 2))
+	assert.Equal(t, "dd.internal.resource:ndm_device:run:192.0.2.1", DeviceResourceTag(deviceID))
+	assert.Equal(t, "dd.internal.resource:ndm_interface:run:192.0.2.1:2", InterfaceResourceTag(deviceID, 2))
+}
 
 // mockTimeNow mocks time.Now
 var mockTimeNow = func() time.Time {

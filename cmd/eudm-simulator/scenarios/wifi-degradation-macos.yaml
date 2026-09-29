@@ -1,0 +1,299 @@
+# Requires a macOS bundle with healthy system.wlan.* evidence.
+# Monitor timings are local contract defaults; staging acceptance must verify the real monitor.
+version: 1
+scenario:
+  name: wifi-degradation-macos
+  description: Two access-point radios degrade while a third radio and its clients stay healthy.
+expectation:
+  affected_cohorts: [radio-a-clients, radio-b-clients]
+  conclusion: wireless_access_points
+monitor_window: 10m
+visibility_delay: 5m
+fleet:
+  - group: radio-a-clients
+    count: 20
+    os: macos
+    baseline_variance: 0.03
+    access_point: radio-a
+    radio: wifi1
+  - group: radio-b-clients
+    count: 20
+    os: macos
+    baseline_variance: 0.03
+    access_point: radio-b
+    radio: wifi1
+  - group: comparison-clients
+    count: 20
+    os: macos
+    baseline_variance: 0.03
+    access_point: radio-c
+    radio: wifi1
+network_devices:
+  integration: snmp
+  access_points:
+    - name: radio-a
+      ip_address: 192.0.2.1
+      vendor: aruba
+      model: Aruba AP-535
+      device_type: access_point
+      profile: aruba-access-point
+      sys_object_id: 1.3.6.1.4.1.14823.1.1.57
+      os_name: ArubaOS
+      os_version: 8.10.0.7
+      interfaces:
+        - kind: ethernet
+          index: 1
+          name: eth0
+          speed: 1000
+        - kind: radio
+          index: 2
+          name: wifi1
+          band: 5GHz
+          ssid: office-wireless
+          speed: 1200
+    - name: radio-b
+      ip_address: 192.0.2.2
+      vendor: aruba
+      model: Aruba AP-535
+      device_type: access_point
+      profile: aruba-access-point
+      sys_object_id: 1.3.6.1.4.1.14823.1.1.57
+      os_name: ArubaOS
+      os_version: 8.10.0.7
+      interfaces:
+        - kind: ethernet
+          index: 1
+          name: eth0
+          speed: 1000
+        - kind: radio
+          index: 2
+          name: wifi1
+          band: 5GHz
+          ssid: office-wireless
+          speed: 1200
+    - name: radio-c
+      ip_address: 192.0.2.3
+      vendor: aruba
+      model: Aruba AP-535
+      device_type: access_point
+      profile: aruba-access-point
+      sys_object_id: 1.3.6.1.4.1.14823.1.1.57
+      os_name: ArubaOS
+      os_version: 8.10.0.7
+      interfaces:
+        - kind: ethernet
+          index: 1
+          name: eth0
+          speed: 1000
+        - kind: radio
+          index: 2
+          name: wifi1
+          band: 5GHz
+          ssid: office-wireless
+          speed: 1200
+phases:
+  - name: healthy
+    duration: 15m
+    network_metrics:
+      radio-a:
+        device:
+          snmp.device.reachable: 1
+          snmp.cpu.usage: 8
+          snmp.memory.usage: 20
+        interfaces:
+          eth0:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifHighSpeed: 1000
+          wifi1:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifHighSpeed: 1200
+            snmp.bsnApIfNoOfUsers: 20
+            snmp.apChannelNoise: -95
+            snmp.apChannelBwRate: 15
+            snmp.apChannelFrameRetryRate: 1
+            snmp.apChannelFrameReceiveErrorRate: 0.2
+            snmp.ifHCInOctets: 1000000
+            snmp.ifHCOutOctets: 1000000
+            snmp.ifInErrors: 0
+            snmp.ifOutErrors: 0
+            snmp.ifInDiscards: 0
+            snmp.ifOutDiscards: 0
+            snmp.ifBandwidthInUsage.rate: 10
+            snmp.ifBandwidthOutUsage.rate: 10
+      radio-b:
+        device:
+          snmp.device.reachable: 1
+          snmp.cpu.usage: 8
+          snmp.memory.usage: 20
+        interfaces:
+          eth0:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifHighSpeed: 1000
+          wifi1:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifHighSpeed: 1200
+            snmp.bsnApIfNoOfUsers: 20
+            snmp.apChannelNoise: -95
+            snmp.apChannelBwRate: 15
+            snmp.apChannelFrameRetryRate: 1
+            snmp.apChannelFrameReceiveErrorRate: 0.2
+            snmp.ifHCInOctets: 1000000
+            snmp.ifHCOutOctets: 1000000
+            snmp.ifInErrors: 0
+            snmp.ifOutErrors: 0
+            snmp.ifInDiscards: 0
+            snmp.ifOutDiscards: 0
+            snmp.ifBandwidthInUsage.rate: 10
+            snmp.ifBandwidthOutUsage.rate: 10
+      radio-c:
+        device:
+          snmp.device.reachable: 1
+          snmp.cpu.usage: 8
+          snmp.memory.usage: 20
+        interfaces:
+          eth0:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifHighSpeed: 1000
+          wifi1:
+            snmp.ifAdminStatus: 1
+            snmp.ifOperStatus: 1
+            snmp.ifHighSpeed: 1200
+            snmp.bsnApIfNoOfUsers: 20
+            snmp.apChannelNoise: -95
+            snmp.apChannelBwRate: 15
+            snmp.apChannelFrameRetryRate: 1
+            snmp.apChannelFrameReceiveErrorRate: 0.2
+            snmp.ifHCInOctets: 1000000
+            snmp.ifHCOutOctets: 1000000
+            snmp.ifInErrors: 0
+            snmp.ifOutErrors: 0
+            snmp.ifInDiscards: 0
+            snmp.ifOutDiscards: 0
+            snmp.ifBandwidthInUsage.rate: 10
+            snmp.ifBandwidthOutUsage.rate: 10
+  - name: onset
+    duration: 5m
+    metrics:
+      radio-a-clients:
+        system.wlan.rssi: {ramp: {from: -55, to: -83}}
+        system.wlan.noise: {ramp: {from: -95, to: -65}}
+        system.wlan.txrate: {ramp: {from: 600, to: 15}}
+        system.wlan.rxrate: {ramp: {from: 600, to: 12}}
+      radio-b-clients:
+        system.wlan.rssi: {ramp: {from: -55, to: -83}}
+        system.wlan.noise: {ramp: {from: -95, to: -65}}
+        system.wlan.txrate: {ramp: {from: 600, to: 15}}
+        system.wlan.rxrate: {ramp: {from: 600, to: 12}}
+    network_metrics:
+      radio-a:
+        interfaces:
+          wifi1:
+            snmp.apChannelNoise: {ramp: {from: -95, to: -65}}
+            snmp.apChannelBwRate: {ramp: {from: 15, to: 90}}
+            snmp.apChannelFrameRetryRate: {ramp: {from: 1, to: 35}}
+            snmp.apChannelFrameReceiveErrorRate: {ramp: {from: 0.2, to: 20}}
+            snmp.ifHCInOctets: {ramp: {from: 1000000, to: 30000000}}
+            snmp.ifHCOutOctets: {ramp: {from: 1000000, to: 30000000}}
+            snmp.ifInErrors: {ramp: {from: 0, to: 500}}
+            snmp.ifOutErrors: {ramp: {from: 0, to: 500}}
+            snmp.ifInDiscards: {ramp: {from: 0, to: 250}}
+            snmp.ifOutDiscards: {ramp: {from: 0, to: 250}}
+            snmp.ifBandwidthInUsage.rate: {ramp: {from: 10, to: 90}}
+            snmp.ifBandwidthOutUsage.rate: {ramp: {from: 10, to: 90}}
+      radio-b:
+        interfaces:
+          wifi1:
+            snmp.apChannelNoise: {ramp: {from: -95, to: -65}}
+            snmp.apChannelBwRate: {ramp: {from: 15, to: 90}}
+            snmp.apChannelFrameRetryRate: {ramp: {from: 1, to: 35}}
+            snmp.apChannelFrameReceiveErrorRate: {ramp: {from: 0.2, to: 20}}
+            snmp.ifHCInOctets: {ramp: {from: 1000000, to: 30000000}}
+            snmp.ifHCOutOctets: {ramp: {from: 1000000, to: 30000000}}
+            snmp.ifInErrors: {ramp: {from: 0, to: 500}}
+            snmp.ifOutErrors: {ramp: {from: 0, to: 500}}
+            snmp.ifInDiscards: {ramp: {from: 0, to: 250}}
+            snmp.ifOutDiscards: {ramp: {from: 0, to: 250}}
+            snmp.ifBandwidthInUsage.rate: {ramp: {from: 10, to: 90}}
+            snmp.ifBandwidthOutUsage.rate: {ramp: {from: 10, to: 90}}
+  - name: sustained
+    duration: 20m
+    metrics:
+      radio-a-clients:
+        system.wlan.rssi: -83
+        system.wlan.noise: -65
+        system.wlan.txrate: 15
+        system.wlan.rxrate: 12
+      radio-b-clients:
+        system.wlan.rssi: -83
+        system.wlan.noise: -65
+        system.wlan.txrate: 15
+        system.wlan.rxrate: 12
+    network_metrics:
+      radio-a:
+        interfaces:
+          wifi1:
+            snmp.apChannelNoise: -65
+            snmp.apChannelBwRate: 90
+            snmp.apChannelFrameRetryRate: 35
+            snmp.apChannelFrameReceiveErrorRate: 20
+            snmp.ifHCInOctets: 30000000
+            snmp.ifHCOutOctets: 30000000
+            snmp.ifInErrors: 500
+            snmp.ifOutErrors: 500
+            snmp.ifInDiscards: 250
+            snmp.ifOutDiscards: 250
+            snmp.ifBandwidthInUsage.rate: 90
+            snmp.ifBandwidthOutUsage.rate: 90
+      radio-b:
+        interfaces:
+          wifi1:
+            snmp.apChannelNoise: -65
+            snmp.apChannelBwRate: 90
+            snmp.apChannelFrameRetryRate: 35
+            snmp.apChannelFrameReceiveErrorRate: 20
+            snmp.ifHCInOctets: 30000000
+            snmp.ifHCOutOctets: 30000000
+            snmp.ifInErrors: 500
+            snmp.ifOutErrors: 500
+            snmp.ifInDiscards: 250
+            snmp.ifOutDiscards: 250
+            snmp.ifBandwidthInUsage.rate: 90
+            snmp.ifBandwidthOutUsage.rate: 90
+  - name: recovery
+    duration: 10m
+    network_metrics:
+      radio-a:
+        interfaces:
+          wifi1:
+            snmp.apChannelNoise: -95
+            snmp.apChannelBwRate: 15
+            snmp.apChannelFrameRetryRate: 1
+            snmp.apChannelFrameReceiveErrorRate: 0.2
+            snmp.ifHCInOctets: 1000000
+            snmp.ifHCOutOctets: 1000000
+            snmp.ifInErrors: 0
+            snmp.ifOutErrors: 0
+            snmp.ifInDiscards: 0
+            snmp.ifOutDiscards: 0
+            snmp.ifBandwidthInUsage.rate: 10
+            snmp.ifBandwidthOutUsage.rate: 10
+      radio-b:
+        interfaces:
+          wifi1:
+            snmp.apChannelNoise: -95
+            snmp.apChannelBwRate: 15
+            snmp.apChannelFrameRetryRate: 1
+            snmp.apChannelFrameReceiveErrorRate: 0.2
+            snmp.ifHCInOctets: 1000000
+            snmp.ifHCOutOctets: 1000000
+            snmp.ifInErrors: 0
+            snmp.ifOutErrors: 0
+            snmp.ifInDiscards: 0
+            snmp.ifOutDiscards: 0
+            snmp.ifBandwidthInUsage.rate: 10
+            snmp.ifBandwidthOutUsage.rate: 10

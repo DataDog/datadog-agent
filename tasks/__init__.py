@@ -35,6 +35,7 @@ from tasks import (
     ebpf,
     emacs,
     epforwarder,
+    eudm_simulator,
     fakeintake,
     files_inventory,
     fips,
@@ -224,6 +225,7 @@ ns.add_collection(vim)
 ns.add_collection(macos)
 ns.add_collection(dyntest)
 ns.add_collection(epforwarder)
+ns.add_collection(eudm_simulator)
 ns.add_collection(fips)
 ns.add_collection(go)
 ns.add_collection(go_deps)

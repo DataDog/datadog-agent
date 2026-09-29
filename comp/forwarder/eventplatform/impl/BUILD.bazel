@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "epforwarder.go",
         "epforwarder_mockgen.go",
+        "isolated.go",
         "pipelines_agentdiscovery.go",
         "pipelines_container.go",
         "pipelines_dataobservability.go",
@@ -29,6 +30,7 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/secrets/def",
         "//comp/def",
+        "//comp/forwarder/defaultforwarder/transaction",
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatformreceiver/def",
         "//comp/forwarder/eventplatformreceiver/impl",

@@ -32,6 +32,10 @@ concerns live in `gotest.py`, `linter.py`, `build_tags.py`, `modules.py`, and
 `rtloader.py`.
 
 Key patterns:
+
+- Check the exit status of test tasks. A compilation failure can leave an empty
+  test-results file and a green-looking summary with zero tests; that is a failed
+  verification, even if the final summary banner says "PASSED".
 - Build tasks call `dda inv <component>.build`. Never shell out to raw `go build`.
 - Build tags are computed from `build_tags.py` / `build_tags.bzl`, which is the
   single source of truth. Do not hardcode tag lists in task code.

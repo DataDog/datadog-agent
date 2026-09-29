@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "report",
+    srcs = ["report.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/report",
+    visibility = ["//cmd/eudm-simulator:__subpackages__"],
+    deps = [
+        "//cmd/eudm-simulator/internal/identity",
+        "//cmd/eudm-simulator/internal/schema",
+    ],
+)
+
+dd_agent_go_test(
+    name = "report_test",
+    srcs = ["report_test.go"],
+    embed = [":report"],
+    deps = ["//cmd/eudm-simulator/internal/schema"],
+)

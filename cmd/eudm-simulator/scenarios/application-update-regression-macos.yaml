@@ -1,0 +1,51 @@
+# Capture healthy Google Chrome processes and a complete software snapshot first.
+# The healthy capture's Chrome version is the comparison and recovery version.
+# CPU is whole-host percent; replay converts it to Agent process CPU units.
+version: 1
+scenario:
+  name: application-update-regression-macos
+  description: A Chrome update increases process CPU and memory on three of seven macOS endpoints.
+expectation:
+  affected_cohorts: [rollout]
+  conclusion: process_software_version
+monitor_window: 10m
+visibility_delay: 5m
+fleet:
+  - group: rollout
+    count: 3
+    os: macos
+    tags: [dept:engineering, site:remote]
+    baseline_variance: 0.05
+  - group: comparison
+    count: 4
+    os: macos
+    tags: [dept:engineering, site:remote]
+phases:
+  - name: healthy
+    duration: 20m
+  - name: onset
+    duration: 5m
+    software_inventory:
+      rollout:
+        - name: Google Chrome
+          version: "138.0.7204.97"
+    processes:
+      rollout:
+        - name: Google Chrome
+          exe: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+          cpu: {ramp: {from: 9, to: 58}}
+          memory: {ramp: {from: 3200, to: 6400}}
+  - name: sustained
+    duration: 20m
+    software_inventory:
+      rollout:
+        - name: Google Chrome
+          version: "138.0.7204.97"
+    processes:
+      rollout:
+        - name: Google Chrome
+          exe: /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+          cpu: {steady: 58}
+          memory: {steady: 6400}
+  - name: recovery
+    duration: 15m

@@ -8,6 +8,7 @@ package sender
 
 import (
 	"bytes"
+	"errors"
 	"io"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -94,6 +95,7 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 	added, err := b.addMessage(m)
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		notifyDeliveryFailure(b.buffer.GetMessages())
 		b.resetBatch()
 		return
 	}
@@ -110,10 +112,12 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 		added, err = b.addMessage(m)
 		if err != nil {
 			log.Warn("Encoding failed - dropping payload", err)
+			notifyDeliveryFailure(b.buffer.GetMessages())
 			b.resetBatch()
 			return
 		}
 		if !added {
+			notifyDeliveryFailure([]*message.MessageMetadata{&m.MessageMetadata})
 			log.Warnf("Dropped message in pipeline=%s reason=too-large ContentLength=%d ContentSizeLimit=%d", b.pipelineName, len(m.GetContent()), b.buffer.ContentSizeLimit())
 			tlmDroppedTooLarge.Inc(b.pipelineName)
 		}
@@ -145,6 +149,7 @@ func (b *batch) flushBuffer(outputChan chan *message.Payload, reason string) {
 	b.utilization.Start()
 	if err := b.serializer.Finish(b.writeCounter); err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		notifyDeliveryFailure(b.buffer.GetMessages())
 		b.resetBatch()
 		b.utilization.Stop()
 		return
@@ -167,6 +172,7 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 	b.compressor = nil // prevent double-free from defer resetBatch
 	if err != nil {
 		log.Warn("Encoding failed - dropping payload", err)
+		notifyDeliveryFailure(messagesMetadata)
 		b.utilization.Stop()
 		return
 	}
@@ -190,6 +196,18 @@ func (b *batch) sendMessages(messagesMetadata []*message.MessageMetadata, output
 	b.utilization.Stop()
 	b.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, b.instanceID)
 	b.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+}
+
+func notifyDeliveryFailure(metadata []*message.MessageMetadata) {
+	notifyDeliveryError(metadata, errors.New("event-platform encoding failed or message exceeds batch limit"))
+}
+
+func notifyDeliveryError(metadata []*message.MessageMetadata, err error) {
+	for _, meta := range metadata {
+		if meta.DeliveryCallback != nil {
+			meta.DeliveryCallback(err)
+		}
+	}
 }
 
 // writerCounter is a simple io.Writer that counts the number of bytes written to it

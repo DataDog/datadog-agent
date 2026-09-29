@@ -229,7 +229,9 @@ func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
 func TestHTTPTransactionFieldsCount(t *testing.T) {
 	tr := transaction.HTTPTransaction{}
 	transactionType := reflect.TypeOf(tr)
-	assert.Equalf(t, 15, transactionType.NumField(),
+	// DeliveryFailure, like the other handler fields, is local accounting and
+	// deliberately absent from disk payloads. The simulator disables disk retry storage.
+	assert.Equalf(t, 16, transactionType.NumField(),
 		"A field was added or removed from HTTPTransaction. "+
 			"You probably need to update the implementation of "+
 			"HTTPTransactionsSerializer and then adjust this unit test.")

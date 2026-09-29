@@ -332,6 +332,32 @@ type IterableStreamJSONMarshalerMock struct {
 	maxIndex int
 }
 
+type failingItemMarshaler struct {
+	IterableStreamJSONMarshalerMock
+}
+
+func (*failingItemMarshaler) WriteCurrentItem(*jsoniter.Stream) error {
+	return fmt.Errorf("item encoding failed")
+}
+
+func TestStrictJSONBuilderRejectsItemEncodingFailure(t *testing.T) {
+	for _, strict := range []bool{false, true} {
+		cfg := mock.New(t)
+		compressor := metricscompression.NewComponent(metricscompression.Requires{Cfg: cfg}).Comp
+		builder := NewJSONPayloadBuilder(false, cfg, compressor, logmock.New(t))
+		policy := DropItemOnErrItemTooBig
+		if strict {
+			policy = FailOnAnyError
+		}
+		_, err := builder.BuildWithOnErrItemTooBigPolicy(&failingItemMarshaler{IterableStreamJSONMarshalerMock{maxIndex: 2}}, policy)
+		if strict {
+			require.ErrorContains(t, err, "item encoding failed")
+		} else {
+			require.NoError(t, err)
+		}
+	}
+}
+
 func (i *IterableStreamJSONMarshalerMock) WriteHeader(*jsoniter.Stream) error { return nil }
 func (i *IterableStreamJSONMarshalerMock) WriteFooter(*jsoniter.Stream) error { return nil }
 func (i *IterableStreamJSONMarshalerMock) WriteCurrentItem(stream *jsoniter.Stream) error {
