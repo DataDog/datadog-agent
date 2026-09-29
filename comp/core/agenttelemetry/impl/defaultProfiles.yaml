@@ -606,7 +606,7 @@ profiles:
     period: 900
 # Support troubleshooting bundle, gated behind a remote flag.
 - name: troubleshooting
-  remote_flag: agent_telemetry_troubleshooting
+  remote_flag: troubleshooting_coat_bundle
   metric:
     exclude:
       zero_metric: true

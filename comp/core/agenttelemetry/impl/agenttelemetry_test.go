@@ -3242,7 +3242,7 @@ agent_telemetry:
   enabled: true
   profiles:
     - name: gated
-      remote_flag: agent_telemetry_troubleshooting
+      remote_flag: troubleshooting_coat_bundle
       metric:
         metrics:
           - name: gatedgroup.gatedmetric
@@ -3398,7 +3398,7 @@ agent_telemetry:
   enabled: true
   profiles:
     - name: typo
-      remote_flag: agent_telemetry_troubleshootnig
+      remote_flag: troubleshooting_coat_bundel
       metric:
         metrics:
           - name: foogroup.foometric
@@ -3423,4 +3423,35 @@ func TestRemoteFlagSubscriberIsProvided(t *testing.T) {
 		require.Len(t, handlers, 1)
 		assert.Equal(t, pkgremoteflags.FlagName(flagTroubleshooting), handlers[0].FlagName())
 	}
+}
+
+// The gating tests above use a synthetic config. This one exercises the
+// profile actually shipped in defaultProfiles.yaml, so that a drift between
+// the flagTroubleshooting constant and the YAML's remote_flag is caught here
+// rather than silently disabling the profile.
+func TestShippedTroubleshootingProfileIsGated(t *testing.T) {
+	tel := makeTelMock(t)
+	// Only in the gated "troubleshooting" profile.
+	tel.NewCounter("transactions", "errors", []string{"domain", "endpoint", "error_type"}, "").Inc("d", "e", "dns")
+	// Only in the non-gated "logs-and-metrics" profile: the control.
+	tel.NewCounter("transactions", "retries", []string{"domain", "endpoint"}, "").Inc("d", "e")
+
+	sndr := &senderMock{}
+	a := getTestAtel(t, tel, getCommonYAMLConfig(true, "foo.bar"), sndr, nil, nil)
+	require.True(t, a.enabled, "default profiles must parse and compile")
+	a.flag = newRemoteFlagHandler(flagTroubleshooting, a.isHealthy)
+
+	names := collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "transactions.errors")
+	assert.Contains(t, names, "transactions.retries")
+
+	require.NoError(t, a.flag.OnChange(true))
+	names = collectMetricNames(t, a, sndr)
+	assert.Contains(t, names, "transactions.errors")
+	assert.Contains(t, names, "transactions.retries")
+
+	a.flag.OnNoConfig()
+	names = collectMetricNames(t, a, sndr)
+	assert.NotContains(t, names, "transactions.errors")
+	assert.Contains(t, names, "transactions.retries")
 }

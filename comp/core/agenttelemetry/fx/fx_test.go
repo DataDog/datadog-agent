@@ -51,5 +51,5 @@ func TestModuleProvidesRemoteFlagSubscriber(t *testing.T) {
 	for _, h := range handlers {
 		names = append(names, h.FlagName())
 	}
-	assert.Contains(t, names, pkgremoteflags.FlagName("agent_telemetry_troubleshooting"))
+	assert.Contains(t, names, pkgremoteflags.FlagName("troubleshooting_coat_bundle"))
 }

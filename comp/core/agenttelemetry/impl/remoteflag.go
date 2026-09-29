@@ -13,7 +13,7 @@ import (
 
 const (
 	// flagTroubleshooting gates the "troubleshooting" profile; off unless Remote Config says otherwise.
-	flagTroubleshooting = "agent_telemetry_troubleshooting"
+	flagTroubleshooting = "troubleshooting_coat_bundle"
 
 	// maxConsecutiveFlushFailures is how many back-to-back flushSession failures make us unhealthy.
 	maxConsecutiveFlushFailures = 3
