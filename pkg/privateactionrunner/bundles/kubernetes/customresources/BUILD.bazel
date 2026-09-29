@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "customresources",
@@ -16,6 +16,7 @@ go_library(
         "list_custom_object.go",
         "patch_cluster_custom_object.go",
         "patch_custom_object.go",
+        "resource_policy.go",
         "update_cluster_custom_object.go",
         "update_custom_object.go",
     ],
@@ -25,8 +26,22 @@ go_library(
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
+        "@io_k8s_apiextensions_apiserver//pkg/apihelpers",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_apimachinery//pkg/util/validation",
+        "@io_k8s_client_go//kubernetes/scheme",
+    ],
+)
+
+go_test(
+    name = "customresources_test",
+    srcs = ["resource_policy_test.go"],
+    embed = [":customresources"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
     ],
 )

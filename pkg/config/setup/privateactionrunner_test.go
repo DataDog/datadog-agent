@@ -41,6 +41,31 @@ func TestPrivateActionRunnerHttpAllowlistFromEnv(t *testing.T) {
 	assert.Equal(t, []string{"*.datadoghq.com", "datadoghq.eu"}, cfg.GetStringSlice(PARHttpAllowlist))
 }
 
+func TestPrivateActionRunnerKubernetesAllowedCustomResourcesUnset(t *testing.T) {
+	cfg := newTestConf(t)
+
+	assert.False(t, cfg.IsConfigured(PARKubernetesAllowedCustomResources))
+	assert.Empty(t, cfg.GetStringSlice(PARKubernetesAllowedCustomResources))
+}
+
+func TestPrivateActionRunnerKubernetesAllowedCustomResourcesFromEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_KUBERNETES_ALLOWED_CUSTOM_RESOURCES", `["cert-manager.io/v1/certificates","argoproj.io/v1alpha1/applications"]`)
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARKubernetesAllowedCustomResources))
+	assert.Equal(t, []string{"cert-manager.io/v1/certificates", "argoproj.io/v1alpha1/applications"}, cfg.GetStringSlice(PARKubernetesAllowedCustomResources))
+}
+
+func TestPrivateActionRunnerKubernetesAllowedCustomResourcesEmptyEnv(t *testing.T) {
+	t.Setenv("DD_PRIVATE_ACTION_RUNNER_KUBERNETES_ALLOWED_CUSTOM_RESOURCES", `[]`)
+
+	cfg := newTestConf(t)
+
+	assert.True(t, cfg.IsConfigured(PARKubernetesAllowedCustomResources))
+	assert.Empty(t, cfg.GetStringSlice(PARKubernetesAllowedCustomResources))
+}
+
 func TestPrivateActionRunnerRestrictedShellAllowedPathsUnsetByDefault(t *testing.T) {
 	cfg := newTestConf(t)
 
