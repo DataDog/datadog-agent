@@ -303,12 +303,6 @@ func (handler *languageDetectionHandler) handleLeadershipState(ctx context.Conte
 
 	if isLeader {
 		// Became leader
-		span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.leadership_change",
-			tracer.ResourceName("leadershipChange"),
-			tracer.Tag("became", "leader"),
-		)
-		span.Finish()
-
 		log.Info("Gained leadership")
 		// Since we were a follower, our DetectedLangs are already in sync with InjectableLangs
 		// No need to initialize - we already have the correct state
@@ -320,12 +314,6 @@ func (handler *languageDetectionHandler) handleLeadershipState(ctx context.Conte
 		}
 	} else {
 		// Lost leadership
-		span, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.language_detection.leadership_change",
-			tracer.ResourceName("leadershipChange"),
-			tracer.Tag("became", "follower"),
-		)
-		span.Finish()
-
 		log.Info("Lost leadership, starting to sync DetectedLangs with InjectableLangs")
 		// As a follower, we need to keep DetectedLangs in sync with InjectableLangs
 

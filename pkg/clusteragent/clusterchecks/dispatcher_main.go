@@ -9,6 +9,8 @@ package clusterchecks
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -148,11 +150,7 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		tracer.ResourceName("scheduleConfigs"),
 		tracer.SpanType("worker"))
 	span.SetTag("config_count", len(configs))
-	checkNames := make([]string, 0, len(configs))
-	for _, c := range configs {
-		checkNames = append(checkNames, c.Name)
-	}
-	span.SetTag("check_names", strings.Join(checkNames, ","))
+	span.SetTag("check_names", checkNamesTag(configs))
 	defer func() {
 		span.SetTag("excluded_configs", excludedConfigs)
 		span.SetTag("failed_configs", failedConfigs)
@@ -205,6 +203,22 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		}
 		d.add(patched)
 	}
+}
+
+// maxCheckNamesTag caps the number of check names in the schedule span tag.
+const maxCheckNamesTag = 10
+
+// checkNamesTag returns a sorted, deduplicated, capped list of check names.
+func checkNamesTag(configs []integration.Config) string {
+	names := make(map[string]struct{}, len(configs))
+	for _, c := range configs {
+		names[c.Name] = struct{}{}
+	}
+	sorted := slices.Sorted(maps.Keys(names))
+	if len(sorted) > maxCheckNamesTag {
+		return strings.Join(sorted[:maxCheckNamesTag], ",") + ",..."
+	}
+	return strings.Join(sorted, ",")
 }
 
 // Unschedule implements the scheduler.Scheduler interface
