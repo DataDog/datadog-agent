@@ -3,6 +3,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
 load("//tasks:build_tags.bzl", "INSTALLER_TAGS")
 
+package(default_package_metadata = ["//:package_metadata"])
+
 go_library(
     name = "installer_lib",
     srcs = ["main.go"],
@@ -32,6 +34,13 @@ dd_agent_go_binary(
         "//conditions:default": False,
     }),
     embed = [":installer_lib"],
+    gc_linkopts = select({
+        "@platforms//os:linux": [
+            "-X",
+            "github.com/DataDog/datadog-agent/pkg/util/defaultpaths.runPath=/opt/datadog-packages/run",
+        ],
+        "//conditions:default": [],
+    }),
     gotags = INSTALLER_TAGS,
     visibility = ["//visibility:public"],
 )

@@ -9,6 +9,7 @@ package modules
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -16,10 +17,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
@@ -69,33 +72,37 @@ var GPUMonitoring = &module.Factory{
 			configureCgroupPermissions(ctx, c.CgroupReapplyInterval, c.CgroupReapplyInfinitely)
 		}
 
-		deviceCache := ddnvml.NewDeviceCache()
+		deviceCache := ddnvml.NewDeviceCache() // note: deviceCache constructor does not allocate resources/do NVML calls
+		var deviceCacheRefreshErr error
+		if c.EnableEBPFProbes || c.DriverEventsEnabled {
+			deviceCacheRefreshErr = deviceCache.Refresh()
+			if deviceCacheRefreshErr != nil {
+				log.Errorf("unable to refresh GPU device cache: %v", deviceCacheRefreshErr)
+			} else {
+				go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
+			}
+		}
+
 		var p *gpu.Probe
 		var driverEventSubscriber driverEventSubscriber
-		startDriverEvents := c.DriverEventsEnabled
 		var err error
 		if c.EnableEBPFProbes {
+			ebpfConfig := ebpf.NewConfig()
 			probeDeps := gpu.ProbeDependencies{
+				EBPFConfig:     ebpfConfig,
 				Telemetry:      deps.Telemetry,
 				ProcessMonitor: processEventConsumer,
 				WorkloadMeta:   deps.WMeta,
+				DeviceCache:    deviceCache,
 			}
 			p, err = gpu.NewProbe(c, probeDeps)
 			if err != nil {
 				cancel()
 				return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 			}
-			deviceCache = p.GetDeviceCache()
 		}
-		if c.EnableEBPFProbes || c.DriverEventsEnabled {
-			if err := deviceCache.Refresh(); err != nil {
-				log.Errorf("unable to refresh GPU device cache: %v", err)
-				startDriverEvents = false
-			} else {
-				go refreshDeviceCache(ctx, deviceCache, c.DeviceCacheRefreshInterval)
-			}
-		}
-		if startDriverEvents {
+
+		if c.DriverEventsEnabled && deviceCacheRefreshErr == nil {
 			subscriber, err := gpu.NewDriverEventSubscriber(deps.Telemetry, deviceCache, gpu.DriverEventSubscriberConfig{
 				QueueSize: driverEventQueueSize,
 			})
@@ -104,18 +111,33 @@ var GPUMonitoring = &module.Factory{
 			} else {
 				driverEventSubscriber = subscriber
 			}
+		} else if c.DriverEventsEnabled {
+			log.Errorf("unable to start GPU driver event subscriber due to device cache refresh error %v", deviceCacheRefreshErr)
 		}
 
-		return &GPUMonitoringModule{
+		mod := &GPUMonitoringModule{
 			Probe:                 p,
 			driverEventSubscriber: driverEventSubscriber,
 			prmHandler: prm.NewHandler(func(uuid string) (prm.Device, error) {
+				// Gate the device access: the release monitor can shut NVML
+				// down concurrently with an active PRM request.
+				if err := ddnvml.BeginNVMLUse(); err != nil {
+					return nil, err
+				}
+				defer ddnvml.EndNVMLUse()
 				return deviceCache.GetByUUID(uuid)
 			}),
 			cfg:           c,
 			contextCancel: cancel,
 			context:       ctx,
-		}, nil
+			deviceCache:   deviceCache,
+			leaseDone:     make(chan struct{}),
+		}
+		// The release monitor lives on the module (not the probe) and runs
+		// in every mode: PRM requests, driver events and the eBPF probe all
+		// hold NVML, so all of them must participate in release windows.
+		mod.startNvmlReleaseMonitor()
+		return mod, nil
 	},
 	NeedsEBPF: func() bool {
 		return gpuconfig.New().EnableEBPFProbes
@@ -130,6 +152,15 @@ type GPUMonitoringModule struct {
 	cfg                   *gpuconfig.Config
 	context               context.Context    // Context associated with the module
 	contextCancel         context.CancelFunc // Cancel function associated with the context
+	deviceCache           ddnvml.DeviceCache // deviceCache is the module's cache in every mode (the probe's in eBPF mode)
+
+	// nvmlLease is the release lease held by the core agent over the
+	// /nvml-release endpoint. It lives on the module — not the probe — so
+	// driver-events-only mode (eBPF probes disabled, NVML still held by the
+	// subscriber) participates in release windows too.
+	nvmlLease gpu.NvmlReleaseLease
+	leaseDone chan struct{}
+	leaseWG   sync.WaitGroup
 }
 
 type driverEventSubscriber interface {
@@ -171,7 +202,17 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	}))
 
 	if t.cfg != nil && t.cfg.PRMEndpointEnabled && t.prmHandler != nil {
-		httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, t.prmHandler.HandlePRMMetrics))
+		// Gate the whole PRM operation: the handler performs device calls
+		// (architecture, port counters) after the device lookup, and the
+		// release monitor must not shut NVML down mid-request.
+		httpMux.HandleFunc("/prm-metrics", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+			if err := ddnvml.BeginNVMLUse(); err != nil {
+				http.Error(w, fmt.Sprintf("NVML unavailable (release window active): %v", err), http.StatusServiceUnavailable)
+				return
+			}
+			defer ddnvml.EndNVMLUse()
+			t.prmHandler.HandlePRMMetrics(w, req)
+		}))
 	}
 
 	httpMux.HandleFunc("/debug/traced-programs", usm.GetTracedProgramsEndpoint(gpuconfigconsts.GpuModuleName))
@@ -181,7 +222,99 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/debug/detach-pid", usm.GetDetachPIDEndpoint(gpuconfigconsts.GpuModuleName))
 	httpMux.HandleFunc("/debug/collect-events", t.collectEventsHandler)
 
+	// The core agent holds a lease on this probe's NVML release through
+	// this endpoint, so a GPU reset is not blocked by system-probe either.
+	httpMux.HandleFunc("/nvml-release", t.nvmlReleaseHandler)
+
 	return nil
+}
+
+// startNvmlReleaseMonitor follows the release lease: while the core agent
+// holds it (a GPU reset window is open) the module releases its NVML; when it
+// clears or expires, NVML is re-acquired and the caches re-enumerate lazily.
+func (t *GPUMonitoringModule) startNvmlReleaseMonitor() {
+	t.leaseWG.Add(1)
+	go func() {
+		defer t.leaseWG.Done()
+
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-t.leaseDone:
+				return
+			case <-ticker.C:
+				window := t.nvmlLease.Held()
+				released := ddnvml.IsNVMLReleased()
+				switch {
+				case window && !released:
+					t.releaseNVMLForLease()
+				case !window && released:
+					t.reacquireNVMLForLease()
+				}
+			}
+		}
+	}()
+}
+
+// releaseNVMLForLease dispatches the release on the mode: eBPF mode goes
+// through the probe's system context (device cache + per-process caches +
+// library); driver-events-only mode releases the library directly. The device
+// cache is NOT dropped here: the driver-event consumer keeps running during
+// the window, and an empty cache would leave events without a mapping, so
+// they would be discarded. The pre-reset mapping is kept instead (best-effort
+// attribution for the events in flight) and invalidated at reacquire time.
+func (t *GPUMonitoringModule) releaseNVMLForLease() {
+	if t.Probe != nil {
+		t.Probe.ReleaseForNvmlLease()
+		return
+	}
+	// Driver-events-only mode: no system context — release NVML directly.
+	if err := ddnvml.ReleaseNVML(); err != nil {
+		log.Warnf("error shutting down NVML for the release in the GPU monitoring module (will retry next tick): %v", err)
+		return
+	}
+	log.Warnf("NVML release window active (GPU reset in progress); GPU monitoring module releasing NVML until it completes")
+}
+
+// reacquireNVMLForLease ends the release window: NVML is re-initialized and
+// the device caches are dropped so the next use re-enumerates the (possibly
+// changed) device layout. The cache refresh loop re-populates the
+// driver-events-only cache; eBPF mode re-enumerates lazily on next use.
+func (t *GPUMonitoringModule) reacquireNVMLForLease() {
+	if t.Probe != nil {
+		t.Probe.ReacquireForNvmlLease()
+		return
+	}
+	// Invalidate while new users are still rejected, clear the gate last (see
+	// systemContext.reacquireNVML for why the order matters).
+	t.deviceCache.Invalidate()
+	ddnvml.ReacquireNVML()
+}
+
+// nvmlReleaseHandler receives the core agent's NVML release push: a push
+// with released=true renews the release lease, released=false ends the
+// window. If the core agent stops renewing (crash, check reload), the lease
+// simply expires.
+func (t *GPUMonitoringModule) nvmlReleaseHandler(w http.ResponseWriter, r *http.Request) {
+	var req model.NvmlReleaseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Released == model.NvmlStateReleased {
+		t.nvmlLease.Hold(time.Duration(req.TTLSeconds) * time.Second)
+	} else {
+		t.nvmlLease.Clear()
+	}
+
+	// The client helper always JSON-unmarshals the response body; an empty
+	// body would surface as an error on every successful renewal.
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("{}"))
 }
 
 // GetStats returns the debug stats for the GPU monitoring module
@@ -240,6 +373,10 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 
 // Close closes the GPU monitoring module
 func (t *GPUMonitoringModule) Close() {
+	if t.leaseDone != nil {
+		close(t.leaseDone)
+		t.leaseWG.Wait()
+	}
 	t.contextCancel()
 	if t.driverEventSubscriber != nil {
 		t.driverEventSubscriber.Stop()
@@ -261,7 +398,11 @@ func refreshDeviceCache(ctx context.Context, deviceCache ddnvml.DeviceCache, int
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := deviceCache.Refresh(); err != nil {
+			if err := deviceCache.Refresh(); err != nil && !ddnvml.IsNVMLReleased() {
+				// Quiet while NVML is deliberately released for a GPU reset
+				// window: the refresh is expected to fail (skip quietly,
+				// like the other NVML users) and the cache keeps serving the
+				// pre-reset mapping until the reacquire.
 				log.Warnf("failed to refresh GPU device cache: %v", err)
 			}
 		}

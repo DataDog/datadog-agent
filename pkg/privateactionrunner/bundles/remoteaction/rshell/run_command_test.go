@@ -69,23 +69,6 @@ func systemServiceActions(actions ...string) *structpb.ListValue {
 	return &structpb.ListValue{Values: values}
 }
 
-func makeLegacyTask(command string, allowedCommands []string) *types.Task {
-	task := &types.Task{}
-	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]any{
-			"command":         command,
-			"allowedCommands": allowedCommands,
-		},
-	}
-	return task
-}
-
-func makeLegacyTaskWithPaths(command string, allowedCommands []string, allowedPaths map[string][]string) *types.Task {
-	task := makeLegacyTask(command, allowedCommands)
-	task.Data.Attributes.Inputs["allowedPaths"] = allowedPaths
-	return task
-}
-
 func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
 	return RunCommandHandlerConfig{
 		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
@@ -660,6 +643,141 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 	}
 }
 
+func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := newDefaultRunCommandHandler()
+	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "disabled by local configuration")
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
+	assert.Contains(t, logs, "elevatableCommands=[rshell:cat]")
+	assert.Contains(t, logs, "privilegedEnabled=false")
+	assert.Contains(t, logs, "agentPolicy=<nil>")
+}
+
+func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorElevatableCommands:        []string{"rshell:cat"},
+		PrivilegedEnabled:                 true,
+		PrivilegedSocket:                  "",
+	})
+	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
+	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.ErrorContains(t, err, "privileged rshell socket is not configured")
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runPrivileged")
+	assert.Contains(t, logs, "AllowedCommands:[rshell:cat]")
+	assert.Contains(t, logs, "ElevatableCommands:[rshell:cat]")
+}
+
+func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {
+	handler := newDefaultRunCommandHandler()
+
+	assert.Nil(t, handler.buildAgentPolicy())
+}
+
+func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:           []string{"rshell:truncate"},
+		OperatorAllowedCommandsConfigured: true,
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+	assert.Nil(t, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:       []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:    []string{rShellCommandAllowAllWildcard},
+		OperatorElevatableCommands: []string{"rshell:journalctl", "rshell:systemctl"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, policy.ElevatableCommands)
+	assert.Nil(t, policy.AllowedCommands)
+	assert.Nil(t, policy.AllowedPaths)
+	assert.Nil(t, policy.AllowedSystemServices)
+}
+
+func TestBuildAgentPolicyExplicitlyEmptyElevatableCommandsIsKillSwitch(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorElevatableCommands: []string{},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.NotNil(t, policy.ElevatableCommands)
+	assert.Empty(t, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:              []string{"/var/log:ro"},
+		OperatorAllowedCommands:           []string{"rshell:cat"},
+		OperatorAllowedCommandsConfigured: true,
+		OperatorAllowedPathsConfigured:    true,
+		OperatorAllowedSystemServices:     map[string][]string{"mysql.service": {"read"}},
+		OperatorElevatableCommands:        []string{"rshell:truncate"},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.Equal(t, []string{"rshell:cat"}, policy.AllowedCommands)
+	assert.Equal(t, []string{"/var/log/:ro"}, policy.AllowedPaths)
+	assert.Equal(t, map[string][]string{"mysql.service": {"read"}}, policy.AllowedSystemServices)
+	assert.Equal(t, []string{"rshell:truncate"}, policy.ElevatableCommands)
+}
+
+func TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch(t *testing.T) {
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:          []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:       []string{rShellCommandAllowAllWildcard},
+		OperatorAllowedSystemServices: map[string][]string{},
+	})
+
+	policy := handler.buildAgentPolicy()
+
+	require.NotNil(t, policy)
+	assert.NotNil(t, policy.AllowedSystemServices)
+	assert.Empty(t, policy.AllowedSystemServices)
+}
+
 func TestWholeScriptRootIsRejected(t *testing.T) {
 	handler := newDefaultRunRemediationCommandHandler()
 	task := makeTask("truncate -s 0 /var/log/app.log", []string{"rshell:truncate"})
@@ -697,56 +815,40 @@ func TestPrivilegedHelperTaskWireCompatibility(t *testing.T) {
 	}
 }
 
-func TestRunCommandMissingRemoteActionPolicyBlocksExecution(t *testing.T) {
+func TestRunCommandMissingRemoteActionPolicyFailsClosed(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
-		Inputs: map[string]any{"command": "echo hello"},
+		Inputs: map[string]any{
+			"command":         "echo hello",
+			"allowedCommands": []string{"rshell:echo"},
+			"allowedPaths": map[string][]string{
+				"default": {"/"},
+			},
+		},
 	}
 
 	out, err := handler.Run(context.Background(), task, nil)
 
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 127, result.ExitCode)
-	assert.Contains(t, result.Stderr, "command not allowed")
+	require.EqualError(t, err, "signed remote action policy is required")
+	assert.Nil(t, out)
 }
 
-func TestRunCommandLegacyInputAllowlistsRemainSupported(t *testing.T) {
+func TestRunCommandEmptyRemoteActionPolicyIgnoresLegacyInputAllowlists(t *testing.T) {
 	handler := newDefaultRunCommandHandler()
-
-	out, err := handler.Run(context.Background(),
-		makeLegacyTask("echo hello", []string{"rshell:echo"}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hello\n", result.Stdout)
-}
-
-func TestRunCommandLegacyInputAllowedPathsRemainSupported(t *testing.T) {
-	dir := filepath.ToSlash(t.TempDir())
-	payload := dir + "/payload.txt"
-	require.NoError(t, os.WriteFile(filepath.FromSlash(payload), []byte("hello\n"), 0o600))
-	handler := newDefaultRunCommandHandler()
-
-	out, err := handler.Run(context.Background(),
-		makeLegacyTaskWithPaths("cat "+payload,
-			[]string{"rshell:cat"},
-			map[string][]string{setup.RShellPathAllowMapDefaultKey: {dir}}), nil)
-
-	require.NoError(t, err)
-	result := out.(*RunCommandOutputs)
-	assert.Equal(t, 0, result.ExitCode)
-	assert.Equal(t, "hello\n", result.Stdout)
-}
-
-func TestRunCommandSystemInputsOverrideLegacyInputAllowlists(t *testing.T) {
-	handler := newDefaultRunCommandHandler()
-	task := makeLegacyTask("echo hello", []string{"rshell:echo"})
-	task.Data.Attributes.SystemInputs = &privateactionspb.SystemInputs{
-		Input: &privateactionspb.SystemInputs_RemoteAction{
-			RemoteAction: &privateactionspb.RemoteAction{},
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{
+		Inputs: map[string]any{
+			"command":         "echo hello",
+			"allowedCommands": []string{"rshell:echo"},
+			"allowedPaths": map[string][]string{
+				"default": {"/"},
+			},
+		},
+		SystemInputs: &privateactionspb.SystemInputs{
+			Input: &privateactionspb.SystemInputs_RemoteAction{
+				RemoteAction: &privateactionspb.RemoteAction{},
+			},
 		},
 	}
 
@@ -826,6 +928,34 @@ func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 	logs := logBuffer.String()
 	assert.Contains(t, logs, "backendAllowedSystemServices=[{mysql.service [read restart]} {nginx.service [reload]}]")
 	assert.Contains(t, logs, "effectiveAllowedSystemServices=[{mysql.service [read]}]")
+}
+
+func TestRunCommandLogsSettingsAtInfoLevel(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&logBuffer, log.InfoLvl)
+	require.NoError(t, err)
+	previousLogger := log.Default()
+	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
+	log.SetupLogger(logger, "info")
+
+	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+		OperatorAllowedPaths:     []string{setup.RShellPathAllowAll},
+		OperatorAllowedCommands:  []string{rShellCommandAllowAllWildcard},
+		DisableDetailedTelemetry: true,
+	})
+	task := makeTask("echo hello", []string{"rshell:echo"})
+	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:echo"}
+
+	_, err = handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+
+	logs := logBuffer.String()
+	assert.Contains(t, logs, "[INFO] rshell runCommand")
+	assert.Contains(t, logs, "effectiveAllowedCommands=[rshell:echo]")
+	assert.Contains(t, logs, "elevatableCommands=[rshell:echo]")
+	assert.Contains(t, logs, "procPath=")
+	assert.Contains(t, logs, "systemdTarget=")
+	assert.Contains(t, logs, "disableDetailedTelemetry=true")
 }
 
 func TestRunCommandDisallowedCommandBlocked(t *testing.T) {

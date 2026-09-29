@@ -10,11 +10,13 @@ go_library(
         "file_mock.go",
         "open.go",
         "open_mock.go",
+        "source.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/util/opener",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/internal/util/opener",
+        "//pkg/logs/sources",
         "//pkg/util/filesystem",
         "@com_github_spf13_afero//:afero",
     ] + select({
@@ -35,9 +37,12 @@ dd_agent_go_test(
         "direct_io_test.go",
         "open_linux_test.go",
         "open_other_test.go",
+        "open_test.go",
     ],
     embed = [":opener"],
     deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/sources",
         "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:android": [

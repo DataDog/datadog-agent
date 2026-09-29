@@ -17,6 +17,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func requireDirectIOTestFile(t *testing.T, name string, content []byte) string {
@@ -91,4 +94,21 @@ func TestReadDirectRangeReportsPermissionError(t *testing.T) {
 
 	_, err := NewFileOpener().ReadDirectRange(path, 4)
 	require.ErrorIs(t, err, os.ErrPermission)
+}
+
+// A no-follow source must not reach a symlink through the direct-read path,
+// which sourceFileOpener would otherwise inherit from the following opener.
+func TestForSourceReadDirectRangeRejectsSymlinks(t *testing.T) {
+	path := requireDirectIOTestFile(t, "app.log", []byte("line\n"))
+	link := filepath.Join(filepath.Dir(path), "link.log")
+	require.NoError(t, os.Symlink(path, link))
+	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{NoFollow: true}))
+	fileOpener := ForSource(NewFileOpener(), source)
+
+	_, err := fileOpener.ReadDirectRange(link, 5)
+	require.ErrorIs(t, err, unix.ELOOP)
+
+	got, err := fileOpener.ReadDirectRange(path, 5)
+	require.NoError(t, err)
+	require.Equal(t, []byte("line\n"), got)
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -43,11 +44,14 @@ type logCountBucketInterval struct {
 }
 
 type logCountBucketSeries struct {
-	namespace string
-	name      string
-	tags      []string
-	context   *observerdef.MetricContext
-	anchor    int64
+	namespace  string
+	name       string
+	host       string
+	tags       tagset.CompositeTags
+	seriesKey  uint64
+	context    observerdef.MetricContext
+	hasContext bool
+	anchor     int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
 	// not advance it, so storage can evict genuinely idle series first.
 	lastObserved int64
@@ -87,16 +91,17 @@ func (b *materializedLogCountBucketizer) handlesMetric(name string) bool {
 	return strings.HasSuffix(name, ".count")
 }
 
-// observe adds one extractor output to its pending bucket. False means the late
-// observation cannot be incorporated without rewriting or re-anchoring history.
+// observe adds one extractor output to its pending bucket. False means
+// the late observation cannot be incorporated without rewriting or re-anchoring history.
 func (b *materializedLogCountBucketizer) observe(
 	namespace string,
 	metric observerdef.MetricOutput,
+	host string,
 	timestamp int64,
-	tags []string,
+	tags tagset.CompositeTags,
+	seriesKey uint64,
 ) bool {
-	key := seriesKeyHash(namespace, metric.Name, tags)
-	state := b.series[key]
+	state := b.series[seriesKey]
 	if state == nil && timestamp <= b.flushedThrough {
 		return false
 	}
@@ -113,18 +118,22 @@ func (b *materializedLogCountBucketizer) observe(
 		state = &logCountBucketSeries{
 			namespace:    namespace,
 			name:         metric.Name,
-			tags:         append([]string(nil), tags...),
+			host:         host,
+			tags:         tags,
+			seriesKey:    seriesKey,
 			context:      metric.Context,
+			hasContext:   metric.HasContext,
 			anchor:       timestamp,
 			lastObserved: timestamp,
 			storageRef:   -1,
 			values:       make(map[int64]float64),
 		}
-		b.series[key] = state
+		b.series[seriesKey] = state
 	} else {
 		state.lastObserved = max(state.lastObserved, timestamp)
-		if metric.Context != nil {
+		if metric.HasContext {
 			state.context = metric.Context
+			state.hasContext = true
 		}
 	}
 
@@ -153,14 +162,16 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.Add(
+				result := storage.AddWithKeyAndHostComposite(
 					state.namespace,
 					state.name,
+					state.host,
 					state.values[nextEnd],
 					nextEnd,
 					state.tags,
+					state.seriesKey,
 				)
-				if state.context != nil && result.Ref >= 0 {
+				if state.hasContext && result.Ref >= 0 {
 					storage.SetContext(result.Ref, state.context)
 				}
 				if result.Ref >= 0 {

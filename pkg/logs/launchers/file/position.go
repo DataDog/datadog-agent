@@ -53,14 +53,14 @@ func offsetBeyondEndOfFile(fileOpener opener.FileOpener, path string, offset int
 
 // recoveryFingerprint fingerprints the file as it is now under the stored checksum
 // parameters, so the result is comparable with the stored fingerprint.
-func recoveryFingerprint(fingerprinter tailer.Fingerprinter, filePath string, storedConfig *types.FingerprintConfig, currentFingerprint *types.Fingerprint) (*types.Fingerprint, error) {
+func recoveryFingerprint(fingerprinter tailer.Fingerprinter, filePath string, storedConfig *types.FingerprintConfig, currentFingerprint *types.Fingerprint, fileOpener opener.FileOpener) (*types.Fingerprint, error) {
 	// Reuse avoids a second read that could catch the file mid-rotation. An invalid
 	// fingerprint means no read happened, so reusing it would falsely signal a rotation.
 	if currentFingerprint != nil && currentFingerprint.ValidFingerprint() && storedConfig.SameChecksumParameters(currentFingerprint.Config) {
 		return currentFingerprint, nil
 	}
 
-	return fingerprinter.ComputeFingerprintFromConfig(filePath, storedConfig)
+	return fingerprinter.ComputeFingerprintFromConfig(filePath, storedConfig, fileOpener)
 }
 
 // Position returns the position from where logs should be collected.
@@ -85,7 +85,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	if filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
-			newFingerprint, ferr := recoveryFingerprint(fingerprinter, filePath, prevFingerprint.Config, currentFingerprint)
+			newFingerprint, ferr := recoveryFingerprint(fingerprinter, filePath, prevFingerprint.Config, currentFingerprint, fileOpener)
 			if ferr != nil {
 				// The fingerprint could not be computed, so keep trusting the stored offset rather
 				// than re-reading the file from the start and sending its contents twice.

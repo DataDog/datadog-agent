@@ -244,7 +244,7 @@ func (s *store) matchesAnyCELTemplate(ep *v1.Endpoints) bool {
 		return false
 	}
 
-	filterableEp := workloadfilter.CreateKubeEndpoint(ep.Name, ep.Namespace, ep.GetAnnotations())
+	filterableEp := workloadfilter.CreateKubeEndpoint(ep.Name, ep.Namespace, ep.GetAnnotations(), ep.GetLabels())
 	for _, tpl := range celEpConfig.templates {
 		if tpl.IsMatched(filterableEp) {
 			return true

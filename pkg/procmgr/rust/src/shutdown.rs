@@ -4,9 +4,9 @@
 // Copyright 2026-present Datadog, Inc.
 
 use crate::process::ManagedProcess;
+#[cfg(test)]
+use crate::process::test_exit_channel;
 
-/// Shut down processes in the given index order (typically reverse startup order).
-/// Sends SIGTERM to all first, then waits for each in order.
 pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize]) {
     for &idx in order {
         processes[idx].request_stop();
@@ -16,7 +16,6 @@ pub async fn shutdown_ordered(processes: &mut [ManagedProcess], order: &[usize])
     }
 }
 
-/// Convenience wrapper: shut down all processes in forward index order.
 #[cfg(test)]
 pub async fn shutdown_all(processes: &mut [ManagedProcess]) {
     let order: Vec<usize> = (0..processes.len()).collect();
@@ -30,8 +29,7 @@ mod tests {
     use crate::test_helpers;
 
     fn sleep_config() -> crate::config::ProcessConfig {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        test_helpers::make_config(cmd, args)
+        test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS)
     }
 
     #[tokio::test]
@@ -41,8 +39,8 @@ mod tests {
 
         let mut p1 = ManagedProcess::new_config("p1".into(), test_helpers::test_uuid(), cfg1);
         let mut p2 = ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), cfg2);
-        p1.spawn().unwrap();
-        p2.spawn().unwrap();
+        p1.spawn(test_exit_channel().0).unwrap();
+        p2.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![p1, p2];
         shutdown_all(&mut procs).await;
@@ -60,13 +58,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_shutdown_graceful_stop_signal() {
+        use std::time::Instant;
+
+        let mut proc = ManagedProcess::new_config(
+            "graceful".into(),
+            test_helpers::test_uuid(),
+            test_helpers::graceful_stop_test_config(),
+        );
+        proc.spawn(test_exit_channel().0).unwrap();
+        assert!(proc.is_running());
+
+        // Signaling the child means leaving the caller's console, and only
+        // CallerConsoleGuard puts it back. A regression there leaves the supervisor
+        // running with nowhere to log, which none of the assertions below would catch.
+        // Compared in both directions rather than asserting a console exists, since the
+        // test process only has one when the runner gave it one.
+        #[cfg(windows)]
+        let console_before = crate::platform::caller_console_state();
+
+        let started = Instant::now();
+        proc.request_stop();
+        proc.wait_for_stop().await;
+
+        #[cfg(windows)]
+        assert_eq!(
+            crate::platform::caller_console_state(),
+            console_before,
+            "graceful stop must leave the caller console as it found it"
+        );
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed().as_secs() < 2,
+            "graceful stop should not wait for stop_timeout force-kill (took {:?})",
+            started.elapsed()
+        );
+    }
+
+    #[tokio::test]
     async fn test_shutdown_all_sigkill_on_timeout() {
-        let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
-        cfg.stop_timeout = Some(1);
-        let mut proc =
-            ManagedProcess::new_config("stubborn".into(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        // Use ping (via sleep_config) instead of powershell: ping ignores graceful
+        // stop on Windows, and powershell.exe is not always on PATH in CI containers.
+        let mut proc = ManagedProcess::new_config(
+            "stubborn".into(),
+            test_helpers::test_uuid(),
+            sleep_config(),
+        );
+        proc.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![proc];
         shutdown_all(&mut procs).await;
@@ -75,19 +114,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_shutdown_all_after_take_child() {
+    async fn test_shutdown_all_after_spawn_watcher_owns_handle() {
         let mut proc =
             ManagedProcess::new_config("t".into(), test_helpers::test_uuid(), sleep_config());
-        proc.spawn().unwrap();
-        let _child = proc.take_child();
-
+        proc.spawn(test_exit_channel().0).unwrap();
         assert!(proc.is_running(), "state should still be Running");
         let mut procs = vec![proc];
         shutdown_all(&mut procs).await;
         assert_eq!(
             procs[0].state(),
             ProcessState::Stopped,
-            "shutdown should transition to Stopped even without child handle"
+            "shutdown should transition to Stopped via exit watcher"
         );
     }
 
@@ -99,12 +136,11 @@ mod tests {
             ManagedProcess::new_config("p2".into(), test_helpers::test_uuid(), sleep_config());
         let mut p3 =
             ManagedProcess::new_config("p3".into(), test_helpers::test_uuid(), sleep_config());
-        p1.spawn().unwrap();
-        p2.spawn().unwrap();
-        p3.spawn().unwrap();
+        p1.spawn(test_exit_channel().0).unwrap();
+        p2.spawn(test_exit_channel().0).unwrap();
+        p3.spawn(test_exit_channel().0).unwrap();
 
         let mut procs = vec![p1, p2, p3];
-        // Reverse order: p3, p2, p1
         shutdown_ordered(&mut procs, &[2, 1, 0]).await;
 
         assert_eq!(procs[0].state(), ProcessState::Stopped);

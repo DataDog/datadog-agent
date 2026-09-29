@@ -23,6 +23,7 @@ import (
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // BenchAPI handles HTTP API requests for the bench.
@@ -419,6 +420,7 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 		ID         string   `json:"id"`
 		Namespace  string   `json:"namespace"`
 		Name       string   `json:"name"`
+		Host       string   `json:"host,omitempty"`
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
 		Virtual    bool     `json:"virtual"`
@@ -458,7 +460,8 @@ func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
-					Tags:       m.Tags,
+					Host:       m.Host,
+					Tags:       m.Tags.UnsafeToReadOnlySliceString(),
 					PointCount: pointCount,
 					Virtual:    virtual,
 					MetricKind: metricKind,
@@ -492,12 +495,12 @@ func (api *BenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	namespace, nameWithAgg, tags, ok := parseSeriesKey(seriesID)
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(seriesID)
 	if !ok {
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
 	}
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, tags, seriesID)
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, host, tags, seriesID)
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
@@ -539,6 +542,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 	sd := observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      series.Name,
+		Host:      meta.Host,
 		Tags:      series.Tags,
 		Aggregate: agg,
 	}
@@ -576,6 +580,7 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -585,7 +590,8 @@ func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID ob
 		ID:        originalID,
 		Namespace: meta.Namespace,
 		Name:      nameWithAgg,
-		Tags:      series.Tags,
+		Host:      meta.Host,
+		Tags:      series.Tags.UnsafeToReadOnlySliceString(),
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
 	}
@@ -613,10 +619,10 @@ func (api *BenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request) {
 
 	namespace := parts[0]
 	nameWithAgg := parts[1]
-	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
+	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, "", nil, "")
 }
 
-func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
+func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg, host string, tags []string, requestedID string) {
 	seriesID := requestedID
 
 	name := nameWithAgg
@@ -655,7 +661,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		if m.Name != name {
 			continue
 		}
-		if tags == nil || tagsMatch(m.Tags, tags) {
+		if (requestedID == "" || m.Host == host) && (tags == nil || compositeTagsMatch(m.Tags, tags)) {
 			foundMeta = m
 			break
 		}
@@ -688,6 +694,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 	sd := observerdef.SeriesDescriptor{
 		Namespace: namespace,
 		Name:      name,
+		Host:      foundMeta.Host,
 		Tags:      foundMeta.Tags,
 		Aggregate: agg,
 	}
@@ -717,6 +724,7 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID        string          `json:"id"`
 		Namespace string          `json:"namespace"`
 		Name      string          `json:"name"`
+		Host      string          `json:"host,omitempty"`
 		Tags      []string        `json:"tags"`
 		Points    []pointOutput   `json:"points"`
 		Anomalies []anomalyMarker `json:"anomalies"`
@@ -726,7 +734,8 @@ func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace,
 		ID:        seriesID,
 		Namespace: namespace,
 		Name:      nameWithAgg,
-		Tags:      foundMeta.Tags,
+		Host:      foundMeta.Host,
+		Tags:      foundMeta.Tags.UnsafeToReadOnlySliceString(),
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
 	}
@@ -765,38 +774,24 @@ func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 		DetectorComponent string             `json:"detectorComponent"`
 		Title             string             `json:"title"`
 		Description       string             `json:"description"`
+		Host              string             `json:"host,omitempty"`
 		Tags              []string           `json:"tags"`
 		Timestamp         int64              `json:"timestamp"`
 		DebugInfo         *debugInfoResponse `json:"debugInfo,omitempty"`
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	sv := api.tb.getStateView()
-
-	resolveCompactID := func(a observerdef.Anomaly) string {
-		if a.SourceRef != nil {
-			return a.SourceRef.CompactID()
-		}
-		if sv != nil && a.DetectorName != "" && a.Source.Name != "" {
-			storage := &stateViewStorage{sv: sv}
-			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			key := seriesKey("telemetry", telemetryName+":avg", nil)
-			if compactID := storage.compactSeriesID(key); compactID != key {
-				return compactID
-			}
-		}
-		return a.Source.Key()
-	}
 
 	toResponse := func(a observerdef.Anomaly) anomalyResponse {
 		resp := anomalyResponse{
 			Source:            a.Source.String(),
-			SourceSeriesID:    resolveCompactID(a),
+			SourceSeriesID:    a.SourceRef.CompactID(),
 			DetectorName:      a.DetectorName,
 			DetectorComponent: detectorComponentMap[a.DetectorName],
 			Title:             a.Title,
 			Description:       a.Description,
-			Tags:              a.Source.Tags,
+			Host:              a.Source.Host,
+			Tags:              a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:         a.Timestamp,
 		}
 		if a.DebugInfo != nil {
@@ -869,7 +864,7 @@ func (api *BenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) 
 			DetectorName: a.DetectorName,
 			Title:        a.Title,
 			Description:  a.Description,
-			Tags:         a.Source.Tags,
+			Tags:         a.Source.Tags.UnsafeToReadOnlySliceString(),
 			Timestamp:    a.Timestamp,
 			Score:        a.Score,
 		})
@@ -1019,6 +1014,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		Description string   `json:"description"`
 		Timestamp   int64    `json:"timestamp"`
 		Score       *float64 `json:"score,omitempty"`
+		Host        string   `json:"host,omitempty"`
 		Tags        []string `json:"tags"`
 	}
 
@@ -1036,7 +1032,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
-			tgs := a.Source.Tags
+			tgs := a.Source.Tags.UnsafeToReadOnlySliceString()
 			if tgs == nil {
 				tgs = []string{}
 			}
@@ -1046,6 +1042,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
+				Host:        a.Source.Host,
 				Tags:        tgs,
 			}
 		}
@@ -1054,7 +1051,7 @@ func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) 
 		for k, m := range c.Members {
 			// Find SourceRef for this member.
 			for _, a := range c.Anomalies {
-				if a.Source.Key() == m.Key() && a.SourceRef != nil {
+				if a.Source.Key() == m.Key() {
 					memberIDs[k] = a.SourceRef.CompactID()
 					break
 				}
@@ -1338,8 +1335,13 @@ func (api *BenchAPI) handleScoresReplay(w http.ResponseWriter, r *http.Request) 
 				if meta == nil {
 					continue
 				}
+				contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+				var context *observerdef.MetricContext
+				if hasContext {
+					context = &contextValue
+				}
 				report.Contributors = append(report.Contributors, scorerReportContributor{
-					Name:  scorerReportContributorName(meta, storage.GetContext(contributor.Handle.Ref), contributor.Handle.Aggregate),
+					Name:  scorerReportContributorName(meta, context, contributor.Handle.Aggregate),
 					Share: contributor.Share,
 				})
 			}
@@ -1364,31 +1366,44 @@ func scorerReportContributorName(meta *observerdef.SeriesMeta, context *observer
 		switch meta.Namespace {
 		case "log_metrics_extractor":
 			if example := strings.TrimSpace(context.Example); example != "" {
-				return logReportContributorName(example, meta.Tags)
+				return logReportContributorName(example, meta.Host, meta.Tags)
 			}
 			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Tags)
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
 			}
 		case "log_pattern_extractor":
 			if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
-				return logReportContributorName(pattern, meta.Tags)
+				return logReportContributorName(pattern, meta.Host, meta.Tags)
 			}
 		}
 	}
 	return observerdef.SeriesDescriptor{
 		Namespace: meta.Namespace,
 		Name:      meta.Name,
+		Host:      meta.Host,
 		Tags:      meta.Tags,
 		Aggregate: aggregate,
 	}.DisplayName()
 }
 
-func logReportContributorName(name string, tags []string) string {
+func logReportContributorName(name, host string, tags tagset.CompositeTags) string {
 	name = "log: " + name
-	if len(tags) == 0 {
+	if tags.Len() == 0 && host == "" {
 		return name
 	}
-	return name + " — {" + strings.Join(tags, ",") + "}"
+	var b strings.Builder
+	b.WriteString(name)
+	b.WriteString(" — {")
+	if host != "" && !tags.Find(func(tag string) bool { return tag == "host:"+host }) {
+		b.WriteString("host:")
+		b.WriteString(host)
+		if tags.Len() > 0 {
+			b.WriteByte(',')
+		}
+	}
+	b.WriteString(tags.Join(","))
+	b.WriteByte('}')
+	return b.String()
 }
 
 // scorerEventCollector implements severityeventsdef.SeverityEventListener, accumulating

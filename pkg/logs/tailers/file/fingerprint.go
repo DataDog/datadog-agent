@@ -47,8 +47,8 @@ type Fingerprinter interface {
 	ComputeFingerprint(file *File) (*types.Fingerprint, error)
 	// ComputeFingerprintFromHandle computes the fingerprint for the given os.File using the provided config
 	ComputeFingerprintFromHandle(osFile afero.File, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error)
-	// ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
-	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error)
+	// ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config and opener
+	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig, fileOpener opener.FileOpener) (*types.Fingerprint, error)
 	// GetEffectiveConfigForFile returns the fingerprint configuration that applies to a file,
 	// including disabled configurations used for status display.
 	GetEffectiveConfigForFile(file *File) *types.FingerprintConfig
@@ -98,13 +98,13 @@ func (f *fingerprinterImpl) ShouldFileFingerprint(file *File) bool {
 	return effectiveConfig != nil && effectiveConfig.FingerprintStrategy != types.FingerprintStrategyDisabled
 }
 
-// ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
+// ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config and opener.
 // Note that the provided configuration can fallback to different default configuration if specific errors occur attempting to compute the fingerprint.
-func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig, fileOpener opener.FileOpener) (*types.Fingerprint, error) {
 	if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return newInvalidFingerprint(fingerprintConfig), nil
 	}
-	return f.computeFingerprint(filepath, fingerprintConfig)
+	return f.computeFingerprint(filepath, fingerprintConfig, fileOpener)
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
@@ -117,7 +117,7 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 		return newInvalidFingerprint(nil), nil
 	}
 
-	return f.ComputeFingerprintFromConfig(file.Path, f.GetEffectiveConfigForFile(file))
+	return f.ComputeFingerprintFromConfig(file.Path, f.GetEffectiveConfigForFile(file), opener.ForSource(f.fileOpener, file.Source))
 }
 
 // ComputeFingerprintFromHandle computes the fingerprint for the given os.File using the provided config.
@@ -152,17 +152,17 @@ func (f *fingerprinterImpl) computeFingerprintFromReader(reader io.ReadSeeker, f
 
 // computeFingerprint uses the node's I/O mode. A failed direct read is returned
 // to the launcher for reporting; it is never retried through the page cache.
-func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig, fileOpener opener.FileOpener) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
 		log.Debugf("no fingerprint configuration resolved for %q, returning an invalid fingerprint", filePath)
 		return newInvalidFingerprint(nil), nil
 	}
 
 	if f.directIO {
-		return f.computeFingerprintDirect(filePath, fingerprintConfig)
+		return f.computeFingerprintDirect(filePath, fingerprintConfig, fileOpener)
 	}
 
-	fpFile, err := f.fileOpener.OpenLogFile(filePath)
+	fpFile, err := fileOpener.OpenLogFile(filePath)
 	if err != nil {
 		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
 		return newInvalidFingerprint(fingerprintConfig), err
@@ -174,8 +174,8 @@ func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfi
 
 // computeFingerprintDirect reads the head of the file once with O_DIRECT, then
 // runs the shared fingerprint flow over those bytes so direct and buffered agree.
-func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
-	data, err := f.fileOpener.ReadDirectRange(filePath, directReadBudget(fingerprintConfig))
+func (f *fingerprinterImpl) computeFingerprintDirect(filePath string, fingerprintConfig *types.FingerprintConfig, fileOpener opener.FileOpener) (*types.Fingerprint, error) {
+	data, err := fileOpener.ReadDirectRange(filePath, directReadBudget(fingerprintConfig))
 	if err != nil {
 		return newInvalidFingerprint(fingerprintConfig), err
 	}

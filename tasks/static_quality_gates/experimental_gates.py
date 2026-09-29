@@ -23,7 +23,9 @@ from tasks.libs.package.size import extract_package
 from tasks.static_quality_gates.gates import (
     QualityGateConfig,
     create_quality_gate_config,
+    load_merged_gate_config,
 )
+from tasks.static_quality_gates.thresholds import ALL_GATE_CONFIG_PATHS
 
 
 class SizeMixin:
@@ -251,21 +253,20 @@ class ArtifactProcessor(Protocol):
 class ConfigurationManager:
     """Shared configuration management for all artifact measurers."""
 
-    def __init__(self, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize configuration manager.
 
         Args:
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self.config_path = config_path
         self.config = self._load_config()
 
     def _load_config(self) -> dict[str, Any]:
-        """Load quality gates configuration from YAML file."""
+        """Load quality gates configuration from one or more YAML files."""
         try:
-            with open(self.config_path) as f:
-                return yaml.safe_load(f)
+            return load_merged_gate_config(self.config_path)
         except FileNotFoundError:
             raise ValueError(f"Configuration file not found: {self.config_path}") from None
         except yaml.YAMLError as e:
@@ -601,13 +602,13 @@ class UniversalArtifactMeasurer:
     ArtifactProcessor implementations.
     """
 
-    def __init__(self, processor: ArtifactProcessor, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, processor: ArtifactProcessor, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize the universal measurer with a specific artifact processor.
 
         Args:
             processor: Artifact processor implementation (package, Docker, etc.)
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self.processor = processor
         self.config_manager = ConfigurationManager(config_path)
@@ -1054,12 +1055,12 @@ class InPlacePackageMeasurer:
     Uses composition with UniversalArtifactMeasurer and PackageProcessor.
     """
 
-    def __init__(self, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize the measurer with configuration.
 
         Args:
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self._measurer = UniversalArtifactMeasurer(processor=PackageProcessor(), config_path=config_path)
 
@@ -1114,12 +1115,12 @@ class InPlaceDockerMeasurer:
     Uses composition with UniversalArtifactMeasurer and DockerProcessor.
     """
 
-    def __init__(self, config_path: str = "test/static/static_quality_gates.yml"):
+    def __init__(self, config_path: str | list[str] = ALL_GATE_CONFIG_PATHS):
         """
         Initialize the Docker image measurer with configuration.
 
         Args:
-            config_path: Path to the quality gates configuration file
+            config_path: Path (or list of paths) to the quality gates configuration file(s)
         """
         self._measurer = UniversalArtifactMeasurer(processor=DockerProcessor(), config_path=config_path)
 
@@ -1169,7 +1170,7 @@ def measure_package_local(
     ctx,
     package_path,
     gate_name,
-    config_path="test/static/static_quality_gates.yml",
+    config_path: str | list[str] = ALL_GATE_CONFIG_PATHS,
     output_path=None,
     build_job_name="local_test",
     debug=False,
@@ -1184,7 +1185,7 @@ def measure_package_local(
     Args:
         package_path: Path to the package file to measure
         gate_name: Quality gate name from the configuration file
-        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        config_path: Path (or list of paths) to quality gates configuration (default: all gate config files)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
         debug: Enable debug logging for troubleshooting (default: false)
@@ -1197,8 +1198,10 @@ def measure_package_local(
         print(color_message(f"❌ Package file not found: {package_path}", "red"))
         return
 
-    if not os.path.exists(config_path):
-        print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
+    config_paths = [config_path] if isinstance(config_path, str) else config_path
+    missing_config_paths = [path for path in config_paths if not os.path.exists(path)]
+    if missing_config_paths:
+        print(color_message(f"❌ Configuration file(s) not found: {missing_config_paths}", "red"))
         return
 
     if output_path is None:
@@ -1277,7 +1280,7 @@ def measure_image_local(
     ctx,
     image_ref,
     gate_name,
-    config_path="test/static/static_quality_gates.yml",
+    config_path: str | list[str] = ALL_GATE_CONFIG_PATHS,
     output_path=None,
     build_job_name="local_test",
     include_layer_analysis=True,
@@ -1292,7 +1295,7 @@ def measure_image_local(
     Args:
         image_ref: Docker image reference (tag, digest, or image ID)
         gate_name: Quality gate name from the configuration file
-        config_path: Path to quality gates configuration (default: test/static/static_quality_gates.yml)
+        config_path: Path (or list of paths) to quality gates configuration (default: all gate config files)
         output_path: Path to save the measurement report (default: {gate_name}_report.yml)
         build_job_name: Simulated build job name (default: local_test)
         include_layer_analysis: Whether to analyze individual layers (default: true)
@@ -1302,8 +1305,10 @@ def measure_image_local(
         dda inv experimental-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
     """
 
-    if not os.path.exists(config_path):
-        print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
+    config_paths = [config_path] if isinstance(config_path, str) else config_path
+    missing_config_paths = [path for path in config_paths if not os.path.exists(path)]
+    if missing_config_paths:
+        print(color_message(f"❌ Configuration file(s) not found: {missing_config_paths}", "red"))
         return
 
     if output_path is None:

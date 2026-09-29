@@ -530,11 +530,18 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	}
 }
 
+func (s *Launcher) positionFileOpener(file *tailer.File) opener.FileOpener {
+	if file == nil {
+		return s.fileOpener
+	}
+	return opener.ForSource(s.fileOpener, file.Source)
+}
+
 // tailerPosition uses the fallback position when the saved offset cannot be recovered.
 func (s *Launcher) tailerPosition(file *tailer.File, t *tailer.Tailer, m config.TailingMode, fingerprint *types.Fingerprint) (int64, int) {
 	mode := s.handleTailingModeChange(t.Identifier(), m)
 
-	offset, whence, err := Position(s.registry, t.Identifier(), mode, s.fingerprinter, s.fileOpener, fingerprint)
+	offset, whence, err := Position(s.registry, t.Identifier(), mode, s.fingerprinter, s.positionFileOpener(file), fingerprint)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}

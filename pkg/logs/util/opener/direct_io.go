@@ -10,9 +10,12 @@ package opener
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"unsafe"
+
+	internalOpener "github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 )
 
 const directIOAlignment = 4096
@@ -38,6 +41,18 @@ func readDirectRange(path string, count int) ([]byte, error) {
 		return nil, err
 	}
 	return readDirectRangeFromFile(file, count, memoryAlignment, offsetAlignment)
+}
+
+// readDirectRangeNoFollow is readDirectRange without following symbolic links.
+// O_DIRECT must be set at open time, so the descriptor from the symlink-free walk
+// is reopened through /proc, which resolves to the same inode without a path lookup.
+func readDirectRangeNoFollow(path string, count int) ([]byte, error) {
+	file, err := internalOpener.OpenLogFileNoFollow(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return readDirectRange(fmt.Sprintf("/proc/self/fd/%d", file.Fd()), count)
 }
 
 func readDirectRangeFromFile(file *os.File, count, memoryAlignment, offsetAlignment int) ([]byte, error) {

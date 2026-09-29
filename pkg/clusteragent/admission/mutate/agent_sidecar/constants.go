@@ -12,6 +12,19 @@ import corev1 "k8s.io/api/core/v1"
 const (
 	agentSidecarContainerName = "datadog-agent-injected"
 	providerFargate           = "fargate"
+	agentSidecarSecretName    = "datadog-secret"
+)
+
+const (
+	agentSidecarInjectionStatusAnnotation = "internal.agent.datadoghq.com/sidecar-injection-status"
+	agentSidecarInjectionErrorAnnotation  = "internal.agent.datadoghq.com/sidecar-injection-error"
+	agentSidecarInjectionStatusSkipped    = "skipped"
+)
+
+const (
+	agentSidecarSkipReasonSecretNotFound = "secret_not_found"
+	agentSidecarSkipReasonAPIKeyNotFound = "api_key_not_found"
+	agentSidecarSkipReasonTokenNotFound  = "token_not_found"
 )
 
 const (

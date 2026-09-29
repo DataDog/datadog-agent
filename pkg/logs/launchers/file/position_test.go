@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
@@ -30,7 +31,7 @@ type positionFingerprinter struct {
 	err    error
 }
 
-func (f *positionFingerprinter) ComputeFingerprintFromConfig(path string, config *types.FingerprintConfig) (*types.Fingerprint, error) {
+func (f *positionFingerprinter) ComputeFingerprintFromConfig(path string, config *types.FingerprintConfig, fileOpener opener.FileOpener) (*types.Fingerprint, error) {
 	f.reads++
 	if config != nil {
 		captured := *config
@@ -39,7 +40,7 @@ func (f *positionFingerprinter) ComputeFingerprintFromConfig(path string, config
 	if f.err != nil {
 		return nil, f.err
 	}
-	return f.Fingerprinter.ComputeFingerprintFromConfig(path, config)
+	return f.Fingerprinter.ComputeFingerprintFromConfig(path, config, fileOpener)
 }
 
 func TestPosition(t *testing.T) {
@@ -114,6 +115,52 @@ func TestPosition(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), offset)
 	assert.Equal(t, io.SeekEnd, whence)
+}
+
+func TestPositionUsesSourceOpenPolicyForRecoveryReads(t *testing.T) {
+	const path = "app.log"
+	contents := [][]byte{[]byte("line\n")}
+	fingerprintConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		MaxBytes:            2048,
+	}
+	fingerprintOpener := opener.NewMockFileOpener()
+	fingerprintOpener.AddMockFile(opener.NewMockFile(path, contents))
+	fingerprinter := file.NewFingerprinter(*fingerprintConfig, fingerprintOpener)
+	fingerprint, err := fingerprinter.ComputeFingerprintFromConfig(path, fingerprintConfig, fingerprintOpener)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		noFollow bool
+	}{
+		{name: "regular"},
+		{name: "no follow", noFollow: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fileOpener := opener.NewMockFileOpener()
+			fileOpener.AddMockFile(opener.NewMockFile(path, contents))
+
+			registry := auditorMock.NewMockRegistry()
+			identifier := "file:" + path
+			registry.SetFingerprint(fingerprint)
+			registry.SetOffset(identifier, "1")
+
+			logFile := file.NewFile(path, sources.NewLogSource("", &config.LogsConfig{NoFollow: tc.noFollow}), false)
+			launcher := &Launcher{fileOpener: fileOpener}
+			positionFingerprinter := file.NewFingerprinter(*fingerprintConfig, fileOpener)
+			_, _, err := Position(registry, identifier, config.End, positionFingerprinter, launcher.positionFileOpener(logFile), nil)
+
+			require.NoError(t, err)
+			assert.Equal(t, []opener.LogFileOpen{
+				{Path: path, NoFollow: tc.noFollow},
+				{Path: path, NoFollow: tc.noFollow},
+			}, fileOpener.Opens())
+		})
+	}
 }
 
 func TestPositionUsesStoredChecksumParameters(t *testing.T) {

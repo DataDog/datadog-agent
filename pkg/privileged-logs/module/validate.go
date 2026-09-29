@@ -61,18 +61,9 @@ func isTextFile(file *os.File) bool {
 }
 
 func validateAndOpenWithPrefix(path, allowedPrefix string, toctou func()) (*os.File, error) {
-	if path == "" {
-		return nil, errors.New("empty file path provided")
-	}
-
-	if !filepath.IsAbs(path) {
-		return nil, fmt.Errorf("relative path not allowed: %s", path)
-	}
-
-	// Resolve symbolic links for the path and file name checks.
-	resolvedPath, err := filepath.EvalSymlinks(path)
+	resolvedPath, err := resolveFollowPath(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve path %s: %w", path, err)
+		return nil, err
 	}
 
 	// Callback for tests to change the filesystem after we called EvalSymlinks,
@@ -81,16 +72,54 @@ func validateAndOpenWithPrefix(path, allowedPrefix string, toctou func()) (*os.F
 		toctou()
 	}
 
-	var file *os.File
+	return validateResolvedAndOpen(resolvedPath, allowedPrefix)
+}
 
+func validateAndOpenNoFollowWithPrefix(path, allowedPrefix string) (*os.File, error) {
+	resolvedPath, err := resolveNoFollowPath(path)
+	if err != nil {
+		return nil, err
+	}
+	return validateResolvedAndOpen(resolvedPath, allowedPrefix)
+}
+
+func resolveFollowPath(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("empty file path provided")
+	}
+
+	if !filepath.IsAbs(path) {
+		return "", fmt.Errorf("relative path not allowed: %s", path)
+	}
+
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path %s: %w", path, err)
+	}
+	return resolvedPath, nil
+}
+
+func resolveNoFollowPath(path string) (string, error) {
+	if path == "" {
+		return "", errors.New("empty file path provided")
+	}
+
+	if !filepath.IsAbs(path) {
+		return "", fmt.Errorf("relative path not allowed: %s", path)
+	}
+
+	// The caller has already canonicalized no-follow paths.
+	return filepath.Clean(path), nil
+}
+
+func validateResolvedAndOpen(resolvedPath, allowedPrefix string) (*os.File, error) {
 	if !isAllowed(resolvedPath, allowedPrefix) {
 		return nil, fmt.Errorf("non-log file not allowed: %s", resolvedPath)
 	}
 
-	// We use common.OpenPathWithoutSymlinks on the resolved path to verify each
-	// component with O_NOFOLLOW to ensure that none of the path components
-	// were replaced with symlinks after we called EvalSymlinks.
-	file, err = common.OpenPathWithoutSymlinks(resolvedPath)
+	// Reject symlinks introduced after path resolution and all symlinks in
+	// no-follow mode.
+	file, err := common.OpenPathWithoutSymlinks(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open path %s: %w", resolvedPath, err)
 	}
@@ -117,4 +146,8 @@ func validateAndOpenWithPrefix(path, allowedPrefix string, toctou func()) (*os.F
 
 func validateAndOpen(path string) (*os.File, error) {
 	return validateAndOpenWithPrefix(path, "/var/log/", nil)
+}
+
+func validateAndOpenNoFollow(path string) (*os.File, error) {
+	return validateAndOpenNoFollowWithPrefix(path, "/var/log/")
 }

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    ``agent integration install --local-wheel`` now resolves the check name for
+    wheels published under the ``dd-internal-`` first-party namespace, so their
+    configuration files are copied to the right ``conf.d`` directory instead of
+    failing the install. ``agent integration freeze`` also lists them.

@@ -282,6 +282,7 @@ struct imds_event_t {
     struct cgroup_context_t cgroup;
     struct network_context_t network;
 
+    u32 credential_source;
     u8 body[IMDS_MAX_LENGTH];
 };
 
@@ -639,6 +640,10 @@ struct capabilities_event_t {
     struct go_labels_context_t go_labels;
     struct cgroup_context_t cgroup;
     struct capabilities_usage_t caps_usage;
+    // Usage is aggregated per proc_cache entry, while userspace resolves the process by pid: if it
+    // missed an fork or exec event that introduced this proc_cache entry, then the userspace cache has nothing for the pid
+    // and it might resolve to the wrong program/binary. The cookie is what lets it notice that this happens.
+    u64 cookie;
 };
 
 struct prctl_event_t {

@@ -54,6 +54,41 @@ func TestFingerprintTestSuite(t *testing.T) {
 	suite.Run(t, new(FingerprintTestSuite))
 }
 
+func TestComputeFingerprintUsesCurrentSourceOpenPolicy(t *testing.T) {
+	makeSource := func(noFollow bool) *sources.LogSource {
+		return sources.NewLogSource("", &config.LogsConfig{
+			Type:     config.FileType,
+			Path:     "fingerprint.log",
+			NoFollow: noFollow,
+		})
+	}
+
+	fileOpener := opener.NewMockFileOpener()
+	fileOpener.AddMockFile(opener.NewMockFile("fingerprint.log", [][]byte{[]byte("line\n")}))
+	fingerprinter := NewFingerprinter(types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		MaxBytes:            1024,
+	}, fileOpener)
+	file := NewFile("fingerprint.log", makeSource(false), false)
+
+	_, err := fingerprinter.ComputeFingerprint(file)
+	require.NoError(t, err)
+
+	file.Source.Replace(makeSource(true))
+	_, err = fingerprinter.ComputeFingerprint(file)
+	require.NoError(t, err)
+
+	file.Source.Replace(makeSource(false))
+	_, err = fingerprinter.ComputeFingerprint(file)
+	require.NoError(t, err)
+	require.Equal(t, []opener.LogFileOpen{
+		{Path: "fingerprint.log"},
+		{Path: "fingerprint.log", NoFollow: true},
+		{Path: "fingerprint.log"},
+	}, fileOpener.Opens())
+}
+
 func (suite *FingerprintTestSuite) createTailer() *Tailer {
 	source := sources.NewReplaceableSource(sources.NewLogSource("", &config.LogsConfig{
 		Type: config.FileType,
@@ -1580,7 +1615,7 @@ func TestLineFingerprintByteFallbackUsesNodeIOMode(t *testing.T) {
 		recoveryOpener := opener.NewMockFileOpener()
 		recoveryOpener.AddMockFile(opener.NewMockFile(path, [][]byte{content[:types.DefaultBytesCount]}))
 		recoveryFingerprinter := NewFingerprinterWithUnreliableMount(types.FingerprintConfig{}, recoveryOpener, enabled)
-		recovered, err := recoveryFingerprinter.ComputeFingerprintFromConfig(path, fingerprint.Config)
+		recovered, err := recoveryFingerprinter.ComputeFingerprintFromConfig(path, fingerprint.Config, recoveryOpener)
 		require.NoError(t, err)
 		require.True(t, fingerprint.Equals(recovered))
 		require.Equal(t, []bool{enabled && runtime.GOOS == "linux"}, recoveryOpener.OpenCalls)

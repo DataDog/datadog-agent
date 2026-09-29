@@ -12,6 +12,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // aggSuffix returns the short string representation of an aggregate.
@@ -19,32 +20,21 @@ func aggSuffix(agg observerdef.Aggregate) string {
 	return observerdef.AggregateString(agg)
 }
 
-// seriesKey returns a canonical string key for a series:
-// "namespace|name:agg|tag1,tag2,..."
-func seriesKey(namespace, nameWithAgg string, tags []string) string {
-	if len(tags) == 0 {
-		return namespace + "|" + nameWithAgg + "|"
-	}
-	sorted := make([]string, len(tags))
-	copy(sorted, tags)
-	sort.Strings(sorted)
-	return namespace + "|" + nameWithAgg + "|" + strings.Join(sorted, ",")
-}
-
-// parseSeriesKey parses a seriesKey back into its components.
+// parseSeriesKey parses a canonical series key into its components.
 // Returns ok=false if the key doesn't have the expected format.
-func parseSeriesKey(key string) (namespace, name string, tags []string, ok bool) {
-	// Format: "namespace|name:agg|tags"
-	parts := strings.SplitN(key, "|", 3)
-	if len(parts) != 3 {
-		return "", "", nil, false
+func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
+	// Format: "namespace|name:agg|host|tags"
+	parts := strings.SplitN(key, "|", 4)
+	if len(parts) != 4 {
+		return "", "", "", nil, false
 	}
 	namespace = parts[0]
 	name = parts[1]
-	if parts[2] != "" {
-		tags = strings.Split(parts[2], ",")
+	host = parts[2]
+	if parts[3] != "" {
+		tags = strings.Split(parts[3], ",")
 	}
-	return namespace, name, tags, true
+	return namespace, name, host, tags, true
 }
 
 // stateViewStorage adapts a StateView to provide compact series ID lookups and
@@ -91,10 +81,10 @@ func (s *stateViewStorage) getSeriesMeta(ref observerdef.SeriesRef) *observerdef
 	return nil
 }
 
-// compactSeriesID maps a full seriesKey to a compact numeric ID ("42:avg").
+// compactSeriesID maps a canonical series key to a compact numeric ID ("42:avg").
 // Returns the original key if not found (to match the original behavior).
 func (s *stateViewStorage) compactSeriesID(fullKey string) string {
-	namespace, nameWithAgg, tags, ok := parseSeriesKey(fullKey)
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)
 	if !ok {
 		return fullKey
 	}
@@ -110,20 +100,11 @@ func (s *stateViewStorage) compactSeriesID(fullKey string) string {
 	filter := observerdef.SeriesFilter{Namespace: namespace}
 	series := s.sv.ListSeries(filter)
 
-	// Sort tags for comparison.
-	sortedTags := make([]string, len(tags))
-	copy(sortedTags, tags)
-	sort.Strings(sortedTags)
-
 	for _, m := range series {
-		if m.Name != name {
+		if m.Name != name || m.Host != host {
 			continue
 		}
-		// Compare tags.
-		mTags := make([]string, len(m.Tags))
-		copy(mTags, m.Tags)
-		sort.Strings(mTags)
-		if tagsMatch(mTags, sortedTags) {
+		if compositeTagsMatch(m.Tags, tags) {
 			return strconv.Itoa(int(m.Ref)) + ":" + aggStr
 		}
 	}
@@ -131,14 +112,19 @@ func (s *stateViewStorage) compactSeriesID(fullKey string) string {
 	return fullKey
 }
 
-func tagsMatch(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+func compositeTagsMatch(tags tagset.CompositeTags, want []string) bool {
+	wanted := make(map[string]struct{}, len(want))
+	for _, tag := range want {
+		wanted[tag] = struct{}{}
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+	seen := make(map[string]struct{}, tags.Len())
+	matched := true
+	tags.ForEach(func(tag string) {
+		if _, found := wanted[tag]; !found {
+			matched = false
+			return
 		}
-	}
-	return true
+		seen[tag] = struct{}{}
+	})
+	return matched && len(seen) == len(wanted)
 }

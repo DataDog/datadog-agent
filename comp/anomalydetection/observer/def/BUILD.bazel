@@ -8,5 +8,8 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def",
     visibility = ["//visibility:public"],
-    deps = ["//comp/anomalydetection/severityevents/def"],
+    deps = [
+        "//comp/anomalydetection/severityevents/def",
+        "//pkg/tagset",
+    ],
 )

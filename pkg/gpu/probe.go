@@ -9,25 +9,13 @@ package gpu
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
-	"math"
-	"os"
-	"regexp"
-	"slices"
-	"sync/atomic"
-	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/uprobes"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
@@ -36,7 +24,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	usmutils "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	manager "github.com/DataDog/ebpf-manager"
+	"io"
+	"math"
+	"os"
+	"regexp"
+	"slices"
+	"sync/atomic"
+	"time"
 )
 
 // logLimitProbe is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
@@ -99,6 +97,9 @@ const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
 
 // ProbeDependencies holds the dependencies for the probe
 type ProbeDependencies struct {
+	// EBPFConfig contains the shared system-probe eBPF settings.
+	EBPFConfig *ddebpf.Config
+
 	// Telemetry is the telemetry component
 	Telemetry telemetry.Component
 
@@ -108,6 +109,9 @@ type ProbeDependencies struct {
 	// WorkloadMeta used to retrieve data about workloads (containers, processes) running
 	// on the host
 	WorkloadMeta workloadmeta.Component
+
+	// DeviceCache is the device cache used by the GPU probe
+	DeviceCache safenvml.DeviceCache
 }
 
 // Probe represents the GPU monitoring probe
@@ -145,20 +149,25 @@ func newProbeTelemetry(tm telemetry.Component) *probeTelemetry {
 // streams into per-process GPU stats.
 func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 	log.Tracef("creating GPU monitoring probe...")
-	if err := config.CheckGPUSupported(); err != nil {
+	if err := checkGPUSupported(); err != nil {
 		return nil, err
 	}
+	if deps.EBPFConfig == nil {
+		return nil, errors.New("eBPF config cannot be nil")
+	}
+	ebpfCfg := deps.EBPFConfig
 
-	if !cfg.EnableRuntimeCompiler && !cfg.EnableCORE {
+	if !ebpfCfg.EnableRuntimeCompiler && !ebpfCfg.EnableCORE {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
 	}
 
 	sysCtx, err := getSystemContext(
-		withProcRoot(cfg.ProcRoot),
+		withProcRoot(ebpfCfg.ProcRoot),
 		withWorkloadMeta(deps.WorkloadMeta),
 		withTelemetry(deps.Telemetry),
 		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
 		withConfig(cfg),
+		withDeviceCache(deps.DeviceCache),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error getting system context: %w", err)
@@ -172,10 +181,10 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		nvmlStateTelemetry: safenvml.NewNvmlStateTelemetry(deps.Telemetry),
 	}
 
-	allowRC := cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback
+	allowRC := ebpfCfg.EnableRuntimeCompiler && ebpfCfg.AllowRuntimeCompiledFallback
 	//try CO-RE first
-	if cfg.EnableCORE {
-		err = p.initCOREGPU(cfg)
+	if ebpfCfg.EnableCORE {
+		err = p.initCOREGPU(ebpfCfg)
 		if err != nil {
 			if allowRC {
 				log.Warnf("error loading CO-RE %s, falling back to runtime compiled: %v", sysconfig.GPUMonitoringModule, err)
@@ -185,18 +194,18 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		}
 	} else {
 		//if CO-RE is disabled we don't need to check the AllowRuntimeCompiledFallback config flag
-		allowRC = cfg.EnableRuntimeCompiler
+		allowRC = ebpfCfg.EnableRuntimeCompiler
 	}
 
 	//if manager is not initialized yet and RC is enabled, try runtime compilation
 	if p.m == nil && allowRC {
-		err = p.initRCGPU(cfg)
+		err = p.initRCGPU(ebpfCfg)
 		if err != nil {
 			return nil, fmt.Errorf("unable to compile %s probe: %w", sysconfig.GPUMonitoringModule, err)
 		}
 	}
 
-	attachCfg := getAttacherConfig(cfg)
+	attachCfg := getAttacherConfig(cfg, ebpfCfg)
 	p.attacher, err = uprobes.NewUprobeAttacher(consts.GpuModuleName, consts.GpuAttacherName, attachCfg, p.m, nil, uprobes.AttacherDependencies{
 		Inspector:      &uprobes.NativeBinaryInspector{},
 		ProcessMonitor: deps.ProcessMonitor,
@@ -282,8 +291,8 @@ func (p *Probe) cleanupFinished(nowKtime int64) {
 	p.streamHandlers.clean(nowKtime)
 }
 
-func (p *Probe) initRCGPU(cfg *config.Config) error {
-	buf, err := getRuntimeCompiledGPUMonitoring(cfg)
+func (p *Probe) initRCGPU(ebpfCfg *ddebpf.Config) error {
+	buf, err := getRuntimeCompiledGPUMonitoring(ebpfCfg)
 	if err != nil {
 		return err
 	}
@@ -292,8 +301,8 @@ func (p *Probe) initRCGPU(cfg *config.Config) error {
 	return p.setupManager(buf, manager.Options{})
 }
 
-func (p *Probe) initCOREGPU(cfg *config.Config) error {
-	asset := getAssetName("gpu", cfg.BPFDebug)
+func (p *Probe) initCOREGPU(ebpfCfg *ddebpf.Config) error {
+	asset := getAssetName("gpu", ebpfCfg.BPFDebug)
 	err := ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
@@ -459,14 +468,14 @@ func getCuLibraryAttacherRule() *uprobes.AttachRule {
 		},
 	}
 }
-func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
+func getAttacherConfig(cfg *config.Config, ebpfCfg *ddebpf.Config) uprobes.AttacherConfig {
 	return uprobes.AttacherConfig{
 		Rules: []*uprobes.AttachRule{
 			getCudaLibraryAttacherRule(),
 			getCuLibraryAttacherRule(),
 			getLibcAttacherRule(),
 		},
-		EbpfConfig:                     &cfg.Config,
+		EbpfConfig:                     ebpfCfg,
 		PerformInitialScan:             cfg.InitialProcessSync,
 		SharedLibsLibsets:              []sharedlibraries.Libset{sharedlibraries.LibsetGPU, sharedlibraries.LibsetLibc},
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
@@ -544,4 +553,77 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // GetDeviceCache returns the device cache used by the GPU probe.
 func (p *Probe) GetDeviceCache() safenvml.DeviceCache {
 	return p.sysCtx.deviceCache
+}
+
+// ---------------------------------------------------------------------------
+// NVML release lease
+//
+
+// NvmlReleaseLeaseTTL is the default lease duration, used when a push does
+// not carry one (3x a default check interval). The core agent sends a TTL
+// derived from its actual check interval, so the lease always tolerates a
+// few missed pushes while still self-healing: a core agent that dies
+// mid-window leaves this probe released at most one lease long.
+
+// NvmlReleaseLeaseMaxTTL is the sanity bound on pushed lease durations. It
+// must stay above the longest plausible check interval: the lease has to
+// cover the renewal cadence (3 runs), and clamping below it would let
+// system-probe re-acquire NVML mid-window. 24h bounds garbage values while
+// keeping correctness for any sane interval.
+const NvmlReleaseLeaseMaxTTL = 24 * time.Hour
+const NvmlReleaseLeaseTTL = 30 * time.Second
+
+// NvmlReleaseLease is the lease the core agent holds on this probe's NVML
+// release: system-probe is a separate process and an independent NVML client,
+// so the core agent pushes renewals over the system-probe HTTP socket while
+// the window is open, and the lease expiring (or a released=false push) ends
+// it. Every failure mode — core agent crash, check reload, socket blips —
+// just stops the renewals.
+type NvmlReleaseLease struct {
+	// deadlineNanos is the Unix-nano deadline of the current lease; 0 means
+	// no window.
+	deadlineNanos atomic.Int64
+}
+
+// Renew extends the lease by ttl from now.
+func (l *NvmlReleaseLease) Renew(ttl time.Duration) {
+	l.deadlineNanos.Store(time.Now().Add(ttl).UnixNano())
+}
+
+// Clear ends the window immediately (released=false push).
+func (l *NvmlReleaseLease) Clear() {
+	l.deadlineNanos.Store(0)
+}
+
+// Held reports whether the release lease is currently held.
+func (l *NvmlReleaseLease) Held() bool {
+	deadline := l.deadlineNanos.Load()
+	return deadline != 0 && time.Now().UnixNano() < deadline
+}
+
+// Hold renews the lease for the pushed duration, clamping implausible values:
+// non-positive to the default TTL, oversized to the max (a lease shorter than
+// its renewal cadence would expire between renewals).
+func (l *NvmlReleaseLease) Hold(ttl time.Duration) {
+	switch {
+	case ttl <= 0:
+		ttl = NvmlReleaseLeaseTTL
+	case ttl > NvmlReleaseLeaseMaxTTL:
+		ttl = NvmlReleaseLeaseMaxTTL
+	}
+	l.Renew(ttl)
+}
+
+// ReleaseForNvmlLease releases the probe's NVML (device cache, per-process
+// caches, library) — called by the module's lease monitor when the core
+// agent's release lease is held. Exported for the driver-events-only mode's
+// dispatcher in cmd/system-probe/modules.
+func (p *Probe) ReleaseForNvmlLease() {
+	p.sysCtx.releaseNVMLForReset()
+}
+
+// ReacquireForNvmlLease ends the deliberate-release state; the next device
+// cache use re-initializes NVML and re-enumerates.
+func (p *Probe) ReacquireForNvmlLease() {
+	p.sysCtx.reacquireNVML()
 }

@@ -7,7 +7,7 @@
 
 // Package flake marks an instance of [testing.TB](https://pkg.go.dev/testing#TB) as flake.
 // Use [flake.Mark] to mark a known flake test.
-// Use `skip-flake` to control the behavior, or set the environment variable `SKIP_FLAKE`.
+// Use `skip-flake` to control the behavior, or set the environment variable `GO_TEST_SKIP_FLAKE`.
 // Flags take precedence over environment variables.
 package flake
 

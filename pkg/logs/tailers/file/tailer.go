@@ -134,6 +134,7 @@ type Tailer struct {
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
+	baseFileOpener  opener.FileOpener
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -216,7 +217,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fingerprinter:                opts.Fingerprinter,
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
-		fileOpener:                   opts.FileOpener,
+		fileOpener:                   opener.ForSource(opts.FileOpener, opts.File.Source),
+		baseFileOpener:               opts.FileOpener,
 	}
 
 	if fileRotated {
@@ -257,7 +259,7 @@ func (t *Tailer) NewRotatedTailer(
 		Fingerprint:     fingerprint,
 		Fingerprinter:   fingerprinter,
 		Registry:        registry,
-		FileOpener:      t.fileOpener,
+		FileOpener:      t.baseFileOpener,
 	}
 
 	return NewTailer(options)
