@@ -444,6 +444,106 @@ func TestInfiniteBounds(t *testing.T) {
 	}
 }
 
+type histogramPoint struct {
+	counts         []uint64
+	sum            float64
+	minVal, maxVal *float64
+	startTs, ts    pcommon.Timestamp
+}
+
+func newUnboundedBucketHistogram(temporality pmetric.AggregationTemporality, hp histogramPoint) pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	m := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+	m.SetName("test")
+	m.SetEmptyHistogram().SetAggregationTemporality(temporality)
+	p := m.Histogram().DataPoints().AppendEmpty()
+	p.SetStartTimestamp(hp.startTs)
+	p.SetTimestamp(hp.ts)
+	p.ExplicitBounds().FromRaw([]float64{128, 256})
+	p.BucketCounts().FromRaw(hp.counts)
+	var count uint64
+	for _, c := range hp.counts {
+		count += c
+	}
+	p.SetCount(count)
+	p.SetSum(hp.sum)
+	if hp.minVal != nil {
+		p.SetMin(*hp.minVal)
+	}
+	if hp.maxVal != nil {
+		p.SetMax(*hp.maxVal)
+	}
+	return md
+}
+
+func TestUnboundedBucketMinMax(t *testing.T) {
+	ptr := func(f float64) *float64 { return &f }
+	// The translator clamps the extremes so they may differ from the true value.
+	// Here, when an unbounded bucket has no exact min or max, the translator uses the other extremum.
+	tests := []struct {
+		name             string
+		temporality      pmetric.AggregationTemporality
+		points           []histogramPoint
+		wantMin, wantMax float64
+	}{
+		{
+			name:        "delta, first bucket, max only",
+			temporality: pmetric.AggregationTemporalityDelta,
+			points:      []histogramPoint{{counts: []uint64{2, 0, 0}, sum: 150, maxVal: ptr(93), ts: 2e9}},
+			wantMin:     93,
+			wantMax:     93,
+		},
+		{
+			name:        "delta, first bucket, no min or max",
+			temporality: pmetric.AggregationTemporalityDelta,
+			points:      []histogramPoint{{counts: []uint64{2, 0, 0}, sum: 150, ts: 2e9}},
+			wantMin:     128,
+			wantMax:     128,
+		},
+		{
+			name:        "delta, last bucket, min only",
+			temporality: pmetric.AggregationTemporalityDelta,
+			points:      []histogramPoint{{counts: []uint64{0, 0, 2}, sum: 700, minVal: ptr(300), ts: 2e9}},
+			wantMin:     300,
+			wantMax:     300,
+		},
+		{
+			name:        "cumulative, first bucket, min unchanged",
+			temporality: pmetric.AggregationTemporalityCumulative,
+			points: []histogramPoint{
+				{counts: []uint64{1, 0, 0}, sum: 10, minVal: ptr(10), maxVal: ptr(10), startTs: 1e9, ts: 2e9},
+				{counts: []uint64{2, 0, 0}, sum: 103, minVal: ptr(10), maxVal: ptr(93), startTs: 1e9, ts: 3e9},
+			},
+			wantMin: 10,
+			wantMax: 93,
+		},
+		{
+			name:        "cumulative, last bucket, max unchanged",
+			temporality: pmetric.AggregationTemporalityCumulative,
+			points: []histogramPoint{
+				{counts: []uint64{0, 0, 1}, sum: 1000, minVal: ptr(1000), maxVal: ptr(1000), startTs: 1e9, ts: 2e9},
+				{counts: []uint64{0, 0, 2}, sum: 1300, minVal: ptr(300), maxVal: ptr(1000), startTs: 1e9, ts: 3e9},
+			},
+			wantMin: 300,
+			wantMax: 1000,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := newTranslator(t, zap.NewNop())
+			consumer := &sketchConsumer{}
+			for _, hp := range tt.points {
+				_, err := tr.MapMetrics(t.Context(), newUnboundedBucketHistogram(tt.temporality, hp), consumer, nil)
+				require.NoError(t, err)
+			}
+			require.NotNil(t, consumer.sk)
+			assert.Equal(t, tt.wantMin, consumer.sk.Basic.Min)
+			assert.Equal(t, tt.wantMax, consumer.sk.Basic.Max)
+		})
+	}
+}
+
 // fromGoExpoHisto builds a delta exponential histogram from a go-expohisto.
 // Adapted from https://github.com/open-telemetry/opentelemetry-collector-contrib/commit/a2f9e1
 func fromGoExpoHisto(name string, agg *structure.Histogram[float64], startTime, timeNow time.Time) (md pmetric.Metrics) {

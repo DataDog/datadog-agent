@@ -445,13 +445,18 @@ func (m *defaultMapper) getSketchBuckets(
 		}
 
 		// If there is at least one bucket with nonzero count,
-		// override min/max with bounds if they are not infinite.
+		// override min/max with finite bounds,
+		// or with the global min/max otherwise.
 		if minBoundSet {
 			if !math.IsInf(minBound, 0) {
 				sketch.Basic.Min = minBound
+			} else if p.HasMin() {
+				sketch.Basic.Min = p.Min()
 			}
 			if !math.IsInf(maxBound, 0) {
 				sketch.Basic.Max = maxBound
+			} else if p.HasMax() {
+				sketch.Basic.Max = p.Max()
 			}
 		}
 
@@ -469,6 +474,15 @@ func (m *defaultMapper) getSketchBuckets(
 		} else if p.HasMax() {
 			// Clamp maximum with global maximum (p.Max()) to account for sketch mapping error.
 			sketch.Basic.Max = math.Min(p.Max(), sketch.Basic.Max)
+		}
+
+		// Unbounded buckets may leave min above max; keep the extremum that is a true bound.
+		if sketch.Basic.Min > sketch.Basic.Max {
+			if p.HasMax() || (minBoundSet && !math.IsInf(maxBound, 0)) {
+				sketch.Basic.Min = sketch.Basic.Max
+			} else {
+				sketch.Basic.Max = sketch.Basic.Min
+			}
 		}
 
 		var interval int64
