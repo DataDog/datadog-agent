@@ -163,7 +163,7 @@ genrule(
         "include/rpm/rpmtag.h",
     ],
     outs = ["lib/tagtbl.C"],
-    cmd = "AWK=$(location @gawk) $(location lib/gentagtbl.sh) $(location include/rpm/rpmtag.h) > $@",
+    cmd = "AWK=$(execpath @gawk) $(execpath lib/gentagtbl.sh) $(execpath include/rpm/rpmtag.h) > $@",
     tools = [
         "lib/gentagtbl.sh",
         "@gawk",

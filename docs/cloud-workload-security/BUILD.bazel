@@ -42,21 +42,60 @@ write_source_file(
     visibility = ["//pkg/security:__pkg__"],
 )
 
-# backend_<os>.schema.json is produced by reflecting the serializer types
-# carrying that platform's build tag, so each variant only builds on its own OS.
+# backend_linux.schema.json reflects serializer types compiled into a Linux
+# generator, so it only builds on Linux.
+run_binary(
+    name = "backend_linux_schema_gen",
+    srcs = ["//pkg/security/serializers:serializers_sources"],
+    outs = ["backend_linux_schema_gen/backend_linux.schema.json"],
+    args = [
+        "-serializers-dir=pkg/security/serializers",
+        "-output=$(execpath backend_linux_schema_gen/backend_linux.schema.json)",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    tool = "//pkg/security/generators/backend_doc",
+)
+
+# Native Windows. The generator is the tool and takes only its own flags.
+run_binary(
+    name = "backend_windows_schema_gen_native",
+    srcs = ["//pkg/security/serializers:serializers_sources"],
+    outs = ["backend_windows_schema_gen_native/backend_windows.schema.json"],
+    args = [
+        "-serializers-dir=pkg/security/serializers",
+        "-output=$(execpath backend_windows_schema_gen_native/backend_windows.schema.json)",
+    ],
+    target_compatible_with = ["@platforms//os:windows"],
+    tool = "//pkg/security/generators/backend_doc",
+)
+
+# Linux hosts run the Windows cross-build under Wine. wine_run passes the
+# generator as its first argument, and is incompatible off Linux x86_64/aarch64.
+run_binary(
+    name = "backend_windows_schema_gen_wine",
+    srcs = [
+        "//pkg/security/generators/backend_doc:backend_doc_windows",
+        "//pkg/security/serializers:serializers_sources",
+    ],
+    outs = ["backend_windows_schema_gen_wine/backend_windows.schema.json"],
+    args = [
+        "$(execpath //pkg/security/generators/backend_doc:backend_doc_windows)",
+        "-serializers-dir=pkg/security/serializers",
+        "-output=$(execpath backend_windows_schema_gen_wine/backend_windows.schema.json)",
+    ],
+    tool = "//bazel/tools/wine:wine_run",
+)
+
+alias(
+    name = "backend_windows_schema_gen",
+    actual = select({
+        "@platforms//os:windows": ":backend_windows_schema_gen_native",
+        "//conditions:default": ":backend_windows_schema_gen_wine",
+    }),
+)
+
 [
     [
-        run_binary(
-            name = "backend_{}_schema_gen".format(os),
-            srcs = ["//pkg/security/serializers:serializers_sources"],
-            outs = ["backend_{0}_schema_gen/backend_{0}.schema.json".format(os)],
-            args = [
-                "-serializers-dir=pkg/security/serializers",
-                "-output=$(execpath backend_{0}_schema_gen/backend_{0}.schema.json)".format(os),
-            ],
-            target_compatible_with = ["@platforms//os:" + os],
-            tool = "//pkg/security/generators/backend_doc",
-        ),
         write_source_file(
             name = "backend_{}_schema".format(os),
             in_file = ":backend_{}_schema_gen".format(os),
