@@ -882,7 +882,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	}
 
 	apis = append(apis, apiCallInfo{
-		Name: "device_lost",
+		Name: "device_unavailable",
 		Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
 			if _, ok := device.(*ddnvml.PhysicalDevice); !ok {
 				return nil, 0, errUnsupportedDevice
@@ -896,9 +896,10 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				value = 1
 			}
 			return []Sample{&Metric{
-				Name:  "device.lost",
-				Value: value,
-				Type:  metrics.GaugeType,
+				baseSample: baseSample{tags: []string{"reason:lost"}},
+				Name:       "device.unavailable",
+				Value:      value,
+				Type:       metrics.GaugeType,
 			}}, 0, nil
 		},
 	})

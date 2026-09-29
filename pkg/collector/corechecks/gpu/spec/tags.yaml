@@ -50,6 +50,8 @@ tags:
     regex: "^(parity|secded)$"
   nvlink_port:
     regex: "^\\d+$"
+  reason:
+    regex: "^(lost)$"
   recovery_action:
     regex: "^(none|reset|reboot|drain|drain_and_reset|unknown_-?\\d+)$"
   throttle_reason:
