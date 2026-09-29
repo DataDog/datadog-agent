@@ -117,7 +117,7 @@ func NewProvider(
 					Transport:         foldspace.NewGRPCTransport(dest),
 					Sink:              sink,
 					PipelineMonitor:   metrics.NewTelemetryPipelineMonitor(),
-					InputSize:         cfg.GetInt("logs_config.message_channel_size"),
+					InputSize:         config.FoldspaceTapChannelSize(cfg),
 					PipelineDepth:     dest.PipelineDepth,
 					ConnectTimeout:    dest.ConnectTimeout,
 					ShutdownTimeout:   dest.ShutdownTimeout,
