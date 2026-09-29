@@ -6,11 +6,15 @@
 
 set -e
 
-echo "Fetching EC2 instance ID..."
-INSTANCE_ID=$(curl -s --max-time 5 http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || true)
+echo "Fetching IMDSv2 token..."
+if ! TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" --max-time 5) || [ -z "$TOKEN" ]; then
+    echo "ERROR: Could not fetch IMDSv2 token. Run this script on the EC2 host, not inside a container." >&2
+    exit 1
+fi
 
-if [ -z "$INSTANCE_ID" ]; then
-    echo "ERROR: Could not fetch EC2 instance ID. Ensure this script is run on the EC2 host, not inside a container."
+echo "Fetching EC2 instance ID..."
+if ! INSTANCE_ID=$(curl -sf "http://169.254.169.254/latest/meta-data/instance-id" -H "X-aws-ec2-metadata-token: $TOKEN" --max-time 5) || [ -z "$INSTANCE_ID" ]; then
+    echo "ERROR: Could not fetch EC2 instance ID using the IMDSv2 token." >&2
     exit 1
 fi
 

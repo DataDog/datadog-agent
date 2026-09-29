@@ -7,11 +7,7 @@
 
 package awsimds
 
-import (
-	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-)
-
-// Check is a noop on non-Linux platforms
-func Check() ([]runnerdef.IssueReport, error) {
-	return nil, nil
+// probe is a noop on non-Linux platforms.
+func probe() (bool, error) {
+	return false, nil
 }

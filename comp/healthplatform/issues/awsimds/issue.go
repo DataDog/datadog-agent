@@ -16,8 +16,7 @@ import (
 //go:embed fix-aws-imds-hop-limit.sh
 var fixScript string
 
-// imdsAddress is a var (not const) so tests can point the check at a local listener.
-var imdsAddress = "169.254.169.254:80"
+const contextKeyIMDSAddress = "imds_address"
 
 // AWSIMDSIssue provides the complete issue template for AWS IMDS hop limit problems
 type AWSIMDSIssue struct{}
@@ -29,14 +28,14 @@ func NewAWSIMDSIssue() *AWSIMDSIssue {
 
 // BuildIssue creates a complete issue with metadata and remediation
 func (t *AWSIMDSIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
-	imdsAddr := context["imds_address"]
+	imdsAddr := context[contextKeyIMDSAddress]
 	if imdsAddr == "" {
 		imdsAddr = imdsAddress
 	}
 
 	issueExtra, err := structpb.NewStruct(map[string]any{
-		"imds_address": imdsAddr,
-		"impact":       "The agent cannot determine the EC2 instance hostname, which prevents proper host-level data correlation in Datadog",
+		contextKeyIMDSAddress: imdsAddr,
+		"impact":              "The agent cannot determine the EC2 instance hostname, which prevents proper host-level data correlation in Datadog",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create issue extra: %v", err)
@@ -64,7 +63,15 @@ func (t *AWSIMDSIssue) buildRemediation() *healthplatform.Remediation {
 		Steps: []*healthplatform.RemediationStep{
 			{Order: 1, Text: "If access to 169.254.169.254 is being blocked by Kube2IAM or kiam (used to assign IAM roles to pods), update its configuration to allow the Agent to reach this endpoint."},
 			{Order: 2, Text: "RECOMMENDED: Otherwise, increase the IMDSv2 hop limit to at least 2 on the EC2 instance (run on the host, not inside the container). Note this permits other containers on the host to reach IMDS as well, which may have security implications:"},
-			{Order: 3, Text: "INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"},
+			{Order: 3, Text: `if ! TOKEN=$(curl -sf -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" --max-time 5) || [ -z "$TOKEN" ]; then
+    echo "ERROR: Could not fetch IMDSv2 token. Run this script on the EC2 host, not inside a container." >&2
+    exit 1
+fi
+
+if ! INSTANCE_ID=$(curl -sf "http://169.254.169.254/latest/meta-data/instance-id" -H "X-aws-ec2-metadata-token: $TOKEN" --max-time 5) || [ -z "$INSTANCE_ID" ]; then
+    echo "ERROR: Could not fetch EC2 instance ID using the IMDSv2 token." >&2
+    exit 1
+fi`},
 			{Order: 4, Text: "aws ec2 modify-instance-metadata-options --instance-id \"$INSTANCE_ID\" --http-put-response-hop-limit 2 --http-endpoint enabled"},
 			{Order: 5, Text: "Restart the Datadog Agent container to pick up the correct EC2 hostname."},
 			{Order: 6, Text: "ALTERNATIVE (EKS): use the hostname discovered by cloud-init instead of querying IMDS, by setting providers.eks.ec2.useHostnameFromFile to true."},

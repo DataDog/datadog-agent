@@ -10,10 +10,30 @@
 package awsimds
 
 import (
+	"context"
+	"fmt"
+	"hash/fnv"
+	"net"
+	"net/url"
+
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
+
+// imdsAddress can be overridden by tests to dial a local listener.
+var imdsAddress = func() string {
+	endpoint, err := url.Parse(ec2.TokenURL)
+	if err != nil {
+		panic(err)
+	}
+	return net.JoinHostPort(endpoint.Hostname(), "80")
+}()
 
 func init() {
 	issues.RegisterModuleFactory(NewModule)
@@ -34,13 +54,17 @@ const (
 
 // awsIMDSModule implements issues.Module
 type awsIMDSModule struct {
-	template *AWSIMDSIssue
+	template  *AWSIMDSIssue
+	hostname  hostnameinterface.Component
+	selfIdent *selfident.SelfIdent
 }
 
 // NewModule creates a new AWS IMDS hop limit issue module
-func NewModule(issues.ModuleDeps) issues.Module {
+func NewModule(deps issues.ModuleDeps) issues.Module {
 	return &awsIMDSModule{
-		template: NewAWSIMDSIssue(),
+		template:  NewAWSIMDSIssue(),
+		hostname:  deps.Hostname,
+		selfIdent: deps.SelfIdent,
 	}
 }
 
@@ -65,6 +89,34 @@ func (m *awsIMDSModule) BuiltInPeriodicHealthCheck() *runnerdef.BuiltInPeriodicH
 func (m *awsIMDSModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthCheck {
 	return &runnerdef.BuiltInHealthCheck{
 		Source: "core",
-		Fn:     Check,
+		Fn:     m.check,
 	}
+}
+
+func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
+	// Gate inside Fn so previously reported issues can still be resolved on restart.
+	if !env.IsContainerized() || !ec2.IsRunningOnFromDMI() {
+		return nil, nil
+	}
+
+	detected, err := probe()
+	if err != nil || !detected {
+		return nil, err
+	}
+	return []runnerdef.IssueReport{{
+		IssueID:   m.instanceIssueID(),
+		IssueName: IssueName,
+		Context: map[string]string{
+			contextKeyIMDSAddress: imdsAddress,
+		},
+		Tags: []string{"aws", "imds", "hop-limit", "container"},
+	}}, nil
+}
+
+// instanceIssueID scopes the issue to this agent's discriminator.
+func (m *awsIMDSModule) instanceIssueID() string {
+	h := fnv.New64a()
+	discriminator := issues.IssueDiscriminator(m.selfIdent, m.hostname.GetSafe(context.Background()))
+	fmt.Fprint(h, discriminator)
+	return fmt.Sprintf("%s:%016x", IssueID, h.Sum64())
 }

@@ -85,7 +85,7 @@ Issue packages live under `comp/healthplatform/issues/<pkgname>/`. The required 
 | `check_noop.go` | No-op stub gated behind the opposite build tag | Required when `check.go` has a build constraint |
 | `BUILD.bazel` | Bazel build definition | Yes |
 
-When `check.go` carries a build tag (e.g. `//go:build docker`), `check_noop.go` must exist with the negated tag and a stub `Check` function that returns `nil, nil`. Without it the package fails to compile on other platforms.
+When `check.go` carries a build tag (e.g. `//go:build docker`), `check_noop.go` must exist with the negated tag and a matching no-op function (for example, `probe() (bool, error)` returning `false, nil`). Without it the package fails to compile on other platforms.
 
 ### Path B (direct reporters with shared `BuildIssue`)
 
@@ -227,14 +227,7 @@ func init() {
 ```
 
 - Always in `init()`, always the only statement
-- Conditional registration inside `init()` is allowed for environment guards:
-  ```go
-  func init() {
-      if env.IsContainerized() {
-          issues.RegisterModuleFactory(NewModule)
-      }
-  }
-  ```
+- Put environment gates inside the check function so stale issues can still resolve after a restart.
 - Do **not** gate on config values inside `init()` — config is not available at init time
 
 After adding a new Path A module, blank-import its package in `bundle.go` so `init()` fires.

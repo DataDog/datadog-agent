@@ -8,108 +8,154 @@
 package awsimds
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
-// withIMDSAddress points the check at a local listener for the duration of fn,
-// restoring the real IMDS address afterwards.
-func withIMDSAddress(t *testing.T, addr string, fn func()) {
-	t.Helper()
-	original := imdsAddress
-	imdsAddress = addr
-	defer func() { imdsAddress = original }()
-	fn()
-}
-
-// withContainerMarker sets DOCKER_DD_AGENT, which env.IsContainerized() checks -
-// it's baked into the official Agent Dockerfiles, so it's set regardless of which
-// container runtime (Docker, containerd, CRI-O) actually runs the image.
-func withContainerMarker(t *testing.T, fn func()) {
+func setupCheck(t *testing.T, addr string) *awsIMDSModule {
 	t.Helper()
 	t.Setenv("DOCKER_DD_AGENT", "true")
-	fn()
-}
-
-// TestCheck_HopLimitTooLow reproduces the real-world symptom observed on AWS: the TCP
-// handshake to the IMDS endpoint always succeeds (SYN-ACK is not subject to
-// HttpPutResponseHopLimit), but the token PUT response is dropped in transit, so
-// reading it hangs until the client's timeout fires. A listener that accepts
-// connections but never writes a response simulates this precisely.
-func TestCheck_HopLimitTooLow(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer ln.Close()
-
-	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			// Accept the connection and read the request, but never respond -
-			// this is what a dropped-in-transit token response looks like.
-			go func() {
-				defer conn.Close()
-				buf := make([]byte, 1024)
-				_, _ = conn.Read(buf)
-				time.Sleep(5 * time.Second)
-			}()
-		}
-	}()
-
-	withContainerMarker(t, func() {
-		withIMDSAddress(t, ln.Addr().String(), func() {
-			original := requestTimeout
-			requestTimeout = 200 * time.Millisecond
-			defer func() { requestTimeout = original }()
-
-			issues, err := Check()
-			require.NoError(t, err)
-			require.Len(t, issues, 1)
-			assert.Equal(t, IssueID, issues[0].IssueID)
-		})
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
+	originalAddress, originalDialTimeout, originalResponseTimeout := imdsAddress, dialTimeout, responseTimeout
+	imdsAddress = addr
+	dialTimeout, responseTimeout = 200*time.Millisecond, 200*time.Millisecond
+	t.Cleanup(func() {
+		imdsAddress, dialTimeout, responseTimeout = originalAddress, originalDialTimeout, originalResponseTimeout
 	})
+	return testModule("test-host")
 }
 
-// TestCheck_IMDSReachable verifies that a normally-responding IMDS produces no issue,
-// regardless of the response status code.
-func TestCheck_IMDSReachable(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPut, r.Method)
-		assert.Equal(t, "/latest/api/token", r.URL.Path)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("fake-token"))
+func unresponsiveServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	stop := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-stop
 	}))
-	defer srv.Close()
-
-	withContainerMarker(t, func() {
-		withIMDSAddress(t, srv.Listener.Addr().String(), func() {
-			issues, err := Check()
-			require.NoError(t, err)
-			assert.Empty(t, issues)
-		})
+	t.Cleanup(func() {
+		close(stop)
+		srv.Close()
 	})
+	return srv
 }
 
-// TestCheck_NotContainerized verifies the check is a no-op outside of containers,
-// even if the (fake) IMDS endpoint would otherwise time out.
-func TestCheck_NotContainerized(t *testing.T) {
-	t.Setenv("DOCKER_DD_AGENT", "")
+func TestCheck_HopLimitTooLow(t *testing.T) {
+	srv := unresponsiveServer(t)
+	m := setupCheck(t, srv.Listener.Addr().String())
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, m.instanceIssueID(), reports[0].IssueID)
+	assert.Equal(t, IssueName, reports[0].IssueName)
+	assert.Equal(t, imdsAddress, reports[0].Context[contextKeyIMDSAddress])
+	assert.Equal(t, []string{"aws", "imds", "hop-limit", "container"}, reports[0].Tags)
+}
 
+func TestCheck_IMDSReachable(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError, http.StatusFound} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodPut, r.Method)
+				assert.Equal(t, "/latest/api/token", r.URL.Path)
+				assert.Equal(t, "21600", r.Header.Get(ec2.TokenTTLHeader))
+				w.Header().Set("Location", "http://127.0.0.1:1/unreachable")
+				w.WriteHeader(status)
+			}))
+			defer srv.Close()
+			m := setupCheck(t, srv.Listener.Addr().String())
+			reports, err := m.BuiltInStartupHealthCheck().Fn()
+			require.NoError(t, err)
+			assert.Empty(t, reports)
+		})
+	}
+}
+
+func TestCheck_ConnectionRefused(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	require.NoError(t, ln.Close())
+	m := setupCheck(t, ln.Addr().String())
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
+func TestCheck_DialTimeout(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
+	m := setupCheck(t, ln.Addr().String())
+	// An expired dial deadline deterministically exercises the connection-timeout path.
+	dialTimeout = -time.Second
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
 
-	withIMDSAddress(t, ln.Addr().String(), func() {
-		issues, err := Check()
-		require.NoError(t, err)
-		assert.Empty(t, issues)
-	})
+func TestCheck_ProxyIgnored(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://127.0.0.1:1")
+	t.Setenv("HTTPS_PROXY", "http://127.0.0.1:1")
+	t.Setenv("NO_PROXY", "")
+	t.Setenv("no_proxy", "")
+	for _, respond := range []bool{true, false} {
+		t.Run(fmt.Sprintf("respond=%t", respond), func(t *testing.T) {
+			reached := make(chan struct{}, 1)
+			stop := make(chan struct{})
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				reached <- struct{}{}
+				if respond {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				<-stop
+			}))
+			defer srv.Close()
+			defer close(stop)
+			m := setupCheck(t, srv.Listener.Addr().String())
+			reports, err := m.BuiltInStartupHealthCheck().Fn()
+			require.NoError(t, err)
+			select {
+			case <-reached:
+			default:
+				t.Fatal("probe did not reach the listener directly")
+			}
+			if respond {
+				assert.Empty(t, reports)
+			} else {
+				assert.Len(t, reports, 1)
+			}
+		})
+	}
+}
+
+func TestCheck_Gated(t *testing.T) {
+	for _, gate := range []string{"not-containerized", "not-aws"} {
+		t.Run(gate, func(t *testing.T) {
+			srv := unresponsiveServer(t)
+			m := setupCheck(t, srv.Listener.Addr().String())
+			if gate == "not-containerized" {
+				t.Setenv("DOCKER_DD_AGENT", "")
+			} else {
+				dmi.SetupMock(t, "", "", "", "not AWS")
+			}
+			check := m.BuiltInStartupHealthCheck()
+			require.NotNil(t, check)
+			reports, err := check.Fn()
+			require.NoError(t, err)
+			assert.Empty(t, reports)
+		})
+	}
 }
