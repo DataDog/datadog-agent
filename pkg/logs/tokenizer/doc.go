@@ -38,5 +38,7 @@
 //   - never renumber or remove an existing Token;
 //   - End is a sentinel and may move; no other value may.
 //
-// TestTokenOrdinalsArePinned fails if an existing value moves.
+// TestTokenOrdinalsArePinned fails if an existing value moves. Tokenizer.Contract
+// reports ProfileVersion, so consumers can check with Contract.Compatible that
+// a stored result matches what they expect.
 package tokenizer

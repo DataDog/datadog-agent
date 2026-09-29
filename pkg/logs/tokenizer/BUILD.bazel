@@ -28,6 +28,7 @@ go_library(
     name = "tokenizer",
     srcs = [
         "borrowed_tokens.go",
+        "contract.go",
         "doc.go",
         "owned_tokens.go",
         "token_tables.go",
@@ -43,6 +44,7 @@ dd_agent_go_test(
     name = "tokenizer_test",
     srcs = [
         "borrowed_tokens_test.go",
+        "contract_test.go",
         "owned_tokens_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
