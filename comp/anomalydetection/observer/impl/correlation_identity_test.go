@@ -44,28 +44,7 @@ func TestCorrelationMemberKeysPreserveOutput(t *testing.T) {
 	}
 }
 
-var correlationMembersSink []observer.SeriesDescriptor
-
-func BenchmarkCorrelationMembers(b *testing.B) {
-	for _, n := range []int{16, 128, 1024} {
-		anomalies := correlationFixture(n)
-		for _, version := range []string{"before", "after"} {
-			b.Run(fmt.Sprintf("members=%d/%s", n, version), func(b *testing.B) {
-				b.ReportAllocs()
-				for i := 0; i < b.N; i++ {
-					switch version {
-					case "before":
-						correlationMembersSink = correlationMembersBefore(anomalies)
-					case "after":
-						correlationMembersSink = sortedUniqueMembers(anomalies)
-					}
-				}
-			})
-		}
-	}
-}
-
-// Previous member sorting, retained to verify output and allocation changes.
+// Previous member sorting, retained to verify identical output.
 func correlationMembersBefore(anomalies []observer.Anomaly) []observer.SeriesDescriptor {
 	seen := make(map[string]observer.SeriesDescriptor)
 	for _, a := range anomalies {

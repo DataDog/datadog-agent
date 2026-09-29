@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Frozen pre-numeric-key scorer core, used only for differential replay and
-// before/after full-tick benchmarks. Keep its string identity and loops independent.
+// Pre-numeric-key scorer core for differential replay. Keep its string
+// identity and loops independent of the optimized implementation.
 type stringScorerReference struct {
 	config       AnomalyScorerConfig
 	pending      map[int64][]observerdef.Anomaly
@@ -142,42 +142,6 @@ func TestScorerNumericReplayParity(t *testing.T) {
 			require.Empty(t, current.windowMap)
 			require.Empty(t, current.fallbackWindowMap)
 		})
-	}
-}
-
-func BenchmarkScorerNumericKeys(b *testing.B) {
-	for _, n := range []int{100, 1000, 10000} {
-		anomalies := make([]observerdef.Anomaly, n)
-		for i := range anomalies {
-			anomalies[i] = observerdef.Anomaly{SourceRef: &observerdef.QueryHandle{Ref: observerdef.SeriesRef(100000 + i), Aggregate: observerdef.AggregateAverage}}
-		}
-		for _, numeric := range []bool{false, true} {
-			b.Run(fmt.Sprintf("series=%d/numeric=%t", n, numeric), func(b *testing.B) {
-				cfg := DefaultAnomalyScorerConfig()
-				current, previous := newAnomalyScorerBase(cfg), newStringScorerReference(cfg)
-				// Prewarm equally; each operation then advances all active series
-				// one second, including merge, expiry, bins, EWMA and bucket retention.
-				if numeric {
-					current.pending[100] = anomalies
-					current.advanceSecond(100)
-				} else {
-					previous.pending[100] = anomalies
-					previous.advanceSecond(100)
-				}
-				b.ReportAllocs()
-				b.ResetTimer()
-				for i := 0; i < b.N; i++ {
-					sec := int64(i + 101)
-					if numeric {
-						current.pending[sec] = anomalies
-						current.advanceSecond(sec)
-					} else {
-						previous.pending[sec] = anomalies
-						previous.advanceSecond(sec)
-					}
-				}
-			})
-		}
 	}
 }
 
