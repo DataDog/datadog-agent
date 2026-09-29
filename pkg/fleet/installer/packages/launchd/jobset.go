@@ -116,3 +116,20 @@ func (s JobSet) Stop(ctx context.Context, variant Variant) error {
 	}
 	return nil
 }
+
+// Pids returns the running PID of every job in the set, in the given variant, skipping jobs that
+// are not currently running rather than failing outright: a sibling that has already exited is
+// exactly what a caller watching for that condition needs to observe, not an error.
+func (s JobSet) Pids(ctx context.Context, variant Variant) ([]int, error) {
+	pids := make([]int, 0, len(s.Labels))
+	for _, label := range s.Labels {
+		status, err := s.Client.Print(ctx, label+string(variant))
+		if err != nil {
+			return nil, fmt.Errorf("could not get status for %s: %w", label+string(variant), err)
+		}
+		if status.PID != 0 {
+			pids = append(pids, status.PID)
+		}
+	}
+	return pids, nil
+}
