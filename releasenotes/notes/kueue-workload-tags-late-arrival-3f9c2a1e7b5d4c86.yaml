@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix pods managed by Kueue permanently missing the ``kueue_workload``,
+    ``kueue_workload_uid`` and ``kueue_resource_flavor`` tags when the Kueue
+    Workload was received after the pod, which could happen when the Agent
+    started. Pod and container tags are now updated when Kueue Workloads,
+    queues or ResourceFlavors are added, changed or removed.
