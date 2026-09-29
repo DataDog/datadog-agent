@@ -179,8 +179,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 		}, "test_capabilities_used_periodic_flush")
 	})
 
-	// vfs_mknod gates character devices on capable(CAP_MKNOD), the plain wrapper that always
-	// targets the initial user namespace; docker grants CAP_MKNOD so the check succeeds
+	// vfs_mknod gates character devices on capable(CAP_MKNOD) and docker grants CAP_MKNOD
 	t.Run("host-userns-capable", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			return dockerInstance.Command(syscallTester, []string{"mknod-chardev", "/tmp/cws-caps-mknod"}, []string{}).Run()
@@ -199,7 +198,7 @@ func TestCapabilitiesEvent(t *testing.T) {
 	})
 
 	// netlink_capable() reaches the same initial-namespace check without going through capable(),
-	// so it needs its own hook; an AUDIT_USER message is gated on CAP_AUDIT_WRITE, which docker grants
+	// and docker grants CAP_AUDIT_WRITE, which is checked by the AUDIT_USER netlink message
 	t.Run("host-userns-netlink-capable", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
 			return dockerInstance.Command(syscallTester, []string{"netlink-audit-user"}, []string{}).Run()

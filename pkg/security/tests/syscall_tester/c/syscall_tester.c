@@ -1817,8 +1817,7 @@ int test_acct(int argc, char **argv) {
     return err;
 }
 
-// vfs_mknod gates character devices on capable(CAP_MKNOD), which targets the initial user
-// namespace; the device cgroup may still refuse the node afterwards, the check has already run
+// vfs_mknod gates character devices on capable(CAP_MKNOD), which targets the initial user namespace
 int test_mknod_chardev(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "Please specify a path for the character device\n");
@@ -1834,9 +1833,7 @@ int test_mknod_chardev(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
-// an AUDIT_USER message reaches netlink_capable(CAP_AUDIT_WRITE), which also targets the initial
-// user namespace. AUDIT_GET would be rejected before that check because it additionally demands
-// the initial pid namespace, which a container does not have.
+// an AUDIT_USER message reaches netlink_capable(CAP_AUDIT_WRITE), which also targets the initial user namespace
 int test_netlink_audit_user(int argc, char **argv) {
     int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_AUDIT);
     if (sock < 0) {
