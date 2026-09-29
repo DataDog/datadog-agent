@@ -75,10 +75,10 @@ var (
 	pytorch19DockerImage = fmt.Sprintf("%s/pytorch/pytorch:1.9.0-cuda%s-cudnn7-runtime", dockerRegistry, oldCudaVersion)
 )
 
-// gpuSystems is a map of AMIs for different Ubuntu versions
+// gpuSystems selects AWS catalog images and runtime settings for each GPU system.
 var gpuSystems = map[systemName]systemData{
 	gpuSystemUbuntu2204: {
-		ami:                          "ami-03ee78da2beb5b622",
+		amiDescriptor:                os.NewDescriptor(os.Ubuntu, "22-04-gpu"),
 		os:                           os.Ubuntu2204,
 		cudaSanityCheckImage:         cuda12DockerImage,
 		hasAllNVMLCriticalAPIs:       true, // 22.04 has all the critical APIs
@@ -86,7 +86,7 @@ var gpuSystems = map[systemName]systemData{
 		cudaVersion:                  defaultCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver430: {
-		ami:                          "ami-0cd4aa4912d788419",
+		amiDescriptor:                os.NewDescriptor(os.Ubuntu, "18-04-gpu-driver-430"),
 		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
 		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
 		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,
@@ -94,7 +94,7 @@ var gpuSystems = map[systemName]systemData{
 		cudaVersion:                  oldCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver510: {
-		ami:                          "ami-0cbf114f88ec230fe",
+		amiDescriptor:                os.NewDescriptor(os.Ubuntu, "18-04-gpu-driver-510"),
 		cudaSanityCheckImage:         pytorch19DockerImage, // We don't have base CUDA 10 images from NVIDIA, so we use the PyTorch image
 		os:                           os.Ubuntu2004,        // We don't have explicit support for Ubuntu 18.04, but this descriptor is not super-strict
 		hasAllNVMLCriticalAPIs:       true,                 // 510 driver has all the critical APIs

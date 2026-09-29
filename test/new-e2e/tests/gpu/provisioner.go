@@ -40,8 +40,10 @@ var agentConfigStr string
 var systemProbeConfigStr string
 
 type systemData struct {
-	ami string
-	os  os.Descriptor
+	// amiDescriptor selects the image in resources/aws/platforms.json independently
+	// of the runtime OS descriptor (legacy GPU images use Ubuntu2004 compatibility).
+	amiDescriptor os.Descriptor
+	os            os.Descriptor
 
 	// cudaSanityCheckImage is a Docker image that contains a CUDA sample to
 	// validate the GPU setup with the default CUDA installation. Note that the CUDA
@@ -158,9 +160,13 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		}
 
 		// Create the EC2 instance
+		ami, err := aws.GetAMI(&params.systemData.amiDescriptor)
+		if err != nil {
+			return fmt.Errorf("resolve GPU AMI: %w", err)
+		}
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
+			ec2.WithAMI(ami, params.systemData.os, os.AMD64Arch),
 			ec2.WithUserData(ddAgentSetup),
 		)
 		if err != nil {
@@ -239,9 +245,13 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("aws.NewEnvironment: %w", err)
 		}
 
+		ami, err := aws.GetAMI(&params.systemData.amiDescriptor)
+		if err != nil {
+			return fmt.Errorf("resolve GPU AMI: %w", err)
+		}
 		host, err := ec2.NewVM(awsEnv, name,
 			ec2.WithInstanceType(params.instanceType),
-			ec2.WithAMI(params.systemData.ami, params.systemData.os, os.AMD64Arch),
+			ec2.WithAMI(ami, params.systemData.os, os.AMD64Arch),
 		)
 		if err != nil {
 			return fmt.Errorf("ec2.NewVM: %w", err)

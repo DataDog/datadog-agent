@@ -109,13 +109,18 @@ Each system has specific configuration:
 
 ```go
 gpuSystemUbuntu2204: {
-    ami:                          "ami-03ee78da2beb5b622",
+    amiDescriptor:                os.NewDescriptor(os.Ubuntu, "22-04-gpu"),
     os:                           os.Ubuntu2204,
     cudaSanityCheckImage:         "nvidia/cuda:12.6.3-base-ubuntu22.04",
     hasAllNVMLCriticalAPIs:       true,
     supportsSystemProbeComponent: true,
 }
 ```
+
+GPU AMI IDs are maintained in `test/e2e-framework/resources/aws/platforms.json`
+under Ubuntu x86_64 (`22-04-gpu`, `18-04-gpu-driver-430`, and
+`18-04-gpu-driver-510`). Both provisioners resolve `amiDescriptor` through
+`aws.GetAMI`; the separate `os` field preserves runtime compatibility settings.
 
 ## GPU Instance Type
 
