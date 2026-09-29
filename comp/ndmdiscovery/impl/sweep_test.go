@@ -530,8 +530,8 @@ func TestToDiscoveredDevices(t *testing.T) {
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1", Name: "router-1",
 		ProbeResults: []metadata.ProbeResult{
-			{Kind: kindPing, Status: statusReachable, RttMs: ms(3)},
-			{Kind: kindSNMP, Status: statusReachable, CredID: "cred-a", RttMs: ms(7)},
+			{Kind: kindPing, Status: statusOK, RttMs: ms(3)},
+			{Kind: kindSNMP, Status: statusOK, CredID: "cred-a", RttMs: ms(7)},
 		},
 	}, got[0])
 }
@@ -557,7 +557,7 @@ func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneProbe(t *testing.T)
 	assert.Equal(t, metadata.DiscoveredDeviceMetadata{
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.1",
 		ProbeResults: []metadata.ProbeResult{
-			{Kind: kindPing, Status: statusReachable, RttMs: ms(0)},
+			{Kind: kindPing, Status: statusOK, RttMs: ms(0)},
 			{Kind: kindSNMP, Status: statusUnreachable, FailureReason: "authentication_error"},
 		},
 	}, got[0])
@@ -566,7 +566,7 @@ func TestToDiscoveredDevicesReportsAddressesThatAnswerOnlyOneProbe(t *testing.T)
 		AutodiscoveryID: "ad-1", RunID: "run-1", IPAddress: "10.0.0.2", Name: "switch-1",
 		ProbeResults: []metadata.ProbeResult{
 			{Kind: kindPing, Status: statusUnreachable, FailureReason: "timeout"},
-			{Kind: kindSNMP, Status: statusReachable, CredID: "cred-a", RttMs: ms(0)},
+			{Kind: kindSNMP, Status: statusOK, CredID: "cred-a", RttMs: ms(0)},
 		},
 	}, got[1])
 }
@@ -576,7 +576,7 @@ func TestToDiscoveredDevicesSkipsAProbeThatDidNotRun(t *testing.T) {
 
 	got := toDiscoveredDevices("ad-1", "run-1", results)
 	require.Len(t, got, 1)
-	assert.Equal(t, []metadata.ProbeResult{{Kind: kindPing, Status: statusReachable, RttMs: ms(0)}}, got[0].ProbeResults,
+	assert.Equal(t, []metadata.ProbeResult{{Kind: kindPing, Status: statusOK, RttMs: ms(0)}}, got[0].ProbeResults,
 		"a probe that did not run contributes no result entry")
 }
 

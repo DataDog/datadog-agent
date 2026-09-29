@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/probe"
 )
 
-// Reachability statuses reported per address.
+// Probe statuses reported per address.
 const (
-	statusReachable   = "reachable"
+	statusOK          = "ok"
 	statusUnreachable = "unreachable"
 )
 
@@ -290,7 +290,7 @@ func toDiscoveredDevices(autodiscoveryID, runID string, results []probe.Result) 
 
 func statusString(success bool) string {
 	if success {
-		return statusReachable
+		return statusOK
 	}
 	return statusUnreachable
 }
