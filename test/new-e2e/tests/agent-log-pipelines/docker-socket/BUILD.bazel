@@ -1,0 +1,19 @@
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+dd_agent_go_test(
+    name = "docker-socket_test",
+    srcs = ["docker_socket_test.go"],
+    data = ["testdata/docker-socket-compose.yaml"],
+    embedsrcs = ["testdata/docker-socket-compose.yaml"],
+    tags = ["manual"],
+    deps = [
+        "//test/e2e-framework/components/datadog/dockeragentparams",
+        "//test/e2e-framework/scenarios/aws/ec2docker",
+        "//test/e2e-framework/testing/e2e",
+        "//test/e2e-framework/testing/environments",
+        "//test/e2e-framework/testing/provisioners/aws/docker",
+        "//test/new-e2e/tests/agent-log-pipelines/utils",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -42,12 +42,20 @@ func (d *dockerTCPSuite) TestLogsReceived() {
 	assertLogsReceived(d.T(), d.EventuallyWithT, d.Env().Agent, d.Env().Docker, d.Env().FakeIntake)
 }
 
+func (d *dockerTCPSuite) TestTagWireOrder() {
+	assertTagWireOrder(d.T(), d.EventuallyWithT, d.Env().Agent, d.Env().Docker, d.Env().FakeIntake, "tag-parity-tcp")
+}
+
 type dockerUDPSuite struct {
 	e2e.BaseSuite[environments.DockerHost]
 }
 
 func (d *dockerUDPSuite) TestLogsReceived() {
 	assertLogsReceived(d.T(), d.EventuallyWithT, d.Env().Agent, d.Env().Docker, d.Env().FakeIntake)
+}
+
+func (d *dockerUDPSuite) TestTagWireOrder() {
+	assertTagWireOrder(d.T(), d.EventuallyWithT, d.Env().Agent, d.Env().Docker, d.Env().FakeIntake, "tag-parity-udp")
 }
 
 func TestTCPListener(t *testing.T) {
@@ -117,4 +125,40 @@ func assertLogsReceived(
 
 	t.Logf("stdout:\n\n%s\n\nstderr:\n\n%s", stdout, stderr)
 	utils.CheckLogsExpected(t, fakeIntake, "test-app", "bob", []string{sourceHostTag})
+}
+
+// assertTagWireOrder pins the socket tailers' ddtags order on the wire:
+// parsing tags (source_host), then sourcecategory, then the configured tags
+// from the AD label, each exactly once. Run it against a main pipeline and a
+// branch pipeline; the same assertion must pass on both.
+func assertTagWireOrder(
+	t *testing.T,
+	eventuallyWithT func(
+		condition func(collect *assert.CollectT),
+		waitFor time.Duration,
+		tick time.Duration,
+		msgAndArgs ...interface{}) bool,
+	agent *components.DockerAgent,
+	docker *components.RemoteHostDocker,
+	fakeIntake *components.FakeIntake,
+	content string) {
+	t.Helper()
+	eventuallyWithT(func(c *assert.CollectT) {
+		assert.True(c, agent.Client.IsReady())
+	}, 1*time.Minute, 5*time.Second, "Agent was not ready")
+
+	ipAddress, _, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", "hostname", "-i")
+	require.NoError(t, err)
+	ipAddress = strings.TrimSpace(ipAddress)
+
+	stdout, stderr, err := docker.Client.ExecuteCommandStdoutStdErr("logger-app", "/usr/local/bin/send-message.sh", content)
+	require.NoError(t, err)
+	t.Logf("stdout:\n\n%s\n\nstderr:\n\n%s", stdout, stderr)
+
+	utils.CheckLogsTagsExactOrder(t, fakeIntake, "test-app", content, []string{
+		"source_host:" + ipAddress,
+		"sourcecategory:web",
+		"env:e2e",
+		"team:logs",
+	})
 }
