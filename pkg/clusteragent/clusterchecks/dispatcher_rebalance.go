@@ -401,19 +401,26 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// Partition configs by eligible runner set (cohort) and rebalance each
 	// cohort independently within its own runners. Cohorts are disjoint: a
 	// check name is claimed by at most one runner group.
+	eligibleByName := make(map[string][]string)
 	cohorts := make(map[string]map[string]*ConfigStatus)
+	cohortEligible := make(map[string][]string)
 	var cohortKeys []string
 	for digest, config := range currentConfigsDistribution.Configs {
-		if len(config.EligibleRunners) == 0 {
-			// No eligible worker (the group claiming this check is down): nothing to rebalance.
+		eligible, ok := eligibleByName[config.CheckName]
+		if !ok {
+			eligible = d.candidatesFromStore(config.CheckName)
+			eligibleByName[config.CheckName] = eligible
+		}
+		if len(eligible) == 0 {
 			log.Debugf("No eligible runner for config %s (%s), leaving it on %s", digest, config.CheckName, config.Runner)
 			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
 			continue
 		}
-		key := strings.Join(config.EligibleRunners, ",")
+		key := strings.Join(eligible, ",")
 		if _, ok := cohorts[key]; !ok {
 			cohortKeys = append(cohortKeys, key)
 			cohorts[key] = make(map[string]*ConfigStatus)
+			cohortEligible[key] = eligible
 		}
 		cohorts[key][digest] = config
 	}
@@ -421,25 +428,21 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 
 	var allMoves []types.RebalanceResponse
 	for _, key := range cohortKeys {
-		allMoves = append(allMoves, d.rebalanceCohort(force, currentConfigsDistribution, cohorts[key])...)
+		allMoves = append(allMoves, d.rebalanceCohort(force, currentConfigsDistribution, cohorts[key], cohortEligible[key])...)
 	}
 	return allMoves
 }
 
 // rebalanceCohort rebalances one cohort's configs within its eligible runner set.
-func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, cohort map[string]*ConfigStatus) []types.RebalanceResponse {
+func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, cohort map[string]*ConfigStatus, eligible []string) []types.RebalanceResponse {
 	// Seed the cohort's runners with their worker counts.
 	runners := make(map[string]int)
-	for _, config := range cohort {
-		for _, r := range config.EligibleRunners {
-			if _, ok := runners[r]; !ok {
-				workers := 0
-				if runnerStatus, found := current.Runners[r]; found {
-					workers = runnerStatus.Workers
-				}
-				runners[r] = workers
-			}
+	for _, r := range eligible {
+		workers := 0
+		if runnerStatus, found := current.Runners[r]; found {
+			workers = runnerStatus.Workers
 		}
+		runners[r] = workers
 	}
 
 	config := pkgconfigsetup.Datadog()
@@ -464,7 +467,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 		if configInfo.Pinned {
 			continue
 		}
-		proposedCohort.addToLeastBusyIn(configInfo.EligibleRunners, digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, "", false)
+		proposedCohort.addToLeastBusy(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, "", false)
 	}
 
 	minPercImprovement := config.GetInt("cluster_checks.rebalance_min_percentage_improvement")
@@ -534,10 +537,7 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 			_, excluded := d.excludedChecksFromDispatching[conf.Name]
 			pinned := excluded || workersNeeded == 0
 
-			// Compatibility declarations restrict the runners this config may be placed on.
-			eligible := d.candidatesFromStore(conf.Name)
-
-			distribution.addConfigWithEligibility(eligible, digest, conf.Name, workersNeeded, nodeName, pinned)
+			distribution.addConfig(digest, conf.Name, workersNeeded, nodeName, pinned)
 		}
 		nodeStoreInfo.RUnlock()
 	}

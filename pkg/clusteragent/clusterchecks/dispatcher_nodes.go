@@ -90,9 +90,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getNodeToScheduleCheck returns the node where a new check with the given
-// name should be scheduled. The candidate set respects the workers' advertised
-// check compatibility: see placementCandidates.
+// getNodeToScheduleCheck returns the node where a new check should be scheduled
 //
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the

@@ -17,13 +17,11 @@ import (
 // ConfigStatus is one config's entry in a distribution.
 // WorkersNeeded is summed across the config's instances.
 // Pinned configs are kept on their current runner during rebalancing.
-// EligibleRunners is the sorted set of runners the config may be placed on (compat); empty for legacy configs without compat info.
 type ConfigStatus struct {
-	WorkersNeeded   float64
-	Runner          string
-	CheckName       string
-	Pinned          bool
-	EligibleRunners []string
+	WorkersNeeded float64
+	Runner        string
+	CheckName     string
+	Pinned        bool
 }
 
 // RunnerStatus represents the status of a check runner
@@ -74,13 +72,12 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 	}
 }
 
-// leastBusyRunnerIn returns the runner with the lowest utilization among the
-// eligible runners. If eligible is nil, every runner is considered. If there are
+// leastBusyRunner returns the runner with the lowest utilization. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
 // is not among the runners with the lowest utilization, it gives precedence to
 // the runner with the lowest number of configs deployed. excludeRunner can be
 // set to avoid assigning a config to a specific runner.
-func (distribution *configsDistribution) leastBusyRunnerIn(eligible map[string]struct{}, preferredRunner string, excludeRunner string, workersNeeded float64) string {
+func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
@@ -88,11 +85,6 @@ func (distribution *configsDistribution) leastBusyRunnerIn(eligible map[string]s
 	for runnerName, runnerStatus := range distribution.Runners {
 		if runnerName == excludeRunner {
 			continue
-		}
-		if eligible != nil {
-			if _, ok := eligible[runnerName]; !ok {
-				continue
-			}
 		}
 
 		runnerUtilization := runnerStatus.utilization()
@@ -118,38 +110,20 @@ func (distribution *configsDistribution) leastBusyRunnerIn(eligible map[string]s
 	return leastBusyRunner
 }
 
+// addToLeastBusy places a config on the least busy runner of the distribution.
+// Eligibility is implied by the distribution's runner set: cohort
+// distributions only contain the cohort's eligible runners.
 func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
-	distribution.addToLeastBusyIn(nil, digest, checkName, workersNeeded, preferredRunner, excludeRunner, pinned)
-}
-
-// addToLeastBusyIn is addToLeastBusy restricted to the given eligible runners
-// (nil eligible means no restriction), so compatibility-declared runner
-// groups only receive the checks they declared. If no eligible runner is
-// available, the config is not placed and the distribution is left unchanged
-// for it.
-func (distribution *configsDistribution) addToLeastBusyIn(eligibleRunners []string, digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
-	var eligible map[string]struct{}
-	if eligibleRunners != nil {
-		eligible = make(map[string]struct{}, len(eligibleRunners))
-		for _, r := range eligibleRunners {
-			eligible[r] = struct{}{}
-		}
-	}
-	leastBusy := distribution.leastBusyRunnerIn(eligible, preferredRunner, excludeRunner, workersNeeded)
+	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner, workersNeeded)
 	if leastBusy == "" {
 		return
 	}
 
-	distribution.addConfigWithEligibility(eligibleRunners, digest, checkName, workersNeeded, leastBusy, pinned)
+	distribution.addConfig(digest, checkName, workersNeeded, leastBusy, pinned)
 }
 
 // addConfig records a config instance in the distribution.
 func (distribution *configsDistribution) addConfig(digest, checkName string, workersNeeded float64, runner string, pinned bool) {
-	distribution.addConfigWithEligibility(nil, digest, checkName, workersNeeded, runner, pinned)
-}
-
-// addConfigWithEligibility records a config instance with its eligible runner set (nil = no eligibility info, empty = no eligible worker).
-func (distribution *configsDistribution) addConfigWithEligibility(eligibleRunners []string, digest, checkName string, workersNeeded float64, runner string, pinned bool) {
 	// Initialize the runner and attribute work
 	runnerInfo, runnerExists := distribution.Runners[runner]
 	if !runnerExists {
@@ -168,7 +142,6 @@ func (distribution *configsDistribution) addConfigWithEligibility(eligibleRunner
 		}
 		distribution.Configs[digest] = configInfo
 	}
-	configInfo.EligibleRunners = eligibleRunners
 
 	// Prioritize the new assigned runner over the existing one
 	// Note: this edge case should never happen in practice
