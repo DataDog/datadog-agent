@@ -113,8 +113,8 @@ properties:
     visibility: public
     description: |-
       Identify the training job a GPU workload belongs to. The Agent reads the
-      configured pod label or annotation and attaches its value as a tag on GPU
-      metrics and traces.
+      configured pod label, annotation or environment variable and attaches its
+      value as a tag on GPU metrics.
     tags:
     - template_section:Common
     properties:

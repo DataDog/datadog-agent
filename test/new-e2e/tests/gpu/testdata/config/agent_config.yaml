@@ -2,3 +2,10 @@ log_level: DEBUG
 gpu:
   enabled: true
   use_sp_process_metrics: true
+  jobs:
+    run:
+      key: E2E_TRAINING_RUN_ID
+      type: env
+    group:
+      key: E2E_TRAINING_GROUP_ID
+      type: env
