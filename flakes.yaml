@@ -32,9 +32,6 @@ test/new-e2e/tests/containers:
 test/new-e2e/tests/sbom:
   - test: TestSBOMKindSuite/TestSBOM
 
-on-log:
-  - "panic: Expected to find a single pod" # K8s Agent Executor can be flaky with the current implementation
-
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-153
 # TODO: https://datadoghq.atlassian.net/browse/FLREM-154
 test/new-e2e/tests/agent-subcommands:
