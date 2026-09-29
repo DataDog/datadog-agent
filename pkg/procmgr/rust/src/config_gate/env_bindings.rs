@@ -314,10 +314,9 @@ mod tests {
             let path = runfiles
                 .rlocation_from(&marker, option_env!("REPOSITORY_NAME").unwrap_or(""))
                 .unwrap_or_else(|| panic!("no runfile for {marker}"));
-            return path
-                .parent()
+            path.parent()
                 .unwrap_or_else(|| panic!("{} has no parent", path.display()))
-                .to_path_buf();
+                .to_path_buf()
         }
         #[cfg(not(bazel))]
         {
