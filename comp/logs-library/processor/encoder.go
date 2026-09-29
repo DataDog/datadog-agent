@@ -19,6 +19,21 @@ type Encoder interface {
 	Encode(msg *message.Message, hostname string) error
 }
 
+// Tap receives every rendered message before it is encoded for the primary
+// destination, so a secondary destination with its own wire format can consume
+// the shared processing output.
+//
+// Tap exists because Encoder cannot express flow control: Encode returns only
+// an error, so an encoder-shaped hand-off has no way to say "wait, I am full"
+// and is forced to shed. A Tap may block, which lets a secondary destination
+// apply back-pressure like the primary one instead of losing logs.
+//
+// Implementations must not mutate msg; the primary destination's encoder
+// encodes it in place afterwards.
+type Tap interface {
+	Tap(msg *message.Message)
+}
+
 type ValidUtf8Bytes []byte
 
 func (msg ValidUtf8Bytes) MarshalText() (text []byte, err error) {
