@@ -27,7 +27,7 @@ func TestDiscoveredDeviceMetadataMarshalling(t *testing.T) {
 				IPAddress:       "10.0.0.4",
 				Name:            "router-1",
 				ProbeResults: []ProbeResult{
-					{Kind: "snmp", Status: "reachable", CredID: "cred-a"},
+					{Kind: "snmp", Status: "ok", CredID: "cred-a"},
 				},
 			},
 		},
@@ -45,7 +45,7 @@ func TestDiscoveredDeviceMetadataMarshalling(t *testing.T) {
 			"run_id": "run-1",
 			"ip_address": "10.0.0.4",
 			"name": "router-1",
-			"probe_results": [{"kind": "snmp", "status": "reachable", "cred_id": "cred-a"}]
+			"probe_results": [{"kind": "snmp", "status": "ok", "cred_id": "cred-a"}]
 		}]
 	}`, string(out))
 }
@@ -105,7 +105,7 @@ func TestDiscoveredDeviceProbeResultsMarshalling(t *testing.T) {
 				IPAddress:       "10.0.0.4",
 				Name:            "router-1",
 				ProbeResults: []ProbeResult{
-					{Kind: "ping", Status: "reachable", RttMs: &rtt},
+					{Kind: "ping", Status: "ok", RttMs: &rtt},
 					{Kind: "snmp", Status: "unreachable", FailureReason: "timeout"},
 				},
 			},
@@ -125,7 +125,7 @@ func TestDiscoveredDeviceProbeResultsMarshalling(t *testing.T) {
 			"ip_address": "10.0.0.4",
 			"name": "router-1",
 			"probe_results": [
-				{"kind": "ping", "status": "reachable", "rtt_ms": 12},
+				{"kind": "ping", "status": "ok", "rtt_ms": 12},
 				{"kind": "snmp", "status": "unreachable", "failure_reason": "timeout"}
 			]
 		}]
