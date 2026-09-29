@@ -283,17 +283,6 @@ func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) [
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool, prefixRules []metricname.PrefixRule) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics, %d prefix rules", len(metricNames), len(prefixRules))
 
-	// we will use two different filterlists:
-	// - one with all the metrics names, with all values from `metricNames` and
-	//   `prefixRules`
-	// - one with only the metric names ending with histogram aggregates suffixes
-	//
-	// A prefix (bare, or a PrefixRule with its exceptions) can match any name
-	// starting with it, including the aggregates derived from a histogram, so
-	// it always belongs in the histogram filter list too: its compiled
-	// prefixes and rules are therefore always identical to the main filter
-	// list's, and RestrictExact shares them instead of recompiling a duplicate
-	// copy.
 	filterList, droppedRules := metricname.NewMatcherWithPrefixRules(metricNames, matchPrefix, prefixRules)
 	for _, prefix := range droppedRules {
 		fl.log.Warnf("metric_filterlist_prefix: dropping entry %q: a broader prefix already matches every metric name it could ever match unconditionally, so its exceptions could never apply", prefix)
@@ -302,7 +291,7 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 
 	// Worth a warning, since it silently drops every metric.
 	if filterList.MatchesAll() {
-		fl.log.Error("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+		fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
 	}
 
 	// Report the compiled size: with prefix matching, NewMatcher compacts

@@ -16,26 +16,13 @@ import (
 // prefix rules. See `NewMatcher` and `NewMatcherWithPrefixRules` for details.
 type Matcher struct {
 	// exact contains the entries matched by equality.
-	// Invariants:
-	// - sorted and deduplicated,
-	// - no entry has an element of `prefixes` as a prefix.
 	exact []string
-	// prefixes contains the entries matched by prefix with no exceptions:
-	// entries of a whole-list-as-prefix configuration (`matchPrefix`), plus
-	// exception-free `PrefixRule` entries once their exceptions, if any, are
-	// dropped by normalization (see NewMatcherWithPrefixRules).
-	// Invariants:
-	// - sorted and deduplicated,
-	// - for all i, j such that i != j, !HasPrefix(prefixes[i], prefixes[j]).
+	// prefixes contains the entries matched by prefix with no exceptions.
 	prefixes []string
 	// rules contains prefix rules that still carry at least one exception
 	// after compaction. Unlike `prefixes`, entries here are not compacted
 	// against each other: two rules whose prefixes nest can each still
-	// independently match, because their exceptions differ. A rule whose
-	// prefix is already covered by an entry of `prefixes` is dropped instead
-	// of kept here, since `prefixes` already matches every name it could
-	// ever match unconditionally, which makes the rule's exceptions dead (see
-	// NewMatcherWithPrefixRules).
+	// independently match, because their exceptions differ.
 	rules []compiledPrefixRule
 }
 
