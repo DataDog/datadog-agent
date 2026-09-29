@@ -10,17 +10,21 @@ package libraryinjection
 import (
 	"slices"
 
+	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const minCSIKubeVersion = "v1.20"
 
 // AutoProvider implements LibraryInjectionProvider.
 // It picks the best concrete provider for a pod based on the runtime
 // environment, currently:
 //   - CSIProvider when the Datadog CSI driver is registered in the cluster
-//     with APM SSI advertised, the cluster is not OpenShift, and all images
-//     use supported registries;
+//     with APM SSI advertised, the cluster is not OpenShift, runs Kubernetes
+//     1.20 or later, and all images use supported registries;
 //   - InitContainerProvider otherwise.
 type AutoProvider struct {
 	realProvider LibraryInjectionProvider
@@ -52,12 +56,23 @@ func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
 		log.Debugf("library injection auto provider: cluster runs OpenShift, using InitContainerProvider")
 		return NewInitContainerProvider(cfg)
 	}
+	if !isCSISupported(cfg.KubeServerVersion) {
+		// Kubelet 1.19 and older create the CSI target path as a directory, so the
+		// CSI driver cannot bind-mount the preload file there.
+		log.Debugf("library injection auto provider: Kubernetes version %v is unknown or older than %s, using InitContainerProvider", cfg.KubeServerVersion, minCSIKubeVersion)
+		return NewInitContainerProvider(cfg)
+	}
 	if registry, found := firstUnsupportedCSIRegistry(cfg); found {
 		log.Debugf("library injection auto provider: registry %q requires workload image pull credentials, using InitContainerProvider", registry)
 		return NewInitContainerProvider(cfg)
 	}
 	log.Debugf("library injection auto provider: Datadog CSI driver %q is registered with APM enabled, using CSIProvider", csiDriverName)
 	return NewCSIProvider(cfg)
+}
+
+func isCSISupported(serverVersion *version.Info) bool {
+	sv, ok := normalizeKubeSemver(serverVersion)
+	return ok && semver.Compare(semver.MajorMinor(sv), minCSIKubeVersion) >= 0
 }
 
 func firstUnsupportedCSIRegistry(cfg LibraryInjectionConfig) (string, bool) {

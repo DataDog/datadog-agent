@@ -73,6 +73,7 @@ func TestGetName(t *testing.T) {
 				Injector:          injectorConfig(),
 				CSIAutoRegistries: defaultCSIAutoRegistries,
 				CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+				KubeServerVersion: csiKubeVersion,
 			}),
 			expected: "csi (auto)",
 		},
@@ -169,6 +170,7 @@ func TestInjectAPMLibraries_Annotations_Auto_CSI(t *testing.T) {
 		InjectionMode:     string(libraryinjection.InjectionModeAuto),
 		CSIAutoRegistries: defaultCSIAutoRegistries,
 		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+		KubeServerVersion: csiKubeVersion,
 		Injector:          injectorConfig(),
 		Libraries:         []libraryinjection.LibraryConfig{javaLib()},
 	})

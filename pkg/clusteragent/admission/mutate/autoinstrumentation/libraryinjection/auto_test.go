@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 )
@@ -21,6 +22,8 @@ import (
 const datadogCSIDriverName = "k8s.csi.datadoghq.com"
 
 var defaultCSIAutoRegistries = []string{"gcr.io/datadoghq", "public.ecr.aws/datadog"}
+
+var csiKubeVersion = &version.Info{GitVersion: "v1.30.9"}
 
 // fakeCSIDriverWatcher is a deterministic CSIDriverWatcher implementation
 // used in unit tests so we can drive the AutoProvider decision tree without
@@ -68,6 +71,7 @@ func TestAutoProvider_PicksCSIWhenWatcherReportsAPMEnabled(t *testing.T) {
 		Injector:          injectorConfig(),
 		CSIAutoRegistries: defaultCSIAutoRegistries,
 		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+		KubeServerVersion: csiKubeVersion,
 	})
 
 	result := provider.InjectInjector(pod, injectorConfig())
@@ -132,6 +136,7 @@ func TestAutoProvider_RegistrySelection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.cfg.CSIDriverWatcher = fakeCSIDriverWatcher{registered: true, apmEnabled: true}
+			tt.cfg.KubeServerVersion = csiKubeVersion
 			require.Equal(t, tt.wantMode, libraryinjection.NewAutoProvider(tt.cfg).GetName())
 		})
 	}
@@ -180,6 +185,7 @@ func TestAutoProvider_FallsBackToInitContainerOnOpenShift(t *testing.T) {
 		Injector:          injectorConfig(),
 		CSIAutoRegistries: defaultCSIAutoRegistries,
 		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+		KubeServerVersion: csiKubeVersion,
 		IsOpenShift:       true,
 	})
 
@@ -189,4 +195,30 @@ func TestAutoProvider_FallsBackToInitContainerOnOpenShift(t *testing.T) {
 	vol := findInstrumentationVolume(t, pod)
 	assert.Nil(t, vol.CSI, "on OpenShift, AutoProvider must not produce CSI volumes")
 	assert.NotNil(t, vol.EmptyDir, "on OpenShift, AutoProvider must fall back to an EmptyDir volume")
+}
+
+func TestAutoProvider_KubernetesVersion(t *testing.T) {
+	tests := []struct {
+		name          string
+		serverVersion *version.Info
+		wantMode      string
+	}{
+		{"uses csi on 1.20", &version.Info{GitVersion: "v1.20.0"}, "csi (auto)"},
+		{"uses csi on a 1.20 GKE version", &version.Info{GitVersion: "v1.20.0-gke.1"}, "csi (auto)"},
+		{"falls back on 1.19", &version.Info{GitVersion: "v1.19.16"}, "init_container (auto)"},
+		{"falls back on a 1.19 EKS version", &version.Info{GitVersion: "v1.19.16-eks-abc"}, "init_container (auto)"},
+		{"falls back when the version is unknown", nil, "init_container (auto)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
+				Injector:          injectorConfig(),
+				CSIAutoRegistries: defaultCSIAutoRegistries,
+				CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+				KubeServerVersion: tt.serverVersion,
+			})
+			require.Equal(t, tt.wantMode, provider.GetName())
+		})
+	}
 }

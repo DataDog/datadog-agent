@@ -92,7 +92,7 @@ type LibraryInjectionConfig struct {
 	Wmeta workloadmeta.Component
 
 	// KubeServerVersion is the Kubernetes API server version.
-	// Used for gating features that depend on cluster version support (e.g. image volumes).
+	// Used for gating features that depend on cluster version support (e.g. image volumes, CSI in auto mode).
 	KubeServerVersion *version.Info
 
 	// IsOpenShift is true when the cluster runs OpenShift.
