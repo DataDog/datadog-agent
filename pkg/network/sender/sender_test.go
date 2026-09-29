@@ -8,10 +8,13 @@
 package sender
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
@@ -586,4 +589,87 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	connMissing := cc.Connections[1]
 	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
+}
+
+// blockingConnectionSource holds a collection open until it is released.
+type blockingConnectionSource struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (f *blockingConnectionSource) RegisterClient(_ string) error { return nil }
+func (f *blockingConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	close(f.entered)
+	<-f.release
+	return nil, nil, errors.New("collection released")
+}
+func (f *blockingConnectionSource) GetProcessCacheTags() map[uint32][]string { return nil }
+
+func TestStopWaitsForInFlightCollection(t *testing.T) {
+	d := mockDirectSender(t, nil)
+	source := &blockingConnectionSource{entered: make(chan struct{}), release: make(chan struct{})}
+	d.tracer = source
+
+	// Drive the collection loop by hand instead of waiting on the real ticker.
+	tick := make(chan time.Time)
+	d.collectWG.Add(1)
+	go d.collectLoop(tick)
+
+	tick <- time.Now()
+	<-source.entered
+
+	stopped := make(chan struct{})
+	go func() {
+		d.Stop()
+		close(stopped)
+	}()
+
+	// Stop cancels the context before it waits, so a cancelled context proves
+	// Stop is running rather than merely not scheduled yet.
+	require.Eventually(t, func() bool { return d.ctx.Err() != nil }, 10*time.Second, time.Millisecond)
+
+	select {
+	case <-stopped:
+		t.Fatal("Stop returned while a collection was still in flight")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	close(source.release)
+
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop did not return once the collection finished")
+	}
+}
+
+// countingConnectionSource records how many collections were started.
+type countingConnectionSource struct {
+	calls atomic.Int32
+}
+
+func (f *countingConnectionSource) RegisterClient(_ string) error { return nil }
+func (f *countingConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	f.calls.Add(1)
+	return nil, nil, errors.New("no connections")
+}
+func (f *countingConnectionSource) GetProcessCacheTags() map[uint32][]string { return nil }
+
+func TestCollectLoopIgnoresPendingTickAfterCancel(t *testing.T) {
+	d := mockDirectSender(t, nil)
+	source := &countingConnectionSource{}
+	d.tracer = source
+	d.cancelFunc()
+
+	// A pending tick and a cancelled context are both ready, and select picks
+	// a ready case at random, so repeat often enough that a loop missing the
+	// cancellation check would collect at least once.
+	for i := 0; i < 100; i++ {
+		tick := make(chan time.Time, 1)
+		tick <- time.Now()
+		d.collectWG.Add(1)
+		d.collectLoop(tick)
+	}
+
+	require.Zero(t, source.calls.Load(), "collectLoop collected after the context was cancelled")
 }

@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    On Windows, fixed a crash of ``system-probe`` when the service is stopped
+    while Network Performance Monitoring is collecting connections. The
+    collection could outlive the shutdown of the HTTP monitoring interface and
+    send on a closed channel, terminating the process before the ``ddnpm`` and
+    ``ddprocmon`` drivers were stopped.
+  - |
+    On Windows, fixed a deadlock that could prevent ``system-probe`` from
+    stopping when Universal Service Monitoring is enabled. Shutting down the
+    driver interface could leave the ETW reader blocked, so the service stop
+    never completed and the service was killed once its stop timeout expired.

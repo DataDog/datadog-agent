@@ -95,20 +95,28 @@ func (m *WindowsMonitor) Start() {
 	m.eventLoopWG.Add(1)
 	go func() {
 		defer m.eventLoopWG.Done()
-		for {
+		// Keep draining until both producers are done. Stop closes them one at
+		// a time, and a producer that is blocked on a send it cannot complete
+		// never returns, which would deadlock Stop.
+		driverChannel := m.di.DataChannel
+		etwChannel := m.hei.DataChannel
+		for driverChannel != nil || etwChannel != nil {
 			select {
-			case transactionBatch, ok := <-m.di.DataChannel:
+			case transactionBatch, ok := <-driverChannel:
 				if !ok {
-					return
+					// A nil channel blocks forever, disabling this case.
+					driverChannel = nil
+					continue
 				}
 				// dbtodo
 				// the linux side has an error code potentially, that
 				// gets aggregated under the hood.  Do we need somthing
 				// analogous
 				m.process(transactionBatch)
-			case transactions, ok := <-m.hei.DataChannel:
+			case transactions, ok := <-etwChannel:
 				if !ok {
-					return
+					etwChannel = nil
+					continue
 				}
 				// dbtodo
 				// the linux side has an error code potentially, that

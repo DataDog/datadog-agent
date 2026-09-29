@@ -126,6 +126,12 @@ func (di *HttpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 func (di *HttpDriverInterface) ReadAllPendingTransactions() {
 	di.readMux.Lock()
 	defer di.readMux.Unlock()
+	if di.closed {
+		// DataChannel is closed, or about to be: sending would panic. This is
+		// reachable because GetHTTPStats reads pending transactions on behalf
+		// of a client, concurrently with the monitor shutting down.
+		return
+	}
 	count := int(0)
 	for {
 		txns, err := di.readPendingTransactions()
@@ -152,12 +158,18 @@ func (di *HttpDriverInterface) StartReadingBuffers() {
 
 		for {
 			_, _ = windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
-			if di.closed {
+			if di.isClosed() {
 				break
 			}
 			di.ReadAllPendingTransactions()
 		}
 	}()
+}
+
+func (di *HttpDriverInterface) isClosed() bool {
+	di.readMux.Lock()
+	defer di.readMux.Unlock()
+	return di.closed
 }
 
 // func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
@@ -193,7 +205,13 @@ func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, 
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (di *HttpDriverInterface) Close() error {
+	// Taking readMux makes any reader that is already sending on DataChannel
+	// finish first, and stops later readers from sending at all, so the close
+	// below cannot race with a send.
+	di.readMux.Lock()
 	di.closed = true
+	di.readMux.Unlock()
+
 	windows.SetEvent(di.driverEventHandle)
 	di.eventLoopWG.Wait()
 	windows.CloseHandle(di.driverEventHandle)
