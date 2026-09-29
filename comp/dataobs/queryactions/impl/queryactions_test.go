@@ -343,3 +343,47 @@ func TestStream_NoPanicAfterContextCancel(t *testing.T) {
 		)
 	})
 }
+
+func TestStream_ChannelReplace_KeepsScheduleOfUnchangedConfig(t *testing.T) {
+	postgresCfg := integration.Config{
+		Name: "postgres",
+		Instances: []integration.Data{
+			integration.Data("host: db-a.internal\ndbname: db-a\ndata_observability:\n  enabled: true\n"),
+			integration.Data("host: db-b.internal\ndbname: db-b\ndata_observability:\n  enabled: true\n"),
+		},
+	}
+	c, rc := newStreamComponent(t, []integration.Config{postgresCfg})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	outCh := c.Stream(ctx)
+	<-outCh // drain initial empty
+
+	triggerRC := waitSubscribe(t, rc)
+	noStatus := func(string, state.ApplyStatus) {}
+
+	// Update 1 schedules cfg-A and stays unread. Update 2 adds cfg-B and leaves cfg-A unchanged,
+	// so onRCUpdate emits nothing for cfg-A: its schedule must survive the replacement.
+	payloadA := buildPayloadJSON(t, "cfg-A", "db-a.internal", singleQuery)
+	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: payloadA}}, noStatus)
+	payloadB := buildPayloadJSON(t, "cfg-B", "db-b.internal", singleQuery)
+	triggerRC(map[string]state.RawConfig{"path/cfg-A": {Config: payloadA}, "path/cfg-B": {Config: payloadB}}, noStatus)
+
+	select {
+	case changes := <-outCh:
+		scheduledDigests := make(map[string]bool, len(changes.Schedule))
+		for _, cfg := range changes.Schedule {
+			scheduledDigests[cfg.Digest()] = true
+		}
+		c.activeConfigsMu.Lock()
+		defer c.activeConfigsMu.Unlock()
+		for _, configID := range []string{"cfg-A", "cfg-B"} {
+			require.Contains(t, c.activeConfigs, configID)
+			checkConfig := c.activeConfigs[configID].checkConfig
+			assert.True(t, scheduledDigests[checkConfig.Digest()], "%s must be scheduled", configID)
+		}
+		assert.False(t, scheduledDigests[postgresCfg.Digest()], "the replaced base must not be scheduled")
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for merged ConfigChanges")
+	}
+}
