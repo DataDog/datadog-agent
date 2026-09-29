@@ -64,6 +64,18 @@ func TestNewModule_RegistrationGate(t *testing.T) {
 	})
 }
 
+// TestCheck_CloudProviderDisabled verifies the probe is skipped when AWS metadata collection is disabled.
+func TestCheck_CloudProviderDisabled(t *testing.T) {
+	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname("h"))
+	cfg := configmock.New(t)
+	cfg.SetInTest("cloud_provider_metadata", []string{"gcp"})
+	m := newModule(issues.ModuleDeps{Hostname: hn, Config: cfg})
+
+	reports, err := m.check()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
 // TestBuildIssue_SeverityByHostnameConfig verifies severity drops to medium once a hostname is configured.
 func TestBuildIssue_SeverityByHostnameConfig(t *testing.T) {
 	tmpl := NewAWSIMDSIssue()

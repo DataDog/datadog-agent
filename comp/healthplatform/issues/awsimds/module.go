@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
@@ -96,6 +97,11 @@ func (m *awsIMDSModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthChec
 }
 
 func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
+	// Skip when AWS metadata collection is intentionally disabled, so we don't nag to re-enable it.
+	if m.cfg != nil && !configutils.IsCloudProviderEnabled(ec2.CloudProviderName, m.cfg) {
+		return nil, nil
+	}
+
 	// Environment is gated at registration; a clean probe here resolves any stored issue.
 	detected, err := probe()
 	if err != nil || !detected {

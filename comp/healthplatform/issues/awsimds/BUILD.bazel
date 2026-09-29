@@ -20,6 +20,7 @@ go_library(
         "//comp/healthplatform/issues",
         "//comp/healthplatform/runner/def",
         "//pkg/config/env",
+        "//pkg/config/utils",
         "//pkg/util/ec2",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",

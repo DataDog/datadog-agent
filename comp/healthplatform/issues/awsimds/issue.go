@@ -36,18 +36,15 @@ func (t *AWSIMDSIssue) BuildIssue(context map[string]string) (*healthplatform.Is
 		imdsAddr = imdsAddress
 	}
 
-	// A configured hostname keeps hostname resolution working, but tags/credentials/metadata stay degraded.
-	hostnameConfigured := context[contextKeyHostnameConfigured] == "true"
+	// A configured hostname keeps hostname resolution working, so only downgrade severity; the rest stays degraded.
 	severity := healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH
-	impact := "The agent cannot retrieve EC2 instance metadata (hostname, host aliases, instance tags, IAM role credentials, and instance/network metadata), degrading host identification and cloud tagging across metrics, logs, and traces."
-	if hostnameConfigured {
+	if context[contextKeyHostnameConfigured] == "true" {
 		severity = healthplatform.IssueSeverity_ISSUE_SEVERITY_MEDIUM
-		impact = "DD_HOSTNAME is set so the hostname is resolved, but the agent still cannot retrieve EC2 host aliases, instance tags, IAM role credentials, and instance/network metadata, degrading cloud tagging across metrics, logs, and traces."
 	}
 
 	issueExtra, err := structpb.NewStruct(map[string]any{
 		contextKeyIMDSAddress: imdsAddr,
-		"impact":              impact,
+		"impact":              "The agent cannot reach IMDS, so EC2 host identification and cloud tagging (hostname, host aliases, instance tags, IAM role credentials, and instance/network metadata) are degraded across metrics, logs, and traces.",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create issue extra: %v", err)
@@ -91,9 +88,9 @@ if ! REGION=$(curl -sf "http://169.254.169.254/latest/meta-data/placement/region
 fi`},
 			{Order: 4, Text: "aws ec2 modify-instance-metadata-options --region \"$REGION\" --instance-id \"$INSTANCE_ID\" --http-put-response-hop-limit 2 --http-endpoint enabled"},
 			{Order: 5, Text: "Restart the Datadog Agent container so it can reach IMDS and pick up the EC2 hostname, tags, and metadata."},
-			{Order: 6, Text: "PARTIAL (hostname only): the following options restore the hostname but do NOT recover EC2 instance tags, IAM role credentials, or other IMDS metadata, which still require IMDS reachability."},
-			{Order: 7, Text: "PARTIAL (EKS): use the hostname discovered by cloud-init instead of querying IMDS, by setting providers.eks.ec2.useHostnameFromFile to true."},
-			{Order: 8, Text: "PARTIAL: run the Agent in the host's UTS namespace so it sees the host's real hostname, by setting agents.useHostNetwork to true."},
+			{Order: 6, Text: "ALTERNATIVE (full fix): run the Agent in the host's network namespace by setting agents.useHostNetwork to true. This removes the extra network hop to IMDS, restoring full metadata and credential access, not just the hostname."},
+			{Order: 7, Text: "PARTIAL (hostname only): the following options restore the hostname but do NOT recover EC2 instance tags, IAM role credentials, or other IMDS metadata, which still require IMDS reachability."},
+			{Order: 8, Text: "PARTIAL (EKS): use the hostname discovered by cloud-init instead of querying IMDS, by setting providers.eks.ec2.useHostnameFromFile to true."},
 			{Order: 9, Text: "PARTIAL: set DD_HOSTNAME explicitly in the container to bypass IMDS for hostname resolution, e.g. via the Kubernetes Downward API:\n  env:\n    - name: DD_HOSTNAME\n      valueFrom:\n        fieldRef:\n          fieldPath: spec.nodeName"},
 			{Order: 10, Text: "PARTIAL: for Agent 7.42+, trust the in-container UTS hostname by setting DD_HOSTNAME_TRUST_UTS_NAMESPACE=true (only use if the container hostname is meaningful)."},
 		},
