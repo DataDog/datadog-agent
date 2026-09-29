@@ -6,7 +6,7 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
@@ -180,9 +180,24 @@ func (l *LogsConfigKeys) foldspaceEnabled() bool {
 	return l.getConfig().GetBool(l.getConfigKey("foldspace.enabled"))
 }
 
+func (l *LogsConfigKeys) foldspaceTapChannelSize() int {
+	if size := l.getConfig().GetInt(l.getConfigKey("foldspace.tap_channel_size")); size > 0 {
+		return size
+	}
+	return l.getConfig().GetInt(l.getConfigKey("message_channel_size"))
+}
+
 // FoldspaceEnabled reports logs_config.foldspace.enabled.
 func FoldspaceEnabled(coreConfig pkgconfigmodel.Reader) bool {
 	return defaultLogsConfigKeys(coreConfig).foldspaceEnabled()
+}
+
+// FoldspaceTapChannelSize reports logs_config.foldspace.tap_channel_size,
+// falling back to logs_config.message_channel_size when unset. The ingest buffer
+// is a foldspace concern: it decides how far foldspace may drift from the primary
+// destination before the two paths start affecting each other.
+func FoldspaceTapChannelSize(coreConfig pkgconfigmodel.Reader) int {
+	return defaultLogsConfigKeys(coreConfig).foldspaceTapChannelSize()
 }
 
 // ValidateFoldspace returns a startup error when foldspace is requested with
@@ -193,10 +208,10 @@ func ValidateFoldspace(coreConfig pkgconfigmodel.Reader) error {
 		return nil
 	}
 	if keys.isForceTCPUse() {
-		return fmt.Errorf("logs_config.foldspace.enabled is incompatible with logs_config.use_tcp / force_use_tcp")
+		return errors.New("logs_config.foldspace.enabled is incompatible with logs_config.use_tcp / force_use_tcp")
 	}
 	if keys.isSocks5ProxySet() {
-		return fmt.Errorf("logs_config.foldspace.enabled is incompatible with logs_config.socks5_proxy_address")
+		return errors.New("logs_config.foldspace.enabled is incompatible with logs_config.socks5_proxy_address")
 	}
 	return nil
 }
