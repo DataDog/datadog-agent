@@ -437,9 +437,56 @@ core,github.com/acobaugh/osrelease,BSD-3-Clause,Copyright 2017 Andrew Cobaugh
 core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
+core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
+core,github.com/andybalholm/brotli/matchfinder,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
 core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antlr4-go/antlr/v4,BSD-3-Clause,Copyright (c) 2012-2023 The ANTLR Project. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/array,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/arrio,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/bitutil,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/compute,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/compute/exec,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/compute/internal/kernels,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/decimal,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/decimal128,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/decimal256,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/encoded,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/endian,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/extensions,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/flight,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/flight/gen/flight,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/float16,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal/debug,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal/dictutils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/internal/flatbuf,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/ipc,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/memory,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/memory/internal/cgoalloc,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/memory/mallocator,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/arrow/scalar,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/bitutils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/hashing,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/json,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/utils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/internal/utils/maphash,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/compress,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/file,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/bmi,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/debug,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/encoding,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/encoding/streaming,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/encryption,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/gen-go/parquet,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/thrift,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/internal/utils,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/metadata,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/pqarrow,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/schema,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
+core,github.com/apache/arrow-go/v18/parquet/variant,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/apache/thrift/lib/go/thrift,Apache-2.0,"Copyright (C) 2006 - 2019, The Apache Software Foundation | Copyright (c) 2006- Facebook | Copyright (c) 2006-2008 Alexander Chemeris | Copyright (c) 2007 Thomas Porschberg <thomas@randspringer.de> | Copyright (c) 2008- Patrick Collison <patrick@collison.ie> | Copyright 2007 by Nathan C. Myers <ncm@cantrip.org>; some rights reserved | Copyright 2012 Twitter, Inc | copyright claimed)"
 core,github.com/aptly-dev/aptly/aptly,MIT,Copyright 2013-2015 aptly authors. All rights reserved.
 core,github.com/aptly-dev/aptly/database,MIT,Copyright 2013-2015 aptly authors. All rights reserved.
@@ -1317,6 +1364,7 @@ core,github.com/google/cel-go/interpreter,Apache-2.0,Copyright (c) 2018 The Go A
 core,github.com/google/cel-go/interpreter/functions,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/parser,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/google/cel-go/parser/gen,Apache-2.0,Copyright (c) 2018 The Go Authors. All rights reserved
+core,github.com/google/flatbuffers/go,Apache-2.0,Copyright (c) 2014 Google
 core,github.com/google/gnostic-models/compiler,Apache-2.0,"Copyright 2017-2022, Google LLC."
 core,github.com/google/gnostic-models/extensions,Apache-2.0,"Copyright 2017-2022, Google LLC"
 core,github.com/google/gnostic-models/jsonschema,Apache-2.0,"Copyright 2017-2022, Google LLC"
