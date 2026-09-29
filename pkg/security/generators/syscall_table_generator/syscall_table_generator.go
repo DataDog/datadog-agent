@@ -304,7 +304,13 @@ func generateStringer(stringerBin, inputPath, outputPath string) error {
 		// basename (it only special-cases the equals form).
 		cmd = exec.Command(stringerBin, "-type", "Syscall", "-tags", "linux", "-output="+absOut, tmp)
 	} else {
-		cmd = exec.Command("go", "run", "golang.org/x/tools/cmd/stringer", "-type", "Syscall", "-tags", "linux", "-output="+absOut, tmp)
+		// File arg: -tags is directory-only, and a temp dir is outside the module.
+		cmd = exec.Command(
+			"go", "run", "golang.org/x/tools/cmd/stringer",
+			"-type", "Syscall",
+			"-output="+absOut,
+			filepath.Join(tmp, "syscalls.go"),
+		)
 	}
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
