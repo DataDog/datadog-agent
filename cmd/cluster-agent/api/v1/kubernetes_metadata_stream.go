@@ -165,7 +165,6 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 		tracer.ResourceName("sendFullState"),
 		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 		tracer.Tag("node_name", nodeName),
-		tracer.Tag("mapping_count", len(initialResp.Mappings)),
 	)
 	if err := grpc.DoWithTimeout(func() error {
 		return stream.Send(initialResp)

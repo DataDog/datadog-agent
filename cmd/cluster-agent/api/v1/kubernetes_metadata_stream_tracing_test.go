@@ -106,7 +106,6 @@ func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {
 	require.NotNil(t, fullStateSpan, "expected send_full_state span to be created")
 	assert.Equal(t, "sendFullState", fullStateSpan.Tag("resource.name"))
 	assert.Equal(t, "test-node", fullStateSpan.Tag("node_name"))
-	assert.EqualValues(t, 0, fullStateSpan.Tag("mapping_count"))
 	assert.Nil(t, fullStateSpan.Tag("error.message"))
 	assert.Len(t, spans, 1, "only send_full_state is traced on the initial send")
 }

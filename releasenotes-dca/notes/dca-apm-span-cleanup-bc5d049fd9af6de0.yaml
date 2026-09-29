@@ -9,5 +9,4 @@
 enhancements:
   - |
     Reduce the Cluster Agent's APM self-tracing volume by no longer emitting a
-    ``sendDiff`` span for each metadata stream diff sent to a node agent. The
-    ``sendFullState`` span is kept and now includes a ``mapping_count`` tag.
+    ``sendDiff`` span for each metadata stream diff sent to a node agent.
