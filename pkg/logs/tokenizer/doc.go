@@ -23,8 +23,10 @@
 //
 // Tokenize returns slices the caller owns and may keep. TokenizeBorrowed
 // returns a BorrowedTokens view over the Tokenizer's buffers; it is valid only
-// until the next call on the same Tokenizer. Copy it (Clone or Retained)
-// before keeping it past that point.
+// until the next call on the same Tokenizer. Copy it (Clone, Retained or Own)
+// before keeping it past that point. Own returns an OwnedTokens: an immutable
+// copy of the tokens and their start offsets that may be shared between
+// goroutines.
 //
 // # Token values are append-only
 //

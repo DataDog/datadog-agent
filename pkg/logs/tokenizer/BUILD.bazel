@@ -29,6 +29,7 @@ go_library(
     srcs = [
         "borrowed_tokens.go",
         "doc.go",
+        "owned_tokens.go",
         "token_tables.go",
         "token_tables_gen.go",
         "tokenizer.go",
@@ -42,10 +43,14 @@ dd_agent_go_test(
     name = "tokenizer_test",
     srcs = [
         "borrowed_tokens_test.go",
+        "owned_tokens_test.go",
         "tokenizer_benchmark_test.go",
         "tokenizer_test.go",
         "tokens_test.go",
     ],
     embed = [":tokenizer"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
