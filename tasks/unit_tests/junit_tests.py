@@ -64,11 +64,36 @@ class TestGroupPerTag(unittest.TestCase):
         test_dir = Path("./tasks/unit_tests/testdata/to_group")
         grouped = junit.group_per_tags(test_dir, [])
         self.assertIn("default", grouped)
-        self.assertCountEqual([f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball"], grouped["default"])
+        self.assertCountEqual(
+            [f"{str(test_dir)}/onepiece", f"{str(test_dir)}/dragonball", f"{str(test_dir)}/gintama"],
+            grouped["default"],
+        )
         self.assertIn("e2e", grouped)
-        self.assertEqual([f"{str(test_dir)}/naruto"], grouped["e2e"])
+        self.assertCountEqual([f"{str(test_dir)}/naruto", f"{str(test_dir)}/bleach"], grouped["e2e"])
         self.assertNotIn("kitchen", grouped)
         self.assertNotIn("kitchen-e2e", grouped)
+
+
+class TestIsE2EInternalFailure(unittest.TestCase):
+    def test_e2e_internal_error_string(self):
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/naruto")
+        self.assertTrue(junit.is_e2e_internal_failure(xml_file))
+
+    def test_fakeintake_timeout(self):
+        # Verbatim from the WINA-3079 job log: a fakeintake control endpoint that timed out
+        # at the network level, matched on its route prefix.
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/bleach")
+        self.assertTrue(junit.is_e2e_internal_failure(xml_file))
+
+    def test_unrelated_timeout_is_not_flagged(self):
+        # Same dial timeout, but on a non-fakeintake route: it may be a genuine
+        # product/networking regression, so it must not be swept in as an infra flake.
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/gintama")
+        self.assertFalse(junit.is_e2e_internal_failure(xml_file))
+
+    def test_no_failure(self):
+        xml_file = Path("./tasks/unit_tests/testdata/to_group/dragonball")
+        self.assertFalse(junit.is_e2e_internal_failure(xml_file))
 
 
 class TestSetTag(unittest.TestCase):
