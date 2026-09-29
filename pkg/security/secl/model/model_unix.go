@@ -107,17 +107,17 @@ type Event struct {
 	Chdir       ChdirEvent    `field:"chdir" event:"chdir"`             // [7.52] [File] [Experimental] A process changed the current directory
 
 	// process events
-	Exec              ExecEvent           `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
-	SetUID            SetuidEvent         `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
-	SetGID            SetgidEvent         `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
-	Capset            CapsetEvent         `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
-	Signal            SignalEvent         `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
-	Exit              ExitEvent           `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
-	Setrlimit         SetrlimitEvent      `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
+	Exec              ExecEvent          `field:"exec" event:"exec"`                 // [7.27] [Process] A process was executed (does not trigger on fork syscalls).
+	SetUID            SetuidEvent        `field:"setuid" event:"setuid"`             // [7.27] [Process] A process changed its effective uid
+	SetGID            SetgidEvent        `field:"setgid" event:"setgid"`             // [7.27] [Process] A process changed its effective gid
+	Capset            CapsetEvent        `field:"capset" event:"capset"`             // [7.27] [Process] A process changed its capacity set
+	Signal            SignalEvent        `field:"signal" event:"signal"`             // [7.35] [Process] A signal was sent
+	Exit              ExitEvent          `field:"exit" event:"exit"`                 // [7.38] [Process] A process was terminated
+	Setrlimit         SetrlimitEvent     `field:"setrlimit" event:"setrlimit"`       // [7.68] [Process] A setrlimit command was executed
 	CapabilitiesUsage CapabilitiesEvent  `field:"capabilities" event:"capabilities"` // [7.70] [Process] [Experimental] A process used some capabilities
 	Syscalls          SyscallsEvent      `field:"-"`
 	LoginUIDWrite     LoginUIDWriteEvent `field:"-"`
-	PrCtl             PrCtlEvent          `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
+	PrCtl             PrCtlEvent         `field:"prctl" event:"prctl"` // [7.71] [Process] A prctl command was executed
 
 	// network syscalls
 	Bind       BindEvent       `field:"bind" event:"bind"`             // [7.37] [Network] A bind was executed

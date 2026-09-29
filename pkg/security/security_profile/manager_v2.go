@@ -397,6 +397,12 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	if m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
 		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
 			seclog.Errorf("failed to register cgroup creation listener: %v", err)
+		} else {
+			// Backfill cgroups discovered before this registration (the resolver snapshot can run first).
+			m.resolvers.CGroupResolver.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
+				m.onCGroupCreated(cgce)
+				return false
+			})
 		}
 	}
 

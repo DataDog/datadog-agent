@@ -2632,7 +2632,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	if needRawSyscalls ||
 		(p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
 		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		p.syscallSamplerEnabled() {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 
@@ -3469,7 +3469,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
-		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingSyscallsEnabled,
+		EventSamplingSyscallsEnabled:  p.syscallSamplerEnabled(),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3546,12 +3546,19 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	return nil
 }
 
+// syscallSamplerEnabled reports whether the V2 syscall sampler should run (and its tracepoint attach).
+func (p *EBPFProbe) syscallSamplerEnabled() bool {
+	return p.config.RuntimeSecurity.SecurityProfileV2Enabled &&
+		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled &&
+		slices.Contains(p.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.SyscallsEventType)
+}
+
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
 	if (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
 		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		p.syscallSamplerEnabled() {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
