@@ -7,6 +7,7 @@
 package fx
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/fx"
@@ -30,8 +31,8 @@ const enabledConfigKey = "network_devices.remote_config.enabled"
 
 // newProvider depends on the discovery component so its lifecycle hook is
 // registered, and therefore runs, before the first Update.
-func newProvider(cfg config.Component, logComp log.Component, ad autodiscovery.Component, disco ndmdiscovery.Component) (rctypes.ListenerProvider, error) {
-	return newListener(cfg, logComp, ad, disco)
+func newProvider(lc fx.Lifecycle, cfg config.Component, logComp log.Component, ad autodiscovery.Component, disco ndmdiscovery.Component) (rctypes.ListenerProvider, error) {
+	return newListener(lc, cfg, logComp, ad, disco)
 }
 
 // configProviderAdder is the one autodiscovery method this package needs.
@@ -39,7 +40,7 @@ type configProviderAdder interface {
 	AddConfigProvider(providertypes.ConfigProvider, bool, time.Duration)
 }
 
-func newListener(cfg config.Component, logComp log.Component, ad configProviderAdder, disco ndmdiscovery.Component) (rctypes.ListenerProvider, error) {
+func newListener(lc fx.Lifecycle, cfg config.Component, logComp log.Component, ad configProviderAdder, disco ndmdiscovery.Component) (rctypes.ListenerProvider, error) {
 	var listener rctypes.ListenerProvider
 	if !configutils.IsRemoteConfigEnabled(cfg) || !cfg.GetBool(enabledConfigKey) {
 		// A zero ListenerProvider subscribes to nothing.
@@ -56,6 +57,16 @@ func newListener(cfg config.Component, logComp log.Component, ad configProviderA
 
 	// false, 0: the provider streams its changes rather than being polled.
 	ad.AddConfigProvider(provider, false, 0)
+
+	// On start, so the features the document drives are already running.
+	if path := cfg.GetString(devConfigKey); path != "" {
+		lc.Append(fx.Hook{OnStart: func(context.Context) error {
+			if err := applyDevConfig(path, provider, logComp); err != nil {
+				logComp.Errorf("ndm: %v", err)
+			}
+			return nil
+		}})
+	}
 
 	listener.ListenerProvider = rctypes.RCListener{
 		data.ProductNDMConfig: provider.Update,

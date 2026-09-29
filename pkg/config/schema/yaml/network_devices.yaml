@@ -497,6 +497,15 @@ properties:
         comment: |-
           Enable the Remote-Configuration-driven NDM component, which
           subscribes to the NDM_CONFIG Remote Configuration product.
+      dev_config_file:
+        node_type: setting
+        type: string
+        default: ""
+        comment: |-
+          Development only. Path to a JSON file holding one NDM Remote
+          Configuration document. The Agent applies it at startup as if
+          Remote Configuration had delivered it, so the NDM features can be
+          exercised before the backend emits the product. Empty disables it.
   discovery:
     node_type: section
     type: object
