@@ -823,27 +823,30 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         }
     }
 
-    struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
+    // Peek, do not pop. Popping releases the map element to the head of its CPU's LRU free
+    // list while this function still reads through the returned pointer for another ~230
+    // lines, and the next cache_syscall on that CPU -- from any of the 37 syscall types that
+    // share this map -- claims it and overwrites the value. The entry is released by
+    // release_peeked_exec_syscall below, after the last dereference.
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
 
-    // Snapshot the entry the instant it is popped. pop_task_syscall calls bpf_map_delete_elem
-    // and then returns this very pointer, so everything below reads a released element. Both
-    // reads are volatile so the compiler cannot fold them into one and make the comparison
-    // vacuously true. Packed into a single u64 because a second live variable across this
-    // function pushes it past the 512-byte BPF stack limit: low 32 bits the ctx_id, bit 32
-    // whether the ino was non-zero. ctx_id is the discriminator -- it says whether a zeroed
-    // key means the element was reused by another execve or is still ours and was overwritten.
-    u64 popped_state = (u64)(*(volatile u32 *)&syscall->ctx_id)
-        | ((*(volatile u64 *)&syscall->exec.file.path_key.ino != 0) ? (1ULL << 32) : 0);
+    // Snapshot the entry on entry, compared again just before it is released. This measured
+    // the corruption before the fix (ctx_id changed 17/7/4 per ~1200 execs, every zeroed key
+    // among them carrying a changed ctx_id); with the entry now held rather than released it
+    // is a regression check, and every slot but STABLE should read zero. Both reads are
+    // volatile so the compiler cannot fold them into one and pass vacuously. Only ctx_id is
+    // snapshotted: found_key now has to stay live to the release below, and a second u64
+    // alongside it exceeds the 512-byte BPF stack limit. ctx_id is enough -- every zeroed key
+    // measured before the fix came with a changed ctx_id, none with ours still in place.
+    u32 peeked_ctx_id = *(volatile u32 *)&syscall->ctx_id;
 
     // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
-
-    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
     struct proc_cache_t pc = {
         .entry = {
@@ -1001,12 +1004,14 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (fork_entry == NULL) {
             // should never happen, ignore
+            release_peeked_exec_syscall(tgid);
             return 0;
         }
     }
 
     struct process_event_t *event = new_process_event(0);
     if (event == NULL) {
+        release_peeked_exec_syscall(tgid);
         return 0;
     }
 
@@ -1050,23 +1055,23 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // reused before the pop, WENT_ZERO means after it.
     u64 late_ino = *(volatile u64 *)&syscall->exec.file.path_key.ino;
     u32 late_ctx_id = *(volatile u32 *)&syscall->ctx_id;
-    u32 popped_ctx_id = (u32)popped_state;
-    int popped_ino_set = (popped_state >> 32) & 1;
 
     bump_exec_uaf(EXEC_UAF_TOTAL);
-    if (late_ctx_id != popped_ctx_id) {
+    if (late_ctx_id != peeked_ctx_id) {
         bump_exec_uaf(EXEC_UAF_CTX_CHANGED);
     }
-    if (!popped_ino_set) {
-        bump_exec_uaf(EXEC_UAF_ZERO_AT_POP);
-    } else if (late_ino == 0) {
-        bump_exec_uaf(EXEC_UAF_WENT_ZERO);
-        if (late_ctx_id == popped_ctx_id) {
-            bump_exec_uaf(EXEC_UAF_WENT_ZERO_SAME_CTX);
+    if (late_ino == 0) {
+        bump_exec_uaf(EXEC_UAF_KEY_ZERO);
+        if (late_ctx_id == peeked_ctx_id) {
+            bump_exec_uaf(EXEC_UAF_KEY_ZERO_SAME_CTX);
         }
-    } else if (late_ctx_id == popped_ctx_id) {
+    } else if (late_ctx_id == peeked_ctx_id) {
         bump_exec_uaf(EXEC_UAF_STABLE);
     }
+
+    // Last dereference of the entry is above; release it now. Nothing below touches it --
+    // send_event_ptr works off `event`, and unregister_span_context off the TLS maps.
+    release_peeked_exec_syscall(tgid);
 
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);

@@ -1789,8 +1789,8 @@ func (p *EBPFProbe) logExecUseAfterFreeProbe() {
 	}
 	p.execUAFLogged.Store(true)
 
-	seclog.Warnf("exec popped-entry stability: %d popped; %d ino already 0 at pop, %d ino went 0 after the pop, of which %d with OUR ctx_id still in place (stray write, not reuse); %d ctx_id changed (element now holds another execve); %d stable; %d collateral sibling deletes avoided",
-		v[0], v[1], v[2], v[4], v[3], v[5], v[6])
+	seclog.Warnf("exec entry stability: %d examined; %d key zero at send, of which %d with OUR ctx_id still in place (stray write, not reuse); %d ctx_id changed (element holds another entry); %d stable; %d collateral sibling deletes avoided",
+		v[0], v[2], v[4], v[3], v[5], v[6])
 }
 
 // logExecEntryMismatches reports how often send_exec_event popped an entry that did not
