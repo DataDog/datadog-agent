@@ -1,6 +1,5 @@
 """IoT Agent package components specific to linux."""
 
-load("@rules_pkg//pkg:deb.bzl", "pkg_deb")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(
     "@rules_pkg//pkg:mappings.bzl",
@@ -15,6 +14,7 @@ load("//bazel/rules:compression.bzl", "get_compression_level")
 load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//compliance:package_licenses.bzl", "package_licenses")
 load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+load("//packages/rules:dd_pkg_deb.bzl", "dd_pkg_deb")
 load("//packages/rules:package_naming.bzl", "make_version", "package_name_variables")
 
 package(default_visibility = ["//packages:__subpackages__"])
@@ -119,8 +119,9 @@ forwards metrics from your applications as well as system services.
 See http://www.datadoghq.com/ for more information
 """
 
-pkg_deb(
+dd_pkg_deb(
     name = "debian",
+    out = "debian.deb",
     conflicts = ["datadog-agent"],
     data = ":whole_distro_deb_tar",
     description = _DESCRIPTION,
@@ -130,7 +131,6 @@ pkg_deb(
     maintainer = "Datadog Packages <package@datadoghq.com>",
     package = "datadog-iot-agent",
     package_file_name = "datadog-iot-agent_{version}-1_{arch_deb}.deb",
-    package_variables = ":variables",
     postinst = "//omnibus:package-scripts/iot-agent-deb/postinst",
     postrm = "//omnibus:package-scripts/iot-agent-deb/postrm",
     preinst = "//omnibus:package-scripts/iot-agent-deb/preinst",
