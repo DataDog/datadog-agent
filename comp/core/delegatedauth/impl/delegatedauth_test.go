@@ -1382,57 +1382,20 @@ func TestMergeIntoAdditionalEndpointsListFallsBackToValueScanWhenIndexStale(t *t
 	assert.Equal(t, "resolved-key", got[0].(map[string]any)["api_key"])
 }
 
-// raceInjectingConfig wraps a pkgconfigmodel.ReaderWriter and runs inject once, the first time the
-// wrapped GetStringMapStringSlice/Get is called for watchKey - simulating another writer (e.g. the
-// secrets resolver's configAssignAtPath) reading the same compound config value and writing its own
-// update in the narrow window between this component's read and write.
-type raceInjectingConfig struct {
+// updateInjectingConfig completes another config write immediately before the atomic update.
+type updateInjectingConfig struct {
 	pkgconfigmodel.ReaderWriter
 	watchKey  string
 	inject    func()
 	triggered bool
 }
 
-// atomicRacingConfig changes watchKey immediately before each conditional write.
-type atomicRacingConfig struct {
-	pkgconfigmodel.ReaderWriter
-	watchKey string
-	inject   func()
-}
-
-func (r *atomicRacingConfig) SetIfUnchanged(key string, oldValue, value any, source pkgconfigmodel.Source) bool {
-	if key == r.watchKey && r.inject != nil {
-		r.inject()
-	}
-	return r.ReaderWriter.SetIfUnchanged(key, oldValue, value, source)
-}
-
-func (r *raceInjectingConfig) GetStringMapStringSlice(key string) map[string][]string {
-	v := r.ReaderWriter.GetStringMapStringSlice(key)
-	if key == r.watchKey && !r.triggered {
+func (r *updateInjectingConfig) Update(key string, source pkgconfigmodel.Source, update func(interface{}) (interface{}, bool)) bool {
+	if key == r.watchKey && r.inject != nil && !r.triggered {
 		r.triggered = true
 		r.inject()
 	}
-	return v
-}
-
-func (r *raceInjectingConfig) Get(key string) any {
-	v := r.ReaderWriter.Get(key)
-	if key == r.watchKey && !r.triggered {
-		r.triggered = true
-		r.inject()
-	}
-	return v
-}
-
-// alwaysRevertingConfig wraps a pkgconfigmodel.ReaderWriter and, on every Set to watchKey made by
-// the component under test, immediately overwrites watchKey back to revertTo - simulating an
-// adversarial concurrent writer that undoes every one of our writes, so the read-write-verify retry
-// loop exhausts all its attempts and must give up without ever observing its own write stick.
-type alwaysRevertingConfig struct {
-	pkgconfigmodel.ReaderWriter
-	watchKey string
-	revertTo map[string][]string
+	return r.ReaderWriter.Update(key, source, update)
 }
 
 type failingProvider struct {
@@ -1487,7 +1450,7 @@ func TestMergeIntoAdditionalEndpointsIgnoresUnrelatedConfigUpdates(t *testing.T)
 	})
 	mockConfig.SetInTest("log_level", "info")
 
-	racy := &raceInjectingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
+	racy := &updateInjectingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
 	racy.inject = func() {
 		mockConfig.Set("log_level", "debug", pkgconfigmodel.SourceAgentRuntime)
 	}
@@ -1506,7 +1469,7 @@ func TestMergeIntoAdditionalEndpointsIgnoresUnrelatedConfigUpdates(t *testing.T)
 	assert.Equal(t, "debug", mockConfig.GetString("log_level"))
 }
 
-func TestMergeIntoAdditionalEndpointsUsesRawYAMLSnapshotForAtomicWrite(t *testing.T) {
+func TestMergeIntoAdditionalEndpointsHandlesRawYAMLValueInAtomicUpdate(t *testing.T) {
 	mockConfig := mock.NewFromYAML(t, `
 additional_endpoints:
   https://our-org.datadoghq.com:
@@ -1528,7 +1491,7 @@ additional_endpoints:
 	assert.Equal(t, []string{"sibling-key"}, got["https://sibling-org.datadoghq.com"])
 }
 
-func TestWritebackConflictStaysPendingAndRetriesCachedKey(t *testing.T) {
+func TestAtomicWritebackPreservesConcurrentUpdate(t *testing.T) {
 	mockConfig := mock.New(t)
 	const domain = "https://our-org.datadoghq.com"
 	mockConfig.SetInTest("additional_endpoints", map[string][]string{
@@ -1537,7 +1500,7 @@ func TestWritebackConflictStaysPendingAndRetriesCachedKey(t *testing.T) {
 	})
 
 	rotation := 0
-	racy := &atomicRacingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
+	racy := &updateInjectingConfig{ReaderWriter: mockConfig, watchKey: "additional_endpoints"}
 	racy.inject = func() {
 		rotation++
 		updated := mockConfig.GetStringMapStringSlice("additional_endpoints")
@@ -1555,31 +1518,20 @@ func TestWritebackConflictStaysPendingAndRetriesCachedKey(t *testing.T) {
 		lastWrittenValue:             "DELA(our-org-uuid, aws)",
 		originalDirective:            "DELA(our-org-uuid, aws)",
 		backoff:                      newBackoff(time.Hour),
-		writebackBackoff:             newWritebackBackoff(),
 	}
 	comp := &delegatedAuthComponent{
 		config:    racy,
 		instances: map[string]*authInstance{"additional": instance},
 	}
 
-	require.ErrorIs(t, comp.applyAPIKey(instance, key), errWritebackConflict)
-	assert.True(t, instance.writebackPending)
-	assert.True(t, instance.writebackRetryable)
-	assert.Less(t, instance.writebackBackoff.NextBackOff(), 2*time.Second)
+	require.NoError(t, comp.applyAPIKey(instance, key))
+	assert.False(t, instance.writebackPending)
 	stats := map[string]any{}
 	comp.populateStatusInfo(stats)
-	assert.Equal(t, "Pending", stats["instances"].(map[string]map[string]any)["additional"]["Status"])
-
-	racy.inject = nil
-	writeAttempted, err := comp.refreshOrRetryWriteback(context.Background(), instance)
-	require.NoError(t, err)
-	assert.True(t, writeAttempted)
-	assert.Equal(t, 3, rotation, "retry must reuse the cached key instead of authenticating again")
-	assert.Equal(t, []string{key}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
-	assert.False(t, instance.writebackPending)
-	stats = map[string]any{}
-	comp.populateStatusInfo(stats)
 	assert.Equal(t, "Active", stats["instances"].(map[string]map[string]any)["additional"]["Status"])
+	assert.Equal(t, 1, rotation)
+	assert.Equal(t, []string{key}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
+	assert.Equal(t, []string{"sibling-v1"}, mockConfig.GetStringMapStringSlice("additional_endpoints")["https://sibling-org.datadoghq.com"])
 }
 
 func TestWritebackBlockedByHigherPrioritySourceDoesNotFastRetry(t *testing.T) {
@@ -1597,56 +1549,15 @@ func TestWritebackBlockedByHigherPrioritySourceDoesNotFastRetry(t *testing.T) {
 		lastWrittenValue:             "DELA(our-org-uuid, aws)",
 		originalDirective:            "DELA(our-org-uuid, aws)",
 		backoff:                      newBackoff(time.Hour),
-		writebackBackoff:             newWritebackBackoff(),
 	}
 	comp := &delegatedAuthComponent{config: mockConfig}
 
 	require.ErrorIs(t, comp.applyAPIKey(instance, key), errWritebackBlocked)
 	assert.True(t, instance.writebackPending)
-	assert.False(t, instance.writebackRetryable)
 	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
 }
 
-func TestExpiredCachedKeyIsRefreshedBeforeWritebackRetry(t *testing.T) {
-	mockConfig := mock.New(t)
-	const domain = "https://our-org.datadoghq.com"
-	mockConfig.SetInTest("additional_endpoints", map[string][]string{
-		domain: {"DELA(our-org-uuid, aws)"},
-	})
-
-	provider := &failingProvider{}
-	key := "expired-key"
-	instance := &authInstance{
-		apiKey:                       &key,
-		provider:                     provider,
-		authConfig:                   &common.AuthConfig{OrgUUID: "our-org-uuid"},
-		lastRefresh:                  time.Now().Add(-2 * time.Hour),
-		refreshInterval:              time.Hour,
-		additionalEndpointDomain:     domain,
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA(our-org-uuid, aws)",
-		originalDirective:            "DELA(our-org-uuid, aws)",
-		writebackPending:             true,
-		writebackRetryable:           true,
-	}
-	comp := &delegatedAuthComponent{config: mockConfig}
-
-	writeAttempted, err := comp.refreshOrRetryWriteback(context.Background(), instance)
-	require.ErrorContains(t, err, "proof failed")
-	assert.False(t, writeAttempted)
-	assert.Equal(t, 1, provider.calls)
-	assert.Equal(t, []string{"DELA(our-org-uuid, aws)"}, mockConfig.GetStringMapStringSlice("additional_endpoints")[domain])
-}
-
-func TestRefreshDelayRemainsAnchoredToKeyFetch(t *testing.T) {
-	now := time.Date(2026, time.September, 9, 12, 0, 0, 0, time.UTC)
-	lastRefresh := now.Add(-59 * time.Minute)
-
-	assert.Equal(t, time.Minute, delayFromLastRefresh(lastRefresh, time.Hour, now))
-	assert.Equal(t, writebackRetryInitialInterval, delayFromLastRefresh(lastRefresh, 30*time.Minute, now))
-}
-
-func TestMergeIntoAdditionalEndpointsListGivesUpOnSustainedPreWriteRace(t *testing.T) {
+func TestMergeIntoAdditionalEndpointsListPreservesConcurrentUpdate(t *testing.T) {
 	mockConfig := mock.New(t)
 	configKey := "logs_config.additional_endpoints"
 	mockConfig.SetInTest(configKey, []any{
@@ -1655,7 +1566,7 @@ func TestMergeIntoAdditionalEndpointsListGivesUpOnSustainedPreWriteRace(t *testi
 	})
 
 	rotation := 0
-	racy := &atomicRacingConfig{ReaderWriter: mockConfig, watchKey: configKey}
+	racy := &updateInjectingConfig{ReaderWriter: mockConfig, watchKey: configKey}
 	racy.inject = func() {
 		rotation++
 		entries, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
@@ -1671,16 +1582,15 @@ func TestMergeIntoAdditionalEndpointsListGivesUpOnSustainedPreWriteRace(t *testi
 		lastWrittenValue:                 "DELA(logs-org-uuid, aws)",
 		originalDirective:                "DELA(logs-org-uuid, aws)",
 	}
-	err := (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
-	require.ErrorIs(t, err, errWritebackConflict)
+	require.NoError(t, (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false))
 
 	got, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
 	require.True(t, ok)
 	_, apiKey, ok := common.CaseInsensitiveStringFieldWithKey(got[0].(map[string]any), "api_key")
 	require.True(t, ok)
-	assert.Equal(t, "DELA(logs-org-uuid, aws)", apiKey)
-	assert.Equal(t, "sibling-v3.datadoghq.com", got[1].(map[string]any)["host"])
-	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue)
+	assert.Equal(t, "resolved-key", apiKey)
+	assert.Equal(t, "sibling-v1.datadoghq.com", got[1].(map[string]any)["host"])
+	assert.Equal(t, "resolved-key", instance.lastWrittenValue)
 }
 
 func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) {
@@ -1714,42 +1624,18 @@ func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) 
 	assert.Equal(t, "DELA(logs-org-uuid, aws)", instance.lastWrittenValue)
 }
 
-func (r *alwaysRevertingConfig) Set(key string, value any, source pkgconfigmodel.Source) {
-	r.ReaderWriter.Set(key, value, source)
-	if key == r.watchKey {
-		r.ReaderWriter.Set(key, r.revertTo, pkgconfigmodel.SourceSecret)
-	}
-}
-
-func (r *alwaysRevertingConfig) SetIfUnchanged(key string, oldValue, value any, source pkgconfigmodel.Source) bool {
-	set := r.ReaderWriter.SetIfUnchanged(key, oldValue, value, source)
-	if set && key == r.watchKey {
-		r.ReaderWriter.Set(key, r.revertTo, pkgconfigmodel.SourceSecret)
-	}
-	return set
-}
-
-func TestMergeIntoAdditionalEndpointsRetriesWhenRacedByConcurrentWriter(t *testing.T) {
-	// Regression test for the TOCTOU race between mergeIntoAdditionalEndpoints and the secrets
-	// resolver's configAssignAtPath (pkg/config/setup/config.go), which does its own
-	// unsynchronized read-modify-write on the same additional_endpoints value when an ENC[...]
-	// entry and a DELA(...) entry share one domain's key list. Simulates the race deterministically:
-	// on this function's first read, before it has written anything, an "external" writer rotates
-	// the sibling ENC[]-backed key using a snapshot taken at the same point in time (exactly the
-	// scenario that silently drops one side's update if there's no retry). The read-write-verify
-	// loop in mergeIntoAdditionalEndpoints must detect that its own write was based on a
-	// since-superseded snapshot, retry with a fresh read, and land both updates.
+func TestMergeIntoAdditionalEndpointsSerializesConcurrentWriter(t *testing.T) {
+	// The injected secret rotation completes before the atomic delegated-auth update. The update
+	// must build on that latest value so neither side is lost.
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("additional_endpoints", map[string][]string{
 		"https://mixed-org.datadoghq.com": {"resolved-secret-v1", "DELA(mixed-org-uuid, aws)"},
 	})
 
-	racy := &raceInjectingConfig{
+	racy := &updateInjectingConfig{
 		ReaderWriter: mockConfig,
 		watchKey:     "additional_endpoints",
 		inject: func() {
-			// Mirrors configAssignAtPath: read-modify-write the whole compound value based on a
-			// snapshot from before our own write below.
 			rotated := mockConfig.GetStringMapStringSlice("additional_endpoints")
 			rotated["https://mixed-org.datadoghq.com"][0] = "resolved-secret-v2"
 			mockConfig.Set("additional_endpoints", rotated, pkgconfigmodel.SourceSecret)
@@ -1773,14 +1659,8 @@ func TestMergeIntoAdditionalEndpointsRetriesWhenRacedByConcurrentWriter(t *testi
 }
 
 func TestMergeIntoAdditionalEndpointsHealsEntryRevertedByRace(t *testing.T) {
-	// If a racing write (see TestMergeIntoAdditionalEndpointsRetriesWhenRacedByConcurrentWriter)
-	// still manages to revert this instance's entry back to the raw DELA(...) directive text - by
-	// writing a stale snapshot captured before this instance's *previous* successful write - the
-	// component's in-memory lastWrittenValue (already advanced to the previously resolved key) no
-	// longer matches what's actually in config. Without a fallback, the next refresh would treat
-	// this as "previous value missing" and append a duplicate entry instead of healing the reverted
-	// one. originalDirective (the directive text, which never changes) is the fallback match that
-	// prevents that.
+	// A writer outside this atomic update path may still restore an old config snapshot. In that
+	// case originalDirective lets the next refresh heal the reverted entry in place.
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("additional_endpoints", map[string][]string{
 		// Simulates the entry having been reverted back to the literal directive by a racing write,
@@ -1803,26 +1683,17 @@ func TestMergeIntoAdditionalEndpointsHealsEntryRevertedByRace(t *testing.T) {
 		"the reverted entry should be healed in place, not duplicated")
 }
 
-func TestMergeIntoAdditionalEndpointsDoesNotClobberSiblingDomainRacedConcurrently(t *testing.T) {
-	// Regression test: the read-write-verify guard must compare the *entire* compound
-	// additional_endpoints value, not just the domain this instance is writing to. mergeInto
-	// AdditionalEndpoints always writes the whole map (d.config.Set(configKey, merged, ...)), built
-	// as a full copy of whatever it read at the top of the attempt. If a concurrent writer updates a
-	// *different* domain's entry under the same config key between our read and our write, a guard
-	// scoped to only our own domain wouldn't notice - and our write would silently revert that
-	// sibling domain back to the stale snapshot.
+func TestMergeIntoAdditionalEndpointsDoesNotClobberSiblingDomainUpdatedFirst(t *testing.T) {
 	mockConfig := mock.New(t)
 	mockConfig.SetInTest("additional_endpoints", map[string][]string{
 		"https://our-org.datadoghq.com":     {"DELA(our-org-uuid, aws)"},
 		"https://sibling-org.datadoghq.com": {"sibling-secret-v1"},
 	})
 
-	racy := &raceInjectingConfig{
+	racy := &updateInjectingConfig{
 		ReaderWriter: mockConfig,
 		watchKey:     "additional_endpoints",
 		inject: func() {
-			// A concurrent writer (another delegated-auth instance, or the secrets resolver)
-			// updates a DIFFERENT domain under the same config key while we're mid-update.
 			rotated := mockConfig.GetStringMapStringSlice("additional_endpoints")
 			rotated["https://sibling-org.datadoghq.com"] = []string{"sibling-secret-v2"}
 			mockConfig.Set("additional_endpoints", rotated, pkgconfigmodel.SourceSecret)
@@ -1843,42 +1714,6 @@ func TestMergeIntoAdditionalEndpointsDoesNotClobberSiblingDomainRacedConcurrentl
 	assert.Equal(t, []string{"wif-key-v1"}, got["https://our-org.datadoghq.com"])
 	assert.Equal(t, []string{"sibling-secret-v2"}, got["https://sibling-org.datadoghq.com"],
 		"a concurrent update to an unrelated domain under the same config key must not be reverted")
-}
-
-func TestMergeIntoAdditionalEndpointsDoesNotAdvanceLastWrittenValueWhenWriteIsLost(t *testing.T) {
-	// Regression test: if every optimistic-retry attempt loses its race (the write never sticks),
-	// lastWrittenValue must NOT advance to apiKey - config doesn't actually contain apiKey, so
-	// advancing it would make the next refresh search for a value that was never written, causing it
-	// to append a duplicate entry instead of healing the real one. Simulates permanent loss with an
-	// adversarial writer that reverts every one of this function's own writes, so its post-write
-	// verify never succeeds and it exhausts maxAdditionalEndpointsWriteAttempts.
-	mockConfig := mock.New(t)
-	original := map[string][]string{
-		"https://contested-org.datadoghq.com": {"DELA(contested-org-uuid, aws)"},
-	}
-	mockConfig.SetInTest("additional_endpoints", original)
-
-	racy := &alwaysRevertingConfig{
-		ReaderWriter: mockConfig,
-		watchKey:     "additional_endpoints",
-		revertTo:     original,
-	}
-
-	comp := &delegatedAuthComponent{config: racy}
-	instance := &authInstance{
-		additionalEndpointDomain:     "https://contested-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA(contested-org-uuid, aws)",
-		originalDirective:            "DELA(contested-org-uuid, aws)",
-	}
-
-	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
-
-	assert.Equal(t, "DELA(contested-org-uuid, aws)", instance.lastWrittenValue,
-		"lastWrittenValue must not advance when the write never actually stuck in config")
-	got := mockConfig.GetStringMapStringSlice("additional_endpoints")
-	assert.Equal(t, []string{"DELA(contested-org-uuid, aws)"}, got["https://contested-org.datadoghq.com"],
-		"config should still show the adversary's value, confirming our write never stuck")
 }
 
 func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {

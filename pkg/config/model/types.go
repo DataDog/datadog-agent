@@ -236,10 +236,11 @@ type EnvVarControl interface {
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
-	// SetIfUnchanged atomically compares key's resolved value with oldValue and, if equal, updates
-	// the requested source layer. It returns whether the comparison matched and the update ran;
-	// a higher-priority source may still determine the resolved value.
-	SetIfUnchanged(key string, oldValue, value interface{}, source Source) bool
+	// Update atomically computes and writes a setting while holding the config write lock. The
+	// callback must only perform bounded in-memory work and must not call back into the config.
+	// Returning apply=false leaves the setting unchanged. Update returns whether the requested
+	// source determines the resolved value after the write.
+	Update(key string, source Source, update func(current interface{}) (value interface{}, apply bool)) bool
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
 	// DirectBulkSet writes settings already resolved by another config, keeping each one in the

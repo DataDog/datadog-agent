@@ -806,66 +806,68 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 	}
 	slices.Reverse(trailingElements)
 
-	// retrieve the config value at the known field
-	startingValue := config.Get(settingName)
-	iterateValue := startingValue
-	// iterate down until we find the final object that we are able to modify
-	for k, elem := range trailingElements {
-		switch modifyValue := iterateValue.(type) {
-		case map[string]interface{}:
-			if k == len(trailingElements)-1 {
-				// if we reached the final object, modify it directly by assigning the newValue parameter
-				modifyValue[elem] = newValue
-			} else {
-				// otherwise iterate inside that compound object
-				iterateValue = modifyValue[elem]
-			}
-		case map[interface{}]interface{}:
-			if k == len(trailingElements)-1 {
-				// use integer key when it exists in map to avoid mixing string and integer keys (e.g., "2" and 2)
-				if index, err := strconv.Atoi(elem); err == nil {
-					if _, exists := modifyValue[index]; exists {
-						modifyValue[index] = newValue
-						continue
-					}
+	var updateErr error
+	config.Update(settingName, pkgconfigmodel.SourceSecret, func(startingValue interface{}) (interface{}, bool) {
+		iterateValue := startingValue
+		// Iterate down until we find the final object that we are able to modify.
+		for k, elem := range trailingElements {
+			switch modifyValue := iterateValue.(type) {
+			case map[string]interface{}:
+				if k == len(trailingElements)-1 {
+					modifyValue[elem] = newValue
+				} else {
+					iterateValue = modifyValue[elem]
 				}
-				modifyValue[elem] = newValue
-			} else {
-				iterateValue = modifyValue[elem]
+			case map[interface{}]interface{}:
+				if k == len(trailingElements)-1 {
+					if index, err := strconv.Atoi(elem); err == nil {
+						if _, exists := modifyValue[index]; exists {
+							modifyValue[index] = newValue
+							continue
+						}
+					}
+					modifyValue[elem] = newValue
+				} else {
+					iterateValue = modifyValue[elem]
+				}
+			case []string:
+				index, err := strconv.Atoi(elem)
+				if err != nil {
+					updateErr = err
+					return nil, false
+				}
+				if index >= len(modifyValue) {
+					updateErr = fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+					return nil, false
+				}
+				if k == len(trailingElements)-1 {
+					modifyValue[index] = fmt.Sprintf("%s", newValue)
+				} else {
+					iterateValue = modifyValue[index]
+				}
+			case []interface{}:
+				index, err := strconv.Atoi(elem)
+				if err != nil {
+					updateErr = err
+					return nil, false
+				}
+				if index >= len(modifyValue) {
+					updateErr = fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
+					return nil, false
+				}
+				if k == len(trailingElements)-1 {
+					modifyValue[index] = newValue
+				} else {
+					iterateValue = modifyValue[index]
+				}
+			default:
+				updateErr = fmt.Errorf("cannot assign to setting '%s' of type %T", settingPath, iterateValue)
+				return nil, false
 			}
-		case []string:
-			index, err := strconv.Atoi(elem)
-			if err != nil {
-				return err
-			}
-			if index >= len(modifyValue) {
-				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
-			}
-			if k == len(trailingElements)-1 {
-				modifyValue[index] = fmt.Sprintf("%s", newValue)
-			} else {
-				iterateValue = modifyValue[index]
-			}
-		case []interface{}:
-			index, err := strconv.Atoi(elem)
-			if err != nil {
-				return err
-			}
-			if index >= len(modifyValue) {
-				return fmt.Errorf("index out of range %d >= %d", index, len(modifyValue))
-			}
-			if k == len(trailingElements)-1 {
-				modifyValue[index] = newValue
-			} else {
-				iterateValue = modifyValue[index]
-			}
-		default:
-			return fmt.Errorf("cannot assign to setting '%s' of type %T", settingPath, iterateValue)
 		}
-	}
-
-	config.Set(settingName, startingValue, pkgconfigmodel.SourceSecret)
-	return nil
+		return startingValue, true
+	})
+	return updateErr
 }
 
 // envVarAreSetAndNotEqual returns true if two given variables are set in environment and are not equal.

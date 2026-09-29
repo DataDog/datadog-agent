@@ -1687,20 +1687,87 @@ func TestSequenceID(t *testing.T) {
 	assert.Equal(t, uint64(3), config.GetSequenceID())
 }
 
-func TestSetIfUnchanged(t *testing.T) {
+func TestUpdate(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+	config.SetTestOnlyDynamicSchema(true)
+
+	config.Set("a", 1, model.SourceAgentRuntime)
+	assert.False(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		assert.Equal(t, 1, current)
+		return 2, false
+	}))
+	assert.Equal(t, 1, config.GetInt("a"))
+
+	assert.True(t, config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 2, config.GetInt("a"))
+
+	assert.True(t, config.Update("A", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		return current.(int) + 1, true
+	}))
+	assert.Equal(t, 3, config.GetInt("a"))
+
+	config.Set("nullable", nil, model.SourceAgentRuntime)
+	assert.True(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		assert.Nil(t, current)
+		return map[string]interface{}{"value": 4}, true
+	}))
+	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
+
+	assert.False(t, config.Update("nullable", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+		current.(map[string]interface{})["value"] = 5
+		return current, false
+	}))
+	assert.Equal(t, 4, config.GetStringMap("nullable")["value"])
+}
+
+func TestUpdateRejectsNilCallback(t *testing.T) {
 	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
+	assert.Panics(t, func() {
+		config.Update("a", model.SourceAgentRuntime, nil)
+	})
+	assert.Equal(t, 0, config.GetInt("a"))
+}
+
+func TestUpdateUnlocksAfterCallbackPanic(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	assert.Panics(t, func() {
+		config.Update("a", model.SourceAgentRuntime, func(interface{}) (interface{}, bool) {
+			panic("update failed")
+		})
+	})
 	config.Set("a", 1, model.SourceAgentRuntime)
-	assert.False(t, config.SetIfUnchanged("a", 0, 2, model.SourceAgentRuntime))
 	assert.Equal(t, 1, config.GetInt("a"))
+}
 
-	assert.True(t, config.SetIfUnchanged("a", 1, 2, model.SourceAgentRuntime))
-	assert.Equal(t, 2, config.GetInt("a"))
+func TestUpdateSerializesConcurrentWriters(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
 
-	assert.True(t, config.SetIfUnchanged("A", 2, 3, model.SourceAgentRuntime))
-	assert.Equal(t, 3, config.GetInt("a"))
+	const writers = 100
+	var wg sync.WaitGroup
+	for range writers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			config.Update("a", model.SourceAgentRuntime, func(current interface{}) (interface{}, bool) {
+				return current.(int) + 1, true
+			})
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, writers, config.GetInt("a"))
 }
 
 func TestParseEnvSplitComma(t *testing.T) {

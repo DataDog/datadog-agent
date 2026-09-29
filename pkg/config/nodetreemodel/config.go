@@ -230,39 +230,49 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	c.set(key, newValue, source, nil)
 }
 
-// SetIfUnchanged atomically updates source when key still resolves to oldValue. A true result means
-// the comparison matched; a higher-priority source may still determine the resolved value.
-func (c *ntmConfig) SetIfUnchanged(key string, oldValue, newValue interface{}, source model.Source) bool {
-	return c.set(key, newValue, source, &oldValue)
+// Update computes and writes a setting while holding the config write lock.
+func (c *ntmConfig) Update(key string, source model.Source, update func(interface{}) (interface{}, bool)) bool {
+	if update == nil {
+		panicInTest("Update callback must not be nil")
+		return false
+	}
+	return c.set(key, nil, source, update)
 }
 
-func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, expectedValue *interface{}) bool {
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}) (interface{}, bool)) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
 	c.maybeRebuild()
 
 	c.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			c.Unlock()
+		}
+	}()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
 			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
 		} else {
 			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
-			c.Unlock()
 			return false
 		}
 	}
 	declaredNode := c.nodeAtPathFromNode(key, c.defaults)
 	if declaredNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
-		c.Unlock()
 		return false
 	}
 	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
-	if expectedValue != nil && !reflect.DeepEqual(previousValue, *expectedValue) {
-		c.Unlock()
-		return false
+	if update != nil {
+		var apply bool
+		newValue, apply = update(copyIfNeeded(previousValue))
+		if !apply {
+			return false
+		}
 	}
 
 	// convert the value to the type of the default
@@ -291,7 +301,6 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, e
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
 		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
-		c.Unlock()
 		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
@@ -305,11 +314,11 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, e
 	resolved := c.leafAtPathFromNode(key, c.root)
 	resolvedValue := resolved.Get()
 	resolvedSource := resolved.Source()
+	updateApplied := resolvedSource == source
 
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, resolvedValue) {
-		c.Unlock()
-		return true
+		return updateApplied
 	}
 
 	c.sequenceID++
@@ -317,12 +326,13 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, e
 	// after unlocking.
 	sequenceID := c.sequenceID
 	c.Unlock()
+	locked = false
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
-	return true
+	return updateApplied
 }
 
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {

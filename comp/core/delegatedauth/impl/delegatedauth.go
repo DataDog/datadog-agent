@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"reflect"
 	"sync"
 	"time"
 
@@ -47,16 +46,9 @@ const (
 	startupRetryInitialInterval = 5 * time.Second
 	startupRetryMaxInterval     = 5 * time.Minute
 	startupRetryAttemptTimeout  = time.Minute
-
-	// These bounds handle local config contention, not provider or network retries.
-	// Keep the immediate read-write-verify loop short, then retry asynchronously.
-	maxAdditionalEndpointsWriteAttempts = 3
-	writebackRetryInitialInterval       = time.Second
-	writebackRetryMaxInterval           = time.Minute
 )
 
 var (
-	errWritebackConflict      = errors.New("delegated auth config writeback conflict")
 	errWritebackBlocked       = errors.New("delegated auth config writeback blocked by a higher-priority source")
 	errWritebackTargetChanged = errors.New("delegated auth config writeback target changed")
 )
@@ -114,12 +106,10 @@ type authInstance struct {
 	originalDirective string
 
 	// Exponential backoff for retry intervals
-	backoff          *backoff.ExponentialBackOff
-	writebackBackoff *backoff.ExponentialBackOff
+	backoff *backoff.ExponentialBackOff
 
 	// writebackPending means apiKey was fetched but has not reached its config target.
-	writebackPending   bool
-	writebackRetryable bool
+	writebackPending bool
 
 	// consecutiveFailures tracks failures for status reporting
 	consecutiveFailures int
@@ -193,16 +183,6 @@ func newBackoff(refreshInterval time.Duration) *backoff.ExponentialBackOff {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = refreshInterval
 	b.MaxInterval = maxBackoffInterval
-	b.Multiplier = 2.0
-	b.RandomizationFactor = backoffRandomizationFactor
-	b.Reset()
-	return b
-}
-
-func newWritebackBackoff() *backoff.ExponentialBackOff {
-	b := backoff.NewExponentialBackOff()
-	b.InitialInterval = writebackRetryInitialInterval
-	b.MaxInterval = writebackRetryMaxInterval
 	b.Multiplier = 2.0
 	b.RandomizationFactor = backoffRandomizationFactor
 	b.Reset()
@@ -434,7 +414,6 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 		lastWrittenValue:                 params.AdditionalEndpointDirective,
 		originalDirective:                params.AdditionalEndpointDirective,
 		backoff:                          newBackoff(refreshInterval),
-		writebackBackoff:                 newWritebackBackoff(),
 		refreshCtx:                       refreshCtx,
 		refreshCancel:                    refreshCancel,
 		done:                             make(chan struct{}),
@@ -686,7 +665,6 @@ func (d *delegatedAuthComponent) applyAPIKey(instance *authInstance, apiKey stri
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	instance.writebackPending = err != nil
-	instance.writebackRetryable = errors.Is(err, errWritebackConflict)
 	if err != nil {
 		instance.consecutiveFailures++
 		instance.lastError = err
@@ -695,42 +673,15 @@ func (d *delegatedAuthComponent) applyAPIKey(instance *authInstance, apiKey stri
 
 	instance.consecutiveFailures = 0
 	instance.lastError = nil
-	instance.writebackBackoff.Reset()
 	return nil
 }
 
-// refreshOrRetryWriteback retries a cached key before making another exchange.
-func (d *delegatedAuthComponent) refreshOrRetryWriteback(ctx context.Context, instance *authInstance) (bool, error) {
-	d.mu.RLock()
-	retryWriteback := shouldRetryCachedWriteback(instance, time.Now())
-	var cachedKey string
-	if retryWriteback {
-		cachedKey = *instance.apiKey
-	}
-	d.mu.RUnlock()
-
-	if retryWriteback {
-		return true, d.applyAPIKey(instance, cachedKey)
-	}
-
+func (d *delegatedAuthComponent) refreshAndWriteAPIKey(ctx context.Context, instance *authInstance) (bool, error) {
 	apiKey, updated, err := d.refreshAndGetAPIKey(ctx, instance, true)
 	if err != nil || !updated || apiKey == nil {
 		return false, err
 	}
 	return true, d.applyAPIKey(instance, *apiKey)
-}
-
-func shouldRetryCachedWriteback(instance *authInstance, now time.Time) bool {
-	return instance.writebackPending && instance.writebackRetryable && instance.apiKey != nil &&
-		now.Sub(instance.lastRefresh) < instance.refreshInterval
-}
-
-func delayFromLastRefresh(lastRefresh time.Time, interval time.Duration, now time.Time) time.Duration {
-	delay := lastRefresh.Add(interval).Sub(now)
-	if delay <= 0 {
-		return writebackRetryInitialInterval
-	}
-	return delay
 }
 
 // startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
@@ -740,11 +691,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 		defer close(instance.done)
 
 		d.mu.Lock()
-		retryWriteback := shouldRetryCachedWriteback(instance, time.Now())
 		nextInterval := instance.backoff.NextBackOff()
-		if retryWriteback {
-			nextInterval = instance.writebackBackoff.NextBackOff()
-		}
 		instance.nextRefresh = time.Now().Add(nextInterval)
 		d.mu.Unlock()
 
@@ -757,7 +704,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
 			case <-ticker.C:
-				writeAttempted, attemptErr := d.refreshOrRetryWriteback(instance.refreshCtx, instance)
+				writeAttempted, attemptErr := d.refreshAndWriteAPIKey(instance.refreshCtx, instance)
 
 				if instance.refreshCtx.Err() != nil {
 					log.Debugf("Refresh for '%s' stopped due to context cancellation", instance.apiKeyConfigKey)
@@ -772,16 +719,12 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 						instance.consecutiveFailures++
 						instance.lastError = attemptErr
 					}
-					if shouldRetryCachedWriteback(instance, time.Now()) {
-						nextInterval = instance.writebackBackoff.NextBackOff()
-					} else {
-						nextInterval = instance.backoff.NextBackOff()
-					}
+					nextInterval = instance.backoff.NextBackOff()
 					log.Errorf("Failed to %s delegated API key for '%s' (attempt %d): %v. Next retry in %v",
 						failureAction, instance.apiKeyConfigKey, instance.consecutiveFailures, attemptErr, nextInterval)
 				} else {
 					instance.backoff.Reset()
-					nextInterval = delayFromLastRefresh(instance.lastRefresh, instance.backoff.NextBackOff(), time.Now())
+					nextInterval = instance.backoff.NextBackOff()
 				}
 				instance.nextRefresh = time.Now().Add(nextInterval)
 				d.mu.Unlock()
@@ -925,22 +868,20 @@ func (d *delegatedAuthComponent) writeAPIKeyToTarget(instance *authInstance, api
 
 // mergeIntoAdditionalEndpoints writes apiKey into the map-shape config at
 // additionalEndpointsConfigKey under additionalEndpointDomain, replacing the previous value.
-// Serialized via additionalEndpointsMu. Writes at SourceSecret (not SourceAgentRuntime) to avoid
-// permanently shadowing secret rotations; the retry loop mitigates concurrent writes.
+// Serialized via the config's atomic Update operation. Writes at SourceSecret (not
+// SourceAgentRuntime) to avoid permanently shadowing secret rotations.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInstance, apiKey string, isFallback bool) error {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
 
 	configKey := instance.additionalEndpointsConfigKey
 	domain := instance.additionalEndpointDomain
-
-	written := false
-	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
-		currentValue := d.config.Get(configKey)
+	var updateErr error
+	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}) (interface{}, bool) {
 		endpoints, err := cast.ToStringMapStringSliceE(currentValue)
 		if err != nil {
-			log.Warnf("Could not read map-shape additional endpoints at '%s' (unexpected type); skipping delegated auth update", configKey)
-			return fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
+			updateErr = fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
+			return nil, false
 		}
 		merged := make(map[string][]string, len(endpoints))
 		for k, v := range endpoints {
@@ -969,48 +910,21 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 			}
 		}
 
-		replaced := matchIndex != -1
-		if replaced {
-			keys[matchIndex] = apiKey
+		if matchIndex == -1 {
+			updateErr = fmt.Errorf("%w: previous value missing for %s", errWritebackTargetChanged, domain)
+			return nil, false
 		}
-		lastAttempt := attempt == maxAdditionalEndpointsWriteAttempts
-		if !replaced {
-			if !lastAttempt {
-				// Expected value missing — concurrent writer may be mid-update. Retry.
-				continue
-			}
-			// Unlike the list-shape path, appending here would orphan whatever key this
-			// instance was tracking (it may be a live, unrelated key) rather than just
-			// dropping this instance's own update.
-			log.Warnf("Could not find previous delegated auth value for additional endpoint '%s' at '%s'; leaving domain's keys unchanged", domain, configKey)
-			return fmt.Errorf("%w: previous value missing for %s", errWritebackTargetChanged, domain)
-		}
+		keys[matchIndex] = apiKey
 		merged[domain] = keys
+		return merged, true
+	})
 
-		// Set replaces the whole compound value. Commit only if this setting still matches the
-		// snapshot used to build merged; changes to unrelated settings do not matter.
-		if !d.config.SetIfUnchanged(configKey, currentValue, merged, pkgconfigmodel.SourceSecret) {
-			if lastAttempt {
-				log.Warnf("Concurrent update to '%s' prevented delegated auth key write for additional endpoint '%s'; giving up after %d attempts, a later refresh will retry", configKey, domain, maxAdditionalEndpointsWriteAttempts)
-			}
-			continue
-		}
-
-		// Verify the write stuck.
-		if current := d.config.GetStringMapStringSlice(configKey); reflect.DeepEqual(current, merged) {
-			written = true
-			break
-		}
-		if d.config.GetSource(configKey) != pkgconfigmodel.SourceSecret {
-			return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
-		}
-		if lastAttempt {
-			log.Warnf("Possible concurrent update to '%s' while writing delegated auth key for additional endpoint '%s'; giving up after %d attempts, a later refresh will retry", configKey, domain, maxAdditionalEndpointsWriteAttempts)
-		}
+	if updateErr != nil {
+		log.Warnf("Could not update delegated auth value for additional endpoint '%s' at '%s': %v", domain, configKey, updateErr)
+		return updateErr
 	}
-
-	if !written {
-		return fmt.Errorf("%w: %s", errWritebackConflict, configKey)
+	if !applied {
+		return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
 	}
 	instance.lastWrittenValue = apiKey
 	if isFallback {
@@ -1023,20 +937,19 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 
 // mergeIntoAdditionalEndpointsList writes apiKey into the list-shape config at
 // additionalEndpointsListConfigKey, replacing the entry matching lastWrittenValue.
-// Locking, write source, and retry behavior mirror mergeIntoAdditionalEndpoints.
+// Locking and write source mirror mergeIntoAdditionalEndpoints.
 func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *authInstance, apiKey string, isFallback bool) error {
 	d.additionalEndpointsMu.Lock()
 	defer d.additionalEndpointsMu.Unlock()
 
 	configKey := instance.additionalEndpointsListConfigKey
 
-	written := false
-	for attempt := 1; attempt <= maxAdditionalEndpointsWriteAttempts; attempt++ {
-		currentValue := d.config.Get(configKey)
+	var updateErr error
+	applied := d.config.Update(configKey, pkgconfigmodel.SourceSecret, func(currentValue interface{}) (interface{}, bool) {
 		entries, ok := common.NormalizeListShapeEntries(currentValue)
 		if !ok {
-			log.Warnf("Could not read list-shape additional endpoints at '%s' (unexpected type); skipping delegated auth update", configKey)
-			return fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
+			updateErr = fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, configKey)
+			return nil, false
 		}
 		merged := make([]any, len(entries))
 		copy(merged, entries)
@@ -1069,48 +982,23 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 			}
 		}
 
-		replaced := matchIndex != -1
-		if replaced {
-			matchedEntry := entries[matchIndex].(map[string]any)
-			newEntry := make(map[string]any, len(matchedEntry))
-			maps.Copy(newEntry, matchedEntry)
-			newEntry[apiKeyField] = apiKey
-			merged[matchIndex] = newEntry
+		if matchIndex == -1 {
+			updateErr = fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, configKey)
+			return nil, false
 		}
-
-		lastAttempt := attempt == maxAdditionalEndpointsWriteAttempts
-		if !replaced {
-			if !lastAttempt {
-				// Expected value missing — concurrent writer may be mid-update. Retry.
-				continue
-			}
-			log.Warnf("Could not find previous delegated auth value in list-shape additional endpoints at '%s'; leaving list unchanged", configKey)
-			return fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, configKey)
-		}
-
-		if !d.config.SetIfUnchanged(configKey, currentValue, merged, pkgconfigmodel.SourceSecret) {
-			if lastAttempt {
-				log.Warnf("Concurrent update to '%s' prevented delegated auth key write for additional endpoint entry; giving up after %d attempts, a later refresh will retry", configKey, maxAdditionalEndpointsWriteAttempts)
-			}
-			continue
-		}
-
-		// Verify the write stuck; normalize both sides since merged's element representation
-		// isn't necessarily identical to what a fresh read of the same data produces.
-		mergedNormalized, _ := common.NormalizeListShapeEntries(merged)
-		if current, ok := common.NormalizeListShapeEntries(d.config.Get(configKey)); ok && reflect.DeepEqual(current, mergedNormalized) {
-			written = true
-			break
-		}
-		if d.config.GetSource(configKey) != pkgconfigmodel.SourceSecret {
-			return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
-		}
-		if lastAttempt {
-			log.Warnf("Possible concurrent update to '%s' while writing delegated auth key for additional endpoint entry; giving up after %d attempts, a later refresh will retry", configKey, maxAdditionalEndpointsWriteAttempts)
-		}
+		matchedEntry := entries[matchIndex].(map[string]any)
+		newEntry := make(map[string]any, len(matchedEntry))
+		maps.Copy(newEntry, matchedEntry)
+		newEntry[apiKeyField] = apiKey
+		merged[matchIndex] = newEntry
+		return merged, true
+	})
+	if updateErr != nil {
+		log.Warnf("Could not update delegated auth value in list-shape additional endpoints at '%s': %v", configKey, updateErr)
+		return updateErr
 	}
-	if !written {
-		return fmt.Errorf("%w: %s", errWritebackConflict, configKey)
+	if !applied {
+		return fmt.Errorf("%w: %s", errWritebackBlocked, configKey)
 	}
 	instance.lastWrittenValue = apiKey
 
