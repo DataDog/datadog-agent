@@ -197,6 +197,7 @@ dd_agent_go_test(
     name = "gpu_test",
     srcs = [
         "gpu_test.go",
+        "tags_jobs_test.go",
         "tags_test.go",
     ],
     embed = [":gpu"],

@@ -187,6 +187,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if err != nil {
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
+	workloadTagCache.SetJobsConfig(c.gpuConfig.JobsConfig)
 	c.workloadTagCache = workloadTagCache
 
 	c.spCache = nil

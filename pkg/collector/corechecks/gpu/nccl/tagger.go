@@ -15,6 +15,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 )
 
@@ -48,6 +49,15 @@ func (pt *ProcessTagger) SetContainerProvider(p proccontainers.ContainerProvider
 		return
 	}
 	pt.cache.SetContainerProvider(p)
+}
+
+// SetJobsConfig sets which pod labels/annotations are used to tag workloads
+// with their training job.
+func (pt *ProcessTagger) SetJobsConfig(jobs gpuconfig.JobsConfig) {
+	if pt.cache == nil {
+		return
+	}
+	pt.cache.SetJobsConfig(jobs)
 }
 
 // GetTagsForPID returns tags for a given PID by correlating to container/pod

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    GPU Monitoring can now tag GPU metrics with the training job they belong to. Set
+    ``gpu.jobs.run`` and ``gpu.jobs.group`` with a ``key`` and a ``type`` (``label``, ``annotation``
+    or ``env``) to read the run and group IDs from a pod label, a pod annotation, or an environment
+    variable of the process using the GPU. The values are added as the ``training_job_id`` and
+    ``training_group_id`` tags to the GPU and NCCL metrics.

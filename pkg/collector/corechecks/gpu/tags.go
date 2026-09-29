@@ -11,18 +11,29 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
+	"strings"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
+	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+const (
+	// trainingJobIDTag is the tag holding the ID of the training run a workload belongs to.
+	trainingJobIDTag = "training_job_id"
+	// trainingGroupIDTag is the tag holding the ID of the group of training runs a workload belongs to.
+	trainingGroupIDTag = "training_group_id"
 )
 
 const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__workload_tag_cache"
@@ -45,6 +56,15 @@ type WorkloadTagCache struct {
 	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	pidToCid          map[int]string                   // pidToCid is the mapping of PIDs to container IDs, retrieved from the container provider until it is invalidated.
 	telemetry         *workloadTagCacheTelemetry       // telemetry is the telemetry component for the workload tag cache
+	jobsConfig        gpuconfig.JobsConfig             // jobsConfig defines which pod label/annotation/env var identifies the training job of a container
+	readEnvVar        envVarReader                     // readEnvVar reads an environment variable of a process, from procfs by default
+}
+
+// envVarReader returns the value of an environment variable of the given process, or an empty string if not found.
+type envVarReader func(pid int, key string) (string, error)
+
+func readProcEnvVar(pid int, key string) (string, error) {
+	return kernel.GetProcessEnvVariable(pid, kernel.ProcFSRoot(), key)
 }
 
 type workloadTagCacheTelemetry struct {
@@ -76,6 +96,7 @@ func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, 
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
 		telemetry:         newWorkloadTagCacheTelemetry(tm),
+		readEnvVar:        readProcEnvVar,
 	}
 
 	var err error
@@ -149,6 +170,12 @@ func (c *WorkloadTagCache) SetContainerProvider(p proccontainers.ContainerProvid
 	c.pidToCid = nil
 }
 
+// SetJobsConfig sets which pod labels/annotations are used to tag containers
+// with their training job. Must be called before the cache is used.
+func (c *WorkloadTagCache) SetJobsConfig(jobs gpuconfig.JobsConfig) {
+	c.jobsConfig = jobs
+}
+
 // MarkStale marks all entries in the cache as stale. That way, on the next calls to GetWorkloadTags, we will
 // try to rebuild them, anf if we can't we will return stale data.
 func (c *WorkloadTagCache) MarkStale() {
@@ -183,7 +210,134 @@ func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, err
 		cardinality = taggertypes.HighCardinality
 	}
 
-	return c.tagger.Tag(entityID, cardinality)
+	tags, err := c.tagger.Tag(entityID, cardinality)
+	if err != nil {
+		return tags, err
+	}
+
+	return slices.Concat(tags, c.buildJobTags(container)), nil
+}
+
+// buildJobTags returns the training job tags of a container, based on the
+// configured job identifiers. Labels and annotations come from the pod running
+// the container, and environment variables from the container's main process.
+// This is best effort: whatever cannot be found just produces no tag.
+func (c *WorkloadTagCache) buildJobTags(container *workloadmeta.Container) []string {
+	jobs := c.jobsConfig
+	if !jobs.Run.Configured() && !jobs.Group.Configured() {
+		return nil
+	}
+
+	var meta workloadmeta.EntityMeta
+	if jobs.Run.UsesPodMetadata() || jobs.Group.UsesPodMetadata() {
+		meta = c.getPodMeta(container.ID)
+	}
+
+	env := func(key string) string {
+		return c.containerEnvVar(container, key)
+	}
+
+	return jobTags(meta, env, jobs)
+}
+
+// getPodMeta returns the metadata of the pod running the container, or empty
+// metadata if the container is not in a pod or the pod cannot be found.
+func (c *WorkloadTagCache) getPodMeta(containerID string) workloadmeta.EntityMeta {
+	pod, err := c.wmeta.GetKubernetesPodForContainer(containerID)
+	if err != nil {
+		if !agenterrors.IsNotFound(err) {
+			log.Debugf("error getting pod for container %s to build job tags: %v", containerID, err)
+		}
+		return workloadmeta.EntityMeta{}
+	}
+	return pod.EntityMeta
+}
+
+// containerEnvVar reads an environment variable from the main process of the
+// container (using the host's procfs). Returns an empty string if it cannot be read.
+func (c *WorkloadTagCache) containerEnvVar(container *workloadmeta.Container, key string) string {
+	return c.procEnvVar(container.PID, key)
+}
+
+// buildProcessJobTags returns the training job tags read from the environment
+// of the given process, which is the one using the GPU. Labels and annotations
+// are not looked at, as they are container level and already part of the
+// container tags.
+func (c *WorkloadTagCache) buildProcessJobTags(pid int) []string {
+	env := func(key string) string {
+		return c.procEnvVar(pid, key)
+	}
+
+	return jobTags(workloadmeta.EntityMeta{}, env, c.jobsConfig)
+}
+
+// procEnvVar reads an environment variable of a process using the host's
+// procfs. Returns an empty string if it cannot be read.
+func (c *WorkloadTagCache) procEnvVar(pid int, key string) string {
+	if pid <= 0 {
+		return ""
+	}
+
+	value, err := c.readEnvVar(pid, key)
+	if err != nil {
+		log.Debugf("error reading env var %s of process %d to build job tags: %v", key, pid, err)
+		return ""
+	}
+	return value
+}
+
+// overrideTags returns tags with the ones in overrides added. Existing tags
+// with the same name (the part before the first ":") as an override are replaced.
+func overrideTags(tags []string, overrides []string) []string {
+	if len(overrides) == 0 {
+		return tags
+	}
+
+	overridden := make(map[string]struct{}, len(overrides))
+	for _, tag := range overrides {
+		name, _, _ := strings.Cut(tag, ":")
+		overridden[name] = struct{}{}
+	}
+
+	result := slices.DeleteFunc(slices.Clone(tags), func(tag string) bool {
+		name, _, _ := strings.Cut(tag, ":")
+		_, found := overridden[name]
+		return found
+	})
+	return append(result, overrides...)
+}
+
+// jobTags builds the training job tags from the pod metadata, and env, a
+// function that returns the value of an environment variable of the container.
+func jobTags(meta workloadmeta.EntityMeta, env func(key string) string, jobs gpuconfig.JobsConfig) []string {
+	var tags []string
+	if value, ok := identifierValue(meta, env, jobs.Run); ok {
+		tags = append(tags, trainingJobIDTag+":"+value)
+	}
+	if value, ok := identifierValue(meta, env, jobs.Group); ok {
+		tags = append(tags, trainingGroupIDTag+":"+value)
+	}
+	return tags
+}
+
+// identifierValue returns the non-empty value referenced by id, if id is
+// configured and the value exists.
+func identifierValue(meta workloadmeta.EntityMeta, env func(key string) string, id gpuconfig.IdentifierConfig) (string, bool) {
+	if !id.Configured() {
+		return "", false
+	}
+
+	var value string
+	switch id.Type {
+	case gpuconfig.IdentifierTypeLabel:
+		value = meta.Labels[id.Key]
+	case gpuconfig.IdentifierTypeAnnotation:
+		value = meta.Annotations[id.Key]
+	case gpuconfig.IdentifierTypeEnv:
+		value = env(id.Key)
+	}
+
+	return value, value != ""
 }
 
 // buildProcessTags builds the tags for a process. Can return "ErrNotFound" if the process
@@ -263,6 +417,10 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 		tags = append(tags, containerTags...)
 	}
 
+	// Job tags read from the environment of the process itself take precedence
+	// over the ones coming from its container.
+	tags = overrideTags(tags, c.buildProcessJobTags(int(pid)))
+
 	return tags, multiErr
 }
 
@@ -330,6 +488,7 @@ func NewWorkloadTagCacheWithSubsystem(subsystemPrefix string, tagger tagger.Comp
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
 		telemetry:         newWorkloadTagCacheTelemetryWithSubsystem(subsystemPrefix, tm),
+		readEnvVar:        readProcEnvVar,
 	}
 
 	var err error

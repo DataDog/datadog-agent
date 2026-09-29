@@ -107,6 +107,65 @@ properties:
     node_type: setting
     type: boolean
     default: true
+  jobs:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Identify the training job a GPU workload belongs to. The Agent reads the
+      configured pod label or annotation and attaches its value as a tag on GPU
+      metrics and traces.
+    tags:
+    - template_section:Common
+    properties:
+      run:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Where to find the unique ID of a single training run.
+        properties:
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: |-
+              Name of the pod label, pod annotation or environment variable holding the run ID, for
+              example example/job-id-label. Leave empty to disable run tagging.
+          type:
+            node_type: setting
+            type: string
+            default: label
+            visibility: public
+            description: |-
+              Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+              (environment variable read from the host's procfs: the environment of the
+              process using the GPU, falling back to the container's main process).
+      group:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          Where to find the ID of the group of related training runs.
+        properties:
+          key:
+            node_type: setting
+            type: string
+            default: ''
+            visibility: public
+            description: |-
+              Name of the pod label, pod annotation or environment variable holding the group ID, for
+              example example/job-group-annotation. Leave empty to disable group tagging.
+          type:
+            node_type: setting
+            type: string
+            default: label
+            visibility: public
+            description: |-
+              Where key is read from: a pod `label`, a pod `annotation`, or an `env`
+              (environment variable read from the host's procfs: the environment of the
+              process using the GPU, falling back to the container's main process).
   nvlink:
     node_type: section
     type: object
