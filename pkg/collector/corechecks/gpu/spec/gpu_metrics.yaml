@@ -890,15 +890,15 @@ metrics:
     metadata:
       metric_type: gauge
       description: >-
-        Whether the GPU is unavailable for the reason in the reason tag. The
-        lost reason means NVML reports the GPU as inaccessible
+        Whether the GPU is unavailable for the reason in the unavailable_reason
+        tag. The lost reason means NVML reports the GPU as inaccessible
         (NVML_ERROR_GPU_IS_LOST, typically because it has fallen off the bus).
         0 means available, 1 means unavailable.
       aggregation: absolute_usage
     tagsets:
       - device
     custom_tags:
-      - reason
+      - unavailable_reason
     validator:
       values: [0, 1]
     support:

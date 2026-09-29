@@ -1,4 +1,4 @@
 ---
 enhancements:
   - |
-    gpu: keep lost NVIDIA GPUs visible and report them with the new ``gpu.device.unavailable`` metric, tagged ``reason:lost``.
+    gpu: keep lost NVIDIA GPUs visible and report them with the new ``gpu.device.unavailable`` metric, tagged ``unavailable_reason:lost``.

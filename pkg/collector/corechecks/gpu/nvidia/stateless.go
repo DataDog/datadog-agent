@@ -896,7 +896,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 				value = 1
 			}
 			return []Sample{&Metric{
-				baseSample: baseSample{tags: []string{"reason:lost"}},
+				baseSample: baseSample{tags: []string{"unavailable_reason:lost"}},
 				Name:       "device.unavailable",
 				Value:      value,
 				Type:       metrics.GaugeType,
