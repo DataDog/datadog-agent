@@ -796,6 +796,20 @@ int hook_setup_arg_pages(ctx_t *ctx) {
 #define EXEC_ZK_ZEROKEY_IMPERSONATED 6
 #define EXEC_ZK_ZEROKEY_DIRECT 7
 
+#define EXEC_UAF_TOTAL 0       // popped entries examined, the denominator
+#define EXEC_UAF_ZERO_AT_POP 1 // ino already 0 the instant we popped it
+#define EXEC_UAF_WENT_ZERO 2   // ino good at pop, 0 by the time the event is sent
+#define EXEC_UAF_REUSED 3      // ino changed to a DIFFERENT non-zero value: element reused
+#define EXEC_UAF_CHANGED 4     // ino differs between the two reads, any direction
+#define EXEC_UAF_STABLE 5      // both reads agree and the ino is good
+
+static void __attribute__((always_inline)) bump_exec_uaf(u32 slot) {
+    u64 *counter = bpf_map_lookup_elem(&exec_uaf_probe, &slot);
+    if (counter != NULL) {
+        __sync_fetch_and_add(counter, 1);
+    }
+}
+
 static void __attribute__((always_inline)) bump_exec_zero_key_class(u32 slot) {
     u64 *counter = bpf_map_lookup_elem(&exec_zero_key_class, &slot);
     if (counter != NULL) {
@@ -826,6 +840,15 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     if (!syscall) {
         return 0;
     }
+
+    // Snapshot the ino the instant the entry is popped. pop_task_syscall calls
+    // bpf_map_delete_elem and then returns this very pointer, so everything below reads a
+    // freed element: on the pre-5.11 LRU hash it goes back on a freelist and can be recycled
+    // and rewritten while this program is still running. Both reads are volatile so the
+    // compiler cannot fold them into one and make the comparison vacuously true. Only the
+    // ino is kept: it alone answers whether the memory mutated, and one more live u64 across
+    // this function pushes it past the 512-byte BPF stack limit.
+    u64 popped_ino = *(volatile u64 *)&syscall->exec.file.path_key.ino;
 
     // check if this is a thread first
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -1033,6 +1056,26 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // Through symlink
     event->is_through_symlink = syscall->exec.is_through_symlink;
+    // Re-read the same fields after ~1200 instructions of building the event off the freed
+    // pointer. A disagreement here is the direct proof that the element changed under us.
+    // ZERO_AT_POP separates the two timings: already zero when popped means the element was
+    // reused before the pop, WENT_ZERO means after it.
+    u64 late_ino = *(volatile u64 *)&syscall->exec.file.path_key.ino;
+
+    bump_exec_uaf(EXEC_UAF_TOTAL);
+    if (popped_ino == 0) {
+        bump_exec_uaf(EXEC_UAF_ZERO_AT_POP);
+    } else if (late_ino == 0) {
+        bump_exec_uaf(EXEC_UAF_WENT_ZERO);
+    } else if (late_ino != popped_ino) {
+        bump_exec_uaf(EXEC_UAF_REUSED);
+    }
+    if (late_ino != popped_ino) {
+        bump_exec_uaf(EXEC_UAF_CHANGED);
+    } else if (popped_ino != 0) {
+        bump_exec_uaf(EXEC_UAF_STABLE);
+    }
+
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 

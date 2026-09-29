@@ -102,6 +102,11 @@ BPF_ARRAY_MAP(exec_entry_mismatch, u64, 2)
 // never deleted and is read under the leader's key after de_thread, so it cannot say whether
 // the entry was ever initialised. These slots read only the entry itself.
 BPF_ARRAY_MAP(exec_zero_key_class, u64, 8)
+// Does the popped syscall entry change under us? pop_task_syscall deletes the map element
+// and returns a pointer into its value, so send_exec_event builds the whole event out of a
+// freed LRU element. Slots compare the same fields read right after the pop against the same
+// fields read just before the event is sent, per EXEC_UAF_* slot.
+BPF_ARRAY_MAP(exec_uaf_probe, u64, 6)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)

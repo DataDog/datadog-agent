@@ -241,6 +241,10 @@ type EBPFProbe struct {
 	lastExecZeroKeyClass   atomic.Uint64
 	execZeroKeyClassLogged atomic.Bool
 
+	// lastExecUAF / execUAFLogged: same pair for logExecUseAfterFreeProbe.
+	lastExecUAF   atomic.Uint64
+	execUAFLogged atomic.Bool
+
 	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
 	// container, so the debug log below reports only transitions instead of one line
 	// per exec. Debug aid, see setProcessContext.
@@ -1314,6 +1318,7 @@ func (p *EBPFProbe) SendStats() error {
 	p.logExecEntryMismatches()
 	p.logExecInoReadStats()
 	p.logExecZeroKeyClass()
+	p.logExecUseAfterFreeProbe()
 
 	p.processKiller.SendStats(p.statsdClient)
 
@@ -1748,6 +1753,44 @@ func (p *EBPFProbe) logExecZeroKeyClass() {
 
 	seclog.Warnf("exec entry class: %d exec events; zero key: %d on an entry with ctx_id 0 (never initialised), %d on an entry with a real ctx_id (key never written), %d without a dentry, %d with a dentry, %d impersonated route, %d direct route; %d good key with ctx_id 0 (impossible)",
 		v[0], v[1], v[2], v[4], v[5], v[6], v[7], v[3])
+}
+
+// logExecUseAfterFreeProbe reports whether the popped syscall cache entry changes underneath
+// send_exec_event. pop_task_syscall deletes the map element and hands back a pointer into its
+// value, so the entire event is built out of a freed element; on the pre-5.11 LRU hash that
+// element can be recycled and rewritten mid-program, which is the only remaining explanation
+// for an entry arriving with a dentry set and a 0/0 key. KEY_CHANGED or CTX_CHANGED moving at
+// all is the proof; ZERO_AT_POP versus WENT_ZERO says whether the reuse beat the pop or not.
+func (p *EBPFProbe) logExecUseAfterFreeProbe() {
+	m, _, err := p.Manager.Get().GetMap("exec_uaf_probe")
+	if err != nil || m == nil {
+		if !p.execUAFLogged.Swap(true) {
+			seclog.Warnf("exec popped-entry stability: exec_uaf_probe unavailable: %v", err)
+		}
+		return
+	}
+
+	var v [6]uint64
+	for i := range v {
+		if err := m.Lookup(uint32(i), &v[i]); err != nil {
+			if !p.execUAFLogged.Swap(true) {
+				seclog.Warnf("exec popped-entry stability: slot %d unreadable: %v", i, err)
+			}
+			return
+		}
+	}
+
+	var total uint64
+	for _, n := range v {
+		total += n
+	}
+	if prev := p.lastExecUAF.Swap(total); prev == total && p.execUAFLogged.Swap(true) {
+		return
+	}
+	p.execUAFLogged.Store(true)
+
+	seclog.Warnf("exec popped-entry stability: %d popped; %d ino already 0 at pop, %d ino went 0 after the pop, %d ino replaced by another non-zero value (element reused), %d ino changed under us, %d stable with a good ino",
+		v[0], v[1], v[2], v[3], v[4], v[5])
 }
 
 // logExecEntryMismatches reports how often send_exec_event popped an entry that did not
