@@ -1077,7 +1077,7 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 	return usedCapabilities
 }
 
-// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities of a capabilities event that were checked against the initial user namespace
+// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities that were checked against the initial/host user namespace
 func (fh *EBPFFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(evt *model.Event, ce *model.CapabilitiesEvent) int {
 	attemptedCapabilities := int(ce.AttemptedHostUserNS)
 	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
@@ -1086,7 +1086,7 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(evt *model.E
 	return attemptedCapabilities
 }
 
-// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities of a capabilities event that were obtained from the initial user namespace
+// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities that were obtained from the initial/host user namespace
 func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsedHostUserNS(evt *model.Event, ce *model.CapabilitiesEvent) int {
 	usedCapabilities := int(ce.UsedHostUserNS)
 	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {

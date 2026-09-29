@@ -17,11 +17,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/bpf"
+
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -616,12 +617,12 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *mode
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
 
-// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities of a capabilities event that were checked against the initial user namespace
+// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities that were checked against the initial/host user namespace
 func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
 
-// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities of a capabilities event that were obtained from the initial user namespace
+// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities that were obtained from the initial/host user namespace
 func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsedHostUserNS(_ *model.Event, _ *model.CapabilitiesEvent) int {
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
 }
