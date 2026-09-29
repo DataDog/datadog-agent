@@ -50,6 +50,7 @@ dd_agent_go_test(
         "fargate_test.go",
         "k8s_test.go",
         "linux_test.go",
+        "testing_test.go",
         "windows_test.go",
     ],
     data = ["config/helm-template.tmpl"],

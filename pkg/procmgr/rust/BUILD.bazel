@@ -171,28 +171,45 @@ rust_test(
     # default "moderate" budget.
     timeout = "long",
     compile_data = [
+        "//cmd/agent/subcommands/run:dependent_services_windows.go",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
+        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
         "//pkg/fleet/installer/packages/user/windows:user.go",
         "//tools/windows/DatadogAgentInstaller/CustomActions:ConfigureUserCustomActions.cs",
     ],
     crate = ":dd-procmgrd-lib",
-    data = select({
+    data = [
+        # env_bindings schema sync test resolves $ref across these files.
+        "//pkg/config/schema:core_schema_subfiles",
+        "//pkg/config/schema:system_probe_schema_subfiles",
+        "//pkg/config/schema:yaml/core_schema.yaml",
+    ] + select({
         "@platforms//os:windows": [":graceful-sleeper"],
         "//conditions:default": [],
     }),
     edition = "2024",
     env = select({
         "@platforms//os:windows": {
+            "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
             "GRACEFUL_SLEEPER_BIN": "$(rlocationpath :graceful-sleeper)",
             # Graceful stop detaches the supervisor from its own console and
             # attaches to the child's, which is per-process state. Spawn-heavy
             # tests must therefore not overlap.
             "RUST_TEST_THREADS": "1",
         },
-        "//conditions:default": {},
+        "//conditions:default": {
+            "DD_CONFIG_SCHEMA_CORE_YAML": "$(rlocationpath //pkg/config/schema:yaml/core_schema.yaml)",
+        },
     }),
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
-    deps = ["@crates//:tempfile"] + _TEST_HELPERS_DEPS,
+    # runfiles: schema sync resolves DD_CONFIG_SCHEMA_CORE_YAML on every OS.
+    # Do not also append _TEST_HELPERS_DEPS: on Windows that select already
+    # lists @crates//:runfiles, and Bazel rejects the duplicate label.
+    deps = [
+        "@crates//:runfiles",
+        "@crates//:tempfile",
+    ],
 )
 
 rust_test(
@@ -209,13 +226,11 @@ rust_test(
         "tests/e2e/*.rs",
         "tests/helpers/*.rs",
     ]),
-    compile_data = ["//cmd/agent/subcommands/run:dependent_services_windows.go"],
     crate_root = "tests/e2e/main.rs",
     data = [
         ":dd-procmgr",
         ":dd-procmgrd",
         "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl",
-        "//pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl",
         "//pkg/procmgr/rust/tests/fixtures:.marker",
         "//pkg/procmgr/rust/tests/fixtures:test_fixtures",
     ],
@@ -224,7 +239,6 @@ rust_test(
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
-        "PROCESS_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-process-windows.yaml.tmpl)",
         "PROCMGR_TEST_FIXTURES_MARKER": "$(rootpath //pkg/procmgr/rust/tests/fixtures:.marker)",
     },
     # E2E tests use UDS for transport and spawn the Linux daemon binary.

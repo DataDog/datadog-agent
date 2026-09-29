@@ -387,8 +387,9 @@ func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *
 	}
 
 	psn := &adproto.SocketNode{
-		Family: sn.Family,
-		Bind:   make([]*adproto.BindNode, 0, len(sn.Bind)),
+		Family:  sn.Family,
+		Bind:    make([]*adproto.BindNode, 0, len(sn.Bind)),
+		Connect: make([]*adproto.ConnectNode, 0, len(sn.Connect)),
 	}
 
 	for _, bn := range sn.Bind {
@@ -405,6 +406,22 @@ func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *
 		}
 
 		psn.Bind = append(psn.Bind, pbn)
+	}
+
+	for _, cn := range sn.Connect {
+		pcn := &adproto.ConnectNode{
+			MatchedRules: make([]*adproto.MatchedRule, 0, len(cn.MatchedRules)),
+			Port:         uint32(cn.Port),
+			Ip:           cn.IP,
+			Protocol:     uint32(cn.Protocol),
+			NodeBase:     nodeBaseToProto(&cn.NodeBase, tagIDToImageTag),
+		}
+
+		for _, rule := range cn.MatchedRules {
+			pcn.MatchedRules = append(pcn.MatchedRules, matchedRuleToProto(rule))
+		}
+
+		psn.Connect = append(psn.Connect, pcn)
 	}
 
 	return psn
