@@ -37,16 +37,6 @@ func TestCheckCompatibilityFromConfig(t *testing.T) {
 	assert.Equal(t, []string{"http_check"}, compat.Exclude)
 	reset()
 
-	// Comma-joined values bound as a single list element (the DD_ env binder
-	// splits []string on spaces): expanded into individual check names.
-	cfg.SetInTest("experimental.clc_runner_checks_include", []string{"kubernetes_state_core,orchestrator, kube_apiserver_metrics"})
-	cfg.SetInTest("experimental.clc_runner_checks_exclude", []string{"http_check, ,redisdb"})
-	compat = checkCompatibilityFromConfig(cfg)
-	require.NotNil(t, compat)
-	assert.Equal(t, []string{"kubernetes_state_core", "orchestrator", "kube_apiserver_metrics"}, compat.Include)
-	assert.Equal(t, []string{"http_check", "redisdb"}, compat.Exclude)
-	reset()
-
 	// Only the experimental exclude key set.
 	cfg.SetInTest("experimental.clc_runner_checks_exclude", []string{"kafka_consumer"})
 	compat = checkCompatibilityFromConfig(cfg)
