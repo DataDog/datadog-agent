@@ -113,12 +113,12 @@ func TestPatternTableClonesBorrowedTokens(t *testing.T) {
 	tokenizer := NewTokenizer(0)
 
 	// First line: insert using borrowed tokens (aliasing the scratch buffer).
-	borrowed := tokenizer.tokenizeBorrowed([]byte("abc 123 !"))
+	borrowed := tokenizer.TokenizeBorrowed([]byte("abc 123 !"))
 	pt.insert(&messageContext{tokens: borrowed, label: aggregate})
 
 	// A structurally different line reuses the same scratch buffer, overwriting
 	// the bytes the first line's tokens pointed at.
-	tokenizer.tokenizeBorrowed([]byte("zzzzzzz 9999 @ % ^ & *"))
+	tokenizer.TokenizeBorrowed([]byte("zzzzzzz 9999 @ % ^ & *"))
 
 	// The stored row must still reflect the first pattern, not the second.
 	dump := pt.DumpTable()

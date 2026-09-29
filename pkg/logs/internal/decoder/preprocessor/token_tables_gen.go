@@ -113,7 +113,7 @@ func getSpecialToken(input []byte) Token {
 }
 
 // tokenMeta is the display string and critical-severity flag for each named
-// token. Consumed by token_tables.go (tokenToString, isImportant).
+// token. Consumed by token_tables.go (tokenToString, IsImportant).
 var tokenMeta = []struct {
 	tok      Token
 	debug    string
