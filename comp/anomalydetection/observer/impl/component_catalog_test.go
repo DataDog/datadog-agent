@@ -16,29 +16,26 @@ import (
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
-// every catalog detector either implements observerdef.SeriesRemover or is
-// explicitly listed in statelessDetectorAllowlist. Without this, a new
+// every catalog detector implements observerdef.SeriesRemover. Without this, a new
 // detector with per-series state can be added to the catalog and silently
 // leak memory in production: storage eviction will free the series, but the
 // detector's per-series map will never shrink.
 func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 	require.NoError(t, defaultCatalog().validateDetectorTeardownContract(),
-		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
+		"every catalog detector must implement SeriesRemover")
+}
+
+func TestDefaultCatalog_EnabledDetectors(t *testing.T) {
+	detectors, _, _, _, _ := defaultCatalog().Instantiate(ComponentSettings{})
+	require.Equal(t, []string{"bocpd"}, detectorNames(detectors))
 }
 
 // Every catalog detector can be enabled through anomaly_detection.detectors.*.
 // Check all of them, including those disabled by default, so a new detector
 // cannot silently use FormatAnomaly's generic fallback when it starts emitting.
 func TestDefaultCatalog_EmittingDetectorsHaveAnomalyFormatter(t *testing.T) {
-	// RRCF remains configurable but currently scores without emitting anomalies.
-	scoreOnly := map[string]bool{"rrcf": true}
-	seenScoreOnly := make(map[string]bool)
 	for _, entry := range defaultCatalog().Entries() {
 		if entry.kind != componentDetector {
-			continue
-		}
-		if scoreOnly[entry.name] {
-			seenScoreOnly[entry.name] = true
 			continue
 		}
 		t.Run(entry.name, func(t *testing.T) {
@@ -58,9 +55,6 @@ func TestDefaultCatalog_EmittingDetectorsHaveAnomalyFormatter(t *testing.T) {
 				"configurable detector is missing an anomaly formatter")
 			require.NotEmpty(t, description, "configurable detector is missing an anomaly description")
 		})
-	}
-	for name := range scoreOnly {
-		require.True(t, seenScoreOnly[name], "remove obsolete score-only exceptions when a detector leaves the catalog")
 	}
 }
 
@@ -83,8 +77,7 @@ func TestTestbenchCatalogAndSettingsIncludePassthrough(t *testing.T) {
 }
 
 // TestValidateDetectorTeardownContract_FlagsBareDetector confirms the
-// validator rejects a Detector that doesn't implement SeriesRemover and isn't
-// allowlisted — i.e. the check actually fails when it should.
+// validator rejects a Detector that doesn't implement SeriesRemover.
 func TestValidateDetectorTeardownContract_FlagsBareDetector(t *testing.T) {
 	cat := &componentCatalog{
 		entries: []componentEntry{
@@ -101,26 +94,6 @@ func TestValidateDetectorTeardownContract_FlagsBareDetector(t *testing.T) {
 	var contractErr *detectorTeardownContractError
 	require.True(t, errors.As(err, &contractErr), "error must be detectorTeardownContractError")
 	require.Equal(t, "bare-detector", contractErr.name)
-}
-
-// TestValidateDetectorTeardownContract_AllowlistEscape confirms an allowlisted
-// detector is permitted to skip SeriesRemover. Useful for genuinely stateless
-// detectors (none in the catalog today; this exercises the escape hatch).
-func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
-	statelessDetectorAllowlist["explicitly-stateless-test"] = struct{}{}
-	t.Cleanup(func() { delete(statelessDetectorAllowlist, "explicitly-stateless-test") })
-
-	cat := &componentCatalog{
-		entries: []componentEntry{
-			{
-				name:           "explicitly-stateless-test",
-				kind:           componentDetector,
-				factory:        func(any) any { return &bareDetectorForValidator{} },
-				defaultEnabled: true,
-			},
-		},
-	}
-	require.NoError(t, cat.validateDetectorTeardownContract())
 }
 
 func TestApplyTestbenchDefaults(t *testing.T) {
