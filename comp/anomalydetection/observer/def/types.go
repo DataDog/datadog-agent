@@ -247,8 +247,8 @@ type Anomaly struct {
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
-	// Context carries optional enrichment about the originating signal, such as
-	// a synthesized pattern and example source data.
+	// Context carries optional enrichment about the originating signal. Engine
+	// anomalies leave it nil; output materialization resolves it when needed.
 	Context   *MetricContext
 	Timestamp int64    // when the anomaly was detected (unix seconds)
 	Score     *float64 // confidence/severity score (nil if not available)
@@ -603,8 +603,9 @@ type StorageReader interface {
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
 
-	// GetContext returns a value snapshot of the series context. The boolean is
-	// false if the series has been evicted or has no context.
+	// GetContext resolves the current optional context associated with a series.
+	// The boolean is false when the series or its backing context is unavailable.
+	// Output callers should not assume detection-time context.
 	GetContext(ref SeriesRef) (MetricContext, bool)
 
 	// GetSeriesRange returns points within a time range (start, end].

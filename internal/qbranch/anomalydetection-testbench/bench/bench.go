@@ -910,7 +910,7 @@ func (tb *Bench) collectReplayResultsLocked() {
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	for _, a := range sv.Anomalies() {
-		if a.Type == observerdef.AnomalyTypeLog || reporterimpl.IsLogDerivedAnomaly(a) {
+		if reporterimpl.HasLogOrigin(a) {
 			tb.logAnomalies = append(tb.logAnomalies, a)
 			tb.logAnomaliesByDetector[a.DetectorName] = append(tb.logAnomaliesByDetector[a.DetectorName], a)
 		}
@@ -920,12 +920,12 @@ func (tb *Bench) collectReplayResultsLocked() {
 
 	// Build reported events from correlation history.
 	storage := tb.debug.StorageReader()
+	var rateStorage observerdef.StorageReader = storage
 	if tb.config.StreamParquet {
-		// Old windows may already have been evicted. BuildChangeMessage has a
-		// context-based fallback when storage is nil.
-		storage = nil
+		// Old rate windows may be evicted; context can still be resolved.
+		rateStorage = nil
 	}
-	tb.reportedEvents = buildReportedEvents(tb.correlationsLocked(sv), storage)
+	tb.reportedEvents = buildReportedEvents(tb.correlationsLocked(sv), storage, rateStorage)
 
 	// Compute replay stats.
 	detectorStats := computeDetectorProcessingStatsFromStateView(sv)

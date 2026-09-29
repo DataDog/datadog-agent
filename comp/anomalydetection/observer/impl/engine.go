@@ -770,7 +770,6 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			if anomaly.SourceRef == nil {
 				continue // invalid detector output: no storage series to identify it
 			}
-			e.enrichAnomaly(&anomaly)
 			// Baseline gate must precede acceptAnomaly: scan detectors re-emit
 			// the same anomaly (same {source ref,aggregate,detector,ts}) on consecutive advances,
 			// so acceptAnomaly would return false (duplicate) before we could mark it.
@@ -852,15 +851,6 @@ func (e *engine) anomalyStorageKey(anomaly observerdef.Anomaly) uint64 {
 		}
 	}
 	return storageKeyForCompositeIdentity(anomaly.Source.Namespace, anomaly.Source.Name, anomaly.Source.Host, anomaly.Source.Tags)
-}
-
-// enrichAnomaly decorates an anomaly with context stored on the source series.
-// Context is written at ingest time via storage.SetContext when an extractor
-// emits a MetricOutput.Context; here we read it back in O(1).
-func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if ctx, ok := e.storage.GetContext(a.SourceRef.Ref); ok {
-		a.Context = &ctx
-	}
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
@@ -1214,9 +1204,8 @@ func (e *engine) resetFull() {
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,
 // telemetry, and correlations — but does NOT reset extractors. Used before
-// batch replay so that enrichAnomaly can still attach context (stored on
-// seriesStats) during replay. Detectors and correlators ARE reset so they
-// start from a clean slate and produce correct results.
+// batch replay so log-derived series can still resolve context at output time.
+// Detectors and correlators ARE reset to produce correct results.
 func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
@@ -1234,7 +1223,7 @@ func (e *engine) resetAnalysisState() {
 		correlator.Reset()
 	}
 	// Extractors are intentionally NOT reset: their state was built during
-	// log ingestion and is needed by enrichAnomaly during replay.
+	// log ingestion and is needed for output-time context resolution during replay.
 
 	if e.baseline != nil {
 		e.baseline = newBaselineController(e.baseline.config, detectorNames(e.detectors))

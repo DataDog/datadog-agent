@@ -193,6 +193,13 @@ not embed a `correlationEmitter`.
 
 ### Detector-output deduplication vs replay history
 
+Detector and correlator anomalies remain raw: they carry source refs and scalar
+evidence, but do not resolve metric context during detection. Resolve context
+from storage on a copy only when preparing a selected output; message, tags,
+and metadata must use the same prepared correlation. Missing context falls back
+to source metadata. Retry entries retain their prepared correlation so context
+does not change across attempts.
+
 Every detector output must set `Anomaly.SourceRef` to its storage series and
 aggregate, including anomalies from log-derived metrics. The engine discards
 outputs without a reference. Display names are not deduplication identities.

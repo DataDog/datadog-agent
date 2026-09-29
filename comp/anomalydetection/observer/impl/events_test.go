@@ -218,7 +218,7 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 	assert.Equal(t, "mem:avg", anomalyEvents[1].anomalyCreated.anomaly.Source.String())
 }
 
-func TestAdvanceEnrichesAnomalyContextWithoutOverwritingEvidence(t *testing.T) {
+func TestAdvanceLeavesContextForOutputMaterialization(t *testing.T) {
 	ctx := &observerdef.MetricContext{
 		Pattern: "error <*> timeout",
 		Example: "very long example line that should still be attached as context",
@@ -257,14 +257,15 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingEvidence(t *testing.T) {
 	got := anomalyEvents[0].anomalyCreated.anomaly
 	require.NotNil(t, got.DebugInfo)
 	assert.Equal(t, float64(7), got.DebugInfo.CurrentValue)
-	require.NotNil(t, got.Context)
-	assert.Equal(t, "error <*> timeout", got.Context.Pattern)
-	assert.Equal(t, "log_metrics_extractor", got.Context.Source)
-	assert.Contains(t, got.Context.Example, "very long example line")
-
+	assert.Nil(t, got.Context)
+	materialized := observerdef.MaterializeAnomaly(got, storage)
+	require.NotNil(t, materialized.Anomaly.Context)
+	assert.Equal(t, "error <*> timeout", materialized.Anomaly.Context.Pattern)
+	assert.Equal(t, "log_metrics_extractor", materialized.Anomaly.Context.Source)
+	assert.Contains(t, materialized.Anomaly.Context.Example, "very long example line")
 	storage.SetContext(addRes.Ref, observerdef.MetricContext{Pattern: "later", Example: "later log"})
-	assert.Equal(t, "error <*> timeout", got.Context.Pattern, "an emitted anomaly must keep its context snapshot")
-	assert.Contains(t, got.Context.Example, "very long example line")
+	assert.Equal(t, "error <*> timeout", materialized.Anomaly.Context.Pattern, "materialized output keeps its snapshot")
+	assert.Equal(t, "later", observerdef.ResolveAnomalyContext(got, storage).Context.Pattern)
 }
 
 func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
@@ -290,8 +291,10 @@ func TestSetExtractorsDoesNotClearStoredContext(t *testing.T) {
 	e.SetExtractors([]observerdef.LogMetricsExtractor{second})
 	result := e.Advance(2)
 	require.Len(t, result.anomalies, 1)
-	require.NotNil(t, result.anomalies[0].Context)
-	assert.Equal(t, "second", result.anomalies[0].Context.Source)
+	assert.Nil(t, result.anomalies[0].Context)
+	resolved := observerdef.ResolveAnomalyContext(result.anomalies[0], storage)
+	require.NotNil(t, resolved.Context)
+	assert.Equal(t, "second", resolved.Context.Source)
 }
 
 func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing.T) {
@@ -338,7 +341,8 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	}
 	require.NotEmpty(t, anomaly.Source.Name)
 
-	e.enrichAnomaly(&anomaly)
+	assert.Nil(t, anomaly.Context)
+	anomaly = observerdef.ResolveAnomalyContext(anomaly, e.storage)
 	require.NotNil(t, anomaly.Context)
 	assert.Equal(t, "log_pattern_extractor", anomaly.Context.Source)
 	// Context carries the most-recently-emitted example for the series (SetContext overwrites).
@@ -374,6 +378,8 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	require.NotNil(t, anomaly.SourceRef)
 	assert.Equal(t, observerdef.AggregateCount, anomaly.SourceRef.Aggregate)
 
+	assert.Nil(t, anomaly.Context)
+	anomaly = observerdef.ResolveAnomalyContext(anomaly, e.storage)
 	require.NotNil(t, anomaly.Context)
 	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
 	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)

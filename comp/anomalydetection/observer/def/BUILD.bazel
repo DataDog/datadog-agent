@@ -5,6 +5,7 @@ go_library(
     name = "def",
     srcs = [
         "component.go",
+        "context.go",
         "format.go",
         "types.go",
     ],
@@ -18,6 +19,9 @@ go_library(
 
 dd_agent_go_test(
     name = "def_test",
-    srcs = ["format_test.go"],
+    srcs = [
+        "context_test.go",
+        "format_test.go",
+    ],
     embed = [":def"],
 )
