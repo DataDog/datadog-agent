@@ -1205,9 +1205,6 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 			}
 		}
 	})
-	// The v2 sampler fast-exits these in-kernel, so seed them back in: a KILL-default
-	// seccomp profile missing read/write/futex/... would kill the workload.
-	syscalls = append(syscalls, utils.SampledIgnoredSyscallNamesForArch(arch)...)
 	return syscalls
 }
 

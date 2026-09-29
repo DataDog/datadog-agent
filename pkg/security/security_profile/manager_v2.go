@@ -1252,6 +1252,7 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
+		profile.WithSeededSyscalls(m.seededSyscalls()),
 	)
 
 	// Try to load from local storage
@@ -1305,6 +1306,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		profile.WithEventTypes(m.config.RuntimeSecurity.SecurityProfileV2EventTypes),
 		profile.WithWorkloadSelector(selector),
 		profile.WithObservedRollups(),
+		profile.WithSeededSyscalls(m.seededSyscalls()),
 	)
 	secprof.SetTreeType(secprof, "security_profile")
 
@@ -1395,18 +1397,11 @@ func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
 	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
 	profileTags := secprof.GetTags()
 
-	syscalls := secprof.ComputeSyscallsList()
-	if m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
-		// The v2 sampler fast-exits the ignore list in-kernel, so seed it back into the
-		// reported syscall set to keep the profile complete (e.g. for seccomp suggestions).
-		syscalls = mergeSampledIgnoredSyscalls(syscalls)
-	}
-
 	vCtx := &profile.VersionContext{
 		FirstSeenNano:  nowNano,
 		LastSeenNano:   nowNano,
 		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-		Syscalls:       syscalls,
+		Syscalls:       secprof.ComputeSyscallsList(),
 		Tags:           make([]string, len(profileTags)),
 	}
 	copy(vCtx.Tags, profileTags)
@@ -1414,20 +1409,17 @@ func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
 	secprof.AddVersionContext(tag, vCtx)
 }
 
-// mergeSampledIgnoredSyscalls unions the sampler ignore list into an existing syscall id
-// list, deduplicating and keeping the result sorted.
-func mergeSampledIgnoredSyscalls(syscalls []uint32) []uint32 {
-	seen := make(map[uint32]struct{}, len(syscalls))
-	for _, s := range syscalls {
-		seen[s] = struct{}{}
+// seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
+func (m *ManagerV2) seededSyscalls() []uint32 {
+	if !m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		return nil
 	}
-	for _, id := range utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH) {
-		if _, ok := seen[uint32(id)]; !ok {
-			syscalls = append(syscalls, uint32(id))
-		}
+	ids := utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH)
+	out := make([]uint32, len(ids))
+	for i, id := range ids {
+		out[i] = uint32(id)
 	}
-	slices.Sort(syscalls)
-	return syscalls
+	return out
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos

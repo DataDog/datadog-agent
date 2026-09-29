@@ -8,11 +8,8 @@ package utils
 
 import "sync"
 
-// SampledIgnoredSyscallNames are high-frequency, low-signal syscalls the v2 syscall
-// sampler fast-exits on in-kernel to avoid per-syscall overhead. They carry no
-// profiling signal (virtually every workload uses them) but are seeded into
-// suggested profiles so a KILL-default seccomp profile derived from a profile stays
-// valid.
+// SampledIgnoredSyscallNames are high-frequency, low-signal syscalls the v2 sampler
+// fast-exits in-kernel; their ids are seeded back into a profile's reported syscall list.
 var SampledIgnoredSyscallNames = []string{
 	"read", "write", "readv", "writev", "pread64", "pwrite64", "preadv", "pwritev",
 	"recvfrom", "sendto", "recvmsg", "sendmsg", "recvmmsg", "sendmmsg",
@@ -21,9 +18,8 @@ var SampledIgnoredSyscallNames = []string{
 }
 
 var (
-	sampledIgnoredOnce  sync.Once
-	sampledIgnoredIDs   map[string][]int
-	sampledIgnoredNames map[string][]string
+	sampledIgnoredOnce sync.Once
+	sampledIgnoredIDs  map[string][]int
 )
 
 func buildSampledIgnored() {
@@ -32,13 +28,11 @@ func buildSampledIgnored() {
 		nameSet[n] = struct{}{}
 	}
 	sampledIgnoredIDs = make(map[string][]int)
-	sampledIgnoredNames = make(map[string][]string)
 	for key, name := range Syscalls {
 		if _, ok := nameSet[name]; !ok {
 			continue
 		}
 		sampledIgnoredIDs[key.Arch] = append(sampledIgnoredIDs[key.Arch], key.ID)
-		sampledIgnoredNames[key.Arch] = append(sampledIgnoredNames[key.Arch], name)
 	}
 }
 
@@ -47,11 +41,4 @@ func buildSampledIgnored() {
 func SampledIgnoredSyscallIDsForArch(arch string) []int {
 	sampledIgnoredOnce.Do(buildSampledIgnored)
 	return sampledIgnoredIDs[arch]
-}
-
-// SampledIgnoredSyscallNamesForArch returns the sampler ignore list syscall names
-// that exist on the given arch ("amd64"/"arm64").
-func SampledIgnoredSyscallNamesForArch(arch string) []string {
-	sampledIgnoredOnce.Do(buildSampledIgnored)
-	return sampledIgnoredNames[arch]
 }

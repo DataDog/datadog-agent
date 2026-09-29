@@ -96,6 +96,7 @@ type Profile struct {
 	isEnabled          bool
 	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
 	observedRollups bool
+	seededSyscalls  []uint32
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -170,6 +171,13 @@ func WithEventTypes(eventTypes []model.EventType) Opts {
 func WithObservedRollups() Opts {
 	return func(p *Profile) {
 		p.observedRollups = true
+	}
+}
+
+// WithSeededSyscalls sets syscall ids to union into the profile's reported syscall lists.
+func WithSeededSyscalls(ids []uint32) Opts {
+	return func(p *Profile) {
+		p.seededSyscalls = ids
 	}
 }
 
@@ -711,7 +719,30 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 	p.Lock()
 	defer p.Unlock()
 
-	return p.ActivityTree.ComputeSyscallsList()
+	return unionSyscalls(p.ActivityTree.ComputeSyscallsList(), p.seededSyscalls)
+}
+
+// unionSyscalls returns base ∪ extra, deduplicated and sorted.
+func unionSyscalls(base, extra []uint32) []uint32 {
+	if len(extra) == 0 {
+		return base
+	}
+	seen := make(map[uint32]struct{}, len(base)+len(extra))
+	out := make([]uint32, 0, len(base)+len(extra))
+	for _, s := range base {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	for _, s := range extra {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // MatchesSelector is used to control how an event should be added to a profile
