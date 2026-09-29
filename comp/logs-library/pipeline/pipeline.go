@@ -51,8 +51,12 @@ func NewPipeline(
 	useContainerTimestamp := cfg.GetBool("logs_config.use_container_timestamp")
 
 	var encoder processor.Encoder
+	var tap processor.Tap
 	if dualShip && foldspaceDriver != nil {
-		encoder = foldspace.NewTeeEncoder(processor.NewJSONEncoder(useContainerTimestamp), foldspaceDriver.Input())
+		// Foldspace has its own wire format, so it consumes the rendered message
+		// via a tap rather than the primary destination's encoded output.
+		encoder = processor.NewJSONEncoder(useContainerTimestamp)
+		tap = foldspaceDriver.Tap()
 	} else if foldspaceDriver != nil && !dualShip {
 		encoder = processor.PassthroughEncoder
 	} else if serverlessMeta.IsEnabled() {
@@ -76,7 +80,7 @@ func NewPipeline(
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+		encoder, tap, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
 		InputChan:       inputChan,
