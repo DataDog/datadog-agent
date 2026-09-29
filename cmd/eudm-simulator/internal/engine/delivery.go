@@ -8,6 +8,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -32,7 +33,7 @@ type AgentDelivery struct{ Pipeline *output.Pipeline }
 
 func (a AgentDelivery) Send(ctx context.Context, at time.Time, stream schema.Stream, samples []*telemetry.Sample) error {
 	if len(samples) == 0 {
-		return fmt.Errorf("empty required collection cycle")
+		return errors.New("empty required collection cycle")
 	}
 	switch stream {
 	case schema.Processes, schema.Connections:
@@ -85,7 +86,7 @@ func (a AgentDelivery) Send(ctx context.Context, at time.Time, stream schema.Str
 }
 func (a AgentDelivery) NetworkMetrics(ctx context.Context, series []*metrics.Serie) error {
 	if len(series) == 0 {
-		return fmt.Errorf("access-point cycle contains no metrics")
+		return errors.New("access-point cycle contains no metrics")
 	}
 	if err := a.Pipeline.Serializer.SendIterableSeries(capture.NewSeriesSource(series)); err != nil {
 		return err
@@ -94,7 +95,7 @@ func (a AgentDelivery) NetworkMetrics(ctx context.Context, series []*metrics.Ser
 }
 func (a AgentDelivery) NetworkMetadata(ctx context.Context, payloads []metadata.NetworkDevicesMetadata) error {
 	if len(payloads) == 0 {
-		return fmt.Errorf("access-point cycle contains no metadata")
+		return errors.New("access-point cycle contains no metadata")
 	}
 	for _, payload := range payloads {
 		body, err := json.Marshal(payload)
@@ -124,13 +125,13 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 		return err
 	}
 	if options.Workers <= 0 || options.QueueCapacity <= 0 || options.DeliveryGrace <= 0 {
-		return fmt.Errorf("positive worker, queue, and delivery grace settings are required")
+		return errors.New("positive worker, queue, and delivery grace settings are required")
 	}
 	if !request.Plan.Start.After(time.Now()) {
-		return fmt.Errorf("run-plan start is in the past; generate a new plan")
+		return errors.New("run-plan start is in the past; generate a new plan")
 	}
 	if options.APIKey == "" {
-		return fmt.Errorf("set DD_API_KEY to the target staging organization's API key")
+		return errors.New("set DD_API_KEY to the target staging organization's API key")
 	}
 	file, err := os.OpenFile(options.ReportPath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {

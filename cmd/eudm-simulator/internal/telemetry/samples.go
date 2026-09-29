@@ -8,6 +8,7 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/netip"
@@ -69,12 +70,12 @@ func Decode(stream schema.Stream, data []byte) (*Sample, error) {
 			return nil, err
 		}
 		if value.Hostname == "" || value.AgentVersion == "" || !slices.Contains([]string{"darwin", "windows", "win32"}, value.OS) {
-			return nil, fmt.Errorf("host metadata lacks host, version, or supported operating system")
+			return nil, errors.New("host metadata lacks host, version, or supported operating system")
 		}
 		if value.Gohai != "" {
 			var nested map[string]map[string]any
 			if err := decode([]byte(value.Gohai), &nested); err != nil || nested == nil {
-				return nil, fmt.Errorf("host metadata contains invalid gohai JSON")
+				return nil, errors.New("host metadata contains invalid gohai JSON")
 			}
 		}
 		sample.HostMetadata = &value
@@ -84,11 +85,11 @@ func Decode(stream schema.Stream, data []byte) (*Sample, error) {
 			return nil, err
 		}
 		if value.HostName == "" || value.Info == nil || value.Info.TotalMemory <= 0 || value.Info.Os == nil || !slices.Contains([]string{"darwin", "windows"}, value.Info.Os.Name) || len(value.Processes) == 0 {
-			return nil, fmt.Errorf("process sample lacks host, system information, or processes")
+			return nil, errors.New("process sample lacks host, system information, or processes")
 		}
 		for _, process := range value.Processes {
 			if process == nil || process.Command == nil || process.Command.Comm == "" {
-				return nil, fmt.Errorf("process sample contains an unnamed or nil process")
+				return nil, errors.New("process sample contains an unnamed or nil process")
 			}
 		}
 		sample.Processes = &value
@@ -98,15 +99,15 @@ func Decode(stream schema.Stream, data []byte) (*Sample, error) {
 			return nil, err
 		}
 		if value.HostName == "" || len(value.Connections) == 0 {
-			return nil, fmt.Errorf("connection sample lacks host or connections")
+			return nil, errors.New("connection sample lacks host or connections")
 		}
 		for _, connection := range value.Connections {
 			if connection == nil || connection.Laddr == nil || connection.Raddr == nil {
-				return nil, fmt.Errorf("connection sample contains a nil connection or address")
+				return nil, errors.New("connection sample contains a nil connection or address")
 			}
 			for _, addr := range []*model.Addr{connection.Laddr, connection.Raddr} {
 				if _, err := netip.ParseAddr(addr.Ip); err != nil || addr.Port < 0 || addr.Port > 65535 {
-					return nil, fmt.Errorf("connection sample contains an invalid address")
+					return nil, errors.New("connection sample contains an invalid address")
 				}
 			}
 		}
@@ -117,16 +118,16 @@ func Decode(stream schema.Stream, data []byte) (*Sample, error) {
 			return nil, err
 		}
 		if value.Hostname == "" || len(value.Metadata.Software) == 0 {
-			return nil, fmt.Errorf("software snapshot lacks host or software entries")
+			return nil, errors.New("software snapshot lacks host or software entries")
 		}
 		for _, software := range value.Metadata.Software {
 			if software.DisplayName == "" {
-				return nil, fmt.Errorf("software snapshot contains an unnamed entry")
+				return nil, errors.New("software snapshot contains an unnamed entry")
 			}
 		}
 		sample.Software = &value
 	default:
-		return nil, fmt.Errorf("unsupported capture stream")
+		return nil, errors.New("unsupported capture stream")
 	}
 	return sample, nil
 }
@@ -138,7 +139,7 @@ func ConnectionSelector(conn *model.Connection) string {
 
 func decode(data []byte, value any) error {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return fmt.Errorf("typed sample cannot be null")
+		return errors.New("typed sample cannot be null")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
@@ -146,7 +147,7 @@ func decode(data []byte, value any) error {
 		return fmt.Errorf("invalid typed sample: %w", err)
 	}
 	if err := decoder.Decode(new(any)); err != io.EOF {
-		return fmt.Errorf("expected exactly one sample JSON document")
+		return errors.New("expected exactly one sample JSON document")
 	}
 	return nil
 }

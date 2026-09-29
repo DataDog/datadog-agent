@@ -7,6 +7,7 @@ package bundle
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -26,7 +27,7 @@ func (b *Loaded) validateTyped() error {
 	var hostname string
 	checkHost := func(value string) error {
 		if hostname != "" && value != hostname {
-			return fmt.Errorf("capture samples contain inconsistent host identities")
+			return errors.New("capture samples contain inconsistent host identities")
 		}
 		hostname = value
 		return nil
@@ -60,12 +61,12 @@ func (b *Loaded) validateTyped() error {
 				return err
 			}
 			if platform(value.OS) != profile.OS {
-				return fmt.Errorf("host metadata operating system differs from capture profile")
+				return errors.New("host metadata operating system differs from capture profile")
 			}
 			if raw, present := value.SystemStats["machine"]; present {
 				var machine string
 				if err := json.Unmarshal(raw, &machine); err != nil {
-					return fmt.Errorf("invalid host metadata architecture")
+					return errors.New("invalid host metadata architecture")
 				}
 				switch machine {
 				case "x86_64":
@@ -74,7 +75,7 @@ func (b *Loaded) validateTyped() error {
 					machine = "arm64"
 				}
 				if machine != profile.Architecture {
-					return fmt.Errorf("host metadata architecture differs from capture profile")
+					return errors.New("host metadata architecture differs from capture profile")
 				}
 			}
 		case schema.Processes:
@@ -83,14 +84,14 @@ func (b *Loaded) validateTyped() error {
 				return err
 			}
 			if platform(value.Info.Os.Name) != profile.OS || uint64(value.Info.TotalMemory) != profile.MemoryBytes {
-				return fmt.Errorf("process system information differs from capture profile")
+				return errors.New("process system information differs from capture profile")
 			}
 			for _, process := range value.Processes {
 				names["process_names"][process.Command.Comm] = true
 			}
 		case schema.Connections:
 			if profile.OS != "windows" {
-				return fmt.Errorf("connections require a Windows capture")
+				return errors.New("connections require a Windows capture")
 			}
 			if err := checkHost(sample.Connections.HostName); err != nil {
 				return err
@@ -110,7 +111,7 @@ func (b *Loaded) validateTyped() error {
 			}
 			for _, software := range sample.Software.Metadata.Software {
 				if !slices.Contains(allowed, software.Source) {
-					return fmt.Errorf("software entry type is unsupported on captured platform")
+					return errors.New("software entry type is unsupported on captured platform")
 				}
 				names["software_names"][software.DisplayName] = true
 			}

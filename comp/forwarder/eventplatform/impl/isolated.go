@@ -7,6 +7,7 @@ package eventplatformimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -71,7 +72,7 @@ func (f *IsolatedForwarder) Send(ctx context.Context, msg *message.Message, even
 		remaining--
 		if err != nil {
 			completed = true
-			done(fmt.Errorf("event-platform delivery failed"))
+			done(errors.New("event-platform delivery failed"))
 		} else if remaining == 0 {
 			completed = true
 			done(nil)

@@ -9,6 +9,7 @@ package overlay
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -36,11 +37,11 @@ type Context struct {
 // variation. It does not select cohort membership or consume shared random state.
 func PatternValue(ctx Context, pattern schema.Pattern, field string) (float64, error) {
 	if ctx.Scenario == nil || ctx.PhaseIndex < 0 || ctx.PhaseIndex >= len(ctx.Scenario.Phases) {
-		return 0, fmt.Errorf("overlay requires a valid phase")
+		return 0, errors.New("overlay requires a valid phase")
 	}
 	phase := ctx.Scenario.Phases[ctx.PhaseIndex]
 	if phase.Duration.Duration <= 0 {
-		return 0, fmt.Errorf("overlay phase duration must be positive")
+		return 0, errors.New("overlay phase duration must be positive")
 	}
 	progress := min(1.0, max(0.0, float64(ctx.Elapsed)/float64(phase.Duration.Duration)))
 	var value float64
@@ -63,17 +64,17 @@ func PatternValue(ctx Context, pattern schema.Pattern, field string) (float64, e
 	if p := pattern.Spike; p != nil {
 		sigma := p.Duration / 250
 		if sigma <= 0 {
-			return 0, fmt.Errorf("spike duration must be positive")
+			return 0, errors.New("spike duration must be positive")
 		}
 		value = p.Baseline + (p.Peak-p.Baseline)*math.Exp(-math.Pow(progress-p.At/100, 2)/(2*sigma*sigma))
 		count++
 	}
 	if count != 1 {
-		return 0, fmt.Errorf("overlay requires exactly one pattern")
+		return 0, errors.New("overlay requires exactly one pattern")
 	}
 	spread := ctx.Group.BaselineVariance
 	if math.IsNaN(spread) || math.IsInf(spread, 0) || spread < 0 || spread > 1 {
-		return 0, fmt.Errorf("overlay variation is outside [0,1]")
+		return 0, errors.New("overlay variation is outside [0,1]")
 	}
 	if spread != 0 {
 		key := fmt.Sprintf("%d/%q/%d/%d/%q/%d/%q", ctx.Seed, ctx.Group.Group, ctx.DeviceOrdinal, ctx.PhaseIndex, ctx.Stream, ctx.SampleOrdinal, field)
@@ -85,7 +86,7 @@ func PatternValue(ctx Context, pattern schema.Pattern, field string) (float64, e
 		value *= 1 + (2*uniform-1)*spread
 	}
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0, fmt.Errorf("overlay produced a nonfinite value")
+		return 0, errors.New("overlay produced a nonfinite value")
 	}
 	return value, nil
 }

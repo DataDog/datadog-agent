@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -186,11 +187,11 @@ func (m *Map) tags(baseline []string, group schema.GroupDef, wireless *Wireless)
 // changes resource values, or reads host environment state.
 func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *Wireless) error {
 	if !m.valid || sample == nil {
-		return fmt.Errorf("identity requires a valid opaque run ID, ordinal and sample")
+		return errors.New("identity requires a valid opaque run ID, ordinal and sample")
 	}
 	if wireless != nil {
 		if _, err := net.ParseMAC(wireless.BSSID); err != nil || wireless.SSID == "" {
-			return fmt.Errorf("wireless identity requires a BSSID and SSID")
+			return errors.New("wireless identity requires a BSSID and SSID")
 		}
 	}
 	for _, serie := range sample.Metrics {
@@ -213,7 +214,7 @@ func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *W
 		if h.Gohai != "" {
 			var gohai map[string]map[string]any
 			if err := json.Unmarshal([]byte(h.Gohai), &gohai); err != nil {
-				return fmt.Errorf("cannot rewrite captured gohai")
+				return errors.New("cannot rewrite captured gohai")
 			}
 			for _, fields := range gohai {
 				for key, value := range fields {
@@ -237,7 +238,7 @@ func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *W
 			}
 			data, err := json.Marshal(gohai)
 			if err != nil {
-				return fmt.Errorf("cannot encode rewritten gohai")
+				return errors.New("cannot encode rewritten gohai")
 			}
 			h.Gohai = string(data)
 		}

@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -60,7 +61,7 @@ func NewPlan(s *Scenario, scenarioDigest, commit string, seed uint64, start time
 	seen := map[string]bool{}
 	ordinal := 0
 	if len(assignments) != len(s.Fleet) {
-		return nil, fmt.Errorf("supply exactly one --bundle cohort=directory for every declared cohort; capture runs separately")
+		return nil, errors.New("supply exactly one --bundle cohort=directory for every declared cohort; capture runs separately")
 	}
 	for _, group := range s.Fleet {
 		bundle, ok := assignments[group.Group]
@@ -87,26 +88,26 @@ func (p *RunPlan) Validate(s *Scenario, scenarioDigest, commit string) error {
 		return fmt.Errorf("unsupported run-plan version %d", p.Version)
 	}
 	if !digestPattern.MatchString(p.ScenarioDigest) || p.ScenarioDigest != scenarioDigest {
-		return fmt.Errorf("run plan scenario digest mismatch")
+		return errors.New("run plan scenario digest mismatch")
 	}
 	if !commitPattern.MatchString(commit) || p.AgentCommit != commit {
-		return fmt.Errorf("run plan requires the exact Agent commit; rebuild and recapture bundles")
+		return errors.New("run plan requires the exact Agent commit; rebuild and recapture bundles")
 	}
 	if !runIDPattern.MatchString(p.RunID) || p.Start.IsZero() {
-		return fmt.Errorf("run plan requires an opaque run ID and absolute start time")
+		return errors.New("run plan requires an opaque run ID and absolute start time")
 	}
 	refs := map[string]BundleRef{}
 	for _, ref := range p.Bundles {
 		if !digestPattern.MatchString(ref.Digest) || ref.AgentCommit != commit {
-			return fmt.Errorf("bundle digest or Agent commit mismatch; recapture with this Agent revision")
+			return errors.New("bundle digest or Agent commit mismatch; recapture with this Agent revision")
 		}
 		if _, exists := refs[ref.Digest]; exists {
-			return fmt.Errorf("duplicate bundle digest")
+			return errors.New("duplicate bundle digest")
 		}
 		refs[ref.Digest] = ref
 	}
 	if len(p.Assignments) != len(s.Fleet) {
-		return fmt.Errorf("run plan does not cover every cohort")
+		return errors.New("run plan does not cover every cohort")
 	}
 	ordinal := 0
 	used := map[string]bool{}
@@ -126,7 +127,7 @@ func (p *RunPlan) Validate(s *Scenario, scenarioDigest, commit string) error {
 		ordinal += group.Count
 	}
 	if len(used) != len(refs) {
-		return fmt.Errorf("run plan contains unused bundles")
+		return errors.New("run plan contains unused bundles")
 	}
 	return nil
 }

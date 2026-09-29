@@ -6,6 +6,7 @@
 package overlay
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -27,7 +28,7 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 	var cpus, totalMemory, baseCPU, baseMemory float64
 	for _, chunk := range ctx.BaselineProcesses {
 		if chunk == nil || chunk.Info == nil {
-			return nil, fmt.Errorf("process overlay requires complete captured system information")
+			return nil, errors.New("process overlay requires complete captured system information")
 		}
 		var chunkCPUs float64
 		for _, cpu := range chunk.Info.Cpus {
@@ -36,10 +37,10 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 			}
 		}
 		if chunkCPUs <= 0 || chunk.Info.TotalMemory <= 0 {
-			return nil, fmt.Errorf("process overlay requires captured CPU topology and memory capacity")
+			return nil, errors.New("process overlay requires captured CPU topology and memory capacity")
 		}
 		if cpus != 0 && (cpus != chunkCPUs || totalMemory != float64(chunk.Info.TotalMemory)) {
-			return nil, fmt.Errorf("process cycle has inconsistent system information")
+			return nil, errors.New("process cycle has inconsistent system information")
 		}
 		cpus, totalMemory = chunkCPUs, float64(chunk.Info.TotalMemory)
 		for _, process := range chunk.Processes {
@@ -68,7 +69,7 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 	})
 	for i := 1; i < len(matches); i++ {
 		if matches[i-1].Pid == matches[i].Pid {
-			return nil, fmt.Errorf("captured process cycle repeats a PID")
+			return nil, errors.New("captured process cycle repeats a PID")
 		}
 	}
 	key := ctx
@@ -82,7 +83,7 @@ func processChanges(ctx Context, def schema.ProcessDef) ([]processChange, error)
 		return nil, err
 	}
 	if cpu < 0 || cpu > 100 || memory < 0 || memory*megabyte > totalMemory {
-		return nil, fmt.Errorf("process overlay exceeds captured resource capacity")
+		return nil, errors.New("process overlay exceeds captured resource capacity")
 	}
 	targetCPU, targetMemory := cpu*cpus, uint64(math.Round(memory*megabyte))
 	changes := make([]processChange, 0, len(matches))
@@ -129,7 +130,7 @@ func applyProcesses(ctx Context, payload *model.CollectorProc, defs []schema.Pro
 			}
 			change, exists := byPID[process.Pid]
 			if !exists || process.Memory == nil {
-				return fmt.Errorf("process clone differs from its captured cycle")
+				return errors.New("process clone differs from its captured cycle")
 			}
 			cpu := change.cpu
 			process.Cpu = &cpu
@@ -191,7 +192,7 @@ func applySoftware(ctx Context, sample *telemetry.Sample) error {
 		return nil
 	}
 	if sample.Software == nil {
-		return fmt.Errorf("software overlay requires a captured snapshot")
+		return errors.New("software overlay requires a captured snapshot")
 	}
 	for name, item := range items {
 		found := false

@@ -7,6 +7,7 @@ package bundle
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -51,14 +52,14 @@ func (w *Writer) Append(stream schema.Stream, offset time.Duration, sanitized an
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.closed {
-		return fmt.Errorf("bundle writer is closed")
+		return errors.New("bundle writer is closed")
 	}
 	if len(references) == 0 {
-		return fmt.Errorf("capture sample requires serialized Agent wire references")
+		return errors.New("capture sample requires serialized Agent wire references")
 	}
 	data, err := json.Marshal(sanitized)
 	if err != nil {
-		return fmt.Errorf("cannot encode sanitized sample")
+		return errors.New("cannot encode sanitized sample")
 	}
 	prefix := fmt.Sprintf("sample-%06d", len(w.manifest.Samples))
 	ref := SampleRef{Stream: stream, Offset: offset, File: prefix + ".json"}
@@ -77,7 +78,7 @@ func (w *Writer) Append(stream schema.Stream, offset time.Duration, sanitized an
 		wire.Headers = headers
 		data, err := json.Marshal(wire)
 		if err != nil {
-			return fmt.Errorf("cannot encode sanitized wire reference")
+			return errors.New("cannot encode sanitized wire reference")
 		}
 		name := fmt.Sprintf("%s-wire-%03d.json", prefix, i)
 		if err := w.write(name, data); err != nil {
@@ -116,7 +117,7 @@ func (w *Writer) Complete(duration time.Duration, profile schema.Profile, cadenc
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.closed {
-		return nil, fmt.Errorf("bundle writer is closed")
+		return nil, errors.New("bundle writer is closed")
 	}
 	w.closed = true
 	w.manifest.Duration = duration

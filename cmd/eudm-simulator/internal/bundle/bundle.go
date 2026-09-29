@@ -9,6 +9,7 @@ package bundle
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -72,7 +73,7 @@ func DecodeJSON(data []byte, out any) error {
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return fmt.Errorf("expected exactly one JSON document")
+		return errors.New("expected exactly one JSON document")
 	}
 	return nil
 }
@@ -87,7 +88,7 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 	defer root.Close()
 	read := func(name string, limit int64) ([]byte, error) {
 		if !fs.ValidPath(name) || strings.Contains(name, "\\") {
-			return nil, fmt.Errorf("invalid bundle file name")
+			return nil, errors.New("invalid bundle file name")
 		}
 		info, err := root.Lstat(name)
 		if err != nil {
@@ -103,7 +104,7 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 		defer file.Close()
 		data, err := io.ReadAll(io.LimitReader(file, limit+1))
 		if int64(len(data)) > limit {
-			return nil, fmt.Errorf("bundle file exceeds size limit")
+			return nil, errors.New("bundle file exceeds size limit")
 		}
 		return data, err
 	}
@@ -117,20 +118,20 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 	}
 	m := &b.Manifest
 	if m.SchemaVersion != SchemaVersion || m.SanitizerVersion != SanitizerVersion {
-		return nil, fmt.Errorf("unsupported bundle schema or sanitizer version; recapture")
+		return nil, errors.New("unsupported bundle schema or sanitizer version; recapture")
 	}
 	if len(agentCommit) != 40 || m.AgentCommit != agentCommit {
-		return nil, fmt.Errorf("bundle Agent commit mismatch; recapture using this exact Agent revision")
+		return nil, errors.New("bundle Agent commit mismatch; recapture using this exact Agent revision")
 	}
 	marker, err := read("COMPLETE", 65)
 	if err != nil || !m.Complete || string(marker) != b.Digest+"\n" {
-		return nil, fmt.Errorf("capture bundle is incomplete or completion digest does not match")
+		return nil, errors.New("capture bundle is incomplete or completion digest does not match")
 	}
 	if m.Duration <= 0 || m.AgentVersion == "" || (m.Profile.OS != "windows" && m.Profile.OS != "macos") || (m.Profile.Architecture != "amd64" && m.Profile.Architecture != "arm64") {
-		return nil, fmt.Errorf("invalid capture profile or duration")
+		return nil, errors.New("invalid capture profile or duration")
 	}
 	if len(m.Samples) == 0 || len(m.Files) == 0 {
-		return nil, fmt.Errorf("bundle contains no samples")
+		return nil, errors.New("bundle contains no samples")
 	}
 	for name, digest := range m.Files {
 		if name == "manifest.json" || name == "COMPLETE" {
@@ -150,7 +151,7 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 	used := map[string]bool{}
 	for _, sample := range m.Samples {
 		if !slices.Contains(m.Profile.Streams, sample.Stream) || sample.Offset < 0 || sample.Offset > m.Duration || sample.Offset < last[sample.Stream] {
-			return nil, fmt.Errorf("invalid stream or sample offset")
+			return nil, errors.New("invalid stream or sample offset")
 		}
 		if counts[sample.Stream] == 0 || last[sample.Stream] != sample.Offset {
 			counts[sample.Stream]++
@@ -171,7 +172,7 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 		}
 	}
 	if len(used) != len(b.Files) {
-		return nil, fmt.Errorf("bundle contains unreferenced files")
+		return nil, errors.New("bundle contains unreferenced files")
 	}
 	streams := map[schema.Stream]bool{}
 	for _, stream := range m.Profile.Streams {
@@ -200,7 +201,7 @@ func Load(directory, agentCommit string) (*Loaded, error) {
 		}
 	}
 	if len(m.Cadences) != len(streams) {
-		return nil, fmt.Errorf("capture cadence inventory differs from stream inventory")
+		return nil, errors.New("capture cadence inventory differs from stream inventory")
 	}
 	if err := b.validateTyped(); err != nil {
 		return nil, err

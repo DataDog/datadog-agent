@@ -9,6 +9,7 @@ package native
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -71,7 +72,7 @@ func newCollectors(ctx context.Context, s *session, p *output.Pipeline) ([]sched
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
 	actualHostname, err := os.Hostname()
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot resolve native capture hostname")
+		return nil, nil, errors.New("cannot resolve native capture hostname")
 	}
 	hostname := output.Hostname(actualHostname)
 	// Core checks still consult the global infrastructure-mode setting when
@@ -149,7 +150,7 @@ func newCollectors(ctx context.Context, s *session, p *output.Pipeline) ([]sched
 		}
 		data, err := payload.MarshalJSON()
 		if err != nil {
-			return softwareInterval, fmt.Errorf("cannot encode sanitized software snapshot")
+			return softwareInterval, errors.New("cannot encode sanitized software snapshot")
 		}
 		return softwareInterval, p.Event(ctx, eventplatform.EventTypeSoftwareInventory, data, time.Now())
 	}})
@@ -161,13 +162,13 @@ func newCollectors(ctx context.Context, s *session, p *output.Pipeline) ([]sched
 	containers.InitSharedContainerProvider(wmeta, tagger, filters.Comp)
 	info, err := checks.CollectSystemInfo()
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot collect native process system information")
+		return nil, nil, errors.New("cannot collect native process system information")
 	}
 	hostInfo := &checks.HostInfo{HostName: actualHostname, SystemInfo: info}
 	syscfg := &checks.SysProbeConfig{SystemProbeAddress: p.Config.GetString("system_probe_config.sysprobe_socket"), MaxConnsPerMessage: 600}
 	process := checks.NewProcessCheck(p.Config, p.Config, wmeta, gpusubscriberimpl.NoopSubscriber{}, &statsd.NoOpClient{}, nil, tagger)
 	if err := process.Init(syscfg, hostInfo, true); err != nil {
-		return nil, nil, fmt.Errorf("cannot initialize native process check")
+		return nil, nil, errors.New("cannot initialize native process check")
 	}
 	lc.Append(compdef.Hook{OnStop: func(context.Context) error { process.Cleanup(); return nil }})
 	var groupID int32

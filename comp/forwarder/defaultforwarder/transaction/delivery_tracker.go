@@ -7,6 +7,7 @@ package transaction
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 )
@@ -58,7 +59,7 @@ func (t *DeliveryTracker) Track(tx *HTTPTransaction) {
 	tx.CompletionHandler = func(tx *HTTPTransaction, status int, body []byte, err error) {
 		once.Do(func() {
 			if err != nil {
-				done(fmt.Errorf("delivery failed"))
+				done(errors.New("delivery failed"))
 			} else if status < 200 || status >= 300 {
 				done(fmt.Errorf("delivery rejected with HTTP %d", status))
 			} else {

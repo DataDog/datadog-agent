@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -49,16 +50,16 @@ type Model struct {
 // New builds opaque NDM identities while retaining declared hardware facts.
 func New(s *schema.Scenario, runID string, seed uint64) (*Model, error) {
 	if s == nil {
-		return nil, fmt.Errorf("access points require a scenario")
+		return nil, errors.New("access points require a scenario")
 	}
 	if err := s.Validate(); err != nil {
 		return nil, err
 	}
 	if decoded, err := hex.DecodeString(runID); err != nil || len(decoded) != 16 {
-		return nil, fmt.Errorf("access points require an opaque run ID")
+		return nil, errors.New("access points require an opaque run ID")
 	}
 	if len(s.NetworkDevices.AccessPoints) > 65534 {
-		return nil, fmt.Errorf("too many access points for the run address space")
+		return nil, errors.New("too many access points for the run address space")
 	}
 	m := &Model{scenario: s, runID: runID, namespace: identity.Namespace(runID), seed: seed}
 	addressBlock := sha256.Sum256([]byte(runID))
@@ -137,7 +138,7 @@ func (m *Model) Wireless(group schema.GroupDef) (*identity.Wireless, error) {
 			radio = ap.definition.InterfaceByName(group.Radio)
 		}
 		if radio == nil || radio.Kind != "radio" {
-			return nil, fmt.Errorf("cohort requires a declared AP radio")
+			return nil, errors.New("cohort requires a declared AP radio")
 		}
 		for _, wireless := range ap.wireless {
 			if wireless.InterfaceByIntegrationID == metadata.InterfaceID(ap.device.ID, radio.Index) {
@@ -145,7 +146,7 @@ func (m *Model) Wireless(group schema.GroupDef) (*identity.Wireless, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("cohort access point is not in this model")
+	return nil, errors.New("cohort access point is not in this model")
 }
 
 // Metadata returns owned Agent payloads, accounting for wireless resources in

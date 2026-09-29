@@ -264,7 +264,7 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	}
 	if !s.AreSeriesEnabled() {
 		if s.RequireCompleteDelivery {
-			return fmt.Errorf("required series payloads are disabled")
+			return errors.New("required series payloads are disabled")
 		}
 		s.logger.Debug("series payloads are disabled: dropping it")
 		return nil

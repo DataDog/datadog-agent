@@ -9,6 +9,7 @@ package stream
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -337,7 +338,7 @@ type failingItemMarshaler struct {
 }
 
 func (*failingItemMarshaler) WriteCurrentItem(*jsoniter.Stream) error {
-	return fmt.Errorf("item encoding failed")
+	return errors.New("item encoding failed")
 }
 
 func TestStrictJSONBuilderRejectsItemEncodingFailure(t *testing.T) {

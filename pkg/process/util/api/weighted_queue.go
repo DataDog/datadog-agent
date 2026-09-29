@@ -8,7 +8,7 @@ package api
 import (
 	"container/list"
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 )
 
@@ -117,7 +117,7 @@ func (q *WeightedQueue) Poll() (WeightedItem, bool) {
 // capture/replay producers that must account for every declared payload.
 func (q *WeightedQueue) AddBlocking(ctx context.Context, item WeightedItem) error {
 	if item.Weight() < 0 || item.Weight() > q.maxWeight || q.maxSize <= 0 {
-		return fmt.Errorf("payload cannot fit in weighted queue")
+		return errors.New("payload cannot fit in weighted queue")
 	}
 	stop := context.AfterFunc(ctx, func() {
 		q.mu.Lock()
@@ -134,7 +134,7 @@ func (q *WeightedQueue) AddBlocking(ctx context.Context, item WeightedItem) erro
 		return err
 	}
 	if q.stop {
-		return fmt.Errorf("weighted queue stopped")
+		return errors.New("weighted queue stopped")
 	}
 	q.queue.PushBack(item)
 	q.currentWeight += item.Weight()

@@ -8,6 +8,7 @@ package output
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -134,7 +135,7 @@ type Options struct {
 // transport and keeps the Agent's ordinary retry policy.
 func New(ctx context.Context, destinations map[safety.Destination][]string, apiKey string, transport http.RoundTripper, options ...Options) (*Pipeline, error) {
 	if strings.TrimSpace(apiKey) == "" {
-		return nil, fmt.Errorf("delivery requires an API key")
+		return nil, errors.New("delivery requires an API key")
 	}
 	resolved, err := (safety.Config{Site: safety.Site, Endpoints: destinations}).Resolve(func(string) string { return "" })
 	if err != nil {
@@ -149,7 +150,7 @@ func New(ctx context.Context, destinations map[safety.Destination][]string, apiK
 	}
 	if settings.QueueCapacity < 0 {
 		cancel()
-		return nil, fmt.Errorf("queue capacity cannot be negative")
+		return nil, errors.New("queue capacity cannot be negative")
 	}
 	success := false
 	defer func() {

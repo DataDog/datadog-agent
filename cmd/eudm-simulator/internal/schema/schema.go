@@ -8,6 +8,7 @@ package schema
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -244,7 +245,7 @@ func DecodeStrict(data []byte, dst any) error {
 	}
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return fmt.Errorf("expected exactly one YAML document")
+		return errors.New("expected exactly one YAML document")
 	}
 	return nil
 }

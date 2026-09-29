@@ -8,6 +8,7 @@
 package safety
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -45,7 +46,7 @@ func (c Config) Resolve(getenv func(string) string) (map[Destination][]string, e
 		return nil, fmt.Errorf("site must explicitly be %q; empty and production sites are forbidden", Site)
 	}
 	if site := getenv("DD_SITE"); site != "" && site != Site {
-		return nil, fmt.Errorf("DD_SITE conflicts with required staging site")
+		return nil, errors.New("DD_SITE conflicts with required staging site")
 	}
 	for dest := range c.Endpoints {
 		if !slices.Contains(destinations, dest) {
@@ -86,7 +87,7 @@ func (c Config) Resolve(getenv func(string) string) (map[Destination][]string, e
 func ValidateEndpoint(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("invalid staging endpoint URL")
+		return errors.New("invalid staging endpoint URL")
 	}
 	host := strings.ToLower(strings.TrimSuffix(u.Hostname(), "."))
 	if u.Scheme != "https" || u.User != nil || u.Opaque != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Port() != "" && u.Port() != "443") || (u.Path != "" && u.Path != "/") || (host != Site && !strings.HasSuffix(host, "."+Site)) {
@@ -94,11 +95,11 @@ func ValidateEndpoint(raw string) error {
 	}
 	for _, label := range strings.Split(host, ".") {
 		if label == "" || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
-			return fmt.Errorf("invalid staging hostname")
+			return errors.New("invalid staging hostname")
 		}
 		for _, c := range label {
 			if !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
-				return fmt.Errorf("invalid staging hostname")
+				return errors.New("invalid staging hostname")
 			}
 		}
 	}

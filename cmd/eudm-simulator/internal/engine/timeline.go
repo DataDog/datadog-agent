@@ -6,6 +6,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -51,7 +52,7 @@ func makeTimeline(b *bundle.Loaded, stream schema.Stream, duration time.Duration
 	t.period = span + cadence
 	for _, c := range t.cycles {
 		if c.offset < 0 {
-			return nil, fmt.Errorf("invalid captured cycle offset")
+			return nil, errors.New("invalid captured cycle offset")
 		}
 		if c.offset < duration {
 			t.count += 1 + int64((duration-1-c.offset)/t.period)

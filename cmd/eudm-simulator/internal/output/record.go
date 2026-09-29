@@ -9,7 +9,7 @@ package output
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"sync"
@@ -32,10 +32,10 @@ func NewRecorder() *Recorder { return &Recorder{changed: make(chan struct{})} }
 func (r *Recorder) RoundTrip(req *http.Request) (*http.Response, error) {
 	data, err := io.ReadAll(io.LimitReader(req.Body, 64<<20))
 	if err != nil {
-		return nil, fmt.Errorf("read sanitized recording request")
+		return nil, errors.New("read sanitized recording request")
 	}
 	if len(data) >= 64<<20 {
-		return nil, fmt.Errorf("serialized reference exceeds recording size limit")
+		return nil, errors.New("serialized reference exceeds recording size limit")
 	}
 	headers := http.Header{}
 	for _, key := range []string{"Content-Type", "Content-Encoding", "DD-Agent-Payload", "X-Dd-Hostname", "X-Dd-Processagentversion", "X-Dd-Request-Id", "X-DD-Agent-Timestamp", "X-DD-Agent-Start-Time", "X-DD-Payload-Source", "X-DD-Processes-Enabled", "X-DD-Service-Discovery-Enabled"} {

@@ -9,6 +9,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -55,13 +56,13 @@ func MakeCommand(runtime Runtime) *cobra.Command {
 	var request CaptureRequest
 	capture := &cobra.Command{Use: "capture", Short: "Capture a native baseline without contacting staging", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if request.Directory == "" || request.Deadline <= 0 {
-			return fmt.Errorf("capture requires --output and a positive --deadline")
+			return errors.New("capture requires --output and a positive --deadline")
 		}
 		if err := nativeCaptureSupported(); err != nil {
 			return err
 		}
 		if runtime.Capture == nil {
-			return fmt.Errorf("native capture service is unavailable in this build")
+			return errors.New("native capture service is unavailable in this build")
 		}
 		ctx, cancel := context.WithTimeout(cmd.Context(), request.Deadline)
 		defer cancel()
@@ -100,7 +101,7 @@ func replayCommand(action string, runtime Runtime) *cobra.Command {
 	}
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if scenarioPath == "" || configPath == "" {
-			return fmt.Errorf("--scenario and --config are required")
+			return errors.New("--scenario and --config are required")
 		}
 		data, err := os.ReadFile(scenarioPath)
 		if err != nil {
@@ -150,12 +151,12 @@ func replayCommand(action string, runtime Runtime) *cobra.Command {
 			return err
 		case "plan":
 			if outputPath == "" {
-				return fmt.Errorf("--output is required")
+				return errors.New("--output is required")
 			}
 			return writePlan(outputPath, plan)
 		case "run":
 			if planPath == "" || reportPath == "" || workers <= 0 || queueCapacity <= 0 || deliveryGrace <= 0 {
-				return fmt.Errorf("run requires --plan, --report, and positive --workers, --queue-capacity, and --delivery-grace")
+				return errors.New("run requires --plan, --report, and positive --workers, --queue-capacity, and --delivery-grace")
 			}
 			data, err := os.ReadFile(planPath)
 			if err != nil {
@@ -171,21 +172,21 @@ func replayCommand(action string, runtime Runtime) *cobra.Command {
 			for _, ref := range persisted.Bundles {
 				actual, ok := loaded[ref.Digest]
 				if !ok || !reflect.DeepEqual(actual.Ref(), ref) {
-					return fmt.Errorf("run plan bundle does not match supplied verified capture")
+					return errors.New("run plan bundle does not match supplied verified capture")
 				}
 			}
 			if !reflect.DeepEqual(persisted.Assignments, plan.Assignments) {
-				return fmt.Errorf("supplied cohort assignments differ from the run plan")
+				return errors.New("supplied cohort assignments differ from the run plan")
 			}
 			if !persisted.Start.After(time.Now()) {
-				return fmt.Errorf("run-plan start is in the past; generate a new plan")
+				return errors.New("run-plan start is in the past; generate a new plan")
 			}
 			if runtime.Replay == nil {
-				return fmt.Errorf("portable replay service is unavailable in this build")
+				return errors.New("portable replay service is unavailable in this build")
 			}
 			return runtime.Replay(cmd.Context(), ReplayRequest{Scenario: &scenario, Plan: &persisted, Bundles: loaded, Destinations: destinations, Workers: workers, QueueCapacity: queueCapacity, DeliveryGrace: deliveryGrace, ReportPath: reportPath})
 		}
-		return fmt.Errorf("unsupported action")
+		return errors.New("unsupported action")
 	}
 	return cmd
 }
@@ -196,7 +197,7 @@ func loadAssignments(args []string, scenario *schema.Scenario, commit string) (m
 	for _, arg := range args {
 		group, directory, ok := strings.Cut(arg, "=")
 		if !ok || directory == "" || scenario.GroupByName(group) == nil {
-			return nil, nil, fmt.Errorf("--bundle must be a declared cohort=directory")
+			return nil, nil, errors.New("--bundle must be a declared cohort=directory")
 		}
 		if _, exists := refs[group]; exists {
 			return nil, nil, fmt.Errorf("duplicate --bundle assignment for cohort %q", group)

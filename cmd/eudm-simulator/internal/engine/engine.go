@@ -9,6 +9,7 @@ package engine
 import (
 	"container/heap"
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -78,22 +79,22 @@ func Validate(request Request) error { _, err := prepare(request); return err }
 
 func prepare(request Request) (*prepared, error) {
 	if request.Scenario == nil || request.Plan == nil {
-		return nil, fmt.Errorf("scenario and run plan are required")
+		return nil, errors.New("scenario and run plan are required")
 	}
 	if err := request.Plan.Validate(request.Scenario, request.Plan.ScenarioDigest, request.Plan.AgentCommit); err != nil {
 		return nil, err
 	}
 	if len(request.Bundles) != len(request.Plan.Bundles) {
-		return nil, fmt.Errorf("supply exactly the run plan's verified bundles")
+		return nil, errors.New("supply exactly the run plan's verified bundles")
 	}
 	for _, ref := range request.Plan.Bundles {
 		b := request.Bundles[ref.Digest]
 		if b == nil || !reflect.DeepEqual(b.Ref(), ref) {
-			return nil, fmt.Errorf("assigned bundle differs from run plan")
+			return nil, errors.New("assigned bundle differs from run plan")
 		}
 		for name, digest := range b.Manifest.Files {
 			if schema.Digest(b.Files[name]) != digest {
-				return nil, fmt.Errorf("verified bundle bytes changed before replay")
+				return nil, errors.New("verified bundle bytes changed before replay")
 			}
 		}
 		for _, ref := range b.Manifest.Samples {
@@ -160,7 +161,7 @@ func prepare(request Request) (*prepared, error) {
 		for _, payload := range aps.Metadata(request.Plan.Start, ndmBatchSize) {
 			for _, d := range payload.Devices {
 				if !metricHosts[d.Name] {
-					return nil, fmt.Errorf("every declared access point requires initial network_metrics before replay")
+					return nil, errors.New("every declared access point requires initial network_metrics before replay")
 				}
 				p.report.NetworkDevices = append(p.report.NetworkDevices, d.ID)
 			}
@@ -229,7 +230,7 @@ func Run(ctx context.Context, request Request, options Options) (*report.Report,
 func (p *prepared) run(parent context.Context, options Options) (*report.Report, error) {
 	r := p.report
 	if options.Workers <= 0 || options.QueueCapacity <= 0 || options.Delivery == nil {
-		return r, fmt.Errorf("positive worker/queue limits and delivery are required")
+		return r, errors.New("positive worker/queue limits and delivery are required")
 	}
 	if options.Clock == nil {
 		options.Clock = WallClock{}
@@ -338,7 +339,7 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 	}
 	r.End = options.Clock.Now()
 	if firstError == nil && !r.Complete() {
-		fail(fmt.Errorf("fleet delivery is incomplete"))
+		fail(errors.New("fleet delivery is incomplete"))
 	}
 	if firstError != nil {
 		r.Status = "failed"

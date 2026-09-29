@@ -124,7 +124,7 @@ func (s *session) Process(_ string, messages []model.MessageBody) ([]model.Messa
 			}
 			result = append(result, clean)
 		default:
-			return nil, fmt.Errorf("capture received an unsupported process message")
+			return nil, errors.New("capture received an unsupported process message")
 		}
 	}
 	return result, nil
@@ -143,7 +143,7 @@ var errNativeCollection = errors.New("native collection unavailable")
 // No network-capable transport exists anywhere in the intake pipeline.
 func Run(ctx context.Context, directory string) error {
 	if len(version.FullCommit) != 40 {
-		return fmt.Errorf("capture requires a revision-stamped build; use dda inv eudm-simulator.build")
+		return errors.New("capture requires a revision-stamped build; use dda inv eudm-simulator.build")
 	}
 	// Capture reports coverage through fixed, local errors. Suppress native
 	// diagnostic logs, whose OS error strings can contain real user paths.

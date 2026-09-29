@@ -6,6 +6,7 @@
 package overlay
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -21,13 +22,13 @@ const megabyte = 1024 * 1024
 // omitted overlay preserves captured evidence, including during recovery.
 func Apply(ctx Context, sample *telemetry.Sample) error {
 	if sample == nil || ctx.Scenario == nil || ctx.PhaseIndex < 0 || ctx.PhaseIndex >= len(ctx.Scenario.Phases) {
-		return fmt.Errorf("overlay requires a sample and valid phase")
+		return errors.New("overlay requires a sample and valid phase")
 	}
 	phase := ctx.Scenario.Phases[ctx.PhaseIndex]
 	switch ctx.Stream {
 	case schema.Processes:
 		if sample.Processes == nil {
-			return fmt.Errorf("process overlay requires a process sample")
+			return errors.New("process overlay requires a process sample")
 		}
 		return applyProcesses(ctx, sample.Processes, phase.Processes[ctx.Group.Group])
 	case schema.Metrics:
@@ -59,7 +60,7 @@ func applyMetrics(ctx Context, sample *telemetry.Sample, phase schema.Phase) err
 	}
 	for _, serie := range sample.Metrics {
 		if serie == nil {
-			return fmt.Errorf("nil captured metric")
+			return errors.New("nil captured metric")
 		}
 		pattern, explicit := phase.Metrics[ctx.Group.Group][serie.Name]
 		if explicit && len(phase.Processes[ctx.Group.Group]) != 0 && reconciledMetric(serie.Name) {
@@ -129,7 +130,7 @@ func applyConnections(ctx Context, sample *telemetry.Sample, overlays []schema.C
 		return nil
 	}
 	if sample.Connections == nil {
-		return fmt.Errorf("connection overlay requires captured connections")
+		return errors.New("connection overlay requires captured connections")
 	}
 	for _, overlay := range overlays {
 		for _, conn := range sample.Connections.Connections {
@@ -137,7 +138,7 @@ func applyConnections(ctx Context, sample *telemetry.Sample, overlays []schema.C
 				continue
 			}
 			if conn.Type != model.ConnectionType_tcp {
-				return fmt.Errorf("connection overlay requires a captured TCP path")
+				return errors.New("connection overlay requires a captured TCP path")
 			}
 			fields := []struct {
 				pattern *schema.Pattern
@@ -184,7 +185,7 @@ func connectionValue(ctx Context, pattern schema.Pattern, field string, scale fl
 	}
 	value = math.Round(value * scale)
 	if value < 0 || value > math.MaxUint32 {
-		return 0, fmt.Errorf("connection overlay exceeds Agent field range")
+		return 0, errors.New("connection overlay exceeds Agent field range")
 	}
 	return uint32(value), nil
 }

@@ -6,7 +6,7 @@
 package accesspoint
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"slices"
 	"time"
@@ -23,7 +23,7 @@ import (
 // APs stay present and repeated evaluation cannot compound prior jitter.
 func (m *Model) Metrics(phaseIndex int, elapsed time.Duration, ordinal int64, at time.Time) ([]*metrics.Serie, error) {
 	if phaseIndex < 0 || phaseIndex >= len(m.scenario.Phases) || elapsed < 0 || elapsed > m.scenario.Phases[phaseIndex].Duration.Duration || ordinal < 0 {
-		return nil, fmt.Errorf("invalid AP metric phase, elapsed time, or sample ordinal")
+		return nil, errors.New("invalid AP metric phase, elapsed time, or sample ordinal")
 	}
 	var result []*metrics.Serie
 	for apOrdinal, ap := range m.accessPoints {

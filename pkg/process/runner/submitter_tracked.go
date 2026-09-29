@@ -7,6 +7,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -21,10 +22,10 @@ import (
 // interface is unchanged. The concrete caller must Start the submitter first.
 func (s *CheckSubmitter) SubmitForHost(ctx context.Context, start time.Time, name, hostname string, payload *types.Payload) error {
 	if hostname == "" || payload == nil || len(payload.Message) == 0 {
-		return fmt.Errorf("tracked submission requires a host and nonempty payload")
+		return errors.New("tracked submission requires a host and nonempty payload")
 	}
 	if name != checks.ProcessCheckName && name != checks.ConnectionsCheckName {
-		return fmt.Errorf("tracked submission supports only process and connection payloads")
+		return errors.New("tracked submission supports only process and connection payloads")
 	}
 	if s.shouldDropPayload(name) {
 		return fmt.Errorf("required %s payloads are disabled", name)
@@ -41,14 +42,14 @@ func (s *CheckSubmitter) SubmitForHost(ctx context.Context, start time.Time, nam
 		switch m := body.(type) {
 		case *model.CollectorProc:
 			if m == nil || name != checks.ProcessCheckName || m.HostName != hostname {
-				return fmt.Errorf("process body does not match the requested device")
+				return errors.New("process body does not match the requested device")
 			}
 		case *model.CollectorConnections:
 			if m == nil || name != checks.ConnectionsCheckName || m.HostName != hostname {
-				return fmt.Errorf("connection body does not match the requested device")
+				return errors.New("connection body does not match the requested device")
 			}
 		default:
-			return fmt.Errorf("unsupported tracked message type")
+			return errors.New("unsupported tracked message type")
 		}
 	}
 	// The local encoder view shares queues but owns the hostname and request-ID
@@ -58,13 +59,13 @@ func (s *CheckSubmitter) SubmitForHost(ctx context.Context, start time.Time, nam
 	encoder.requestIDCachedHash = nil
 	result := encoder.messagesToCheckResult(start, name, messages)
 	if result == nil || len(result.payloads) != len(messages) {
-		return fmt.Errorf("failed to encode all required process chunks")
+		return errors.New("failed to encode all required process chunks")
 	}
 	result.deliveryContext = ctx
 	result.deliveryResult = make(chan error, 1)
 	queue := s.resultsQueue[name]
 	if queue == nil {
-		return fmt.Errorf("required process queue is unavailable")
+		return errors.New("required process queue is unavailable")
 	}
 	if err := queue.AddBlocking(ctx, result); err != nil {
 		return err
@@ -75,7 +76,7 @@ func (s *CheckSubmitter) SubmitForHost(ctx context.Context, start time.Time, nam
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-s.exit:
-		return fmt.Errorf("submitter stopped before delivery completed")
+		return errors.New("submitter stopped before delivery completed")
 	}
 }
 
@@ -93,7 +94,7 @@ func (s *CheckSubmitter) deliverTracked(result *checkResult) error {
 			return err
 		}
 		if responses == nil {
-			return fmt.Errorf("forwarder returned no delivery responses")
+			return errors.New("forwarder returned no delivery responses")
 		}
 		// DefaultForwarder allocates one buffered response slot per transaction.
 		expected := max(1, cap(responses))
@@ -111,7 +112,7 @@ func (s *CheckSubmitter) deliverTracked(result *checkResult) error {
 			case <-result.deliveryContext.Done():
 				return result.deliveryContext.Err()
 			case <-s.exit:
-				return fmt.Errorf("submitter stopped during tracked delivery")
+				return errors.New("submitter stopped during tracked delivery")
 			}
 		}
 	}
