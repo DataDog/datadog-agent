@@ -368,7 +368,7 @@ func (c *collector) Pull(ctx context.Context) error {
 			events = append(events, c.createProcessEvents(pidToGPUs)...)
 		}
 
-		events = append(events, c.createContainerGPUEvents(deviceCache)...)
+		events = append(events, c.createContainerGPUEvents(c.deviceCache)...)
 
 		c.store.Notify(events)
 		c.lastCollectionTimestamp = timestamp
