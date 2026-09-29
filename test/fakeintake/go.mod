@@ -5,7 +5,7 @@ go 1.26.0
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.211
+	github.com/DataDog/agent-payload/v5 v5.0.212
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -22,7 +22,7 @@ require (
 	github.com/tinylib/msgp v1.6.5
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.59.0
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -180,6 +180,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../pkg/serializer
@@ -233,6 +234,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
+	github.com/DataDog/datadog-agent/pkg/zstd => ../../pkg/zstd
 	github.com/DataDog/datadog-agent/test/e2e-framework => ../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
