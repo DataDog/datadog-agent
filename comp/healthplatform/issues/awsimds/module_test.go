@@ -14,11 +14,19 @@ import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
-func testModule(hostname string) *awsIMDSModule {
+func testDeps(hostname string) issues.ModuleDeps {
 	hn, _ := hostnamemock.NewMock(hostnamemock.MockHostname(hostname))
-	return NewModule(issues.ModuleDeps{Hostname: hn, SelfIdent: selfident.New(nil)}).(*awsIMDSModule)
+	return issues.ModuleDeps{Hostname: hn, SelfIdent: selfident.New(nil)}
+}
+
+// testModule builds the module directly, bypassing NewModule's environment gate.
+func testModule(hostname string) *awsIMDSModule {
+	return newModule(testDeps(hostname))
 }
 
 func TestInstanceIssueID(t *testing.T) {
@@ -28,4 +36,30 @@ func TestInstanceIssueID(t *testing.T) {
 	assert.Len(t, id, len(IssueID)+1+16)
 	assert.Equal(t, id, testModule("host-a").instanceIssueID())
 	assert.NotEqual(t, id, testModule("host-b").instanceIssueID())
+}
+
+// TestNewModule_RegistrationGate verifies the module registers only inside a
+// container on AWS and declines (returns nil) otherwise.
+func TestNewModule_RegistrationGate(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("ec2_use_dmi", true)
+	deps := testDeps("host")
+
+	t.Run("aws and containerized registers", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "true")
+		dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
+		assert.NotNil(t, NewModule(deps))
+	})
+
+	t.Run("not containerized declines", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "")
+		dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
+		assert.Nil(t, NewModule(deps))
+	})
+
+	t.Run("not aws declines", func(t *testing.T) {
+		t.Setenv("DOCKER_DD_AGENT", "true")
+		dmi.SetupMock(t, "", "", "", "not AWS")
+		assert.Nil(t, NewModule(deps))
+	})
 }

@@ -227,8 +227,9 @@ func init() {
 ```
 
 - Always in `init()`, always the only statement
-- Put environment gates inside the check function so stale issues can still resolve after a restart.
-- Do **not** gate on config values inside `init()` — config is not available at init time
+- **Immutable environment gates** (cloud provider, containerization — things that don't change for a host at runtime): return `nil` from the factory (`NewModule`) to decline registration; `GetAllModules` skips nil, so the module isn't added to the platform at all. See `awsimds.NewModule`.
+- **Mutable config gates** (a runtime-toggleable setting): gate inside the check `Fn` instead, so toggling the flag and restarting can still resolve previously stored issues. See `invalidconfig`.
+- Do **not** gate inside `init()` itself — config is not available at init time, and DMI/env detection belongs in the factory where deps are available
 
 After adding a new Path A module, blank-import its package in `bundle.go` so `init()` fires.
 

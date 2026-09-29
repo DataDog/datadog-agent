@@ -59,8 +59,18 @@ type awsIMDSModule struct {
 	selfIdent *selfident.SelfIdent
 }
 
-// NewModule creates a new AWS IMDS hop limit issue module
+// NewModule creates a new AWS IMDS hop limit issue module, or nil to decline
+// registration entirely when the agent is not in a container on AWS. This gate
+// is on the environment (immutable for a given host), not on config, so there
+// is no stale-issue-resolution reason to register a module that can never fire.
 func NewModule(deps issues.ModuleDeps) issues.Module {
+	if !env.IsContainerized() || !ec2.IsRunningOnFromDMI() {
+		return nil
+	}
+	return newModule(deps)
+}
+
+func newModule(deps issues.ModuleDeps) *awsIMDSModule {
 	return &awsIMDSModule{
 		template:  NewAWSIMDSIssue(),
 		hostname:  deps.Hostname,
@@ -94,11 +104,8 @@ func (m *awsIMDSModule) BuiltInStartupHealthCheck() *runnerdef.BuiltInHealthChec
 }
 
 func (m *awsIMDSModule) check() ([]runnerdef.IssueReport, error) {
-	// Gate inside Fn so previously reported issues can still be resolved on restart.
-	if !env.IsContainerized() || !ec2.IsRunningOnFromDMI() {
-		return nil, nil
-	}
-
+	// Environment is already gated at registration (NewModule); only the probe
+	// result varies here, so a clean probe resolves any previously stored issue.
 	detected, err := probe()
 	if err != nil || !detected {
 		return nil, err

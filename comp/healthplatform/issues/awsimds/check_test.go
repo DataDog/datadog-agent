@@ -19,17 +19,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
 
+// setupCheck points the probe at a local listener with short timeouts. The
+// environment gate lives in NewModule (see module_test.go), so the check itself
+// does not need AWS/container mocks here.
 func setupCheck(t *testing.T, addr string) *awsIMDSModule {
 	t.Helper()
-	t.Setenv("DOCKER_DD_AGENT", "true")
-	cfg := configmock.New(t)
-	cfg.SetInTest("ec2_use_dmi", true)
-	dmi.SetupMock(t, "", "", "", ec2.DMIBoardVendor)
 	originalAddress, originalDialTimeout, originalResponseTimeout := imdsAddress, dialTimeout, responseTimeout
 	imdsAddress = addr
 	dialTimeout, responseTimeout = 200*time.Millisecond, 200*time.Millisecond
@@ -137,25 +134,6 @@ func TestCheck_ProxyIgnored(t *testing.T) {
 			} else {
 				assert.Len(t, reports, 1)
 			}
-		})
-	}
-}
-
-func TestCheck_Gated(t *testing.T) {
-	for _, gate := range []string{"not-containerized", "not-aws"} {
-		t.Run(gate, func(t *testing.T) {
-			srv := unresponsiveServer(t)
-			m := setupCheck(t, srv.Listener.Addr().String())
-			if gate == "not-containerized" {
-				t.Setenv("DOCKER_DD_AGENT", "")
-			} else {
-				dmi.SetupMock(t, "", "", "", "not AWS")
-			}
-			check := m.BuiltInStartupHealthCheck()
-			require.NotNil(t, check)
-			reports, err := check.Fn()
-			require.NoError(t, err)
-			assert.Empty(t, reports)
 		})
 	}
 }
