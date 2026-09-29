@@ -11,6 +11,7 @@ This is an evaluation project on `focus/create-eudm-simulator`. [PR #57126](http
 | Build, capture, validate, plan, and run | [Operator runbook](../../how-to/test/eudm-simulator.md#build-and-capture-separately) |
 | Try it on a Windows laptop | [PowerShell walkthrough](../../how-to/test/eudm-simulator.md#windows-walkthrough) |
 | Understand the approach and the Agent changes | [Architecture and design decisions](../../architecture/eudm-simulator.md) |
+| Compare with the existing external simulator | [Benefits, tradeoffs, and migration from eudsim](../../architecture/eudm-simulator.md#comparison-with-existing-eudsim) |
 | Adapt a scenario or combine Windows and macOS cohorts | [Scenario reference](scenarios.md) |
 | Diagnose a rejected bundle or unsuccessful run | [Troubleshooting](../../how-to/test/eudm-simulator.md#troubleshooting) |
 | Assess what has actually been verified | [Local verification](../../how-to/test/eudm-simulator.md#recorded-local-verification) and [staging proof record](../../how-to/test/eudm-simulator.md#proof-record-and-later-acceptance) |
