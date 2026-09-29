@@ -72,7 +72,6 @@ datadog-agent-7-x64:
 datadog-agent-7-x64-recorder:
   extends: [.agent_build_common, .agent_build_x86, .agent_recorder_flavor]
   rules:
-    - !reference [.except_light_pipeline]
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $ANOMALY_DETECTION_RECORDER != null'
       when: on_success
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'

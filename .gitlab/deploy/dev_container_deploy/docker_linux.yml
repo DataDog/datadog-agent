@@ -210,7 +210,6 @@ dev_branch-recorder-full:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    - !reference [.except_light_pipeline]
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $ANOMALY_DETECTION_RECORDER != null'
       when: on_success
     - if: '$CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
