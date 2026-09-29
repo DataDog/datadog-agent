@@ -10,11 +10,11 @@ package oracle
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -67,7 +67,7 @@ func TestSchemaCollectionNoOwnersSkips(t *testing.T) {
 }
 
 func expectSchemaContainerAvailable(dbMock sqlmock.Sqlmock, conID int64) {
-	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + fmt.Sprintf(" AND con_id = %d", conID))).
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = :con_id")).WithArgs(sql.Named("con_id", conID)).
 		WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(conID, "PDB"))
 }
 
@@ -90,7 +90,7 @@ func TestSchemaCollectionUnavailableContainerDoesNotComplete(t *testing.T) {
 					dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(
 						sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME"}))
 				}
-				query := dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = 3"))
+				query := dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = :con_id")).WithArgs(sql.Named("con_id", int64(3)))
 				if queryFails {
 					query.WillReturnError(errors.New("availability check failed"))
 				} else {
@@ -126,7 +126,7 @@ func TestSchemaCollectionEmptyContainerValidationFailureDoesNotBlockNext(t *test
 	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery)).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "PDB1").AddRow(4, "PDB2"))
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}))
-	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = 3")).WillReturnError(context.DeadlineExceeded)
+	dbMock.ExpectQuery(regexp.QuoteMeta(containerNamesQuery + " AND con_id = :con_id")).WithArgs(sql.Named("con_id", int64(3))).WillReturnError(context.DeadlineExceeded)
 	expectSchemaContainerAvailable(dbMock, 4)
 	require.ErrorIs(t, c.SchemaCollection(), context.DeadlineExceeded)
 	sender, err := c.GetRawSender()
@@ -392,10 +392,18 @@ func TestRelationFilterChunks(t *testing.T) {
 	}
 	columns := relationColumnNames{conID: "x.con_id", owner: "x.owner", relation: "x.table_name"}
 
-	assert.Equal(t, []string{
-		"((x.con_id = 3 AND x.owner = 'APP' AND x.table_name IN ('O''RDER', 'USERS')) OR " +
-			"(x.con_id = 4 AND x.owner = 'REPORT' AND x.table_name IN ('DAILY')))",
-	}, relationFilterChunks(allowed, columns))
+	filters := relationFilterChunks(allowed, columns)
+	require.Len(t, filters, 1)
+	require.Contains(t, filters[0].text, "x.con_id = :rel0con AND x.owner = :rel0owner AND x.table_name IN (:rel0name0,")
+	require.Contains(t, filters[0].text, " OR (x.con_id = :rel1con")
+	require.Equal(t, int64(3), filters[0].args[0].(sql.NamedArg).Value)
+	require.Equal(t, "APP", filters[0].args[1].(sql.NamedArg).Value)
+	require.Equal(t, sql.NullString{String: "O'RDER", Valid: true}, filters[0].args[2].(sql.NamedArg).Value)
+	require.Equal(t, sql.NullString{String: "USERS", Valid: true}, filters[0].args[3].(sql.NamedArg).Value)
+	require.Equal(t, int64(4), filters[0].args[102].(sql.NamedArg).Value)
+	require.Equal(t, "REPORT", filters[0].args[103].(sql.NamedArg).Value)
+	require.Equal(t, sql.NullString{String: "DAILY", Valid: true}, filters[0].args[104].(sql.NamedArg).Value)
+	require.NotContains(t, filters[0].text, "O'RDER")
 }
 
 func TestColumnFilterChunksIncludesOnlySelectedColumns(t *testing.T) {
@@ -406,9 +414,15 @@ func TestColumnFilterChunksIncludesOnlySelectedColumns(t *testing.T) {
 	}
 	columns := relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}
 
-	assert.Equal(t, []string{
-		"((c.con_id = 3 AND c.owner = 'APP' AND c.table_name = 'ORDERS' AND c.column_name IN ('ID', 'STATUS')))",
-	}, columnFilterChunks(allowed, columns, "c.column_name"))
+	filters := columnFilterChunks(allowed, columns, "c.column_name")
+	require.Len(t, filters, 1)
+	require.Contains(t, filters[0].text, "c.table_name = :col0table AND c.column_name IN (:col0name0,")
+	require.Len(t, filters[0].args, 3+schemaColumnBindSlots)
+	require.Equal(t, sql.NullString{String: "ID", Valid: true}, filters[0].args[3].(sql.NamedArg).Value)
+	require.Equal(t, sql.NullString{String: "STATUS", Valid: true}, filters[0].args[4].(sql.NamedArg).Value)
+	for _, arg := range filters[0].args[5:] {
+		require.Equal(t, sql.NullString{}, arg.(sql.NamedArg).Value)
+	}
 }
 
 func TestRelationFilterChunksAtOracleLimit(t *testing.T) {
@@ -419,8 +433,9 @@ func TestRelationFilterChunksAtOracleLimit(t *testing.T) {
 
 	filters := relationFilterChunks(allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"})
 	require.Len(t, filters, 2)
-	assert.NotContains(t, filters[0], "T1000")
-	assert.Contains(t, filters[1], "T1000")
+	require.Len(t, filters[0].args, maxSchemaRelationsPerQuery+2)
+	require.Equal(t, sql.NullString{String: "T0999", Valid: true}, filters[0].args[1001].(sql.NamedArg).Value)
+	require.Equal(t, sql.NullString{String: "T1000", Valid: true}, filters[1].args[2].(sql.NamedArg).Value)
 }
 
 func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
@@ -446,9 +461,9 @@ func TestSchemaCollectionCapsAcrossOwnerQueryBatches(t *testing.T) {
 		ownerRows.AddRow(3, fmt.Sprintf("APP%04d", i), 1000+i)
 	}
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(ownerRows)
-	dbMock.ExpectQuery("APP0999").WillReturnRows(sqlmock.NewRows(
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WithArgs(schemaIdentityArgs(3, 2, namesForSchemaTest(1000))...).WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP0000", "T1"))
-	dbMock.ExpectQuery("APP1000").WillReturnRows(sqlmock.NewRows(
+	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WithArgs(schemaIdentityArgs(3, 1, []string{"APP1000"})...).WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}).AddRow(3, "APP1000", "T2"))
 	dbMock.ExpectQuery("cdb_tab_cols").WillReturnRows(addTableRow(emptyTablesRows(), 3, "APP0000", "T1", 0))
 
@@ -933,7 +948,8 @@ func TestSchemaOwnersBatchesBeyondMaxSchemaOwners(t *testing.T) {
 
 	chunks := ownerListChunks(names)
 	require.Len(t, chunks, 2, "1010 owners must split into two IN-list batches")
-	assert.Equal(t, "APP0999", strings.Trim(strings.Split(chunks[0], ", ")[len(strings.Split(chunks[0], ", "))-1], "'"))
+	assert.Equal(t, sql.NullString{String: "APP0999", Valid: true}, chunks[0].args[999].(sql.NamedArg).Value)
+	assert.Equal(t, chunks[0].text, chunks[1].text)
 }
 
 func TestTableIdentitiesKeepsMaxPlusOnePerContainer(t *testing.T) {
@@ -954,7 +970,7 @@ func TestTableIdentitiesKeepsMaxPlusOnePerContainer(t *testing.T) {
 		{conID: 3, owner: "APP"}: "1",
 		{conID: 4, owner: "APP"}: "1",
 	}
-	keys, truncated, err := c.tableIdentities(context.Background(), []string{"'APP'"}, owners, "", 2)
+	keys, truncated, err := c.tableIdentities(context.Background(), ownerListChunks([]string{"APP"}), owners, schemaSQL{}, 2)
 	require.NoError(t, err)
 	require.Len(t, keys, 4)
 	assert.Equal(t, []tableKey{
@@ -984,7 +1000,10 @@ func TestOwnerListForKeysIsDistinctAndSorted(t *testing.T) {
 		{conID: 3, owner: "APP", table: "B"},
 		{conID: 3, owner: "APP", table: "A"},
 	}
-	assert.Equal(t, "'APP', 'REPORTING'", ownerListForKeys(keys))
+	query := ownerListForKeys(keys)
+	require.Equal(t, sql.NullString{String: "APP", Valid: true}, query.args[0].(sql.NamedArg).Value)
+	require.Equal(t, sql.NullString{String: "REPORTING", Valid: true}, query.args[1].(sql.NamedArg).Value)
+	require.Len(t, query.args, schemaRelationPageSize)
 }
 
 func TestForEachTablePageBoundsPageSize(t *testing.T) {
@@ -1204,13 +1223,12 @@ func TestEmptyContainerSkippedIfAlreadyStarted(t *testing.T) {
 }
 
 func TestRegexSQLClausesUsesOracleCaseInsensitiveMatching(t *testing.T) {
-	require.Empty(t, regexSQLClauses("name", nil, nil))
-	require.Equal(t,
-		" AND NOT REGEXP_LIKE(name, '^tmp', 'i') AND (REGEXP_LIKE(name, '^orders$', 'i') OR REGEXP_LIKE(name, 'o''brien', 'i'))",
-		regexSQLClauses("name", []string{"^orders$", "o'brien"}, []string{"^tmp"}))
-	require.Equal(t,
-		" AND (REGEXP_LIKE(name, '^([a-z]+)\\1$', 'i'))",
-		regexSQLClauses("name", []string{"^([a-z]+)\\1$"}, nil))
+	require.Equal(t, schemaSQL{}, regexSQLClauses("name", nil, nil))
+	query := regexSQLClauses("name", []string{"^orders$", "o'brien"}, []string{"^tmp"})
+	require.Equal(t, " AND NOT REGEXP_LIKE(name, :exclude0, 'i') AND (REGEXP_LIKE(name, :include0, 'i') OR REGEXP_LIKE(name, :include1, 'i'))", query.text)
+	require.Equal(t, []any{sql.Named("exclude0", "^tmp"), sql.Named("include0", "^orders$"), sql.Named("include1", "o'brien")}, query.args)
+	backref := regexSQLClauses("name", []string{`^([a-z]+)\1$`}, nil)
+	require.Equal(t, []any{sql.Named("include0", `^([a-z]+)\1$`)}, backref.args)
 }
 
 func TestSchemaOwnersUsesOracleFilters(t *testing.T) {
@@ -1218,7 +1236,7 @@ func TestSchemaOwnersUsesOracleFilters(t *testing.T) {
 	defer cleanup()
 	c.config.Schemas.IncludeSchemas = []string{"^app"}
 	c.config.Schemas.ExcludeSchemas = []string{"_tmp$"}
-	query := schemaOwnersQuery + " AND NOT REGEXP_LIKE(username, '_tmp$', 'i') AND (REGEXP_LIKE(username, '^app', 'i'))"
+	query := schemaOwnersQuery + " AND NOT REGEXP_LIKE(username, :exclude0, 'i') AND (REGEXP_LIKE(username, :include0, 'i'))"
 	dbMock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	owners, names, err := c.schemaOwners(context.Background(), map[int64]string{3: "APP_PDB"})
@@ -1233,7 +1251,7 @@ func TestContainerNamesUsesOracleFilters(t *testing.T) {
 	defer cleanup()
 	c.config.Schemas.IncludeDatabases = []string{"pdb$"}
 	c.config.Schemas.ExcludeDatabases = []string{"^tmp"}
-	query := containerNamesQuery + " AND NOT REGEXP_LIKE(name, '^tmp', 'i') AND (REGEXP_LIKE(name, 'pdb$', 'i'))"
+	query := containerNamesQuery + " AND NOT REGEXP_LIKE(name, :exclude0, 'i') AND (REGEXP_LIKE(name, :include0, 'i'))"
 	dbMock.ExpectQuery(regexp.QuoteMeta(query)).WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "NAME"}).AddRow(3, "APP_PDB"))
 	names, err := c.containerNames(context.Background())
@@ -1288,9 +1306,9 @@ func TestSchemaCollectionAppliesTableIncludeExcludeFilters(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 
 	expectedFilter := regexSQLClauses("t.table_name", c.config.Schemas.IncludeTables, c.config.Schemas.ExcludeTables)
-	require.Contains(t, expectedFilter, "REGEXP_LIKE")
+	require.Contains(t, expectedFilter.text, "REGEXP_LIKE")
 
-	dbMock.ExpectQuery(regexp.QuoteMeta(expectedFilter)).WillReturnRows(sqlmock.NewRows(
+	dbMock.ExpectQuery(regexp.QuoteMeta(expectedFilter.text)).WillReturnRows(sqlmock.NewRows(
 		[]string{"CON_ID", "OWNER", "TABLE_NAME"}))
 
 	expectSchemaContainerAvailable(dbMock, 3)
@@ -1386,4 +1404,29 @@ func TestSchemaSnapshotAfterDisappearedPage(t *testing.T) {
 			require.NoError(t, dbMock.ExpectationsWereMet())
 		})
 	}
+}
+
+func schemaBindTestArgs(prefix string, names []string, size int) []driver.Value {
+	args := make([]driver.Value, size)
+	for i := range args {
+		var value sql.NullString
+		if i < len(names) {
+			value = sql.NullString{String: names[i], Valid: true}
+		}
+		args[i] = sql.Named(fmt.Sprintf("%s%d", prefix, i), value)
+	}
+	return args
+}
+
+func schemaIdentityArgs(conID int64, limit int, owners []string) []driver.Value {
+	args := []driver.Value{sql.Named("con_id", conID), sql.Named("identity_limit", limit)}
+	return append(args, schemaBindTestArgs("owner", owners, maxSchemaOwners)...)
+}
+
+func namesForSchemaTest(n int) []string {
+	names := make([]string, n)
+	for i := range names {
+		names[i] = fmt.Sprintf("APP%04d", i)
+	}
+	return names
 }
