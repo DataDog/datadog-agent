@@ -185,11 +185,6 @@ var (
 	TlmListenerIPDenied = telemetryimpl.GetCompatComponent().NewCounter("logs", "listener_ip_denied",
 		[]string{"listener_type"}, "Count of connections or datagrams rejected by IP allow/deny filters")
 
-	// TlmFoldspaceDualShipDropped counts records the dual-ship tap dropped so foldspace
-	// back-pressure cannot stall HTTP.
-	TlmFoldspaceDualShipDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_foldspace", "dual_ship.dropped",
-		nil, "Records dropped on the foldspace dual-ship path so HTTP delivery is not stalled")
-
 	// TlmFoldspaceDropped counts non-abandoning payload drops reported by foldspace.
 	TlmFoldspaceDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_foldspace", "dropped",
 		nil, "Payloads a foldspace sender gave up on without abandoning the record")
