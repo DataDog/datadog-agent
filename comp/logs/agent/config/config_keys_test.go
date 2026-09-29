@@ -95,6 +95,19 @@ func TestFoldspaceDefaults(t *testing.T) {
 	assert.False(t, l.foldspaceEnabled())
 }
 
+// TestFoldspaceTapChannelSize asserts the ingest buffer falls back to the shared
+// channel size when unset, and overrides it independently when set.
+func TestFoldspaceTapChannelSize(t *testing.T) {
+	mockConfig, l := getLogsConfigKeys(t)
+	mockConfig.SetInTest("logs_config.message_channel_size", 100)
+	assert.Equal(t, 100, l.foldspaceTapChannelSize())
+
+	mockConfig.SetInTest("logs_config.foldspace.tap_channel_size", 30000)
+	assert.Equal(t, 30000, l.foldspaceTapChannelSize())
+	assert.Equal(t, 100, mockConfig.GetInt("logs_config.message_channel_size"),
+		"sizing the ingest buffer must not disturb the shared channel size")
+}
+
 func TestFoldspaceEnvAndYAML(t *testing.T) {
 	mockConfig, l := getLogsConfigKeys(t)
 	mockConfig.SetInTest("logs_config.foldspace.enabled", true)
