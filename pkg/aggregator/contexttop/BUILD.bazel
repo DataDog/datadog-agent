@@ -9,7 +9,7 @@ go_library(
     deps = [
         "//pkg/aggregator",
         "//pkg/util/filesystem",
-        "@com_github_datadog_zstd//:zstd",
+        "//pkg/zstd",
     ],
 )
 

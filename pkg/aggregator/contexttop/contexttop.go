@@ -14,10 +14,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 // Result contains the metrics with the most active contexts.
@@ -66,7 +65,10 @@ func fromFile(filePath string, numMetrics, numTags int, strictLimits bool) (Resu
 
 	var r io.Reader = bufio.NewReader(f)
 	if strings.HasSuffix(filePath, ".zstd") {
-		d := zstd.NewReader(r)
+		d, err := zstd.NewReader(r)
+		if err != nil {
+			return Result{}, err
+		}
 		defer d.Close()
 		r = d
 	}
