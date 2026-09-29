@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "fx",
-    srcs = ["fx.go"],
+    srcs = [
+        "devconfig.go",
+        "fx.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx",
     visibility = ["//visibility:public"],
     deps = [
@@ -19,6 +22,7 @@ go_library(
         "//comp/remote-config/rcclient/types",
         "//pkg/config/remote/data",
         "//pkg/config/utils",
+        "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],
@@ -36,5 +40,6 @@ dd_agent_go_test(
         "//pkg/config/remote/data",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )
