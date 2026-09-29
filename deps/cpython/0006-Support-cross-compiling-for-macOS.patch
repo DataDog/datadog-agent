@@ -1,0 +1,92 @@
+Subject: [PATCH] Support cross-compiling for macOS
+
+CPython's configure only allows cross builds for a fixed list of host
+triples, which does not include macOS: Apple's own universal2 support goes
+through --enable-universalsdk instead, and that needs to run target binaries.
+We build macOS x86_64 on Apple Silicon runners (the Intel fleet is retired and
+Rosetta is going away), so teach configure about a darwin host. The target OS
+is the host OS here, so uname is still a correct source for the kernel
+release; without it define_xopen_source and friends would diverge from a
+native build.
+---
+diff --git a/configure b/configure
+--- a/configure
++++ b/configure
+@@ -4057,6 +4057,9 @@
+ 		;;
+ 	*-apple-ios*)
+ 		ac_sys_system=iOS
++		;;
++	*-apple-darwin*)
++		ac_sys_system=Darwin
+ 		;;
+ 	*-*-vxworks*)
+ 	    ac_sys_system=VxWorks
+@@ -4072,7 +4075,15 @@
+ 		MACHDEP="unknown"
+ 		as_fn_error $? "cross build not supported for $host" "$LINENO" 5
+ 	esac
+-	ac_sys_release=
++	if test "$ac_sys_system" = "Darwin"; then
++		# macOS -> macOS cross build: the target OS is the host OS, so the
++		# host kernel release is the correct value here. It drives
++		# define_xopen_source and other $ac_sys_system/$ac_sys_release
++		# decisions below, which must match a native build.
++		ac_sys_release=`uname -r`
++	else
++		ac_sys_release=
++	fi
+     else
+ 	ac_sys_system=`uname -s`
+ 	if test "$ac_sys_system" = "AIX" \
+@@ -4525,6 +4536,9 @@
+ 				;;
+ 		esac
+ 		;;
++	*-apple-darwin*)
++		_host_ident=$host_cpu
++		;;
+ 	*-*-vxworks*)
+ 		_host_ident=$host_cpu
+ 		;;
+
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -329,6 +329,9 @@
+ 		;;
+ 	*-apple-ios*)
+ 		ac_sys_system=iOS
++		;;
++	*-apple-darwin*)
++		ac_sys_system=Darwin
+ 		;;
+ 	*-*-vxworks*)
+ 	    ac_sys_system=VxWorks
+@@ -344,7 +347,15 @@
+ 		MACHDEP="unknown"
+ 		AC_MSG_ERROR([cross build not supported for $host])
+ 	esac
+-	ac_sys_release=
++	if test "$ac_sys_system" = "Darwin"; then
++		# macOS -> macOS cross build: the target OS is the host OS, so the
++		# host kernel release is the correct value here. It drives
++		# define_xopen_source and other $ac_sys_system/$ac_sys_release
++		# decisions below, which must match a native build.
++		ac_sys_release=`uname -r`
++	else
++		ac_sys_release=
++	fi
+     else
+ 	ac_sys_system=`uname -s`
+ 	if test "$ac_sys_system" = "AIX" \
+@@ -771,6 +782,9 @@
+ 				;;
+ 		esac
+ 		;;
++	*-apple-darwin*)
++		_host_ident=$host_cpu
++		;;
+ 	*-*-vxworks*)
+ 		_host_ident=$host_cpu
+ 		;;

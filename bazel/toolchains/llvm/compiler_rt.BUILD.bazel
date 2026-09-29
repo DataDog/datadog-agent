@@ -1,0 +1,20 @@
+"""Exposes the compiler-rt builtins archive of an LLVM release distribution.
+
+`toolchains_llvm` downloads a single LLVM distribution, for the *host*, so the
+`libclang_rt.osx.a` it ships only contains the host slice. Cross-compiling for
+macOS x86_64 from Apple Silicon therefore cannot resolve the builtins clang
+emits for `__builtin_available` (`__isPlatformVersionAtLeast`). This repository
+holds the x86_64 distribution purely so that archive can be linked into
+darwin-x86_64 targets that need it.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "clang_rt_osx",
+    # Globbed rather than spelled out so the LLVM major version lives in a
+    # single place (the `llvm.toolchain` call in MODULE.bazel).
+    srcs = glob(["lib/clang/*/lib/darwin/libclang_rt.osx.a"]),
+    linkstatic = True,
+    visibility = ["//visibility:public"],
+)

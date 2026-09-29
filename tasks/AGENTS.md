@@ -59,6 +59,24 @@ Release, packaging, tooling, and developer-experience tasks. Examples:
 `components.py`, `go_deps.py`, `go.py`, `modules.py`, `renovate.py`,
 `new_e2e_tests.py`, `ebpf.py`.
 
+## Target Architecture Comes From GOARCH
+
+`get_build_flags` in `libs/common/utils.py` defaults its `arch` to
+`os.getenv("GOARCH") or "local"`, and that is the contract for the whole task
+tree: `GOARCH` is how a caller (notably the omnibus build, which cross-compiles
+macOS x86_64 on Apple Silicon) selects a target. A task that defaults its own
+`arch` parameter to `platform.machine()` instead silently breaks that contract —
+`get_build_flags` concludes the build is native and never sets `CGO_ENABLED`, Go
+then disables cgo because it *is* cross-compiling, and every cgo file drops out
+of the build. The symptom is a wall of `undefined:` errors and `build
+constraints exclude all Go files` from third-party packages, which looks nothing
+like an architecture problem.
+
+So: derive architecture defaults from `GOARCH` before falling back to the host,
+and prefer passing no `arch` at all and letting `get_build_flags` decide.
+`CONTAINER_PLATFORM_MAPPING` lookups in the `*.image-build` tasks are a genuine
+exception — those really do want the host's docker platform.
+
 ## Writing Commands That Work on Windows
 
 `ctx.run` goes through `/bin/bash` on Unix but `cmd.exe` on Windows, so a command string that works locally can be silently broken for Windows developers. The invoke unit tests only run on Linux in CI, so nothing catches this for you.

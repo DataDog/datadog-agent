@@ -280,6 +280,23 @@ module Omnibus
 
   Packager::PKG.prepend PackagerPKGNotarizer
 
+  # `safe_architecture` reports the *host* machine, which feeds both the .pkg
+  # filename and the `hostArchitectures` attribute of the generated
+  # Distribution file. On a cross build that attribute names the wrong slice,
+  # and macOS `installer` refuses the package outright with "Agent can't be
+  # installed on this computer" -- on the very machines the package is for.
+  # Report the target instead. A native build is unaffected, since
+  # OMNIBUS_TARGET_ARCH is only set when cross-compiling. It is read directly
+  # rather than through `target_machine` in lib/ostools.rb, because that helper
+  # falls back to the `ohai` DSL method, which only Project and Software have.
+  module PackagerPKGTargetArchitecture
+    def safe_architecture
+      @safe_architecture ||= ENV["OMNIBUS_TARGET_ARCH"] || super
+    end
+  end
+
+  Packager::PKG.prepend PackagerPKGTargetArchitecture
+
   # Repackaged builds may extract external package files under OMNIBUS_BASE_DIR
   # because non-root dev environments cannot write paths like /usr/bin. Keep the
   # declared extra_package_file path as the final package path, but source missing

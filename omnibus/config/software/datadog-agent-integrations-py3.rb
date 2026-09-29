@@ -44,7 +44,12 @@ build do
     :live_stream => Omnibus.logger.live_stream(:info)
 
   # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-  command "#{python} -B -m pip check"
+  # When cross-compiling, `python` is a foreign-architecture binary we cannot execute
+  # (running it would mean depending on Rosetta, which is going away). The requirement
+  # set is architecture-independent, so the native build of the same commit covers it.
+  unless cross_compiling?
+    command "#{python} -B -m pip check"
+  end
 
   # Remove openssl copies from libraries that depend on it, and patch as necessary.
   # The OpenSSL setup with FIPS is more delicate than in the regular Agent because it makes it harder

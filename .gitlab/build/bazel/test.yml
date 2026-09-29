@@ -91,9 +91,6 @@ bazel:test:linux-arm64:
   variables:
     COVERAGE_FILE: coverage-bazel-*.out
 
-bazel:coverage:macos-amd64:
-  extends: [.bazel:runner:macos-amd64, .bazel:coverage:macos]
-
 bazel:coverage:macos-arm64:
   extends: [.bazel:runner:macos-arm64, .bazel:coverage:macos]
 
@@ -107,9 +104,6 @@ bazel:coverage:macos-arm64:
     - !reference [.macos_cleanup_python_dependencies]
     - !reference [.install_python_dependencies]
     - !reference [.bazel:test:reporting, after_script]
-
-bazel:test:macos-amd64:
-  extends: [.bazel:runner:macos-amd64, .bazel:test:macos]
 
 bazel:test:macos-arm64:
   extends: [.bazel:runner:macos-arm64, .bazel:test:macos]

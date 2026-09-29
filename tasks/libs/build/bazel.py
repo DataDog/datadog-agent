@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import codecs
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -300,6 +301,13 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
         else:
             flags.append(f"--//:install_dir={install_dir}")
         flags.append(f"--//:output_config_dir={os.environ.get("OUTPUT_CONFIG_DIR", "")}")
+    # Only pinned when cross-compiling: a native build keeps Bazel's host-derived
+    # default, and so keeps its analysis cache.
+    if target_arch := os.environ.get("OMNIBUS_TARGET_ARCH"):
+        if target_arch != platform.machine():
+            os_name = "macos" if sys.platform == "darwin" else "linux"
+            cpu = "arm64" if target_arch.startswith(("aarch", "arm")) else "x86_64"
+            flags.append(f"--platforms=//bazel/platforms:{os_name}_{cpu}")
     if not flags:
         return args
     # insert flags right after the bazel command, preserving startup options before it and subcommand arguments after it
