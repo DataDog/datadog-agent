@@ -205,7 +205,7 @@ func k8sDeploymentWithLibInjection(e config.Env, namespace string, name string, 
 		"openshift.io/required-scc": pulumi.String("hostaccess"),
 	}
 	if withLibAnnotation {
-		annotations["admission.datadoghq.com/python-lib.version"] = pulumi.String("v2.7.3")
+		annotations["admission.datadoghq.com/python-lib.version"] = pulumi.String("v3.18.1")
 	}
 
 	pythonImage := "python:3.12-slim"

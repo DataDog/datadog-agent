@@ -1579,26 +1579,23 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 	switch language {
 	// APM supports several languages, but for now all the test apps are Python
 	case "python":
-		emptyDirVolumes := make(map[string]*corev1.EmptyDirVolumeSource)
+		// The volumes are emptyDir with init containers and CSI volumes with
+		// the CSI driver, so only mode-independent properties are checked.
+		volumeNames := make(map[string]struct{})
 		for _, volume := range pod.Spec.Volumes {
-			if volume.EmptyDir != nil {
-				emptyDirVolumes[volume.Name] = volume.EmptyDir
-			}
+			volumeNames[volume.Name] = struct{}{}
 		}
 
-		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation") {
+		if suite.Contains(volumeNames, "datadog-auto-instrumentation") {
 			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation")
 		}
 
-		if suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation-etc") {
+		if suite.Contains(volumeNames, "datadog-auto-instrumentation-etc") {
 			suite.Contains(volumesMarkedAsSafeToEvict, "datadog-auto-instrumentation-etc")
 		}
 
 		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
-			suite.ElementsMatch([]string{
-				"/opt/datadog-packages/datadog-apm-inject",
-				"/opt/datadog/apm/library",
-			}, volumeMounts["datadog-auto-instrumentation"])
+			suite.Contains(volumeMounts["datadog-auto-instrumentation"], "/opt/datadog-packages/datadog-apm-inject")
 		}
 	}
 }
