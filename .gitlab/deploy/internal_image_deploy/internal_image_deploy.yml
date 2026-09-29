@@ -98,7 +98,13 @@ publish_internal_container_image-jmx:
 
 publish_internal_container_image-recorder-jmx:
   extends: .docker_trigger_base
-  rules: !reference [docker_build_agent7_recorder_full, rules]
+  rules:
+    - if: '$CI_COMMIT_BRANCH && $ANOMALY_DETECTION_RECORDER != null'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true
+    - when: never
   needs:
     - job: docker_build_agent7_recorder_full
       artifacts: false
