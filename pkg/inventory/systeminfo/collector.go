@@ -18,6 +18,11 @@ type SystemInfo struct {
 	ChassisType  string
 	Identifier   string
 	// ComputerName is the user-assigned device name (currently macOS-only).
+	// macOS-only by design, not just by omission: on macOS this is a distinct,
+	// user-editable label (System Settings > Sharing) that differs from the
+	// network hostname. On Windows, Win32_ComputerSystem.Name IS the hostname,
+	// already captured in the payload's top-level "hostname" field, so there's
+	// nothing additional to collect there.
 	ComputerName string
 }
 
