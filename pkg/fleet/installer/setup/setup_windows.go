@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/msi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
@@ -233,6 +234,10 @@ func parseMinorPrefix(s string) (int, error) {
 // Caller is responsible for gating this on the recursion-guard marker and
 // requestedAgentVersion != "" before calling.
 func runAgentInstaller(ctx context.Context, e *env.Env, flavor, tag string) error {
+	// Reject mismatches before handing setup to an older installer without this check.
+	if err := msi.CheckAgentFlavor(e.FIPSMode); err != nil {
+		return err
+	}
 	if err := paths.SetupInstallerDataDir(); err != nil {
 		return fmt.Errorf("could not ensure installer data dir: %w", err)
 	}
