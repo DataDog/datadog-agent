@@ -316,6 +316,35 @@ func isClusterAggregateSourceMetric(name string) bool {
 	return ok
 }
 
+// aggregatorLabels returns every label the aggregators keep, i.e. the labels
+// their flushed series can be joined on. It returns nil for an unknown
+// aggregator type, meaning "any label".
+func aggregatorLabels(aggregators map[string]metricAggregator) map[string]struct{} {
+	labels := map[string]struct{}{}
+	add := func(allowed []string) {
+		for _, l := range allowed {
+			if l != "" {
+				labels[l] = struct{}{}
+			}
+		}
+	}
+	for _, a := range aggregators {
+		switch a := a.(type) {
+		case *sumValuesAggregator:
+			add(a.allowedLabels)
+		case *countObjectsAggregator:
+			add(a.allowedLabels)
+		case *resourceAggregator:
+			add(a.allowedLabels)
+		case *lastCronJobCompleteAggregator, *lastCronJobFailedAggregator:
+			add([]string{"namespace", "cronjob"})
+		default:
+			return nil
+		}
+	}
+	return labels
+}
+
 func defaultMetricAggregators() map[string]metricAggregator {
 	cronJobAggregator := newLastCronJobAggregator()
 

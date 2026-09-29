@@ -250,6 +250,11 @@ type KSMConfig struct {
 	// UseAPIServerCache enables the use of the API server cache for the check
 	UseAPIServerCache bool `yaml:"use_apiserver_cache"`
 
+	// PrecomputeSeriesTags builds the tags of an object's series when the
+	// object changes, instead of rebuilding them from the labels at every run.
+	// Same tags; less CPU and fewer allocations per run, a little more memory.
+	PrecomputeSeriesTags bool `yaml:"precompute_series_tags"`
+
 	// PodCollectionMode defines how pods are collected.
 	// Accepted values are: "default", "node_kubelet", "cluster_unassigned",
 	// and "cluster_aggregates_only".
@@ -288,6 +293,11 @@ type KSMCheck struct {
 	rolloutTracker             *customresources.RolloutTracker
 	customResourceDiscoverer   *ksmDiscovery.CRDiscoverer
 	namespaceTagsErrorLogLimit *log.Limit
+
+	// With precompute_series_tags: the join classification the store hooks use
+	// (set when the stores are built), and the state of the current run.
+	seriesTags *seriesTagsPlan
+	run        *seriesRun
 }
 
 // JoinsConfigWithoutLabelsMapping contains the config parameters for label joins
@@ -545,6 +555,14 @@ func (k *KSMCheck) buildStores() error {
 
 	// Configure builder to enable callbacks for specific resource types
 	builder.WithCallbacksForResources(callbackResourceTypes)
+
+	// With precompute_series_tags, the stores build their series' tags when
+	// objects change. Pointless when only aggregates are emitted.
+	k.seriesTags = nil
+	if k.instance.PrecomputeSeriesTags && k.instance.PodCollectionMode != clusterAggregatesOnlyPodCollection {
+		k.seriesTags = newSeriesTagsPlan(k.instance.labelJoins, aggregatorLabels(k.metricAggregators))
+		builder.WithSeriesTagsFuncs(k.seriesTagsFuncs(k.seriesTags))
+	}
 
 	// Start the collection process
 	k.allStores = builder.BuildStores()
@@ -808,19 +826,16 @@ func (k *KSMCheck) Run() error {
 
 	defer sender.Commit()
 
-	labelJoiner := newLabelJoiner(k.instance.labelJoins)
-	for _, stores := range k.allStores {
-		for _, store := range stores {
-			var metricsStore *ksmstore.MetricsStore
-			if ms, ok := store.(*ksmstore.MetricsStore); ok {
-				metricsStore = ms
-			}
-
-			if metricsStore != nil {
-				metrics := metricsStore.Push(k.familyFilter, k.metricFilter)
-				labelJoiner.insertFamilies(metrics)
-			}
-		}
+	var joiner *labelJoiner
+	if k.seriesTags != nil {
+		// Series tags are precomputed: only the joins that depend on other
+		// objects, or that aggregates can match, are resolved per run.
+		joins, version := k.seriesTags.runJoins()
+		k.run = &seriesRun{namespaceTags: map[string][]string{}, planVersion: version}
+		defer func() { k.run = nil }()
+		joiner = k.buildJoiner(joins)
+	} else {
+		joiner = k.buildJoiner(k.instance.labelJoins)
 	}
 
 	currentTime := time.Now()
@@ -833,7 +848,7 @@ func (k *KSMCheck) Run() error {
 
 			if metricsStore != nil {
 				metrics := metricsStore.Push(ksmstore.GetAllFamilies, ksmstore.GetAllMetrics)
-				k.processMetrics(sender, metrics, labelJoiner, currentTime)
+				k.processMetrics(sender, metrics, joiner, currentTime)
 				k.processTelemetry(metrics)
 			}
 		}
@@ -907,7 +922,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if transform, found := k.metricTransformers[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.seriesHostnameAndTags(&metricFamily, m, labelJoiner, lMapperOverride)
 					transform(sender, metricFamily.Name, m, hostname, tagList, now)
 				}
 				continue
@@ -919,7 +934,7 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 			if ddname, found := k.metricNamesMapper[metricFamily.Name]; found {
 				lMapperOverride := labelsMapperOverride(metricFamily.Name)
 				for _, m := range metricFamily.ListMetrics {
-					hostname, tagList := k.hostnameAndTags(m.Labels, labelJoiner, lMapperOverride)
+					hostname, tagList := k.seriesHostnameAndTags(&metricFamily, m, labelJoiner, lMapperOverride)
 					sender.Gauge(metricPrefix+ddname, m.Val, hostname, tagList)
 				}
 				continue
@@ -948,9 +963,16 @@ func (k *KSMCheck) processMetrics(sender sender.Sender, metrics map[string][]ksm
 //
 // This function must always return a "fresh" slice of tags, that will not be accessed after return.
 func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJoiner, lMapperOverride map[string]string) (string, []string) {
-	hostname := ""
+	hostname, tagList, resourceNamespace := k.staticHostnameAndTags(labels, labelJoiner.getLabelsToAdd(labels), lMapperOverride)
+	return hostname, append(tagList, k.namespaceTags(resourceNamespace)...)
+}
 
-	labelsToAdd := labelJoiner.getLabelsToAdd(labels)
+// staticHostnameAndTags is hostnameAndTags without the namespace tags from the
+// tagger: everything that only depends on the series' labels and the labels
+// joined to it. It also returns the series' namespace. The returned slice is
+// fresh.
+func (k *KSMCheck) staticHostnameAndTags(labels map[string]string, labelsToAdd []label, lMapperOverride map[string]string) (string, []string, string) {
+	hostname := ""
 
 	// generate a dedicated tags slice
 	tagList := make([]string, 0, len(labels)+len(labelsToAdd))
@@ -1020,22 +1042,22 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tagList = append(tagList, tags.KubeArgoRollout+":"+deploymentName)
 	}
 
-	var namespaceTags []string
-	var tagErr error
+	return hostname, tagList, resourceNamespace
+}
 
-	if resourceNamespace != "" {
-		namespaceTags, tagErr = k.tagger.Tag(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", resourceNamespace))), types.LowCardinality)
+// namespaceTags returns the tags of a namespace from the tagger.
+func (k *KSMCheck) namespaceTags(namespace string) []string {
+	if namespace == "" {
+		return nil
 	}
-
-	if tagErr != nil {
+	namespaceTags, err := k.tagger.Tag(types.NewEntityID(types.KubernetesMetadata, string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespace))), types.LowCardinality)
+	if err != nil {
 		if k.namespaceTagsErrorLogLimit.ShouldLog() {
-			log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
+			log.Errorf("failed to get namespace tags for %q from tagger: %v", namespace, err)
 		}
-	} else if len(namespaceTags) > 0 {
-		tagList = append(tagList, namespaceTags...)
+		return nil
 	}
-
-	return hostname, tagList
+	return namespaceTags
 }
 
 // familyFilter is a metric families filter for label joins

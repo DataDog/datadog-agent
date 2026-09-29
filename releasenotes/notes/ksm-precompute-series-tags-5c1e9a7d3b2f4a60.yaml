@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add the ``precompute_series_tags`` option to the ``kubernetes_state_core`` check.
+    When enabled, the tags of an object's series are built when the object changes
+    instead of at every check run, which reduces CPU usage and allocations per run
+    at the cost of a little more memory. The emitted tags are unchanged. It is
+    disabled by default.

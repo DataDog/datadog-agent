@@ -41,12 +41,21 @@ type MetricsStore struct {
 	MetricsType     string
 	enableCallbacks bool          // flag to enable event callback functionality
 	eventNotifier   EventNotifier // callback notifier (builder reference)
+
+	// seriesTagsFunc, when set, computes the tags of an object's series each
+	// time the object is added or updated, so that readers do not have to
+	// rebuild them from the labels at every read.
+	seriesTagsFunc SeriesTagsFunc
 }
 
 // DDMetric represents the data we care about for a context.
 type DDMetric struct {
 	Labels map[string]string
 	Val    float64
+	// ExtraTags are the tags of this series beyond those it shares with the
+	// other series of its object (DDMetricsFam.Object). Only set by stores with
+	// a SeriesTagsFunc.
+	ExtraTags []string
 }
 
 // DDMetricsFam is the representation of a metric family.
@@ -54,7 +63,25 @@ type DDMetricsFam struct {
 	Type        string
 	Name        string
 	ListMetrics []DDMetric
+	// Object holds what the series of this family share with every other
+	// series of the same Kubernetes object. Only set by stores with a
+	// SeriesTagsFunc; nil otherwise.
+	Object *ObjectTags
 }
+
+// ObjectTags is what all the series of a Kubernetes object share: their
+// common tags, hostname and namespace. Stored once per object.
+type ObjectTags struct {
+	Hostname  string
+	Namespace string
+	Tags      []string
+}
+
+// SeriesTagsFunc computes the tags of the series of one object, from all of
+// its metric families. It sets ExtraTags on each metric of families and returns
+// the object's shared tags. It is called when the object is added or updated,
+// outside of the store's lock, and must not keep references to families.
+type SeriesTagsFunc func(families []DDMetricsFam) *ObjectTags
 
 // NewMetricsStore returns a new MetricsStore.
 func NewMetricsStore(generateFunc func(interface{}) []metric.FamilyInterface, mt string) *MetricsStore {
@@ -64,6 +91,13 @@ func NewMetricsStore(generateFunc func(interface{}) []metric.FamilyInterface, mt
 		metrics:             map[types.UID][]DDMetricsFam{},
 		enableCallbacks:     false,
 	}
+}
+
+// SetSeriesTagsFunc makes the store compute the tags of an object's series
+// when the object is added or updated (see SeriesTagsFunc). It must be called
+// before the store is fed.
+func (s *MetricsStore) SetSeriesTagsFunc(f SeriesTagsFunc) {
+	s.seriesTagsFunc = f
 }
 
 // EnableCallbacks enables event callback functionality for this store with a notifier
@@ -112,6 +146,12 @@ func (s *MetricsStore) Add(obj interface{}) error {
 		}
 		f.Inspect(metricConvertedList.extract)
 		convertedMetricsForUID[i] = metricConvertedList
+	}
+	if s.seriesTagsFunc != nil {
+		object := s.seriesTagsFunc(convertedMetricsForUID)
+		for i := range convertedMetricsForUID {
+			convertedMetricsForUID[i].Object = object
+		}
 	}
 	// We need to keep the store with UID as a key to handle the lifecycle of the objects and the metrics attached.
 	s.mutex.Lock()
@@ -255,6 +295,7 @@ func (s *MetricsStore) Push(familyFilter FamilyAllow, metricFilter MetricAllow) 
 					ListMetrics: resMetric,
 					Type:        metricFam.Type,
 					Name:        metricFam.Name,
+					Object:      metricFam.Object,
 				})
 			}
 		}

@@ -68,6 +68,8 @@ type Builder struct {
 
 	eventCallbacks map[string]map[store.StoreEventType]store.StoreEventCallback
 	eventMutex     sync.RWMutex
+
+	seriesTagsFuncFor func(resourceType string) store.SeriesTagsFunc
 }
 
 // New returns new Builder instance
@@ -90,6 +92,13 @@ func (b *Builder) WithNamespaces(nss options.NamespaceList) {
 func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 	b.allowDenyList = l
 	b.ksmBuilder.WithFamilyGeneratorFilter(l)
+}
+
+// WithSeriesTagsFuncs makes the stores compute the tags of their series when
+// objects change: f is called with each store's resource type (e.g. "*v1.Pod")
+// and returns its SeriesTagsFunc, or nil to leave that store unchanged.
+func (b *Builder) WithSeriesTagsFuncs(f func(resourceType string) store.SeriesTagsFunc) {
+	b.seriesTagsFuncFor = f
 }
 
 // WithCallbacksForResources configures which resource types should have event callbacks enabled
@@ -542,6 +551,12 @@ func createConfigMapListWatch(metadataClient metadata.Interface, gvr schema.Grou
 func (b *Builder) createStoreForType(composedMetricGenFuncs func(interface{}) []metric.FamilyInterface, expectedType interface{}) cache.Store {
 	typeName := reflect.TypeOf(expectedType).String()
 	metricsStore := store.NewMetricsStore(composedMetricGenFuncs, typeName)
+
+	if b.seriesTagsFuncFor != nil {
+		if f := b.seriesTagsFuncFor(typeName); f != nil {
+			metricsStore.SetSeriesTagsFunc(f)
+		}
+	}
 
 	// Enable callbacks if this resource type is configured for them
 	if b.callbackEnabledResources[typeName] {
