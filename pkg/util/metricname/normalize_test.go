@@ -211,12 +211,7 @@ func TestNormalizePrefixMatchesNormalizedNames(t *testing.T) {
 	}
 }
 
-// TestNormalizePrefixRules asserts the normalization rules specific to
-// PrefixRule (metric_filterlist_prefix): Prefix and ExceptPrefix are
-// normalized as prefixes, ExceptExact is normalized as a complete metric
-// name, none of them are ever treated as carrying a `*` marker, and an
-// unnormalizable Prefix drops the whole rule while an unnormalizable
-// exception only drops itself.
+// Prefix rules normalize prefixes and exact exceptions differently.
 func TestNormalizePrefixRules(t *testing.T) {
 	cases := []struct {
 		name              string
@@ -245,12 +240,6 @@ func TestNormalizePrefixRules(t *testing.T) {
 				{Prefix: "foo.*", ExceptExact: []string{"foo.bar*"}, ExceptPrefix: []string{"foo.baz*"}},
 			},
 			normalized: []PrefixRule{
-				// `*` is treated like any other non-alphanumeric, non-period
-				// byte -- never as a boundary or a marker. It is absorbed into
-				// the preceding period for Prefix (a period already boundaries
-				// the family), dropped outright for the complete name
-				// ExceptExact normalizes as, and turned into the boundary
-				// underscore ExceptPrefix keeps for its own family.
 				{Prefix: "foo.", ExceptExact: []string{"foo.bar"}, ExceptPrefix: []string{"foo.baz_"}},
 			},
 		},
@@ -311,8 +300,6 @@ func TestNormalizePrefixRules(t *testing.T) {
 			assert.Equal(t, c.droppedRules, droppedRules)
 			assert.Equal(t, c.droppedExceptions, droppedExceptions)
 
-			// Normalizing an already-normalized list changes nothing, so a list
-			// normalized again (config load, then an RC update) is stable.
 			twice, droppedRulesTwice, droppedExceptionsTwice := NormalizePrefixRules(normalized)
 			assert.Equal(t, normalized, twice, "normalizing prefix rules must be idempotent")
 			assert.Empty(t, droppedRulesTwice)

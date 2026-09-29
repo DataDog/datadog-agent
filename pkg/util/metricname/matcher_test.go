@@ -151,8 +151,6 @@ func TestNewMatcherPatterns(t *testing.T) {
 			prefixes:    []string{"aaa.", "foo."},
 		},
 		{
-			// A prefix entry absorbs the entries it already matches, within
-			// the same matchPrefix-enabled list.
 			name:        "redundant prefixes",
 			list:        []string{"app.", "app.metrics.", "app.metrics.http."},
 			matchPrefix: true,
@@ -170,18 +168,11 @@ func TestNewMatcherPatterns(t *testing.T) {
 			prefixes:    []string{"foo."},
 		},
 		{
-			// `*` has no special meaning anywhere in this list anymore: it is
-			// a literal character, like any other, that can never appear in
-			// (and therefore never match) a normalized metric name. NewMatcher
-			// does not normalize its input, so the literal `*` is simply kept
-			// as part of the exact entry.
 			name:  "star has no special meaning",
 			list:  []string{"foo.*.bar", "foo.*.baz.*"},
 			exact: []string{"foo.*.bar", "foo.*.baz.*"},
 		},
 		{
-			// The empty entry matches everything once matchPrefix turns it
-			// into a prefix, and absorbs every other entry.
 			name:        "empty entry with match prefix matches all",
 			list:        []string{"", "foo", "bar"},
 			matchPrefix: true,
@@ -239,17 +230,13 @@ func TestIsStringMatchingPatterns(t *testing.T) {
 }
 
 func TestIsStringMatchingBarePrefix(t *testing.T) {
-	// A bare prefix rule must match the prefix itself: the prefix entry and
-	// the tested name are equal, which is the case the binary search has to
-	// handle separately.
+	// Covers the equality case in testPrefixes' binary-search path.
 	m, dropped := NewMatcherWithPrefixRules(nil, false, prefixRulesFrom([]string{"foo"}))
 	assert.Empty(t, dropped)
 	assert.True(t, m.Test("foo"))
 	assert.True(t, m.Test("foobar"))
 	assert.False(t, m.Test("fo"))
 
-	// The empty prefix matches every storable name; names the intake rejects
-	// still never match.
 	matchAll, dropped := NewMatcherWithPrefixRules(nil, false, prefixRulesFrom([]string{""}))
 	assert.Empty(t, dropped)
 	assert.True(t, matchAll.Test("anything"))
@@ -257,9 +244,6 @@ func TestIsStringMatchingBarePrefix(t *testing.T) {
 	assert.False(t, matchAll.Test("123"))
 }
 
-// prefixRulesFrom builds bare (exception-free) PrefixRule entries, one per
-// prefix, for tests that only care about plain prefix matching through the
-// PrefixRule/NewMatcherWithPrefixRules path.
 func prefixRulesFrom(prefixes []string) []PrefixRule {
 	rules := make([]PrefixRule, 0, len(prefixes))
 	for _, p := range prefixes {
@@ -269,9 +253,7 @@ func prefixRulesFrom(prefixes []string) []PrefixRule {
 }
 
 func TestNewMatcherWithPrefixRulesBareRulesFoldIntoPrefixes(t *testing.T) {
-	// A PrefixRule with no exceptions is exactly a bare prefix: it must fold
-	// into `prefixes`, the same fast path a whole-list matchPrefix entry
-	// uses, rather than being kept as a `rules` entry.
+	// Exception-free rules use the compacted prefix fast path.
 	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "redis."},
 		{Prefix: "postgresql.", ExceptExact: nil, ExceptPrefix: nil},
@@ -319,10 +301,7 @@ func TestNewMatcherWithPrefixRulesBothExceptionKinds(t *testing.T) {
 	assert.False(t, m.Test("postgresql.locks.waiting"))
 }
 
-// TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRule asserts the RFC
-// rule that an exception belongs to the entry that declares it: a metric
-// excepted by one entry is still dropped if another entry -- of the prefix
-// rules list, or of the plain exact list -- matches it.
+// Exceptions are scoped to the entry that declares them.
 func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRule(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(
 		[]string{"postgresql.connections"},
@@ -333,13 +312,10 @@ func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRule(t *testing.T) {
 	)
 	assert.Empty(t, dropped)
 
-	// The prefix rule excepts it, but the plain exact list still drops it.
 	assert.True(t, m.Test("postgresql.connections"))
 }
 
 func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRuleAmongRules(t *testing.T) {
-	// Two overlapping rules, both excepting the same name: the metric is kept
-	// only because every rule that covers it also excepts it.
 	bothExcept, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "foo.", ExceptExact: []string{"foo.bar"}},
 		{Prefix: "foo.b", ExceptExact: []string{"foo.bar"}},
@@ -348,9 +324,6 @@ func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRuleAmongRules(t *te
 	assert.False(t, bothExcept.Test("foo.bar"), "excepted by every covering rule")
 	assert.True(t, bothExcept.Test("foo.other"))
 
-	// Same overlap, but only one of the two rules excepts the name: the other
-	// rule still drops it, exactly as the RFC specifies -- an exception
-	// belongs to the entry that declares it.
 	oneExcepts, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "foo.", ExceptExact: []string{"foo.bar"}},
 		{Prefix: "foo.b", ExceptExact: []string{"foo.baz"}},
@@ -359,10 +332,7 @@ func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRuleAmongRules(t *te
 	assert.True(t, oneExcepts.Test("foo.bar"), "excepted by one rule, but still matched by the other")
 }
 
-// TestNewMatcherWithPrefixRulesDeadRuleDetection asserts that a rule whose
-// prefix is already covered, unconditionally, by a broader bare prefix is
-// dropped: its exceptions could never take effect anyway, since the broader
-// prefix matches every name it could ever match regardless of them.
+// Rules shadowed by unconditional prefixes are dropped.
 func TestNewMatcherWithPrefixRulesDeadRuleDetection(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "postgresql."},
@@ -371,13 +341,9 @@ func TestNewMatcherWithPrefixRulesDeadRuleDetection(t *testing.T) {
 	assert.Equal(t, []string{"postgresql.locks."}, dropped)
 	assert.Empty(t, m.rules)
 
-	// The dead rule's exception has no effect: `postgresql.` alone drops it.
 	assert.True(t, m.Test("postgresql.locks.waiting"))
 }
 
-// TestNewMatcherWithPrefixRulesDeadRuleFromMatchPrefix asserts the same dead
-// rule detection when the broader, unconditional prefix comes from the plain
-// list via matchPrefix rather than from another PrefixRule.
 func TestNewMatcherWithPrefixRulesDeadRuleFromMatchPrefix(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(
 		[]string{"postgresql."},
@@ -391,10 +357,6 @@ func TestNewMatcherWithPrefixRulesDeadRuleFromMatchPrefix(t *testing.T) {
 	assert.True(t, m.Test("postgresql.locks.waiting"))
 }
 
-// TestNewMatcherWithPrefixRulesNoSegmentBoundary asserts that the Agent does
-// not require a prefix to end on a segment boundary: `sys` legitimately
-// matches both `system.cpu` and `sys.cpu`. Enforcing full-segment prefixes,
-// if ever wanted, is left to the backend.
 func TestNewMatcherWithPrefixRulesNoSegmentBoundary(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{{Prefix: "sys"}})
 	assert.Empty(t, dropped)
@@ -404,9 +366,6 @@ func TestNewMatcherWithPrefixRulesNoSegmentBoundary(t *testing.T) {
 	assert.False(t, m.Test("other.cpu"))
 }
 
-// TestNewMatcherWithPrefixRulesEmptyPrefix asserts that an empty prefix is a
-// valid, match-everything entry, not something dropped as invalid -- with or
-// without exceptions.
 func TestNewMatcherWithPrefixRulesEmptyPrefix(t *testing.T) {
 	bare, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{{Prefix: ""}})
 	assert.Empty(t, dropped)
@@ -417,8 +376,6 @@ func TestNewMatcherWithPrefixRulesEmptyPrefix(t *testing.T) {
 		{Prefix: "", ExceptExact: []string{"keep.me"}},
 	})
 	assert.Empty(t, dropped)
-	// Not everything is dropped: `keep.me` survives, so this is not the
-	// same as the bare empty-prefix case above.
 	assert.False(t, withException.MatchesAll())
 	assert.True(t, withException.Test("anything.else"))
 	assert.False(t, withException.Test("keep.me"))
@@ -440,8 +397,7 @@ func TestRestrictExact(t *testing.T) {
 	})
 
 	assert.Equal(t, []string{"foo.count"}, restricted.exact)
-	// Prefixes and prefix rules are shared: a derived name matched by either
-	// one stays matched, exceptions included.
+	// Prefix state is shared for histogram aggregate matchers.
 	assert.Equal(t, m.prefixes, restricted.prefixes)
 	assert.Equal(t, m.rules, restricted.rules)
 
@@ -469,9 +425,7 @@ func TestMatchesAll(t *testing.T) {
 	prefix := NewMatcher([]string{"a"}, true)
 	assert.False(t, prefix.MatchesAll())
 
-	// An exception-bearing empty-prefix rule does not match everything: at
-	// least its exception is kept, so it must not fold into `prefixes` and
-	// must not report MatchesAll.
+	// Exceptions keep empty-prefix rules out of MatchesAll.
 	withException, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "", ExceptExact: []string{"keep.me"}},
 	})
@@ -535,10 +489,7 @@ func benchmarkStringsMatcher(b *testing.B, words, values []string) {
 	}
 }
 
-// BenchmarkStringsMatcherMixed measures the cost of a list mixing exact
-// entries and bare (exception-free) prefix rules, where `Test` has to probe
-// both the exact set and the compacted `prefixes` set, against the exact-only
-// list of the same size.
+// Bare prefix rules should stay on the compacted-prefix fast path.
 func BenchmarkStringsMatcherMixed(b *testing.B) {
 	const size = 5000
 
@@ -547,7 +498,6 @@ func BenchmarkStringsMatcherMixed(b *testing.B) {
 		values = append(values, randomString(50))
 	}
 
-	// Turn one entry out of two into a bare prefix rule.
 	var exact []string
 	var rules []PrefixRule
 	for i, v := range values {
@@ -578,13 +528,7 @@ func BenchmarkStringsMatcherMixed(b *testing.B) {
 	}
 }
 
-// BenchmarkStringsMatcherPrefixRulesExceptions measures the cost `Test` pays
-// for exception-bearing prefix rules specifically: they are linear-scanned,
-// unlike bare prefixes and exact entries which stay on the compacted,
-// binary-searched fast paths. This is what backs the claim that a
-// metric_filterlist_prefix list made only of bare prefixes costs the same as
-// today, and that the extra cost of exceptions is proportional to how many
-// rules actually declare them.
+// Exception-bearing prefix rules are the linear-scan path.
 func BenchmarkStringsMatcherPrefixRulesExceptions(b *testing.B) {
 	words := []string{
 		"foo.bar",
@@ -600,9 +544,7 @@ func BenchmarkStringsMatcherPrefixRulesExceptions(b *testing.B) {
 					ExceptExact: []string{fmt.Sprintf("unrelated%d.keep", i)},
 				})
 			}
-			// One matching bare prefix, so the benchmark also pays the
-			// (unaffected) compacted-prefix lookup cost every real-world list
-			// carrying `metric_filterlist_prefix` entries pays too.
+			// Include the bare-prefix fast path in every run.
 			rules = append(rules, PrefixRule{Prefix: "foo."})
 
 			matcher, _ := NewMatcherWithPrefixRules(nil, false, rules)

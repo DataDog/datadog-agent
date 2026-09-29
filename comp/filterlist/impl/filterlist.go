@@ -80,7 +80,6 @@ func NewFilterList(log log.Component, config config.Component, telemetryComp tel
 	}
 	filterlist = normalizeMetricNames(filterlist, filterlistPrefix, log)
 
-	// init the metric prefix filterlist
 	var metricPrefixEntries []MetricPrefixListEntry
 	if err := structure.UnmarshalKey(config, "metric_filterlist_prefix", &metricPrefixEntries); err != nil {
 		log.Errorf("error loading metric_filterlist_prefix configuration: %s", err)
@@ -257,15 +256,8 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 	}
 }
 
-// normalizeMetricNames normalizes each entry so it matches the name space the
-// matcher compares in, and reports the ones dropped for not being able to match
-// any metric name the intake stores. `matchPrefix` makes every entry of the
-// whole list a prefix; there is no per-entry marker for that -- a per-entry
-// prefix, with optional exceptions, belongs in metric_filterlist_prefix
-// instead (see MetricPrefixListEntry and normalizeMetricPrefixList).
-//
-// The normalizing itself belongs to metricname, which owns the name space
-// entries are compared in.
+// normalizeMetricNames normalizes raw metric_filterlist entries.
+// matchPrefix applies to the whole list; per-entry prefixes use metric_filterlist_prefix.
 func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) []string {
 	normalized, dropped := metricname.NormalizeEntries(names, matchPrefix)
 	for _, entry := range dropped {
@@ -274,12 +266,8 @@ func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) [
 	return normalized
 }
 
-// SetMetricFilterList updates the metric names filter on all running worker.
-// `metricNames` is matched exactly, unless `matchPrefix` turns every entry of
-// the whole list into a prefix. `prefixRules` (metric_filterlist_prefix) are
-// always prefixes, entry by entry, and can each carry their own exceptions
-// (see metricname.PrefixRule); they must already be normalized (see
-// normalizeMetricPrefixList).
+// SetMetricFilterList updates the metric-name filter on all running workers.
+// prefixRules must already be normalized.
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool, prefixRules []metricname.PrefixRule) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics, %d prefix rules", len(metricNames), len(prefixRules))
 

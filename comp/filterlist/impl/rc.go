@@ -29,10 +29,7 @@ type byPrefix struct {
 	Values []prefixEntry `json:"values"`
 }
 
-// prefixEntry is a single metric_filterlist_prefix entry as received from
-// Remote Configuration. Unlike the configuration file's MetricPrefixListEntry,
-// exceptions are lists of small objects rather than lists of plain strings;
-// see buildMetricPrefixListConfig for the conversion between the two.
+// RC encodes exceptions as objects, unlike local YAML.
 type prefixEntry struct {
 	Prefix       string             `json:"prefix"`
 	ExceptPrefix []exceptPrefixName `json:"except_prefix"`
@@ -114,8 +111,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 			State: state.ApplyStateAcknowledged,
 		})
 
-		// this one has no metric, prefix rule or tag in its list, strange but
-		// not an error
+		// Empty configs are unusual, but valid.
 		if len(config.FilteredMetrics.ByName.Metrics) == 0 &&
 			len(config.FilteredMetricPrefixes.ByPrefix.Values) == 0 &&
 			len(config.FilteredTags.ByName.Metrics) == 0 {
@@ -128,19 +124,12 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		tagFilterListUpdates = append(tagFilterListUpdates, config.FilteredTags)
 	}
 
-	// Resolve the exact-match part (metric_filterlist /
-	// metric_filterlist_match_prefix) and the prefix-rule part
-	// (metric_filterlist_prefix) independently: either can come from RC or
-	// fall back to local config regardless of what the other one does, since
-	// they are two separate top-level RC fields. Both are only actually
-	// applied once, together, via the single SetMetricFilterList call below.
+	// Exact and prefix-rule lists are separate RC fields; resolve them independently.
 	effectiveNames := fl.localFilterListConfig.metricNames
 	effectiveMatchPrefix := fl.localFilterListConfig.matchPrefix
 
 	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
-	// RC metric names are always exact, and are applied with the global
-	// prefix mode off; a per-entry prefix belongs in
-	// metric_filterlist_prefix, handled independently below.
+	// RC metric names are exact; per-entry prefixes use metric_filterlist_prefix.
 	metricNames = normalizeMetricNames(metricNames, false, fl.log)
 
 	if len(metricNames) > 0 {
@@ -166,7 +155,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 
 	prefixEntries := fl.buildMetricPrefixListConfig(metricPrefixListUpdates)
 	if len(prefixEntries) > 0 {
-		// update the runtime config to be consistent in `agent config` calls.
 		fl.config.Set("metric_filterlist_prefix", prefixEntries, model.SourceRC)
 
 		effectivePrefixRules = normalizeMetricPrefixList(prefixEntries, fl.log)
@@ -174,8 +162,6 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		fl.config.UnsetForSource("metric_filterlist_prefix", model.SourceRC)
 	}
 
-	// apply the resolved (RC-or-local, independently for each of the two
-	// parts) blocklist to all the running workers.
 	fl.SetMetricFilterList(effectiveNames, effectiveMatchPrefix, effectivePrefixRules)
 
 	tags, tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
@@ -197,10 +183,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	}
 }
 
-// buildMetricFilterListConfig builds the metrics to be used for the metric
-// filterlist. Metric names are deduped and passed through as-is: they are
-// always exact names, never prefixes -- a prefix rule comes through
-// buildMetricPrefixListConfig instead.
+// buildMetricFilterListConfig builds exact-name metric_filterlist entries.
 func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []string {
 	metrics := make(map[string]struct{})
 	for _, update := range metricFilterListUpdates {
@@ -212,12 +195,8 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 	return metricNames
 }
 
-// buildMetricPrefixListConfig builds the metric_filterlist_prefix entries to
-// use from every RC update received, converting the RC exceptions' shape
-// (lists of small objects) into the plain string lists MetricPrefixListEntry
-// uses, which matches what the configuration file accepts. Entries are
-// deduped by prefix: if more than one update declares the same prefix, the
-// last one wins.
+// buildMetricPrefixListConfig converts RC prefix rules into the local YAML shape.
+// Duplicate prefixes use the last update received.
 func (*FilterList) buildMetricPrefixListConfig(metricPrefixListUpdates []filteredMetricPrefixes) []MetricPrefixListEntry {
 	entries := make(map[string]MetricPrefixListEntry)
 	for _, update := range metricPrefixListUpdates {

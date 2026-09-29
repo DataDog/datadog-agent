@@ -10,17 +10,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
 )
 
-// newTestFilterList builds a FilterList from a plain config override map,
-// exactly as agent configuration/RC would produce it: a
-// metric_filterlist_prefix entry is a `[]map[string]interface{}`, not a Go
-// struct, since that is the shape a real (YAML- or JSON-sourced) config value
-// takes.
+// Config overrides mimic decoded YAML/RC, not Go structs.
 func newTestFilterList(t *testing.T, cfg map[string]interface{}) *FilterList {
 	logComponent := logmock.New(t)
 	configComponent := config.NewMockWithOverrides(t, cfg)
@@ -28,9 +24,6 @@ func newTestFilterList(t *testing.T, cfg map[string]interface{}) *FilterList {
 	return NewFilterList(logComponent, configComponent, telemetryComponent)
 }
 
-// prefixListConfig turns a list of MetricPrefixListEntry into the
-// map-of-interfaces shape the configuration tree actually stores, for use as
-// a `metric_filterlist_prefix` override in tests.
 func prefixListConfig(entries ...MetricPrefixListEntry) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(entries))
 	for _, e := range entries {
@@ -77,11 +70,7 @@ func TestHistogramMetricNamesFilter(t *testing.T) {
 	}
 }
 
-// TestHistogramMetricNamesFilterWithPrefixes checks that both prefix
-// mechanisms -- metric_filterlist_prefix entries and the legacy
-// metric_filterlist_match_prefix whole-list mode -- are kept in the
-// histogram-specific filter list, since a prefix can always match an
-// aggregate-suffixed name the exact-suffix check cannot recognise on its own.
+// Prefixes can match histogram aggregate names synthesized at flush time.
 func TestHistogramMetricNamesFilterWithPrefixes(t *testing.T) {
 	require := require.New(t)
 
@@ -110,9 +99,7 @@ func TestHistogramMetricNamesFilterWithPrefixes(t *testing.T) {
 	require.False(histo.Test("foo"), "exact entry without an aggregate suffix should not be kept")
 	require.False(histo.Test("count.other"), "exact entry without an aggregate suffix should not be kept")
 
-	// With the legacy global prefix mode, every metric_filterlist entry
-	// becomes a prefix too, so the histogram filter list is compiled
-	// identically to the main one.
+	// Global prefix mode makes main and histogram matchers share prefix behavior.
 	filterListPrefix := newTestFilterList(t, map[string]interface{}{
 		"histogram_aggregates":           []string{"avg", "max", "median"},
 		"histogram_percentiles":          []string{"0.73"},
@@ -126,9 +113,6 @@ func TestHistogramMetricNamesFilterWithPrefixes(t *testing.T) {
 	}
 }
 
-// TestMetricFilterListPrefixListEntries is the end-to-end test of
-// metric_filterlist_prefix: an entry is always a prefix, `*` or not, and can
-// declare exceptions.
 func TestMetricFilterListPrefixListEntries(t *testing.T) {
 	require := require.New(t)
 
@@ -155,19 +139,14 @@ func TestMetricFilterListPrefixListEntries(t *testing.T) {
 	require.False(matcher.Test("prefixed.metric"))
 	require.False(matcher.Test("other.metric"))
 
-	// A prefix rule (with its exceptions) is kept in the histogram subset, so
-	// it also applies to the aggregates derived at flush time.
+	// Prefix rules also apply to histogram aggregates.
 	histo := filterList.GetHistoFilterList()
 	require.True(histo.Test("prefixed.metric.histo.avg"))
 	require.False(histo.Test("prefixed.metric.keep"))
 	require.False(histo.Test("exact.metric"))
 }
 
-// TestMetricFilterListStarIsNoLongerAPrefixMarker asserts the reverted
-// behavior: unlike before, a metric_filterlist (or the deprecated
-// statsd_metric_blocklist) entry ending with `*` is not a prefix pattern
-// anymore. `*` is just a literal, non-matchable character there; a per-entry
-// prefix belongs in metric_filterlist_prefix instead.
+// `*` in metric_filterlist is not a prefix marker.
 func TestMetricFilterListStarIsNoLongerAPrefixMarker(t *testing.T) {
 	for name, cfg := range map[string]map[string]interface{}{
 		"metric_filterlist": {
@@ -180,9 +159,7 @@ func TestMetricFilterListStarIsNoLongerAPrefixMarker(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			matcher := newTestFilterList(t, cfg).GetMetricFilterList()
 
-			// The trailing `*` normalizes away like any other trailing
-			// non-alphanumeric, non-period byte would, leaving a plain exact
-			// entry -- it is no longer a prefix marker.
+			// `*` normalizes away instead of widening the entry.
 			require.True(t, matcher.Test("exactfoo"))
 			require.False(t, matcher.Test("exactfooX"), "no longer widened into a prefix on exactfoo")
 			require.False(t, matcher.Test("exactfoo."), "no longer widened into a prefix on exactfoo")
@@ -197,9 +174,7 @@ func TestMetricFilterListGlobalMatchPrefixOnStarEntry(t *testing.T) {
 	}
 	matcher := newTestFilterList(t, cfg).GetMetricFilterList()
 
-	// `foo*` still has no special-cased `*`: matchPrefix normalizes it like
-	// any other prefix ending in a non-alphanumeric, non-period byte, which
-	// keeps the boundary as an underscore rather than widening to `foo`.
+	// matchPrefix still preserves the normalized `foo_` boundary.
 	require.True(t, matcher.Test("foo_metric"))
 	require.False(t, matcher.Test("foo.metric"), "a different family than foo_...")
 	require.False(t, matcher.Test("foo"))
@@ -233,17 +208,13 @@ func TestMetricFilterListNormalizesEntries(t *testing.T) {
 	require.False(matcher.Test("unrelated.metric"), "unrelated metric must not match")
 }
 
-// TestMetricFilterListPrefixNormalizesEntries verifies that normalization and
-// metric_filterlist_prefix compose: the prefix of a raw entry is normalized,
-// and the entry keeps matching by prefix -- including its exceptions.
 func TestMetricFilterListPrefixNormalizesEntries(t *testing.T) {
 	require := require.New(t)
 
 	cfg := map[string]interface{}{
-		// Normalizes to the prefix `my_metric.`.
 		"metric_filterlist_prefix": prefixListConfig(MetricPrefixListEntry{
 			Prefix: "my metric.",
-			// Normalizes to `my_metric.count`.
+			// Exact exceptions use full-name normalization.
 			ExceptExact: []string{"my metric.count"},
 		}),
 	}
@@ -265,8 +236,7 @@ func TestNormalizeMetricNames(t *testing.T) {
 	require := require.New(t)
 
 	logComponent := logmock.New(t)
-	// `123` can never match a stored name and is dropped; `service_` only
-	// keeps its boundary when the whole list is prefixes.
+	// `service_` keeps its boundary only in prefix mode.
 	in := []string{"my metric-name", "123", "service_", "exact"}
 
 	require.Equal(
@@ -279,11 +249,7 @@ func TestNormalizeMetricNames(t *testing.T) {
 	)
 }
 
-// TestMetricFilterListPrefixBoundaryIsNotWidened is the end-to-end form of
-// TestNormalizeMetricNames's boundary-preserving behavior, checked through
-// both ways of getting a prefix: metric_filterlist_prefix, and the legacy
-// metric_filterlist_match_prefix whole-list mode. `service_` must drop the
-// `service_` family only, and leave `service.requests` alone.
+// `service_` must not widen to `service.` through either prefix path.
 func TestMetricFilterListPrefixBoundaryIsNotWidened(t *testing.T) {
 	for name, cfg := range map[string]map[string]interface{}{
 		"metric_filterlist_prefix": {
@@ -313,9 +279,6 @@ func TestMetricFilterListPrefixBoundaryIsNotWidened(t *testing.T) {
 	}
 }
 
-// TestMetricFilterListPrefixNoSegmentBoundaryRequired asserts that the Agent
-// does not require a metric_filterlist_prefix entry to end on a segment
-// boundary: `sys` legitimately matches both `system.cpu` and `sys.cpu`.
 func TestMetricFilterListPrefixNoSegmentBoundaryRequired(t *testing.T) {
 	cfg := map[string]interface{}{
 		"metric_filterlist_prefix": prefixListConfig(MetricPrefixListEntry{Prefix: "sys"}),
@@ -327,9 +290,6 @@ func TestMetricFilterListPrefixNoSegmentBoundaryRequired(t *testing.T) {
 	require.False(t, matcher.Test("other.cpu"))
 }
 
-// TestMetricFilterListPrefixEmptyPrefixMatchesAll asserts that an empty
-// metric_filterlist_prefix prefix is valid configuration, not something
-// dropped: it matches every metric name.
 func TestMetricFilterListPrefixEmptyPrefixMatchesAll(t *testing.T) {
 	cfg := map[string]interface{}{
 		"metric_filterlist_prefix": prefixListConfig(MetricPrefixListEntry{Prefix: ""}),
@@ -340,10 +300,6 @@ func TestMetricFilterListPrefixEmptyPrefixMatchesAll(t *testing.T) {
 	require.True(t, matcher.Test("other.metric"))
 }
 
-// TestMetricFilterListPrefixDeadRuleIsDropped asserts that a
-// metric_filterlist_prefix entry whose exceptions can never take effect,
-// because a broader prefix already matches everything it could ever match,
-// is dropped -- but the broader prefix still blocks the metric.
 func TestMetricFilterListPrefixDeadRuleIsDropped(t *testing.T) {
 	cfg := map[string]interface{}{
 		"metric_filterlist_prefix": prefixListConfig(

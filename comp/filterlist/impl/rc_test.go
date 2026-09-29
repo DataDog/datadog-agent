@@ -176,10 +176,7 @@ func TestFilterListUpdateWithValidMetrics(t *testing.T) {
 	require.ElementsMatch([]string{"test.metric.1", "test.metric.2"}, metricNames)
 }
 
-// TestFilterListUpdateBlockedMetricsStarIsLiteral tests that a metric name
-// delivered by RC via blocked_metrics is always an exact name: unlike before,
-// a trailing `*` is not a prefix marker anymore, exactly matching
-// metric_filterlist read from the configuration file.
+// blocked_metrics entries from RC stay exact; `*` is not a prefix marker.
 func TestFilterListUpdateBlockedMetricsStarIsLiteral(t *testing.T) {
 	require := require.New(t)
 
@@ -207,12 +204,10 @@ func TestFilterListUpdateBlockedMetricsStarIsLiteral(t *testing.T) {
 	require.Len(results[state.ApplyStateAcknowledged], 1)
 	require.Len(results[state.ApplyStateError], 0)
 
-	// The name is stored as-is, so `agent config` reports what RC sent.
 	metricNames := configComponent.GetStringSlice("metric_filterlist")
 	require.ElementsMatch([]string{"test.exactfoo", "test.exact"}, metricNames)
 
 	matcher := filterList.GetMetricFilterList()
-	// No longer widened into a prefix on `test.exactfoo`.
 	require.True(matcher.Test("test.exactfoo"))
 	require.False(matcher.Test("test.exactfooX"))
 	require.True(matcher.Test("test.exact"))
@@ -220,9 +215,7 @@ func TestFilterListUpdateBlockedMetricsStarIsLiteral(t *testing.T) {
 	require.False(matcher.Test("test.other"))
 }
 
-// TestFilterListUpdateWithMetricPrefixRules tests that RC's
-// metric_filterlist_prefix payload is applied, including its exceptions, and
-// stored back for `agent config` consistency.
+// RC prefix rules are converted to the local config shape.
 func TestFilterListUpdateWithMetricPrefixRules(t *testing.T) {
 	require := require.New(t)
 
@@ -269,16 +262,13 @@ func TestFilterListUpdateWithMetricPrefixRules(t *testing.T) {
 	require.False(matcher.Test("test.prefixed.locks.waiting"), "except_prefix entry should be kept")
 	require.False(matcher.Test("test.other"))
 
-	// The prefix rule (with its exceptions) is kept in the histogram subset
-	// used at flush time.
+	// Prefix rules also apply to histogram aggregates.
 	histo := filterList.GetHistoFilterList()
 	require.True(histo.Test("test.prefixed.histo.avg"))
 	require.False(histo.Test("test.prefixed.keep"))
 }
 
-// TestFilterListUpdateWithOnlyPrefixRulesIsNotSkipped tests that an RC config
-// carrying only metric_filterlist_prefix entries -- no blocked_metrics, no
-// tag_filterlist -- is applied rather than treated as an empty configuration.
+// RC configs with only prefix rules are not empty.
 func TestFilterListUpdateWithOnlyPrefixRulesIsNotSkipped(t *testing.T) {
 	require := require.New(t)
 
@@ -307,9 +297,7 @@ func TestFilterListUpdateWithOnlyPrefixRulesIsNotSkipped(t *testing.T) {
 	require.True(matcher.Test("test.prefixed.anything"), "a config carrying only prefix rules must not be skipped")
 }
 
-// TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent tests that RC
-// resolves blocked_metrics and metric_filterlist_prefix independently: one
-// coming from RC while the other falls back to local config, and vice versa.
+// RC exact and prefix-rule fields fall back independently.
 func TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent(t *testing.T) {
 	require := require.New(t)
 
@@ -329,8 +317,7 @@ func TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent(t *testing.T) {
 		results[status.State] = append(results[status.State], path)
 	}
 
-	// RC only sends metric_filterlist_prefix: blocked_metrics must fall back
-	// to the local metric_filterlist, not be cleared.
+	// Only prefix rules come from RC.
 	updates := map[string]state.RawConfig{
 		"config1": {Config: []byte(`{
 			"metric_filterlist_prefix": {
@@ -348,8 +335,7 @@ func TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent(t *testing.T) {
 	require.True(matcher.Test("rc.prefixed.anything"), "metric_filterlist_prefix should come from RC")
 	require.False(matcher.Test("local.prefixed.anything"), "the local prefix rule should have been replaced by RC's")
 
-	// Now RC only sends blocked_metrics: metric_filterlist_prefix must fall
-	// back to the local metric_filterlist_prefix, not be cleared.
+	// Now only exact names come from RC.
 	results = updateRes{}
 	updates = map[string]state.RawConfig{
 		"config1": {Config: []byte(`{
@@ -369,9 +355,7 @@ func TestFilterListUpdateMetricNamesAndPrefixRulesAreIndependent(t *testing.T) {
 	require.True(matcher.Test("local.prefixed.anything"), "metric_filterlist_prefix should fall back to local config")
 }
 
-// TestFilterListUpdatePrefixRulesEmptyRestoresLocal tests that
-// metric_filterlist_prefix falls back to local config, independently of
-// blocked_metrics, when RC stops sending prefix rules.
+// Empty RC prefix rules restore the local prefix rules.
 func TestFilterListUpdatePrefixRulesEmptyRestoresLocal(t *testing.T) {
 	require := require.New(t)
 
@@ -390,7 +374,6 @@ func TestFilterListUpdatePrefixRulesEmptyRestoresLocal(t *testing.T) {
 		results[status.State] = append(results[status.State], path)
 	}
 
-	// RC sets its own prefix rule.
 	updates := map[string]state.RawConfig{
 		"config1": {Config: []byte(`{
 			"metric_filterlist_prefix": {
@@ -407,7 +390,7 @@ func TestFilterListUpdatePrefixRulesEmptyRestoresLocal(t *testing.T) {
 	require.True(matcher.Test("rc.prefixed.anything"))
 	require.False(matcher.Test("local.prefixed.anything"))
 
-	// RC config with an empty metric_filterlist_prefix list restores local config.
+	// No prefix rules in RC: fall back to local config.
 	results = updateRes{}
 	emptyUpdates := map[string]state.RawConfig{
 		"config1": {Config: []byte(`{

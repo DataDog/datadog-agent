@@ -1011,8 +1011,6 @@ func TestMetricFilterListShouldBlock(t *testing.T) {
 }
 
 func TestMetricFilterListPrefixEntry(t *testing.T) {
-	// `custom.metric.` is a metric_filterlist_prefix entry, `other.metric` is
-	// an exact metric_filterlist entry.
 	filter, dropped := metricname.NewMatcherWithPrefixRules(
 		[]string{"other.metric"},
 		false,
