@@ -97,9 +97,18 @@ func routedServer(t *testing.T, getStatus, putStatus int) *httptest.Server {
 	return srv
 }
 
-// TestCheck_IMDSv1Reachable covers the optional-token case (incl. hop limit 1): the IMDSv1
-// GET succeeds, so metadata is available and no issue is reported even though IMDSv2 may be down.
-func TestCheck_IMDSv1Reachable(t *testing.T) {
+// TestCheck_IMDSv2Reachable: the token PUT succeeds, so metadata is reachable and no issue is reported.
+func TestCheck_IMDSv2Reachable(t *testing.T) {
+	srv := routedServer(t, http.StatusInternalServerError, http.StatusOK)
+	m := setupCheck(t, srv.Listener.Addr().String())
+	reports, err := m.BuiltInStartupHealthCheck().Fn()
+	require.NoError(t, err)
+	assert.Empty(t, reports)
+}
+
+// TestCheck_IMDSv1FallbackWorks covers the optional-token case (incl. hop limit 1): the token PUT
+// fails but the agent's IMDSv1 GET fallback succeeds, so metadata is available and no issue fires.
+func TestCheck_IMDSv1FallbackWorks(t *testing.T) {
 	srv := routedServer(t, http.StatusOK, http.StatusInternalServerError)
 	m := setupCheck(t, srv.Listener.Addr().String())
 	reports, err := m.BuiltInStartupHealthCheck().Fn()
@@ -107,17 +116,8 @@ func TestCheck_IMDSv1Reachable(t *testing.T) {
 	assert.Empty(t, reports)
 }
 
-// TestCheck_IMDSv2RequiredReachable: IMDSv1 disabled (401) but the token PUT succeeds, so no issue.
-func TestCheck_IMDSv2RequiredReachable(t *testing.T) {
-	srv := routedServer(t, http.StatusUnauthorized, http.StatusOK)
-	m := setupCheck(t, srv.Listener.Addr().String())
-	reports, err := m.BuiltInStartupHealthCheck().Fn()
-	require.NoError(t, err)
-	assert.Empty(t, reports)
-}
-
-// TestCheck_IMDSv2RequiredHopLimit: IMDSv1 disabled (401) and the token PUT is dropped, so the
-// agent cannot retrieve metadata and the issue is reported.
+// TestCheck_IMDSv2RequiredHopLimit: the token PUT is dropped by the hop limit and the IMDSv1 GET
+// fallback is disabled (401), so the agent cannot retrieve metadata and the issue is reported.
 func TestCheck_IMDSv2RequiredHopLimit(t *testing.T) {
 	stop := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

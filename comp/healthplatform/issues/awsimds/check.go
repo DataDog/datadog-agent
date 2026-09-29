@@ -51,25 +51,24 @@ func probe() (bool, error) {
 	}
 	defer client.CloseIdleConnections()
 
-	// An IMDSv1 GET reflects what the agent retrieves by default; its response is not
-	// subject to the IMDSv2 hop limit, so a success here means metadata is available.
-	status, err := probeStatus(client, http.MethodGet, metadataURL, nil)
-	if err != nil {
-		return isTimeout(err), nil
+	// The agent prefers IMDSv2 (ec2_imdsv2_transition_payload_enabled defaults to true), so
+	// probe the token PUT first. A 200 means the token path works and metadata is reachable.
+	tokenStatus, err := probeStatus(client, http.MethodPut, ec2.TokenURL, map[string]string{ec2.TokenTTLHeader: "21600"})
+	if err != nil && !isTimeout(err) {
+		return false, nil
 	}
-	if status == http.StatusOK {
+	if err == nil && tokenStatus == http.StatusOK {
 		return false, nil
 	}
 
-	// IMDSv1 is unavailable (HttpTokens=required, or blocked by Kube2IAM/kiam): metadata
-	// now depends on the IMDSv2 token, whose PUT is dropped by a low hop limit and rejected
-	// (401/403) by an IMDS-blocking intermediary.
-	status, err = probeStatus(client, http.MethodPut, ec2.TokenURL, map[string]string{ec2.TokenTTLHeader: "21600"})
+	// The token is unavailable (dropped by a low hop limit, or rejected by an IMDS-blocking
+	// intermediary such as Kube2IAM/kiam). The agent is never IMDSv2-only, so it falls back to
+	// an unauthenticated IMDSv1 GET — a success there means metadata is still available.
+	getStatus, err := probeStatus(client, http.MethodGet, metadataURL, nil)
 	if err != nil {
 		return isTimeout(err), nil
 	}
-	// Only a successful token response means the agent can obtain metadata.
-	return status != http.StatusOK, nil
+	return getStatus != http.StatusOK, nil
 }
 
 // probeStatus issues one request and returns its status code, closing the body.
