@@ -10,7 +10,9 @@ package clusterchecks
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -54,6 +56,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	// Compat is fixed at registration; later values are ignored.
 	if node.checkCompat == nil {
 		node.checkCompat = status.CheckCompatibility
+		node.cohortKey = cohortKey(status.CheckCompatibility)
 	}
 	d.store.Unlock()
 
@@ -111,6 +114,14 @@ func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyN
 		node = d.getNodeWithLessChecks(checkName)
 	}
 	return node, len(d.store.nodes) > 0
+}
+
+// cohortKey returns the worker's cohort key: the sorted joined include list, or "general" when nothing is included.
+func cohortKey(compat *types.CheckCompatibility) string {
+	if compat == nil || len(compat.Include) == 0 {
+		return "general"
+	}
+	return strings.Join(slices.Sorted(slices.Values(compat.Include)), ",")
 }
 
 // eligibleNodes returns the sorted nodes accepting a check. The store must be read-locked.

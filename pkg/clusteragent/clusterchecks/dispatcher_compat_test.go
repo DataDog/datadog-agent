@@ -130,6 +130,23 @@ func TestAddWithNoEligibleWorkerDangles(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+func TestCohortKey(t *testing.T) {
+	tests := []struct {
+		name   string
+		compat *types.CheckCompatibility
+		want   string
+	}{
+		{"nil is general", nil, "general"},
+		{"exclude-only is general", &types.CheckCompatibility{Exclude: []string{"kubernetes_state_core"}}, "general"},
+		{"include sorted joined", &types.CheckCompatibility{Include: []string{"orchestrator", "kubernetes_state_core"}}, "kubernetes_state_core,orchestrator"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, cohortKey(tt.compat))
+		})
+	}
+}
+
 func TestUseUtilizationRebalance(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)

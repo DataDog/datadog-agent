@@ -13,7 +13,6 @@ import (
 	"maps"
 	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
@@ -400,19 +399,18 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 
 	currentConfigsDistribution := d.currentDistribution()
 
-	// Partition configs by eligible runner set (cohort) and rebalance each
-	// cohort independently within its own runners. Cohorts are disjoint: a
-	// check name is claimed by at most one runner group.
-	cohorts := make(map[string]*eligibilityCohort)
+	// Partition configs into cohorts by the group key of their eligible
+	// runners, and rebalance each cohort independently within its own runners
+	cohorts := make(map[string]*cohort)
 	d.store.RLock()
 	for digest, config := range currentConfigsDistribution.Configs {
 		eligible := d.eligibleNodes(config.CheckName)
 		if len(eligible) == 0 {
 			continue // unreachable in practice: a running config is eligible on its own runner
 		}
-		key := strings.Join(eligible, ",")
+		key := d.store.nodes[eligible[0]].cohortKey
 		if _, ok := cohorts[key]; !ok {
-			cohorts[key] = &eligibilityCohort{runners: eligible, configs: make(map[string]*ConfigStatus)}
+			cohorts[key] = &cohort{key: key, runners: eligible, configs: make(map[string]*ConfigStatus)}
 		}
 		cohorts[key].configs[digest] = config
 	}
@@ -425,14 +423,15 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	return allMoves
 }
 
-// eligibilityCohort is a set of configs sharing the same eligible runners.
-type eligibilityCohort struct {
+// cohort is a set of configs sharing the runners.
+type cohort struct {
+	key     string
 	runners []string
 	configs map[string]*ConfigStatus
 }
 
 // rebalanceCohort rebalances one cohort's configs within its eligible runners.
-func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, cohort *eligibilityCohort) []types.RebalanceResponse {
+func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, cohort *cohort) []types.RebalanceResponse {
 	// Runners that joined after the current snapshot wait for the next rebalance.
 	runners := make(map[string]int, len(cohort.runners))
 	for _, r := range cohort.runners {
@@ -479,7 +478,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	if force {
 		prefix = "Forced cohort rebalance: moved"
 	}
-	log.Infof("%s %d of %d checks on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), len(proposedCohort.Runners), currentStdDev, proposedStdDev)
+	log.Infof("%s %d of %d checks in cohort [%q] on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cohort.key, len(proposedCohort.Runners), currentStdDev, proposedStdDev)
 	setPredictedUtilization(proposedCohort)
 	return moves
 }

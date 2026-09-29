@@ -124,8 +124,8 @@ type nodeStore struct {
 	busyness         int
 	workers          int
 	nodetype         types.NodeType
-	// checkCompat holds the worker's advertised check compatibility; nil means unrestricted.
-	checkCompat *types.CheckCompatibility
+	checkCompat      *types.CheckCompatibility
+	cohortKey        string
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
