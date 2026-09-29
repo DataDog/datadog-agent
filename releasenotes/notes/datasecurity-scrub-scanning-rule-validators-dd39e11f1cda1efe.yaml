@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The ``datasecurity`` check scanning rule pattern capture groups and secondary
+    validators are now scrubbed from flares, ``agent configcheck``, and the
+    reported integration configuration.
