@@ -50,7 +50,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	go.yaml.in/yaml/v2 v2.4.4
 	go.yaml.in/yaml/v3 v3.0.5
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	helm.sh/helm/v3 v3.20.2
 	k8s.io/api v0.35.5
