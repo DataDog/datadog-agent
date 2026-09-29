@@ -787,6 +787,22 @@ int hook_setup_arg_pages(ctx_t *ctx) {
     return 0;
 }
 
+#define EXEC_ZK_TOTAL 0           // every exec event emitted, the denominator
+#define EXEC_ZK_ZEROKEY_ZEROCTX 1 // 0/0 key on an entry collect_syscall_ctx never touched
+#define EXEC_ZK_ZEROKEY_GOODCTX 2 // 0/0 key on a real execve entry: the key was never written
+#define EXEC_ZK_GOODKEY_ZEROCTX 3 // should be impossible; a non-zero key needs a real entry
+#define EXEC_ZK_ZEROKEY_NO_DENTRY 4 // 0/0 key and handle_exec_event demonstrably never ran
+#define EXEC_ZK_ZEROKEY_HAS_DENTRY 5 // 0/0 key although it did run -- see the read counter
+#define EXEC_ZK_ZEROKEY_IMPERSONATED 6
+#define EXEC_ZK_ZEROKEY_DIRECT 7
+
+static void __attribute__((always_inline)) bump_exec_zero_key_class(u32 slot) {
+    u64 *counter = bpf_map_lookup_elem(&exec_zero_key_class, &slot);
+    if (counter != NULL) {
+        __sync_fetch_and_add(counter, 1);
+    }
+}
+
 int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // Work out which key the entry will be found under before popping, since the pop
     // deletes it. This separates "a later execve replaced the entry under our own key"
@@ -882,6 +898,27 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         if (mismatch != NULL) {
             __sync_fetch_and_add(mismatch, 1);
         }
+    }
+
+    // The read counter proved handle_exec_event's ino reads never fail, so a 0/0 key cannot
+    // have been produced by one of its calls -- the entry consumed here was never given a
+    // key. Classify that entry using only facts intrinsic to it, since exec_entry_stamp
+    // cannot be trusted to say whether it was initialised:
+    //   ctx_id == 0     collect_syscall_ctx never ran for it (its ids start at 1)
+    //   dentry == NULL  handle_exec_event never ran for it at all
+    // ZEROKEY_ZEROCTX is the wholly-uninitialised entry; ZEROKEY_GOODCTX is a real execve
+    // whose do_dentry_open never filled the key. Those are different bugs with different
+    // fixes, and this is the counter that separates them. ZEROKEY_HAS_DENTRY should be
+    // empty: non-empty means handle_exec_event ran and still left a zero key, contradicting
+    // the read counter.
+    int zero_key = syscall->exec.file.path_key.ino == 0 && syscall->exec.file.path_key.mount_id == 0;
+    bump_exec_zero_key_class(EXEC_ZK_TOTAL);
+    if (zero_key) {
+        bump_exec_zero_key_class(syscall->ctx_id == 0 ? EXEC_ZK_ZEROKEY_ZEROCTX : EXEC_ZK_ZEROKEY_GOODCTX);
+        bump_exec_zero_key_class(syscall->exec.dentry != NULL ? EXEC_ZK_ZEROKEY_HAS_DENTRY : EXEC_ZK_ZEROKEY_NO_DENTRY);
+        bump_exec_zero_key_class((route_flags & EXEC_DIAG_ROUTE_IMPERSONATED) ? EXEC_ZK_ZEROKEY_IMPERSONATED : EXEC_ZK_ZEROKEY_DIRECT);
+    } else if (syscall->ctx_id == 0) {
+        bump_exec_zero_key_class(EXEC_ZK_GOODKEY_ZEROCTX);
     }
 
     struct exec_open_stamp_t *open_stamp = bpf_map_lookup_elem(&exec_dentry_open_stamp, &tgid);

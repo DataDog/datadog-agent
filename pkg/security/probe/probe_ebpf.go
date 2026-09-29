@@ -236,6 +236,11 @@ type EBPFProbe struct {
 	// healthy run still says so out loud instead of being silent. Debug aid.
 	execInoReadsLogged atomic.Bool
 
+	// lastExecZeroKeyClass / execZeroKeyClassLogged mirror the pair above for
+	// logExecZeroKeyClass: log on any movement, but always at least once per run.
+	lastExecZeroKeyClass   atomic.Uint64
+	execZeroKeyClassLogged atomic.Bool
+
 	// lastExecCGroupKey remembers the last event-time cgroup path_key logged per
 	// container, so the debug log below reports only transitions instead of one line
 	// per exec. Debug aid, see setProcessContext.
@@ -1308,6 +1313,7 @@ func (p *EBPFProbe) SendStats() error {
 	p.logExecKeyRepairs()
 	p.logExecEntryMismatches()
 	p.logExecInoReadStats()
+	p.logExecZeroKeyClass()
 
 	p.processKiller.SendStats(p.statsdClient)
 
@@ -1699,6 +1705,44 @@ func (p *EBPFProbe) logExecInoReadStats() {
 
 	seclog.Warnf("exec path_key inode reads: %d attempts, %d failed from inode, %d failed from path, %d returned zero, %d returned a kernel pointer",
 		v[0], v[1], v[2], v[3], v[4])
+}
+
+// logExecZeroKeyClass reports what kind of syscall-cache entry send_exec_event actually
+// consumed, for every exec event and for the zero-key ones specifically. The read counter
+// established that handle_exec_event's ino reads never fail, so a zero key means the entry it
+// consumed was never given one -- this splits that into the two candidate bugs. An entry with
+// ctx_id 0 was never through collect_syscall_ctx at all (a recycled or never-initialised
+// slot); one with a good ctx_id is a genuine execve whose do_dentry_open never filled the
+// key. Deliberately independent of exec_entry_stamp, which cannot answer either question.
+func (p *EBPFProbe) logExecZeroKeyClass() {
+	m, _, err := p.Manager.Get().GetMap("exec_zero_key_class")
+	if err != nil || m == nil {
+		if !p.execZeroKeyClassLogged.Swap(true) {
+			seclog.Warnf("exec entry class: exec_zero_key_class unavailable: %v", err)
+		}
+		return
+	}
+
+	var v [8]uint64
+	for i := range v {
+		if err := m.Lookup(uint32(i), &v[i]); err != nil {
+			if !p.execZeroKeyClassLogged.Swap(true) {
+				seclog.Warnf("exec entry class: slot %d unreadable: %v", i, err)
+			}
+			return
+		}
+	}
+
+	// Report once regardless of movement: a run with no zero keys at all must say so, or its
+	// silence is indistinguishable from the instrument never having run.
+	moved := v[1] + v[2] + v[3] + v[4] + v[5] + v[6] + v[7]
+	if prev := p.lastExecZeroKeyClass.Swap(moved); prev == moved && p.execZeroKeyClassLogged.Swap(true) {
+		return
+	}
+	p.execZeroKeyClassLogged.Store(true)
+
+	seclog.Warnf("exec entry class: %d exec events; zero key: %d on an entry with ctx_id 0 (never initialised), %d on an entry with a real ctx_id (key never written), %d without a dentry, %d with a dentry, %d impersonated route, %d direct route; %d good key with ctx_id 0 (impossible)",
+		v[0], v[1], v[2], v[4], v[5], v[6], v[7], v[3])
 }
 
 // logExecEntryMismatches reports how often send_exec_event popped an entry that did not

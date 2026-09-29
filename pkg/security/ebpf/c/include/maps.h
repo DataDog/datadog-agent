@@ -97,6 +97,11 @@ BPF_ARRAY_MAP(exec_ino_read_stats, u64, 5)
 //   slot 0: found under our own pid_tgid, so a later cache_syscall replaced the entry
 //   slot 1: found via exec_pid_transfer, so the impersonation fallback aliased another task
 BPF_ARRAY_MAP(exec_entry_mismatch, u64, 2)
+// Stamp-free classification of the syscall-cache entry that send_exec_event actually
+// consumed, per EXEC_ZK_* slot. The mismatch counter above needs exec_entry_stamp, which is
+// never deleted and is read under the leader's key after de_thread, so it cannot say whether
+// the entry was ever initialised. These slots read only the entry itself.
+BPF_ARRAY_MAP(exec_zero_key_class, u64, 8)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
