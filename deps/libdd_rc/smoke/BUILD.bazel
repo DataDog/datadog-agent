@@ -1,6 +1,11 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_go//go:def.bzl", "go_test")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
 
 copy_file(
     name = "client_lifecycle_test_src",
@@ -25,6 +30,66 @@ go_test(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = ["@libdd_rc_source//:rcx509"],
+)
+
+# Exercise the same native dependency collection and Mach-O rewriting used by
+# the real package graph without making the production Agent depend on rc-x509
+# yet. The archive deliberately mirrors the paths below /opt/datadog-agent.
+rewrite_rpath(
+    name = "packaged_client_lifecycle_binary",
+    testonly = True,
+    destination = "{install_dir}/bin",
+    inputs = [":client_lifecycle_test"],
+    target_compatible_with = ["@platforms//os:macos"],
+    use_relative_rpaths = True,
+)
+
+pkg_files(
+    name = "packaged_client_lifecycle_binary_files",
+    testonly = True,
+    srcs = [":packaged_client_lifecycle_binary"],
+    attributes = pkg_attributes(mode = "0755"),
+    prefix = "bin",
+)
+
+dd_collect_dependencies(
+    name = "packaged_client_lifecycle_native_dependencies",
+    testonly = True,
+    srcs = [":client_lifecycle_test"],
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+pkg_filegroup(
+    name = "packaged_client_lifecycle_native_files",
+    testonly = True,
+    srcs = [":packaged_client_lifecycle_native_dependencies"],
+    prefix = "embedded",
+)
+
+pkg_filegroup(
+    name = "packaged_client_lifecycle_files",
+    testonly = True,
+    srcs = [
+        ":packaged_client_lifecycle_binary_files",
+        ":packaged_client_lifecycle_native_files",
+    ],
+)
+
+pkg_tar(
+    name = "packaged_client_lifecycle_archive",
+    testonly = True,
+    srcs = [":packaged_client_lifecycle_files"],
+    extension = "tar",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+sh_test(
+    name = "packaged_client_lifecycle_test",
+    srcs = ["packaged_client_lifecycle_test.sh"],
+    args = ["$(location :packaged_client_lifecycle_archive)"],
+    data = [":packaged_client_lifecycle_archive"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:macos"],
 )
 
 dd_agent_go_test(

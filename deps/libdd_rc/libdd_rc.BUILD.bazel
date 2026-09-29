@@ -1,3 +1,5 @@
+load("@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
@@ -91,9 +93,29 @@ cc_import(
     target_compatible_with = ["@platforms//os:macos"],
 )
 
+foreign_cc_shared_wrapper(
+    name = "_aws_lc_fips_crypto_dylib_shared",
+    input = ":aws_lc_fips_crypto_dylib",
+    lib_filter = "libaws_lc_fips_0_14_2_crypto",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+# Make the dylib visible to the Agent's transitive package collector. The
+# packaged copy is rpath/install-name rewritten for embedded/lib. It is added
+# to rc_x509_ffi_cc's data below, while the original cc_import retains normal
+# C++/cgo linking and runfiles behavior.
+dd_cc_packaged(
+    name = "_aws_lc_fips_crypto_dylib_packaged",
+    input = ":_aws_lc_fips_crypto_dylib_shared",
+)
+
 cc_library(
     name = "rc_x509_ffi_cc",
     hdrs = ["include/libdd_rc.h"],
+    data = select({
+        "@rules_go//go/platform:darwin": [":_aws_lc_fips_crypto_dylib_packaged"],
+        "//conditions:default": [],
+    }),
     includes = ["include"],
     linkopts = select({
         "@rules_go//go/platform:linux": [

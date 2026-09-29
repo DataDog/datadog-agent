@@ -87,6 +87,7 @@ bazel:test:linux-arm64:
   variables:
     RC_X509_BAZEL_JOBS: 8
     RC_X509_ARTIFACTS_DIR: $CI_PROJECT_DIR/rc-x509-artifacts
+    RC_X509_ADDITIONAL_TEST_TARGETS: ""
   script:
     - uname -a
     - bazel version
@@ -97,14 +98,21 @@ bazel:test:linux-arm64:
     - command -v perl && perl --version
     - bazel cquery -c opt --output=files @libdd_rc_source//:rc_x509_ffi | tee rc-x509-declared-outputs.txt
     - bazel build -c opt --jobs=$RC_X509_BAZEL_JOBS --verbose_failures --remote_download_outputs=all @libdd_rc_source//:rc_x509_ffi
-    - bazel test -c opt --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test
+    - bazel test -c opt --jobs=$RC_X509_BAZEL_JOBS --test_output=errors --verbose_failures --remote_download_outputs=all //deps/libdd_rc/smoke:client_lifecycle_test $RC_X509_ADDITIONAL_TEST_TARGETS
   after_script:
     - mkdir -p "$RC_X509_ARTIFACTS_DIR"
     - mv rc-x509-declared-outputs.txt "$RC_X509_ARTIFACTS_DIR/" 2>/dev/null || true
     - |-
       output_path="$(bazel info output_path 2>/dev/null)" || true
       if [ -n "$output_path" ]; then
-        find "$output_path" -type f \( -name '*rc_x509_ffi*.a' -o -name 'libaws_lc_fips*' \) -print > "$RC_X509_ARTIFACTS_DIR/native-outputs.txt" || true
+        find "$output_path" -type f \( \
+          -name 'librc_x509_ffi.a' -o \
+          -name 'libaws_lc_fips*.a' -o \
+          -name 'libaws_lc_fips*.so' -o \
+          -name 'libaws_lc_fips*.so.*' -o \
+          -name 'libaws_lc_fips*.dylib' -o \
+          -name 'libaws_lc_fips*.rlib' \
+        \) -print > "$RC_X509_ARTIFACTS_DIR/native-outputs.txt" || true
       else
         : > "$RC_X509_ARTIFACTS_DIR/native-outputs.txt"
       fi
@@ -126,9 +134,13 @@ bazel:rc-x509-ffi:linux-arm64:
 
 bazel:rc-x509-ffi:macos-amd64:
   extends: [.bazel:runner:macos-amd64, .bazel:rc-x509-ffi]
+  variables:
+    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test
 
 bazel:rc-x509-ffi:macos-arm64:
   extends: [.bazel:runner:macos-arm64, .bazel:rc-x509-ffi]
+  variables:
+    RC_X509_ADDITIONAL_TEST_TARGETS: //deps/libdd_rc/smoke:packaged_client_lifecycle_test
 
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
