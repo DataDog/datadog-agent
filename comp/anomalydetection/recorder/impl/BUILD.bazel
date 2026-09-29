@@ -5,19 +5,29 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
-    srcs = ["recorder.go"],
+    srcs = [
+        "component.go",
+        "config.go",
+        "recorder.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl",
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/recorder/def",
+        "//comp/core/config",
+        "//comp/def",
+        "//pkg/util/option",
     ],
 )
 
 dd_agent_go_test(
     name = "impl_test",
-    srcs = ["recorder_test.go"],
+    srcs = [
+        "component_test.go",
+        "recorder_test.go",
+    ],
     embed = [":impl"],
     gotags_sets = [["anomalydetection_recorder"]],
     include_default = False,
@@ -25,7 +35,10 @@ dd_agent_go_test(
     deps = [
         "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/recorder/def",
+        "//comp/core/config",
+        "//comp/def",
         "//pkg/tagset",
+        "//pkg/util/option",
         "@com_github_stretchr_testify//require",
     ],
 )

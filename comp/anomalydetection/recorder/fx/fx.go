@@ -12,18 +12,17 @@ import (
 	"go.uber.org/fx"
 
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	recorderimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// Module supplies the unregistered writer-provider state for this PR.
+// Module wires the optional recorder without registering a writer backend.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(func() option.Option[recorder.WriterFactory] {
 			return option.None[recorder.WriterFactory]()
 		}),
-		fx.Provide(func(_ option.Option[recorder.WriterFactory]) option.Option[recorder.Component] {
-			return option.None[recorder.Component]()
-		}),
+		fxutil.ProvideComponentConstructor(recorderimpl.NewConfiguredComponent),
 	)
 }

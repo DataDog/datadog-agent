@@ -26,6 +26,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/anomalydetection/recorder/def",
+        "//comp/anomalydetection/recorder/impl",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@org_uber_go_fx//:fx",
@@ -57,6 +58,8 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/anomalydetection/recorder/def",
+        "//comp/core/config",
+        "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
