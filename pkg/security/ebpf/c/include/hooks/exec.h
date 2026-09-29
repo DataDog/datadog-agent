@@ -796,19 +796,6 @@ int hook_setup_arg_pages(ctx_t *ctx) {
 #define EXEC_ZK_ZEROKEY_IMPERSONATED 6
 #define EXEC_ZK_ZEROKEY_DIRECT 7
 
-#define EXEC_UAF_TOTAL 0       // popped entries examined, the denominator
-#define EXEC_UAF_ZERO_AT_POP 1 // ino already 0 the instant we popped it
-#define EXEC_UAF_WENT_ZERO 2   // ino good at pop, 0 by the time the event is sent
-#define EXEC_UAF_REUSED 3      // ino changed to a DIFFERENT non-zero value: element reused
-#define EXEC_UAF_CHANGED 4     // ino differs between the two reads, any direction
-#define EXEC_UAF_STABLE 5      // both reads agree and the ino is good
-
-static void __attribute__((always_inline)) bump_exec_uaf(u32 slot) {
-    u64 *counter = bpf_map_lookup_elem(&exec_uaf_probe, &slot);
-    if (counter != NULL) {
-        __sync_fetch_and_add(counter, 1);
-    }
-}
 
 static void __attribute__((always_inline)) bump_exec_zero_key_class(u32 slot) {
     u64 *counter = bpf_map_lookup_elem(&exec_zero_key_class, &slot);

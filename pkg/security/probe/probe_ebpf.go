@@ -1770,7 +1770,7 @@ func (p *EBPFProbe) logExecUseAfterFreeProbe() {
 		return
 	}
 
-	var v [6]uint64
+	var v [7]uint64
 	for i := range v {
 		if err := m.Lookup(uint32(i), &v[i]); err != nil {
 			if !p.execUAFLogged.Swap(true) {
@@ -1789,8 +1789,8 @@ func (p *EBPFProbe) logExecUseAfterFreeProbe() {
 	}
 	p.execUAFLogged.Store(true)
 
-	seclog.Warnf("exec popped-entry stability: %d popped; %d ino already 0 at pop, %d ino went 0 after the pop, %d ino replaced by another non-zero value (element reused), %d ino changed under us, %d stable with a good ino",
-		v[0], v[1], v[2], v[3], v[4], v[5])
+	seclog.Warnf("exec popped-entry stability: %d popped; %d ino already 0 at pop, %d ino went 0 after the pop, %d ino replaced by another non-zero value (element reused), %d ino changed under us, %d stable with a good ino; %d collateral sibling deletes avoided",
+		v[0], v[1], v[2], v[3], v[4], v[5], v[6])
 }
 
 // logExecEntryMismatches reports how often send_exec_event popped an entry that did not

@@ -106,7 +106,14 @@ BPF_ARRAY_MAP(exec_zero_key_class, u64, 8)
 // and returns a pointer into its value, so send_exec_event builds the whole event out of a
 // freed LRU element. Slots compare the same fields read right after the pop against the same
 // fields read just before the event is sent, per EXEC_UAF_* slot.
-BPF_ARRAY_MAP(exec_uaf_probe, u64, 6)
+BPF_ARRAY_MAP(exec_uaf_probe, u64, 7)
+#define EXEC_UAF_TOTAL 0       // popped entries examined, the denominator
+#define EXEC_UAF_ZERO_AT_POP 1 // ino already 0 the instant we popped it
+#define EXEC_UAF_WENT_ZERO 2   // ino good at pop, 0 by the time the event is sent
+#define EXEC_UAF_REUSED 3      // ino changed to a DIFFERENT non-zero value: element reused
+#define EXEC_UAF_CHANGED 4     // ino differs between the two reads, any direction
+#define EXEC_UAF_STABLE 5      // both reads agree and the ino is good
+#define EXEC_UAF_COLLATERAL_AVOIDED 6 // live sibling entry the old unconditional pop would have deleted
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
