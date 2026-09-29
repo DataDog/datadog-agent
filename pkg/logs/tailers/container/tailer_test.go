@@ -191,6 +191,43 @@ func TestBuildMessageTagWireOrder(t *testing.T) {
 		string(built.Origin.TagsPayload(nil)))
 }
 
+// TestBuildMessageTagSnapshotIgnoresConfigMutation checks that a built
+// message keeps its tags when Config.Tags or the provider's slice change
+// afterwards.
+func TestBuildMessageTagSnapshotIgnoresConfigMutation(t *testing.T) {
+	cfg := &config.LogsConfig{SourceCategory: "web", Tags: []string{"env:prod", "team:infra"}}
+	source := sources.NewLogSource("", cfg)
+	providerTags := []string{"container_name:nginx"}
+	tailer := &Tailer{
+		ContainerID: "abc123",
+		Source:      source,
+		tagProvider: tag.NewLocalProvider(providerTags),
+	}
+	parsingTags := make([]string, 1, 4)
+	parsingTags[0] = "truncated:single_line"
+	output := message.NewMessageWithParsingExtra(
+		[]byte("hello"),
+		message.NewOrigin(source),
+		message.StatusInfo,
+		0,
+		message.ParsingExtra{Tags: parsingTags},
+	)
+
+	built := buildMessage(tailer, output)
+	wantTags := []string{"truncated:single_line", "container_name:nginx", "sourcecategory:web", "env:prod", "team:infra"}
+	wantPayload := `[dd ddsourcecategory="web"][dd ddtags="env:prod,team:infra,truncated:single_line,container_name:nginx"]`
+
+	cfg.Tags[0] = "env:mutated"
+	cfg.Tags = append(cfg.Tags, "late:tag")
+	cfg.SourceCategory = "mutated"
+	providerTags[0] = "container_name:mutated"
+	parsingTags[0] = "mutated:parsing"
+	built.ParsingExtra.Tags[0] = "mutated:parsing"
+
+	assert.Equal(t, wantTags, built.Origin.Tags())
+	assert.Equal(t, wantPayload, string(built.Origin.TagsPayload(nil)))
+}
+
 func TestRead(t *testing.T) {
 	tailer := NewTestTailer(&mockReaderNoSleep{}, nil, func() {})
 	inBuf := make([]byte, 4096)

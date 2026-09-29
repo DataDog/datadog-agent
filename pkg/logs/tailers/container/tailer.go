@@ -437,6 +437,9 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 	tags = append(tags, output.ParsingExtra.Tags...)
 	tags = append(tags, providerTags...)
 	origin.SetTags(tags)
+	// Freeze the tag view here: buildMessage runs right before both the
+	// docker and the kubelet forwarders send the message.
+	origin.BuildTagSnapshot()
 
 	// XXX(remy): is it OK recreating a message here?
 	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
