@@ -88,6 +88,19 @@ class TestCodegenPayloadData(unittest.TestCase):
 
         self.assertNotIn("not_a_build_tag", tags)
 
+    def test_windows_extra_build_tags_include_windows_tags(self):
+        tags = compute_build_tags_for_flavor(
+            build="agent",
+            flavor=AgentFlavor.base,
+            build_include=None,
+            build_exclude=None,
+            extra_build_tags="anomalydetection_recorder",
+            platform="win32",
+        )
+
+        self.assertIn("anomalydetection_recorder", tags)
+        self.assertIn("wmi", tags)
+
     def test_fips_includes_goexperiment_systemcrypto(self):
         self.assertIn("goexperiment.systemcrypto", _payload()["flavor_specific_tags"]["fips"])
 
