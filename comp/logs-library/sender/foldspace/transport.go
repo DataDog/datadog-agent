@@ -111,18 +111,6 @@ func (s *FakeStream) Recv(ctx context.Context) (uint32, int32, error) {
 // Close is a no-op.
 func (s *FakeStream) Close() error { return nil }
 
-// cloneMessage copies rendered content and metadata so HTTP encode cannot
-// mutate the foldspace side.
-func cloneMessage(msg *message.Message) *message.Message {
-	content := append([]byte(nil), msg.GetContent()...)
-	clone := message.NewMessageWithParsingExtra(content, msg.Origin, msg.Status, msg.IngestionTimestamp, msg.ParsingExtra)
-	clone.Hostname = msg.Hostname
-	clone.RawDataLen = msg.RawDataLen
-	clone.ServerlessExtra = msg.ServerlessExtra
-	clone.SetRendered(content)
-	return clone
-}
-
 // recordFromMessage maps a processed message onto a foldspace Record.
 func recordFromMessage(msg *message.Message) Record {
 	r := Record{
