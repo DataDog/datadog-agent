@@ -137,6 +137,7 @@ use (
 	pkg/process/util/api
 	pkg/proto
 	pkg/remoteconfig/state
+	pkg/remoteflags
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer

@@ -3202,6 +3202,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			} else {
 				out.ID = string(in.String())
 			}
+		case "pod_uid":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.PodUID = string(in.String())
+			}
 		case "source":
 			if in.IsNull() {
 				in.Skip()
@@ -3249,6 +3255,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 		first = false
 		out.RawString(prefix[1:])
 		out.String(string(in.ID))
+	}
+	if in.PodUID != "" {
+		const prefix string = ",\"pod_uid\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.PodUID))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"

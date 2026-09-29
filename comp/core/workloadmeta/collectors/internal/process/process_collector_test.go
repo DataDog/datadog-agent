@@ -53,6 +53,64 @@ func (c collectorTest) cleanup() {
 	telemetryimpl.GetCompatComponent().Reset()
 }
 
+func TestCollectProcessesSignalsReadinessAfterSuccessfulEmptyScan(t *testing.T) {
+	c := setUpCollectorTest(t, config.NewMock(t), nil, nil)
+	c.collector.processEventsCh = make(chan *Event, 1)
+	c.probe.EXPECT().ProcessesByPID(mock.Anything, false).Return(map[int32]*procutil.Process{}, nil).Once()
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	processesReady := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.collector.collectProcesses(ctx, c.mockClock.Ticker(time.Minute), processesReady)
+	}()
+
+	select {
+	case <-processesReady:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for process readiness")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for process collection to stop")
+	}
+}
+
+func TestCollectProcessesDoesNotSignalReadinessAfterFailedScan(t *testing.T) {
+	c := setUpCollectorTest(t, config.NewMock(t), nil, nil)
+	firstAttempt := make(chan struct{})
+	c.probe.EXPECT().ProcessesByPID(mock.Anything, false).
+		Run(func(time.Time, bool) { close(firstAttempt) }).
+		Return(nil, assert.AnError).
+		Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	processesReady := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.collector.collectProcesses(ctx, c.mockClock.Ticker(time.Minute), processesReady)
+	}()
+	<-firstAttempt
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for process collection to stop")
+	}
+	select {
+	case <-processesReady:
+		t.Fatal("failed process scan unexpectedly signaled readiness")
+	default:
+	}
+}
+
 // TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
 func TestBasicCreatedProcessesCollection(t *testing.T) {
 	creationTime1 := time.Now().Unix()
