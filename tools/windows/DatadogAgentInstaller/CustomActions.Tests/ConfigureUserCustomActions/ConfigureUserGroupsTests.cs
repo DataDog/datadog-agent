@@ -64,19 +64,64 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
         }
 
         [ElevatedFact]
-        public void MetadataFailurePropagatesWithoutGroupWrites()
+        public void MetadataFailureStillPerformsAllGroupWrites()
         {
             Test.NativeMethods.Setup(n => n.IsDomainController()).Returns(true);
             Test.NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Throws(new InvalidOperationException("metadata unavailable"));
 
-            Action act = () => Test.Create().ConfigureUserGroups();
+            Test.Create().ConfigureUserGroups();
 
-            act.Should().Throw<InvalidOperationException>().WithMessage("metadata unavailable");
-            VerifyAllGroupWrites(Times.Never());
+            VerifyAllGroupWrites(Times.Once());
         }
 
         [ElevatedFact]
-        public void GroupWriteFailurePropagates()
+        public void UnsupportedWriteAfterMetadataFailureSkipsRemainingGroups()
+        {
+            Test.NativeMethods.Setup(n => n.IsDomainController()).Returns(true);
+            Test.NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Throws(new InvalidOperationException("metadata unavailable"));
+            Test.NativeMethods
+                .Setup(n => n.AddToGroup(
+                    It.IsAny<SecurityIdentifier>(),
+                    WellKnownSidType.BuiltinPerformanceLoggingUsersSid))
+                .Throws(new Win32Exception(50));
+
+            Test.Create().ConfigureUserGroups();
+
+            Test.NativeMethods.Verify(
+                n => n.AddToGroup(
+                    It.IsAny<SecurityIdentifier>(),
+                    WellKnownSidType.BuiltinPerformanceMonitoringUsersSid),
+                Times.Once());
+            Test.NativeMethods.Verify(
+                n => n.AddToGroup(
+                    It.IsAny<SecurityIdentifier>(),
+                    WellKnownSidType.BuiltinPerformanceLoggingUsersSid),
+                Times.Once());
+            Test.NativeMethods.Verify(
+                n => n.AddToGroup(
+                    It.IsAny<SecurityIdentifier>(),
+                    It.Is<SecurityIdentifier>(sid => sid.Value == "S-1-5-32-573")),
+                Times.Never());
+        }
+
+        [ElevatedFact]
+        public void NonUnsupportedWriteAfterMetadataFailurePropagates()
+        {
+            Test.NativeMethods.Setup(n => n.IsDomainController()).Returns(true);
+            Test.NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Throws(new InvalidOperationException("metadata unavailable"));
+            Test.NativeMethods
+                .Setup(n => n.AddToGroup(
+                    It.IsAny<SecurityIdentifier>(),
+                    WellKnownSidType.BuiltinPerformanceMonitoringUsersSid))
+                .Throws(new Win32Exception(5));
+
+            Action act = () => Test.Create().ConfigureUserGroups();
+
+            act.Should().Throw<Win32Exception>().Which.NativeErrorCode.Should().Be(5);
+        }
+
+        [ElevatedFact]
+        public void UnsupportedWriteFromKnownWritableControllerPropagates()
         {
             Test.NativeMethods.Setup(n => n.IsDomainController()).Returns(true);
             Test.NativeMethods.Setup(n => n.IsReadOnlyDomainController()).Returns(false);
@@ -100,6 +145,22 @@ namespace CustomActions.Tests.ConfigureUserCustomActions
 
             Test.NativeMethods.Verify(n => n.IsReadOnlyDomainController(), Times.Never());
             VerifyAllGroupWrites(Times.Once());
+        }
+
+        [ElevatedFact]
+        public void UnsupportedWriteAfterDomainControllerCheckFailurePropagates()
+        {
+            Test.NativeMethods.Setup(n => n.IsDomainController()).Throws(new InvalidOperationException("role unavailable"));
+            Test.NativeMethods
+                .Setup(n => n.AddToGroup(
+                    It.IsAny<SecurityIdentifier>(),
+                    WellKnownSidType.BuiltinPerformanceMonitoringUsersSid))
+                .Throws(new Win32Exception(50));
+
+            Action act = () => Test.Create().ConfigureUserGroups();
+
+            act.Should().Throw<Win32Exception>().Which.NativeErrorCode.Should().Be(50);
+            Test.NativeMethods.Verify(n => n.IsReadOnlyDomainController(), Times.Never());
         }
     }
 }
