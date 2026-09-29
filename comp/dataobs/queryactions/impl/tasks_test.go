@@ -792,3 +792,48 @@ func TestBuildTaskCheckConfig_QueryRoundTripsThroughYAML(t *testing.T) {
 	statements := parseInstance(t, cfg)["do_task"].(map[string]any)["statements"].([]any)
 	assert.Equal(t, payload.Task.Statements[0].Query, statements[0].(map[string]any)["query"])
 }
+
+func TestOnRCUpdate_TaskArrivingOrLeavingLeavesMonitorAlone(t *testing.T) {
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	monitorPath, monitorRaw := monitorUpdate(t)
+	taskPath, taskRaw := taskUpdate(t, testTaskID, testMySQLHost)
+
+	_, applied := collectStatuses(c, map[string]state.RawConfig{monitorPath: monitorRaw})
+	require.Len(t, applied.Schedule, 1)
+
+	// RC delivers the unchanged monitor again with every snapshot: when the task arrives and when
+	// it leaves. Neither snapshot may unschedule and reschedule the monitor check.
+	statuses, arrived := collectStatuses(c, map[string]state.RawConfig{monitorPath: monitorRaw, taskPath: taskRaw})
+	assert.True(t, arrived.IsEmpty(), "unchanged monitor must not be re-sent: %+v", arrived)
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[monitorPath].State)
+
+	_, left := collectStatuses(c, map[string]state.RawConfig{monitorPath: monitorRaw})
+	assert.True(t, left.IsEmpty(), "unchanged monitor must not be re-sent: %+v", left)
+
+	require.Contains(t, c.activeConfigs, testMonitorID)
+	active := c.activeConfigs[testMonitorID].checkConfig
+	assert.Equal(t, applied.Schedule[0].Digest(), active.Digest())
+}
+
+func TestMergeConfigChanges(t *testing.T) {
+	cfg := func(host string) integration.Config {
+		return integration.Config{Name: "mysql", Instances: []integration.Data{integration.Data("host: " + host + "\n")}}
+	}
+	a, b, c, d := cfg("a"), cfg("b"), cfg("c"), cfg("d")
+	digests := func(configs []integration.Config) []string {
+		out := make([]string, 0, len(configs))
+		for _, config := range configs {
+			out = append(out, config.Digest())
+		}
+		return out
+	}
+
+	merged := mergeConfigChanges(
+		integration.ConfigChanges{Schedule: []integration.Config{a, b}, Unschedule: []integration.Config{c}},
+		// b is replaced by the newer update, a is left untouched by it, and d is new.
+		integration.ConfigChanges{Schedule: []integration.Config{d, a}, Unschedule: []integration.Config{b}},
+	)
+
+	assert.ElementsMatch(t, digests([]integration.Config{a, d}), digests(merged.Schedule), "a survives once, b is dropped")
+	assert.ElementsMatch(t, digests([]integration.Config{c, b}), digests(merged.Unschedule))
+}
