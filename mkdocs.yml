@@ -61,6 +61,7 @@ nav:
   - Test:
     - Unit tests: how-to/test/unit.md
     - Static analysis: how-to/test/static-analysis.md
+    - EUDM simulator: how-to/test/eudm-simulator.md
     - End-to-end tests:
       - how-to/test/e2e/index.md
       - Running tests: how-to/test/e2e/running.md
@@ -123,6 +124,9 @@ nav:
   - Conventions:
     - Logging: guidelines/conventions/logging.md
 - Reference:
+  - EUDM simulator:
+    - reference/eudm-simulator/index.md
+    - Scenario authoring: reference/eudm-simulator/scenarios.md
   - Component framework:
     - Status providers: reference/components/status.md
   - Agent schema:
@@ -136,6 +140,7 @@ nav:
   - Developer docs: reference/docs.md
 - Architecture:
   - Home: architecture/index.md
+  - EUDM simulator: architecture/eudm-simulator.md
   - Component framework:
     - architecture/components/index.md
     - Fx: architecture/components/fx.md

@@ -6,6 +6,8 @@ Windows or macOS device. A reusable capture bundle supplies the typed telemetry
 that a portable replay process clones and submits through Agent delivery
 packages.
 
+Start with the [project overview](../../reference/eudm-simulator/index.md) for motivation and scope, the [architecture guide](../../architecture/eudm-simulator.md) for the Agent integration, and the [scenario reference](../../reference/eudm-simulator/scenarios.md) for authoring. This runbook covers operations and the acceptance evidence. The branch and [draft PR #57126](https://github.com/DataDog/datadog-agent/pull/57126) are evaluation-only and must never be merged.
+
 ## Current status
 
 The command implements separate `capture`, `validate`, `plan`, and `run`
@@ -20,78 +22,9 @@ recording transports, synthetic fixtures, and successfully generated plans do
 not establish either backend relationship. No staging telemetry has been sent
 during this implementation session.
 
-## Recorded local verification
-
-On 2026-09-29, the native macOS arm64 capture completed in 30.868 seconds,
-using the default 35-minute deadline and offline recording transports. The
-captured Agent revision was `bc11b9979aff372306c922973ed9448d6d355767` and the
-bundle digest was
-`867bafb96ef226f069e5d32c1821ffb924ca2774d04d7490ff9a483b2987fffd`.
-The operator-managed bundle is at
-`/private/tmp/eudm-native-capture-20260929-complete` on the capture host; it is
-not a checked-in fixture. A new revision requires a new capture.
-
-The bundle contains two distinct metric cycles, two distinct process cycles,
-one host-metadata sample, and one complete software snapshot. The initial host
-provider returned a 300-second schedule; the manifest records that returned
-cadence rather than assuming the later 30-minute schedule. Both `validate` and
-`plan` accepted this bundle with the two-device macOS probe. The generated plan
-has run ID `41d94f065a919a9c1709b632c7e7a5b1`, but **was not replayed**.
-
-Verification passed at the capture/delivery implementation checkpoint, before
-the later engine, scenario, and AP additions:
-
-- `dda inv eudm-simulator.build` and the complete simulator/software-inventory
-  test selection (114 Go tests).
-- The subsequent capture/output/native-artifact selection (29 Go tests),
-  including decoded Agent wire bodies checked against the native hostname,
-  username/home path, host UUID, interface addresses, and MAC addresses. The
-  fixture tests also check secrets in serial numbers, arguments, product IDs,
-  unknown fields, and credentials.
-- Affected serializer, process-runner, process API, default-forwarder,
-  event-platform, and logs delivery suites, including targeted race checks.
-
-The replay implementation subsequently passed:
-
-- The final full simulator suite via
-  `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python`
-  (139 Go tests, with the opt-in fixture generator and native-artifact test
-  skipped). Coverage includes all six shipped scenarios at full declared counts
-  and durations with a fake clock, exact native cadence, deterministic
-  mixed-platform output, backpressure, and failure accounting.
-- Race-enabled engine, integration, and NDM metadata tests (26 Go tests, with
-  those same two opt-in tests skipped). The real Agent delivery integration
-  replayed 60 devices, split evenly between Windows and macOS, with six workers
-  and queue capacity one. Wireless delivery decoded 25 APs, 125 NDM resources
-  across two batches, and 50 correlated WLAN clients.
-- `dda inv eudm-simulator.build`, native-bundle `validate` and `plan`, and a
-  missing-key startup check that rejected replay before forwarder startup.
-- Bazel `engine_test` and `integration_test_zlib`, including regular-file
-  materialization of fixture runfiles, real compressed Agent delivery, and
-  rejection of missing initial AP metrics, malformed nested host metadata,
-  and missing WLAN identity tags before submission.
-
-The recorded native bundle includes `system.wlan.check.errors` and
-`system.wlan.status`, but no RSSI, noise, TX-rate, or RX-rate samples. It cannot
-supply the Wi-Fi degradation scenario; capture again on a device exposing healthy
-physical WLAN measurements before that acceptance run.
-
-To repeat the artifact privacy check on its original capture device:
-
-```sh
-EUDM_CAPTURE_BUNDLE=/path/to/complete-bundle \
-  dda inv test --targets=./cmd/eudm-simulator/integration --build-exclude=python
-```
-
-Native Windows capture, replay from another host operating system, and staging
-product acceptance remain unverified. Windows/macOS recording fixtures pass
-through the same common delivery build; this is not native Windows acceptance.
-The small fixtures under `cmd/eudm-simulator/testdata/bundles/` contain synthetic
-typed inputs serialized by the real Agent pipeline. Their deliberate test commit
-prevents use by a normal revision-stamped staging binary. See their
-[README](../../../cmd/eudm-simulator/testdata/bundles/README.md) for generation.
-
 ## Build and capture separately
+
+Set up the repository [development tools](../../setup/required.md) first. Windows builds require the Agent Windows build environment described in the [platform setup guide](../../setup/manual.md); a plain PowerShell shell with Go installed is not an established build environment. The simulator build excludes embedded Python by default. Build for the target platform, then run capture on the real device whose telemetry you need, not inside WSL or a Linux container. Native Windows build and capture still need to be verified on this branch.
 
 Build on each capture device using the same feature-branch Agent revision:
 
@@ -161,6 +94,57 @@ directory to the replay host without modifying it. Keep real captures as
 operator-managed evaluation artifacts; repository fixtures should remain small
 and fully sanitized.
 
+## Windows walkthrough
+
+Run these PowerShell commands from the repository root after preparing the Windows build environment. They use the two-device host-enrichment probe first, so application-specific overlays do not obscure missing baseline evidence. The example starts with offline capture/validation; only the final `run` step sends staging telemetry.
+
+Windows capture requires a separately running, matching system-probe with network collection and its required Windows driver available. In that service's configuration, enable `network_config.enabled: true` and set `network_config.direct_send: false`. The simulator reads connections from the default system-probe endpoint; it does not install/start that service or load a custom endpoint from the operator's `datadog.yaml`. A healthy Windows capture still requires two nonempty connection cycles, so generate ordinary healthy TCP traffic during collection. Use the existing Agent/system-probe setup procedures for that device.
+
+```powershell
+git fetch origin
+git switch focus/create-eudm-simulator
+git pull --ff-only
+dda inv eudm-simulator.build
+if ($LASTEXITCODE -ne 0) { throw 'Simulator build failed' }
+
+$eudm = '.\bin\eudm-simulator\eudm-simulator.exe'
+$eudmRoot = 'C:\Temp\eudm-evaluation'
+New-Item -ItemType Directory -Force -Path $eudmRoot | Out-Null
+$bundle = Join-Path $eudmRoot 'windows-baseline'
+$scenario = 'cmd/eudm-simulator/testdata/probes/host-enrichment-windows.yaml'
+$config = Join-Path $eudmRoot 'staging.yaml'
+'site: datad0g.com' | Set-Content -Encoding ascii $config
+
+& $eudm capture --output $bundle --deadline 35m
+if ($LASTEXITCODE -ne 0) { throw 'Capture failed; inspect missing-stream error' }
+& $eudm validate --scenario $scenario --config $config --bundle "baseline=$bundle"
+if ($LASTEXITCODE -ne 0) { throw 'Bundle/scenario validation failed' }
+```
+
+If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build every participating capture/replay binary at the same commit. Copy a completed macOS bundle too when preparing a mixed-platform scenario.
+
+Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. `staging.yaml` is simulator configuration, not a full Agent configuration. Prepare credentials before creating the plan so its start does not expire while you are signing in.
+
+```powershell
+if (-not $env:DD_API_KEY) { throw 'Load the staging API key into DD_API_KEY first' }
+$runFiles = [Guid]::NewGuid().ToString('N')
+$plan = Join-Path $eudmRoot "$runFiles-plan.json"
+$report = Join-Path $eudmRoot "$runFiles-report.json"
+$start = [DateTime]::UtcNow.AddMinutes(5).ToString('o')
+
+& $eudm plan --scenario $scenario --config $config --bundle "baseline=$bundle" --seed 17 --start $start --output $plan
+if ($LASTEXITCODE -ne 0) { throw 'Planning failed' }
+& $eudm run --scenario $scenario --config $config --bundle "baseline=$bundle" --plan $plan --workers 2 --queue-capacity 128 --delivery-grace 5m --report $report
+$runExitCode = $LASTEXITCODE
+if (Test-Path $report) {
+    $result = Get-Content -Raw $report | ConvertFrom-Json
+    $result | Select-Object status, run_id, declared_devices, selectors, errors
+}
+if ($runExitCode -ne 0) { throw 'Replay failed; inspect the local report and stderr' }
+```
+
+The probe waits for the planned start, then runs for 35 minutes, with up to five further minutes for retries. Inspect the complete ledger in the JSON report, then follow [proof 1](#required-proof-1-normal-eudm-host-enrichment) to establish actual device visibility. The full healthy Windows scenario uses cohort `endpoints`, so change both the scenario path and the `--bundle` key when switching to it. Every incident scenario needs its own explicit assignments and new plan/report files.
+
 ## Validate and create a plan
 
 The simulator configuration is separate from `datadog.yaml`. Save this as a
@@ -221,8 +205,7 @@ opaque run ID, seed, absolute UTC start, Agent commit, bundle digests/profiles,
 and cohort assignments with their counts and ordinals. It refuses to overwrite
 an existing file. The default start is one minute after plan creation; use
 `--start` with a future RFC3339 timestamp when more preparation time is needed.
-Once that start is in the past, generate a new plan in a new file. Editing the
-scenario or changing a bundle requires a new plan.
+Once that start is in the past, generate a new plan in a new file. Editing any scenario bytes, including comments or formatting, or changing a bundle requires a new plan. Configuration routes are resolved again at `run`; the plan does not store credentials or pin a staging organization. Keep the same staging configuration and organization/key for the evaluation.
 
 There is no standalone bundle-only `validate` mode. Validate a bundle using a
 compatible scenario and the explicit cohort assignment above. A successful
@@ -261,7 +244,10 @@ behavior continues until that deadline; permanent failures cancel the run.
 Staging runs use wall-clock time; no accelerated-time flag is provided.
 
 The command reserves the report path before starting forwarders and refuses to
-overwrite an existing report. Its final report contains scenario and bundle
+overwrite an existing report. It writes an initial `running` report and a final
+report on termination; it does not continuously persist progress. A hard kill
+can leave `running` behind, while graceful interruption attempts final failure
+accounting. Its final report contains scenario and bundle
 digests, seed, Agent commit, replay OS, run-relative phase timings, the complete
 device/stream ledger, AP/NDM accounting, and errors. Ledger counts represent
 scheduled collection cycles; a cycle is delivered only after all of its chunks
@@ -410,3 +396,97 @@ separate from telemetry, and exclude secrets from them. Cleanup must be scoped
 to that run; do not use scenario names or broad staging-wide queries. Refresh
 this feature branch when staging moves to a different Agent revision, rebuild
 on both capture devices, recapture the baselines, and generate new plans.
+
+## Troubleshooting
+
+| Symptom | Meaning and next step |
+| --- | --- |
+| Build dependencies or Windows native libraries missing | Use the repository's configured platform build environment. Native Windows build is an outstanding acceptance step; record the exact build failure rather than claiming the macOS result covers it. |
+| Capture deadline reports missing connections | Verify the matching Windows system-probe, driver/network collection, default endpoint, and active TCP traffic. `network_config` in the simulator staging YAML does not configure system-probe. |
+| Capture has no `COMPLETE` marker | It did not finish required coverage. Preserve its error for diagnosis and recapture into a new directory; do not manufacture a completion marker. |
+| Agent commit mismatch | Rebuild all participating binaries from one exact commit and recapture. A documentation-only commit also changes the stamped revision on the next build. |
+| Digest/checksum mismatch or unsafe file layout | Copy the whole original bundle as regular files without modifying bytes. Do not edit JSON, normalize line endings, substitute symlinks, or recalculate checksums to hide corruption. |
+| Missing application/process/metric/selector, or absent from a later cycle | The bundle does not support the overlay. Keep the needed process/connection active while recapturing, or select another healthy device. Inventory presence in the manifest alone is not sufficient. |
+| WLAN status exists, but Wi-Fi validation fails | Wi-Fi scenarios require signal/noise/TX/RX metrics and wireless identity tags. Status and error counters alone do not supply that evidence. |
+| Resource-capacity or declared RAM mismatch | Lower overlay values/variation or capture the required hardware profile. `total_ram_gb` constrains the capture; it does not create RAM. |
+| Plan start is in the past | Generate a new plan with a comfortably future `--start` and a new output filename; do not reuse its run identity by editing the JSON. |
+| File already exists | Capture directories, plans, and reports are exclusive outputs. Choose a new name. Compatible completed bundles can still be reused as input. |
+| Production site or inherited endpoint rejected | Use explicit `site: datad0g.com` and remove the conflicting environment variable identified by the command. All routes and redirected destinations must remain staging. |
+| Missing key, permanent rejection, or retries exhausted | Check the staging organization/key and endpoint access. Preserve the failure report. Do not count partially delivered devices as success; start a new run after fixing the cause. |
+| Report is still `running` after process death | It is not a successful completion record. Reports are not live checkpoints and there is no resume command. Keep the artifact and generate a new plan/report for another run. |
+| `expected` exceeds `delivered` but `failed` is small | Cancellation can leave cycles unsent. `failed` counts failed attempted cycles, not every missing cycle; compare all counts and final status. |
+| AP evidence stays degraded during recovery | Endpoint overlays reset to captured values, but omitted AP metrics carry forward. Explicitly restore AP values in the recovery phase. |
+| Delivery succeeded, but devices/issue/Bits result are missing | Follow the staging proof gates above and record the backend/monitor/permission dependency. HTTP acceptance is not product acceptance. |
+
+Use `capture --help`, `validate --help`, `plan --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new plan with a new opaque run identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
+
+## Recorded local verification
+
+On 2026-09-29, the native macOS arm64 capture completed in 30.868 seconds,
+using the default 35-minute deadline and offline recording transports. The
+captured Agent revision was `bc11b9979aff372306c922973ed9448d6d355767` and the
+bundle digest was
+`867bafb96ef226f069e5d32c1821ffb924ca2774d04d7490ff9a483b2987fffd`.
+The operator-managed bundle is at
+`/private/tmp/eudm-native-capture-20260929-complete` on the capture host; it is
+not a checked-in fixture. A new revision requires a new capture.
+
+The bundle contains two distinct metric cycles, two distinct process cycles,
+one host-metadata sample, and one complete software snapshot. The initial host
+provider returned a 300-second schedule; the manifest records that returned
+cadence rather than assuming the later 30-minute schedule. Both `validate` and
+`plan` accepted this bundle with the two-device macOS probe. The generated plan
+has run ID `41d94f065a919a9c1709b632c7e7a5b1`, but **was not replayed**.
+
+Verification passed at the capture/delivery implementation checkpoint, before
+the later engine, scenario, and AP additions:
+
+- `dda inv eudm-simulator.build` and the complete simulator/software-inventory
+  test selection (114 Go tests).
+- The subsequent capture/output/native-artifact selection (29 Go tests),
+  including decoded Agent wire bodies checked against the native hostname,
+  username/home path, host UUID, interface addresses, and MAC addresses. The
+  fixture tests also check secrets in serial numbers, arguments, product IDs,
+  unknown fields, and credentials.
+- Affected serializer, process-runner, process API, default-forwarder,
+  event-platform, and logs delivery suites, including targeted race checks.
+
+The replay implementation subsequently passed:
+
+- The final full simulator suite via
+  `dda inv test --targets=./cmd/eudm-simulator/... --build-exclude=python`
+  (139 Go tests, with the opt-in fixture generator and native-artifact test
+  skipped). Coverage includes all six shipped scenarios at full declared counts
+  and durations with a fake clock, exact native cadence, deterministic
+  mixed-platform output, backpressure, and failure accounting.
+- Race-enabled engine, integration, and NDM metadata tests (26 Go tests, with
+  those same two opt-in tests skipped). The real Agent delivery integration
+  replayed 60 devices, split evenly between Windows and macOS, with six workers
+  and queue capacity one. Wireless delivery decoded 25 APs, 125 NDM resources
+  across two batches, and 50 correlated WLAN clients.
+- `dda inv eudm-simulator.build`, native-bundle `validate` and `plan`, and a
+  missing-key startup check that rejected replay before forwarder startup.
+- Bazel `engine_test` and `integration_test_zlib`, including regular-file
+  materialization of fixture runfiles, real compressed Agent delivery, and
+  rejection of missing initial AP metrics, malformed nested host metadata,
+  and missing WLAN identity tags before submission.
+
+The recorded native bundle includes `system.wlan.check.errors` and
+`system.wlan.status`, but no RSSI, noise, TX-rate, or RX-rate samples. It cannot
+supply the Wi-Fi degradation scenario; capture again on a device exposing healthy
+physical WLAN measurements before that acceptance run.
+
+To repeat the artifact privacy check on its original capture device:
+
+```sh
+EUDM_CAPTURE_BUNDLE=/path/to/complete-bundle \
+  dda inv test --targets=./cmd/eudm-simulator/integration --build-exclude=python
+```
+
+Native Windows capture, replay from another host operating system, and staging
+product acceptance remain unverified. Windows/macOS recording fixtures pass
+through the same common delivery build; this is not native Windows acceptance.
+The small fixtures under `cmd/eudm-simulator/testdata/bundles/` contain synthetic
+typed inputs serialized by the real Agent pipeline. Their deliberate test commit
+prevents use by a normal revision-stamped staging binary. See their
+<<<repo("cmd/eudm-simulator/testdata/bundles/README.md", "fixture README")>>> for generation.

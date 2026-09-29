@@ -57,11 +57,11 @@ type SoftwareItem struct {
 	Version          string `yaml:"version"`
 	Publisher        string `yaml:"publisher"`
 	SoftwareType     string `yaml:"software_type"`          // macOS: "app"/"homebrew"/"pkg"; Windows: "desktop"/"msstore"
-	DeploymentStatus string `yaml:"deployment_status"`      // default "installed"
-	Is64Bit          bool   `yaml:"is_64_bit"`              // default true
-	DeploymentTime   string `yaml:"deployment_time"`        // RFC3339, default scenario start time
-	ProductCode      string `yaml:"product_code,omitempty"` // e.g. "{GUID}"; auto-derived if empty
-	User             string `yaml:"user,omitempty"`         // Windows per-user SID or account; empty = system-wide
+	DeploymentStatus string `yaml:"deployment_status"`      // empty preserves captured status
+	Is64Bit          bool   `yaml:"is_64_bit"`              // true sets the flag; false preserves capture
+	DeploymentTime   string `yaml:"deployment_time"`        // explicit installation date; empty preserves sanitized capture
+	ProductCode      string `yaml:"product_code,omitempty"` // e.g. "{GUID}"; empty preserves capture before identity rewriting
+	User             string `yaml:"user,omitempty"`         // Windows per-user SID or account; empty preserves capture
 }
 
 // Phase defines a time window with process and metric behavior per group.
@@ -81,9 +81,9 @@ type Phase struct {
 // background processes retain their captured values.
 type ProcessDef struct {
 	Name   string   `yaml:"name"`
-	User   string   `yaml:"user,omitempty"` // OS user; empty = default "user"
-	Exe    string   `yaml:"exe,omitempty"`  // full executable path; empty = use name as-is
-	Args   []string `yaml:"args,omitempty"` // additional CLI args beyond the exe; empty = [exe]
+	User   string   `yaml:"user,omitempty"` // OS user; empty preserves the captured user
+	Exe    string   `yaml:"exe,omitempty"`  // full executable path; empty preserves capture
+	Args   []string `yaml:"args,omitempty"` // full argv; omitted preserves capture; argv[0] follows the executable
 	CPU    Pattern  `yaml:"cpu"`            // whole-host percent (0-100); converted to Agent per-core process accounting
 	Memory Pattern  `yaml:"memory"`         // MB
 }
