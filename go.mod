@@ -584,6 +584,7 @@ require (
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // indirect
+	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.8 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
@@ -639,7 +640,6 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/circonus-labs/circonus-gometrics v2.3.1+incompatible // indirect
 	github.com/circonus-labs/circonusllhist v0.1.3 // indirect
-	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/containerd/continuity v0.4.5 // indirect
@@ -1166,7 +1166,6 @@ require (
 	k8s.io/sample-controller v0.35.3 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.77 // indirect
 	mellium.im/sasl v0.3.2 // indirect
-	modernc.org/sqlite v1.57.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
