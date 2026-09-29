@@ -15,7 +15,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs-library/metrics",
-        "//comp/logs-library/processor",
         "//comp/logs-library/sender",
         "//pkg/logs/message",
         "//pkg/util/log",
