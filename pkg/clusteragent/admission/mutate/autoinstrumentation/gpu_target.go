@@ -65,7 +65,8 @@ func newGPUTarget(jobs gpuconfig.JobsConfig) Target {
 }
 
 // appendIdentifierConfig adds an env var populated from the pod label or annotation referenced by the identifier.
-// Nothing is added if the identifier is not configured or is of a type that cannot be read from the pod metadata.
+// Nothing is added if the identifier is not configured or cannot be read from the pod metadata, like environment
+// variables, which are only known once the workload is running and are read by the Agent.
 func appendIdentifierConfig(configs []TracerConfig, envVarName string, id gpuconfig.IdentifierConfig) []TracerConfig {
 	if !id.Configured() {
 		return configs

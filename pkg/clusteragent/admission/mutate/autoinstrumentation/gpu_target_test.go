@@ -69,6 +69,13 @@ func TestNewGPUTargetJobIdentifiers(t *testing.T) {
 			jobs:     gpuconfig.JobsConfig{Run: testGPUJobs.Run},
 			expected: []string{"DD_TRAINING_RUN_ID"},
 		},
+		"env identifiers cannot be injected from pod metadata": {
+			jobs: gpuconfig.JobsConfig{
+				Run:   gpuconfig.IdentifierConfig{Key: "JOB_ID", Type: gpuconfig.IdentifierTypeEnv},
+				Group: testGPUJobs.Group,
+			},
+			expected: []string{"DD_TRAINING_GROUP_ID"},
+		},
 		"unknown type is ignored": {
 			jobs: gpuconfig.JobsConfig{Run: gpuconfig.IdentifierConfig{Key: "a", Type: "other"}},
 		},
