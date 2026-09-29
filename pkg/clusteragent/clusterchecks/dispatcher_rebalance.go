@@ -441,8 +441,6 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	// unschedule checks. When that's the case, return without moving any
 	// checks. The stddev is per-cohort (see utilizationStdDevWeighted), so a
 	// deliberately skewed runner group does not read as a global imbalance.
-	// Misplaced configs bypass the improvement gate: repairing them is a
-	// correctness fix, not a balance optimization.
 	currentUtilizationStdDev := currentConfigsDistribution.utilizationStdDevWeighted()
 	proposedUtilizationStdDev := proposedDistribution.utilizationStdDevWeighted()
 	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")

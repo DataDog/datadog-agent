@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"sort"
 	"time"
 
@@ -112,12 +113,28 @@ func (d *dispatcher) getNodeToScheduleCheck(checkName string) string {
 	return d.getNodeWithLessChecks(checkName)
 }
 
-// placementCandidates returns the live workers a check with the given name
-// may be dispatched to, sorted for determinism. Eligible restricted workers
-// (compat-declaring) take precedence over unrestricted ones, so a check
-// claimed by a runner group stays on it and only falls back to the general
-// pool when no eligible group worker is live. Empty means no worker is
-// eligible: the caller should let the config dangle.
+// isEligible reports whether a worker advertising the given compatibility
+// may run a check with the given name. nil compat means unrestricted.
+// When Include is non-empty only checks in it are accepted; Exclude names
+// are always refused, subtracted after Include.
+func isEligible(compat *types.CheckCompatibility, checkName string) bool {
+	if compat == nil {
+		return true
+	}
+	if len(compat.Include) > 0 && !slices.Contains(compat.Include, checkName) {
+		return false
+	}
+	if slices.Contains(compat.Exclude, checkName) {
+		return false
+	}
+	return true
+}
+
+// placementCandidates returns the live workers eligible for a check with
+// the given name, sorted for determinism. Empty means no worker is
+// eligible: the caller should let the config dangle (strict isolation —
+// the operator propagates group excludes to node agents so claimed checks
+// only ever run on their group).
 func (d *dispatcher) placementCandidates(checkName string) []string {
 	d.store.RLock()
 	defer d.store.RUnlock()
@@ -127,7 +144,7 @@ func (d *dispatcher) placementCandidates(checkName string) []string {
 
 // candidatesFromStore must be called with the store read-locked (or locked).
 func (d *dispatcher) candidatesFromStore(checkName string) []string {
-	var restricted, unrestricted []string
+	var candidates []string
 
 	for name, node := range d.store.nodes {
 		node.RLock()
@@ -135,22 +152,12 @@ func (d *dispatcher) candidatesFromStore(checkName string) []string {
 		node.RUnlock()
 
 		if isEligible(compat, checkName) {
-			if compat != nil {
-				restricted = append(restricted, name)
-			} else {
-				unrestricted = append(unrestricted, name)
-			}
+			candidates = append(candidates, name)
 		}
 	}
 
-	// Restricted workers that admit the check take precedence over
-	// unrestricted ones.
-	if len(restricted) > 0 {
-		sort.Strings(restricted)
-		return restricted
-	}
-	sort.Strings(unrestricted)
-	return unrestricted
+	sort.Strings(candidates)
+	return candidates
 }
 
 func (d *dispatcher) getRandomNode(checkName string) string {

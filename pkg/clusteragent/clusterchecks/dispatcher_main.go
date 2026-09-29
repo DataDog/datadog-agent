@@ -410,10 +410,6 @@ func (d *dispatcher) run(ctx context.Context) {
 		case <-rebalanceTicker.C:
 			if d.advancedDispatching.Load() {
 				d.rebalance(false)
-			} else {
-				// Mixed pool: advanced dispatching is off, so run the repair pass
-				// to move configs back onto their runner group.
-				d.repairMisplacedConfigs()
 			}
 		}
 	}

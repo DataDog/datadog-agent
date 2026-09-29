@@ -67,29 +67,38 @@ func TestPlacementCandidates(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, kubeCompat())
-	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent, nil)
+	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent,
+		&types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}})
 
-	// Claimed check: restricted-eligible workers win over the unrestricted node agent.
+	// Claimed check: only the group runner admits it. The node agent declared
+	// the group exclude union (the operator's strict-isolation setup).
 	assert.Equal(t, []string{"runner1"}, dispatcher.placementCandidates("kubernetes_state_core"))
 
-	// Unclaimed check: no restricted worker is eligible, fall back to the
-	// unrestricted workers (availability-safe).
+	// Unclaimed check: the node agent is eligible (only group checks excluded).
 	assert.Equal(t, []string{"agent1"}, dispatcher.placementCandidates("http_check"))
 
-	// Group entirely down: only the unrestricted node agent remains, so the
-	// check falls back to it (availability-safe).
+	// Group down: no eligible worker remains, the config dangles (strict).
 	dispatcher.store.Lock()
 	delete(dispatcher.store.nodes, "runner1")
 	dispatcher.store.Unlock()
-	assert.Equal(t, []string{"agent1"}, dispatcher.placementCandidates("kubernetes_state_core"))
+	assert.Empty(t, dispatcher.placementCandidates("kubernetes_state_core"))
+	// ...but unclaimed checks still have the node agent.
+	assert.Equal(t, []string{"agent1"}, dispatcher.placementCandidates("http_check"))
+
+	// A legacy node agent (no compat declared) is eligible for everything:
+	// eligibility is the only rule, strict isolation comes from the
+	// operator-propagated declarations, not from the dispatcher.
+	registerWorker(t, dispatcher, "legacy-agent", "10.0.0.3", types.NodeTypeNodeAgent, nil)
+	assert.Equal(t, []string{"legacy-agent"}, dispatcher.placementCandidates("kubernetes_state_core"))
 
 	// Runner-only pool where the sole runner refuses the claimed check
 	// (exclude union, the operator's default CCR setup): no eligible worker at all.
 	dispatcher.store.Lock()
 	delete(dispatcher.store.nodes, "agent1")
-	dispatcher.store.nodes["default-runner"] = newNodeStore("default-runner", "10.0.0.3")
+	delete(dispatcher.store.nodes, "legacy-agent")
+	dispatcher.store.nodes["default-runner"] = newNodeStore("default-runner", "10.0.0.4")
 	dispatcher.store.Unlock()
-	registerWorker(t, dispatcher, "default-runner", "10.0.0.3", types.NodeTypeCLCRunner,
+	registerWorker(t, dispatcher, "default-runner", "10.0.0.4", types.NodeTypeCLCRunner,
 		&types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}})
 	assert.Empty(t, dispatcher.placementCandidates("kubernetes_state_core"))
 	// ...but the default runner is eligible for unclaimed checks.
@@ -103,25 +112,20 @@ func TestGetNodeWithLessChecksRespectsEligibility(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, kubeCompat())
-	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent, nil)
+	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent,
+		&types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}})
 
-	// The node agent has fewer checks but is not eligible-preferred for a
-	// claimed check: the runner wins regardless.
+	// Claimed check: only the group runner is eligible, the node agent's
+	// check count is irrelevant.
 	dispatcher.addConfig(generateIntegration("http_check"), "agent1")
 	assert.Equal(t, "runner1", dispatcher.getNodeWithLessChecks("kubernetes_state_core"))
 
-	// For an unclaimed check, the node agent is the only eligible worker.
+	// Unclaimed check: the node agent is the only eligible worker.
 	assert.Equal(t, "agent1", dispatcher.getNodeWithLessChecks("http_check"))
 
-	// Group down: the check falls back to the unrestricted node agent.
+	// Group down: no eligible worker -> empty string, the config dangles.
 	dispatcher.store.Lock()
 	delete(dispatcher.store.nodes, "runner1")
-	dispatcher.store.Unlock()
-	assert.Equal(t, "agent1", dispatcher.getNodeWithLessChecks("kubernetes_state_core"))
-
-	// No eligible worker at all -> empty string (caller dangles the config).
-	dispatcher.store.Lock()
-	delete(dispatcher.store.nodes, "agent1")
 	dispatcher.store.Unlock()
 	assert.Equal(t, "", dispatcher.getNodeWithLessChecks("kubernetes_state_core"))
 
@@ -156,50 +160,6 @@ func TestAddWithNoEligibleWorkerDangles(t *testing.T) {
 	assert.Equal(t, "kube-runner", target)
 
 	requireNotLocked(t, dispatcher.store)
-}
-
-func TestRepairMisplacedConfigs(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	dispatcher := newDispatcher(fakeTagger)
-
-	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, kubeCompat())
-	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent, nil)
-
-	// A kube check that fell back to the node agent while the group was down,
-	// plus a general check correctly on the node agent.
-	kubeConfig := generateIntegration("kubernetes_state_core")
-	generalConfig := generateIntegration("http_check")
-	assert.True(t, dispatcher.addConfig(kubeConfig, "agent1"))
-	assert.True(t, dispatcher.addConfig(generalConfig, "agent1"))
-
-	dispatcher.repairMisplacedConfigs()
-	requireNotLocked(t, dispatcher.store)
-
-	// The kube check moved back onto its runner group.
-	dispatcher.store.RLock()
-	kubeTarget := dispatcher.store.digestToNode[kubeConfig.Digest()]
-	generalTarget := dispatcher.store.digestToNode[generalConfig.Digest()]
-	nodes := dispatcher.store.nodes
-	dispatcher.store.RUnlock()
-	assert.Equal(t, "runner1", kubeTarget)
-	// The general check was left alone.
-	assert.Equal(t, "agent1", generalTarget)
-	require.Len(t, nodes["runner1"].digestToConfig, 1)
-	require.Len(t, nodes["agent1"].digestToConfig, 1)
-
-	// Group entirely down again: the check falls back to the node agent via
-	// dispatching, and the repair pass must not touch it (no live group).
-	dispatcher.store.Lock()
-	delete(dispatcher.store.nodes, "runner1")
-	dispatcher.store.Unlock()
-	assert.True(t, dispatcher.addConfig(kubeConfig, "agent1"))
-	dispatcher.repairMisplacedConfigs()
-	requireNotLocked(t, dispatcher.store)
-
-	dispatcher.store.RLock()
-	kubeTarget = dispatcher.store.digestToNode[kubeConfig.Digest()]
-	dispatcher.store.RUnlock()
-	assert.Equal(t, "agent1", kubeTarget)
 }
 
 func TestAnyCompatDeclared(t *testing.T) {
