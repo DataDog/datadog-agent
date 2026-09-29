@@ -10,7 +10,6 @@ package clusterchecks
 import (
 	"fmt"
 	"math/rand"
-	"slices"
 	"sort"
 	"time"
 
@@ -52,16 +51,16 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 		warmingUp = true
 	}
 	node := d.store.getOrCreateNodeStore(nodeName, clientIP)
+	// Compat is fixed at registration; later values are ignored.
+	if node.checkCompat == nil {
+		node.checkCompat = status.CheckCompatibility
+	}
 	d.store.Unlock()
 
 	node.Lock()
 	defer node.Unlock()
 	node.heartbeat = timestampNow()
 	node.nodetype = status.NodeType
-	// Compat is fixed at registration; later values are ignored.
-	if node.checkCompat == nil {
-		node.checkCompat = status.CheckCompatibility
-	}
 
 	// Check if we need to disable advanced dispatching when node agents join
 	if d.advancedDispatching.Load() && status.NodeType == types.NodeTypeNodeAgent {
@@ -90,7 +89,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getNodeToScheduleCheck returns the node where a new check should be scheduled
+// getNodeToScheduleCheck returns the node where a new check should be scheduled, and whether any node is registered.
 //
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the
@@ -102,78 +101,47 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
-func (d *dispatcher) getNodeToScheduleCheck(checkName string) string {
-	if d.advancedDispatching.Load() {
-		return d.getRandomNode(checkName)
-	}
-
-	return d.getNodeWithLessChecks(checkName)
-}
-
-// isEligible reports whether a worker with the given compatibility may run a check (nil = unrestricted).
-func isEligible(compat *types.CheckCompatibility, checkName string) bool {
-	if compat == nil {
-		return true
-	}
-	if len(compat.Include) > 0 && !slices.Contains(compat.Include, checkName) {
-		return false
-	}
-	if slices.Contains(compat.Exclude, checkName) {
-		return false
-	}
-	return true
-}
-
-// placementCandidates returns the sorted live workers eligible for a check; empty means the config dangles.
-func (d *dispatcher) placementCandidates(checkName string) []string {
+func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyNode bool) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	return d.candidatesFromStore(checkName)
+	if d.advancedDispatching.Load() {
+		node = d.getRandomNode(checkName)
+	} else {
+		node = d.getNodeWithLessChecks(checkName)
+	}
+	return node, len(d.store.nodes) > 0
 }
 
-// candidatesFromStore must be called with the store read-locked (or locked).
-func (d *dispatcher) candidatesFromStore(checkName string) []string {
-	var candidates []string
-
+// eligibleNodes returns the sorted nodes accepting a check. The store must be read-locked.
+func (d *dispatcher) eligibleNodes(checkName string) []string {
+	var nodes []string
 	for name, node := range d.store.nodes {
-		node.RLock()
-		compat := node.checkCompat
-		node.RUnlock()
-
-		if isEligible(compat, checkName) {
-			candidates = append(candidates, name)
+		if node.checkCompat.Accepts(checkName) {
+			nodes = append(nodes, name)
 		}
 	}
-
-	sort.Strings(candidates)
-	return candidates
+	sort.Strings(nodes)
+	return nodes
 }
 
+// getRandomNode must be called with the store read-locked.
 func (d *dispatcher) getRandomNode(checkName string) string {
-	candidates := d.placementCandidates(checkName)
-	if len(candidates) == 0 {
+	nodes := d.eligibleNodes(checkName)
+	if len(nodes) == 0 {
 		return ""
 	}
 
-	return candidates[rand.Intn(len(candidates))]
+	return nodes[rand.Intn(len(nodes))]
 }
 
+// getNodeWithLessChecks must be called with the store read-locked.
 func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
-	candidates := d.placementCandidates(checkName)
-	if len(candidates) == 0 {
-		return ""
-	}
-
-	d.store.RLock()
-	defer d.store.RUnlock()
-
 	var selectedNode string
 	minNumChecks := 0
 
-	for _, name := range candidates {
-		store, found := d.store.nodes[name]
-		if !found {
+	for name, store := range d.store.nodes {
+		if !store.checkCompat.Accepts(checkName) {
 			continue
 		}
 		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
@@ -191,10 +159,7 @@ func (d *dispatcher) anyCompatDeclared() bool {
 	defer d.store.RUnlock()
 
 	for _, node := range d.store.nodes {
-		node.RLock()
-		compat := node.checkCompat
-		node.RUnlock()
-		if compat != nil {
+		if node.checkCompat != nil {
 			return true
 		}
 	}

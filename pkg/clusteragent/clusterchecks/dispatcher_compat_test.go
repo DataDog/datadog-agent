@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,12 +30,7 @@ func kubeCompat() *types.CheckCompatibility {
 // compatibility via the status POST path, the way real workers do.
 func registerWorker(t *testing.T, d *dispatcher, name, ip string, nodeType types.NodeType, compat *types.CheckCompatibility) {
 	t.Helper()
-	status := types.NodeStatus{
-		LastChange:         0,
-		NodeType:           nodeType,
-		CheckCompatibility: compat,
-	}
-	d.processNodeStatus(name, ip, status)
+	d.processNodeStatus(name, ip, types.NodeStatus{NodeType: nodeType, CheckCompatibility: compat})
 }
 
 func TestProcessNodeStatusStoresCheckCompatibility(t *testing.T) {
@@ -61,74 +57,47 @@ func TestProcessNodeStatusStoresCheckCompatibility(t *testing.T) {
 	assert.Equal(t, []string{"kubernetes_state_core", "orchestrator"}, runner.checkCompat.Include)
 }
 
-func TestPlacementCandidates(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	dispatcher := newDispatcher(fakeTagger)
+func TestEligibleNodes(t *testing.T) {
+	kubeExclude := &types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}}
+	type worker struct {
+		name   string
+		compat *types.CheckCompatibility
+	}
+	tests := []struct {
+		name     string
+		workers  []worker
+		check    string
+		expected []string
+	}{
+		{"claimed check goes to its group only", []worker{{"runner1", kubeCompat()}, {"agent1", kubeExclude}}, "kubernetes_state_core", []string{"runner1"}},
+		{"unclaimed check skips the group", []worker{{"runner1", kubeCompat()}, {"agent1", kubeExclude}}, "http_check", []string{"agent1"}},
+		{"group down: claimed check dangles", []worker{{"agent1", kubeExclude}}, "kubernetes_state_core", nil},
+		{"legacy worker is unrestricted", []worker{{"agent1", kubeExclude}, {"legacy", nil}}, "kubernetes_state_core", []string{"legacy"}},
+		{"results are sorted", []worker{{"b", nil}, {"a", nil}}, "http_check", []string{"a", "b"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dispatcher := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+			for i, w := range tt.workers {
+				registerWorker(t, dispatcher, w.name, fmt.Sprintf("10.0.0.%d", i+1), types.NodeTypeCLCRunner, w.compat)
+			}
+			// Load on the first worker must not attract an ineligible check.
+			dispatcher.addConfig(generateIntegration("other"), tt.workers[0].name)
 
-	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, kubeCompat())
-	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent,
-		&types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}})
+			dispatcher.store.RLock()
+			assert.Equal(t, tt.expected, dispatcher.eligibleNodes(tt.check))
+			dispatcher.store.RUnlock()
 
-	// Claimed check: only the group runner admits it. The node agent declared
-	// the group exclude union (the operator's strict-isolation setup).
-	assert.Equal(t, []string{"runner1"}, dispatcher.placementCandidates("kubernetes_state_core"))
-
-	// Unclaimed check: the node agent is eligible (only group checks excluded).
-	assert.Equal(t, []string{"agent1"}, dispatcher.placementCandidates("http_check"))
-
-	// Group down: no eligible worker remains, the config dangles (strict).
-	dispatcher.store.Lock()
-	delete(dispatcher.store.nodes, "runner1")
-	dispatcher.store.Unlock()
-	assert.Empty(t, dispatcher.placementCandidates("kubernetes_state_core"))
-	// ...but unclaimed checks still have the node agent.
-	assert.Equal(t, []string{"agent1"}, dispatcher.placementCandidates("http_check"))
-
-	// A legacy node agent (no compat declared) is eligible for everything:
-	// eligibility is the only rule, strict isolation comes from the
-	// operator-propagated declarations, not from the dispatcher.
-	registerWorker(t, dispatcher, "legacy-agent", "10.0.0.3", types.NodeTypeNodeAgent, nil)
-	assert.Equal(t, []string{"legacy-agent"}, dispatcher.placementCandidates("kubernetes_state_core"))
-
-	// Runner-only pool where the sole runner refuses the claimed check
-	// (exclude union, the operator's default CCR setup): no eligible worker at all.
-	dispatcher.store.Lock()
-	delete(dispatcher.store.nodes, "agent1")
-	delete(dispatcher.store.nodes, "legacy-agent")
-	dispatcher.store.nodes["default-runner"] = newNodeStore("default-runner", "10.0.0.4")
-	dispatcher.store.Unlock()
-	registerWorker(t, dispatcher, "default-runner", "10.0.0.4", types.NodeTypeCLCRunner,
-		&types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}})
-	assert.Empty(t, dispatcher.placementCandidates("kubernetes_state_core"))
-	// ...but the default runner is eligible for unclaimed checks.
-	assert.Equal(t, []string{"default-runner"}, dispatcher.placementCandidates("http_check"))
-
-	requireNotLocked(t, dispatcher.store)
-}
-
-func TestGetNodeWithLessChecksRespectsEligibility(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	dispatcher := newDispatcher(fakeTagger)
-
-	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, kubeCompat())
-	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent,
-		&types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}})
-
-	// Claimed check: only the group runner is eligible, the node agent's
-	// check count is irrelevant.
-	dispatcher.addConfig(generateIntegration("http_check"), "agent1")
-	assert.Equal(t, "runner1", dispatcher.getNodeWithLessChecks("kubernetes_state_core"))
-
-	// Unclaimed check: the node agent is the only eligible worker.
-	assert.Equal(t, "agent1", dispatcher.getNodeWithLessChecks("http_check"))
-
-	// Group down: no eligible worker -> empty string, the config dangles.
-	dispatcher.store.Lock()
-	delete(dispatcher.store.nodes, "runner1")
-	dispatcher.store.Unlock()
-	assert.Equal(t, "", dispatcher.getNodeWithLessChecks("kubernetes_state_core"))
-
-	requireNotLocked(t, dispatcher.store)
+			node, anyNode := dispatcher.getNodeToScheduleCheck(tt.check)
+			assert.True(t, anyNode)
+			if len(tt.expected) == 0 {
+				assert.Empty(t, node)
+			} else {
+				assert.Contains(t, tt.expected, node)
+			}
+			requireNotLocked(t, dispatcher.store)
+		})
+	}
 }
 
 func TestAddWithNoEligibleWorkerDangles(t *testing.T) {
@@ -161,21 +130,6 @@ func TestAddWithNoEligibleWorkerDangles(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-func TestAnyCompatDeclared(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	dispatcher := newDispatcher(fakeTagger)
-
-	assert.False(t, dispatcher.anyCompatDeclared())
-
-	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent, nil)
-	assert.False(t, dispatcher.anyCompatDeclared())
-
-	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, kubeCompat())
-	assert.True(t, dispatcher.anyCompatDeclared())
-
-	requireNotLocked(t, dispatcher.store)
-}
-
 func TestUseUtilizationRebalance(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
@@ -183,6 +137,8 @@ func TestUseUtilizationRebalance(t *testing.T) {
 	// No compat declared anywhere: the configured algorithm applies (pure
 	// additive behavior preserved).
 	configmock.New(t).SetInTest("cluster_checks.rebalance_with_utilization", false)
+	assert.False(t, dispatcher.useUtilizationRebalance())
+	registerWorker(t, dispatcher, "agent1", "10.0.0.2", types.NodeTypeNodeAgent, nil)
 	assert.False(t, dispatcher.useUtilizationRebalance())
 
 	// A runner group declares compatibility: the busyness algorithm is not

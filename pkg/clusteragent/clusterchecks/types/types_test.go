@@ -67,3 +67,25 @@ func TestNodeStatusCheckCompatibilityRoundTrip(t *testing.T) {
 	assert.Empty(t, decodedEmpty.CheckCompatibility.Include)
 	assert.Empty(t, decodedEmpty.CheckCompatibility.Exclude)
 }
+
+func TestCheckCompatibilityAccepts(t *testing.T) {
+	tests := []struct {
+		name   string
+		compat *CheckCompatibility
+		check  string
+		want   bool
+	}{
+		{"nil is unrestricted", nil, "any", true},
+		{"empty is unrestricted", &CheckCompatibility{}, "any", true},
+		{"included", &CheckCompatibility{Include: []string{"a"}}, "a", true},
+		{"not included", &CheckCompatibility{Include: []string{"a"}}, "b", false},
+		{"excluded", &CheckCompatibility{Exclude: []string{"a"}}, "a", false},
+		{"not excluded", &CheckCompatibility{Exclude: []string{"a"}}, "b", true},
+		{"exclude wins over include", &CheckCompatibility{Include: []string{"a"}, Exclude: []string{"a"}}, "a", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.compat.Accepts(tt.check))
+		})
+	}
+}

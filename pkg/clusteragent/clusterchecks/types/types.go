@@ -8,6 +8,8 @@
 package types
 
 import (
+	"slices"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
@@ -34,6 +36,14 @@ const (
 type CheckCompatibility struct {
 	Include []string `json:"include,omitempty"`
 	Exclude []string `json:"exclude,omitempty"`
+}
+
+// Accepts reports whether a worker with this compatibility may run the given check (nil = unrestricted).
+func (c *CheckCompatibility) Accepts(checkName string) bool {
+	if c == nil {
+		return true
+	}
+	return (len(c.Include) == 0 || slices.Contains(c.Include, checkName)) && !slices.Contains(c.Exclude, checkName)
 }
 
 // NodeStatus holds the status report from the node-agent

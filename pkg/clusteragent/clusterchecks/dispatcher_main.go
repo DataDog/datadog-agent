@@ -269,16 +269,11 @@ func (d *dispatcher) reschedule(configs []integration.Config) []string {
 
 // add stores and delegates a given configuration
 func (d *dispatcher) add(config integration.Config) bool {
-	target := d.getNodeToScheduleCheck(config.Name)
+	target, anyNode := d.getNodeToScheduleCheck(config.Name)
 	if target == "" {
-		d.store.RLock()
-		nodeCount := len(d.store.nodes)
-		d.store.RUnlock()
-		if nodeCount > 0 {
-			log.Warnf("No eligible node to dispatch %s:%s on (%d workers reporting), will retry later", config.Name, config.Digest(), nodeCount)
+		log.Warnf("No eligible node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
+		if anyNode {
 			configsNoEligibleWorker.Inc(le.JoinLeaderValue)
-		} else {
-			log.Warnf("No available node to dispatch %s:%s on, will retry later", config.Name, config.Digest())
 		}
 	} else {
 		log.Infof("Dispatching configuration %s:%s to node %s", config.Name, config.Digest(), target)

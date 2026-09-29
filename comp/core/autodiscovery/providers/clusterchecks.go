@@ -43,9 +43,8 @@ type ClusterChecksConfigProvider struct {
 	identifier       string
 	flushedConfigs   bool
 	nodeType         types.NodeType
-	// checkCompat holds this worker's advertised check compatibility, derived
-	// from the clc_runner_checks_include/exclude configuration (the
-	// experimental.* spelling takes precedence). nil means unrestricted.
+	// checkCompat is this worker's advertised check compatibility, from the
+	// experimental.clc_runner_checks_* keys. nil means unrestricted.
 	checkCompat *types.CheckCompatibility
 }
 
@@ -128,15 +127,6 @@ func (c *ClusterChecksConfigProvider) withinDegradedModePeriod() bool {
 	return withinDegradedModePeriod(c.heartbeat.Load(), c.degradedDuration)
 }
 
-// newNodeStatus builds the NodeStatus sent with every status POST.
-func (c *ClusterChecksConfigProvider) newNodeStatus(lastChange int64) types.NodeStatus {
-	return types.NodeStatus{
-		LastChange:         lastChange,
-		NodeType:           c.nodeType,
-		CheckCompatibility: c.checkCompat,
-	}
-}
-
 // checkCompatibilityFromConfig derives the advertised compat from the experimental.clc_runner_checks_* keys (DD_EXPERIMENTAL_* env, space-separated). Both empty means unrestricted (nil).
 func checkCompatibilityFromConfig(config pkgconfigmodel.Reader) *types.CheckCompatibility {
 	include := config.GetStringSlice("experimental.clc_runner_checks_include")
@@ -162,7 +152,11 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 		}
 	}
 
-	status := c.newNodeStatus(c.lastChange)
+	status := types.NodeStatus{
+		LastChange:         c.lastChange,
+		NodeType:           c.nodeType,
+		CheckCompatibility: c.checkCompat,
+	}
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
 	if err != nil {
@@ -258,7 +252,11 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 		return errors.New("DCA Client not initialized by main provider yet, cannot post heartbeat, wait for init completion")
 	}
 
-	status := c.newNodeStatus(types.ExtraHeartbeatLastChangeValue)
+	status := types.NodeStatus{
+		LastChange:         types.ExtraHeartbeatLastChangeValue,
+		NodeType:           c.nodeType,
+		CheckCompatibility: c.checkCompat,
+	}
 
 	_, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
 	return err
