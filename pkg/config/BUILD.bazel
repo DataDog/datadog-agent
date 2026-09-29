@@ -20,7 +20,7 @@ schema_template_config(
     name = "agent_config",
     srcs = ["//pkg/config/schema:core_schema_subfiles"],
     out = "datadog.yaml",
-    build_type = "agent-py3",
+    build_type = "datadog-agent",
     os_target = _OS_TARGET,
     top_schema = "//pkg/config/schema:yaml/core_schema.yaml",
 )
@@ -55,3 +55,14 @@ schema_template_config(
 
 # TODO: Add targets for each package, as needed: dca, dcacf.
 # That would get easier if we auto-pick the schema based on the build type.
+
+# Static example configs, checked in rather than schema-rendered.
+filegroup(
+    name = "security_agent_example_config_src",
+    srcs = ["example/security-agent.yaml.example"],
+)
+
+filegroup(
+    name = "application_monitoring_example_config_src",
+    srcs = ["example/application_monitoring.yaml.example"],
+)

@@ -89,7 +89,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
-func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
+func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64, _ pkgconfigmodel.Source) {
 	// Only update if the changed setting affects failover configuration
 	var MRFConfigFields = []string{configMRFFailoverLogs, configMRFServiceAllowlist}
 	if slices.Contains(MRFConfigFields, setting) {

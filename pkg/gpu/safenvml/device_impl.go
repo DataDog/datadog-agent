@@ -7,12 +7,16 @@
 
 package safenvml
 
-import "github.com/NVIDIA/go-nvml/pkg/nvml"
+import (
+	"strings"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+)
 
 // safeDeviceImpl implements the SafeDevice interface
 type safeDeviceImpl struct {
 	nvmlDevice nvml.Device
-	lib        symbolLookup
+	lib        nvmlSafety
 }
 
 func (d *safeDeviceImpl) GetArchitecture() (nvml.DeviceArchitecture, error) {
@@ -109,6 +113,10 @@ func (d *safeDeviceImpl) GetFieldValues(values []nvml.FieldValue) error {
 	if err := d.lib.lookup(toNativeName("GetFieldValues")); err != nil {
 		return err
 	}
+
+	d.lib.fieldValuesLock()
+	defer d.lib.fieldValuesUnlock()
+
 	ret := d.nvmlDevice.GetFieldValues(values)
 	return NewNvmlAPIErrorOrNil("GetFieldValues", ret)
 }
@@ -131,6 +139,15 @@ func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
 	return id, NewNvmlAPIErrorOrNil("GetGpuInstanceId", ret)
 }
 
+//nolint:revive // Maintaining consistency with go-nvml API naming
+func (d *safeDeviceImpl) GetComputeInstanceId() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetComputeInstanceId")); err != nil {
+		return 0, err
+	}
+	id, ret := d.nvmlDevice.GetComputeInstanceId()
+	return id, NewNvmlAPIErrorOrNil("GetComputeInstanceId", ret)
+}
+
 func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error) {
 	if err := d.lib.lookup(toNativeName("GetGpuInstanceProfileInfo")); err != nil {
 		return nvml.GpuInstanceProfileInfo{}, err
@@ -139,12 +156,99 @@ func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanc
 	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
 }
 
+// GetMIGInstanceProfileName resolves the canonical MIG profile name (e.g.
+// "1g.35gb") of the GPU instance with the given ID, by walking the
+// device -> GPU instance -> profile id -> versioned profile info chain. The
+// profile name is taken verbatim from the driver: deriving it from geometry
+// would conflate the media-extension (+me) profiles, which share slice count
+// and memory size with their plain counterparts.
+func (d *safeDeviceImpl) GetMIGInstanceProfileName(gpuInstanceID int) (string, error) {
+	return d.getMIGInstanceProfileName(gpuInstanceID, func(profileID int) (nvml.GpuInstanceProfileInfo_v2, nvml.Return) {
+		// The v1 struct carries geometry only; names require v2 or later.
+		return d.nvmlDevice.GetGpuInstanceProfileInfoByIdV(profileID).V2()
+	})
+}
+
+// getMIGInstanceProfileName isolates the versioned NVML call, whose concrete
+// handler cannot be mocked, so the lookup chain can be tested without hardware.
+func (d *safeDeviceImpl) getMIGInstanceProfileName(gpuInstanceID int, getProfileInfo func(int) (nvml.GpuInstanceProfileInfo_v2, nvml.Return)) (string, error) {
+	for _, symbol := range []string{
+		toNativeName("GetGpuInstanceById"),
+		"nvmlGpuInstanceGetInfo",
+		toNativeName("GetGpuInstanceProfileInfoByIdV"),
+	} {
+		if err := d.lib.lookup(symbol); err != nil {
+			return "", err
+		}
+	}
+
+	gpuInstance, ret := d.nvmlDevice.GetGpuInstanceById(gpuInstanceID)
+	if err := NewNvmlAPIErrorOrNil("GetGpuInstanceById", ret); err != nil {
+		return "", err
+	}
+
+	instanceInfo, ret := gpuInstance.GetInfo()
+	if err := NewNvmlAPIErrorOrNil("GpuInstanceGetInfo", ret); err != nil {
+		return "", err
+	}
+
+	profileInfo, ret := getProfileInfo(int(instanceInfo.ProfileId))
+	if err := NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfoByIdV", ret); err != nil {
+		return "", err
+	}
+
+	// The driver reports the profile name with a "MIG" prefix (e.g.
+	// "MIG 1g.35gb"); strip it so the value matches the canonical profile
+	// name as it appears in device names and ResourceSlices.
+	return normalizeMIGProfileName(fixedSizeString(profileInfo.Name[:])), nil
+}
+
+// normalizeMIGProfileName strips the driver's "MIG" prefix from a profile
+// name, e.g. "MIG 1g.35gb" -> "1g.35gb". Names without the prefix pass
+// through unchanged.
+func normalizeMIGProfileName(name string) string {
+	name = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(name), "MIG"))
+	return strings.TrimSpace(name)
+}
+
+// fixedSizeString converts a fixed-size, NUL-terminated char array as used by
+// versioned NVML info structs into a Go string.
+func fixedSizeString(chars []int8) string {
+	var b strings.Builder
+	for _, c := range chars {
+		if c == 0 {
+			break
+		}
+		b.WriteByte(byte(c))
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (d *safeDeviceImpl) GetGpuFabricInfo() (nvml.GpuFabricInfo_v2, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuFabricInfoV")); err != nil {
+		return nvml.GpuFabricInfo_v2{}, err
+	}
+	info, ret := d.nvmlDevice.GetGpuFabricInfoV().V2()
+	if err := NewNvmlAPIErrorOrNil("GetGpuFabricInfoV", ret); err != nil {
+		return nvml.GpuFabricInfo_v2{}, err
+	}
+	return info, nil
+}
+
 func (d *safeDeviceImpl) GetIndex() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
 		return 0, err
 	}
 	index, ret := d.nvmlDevice.GetIndex()
 	return index, NewNvmlAPIErrorOrNil("GetIndex", ret)
+}
+
+func (d *safeDeviceImpl) GetMinorNumber() (int, error) {
+	if err := d.lib.lookup(toNativeName("GetMinorNumber")); err != nil {
+		return 0, err
+	}
+	minor, ret := d.nvmlDevice.GetMinorNumber()
+	return minor, NewNvmlAPIErrorOrNil("GetMinorNumber", ret)
 }
 
 func (d *safeDeviceImpl) GetMaxClockInfo(clockType nvml.ClockType) (uint32, error) {
@@ -242,6 +346,22 @@ func (d *safeDeviceImpl) GetNvLinkState(link int) (nvml.EnableState, error) {
 	}
 	state, ret := d.nvmlDevice.GetNvLinkState(link)
 	return state, NewNvmlAPIErrorOrNil("GetNvLinkState", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkVersion(link int) (int, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkVersion")); err != nil {
+		return 0, err
+	}
+	version, ret := d.nvmlDevice.GetNvLinkVersion(link)
+	return int(version), NewNvmlAPIErrorOrNil("GetNvLinkVersion", ret)
+}
+
+func (d *safeDeviceImpl) GetNvLinkErrorCounter(link int, counter nvml.NvLinkErrorCounter) (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetNvLinkErrorCounter")); err != nil {
+		return 0, err
+	}
+	value, ret := d.nvmlDevice.GetNvLinkErrorCounter(link, counter)
+	return value, NewNvmlAPIErrorOrNil("GetNvLinkErrorCounter", ret)
 }
 
 func (d *safeDeviceImpl) GetPciInfo() (nvml.PciInfo, error) {
@@ -393,6 +513,8 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	if err := d.lib.lookup("nvmlGpmSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmSampleGet(sample)
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
@@ -401,6 +523,8 @@ func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSampl
 	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
 		return err
 	}
+	d.lib.gpmLock()
+	defer d.lib.gpmUnlock()
 	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
 	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
 }

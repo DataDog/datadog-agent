@@ -34,7 +34,6 @@ import (
 	orchestratormock "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/mock"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -70,6 +69,60 @@ func testDemuxSamples(_ *testing.T) metrics.MetricSampleBatch {
 		},
 	}
 	return batch
+}
+
+type recordingFinalSerieFlushObserver struct {
+	series                  []string
+	seriesCountAtCompletion []int
+}
+
+func (o *recordingFinalSerieFlushObserver) ObserveFinalDogStatsDSerie(serie *metrics.Serie) {
+	o.series = append(o.series, serie.Name)
+}
+
+func (o *recordingFinalSerieFlushObserver) CompleteFinalDogStatsDSerieFlush() {
+	o.seriesCountAtCompletion = append(o.seriesCountAtCompletion, len(o.series))
+}
+
+func TestFinalDogStatsDSerieObserverCompletesAfterAllWorkers(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("dogstatsd_pipeline_autoadjust", false)
+	mockConfig.SetInTest("dogstatsd_pipeline_count", 2)
+
+	observer := &recordingFinalSerieFlushObserver{}
+	opts := demuxTestOptions()
+	opts.FinalDogStatsDSerieObservers = []FinalDogStatsDSerieObserver{observer}
+	opts.FinalDogStatsDSerieFlushListener = observer
+	deps := createDemuxDeps(t, opts, eventplatform.NewDefaultParams())
+	demux := deps.Demultiplexer
+	t.Cleanup(demux.Stop)
+	require.Len(t, demux.statsd.workers, 2)
+
+	serializer := &MockSerializerIterableSerie{}
+	serializer.On("AreSeriesEnabled").Return(true)
+	serializer.On("AreSketchesEnabled").Return(true)
+	serializer.On("SendServiceChecks", mock.Anything).Return(nil)
+	demux.aggregator.serializer = serializer
+	demux.sharedSerializer = serializer
+
+	start := time.Now()
+	for worker := range demux.statsd.workers {
+		demux.AggregateSamples(TimeSamplerID(worker), metrics.MetricSampleBatch{{
+			Name:      fmt.Sprintf("worker.%d.metric", worker),
+			Value:     1,
+			Mtype:     metrics.GaugeType,
+			Timestamp: float64(start.Unix()),
+		}})
+	}
+	for _, worker := range demux.statsd.workers {
+		worker.waitForPendingSamples()
+	}
+
+	demux.ForceFlushToSerializer(start.Add(30*time.Second), true, false)
+
+	require.Contains(t, observer.series, "worker.0.metric")
+	require.Contains(t, observer.series, "worker.1.metric")
+	require.Equal(t, []int{len(observer.series)}, observer.seriesCountAtCompletion)
 }
 
 // the option is NOT enabled, this metric should go into the first
@@ -170,7 +223,6 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
-		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
 	)
@@ -435,7 +487,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.statsd.workers[0].samplesChan) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
+		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true, false)
 
 		metric := slices.IndexFunc(s.sketches, func(serie metrics.Distribution) bool {
 			return serie.GetName() == "dist.metric"
@@ -563,7 +615,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.aggregator.checkItems) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Now(), true)
+		demux.ForceFlushToSerializer(time.Now(), true, false)
 	}
 
 	// First send: tag1 and tag2 are excluded. This is a cache miss so the
@@ -644,7 +696,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.statsd.workers[0].samplesChan) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
+		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true, false)
 
 		// We should always contain the average of the histogram.
 		require.Equal(blockCount, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
@@ -711,7 +763,6 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		hostnameimpl.MockModule(),
 		orchestratormock.MockModule(),
 		eventplatformmock.MockModule(),
-		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),
 		filterlistmock.MockModule(),

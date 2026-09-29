@@ -15,12 +15,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // sumRangeStorage is a minimal StorageReader that answers SumRange calls via a
 // user-supplied function and panics on all other methods (they are unused here).
 type sumRangeStorage struct {
-	fn func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	fn       func(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64
+	metas    map[observerdef.SeriesRef]observerdef.SeriesMeta
+	contexts map[observerdef.SeriesRef]*observerdef.MetricContext
 }
 
 func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) float64 {
@@ -29,13 +32,116 @@ func (s *sumRangeStorage) SumRange(handle observerdef.SeriesRef, start, end int6
 func (s *sumRangeStorage) ListSeries(_ observerdef.SeriesFilter) []observerdef.SeriesMeta {
 	panic("not implemented")
 }
+func (s *sumRangeStorage) GetSeriesMeta(ref observerdef.SeriesRef) *observerdef.SeriesMeta {
+	meta, ok := s.metas[ref]
+	if !ok {
+		return nil
+	}
+	return &meta
+}
+func (s *sumRangeStorage) GetContext(ref observerdef.SeriesRef) (observerdef.MetricContext, bool) {
+	context := s.contexts[ref]
+	if context == nil {
+		return observerdef.MetricContext{}, false
+	}
+	return *context, true
+}
+
+func TestFormatScorerContributorMessage(t *testing.T) {
+	storage := &sumRangeStorage{metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
+		42: {Ref: 42, Namespace: "dogstatsd", Name: "system.cpu.user", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"})},
+		7:  {Ref: 7, Namespace: "dogstatsd", Name: "nginx.requests", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
+	}}
+
+	message := formatScorerContributorMessage([]observerdef.ScorerContributor{
+		{Handle: observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateAverage}, Weight: 4.2, Share: 0.42},
+		{Handle: observerdef.QueryHandle{Ref: 99, Aggregate: observerdef.AggregateSum}, Weight: 3.3, Share: 0.33}, // evicted
+		{Handle: observerdef.QueryHandle{Ref: 7, Aggregate: observerdef.AggregateCount}, Weight: 2.5, Share: 0.25},
+	}, storage)
+
+	assert.Equal(t, "Top contributions:\n1. 42% — system.cpu.user:avg{host:web-1,env:prod}\n2. 25% — nginx.requests:count{service:api}", message)
+	assert.NotContains(t, message, "4.2")
+	assert.NotContains(t, message, "weight")
+}
+
+func TestFormatScorerContributorMessageUsesLogDerivedDisplay(t *testing.T) {
+	storage := &sumRangeStorage{
+		metas: map[observerdef.SeriesRef]observerdef.SeriesMeta{
+			42: {Ref: 42, Namespace: logMetricsExtractorNamespace, Name: "log.pattern.abc.count", Host: "web-1", Tags: tagset.CompositeTagsFromSlice([]string{"service:api"})},
+			43: {Ref: 43, Namespace: logPatternExtractorNamespace, Name: "log.pattern.def.rate", Tags: tagset.CompositeTagsFromSlice([]string{"env:prod"})},
+		},
+		contexts: map[observerdef.SeriesRef]*observerdef.MetricContext{
+			42: {Pattern: "C3:C8_C1", Example: "ERROR: connection refused to db.prod:5432"},
+			43: {Pattern: "GET /checkout <*> returned 500"},
+		},
+	}
+
+	message := formatScorerContributorMessage([]observerdef.ScorerContributor{
+		{Handle: observerdef.QueryHandle{Ref: 42, Aggregate: observerdef.AggregateCount}, Share: 0.75},
+		{Handle: observerdef.QueryHandle{Ref: 43, Aggregate: observerdef.AggregateSum}, Share: 0.25},
+	}, storage)
+
+	assert.Contains(t, message, "1. 75% — log: ERROR: connection refused to db.prod:5432 — {host:web-1,service:api}")
+	assert.Contains(t, message, "2. 25% — log: GET /checkout <*> returned 500 — {env:prod}")
+	assert.NotContains(t, message, "log.pattern.abc.count")
+	assert.NotContains(t, message, "log.pattern.def.rate")
+}
+
+func TestScorerContributorDisplayNameUsesBothCompositeTagSegments(t *testing.T) {
+	meta := &observerdef.SeriesMeta{
+		Namespace: logMetricsExtractorNamespace,
+		Host:      "web-1",
+		Tags:      tagset.NewCompositeTags([]string{"service:api"}, []string{"env:prod"}),
+	}
+
+	assert.Equal(t,
+		"log: ERROR <*> — {host:web-1,service:api,env:prod}",
+		scorerContributorDisplayName(meta, &observerdef.MetricContext{Example: "ERROR <*>"}, observerdef.AggregateCount),
+	)
+}
+
+func TestFormatScorerEpisodeMessageFallsBackWithoutContributors(t *testing.T) {
+	event := observerdef.CorrelatorEvent{
+		CorrelatorName: "anomaly_scorer",
+		Timestamp:      1234,
+		Correlation:    observerdef.ActiveCorrelation{Pattern: "anomaly_scorer_high:1234"},
+	}
+
+	message := formatScorerEpisodeMessage(event, nil, "ended")
+
+	assert.Equal(t, "Anomaly scorer \"anomaly_scorer\" episode ended at t=1234\nPattern: anomaly_scorer_high:1234", message)
+}
+
+func TestFormatScorerContributorMessageTruncatesAndCountsOmittedItems(t *testing.T) {
+	metas := make(map[observerdef.SeriesRef]observerdef.SeriesMeta, 200)
+	contributors := make([]observerdef.ScorerContributor, 200)
+	for i := range contributors {
+		ref := observerdef.SeriesRef(i + 1)
+		metas[ref] = observerdef.SeriesMeta{
+			Ref:  ref,
+			Name: fmt.Sprintf("metric.%d", i),
+			Tags: tagset.CompositeTagsFromSlice([]string{strings.Repeat("tag:value,", 100)}),
+		}
+		contributors[i] = observerdef.ScorerContributor{
+			Handle: observerdef.QueryHandle{Ref: ref, Aggregate: observerdef.AggregateAverage},
+			Share:  1.0 / float64(len(contributors)),
+		}
+	}
+
+	message := formatScorerContributorMessage(contributors, &sumRangeStorage{metas: metas})
+	assert.LessOrEqual(t, len(message), changeEventMessageMaxLen)
+	assert.True(t, utf8.ValidString(message))
+	tags, _ := metas[1].Tags.UnsafeGet()
+	assert.Contains(t, message, tags[0])
+	assert.Contains(t, message, "metric.3:avg{...}")
+	assert.Contains(t, message, "other anomalies")
+}
 func (s *sumRangeStorage) GetSeriesRange(_ observerdef.SeriesRef, _, _ int64, _ observerdef.Aggregate) *observerdef.Series {
 	panic("not implemented")
 }
 func (s *sumRangeStorage) ForEachPoint(_ observerdef.SeriesRef, _, _ int64, _ observerdef.Aggregate, _ func(*observerdef.Series, observerdef.Point)) bool {
 	panic("not implemented")
 }
-func (s *sumRangeStorage) PointCount(_ observerdef.SeriesRef) int { panic("not implemented") }
 func (s *sumRangeStorage) PointCountUpTo(_ observerdef.SeriesRef, _ int64) int {
 	panic("not implemented")
 }
@@ -208,7 +314,7 @@ func TestBuildEventTags_DimensionalTagsFromSourceTags(t *testing.T) {
 				Type: observerdef.AnomalyTypeMetric,
 				Source: observerdef.SeriesDescriptor{
 					Namespace: "dogstatsd",
-					Tags:      []string{"service:web", "env:prod", "host:h1", "version:1.0"},
+					Tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod", "host:h1", "version:1.0"}),
 				},
 			},
 		},
@@ -218,6 +324,25 @@ func TestBuildEventTags_DimensionalTagsFromSourceTags(t *testing.T) {
 	assert.Contains(t, tags, "env:prod")
 	assert.Contains(t, tags, "host:h1")
 	assert.NotContains(t, tags, "version:1.0") // non-dimensional tags not propagated
+}
+
+func TestBuildEventTags_DimensionalHostFromSource(t *testing.T) {
+	c := observerdef.ActiveCorrelation{
+		Pattern: "p",
+		Anomalies: []observerdef.Anomaly{
+			{
+				Type: observerdef.AnomalyTypeMetric,
+				Source: observerdef.SeriesDescriptor{
+					Namespace: "dogstatsd",
+					Host:      "web-1",
+					Tags:      tagset.CompositeTagsFromSlice([]string{"service:web", "env:prod"}),
+				},
+			},
+		},
+	}
+
+	tags := BuildEventTags(c)
+	assert.Contains(t, tags, "host:web-1")
 }
 
 func TestBuildEventTags_DimensionalTagsFromSplitTags(t *testing.T) {
@@ -251,11 +376,11 @@ func TestBuildEventTags_DeduplicatesDimensions(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: []string{"service:web"}},
+				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: tagset.CompositeTagsFromSlice([]string{"service:web"})},
 			},
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: []string{"service:web"}},
+				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: tagset.CompositeTagsFromSlice([]string{"service:web"})},
 			},
 		},
 	}
@@ -275,7 +400,7 @@ func TestBuildEventTags_SourceAndPatternAreFirstTwo(t *testing.T) {
 		Anomalies: []observerdef.Anomaly{
 			{
 				Type:   observerdef.AnomalyTypeMetric,
-				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: []string{"service:svc"}},
+				Source: observerdef.SeriesDescriptor{Namespace: "ns", Tags: tagset.CompositeTagsFromSlice([]string{"service:svc"})},
 			},
 		},
 	}

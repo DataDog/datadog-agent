@@ -6,10 +6,19 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/debugging",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/network/protocols/postgres",
-        "//pkg/process/util",
-        "//pkg/util/log",
-        "@com_github_datadog_sketches_go//ddsketch",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/protocols/postgres",
+            "//pkg/process/util",
+            "//pkg/util/log",
+            "@com_github_datadog_sketches_go//ddsketch",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/protocols/postgres",
+            "//pkg/process/util",
+            "//pkg/util/log",
+            "@com_github_datadog_sketches_go//ddsketch",
+        ],
+        "//conditions:default": [],
+    }),
 )

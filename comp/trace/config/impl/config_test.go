@@ -20,15 +20,17 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
 	"time"
 
+	"github.com/bazelbuild/rules_go/go/runfiles"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -284,7 +286,7 @@ func TestConfigHostname(t *testing.T) {
 	t.Run("fail", func(t *testing.T) {
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 
 		fallbackHostnameFunc = func() (string, error) {
 			return "", errors.New("could not get hostname")
@@ -327,7 +329,7 @@ func TestConfigHostname(t *testing.T) {
 
 		coreConfig := configcomp.NewMockFromYAMLFile(t, "./testdata/site_override.yaml")
 		coreConfig.SetInTest("apm_config.dd_agent_bin", "/not/exist")
-		coreConfig.SetInTest("cmd_port", "-1")
+		coreConfig.SetInTest("cmd_port", -1)
 		config := buildComponent(t, false, coreConfig)
 
 		cfg := config.Object()
@@ -382,6 +384,25 @@ func TestConfigHostname(t *testing.T) {
 		// makeProgram creates a new binary file which returns the given response and exits to the OS
 		// given the specified code, returning the path of the program.
 		makeProgram := func(t *testing.T, response string, code int) string {
+			if loc := os.Getenv("HOSTNAME_HELPER"); loc != "" {
+				t.Setenv("DD_TEST_HOSTNAME_RESPONSE", response)
+				t.Setenv("DD_TEST_HOSTNAME_EXIT", strconv.Itoa(code))
+				src, err := runfiles.Rlocation(loc)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Copy out of runfiles: Windows file junctions cannot be exec'd, and
+				// callers os.Remove the returned path.
+				dst := filepath.Join(t.TempDir(), filepath.Base(src))
+				data, err := os.ReadFile(src)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(dst, data, 0700); err != nil {
+					t.Fatal(err)
+				}
+				return dst
+			}
 			f, err := os.CreateTemp("", "trace-test-hostname.*.go")
 			if err != nil {
 				t.Fatal(err)
@@ -522,6 +543,219 @@ func TestSite(t *testing.T) {
 	}
 }
 
+func TestProfilingURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://intake.profile.datadoghq.com./api/v2/profile",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://intake.profile.datadoghq.eu./api/v2/profile",
+		},
+		{
+			name: "FQDN conversion disabled",
+			settings: map[string]interface{}{
+				"site":                         "datadoghq.eu",
+				"convert_dd_site_fqdn.enabled": false,
+			},
+			expected: "https://intake.profile.datadoghq.eu/api/v2/profile",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://intake.profile.example.com/api/v2/profile",
+		},
+		{
+			name: "explicit profiling URL",
+			settings: map[string]interface{}{
+				"site":                        "datadoghq.eu",
+				"apm_config.profiling_dd_url": "https://profiles.example.com/custom/path",
+			},
+			expected: "https://profiles.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.ProfilingProxy.DDURL)
+		})
+	}
+}
+
+func TestDebuggerURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://http-intake.logs.datadoghq.com./api/v2/logs",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://http-intake.logs.datadoghq.eu./api/v2/logs",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://http-intake.logs.example.com/api/v2/logs",
+		},
+		{
+			name: "explicit debugger URL",
+			settings: map[string]interface{}{
+				"site":                       "datadoghq.eu",
+				"apm_config.debugger_dd_url": "https://debugger.example.com/custom/path",
+			},
+			expected: "https://debugger.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerProxy.DDURL)
+		})
+	}
+}
+
+func TestDebuggerIntakeURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://debugger-intake.datadoghq.com./api/v2/debugger",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://debugger-intake.datadoghq.eu./api/v2/debugger",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://debugger-intake.example.com/api/v2/debugger",
+		},
+		{
+			name: "explicit debugger diagnostics URL",
+			settings: map[string]interface{}{
+				"site":                                   "datadoghq.eu",
+				"apm_config.debugger_diagnostics_dd_url": "https://debugger-diag.example.com/custom/path",
+			},
+			expected: "https://debugger-diag.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.DebuggerIntakeProxy.DDURL)
+		})
+	}
+}
+
+func TestSymDBURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://debugger-intake.datadoghq.com./api/v2/debugger",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://debugger-intake.datadoghq.eu./api/v2/debugger",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://debugger-intake.example.com/api/v2/debugger",
+		},
+		{
+			name: "explicit symdb URL",
+			settings: map[string]interface{}{
+				"site":                    "datadoghq.eu",
+				"apm_config.symdb_dd_url": "https://symdb.example.com/custom/path",
+			},
+			expected: "https://symdb.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.SymDBProxy.DDURL)
+		})
+	}
+}
+
+func TestOpenLineageURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings map[string]interface{}
+		expected string
+	}{
+		{
+			name:     "default site",
+			expected: "https://data-obs-intake.datadoghq.com./api/v1/lineage",
+		},
+		{
+			name:     "configured Datadog site",
+			settings: map[string]interface{}{"site": "datadoghq.eu"},
+			expected: "https://data-obs-intake.datadoghq.eu./api/v1/lineage",
+		},
+		{
+			name:     "custom site",
+			settings: map[string]interface{}{"site": "example.com"},
+			expected: "https://data-obs-intake.example.com/api/v1/lineage",
+		},
+		{
+			name: "explicit openlineage URL",
+			settings: map[string]interface{}{
+				"site":                   "datadoghq.eu",
+				"ol_proxy_config.dd_url": "https://ol.example.com/custom/path",
+			},
+			expected: "https://ol.example.com/custom/path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := buildConfigComponentFromOverrides(t, true, tt.settings)
+			cfg := config.Object()
+
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.OpenLineageProxy.DDURL)
+		})
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	config := buildConfigComponent(t, true)
 	cfg := config.Object()
@@ -631,6 +865,9 @@ func TestFullYamlConfig(t *testing.T) {
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
 		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
 	}, cfg.Endpoints)
+	// apm_config.traces_send_to_main_endpoint defaults to true: the writers use every endpoint.
+	assert.False(t, cfg.SkipMainEndpoint)
+	assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
 
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "outcome", V: "success"}, {K: "bad-key", V: "bad-value"}}, cfg.RejectTags)
@@ -1848,6 +2085,26 @@ func TestLoadEnv(t *testing.T) {
 		assert.False(t, coreConfig.GetBool("apm_config.profiling_send_to_main_endpoint"))
 	})
 
+	env = "DD_APM_TRACES_SEND_TO_MAIN_ENDPOINT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "false")
+
+		// full.yaml configures additional_endpoints, so skipping the main endpoint is valid.
+		c, coreConfig := buildConfigComponentAndCoreFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.False(t, coreConfig.GetBool("apm_config.traces_send_to_main_endpoint"))
+		assert.True(t, cfg.SkipMainEndpoint)
+		// The main endpoint stays in Endpoints so APIKey() is unchanged for the proxies,
+		// but the trace/stats writers no longer see it.
+		assert.Equal(t, "api_key_test", cfg.APIKey())
+		assert.Len(t, cfg.WriterEndpoints(), len(cfg.Endpoints)-1)
+		for _, e := range cfg.WriterEndpoints() {
+			assert.NotEqual(t, "https://datadog.unittests", e.Host)
+		}
+	})
+
 	env = "DD_APM_MODE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "edge")
@@ -2705,4 +2962,52 @@ func TestDebuggerLogsEnabled(t *testing.T) {
 			assert.Equal(t, tt.expected, cfg.DebuggerLogsEnabled)
 		})
 	}
+}
+
+func TestTracesSendToMainEndpoint(t *testing.T) {
+	t.Run("default-true", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{}).Object()
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.SkipMainEndpoint)
+		assert.Equal(t, cfg.Endpoints, cfg.WriterEndpoints())
+	})
+
+	t.Run("false-with-additional-endpoints", func(t *testing.T) {
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"apm_config.traces_send_to_main_endpoint": false,
+			"apm_config.additional_endpoints":         map[string][]string{"https://additional.example.com": {"additional-key"}},
+		}).Object()
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.SkipMainEndpoint)
+		require.Len(t, cfg.WriterEndpoints(), 1)
+		assert.Equal(t, "https://additional.example.com", cfg.WriterEndpoints()[0].Host)
+		assert.Equal(t, "additional-key", cfg.WriterEndpoints()[0].APIKey)
+		// The main endpoint (and its API key) is kept for APIKey() consumers.
+		assert.Len(t, cfg.Endpoints, 2)
+		assert.NotEqual(t, "additional-key", cfg.APIKey())
+	})
+
+	t.Run("false-without-additional-endpoints-fails-validation", func(t *testing.T) {
+		// Fail closed: the configuration is rejected instead of leaving the
+		// trace and stats writers with no destination.
+		coreConfig := configcomp.NewMock(t)
+		cfg := traceconfig.New()
+		cfg.DDAgentBin = "/bin/true"
+		cfg.Hostname = "testhostname"
+		cfg.SkipMainEndpoint = true
+		cfg.Endpoints = []*traceconfig.Endpoint{{Host: "https://main.example.com", APIKey: "main-key"}}
+		assert.ErrorIs(t, validate(cfg, coreConfig), traceconfig.ErrNoWriterEndpoint)
+
+		// A Multi-Region Failover endpoint alone is not a destination either.
+		cfg.Endpoints = append(cfg.Endpoints, &traceconfig.Endpoint{Host: "https://mrf.example.com", APIKey: "mrf-key", IsMRF: true})
+		assert.ErrorIs(t, validate(cfg, coreConfig), traceconfig.ErrNoWriterEndpoint)
+
+		cfg.Endpoints = append(cfg.Endpoints, &traceconfig.Endpoint{Host: "https://additional.example.com", APIKey: "additional-key"})
+		assert.NoError(t, validate(cfg, coreConfig))
+
+		// With the main endpoint enabled the same single-endpoint config is valid.
+		cfg.SkipMainEndpoint = false
+		cfg.Endpoints = cfg.Endpoints[:1]
+		assert.NoError(t, validate(cfg, coreConfig))
+	})
 }

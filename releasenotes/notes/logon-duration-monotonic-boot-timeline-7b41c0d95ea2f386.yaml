@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Windows: Fix the logon duration event reporting ``boot_timeline`` and
+    ``group_policy_details`` entries out of chronological order. A milestone that ran while the
+    machine sat at the login screen, such as Computer Group Policy on a domain-joined host,
+    could render after milestones that actually followed it.

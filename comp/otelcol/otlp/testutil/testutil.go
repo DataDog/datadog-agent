@@ -33,22 +33,35 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgConfigModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgConfigSetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 )
 
-// OTLPConfigFromPorts creates a test OTLP config map.
+// OTLPConfigFromPorts creates a test OTLP config map. A 0-port disables its protocol.
 func OTLPConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[string]interface{} {
-	otlpConfig := map[string]interface{}{"protocols": map[string]interface{}{}}
-
+	var gRPCEndpoint, httpEndpoint string
 	if gRPCPort > 0 {
-		otlpConfig["protocols"].(map[string]interface{})["grpc"] = map[string]interface{}{
-			"endpoint": fmt.Sprintf("%s:%d", bindHost, gRPCPort),
-		}
+		gRPCEndpoint = fmt.Sprintf("%s:%d", bindHost, gRPCPort)
 	}
 	if httpPort > 0 {
+		httpEndpoint = fmt.Sprintf("%s:%d", bindHost, httpPort)
+	}
+	return OTLPConfigFromEndpoints(gRPCEndpoint, httpEndpoint)
+}
+
+// OTLPConfigFromEndpoints is like OTLPConfigFromPorts but takes full "host:port" endpoints
+// directly, so callers can pass a ":0" port to avoid flaky binds on a fixed port. An empty
+// endpoint disables its protocol.
+func OTLPConfigFromEndpoints(gRPCEndpoint string, httpEndpoint string) map[string]interface{} {
+	otlpConfig := map[string]interface{}{"protocols": map[string]interface{}{}}
+
+	if gRPCEndpoint != "" {
+		otlpConfig["protocols"].(map[string]interface{})["grpc"] = map[string]interface{}{
+			"endpoint": gRPCEndpoint,
+		}
+	}
+	if httpEndpoint != "" {
 		otlpConfig["protocols"].(map[string]interface{})["http"] = map[string]interface{}{
-			"endpoint": fmt.Sprintf("%s:%d", bindHost, httpPort),
+			"endpoint": httpEndpoint,
 		}
 	}
 	return otlpConfig
@@ -57,7 +70,6 @@ func OTLPConfigFromPorts(bindHost string, gRPCPort uint, httpPort uint) map[stri
 // LoadConfig from a given path.
 func LoadConfig(t *testing.T, path string) (pkgConfigModel.Reader, error) {
 	cfg := configmock.New(t)
-	pkgConfigSetup.OTLP(cfg)
 	cfg.SetConfigFile(path)
 	err := cfg.ReadInConfig()
 	if err != nil {

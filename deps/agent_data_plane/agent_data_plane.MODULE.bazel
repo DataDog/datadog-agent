@@ -1,18 +1,18 @@
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "1.5.0"
+VERSION = "1.6.1"
 
 SOURCE_URL_BASE = "https://binaries.ddbuild.io/saluki"
 
 HASHES = {
-    "linux-amd64": "2cf82a24ba099850d700c8c24087ebbca204d904a86e9083c2d093277a269b4f",
-    "linux-arm64": "2e875d0f0d8e68853227a73ec28c816e8932dfa21353a62973f68136bfd64112",
-    "fips-linux-amd64": "916eea25260f47a7149f55fe922afdfcb458cac15584e88ec4c886394cb97a02",
-    "fips-linux-arm64": "8552c74bbc0fb17107d07cfd8a975a644e0a3b28c718fbf39a6c2aff65123d7d",
-    "darwin-amd64": "8070767c71d9d3cb8d7045de52b9cb12d1a0ff5c68d45a190a328eba52474bee",
-    "darwin-arm64": "46a349b98be5ca0799511eee4f99fcf4445ed9613f0b072818c95215246198ac",
-    "windows-amd64": "38930d0f9f9e2f82939bd2a125d6b6919efc1b960b0dbd18fdd262b7d467ba9f",
-    "windows-amd64-fips": "e5ffd95ffc939c16178779ab2f8a84b3b0e6693974065a35e9fc802424aa37d4",
+    "linux-amd64": "4fd3ceb150c5a3157a2c8ee9aa7acc61b0e289bb66fd02ebb531ba01c5a48455",
+    "linux-arm64": "ef8e252cd2c5f74d078897bae495bbf57f3b5e82d6d050ebec6046e3cced4e73",
+    "fips-linux-amd64": "5f367127e49bfafc761fdb7e76f1f24717eed29fc8004c3e1a15ef6c3a26cc95",
+    "fips-linux-arm64": "e527d33d412d6db453def1a81b2b066fc9570da66c31e01c44837600fbbde84f",
+    "darwin-amd64": "b265951912a7040df21a54f2bde69b378e6238bbd2e54746c040ba9890a6ea93",
+    "darwin-arm64": "88571a3ecca720f3503ae097ccd6ea54b3219a2b055b3e3a7412b141aa186e98",
+    "windows-amd64": "0bb70f2c883dce45893c7ba21cc5127332e194aeb497c61b2443e40eb6770cb6",
+    "windows-amd64-fips": "ced633510f76fb018d0d961d04572374e714ba7eac58a969070ff7c07b095140",
 }
 
 _BUILD_FILE_CONTENT = """\

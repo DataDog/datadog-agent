@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Validate configuration settings, including resolved secrets, without
+    exposing configured values in Agent Health issues.

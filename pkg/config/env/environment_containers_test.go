@@ -8,8 +8,10 @@
 package env
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,6 +69,21 @@ func Test_merge(t *testing.T) {
 	}
 }
 
+func TestGetDefaultNvmlPathsIncludesSupportedLinuxArchitectures(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("NVML default paths are only defined on Linux")
+	}
+
+	t.Setenv("HOST_ROOT", "/host")
+
+	assert.Equal(t, []string{
+		"/host/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+		"/host/run/nvidia/driver/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
+		"/host/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",
+		"/host/run/nvidia/driver/usr/lib/aarch64-linux-gnu/libnvidia-ml.so.1",
+	}, getDefaultNvmlPaths())
+}
+
 func TestDetectPodmanInHomeDir(t *testing.T) {
 	tmp := t.TempDir()
 
@@ -99,4 +116,19 @@ func TestDetectPodmanInHomeDir(t *testing.T) {
 		_, found := features[Podman]
 		assert.False(t, found, "Podman feature should not be detected")
 	})
+}
+
+func TestIsReachable(t *testing.T) {
+	assert.False(t, isReachable(false, nil), "must never be reachable when the path doesn't exist")
+	assert.True(t, isReachable(true, nil), "must be reachable when there is no dial error")
+	assert.False(t, isReachable(true, os.ErrPermission), "must never be reachable on a permission error")
+
+	nonPermissionErr := errors.New("connection refused")
+	if runtime.GOOS == "windows" {
+		assert.False(t, isReachable(true, nonPermissionErr),
+			"Windows socket.IsAvailable also surfaces busy/timeout dial errors this way; only a clean dial should count as reachable")
+	} else {
+		assert.True(t, isReachable(true, nonPermissionErr),
+			"a stale/refused socket should still count as reachable so the associated health check module gets wired up")
+	}
 }

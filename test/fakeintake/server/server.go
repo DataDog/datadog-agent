@@ -134,7 +134,9 @@ func NewServer(options ...Option) *Server {
 
 	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
 
-	// PAR (Private Action Runner) OPMS simulation — polled by the agent's PAR sidecar.
+	// PAR (Private Action Runner) enrollment and OPMS simulation.
+	mux.HandleFunc("/api/unstable/on_prem_runners", fi.handlePAREnroll)
+	mux.HandleFunc("/api/unstable/on_prem_runners/api_key_only", fi.handlePAREnroll)
 	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/dequeue", fi.handlePARDequeue)
 	mux.HandleFunc("/api/v2/on-prem-management-service/workflow-tasks/publish-task-update", fi.handlePARPublish)
 	mux.HandleFunc("/api/v2/on-prem-management-service/runner/health-check", fi.handlePARHealthCheck)
@@ -144,6 +146,7 @@ func NewServer(options ...Option) *Server {
 	mux.HandleFunc("/fakeintake/par/result", fi.handlePARResult)
 	mux.HandleFunc("/fakeintake/par/flush", fi.handlePARFlush)
 	mux.HandleFunc("/fakeintake/par/stats", fi.handlePARStats)
+	mux.HandleFunc("/fakeintake/par/signing-key", fi.handlePARSetSigningKey)
 
 	// Remote Config — only meaningful when WithRemoteConfig is set; handlers
 	// no-op with 404 otherwise.
@@ -157,6 +160,7 @@ func NewServer(options ...Option) *Server {
 	mux.HandleFunc("/api/v0.1/org", fi.handleRCOrg)
 	mux.HandleFunc("/api/v0.1/status", fi.handleRCStatus)
 	mux.HandleFunc("/fakeintake/rc/config", fi.handleRCAddConfig)
+	mux.HandleFunc("/fakeintake/rc/expiration", fi.handleRCSetExpiration)
 	mux.HandleFunc("/fakeintake/rc/configs", fi.handleRCListConfigs)
 	mux.HandleFunc("/fakeintake/rc/config/", fi.handleRCDeleteConfig)
 	mux.HandleFunc("/fakeintake/rc/stats", fi.handleRCStats)

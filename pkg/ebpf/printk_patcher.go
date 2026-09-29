@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package ebpf
 
@@ -101,11 +101,15 @@ func (p *printkPatcher) populateJumpData() {
 			targetIdx := p.realOffsetToIndex[targetOffset]
 
 			p.jumpSources[targetIdx] = append(p.jumpSources[targetIdx], idx)
-			log.Tracef("Found jump %d -> %d (offsets %d -> %d) in %s: %v", idx, targetIdx, sourceOffset, targetOffset, p.program.Name, ins)
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("Found jump %d -> %d (offsets %d -> %d) in %s: %v", idx, targetIdx, sourceOffset, targetOffset, p.program.Name, ins)
+			}
 		}
 	}
 
-	log.Tracef("Found %d jump sources in %s", len(p.jumpSources), p.program.Name)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("Found %d jump sources in %s", len(p.jumpSources), p.program.Name)
+	}
 }
 
 // patch patches the instructions of a program to remove the newline character

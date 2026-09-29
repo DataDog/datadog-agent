@@ -2,6 +2,7 @@ single_machine_performance-regression_detector-merge_base_check:
   stage: functional_test
   timeout: 10m
   rules:
+    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     # On main: wait for the agent image to land in ECR before checking for baselines.
     - if: $CI_COMMIT_BRANCH == "main"
@@ -20,7 +21,7 @@ single_machine_performance-regression_detector-merge_base_check:
     reports:
       dotenv: regression_detector.env  # Expose BASELINE_SHA as a CI variable for the trigger job
   variables:
-    GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
+    GIT_DEPTH: 0  # Full history: merge-base, HEAD^, and ancestor walks
   script:
     # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
     - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
@@ -223,6 +224,7 @@ trigger-single-machine-performance-regression_detector:
   extends:
     - .trigger-single-machine-performance-regression_detector
   rules:
+    - !reference [.except_light_pipeline]
     - !reference [.except_coverage_pipeline]
     - !reference [.on_dev_branches_with_artifact_changes]  # Run when artifact-impacting files change
   allow_failure: true

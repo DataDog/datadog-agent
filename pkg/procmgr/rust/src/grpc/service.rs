@@ -7,8 +7,10 @@
 
 use crate::command::Command;
 use crate::config::{ProcessConfig, RestartPolicy};
+use crate::grpc::caller_auth::require_mutating_pipe_client;
 use crate::grpc::proto;
 use crate::manager::ProcessManager;
+use crate::platform;
 use crate::process::{ManagedProcess, ProcessOrigin};
 use crate::state::ProcessState;
 use std::time::Instant;
@@ -47,11 +49,22 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         request: Request<proto::DescribeRequest>,
     ) -> Result<Response<proto::DescribeResponse>, Status> {
         let name_or_uuid = request.into_inner().name_or_uuid;
-        let procs = self.mgr.processes().await;
-        let proc = resolve_process(&procs, &name_or_uuid)?;
+        let (mut detail, pid) = {
+            let procs = self.mgr.processes().await;
+            let proc = resolve_process(&procs, &name_or_uuid)?;
+            (process_detail_fields(proc), proc.pid())
+        };
+        detail.runtime_user = if let Some(pid) = pid.filter(|&p| p > 0) {
+            tokio::task::spawn_blocking(move || platform::runtime_user_for_pid(pid))
+                .await
+                .map_err(|e| Status::internal(format!("runtime user lookup task failed: {e}")))?
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
 
         Ok(Response::new(proto::DescribeResponse {
-            detail: Some(process_detail(proc)),
+            detail: Some(detail),
         }))
     }
 
@@ -94,6 +107,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::CreateRequest>,
     ) -> Result<Response<proto::CreateResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
         let req = request.into_inner();
         let config = create_request_to_config(&req)?;
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -120,6 +134,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StartRequest>,
     ) -> Result<Response<proto::StartResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -145,6 +160,7 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
         &self,
         request: Request<proto::StopRequest>,
     ) -> Result<Response<proto::StopResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
         let name_or_uuid = request.into_inner().name_or_uuid;
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
@@ -167,8 +183,10 @@ impl proto::process_manager_server::ProcessManager for ProcessManagerService {
 
     async fn reload_config(
         &self,
-        _request: Request<proto::ReloadConfigRequest>,
+        request: Request<proto::ReloadConfigRequest>,
     ) -> Result<Response<proto::ReloadConfigResponse>, Status> {
+        require_mutating_pipe_client(&request)?;
+        let _ = request.into_inner();
         let (reply_tx, reply_rx) = oneshot::channel();
         self.cmd_tx
             .send(Command::ReloadConfig { reply: reply_tx })
@@ -230,6 +248,8 @@ fn process_to_proto(proc: &ManagedProcess) -> proto::Process {
         restart_count: proc.restart_count(),
         last_exit_code: proc.last_exit_code(),
         last_signal: proc.last_signal(),
+        profile: proc.profile().to_string(),
+        user: proc.user().to_owned(),
     }
 }
 
@@ -311,7 +331,7 @@ fn resolve_process<'a>(
         .ok_or_else(|| Status::not_found(format!("process '{name_or_uuid}' not found")))
 }
 
-fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
+fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
     let cfg = proc.config();
     proto::ProcessDetail {
         uuid: proc.uuid().to_owned(),
@@ -333,6 +353,9 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
         restart_count: proc.restart_count(),
         last_exit_code: proc.last_exit_code(),
         last_signal: proc.last_signal(),
+        profile: proc.profile().to_string(),
+        user: proc.user().to_owned(),
+        runtime_user: String::new(),
     }
 }
 
@@ -340,6 +363,7 @@ fn process_detail(proc: &ManagedProcess) -> proto::ProcessDetail {
 mod tests {
     use super::*;
     use crate::config::ProcessConfig;
+    use crate::process::test_exit_channel;
     use crate::test_helpers;
 
     #[test]
@@ -376,13 +400,9 @@ mod tests {
 
     #[test]
     fn test_process_to_proto() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let expected_args = args.clone();
-        let cfg = ProcessConfig {
-            command: cmd.to_string(),
-            args,
-            ..Default::default()
-        };
+        let cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        let expected_args = cfg.args.clone();
+        let cmd = cfg.command.clone();
         let proc =
             ManagedProcess::new_config("test-proc".to_string(), test_helpers::test_uuid(), cfg);
         let proto = process_to_proto(&proc);
@@ -391,6 +411,8 @@ mod tests {
         assert_eq!(proto.args, expected_args);
         assert_eq!(proto.pid, 0);
         assert_eq!(proto.state, proto::ProcessState::Created as i32);
+        assert_eq!(proto.profile, "agent");
+        assert_eq!(proto.user, proc.user());
     }
 
     #[test]
@@ -408,27 +430,48 @@ mod tests {
         };
         let proc =
             ManagedProcess::new_config("detail-proc".to_string(), test_helpers::test_uuid(), cfg);
-        let detail = process_detail(&proc);
+        let detail = process_detail_fields(&proc);
         assert_eq!(detail.name, "detail-proc");
         assert_eq!(detail.description, "A test process");
         assert_eq!(detail.working_dir, "/tmp");
         assert!(!detail.auto_start);
         assert_eq!(detail.after, vec!["dep-a"]);
         assert_eq!(detail.before, vec!["dep-b"]);
+        assert_eq!(detail.profile, "agent");
+        assert_eq!(detail.user, proc.user());
+    }
+
+    #[test]
+    fn test_profile_for_datadog_agent_process() {
+        let proc = ManagedProcess::new_config(
+            "datadog-agent-process".to_string(),
+            test_helpers::test_uuid(),
+            ProcessConfig::default(),
+        );
+        let list = process_to_proto(&proc);
+        let detail = process_detail_fields(&proc);
+
+        let expected_profile = if cfg!(windows) { "privileged" } else { "agent" };
+        assert_eq!(list.profile, expected_profile);
+        assert_eq!(detail.profile, expected_profile);
+
+        if cfg!(windows) {
+            assert_eq!(list.user, r"NT AUTHORITY\SYSTEM");
+            assert_eq!(detail.user, r"NT AUTHORITY\SYSTEM");
+        } else {
+            assert_eq!(list.user, proc.user());
+            assert_eq!(detail.user, proc.user());
+        }
     }
 
     #[tokio::test]
     async fn test_process_to_proto_running_with_pid() {
-        let (cmd, args) = test_helpers::sleep_cmd(60);
-        let expected_args = args.clone();
-        let cfg = ProcessConfig {
-            command: cmd.to_string(),
-            args,
-            ..Default::default()
-        };
+        let cfg = test_helpers::sleep_test_config(test_helpers::TEST_SLEEP_SECS);
+        let expected_args = cfg.args.clone();
+        let cmd = cfg.command.clone();
         let mut proc =
             ManagedProcess::new_config("sleeper".to_string(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        proc.spawn(test_exit_channel().0).unwrap();
 
         let proto = process_to_proto(&proc);
         assert_eq!(proto.name, "sleeper");
@@ -436,6 +479,8 @@ mod tests {
         assert!(proto.pid > 0, "running process should have a non-zero pid");
         assert_eq!(proto.command, cmd);
         assert_eq!(proto.args, expected_args);
+        assert_eq!(proto.profile, "agent");
+        assert_eq!(proto.user, proc.user());
 
         test_helpers::cleanup_process(proto.pid);
     }
@@ -450,10 +495,13 @@ mod tests {
         };
         let mut proc =
             ManagedProcess::new_config("fail-proc".to_string(), test_helpers::test_uuid(), cfg);
-        proc.spawn().unwrap();
+        let mut exit_rx = {
+            let (tx, rx) = test_exit_channel();
+            proc.spawn(tx).unwrap();
+            rx
+        };
 
-        let mut child = proc.take_child().unwrap();
-        let status = child.wait().await.unwrap();
+        let status = exit_rx.recv().await.expect("exit event").status;
         proc.set_last_status(status);
 
         let proto = process_to_proto(&proc);

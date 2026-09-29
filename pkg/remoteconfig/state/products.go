@@ -14,7 +14,6 @@ var validProducts = map[string]struct{}{
 	ProductAgentConfig:                  {},
 	ProductAgentFailover:                {},
 	ProductAgentTask:                    {},
-	ProductAgentIntegrations:            {},
 	ProductAPMSampling:                  {},
 	ProductAPMSemanticCoreDD:            {},
 	ProductCWSDD:                        {},
@@ -66,8 +65,6 @@ const (
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentFailover is to receive the multi-region failover configuration
 	ProductAgentFailover = "AGENT_FAILOVER"
-	// ProductAgentIntegrations is to receive integrations to schedule
-	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask = "AGENT_TASK"
 	// ProductAPMSampling is the apm sampling product
@@ -114,7 +111,7 @@ const (
 	ProductTesting2 = "TESTING2"
 	// ProductOrchestratorK8sCRDs receives values for k8s crds
 	ProductOrchestratorK8sCRDs = "ORCHESTRATOR_K8S_CRDS"
-	// ProductHaAgent is the HA Agent product
+	// ProductHaAgent is the HA Agent product, also shared by comp/workloadbalancing.
 	ProductHaAgent = "HA_AGENT"
 	// ProductSyntheticsTest is the Synthetics test product
 	ProductSyntheticsTest = "SYNTHETIC_TEST"

@@ -21,8 +21,6 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/impl"
-	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -31,8 +29,7 @@ import (
 func newTestEventForwarder(t *testing.T) (eventplatform.Forwarder, hostnameinterface.Component) {
 	t.Helper()
 	hostname := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
-	compression := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
-	return eventplatformimpl.NewNoopEventPlatformForwarder(hostname, compression), hostname
+	return eventplatformimpl.NewNoopEventPlatformForwarder(hostname), hostname
 }
 
 type recordingEventForwarder struct {

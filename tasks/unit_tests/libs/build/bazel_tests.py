@@ -1,9 +1,7 @@
-import io
 import os
+import subprocess
 import unittest
-from unittest.mock import MagicMock, patch
-
-from invoke import Context, Exit, MockContext
+from unittest.mock import patch
 
 from tasks.libs.build.bazel import bazel, package_from_path, split_label
 from tasks.libs.common.utils import get_repo_root
@@ -11,79 +9,80 @@ from tasks.libs.common.utils import get_repo_root
 
 class TestBazel(unittest.TestCase):
     def test_bazel_call(self):
-        self.assertEqual(bazel(Context(), "info", "release"), "")
+        self.assertEqual(bazel("info", "release"), "")
 
     def test_bazel_output(self):
         expected_version = (get_repo_root() / ".bazelversion").read_text().strip()
-        actual_output = bazel(Context(), "info", "release", capture_output=True).strip()
+        actual_output = bazel("info", "release", capture_output=True).strip()
         self.assertEqual(actual_output, f"release {expected_version}")
 
     @patch.dict(os.environ, {"PATH": os.devnull})
     def test_bazel_not_found(self):
-        with self.assertRaises(Exit) as cm:
-            bazel(MockContext(), "info")
-        self.assertIn("Please run `inv install-tools` for `bazel` support!", cm.exception.message)
+        with self.assertRaises(SystemExit) as cm:
+            bazel("info")
+        self.assertIn("Please run `inv install-tools` for `bazel` support!", str(cm.exception.code))
 
+    @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_capture_output(self, _):
-        self.assertEqual(bazel(self._ctx(), "info", capture_output=True), "out\n")
+    def test_capture_output(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 0, "out\n", "")
+        self.assertEqual(bazel("info", capture_output=True), "out\n")
 
+    @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_capture_stderr(self, _):
-        self.assertEqual(bazel(self._ctx(), "info", capture_stderr=True), "err\n")
+    def test_ignore_errors_returns_completed_process(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 1, "out\n", "err\n")
+        res = bazel("info", ignore_errors=True, capture_output=True)
+        self.assertEqual(res.returncode, 1)
+        self.assertEqual(res.stdout, "out\n")
+        self.assertEqual(res.stderr, "err\n")
 
+    @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_capture_both(self, _):
-        self.assertEqual(bazel(self._ctx(), "info", capture_output=True, capture_stderr=True), "out\nerr\n")
+    def test_input_disabled_by_default(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 0, "", "")
+        bazel("info")
+        self.assertIsNone(run_command.call_args.kwargs["input"])
 
+    @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_ignore_errors_captures_output_on_success(self, _):
-        self.assertEqual(bazel(self._ctx(), "info", ignore_errors=True, capture_output=True), "out\n")
+    def test_input_forwarding(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 0, "", "")
+        bazel("info", input="some input")
+        self.assertEqual(run_command.call_args.kwargs["input"], "some input")
 
-    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_ignore_errors_only_captures_stderr_on_failure(self, _):
-        self.assertEqual(
-            bazel(self._ctx(exit=1), "info", ignore_errors=True, capture_output=True, capture_stderr=True), "err\n"
-        )
-
-    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_input_stream_disabled_by_default(self, _):
-        ctx = self._ctx()
-        bazel(ctx, "info")
-        self.assertIs(ctx.run.call_args.kwargs["in_stream"], False)
-
-    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    def test_input_stream_forwarding(self, _):
-        ctx = self._ctx()
-        stdin = io.StringIO("some input")
-        bazel(ctx, "info", input_stream=stdin)
-        self.assertIs(ctx.run.call_args.kwargs["in_stream"], stdin)
-
+    @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
     @patch.dict(os.environ, {}, clear=True)
-    def test_no_omnibazel_flag_to_insert(self, _):
-        ctx = self._ctx()
-        bazel(ctx, "run", "//:go")
-        self.assertEqual(ctx.run.call_args[0][0], "/bzlx run //:go")
+    def test_no_omnibazel_flag_to_insert(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx run //:go", 0, "", "")
+        bazel("run", "//:go")
+        self.assertEqual(run_command.call_args.args[0], ("/bzlx", "run", "//:go"))
 
+    @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
     @patch.dict(os.environ, {"AGENT_FLAVOR": "fips", "INSTALL_DIR": "/opt"})
-    def test_inserted_omnibazel_flags(self, _):
-        ctx = self._ctx()
-        bazel(ctx, "--batch", "run", "//:go")
-        self.assertEqual(
-            ctx.run.call_args[0][0],
+    def test_inserted_omnibazel_flags(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess(
             "/bzlx --batch run --//packages/agent:flavor=fips --//:install_dir=/opt --//:output_config_dir= //:go",
+            0,
+            "",
+            "",
         )
-
-    def _ctx(self, *, exit=0, stdout="out\n", stderr="err\n"):
-        result = MagicMock()
-        result.ok = exit == 0
-        result.stdout = stdout
-        result.stderr = stderr
-        ctx = MagicMock()
-        ctx.run.return_value = result
-        return ctx
+        with patch("tasks.libs.build.bazel.sys.platform", "linux"):
+            bazel("--batch", "run", "//:go")
+        self.assertEqual(
+            run_command.call_args.args[0],
+            (
+                "/bzlx",
+                "--batch",
+                "run",
+                "--//packages/agent:flavor=fips",
+                "--//:install_dir=/opt",
+                "--//:output_config_dir=",
+                "//:go",
+            ),
+        )
 
 
 class TestSplitLabel(unittest.TestCase):

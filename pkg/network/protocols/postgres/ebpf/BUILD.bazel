@@ -31,17 +31,17 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":ebpf"],
-    gotags_sets = [["linux_bpf"]],
-    target_compatible_with = ["@platforms//os:linux"],
-    deps = [
-        "//pkg/network/config",
-        "@com_github_stretchr_testify//assert",
-    ] + select({
+    gotags_sets = [["bpf"]],
+    deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/network/config",
+            "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf/ebpftest:cgo_align",
+            "//pkg/network/config",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

@@ -8,7 +8,7 @@
 // Package eval holds eval related files
 package eval
 
-import "github.com/alecthomas/participle/lexer"
+import "github.com/alecthomas/participle/v2/lexer"
 
 func evaluatorFromRootDomainHandler(_ string, pos lexer.Position, _ *State) (interface{}, lexer.Position, error) {
 	return nil, pos, NewError(pos, "handler not implemented for this platform")

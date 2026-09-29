@@ -192,6 +192,43 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 				"generic_tag:generic-resource",
 			},
 		},
+		{
+			name: "get tags for a cronjob-owned job",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-cronjob-1234567",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-cronjob-1234567",
+				"kubernetes_kind:Job",
+				"name:my-cronjob-1234567",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-cronjob-1234567",
+				"kube_cronjob:my-cronjob",
+			},
+		},
+		{
+			name: "get tags for a standalone job",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Job",
+				Name:      "my-standalone-job",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Job",
+				"kube_name:my-standalone-job",
+				"kubernetes_kind:Job",
+				"name:my-standalone-job",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"kube_job:my-standalone-job",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -298,12 +335,71 @@ func Test_getEventHostInfoImpl(t *testing.T) {
 				nodename: "",
 			},
 		},
+		{
+			// the scheduler is not a node, so its events carry no Source.Host;
+			// the node is taken from the message instead of a Pod GET.
+			name: "Pod Scheduled event from the scheduler",
+			args: args{
+				clusterName: "my-cluster",
+				ev: &v1.Event{
+					InvolvedObject: v1.ObjectReference{
+						Name:      "my-pod-cdasd-adffd",
+						Namespace: "foo",
+						Kind:      podKind,
+					},
+					Reason:  "Scheduled",
+					Message: "Successfully assigned foo/my-pod-cdasd-adffd to my-node-1",
+					Source: v1.EventSource{
+						Component: "default-scheduler",
+					},
+				},
+			},
+			want: eventHostInfo{
+				hostname: "my-node-1-my-cluster",
+				nodename: "my-node-1",
+			},
+		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := getEventHostInfoImpl(providerIDFunc, tt.args.clusterName, tt.args.ev); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("getEventHostInfo() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func Test_nodeFromScheduledMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		ev   *v1.Event
+		want string
+	}{
+		{
+			name: "scheduler wording",
+			ev:   &v1.Event{Reason: "Scheduled", Message: "Successfully assigned foo/my-pod to my-node-1"},
+			want: "my-node-1",
+		},
+		{
+			name: "trailing newline",
+			ev:   &v1.Event{Reason: "Scheduled", Message: "Successfully assigned foo/my-pod to my-node-1\n"},
+			want: "my-node-1",
+		},
+		{
+			name: "other reason with a look-alike message",
+			ev:   &v1.Event{Reason: "FailedScheduling", Message: "Successfully assigned foo/my-pod to my-node-1"},
+			want: "",
+		},
+		{
+			name: "unexpected wording",
+			ev:   &v1.Event{Reason: "Scheduled", Message: "Pod foo/my-pod placed on my-node-1"},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, nodeFromScheduledMessage(tt.ev))
 		})
 	}
 }

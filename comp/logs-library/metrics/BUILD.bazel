@@ -6,8 +6,10 @@ go_library(
     srcs = [
         "capacity_monitor.go",
         "metrics.go",
+        "missed_bytes.go",
         "pipeline_monitor.go",
         "rolling_history.go",
+        "test_utils.go",
         "utilization_monitor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs-library/metrics",
@@ -25,6 +27,7 @@ dd_agent_go_test(
     srcs = [
         "capacity_monitor_test.go",
         "metrics_test.go",
+        "missed_bytes_test.go",
         "pipeline_monitor_test.go",
         "rolling_history_test.go",
         "utilization_monitor_test.go",

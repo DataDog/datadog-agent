@@ -89,13 +89,15 @@ validate_experiment_systemd_units:
 lint_releasenotes_rst:
   extends: .lint
   rules: !reference [.on_releasenotes_changes]
+  variables:
+    GIT_DEPTH: 0  # Full history: linter.rst-releasenotes --only-changed uses merge-base
   script:
     - dda inv -- -e linter.rst-releasenotes --only-changed
 
 lint_releasenotes_unique_ids:
   extends: .lint
   rules:
-    - !reference [.on_mergequeue]
+    - !reference [.on_light_pipeline]
     - !reference [.on_releasenotes_changes]
   script:
     - dda inv -- -e linter.releasenote-unique-ids

@@ -168,6 +168,11 @@ func (t *Tracer) RegisterClient(clientID string) error {
 	return nil
 }
 
+// GetProcessCacheTags is not implemented on Darwin
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	return nil
+}
+
 // GetStats returns telemetry statistics
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	stats := map[string]interface{}{

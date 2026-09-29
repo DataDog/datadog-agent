@@ -1,6 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
-
-# gazelle:dd_agent_go_test off
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "coverage",
@@ -195,15 +194,18 @@ go_library(
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "coverage_test",
     srcs = ["command_test.go"],
     embed = [":coverage"],
-    gotags = [
-        "test",
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
         "kubeapiserver",
-        "e2ecoverage",
-    ],  # keep
+        "kubelet",
+        "orchestrator",
+    ]],
+    include_default = False,
     deps = select({
         "@rules_go//go/platform:aix": [
             "//cmd/cluster-agent/command",

@@ -81,6 +81,7 @@ class TestOmnibusCache(unittest.TestCase):
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
+            (r'ci-identities-gitlab-job-client secrets read .*', Result()),
             (r'C:\\devtools\\ci-identities-gitlab-job-client\.exe secrets read .*', Result()),
         ]
         for pattern, result in patterns:

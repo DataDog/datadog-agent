@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Normalize Windows device tags to use forward-slash paths, preventing
+    duplicate disk and IO metric device tags.

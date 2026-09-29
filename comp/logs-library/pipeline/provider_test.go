@@ -128,6 +128,7 @@ func TestProviderConfigurations(t *testing.T) {
 			batchMaxConcurrentSend: constants.DefaultBatchMaxConcurrentSend,
 		},
 		{
+			// RTT fairness retired by default: concurrency is pinned static at the cap (min == max).
 			name:                   "HTTP sender default",
 			useHTTP:                true,
 			legacyMode:             false,
@@ -135,7 +136,7 @@ func TestProviderConfigurations(t *testing.T) {
 			serverless:             false,
 			expectedQueues:         sender.DefaultQueuesCount,     // 1
 			expectedWorkers:        sender.DefaultWorkersPerQueue, // 1
-			expectedMinConcurrency: 3,
+			expectedMinConcurrency: 30,                            // pinned at pipelines * maxConcurrencyPerPipeline
 			expectedMaxConcurrency: 30,
 			batchMaxConcurrentSend: constants.DefaultBatchMaxConcurrentSend,
 		},

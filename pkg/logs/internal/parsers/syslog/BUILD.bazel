@@ -32,11 +32,14 @@ dd_agent_go_test(
     name = "syslog_test",
     srcs = [
         "cef_leef_test.go",
+        "corpus_golden_test.go",
         "parser_test.go",
         "structured_content_test.go",
         "syslog_fuzz_test.go",
         "syslog_test.go",
+        "timestamp_variants_test.go",
     ],
+    data = glob(["testdata/**"]),
     embed = [":syslog"],
     deps = [
         "//comp/logs/agent/config",

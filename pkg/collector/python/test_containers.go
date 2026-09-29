@@ -29,7 +29,7 @@ func testIsContainerExcluded(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("container_exclude", []string{"image:bar", "kube_namespace:black"})
-	mockConfig.SetInTest("container_include", "kube_namespace:white")
+	mockConfig.SetInTest("container_include", []string{"kube_namespace:white"})
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	collectoraggregator.ScopeInitCheckContext(sender.GetSenderManager(), logReceiver, tagger, filterStore)
 

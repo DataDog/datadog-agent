@@ -6,7 +6,9 @@
 package transform
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
 func TestGetOTelEnv(t *testing.T) {
@@ -458,7 +461,7 @@ func TestOtelSpanToDDSpanTraceStatePreservation(t *testing.T) {
 			}
 
 			// Minimal conversion (APM stats path).
-			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+			minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 			// Full conversion.
 			fullSpan := OtelSpanToDDSpan(newSpan(), pcommon.NewResource(), lib, newCfg())
 
@@ -506,7 +509,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 					return span
 				}
 
-				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil)
+				minSpan := OtelSpanToDDSpanMinimal(newSpan(), pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 				rate, ok := minSpan.Metrics["_sample_rate"]
 				require.True(t, ok, "minimal conversion must set _sample_rate")
 				assert.InDelta(t, tt.wantRate, rate, 1e-9)
@@ -522,7 +525,7 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 	t.Run("no tracestate leaves _sample_rate unset", func(t *testing.T) {
 		span := ptrace.NewSpan()
 		span.SetName("test-span")
-		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil)
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
 		_, ok := minSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
 	})
@@ -534,6 +537,157 @@ func TestOtelSpanToDDSpanSampleRateInjection(t *testing.T) {
 		fullSpan := OtelSpanToDDSpan(span, pcommon.NewResource(), lib, newCfg())
 		_, ok := fullSpan.Metrics["_sample_rate"]
 		assert.False(t, ok)
+	})
+}
+
+// TestOtelSpanToDDSpanMinimalPrimaryTags verifies that span-derived primary tag
+// keys are copied into the minimal span's Meta (so the APM stats Concentrator's
+// matchingAdditionalMetricTags can aggregate on them), that span attributes take
+// precedence over resource attributes, and that unlisted keys are not copied.
+func TestOtelSpanToDDSpanMinimalPrimaryTags(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+	lib := pcommon.NewInstrumentationScope()
+	lib.SetName("test-lib")
+
+	t.Run("copies configured keys from span and resource attrs", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("region", "us-east-1")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team", "region"})
+
+		assert.Equal(t, "checkout", minSpan.Meta["team"])
+		assert.Equal(t, "us-east-1", minSpan.Meta["region"])
+	})
+
+	t.Run("span attribute takes precedence over resource attribute", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "span-team")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("team", "resource-team")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+
+		assert.Equal(t, "span-team", minSpan.Meta["team"])
+	})
+
+	t.Run("unlisted keys are not copied and empty values are skipped", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+		span.Attributes().PutStr("not-a-primary-tag", "ignored")
+		span.Attributes().PutStr("empty", "")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, []string{"team", "empty", "missing"})
+
+		assert.Equal(t, "checkout", minSpan.Meta["team"])
+		assert.NotContains(t, minSpan.Meta, "not-a-primary-tag")
+		assert.NotContains(t, minSpan.Meta, "empty")
+		assert.NotContains(t, minSpan.Meta, "missing")
+	})
+
+	t.Run("empty span attribute falls back to resource attribute", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "")
+		res := pcommon.NewResource()
+		res.Attributes().PutStr("team", "platform")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, []string{"team"})
+
+		// An empty span value is treated as absent, so the resource value is used.
+		assert.Equal(t, "platform", minSpan.Meta["team"])
+	})
+
+	t.Run("nil primaryTagKeys copies nothing", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetName("test-span")
+		span.Attributes().PutStr("team", "checkout")
+
+		minSpan := OtelSpanToDDSpanMinimal(span, pcommon.NewResource(), lib, false, false, newCfg(), nil, nil)
+
+		assert.NotContains(t, minSpan.Meta, "team")
+	})
+}
+
+// TestOtelSpanToDDSpanMinimalNormalization verifies that spans produced by
+// OtelSpanToDDSpanMinimal are sanitized the same way the full trace-agent
+// pipeline (Agent.normalize) would sanitize them, since minimal spans are fed
+// directly into the APM stats Concentrator and never reach that pipeline.
+func TestOtelSpanToDDSpanMinimalNormalization(t *testing.T) {
+	newCfg := func() *config.AgentConfig {
+		cfg := &config.AgentConfig{}
+		cfg.OTLPReceiver = &config.OTLP{}
+		cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		return cfg
+	}
+	lib := pcommon.NewInstrumentationScope()
+
+	t.Run("name is normalized under operation name v2", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.Attributes().PutStr("operation.name", "invalid-op-name")
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+
+		// Hyphens aren't valid in span names; NormalizeName replaces them with underscores.
+		assert.Equal(t, "invalid_op_name", minSpan.Name)
+	})
+
+	t.Run("negative duration is reset to zero", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		span.SetStartTimestamp(pcommon.Timestamp(time.Now().UnixNano()))
+		span.SetEndTimestamp(pcommon.Timestamp(int64(span.StartTimestamp()) - 1))
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+
+		assert.EqualValues(t, 0, minSpan.Duration)
+	})
+
+	t.Run("garbage start time is reset to now", func(t *testing.T) {
+		minStart := time.Now().UnixNano()
+		span := ptrace.NewSpan()
+		span.SetStartTimestamp(42)
+		span.SetEndTimestamp(pcommon.Timestamp(200000000))
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), nil, nil)
+
+		assert.GreaterOrEqual(t, minSpan.Start, minStart-200000000)
+		assert.LessOrEqual(t, minSpan.Start, time.Now().UnixNano())
+	})
+
+	t.Run("peer.service is truncated to the max service length", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		longPeerSvc := strings.Repeat("a", 150)
+		span.Attributes().PutStr("peer.service", longPeerSvc)
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"peer.service"}, nil)
+
+		assert.Len(t, minSpan.Meta["peer.service"], normalizeutil.MaxServiceLen)
+		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["peer.service"])
+	})
+
+	t.Run("_dd.base_service is truncated to the max service length", func(t *testing.T) {
+		span := ptrace.NewSpan()
+		longBaseSvc := strings.Repeat("a", 150)
+		span.Attributes().PutStr("_dd.base_service", longBaseSvc)
+		res := pcommon.NewResource()
+
+		minSpan := OtelSpanToDDSpanMinimal(span, res, lib, false, false, newCfg(), []string{"_dd.base_service"}, nil)
+
+		assert.Len(t, minSpan.Meta["_dd.base_service"], normalizeutil.MaxServiceLen)
+		assert.Equal(t, strings.Repeat("a", normalizeutil.MaxServiceLen), minSpan.Meta["_dd.base_service"])
 	})
 }
 

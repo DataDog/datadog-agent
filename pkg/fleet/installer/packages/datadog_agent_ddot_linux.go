@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -30,8 +29,6 @@ const (
 	datadogYamlPath       = "/etc/datadog-agent/datadog.yaml"
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
-
-	ddotProcmgrConfigName = "datadog-agent-ddot.yaml"
 )
 
 var (
@@ -62,6 +59,14 @@ var (
 		SystemdMainUnitExp:    "datadog-agent-ddot-exp.service",
 		SystemdUnitsStable:    []string{"datadog-agent-ddot.service"},
 		SystemdUnitsExp:       []string{"datadog-agent-ddot-exp.service"},
+
+		// This package predates the ddot extension and is unaffected by the service manager: it
+		// installs its own unit under procmgr too, which is why datadog-agent-ddot.service is
+		// generated into both unit trees.
+		ProcmgrMainUnitStable: "datadog-agent-ddot.service",
+		ProcmgrMainUnitExp:    "datadog-agent-ddot-exp.service",
+		ProcmgrUnitsStable:    []string{"datadog-agent-ddot.service"},
+		ProcmgrUnitsExp:       []string{"datadog-agent-ddot-exp.service"},
 
 		UpstartMainService: "datadog-agent-ddot",
 		UpstartServices:    []string{"datadog--ddot"},
@@ -129,12 +134,10 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err = enableOTelCollectorConfigInDatadogYAML(ctx, datadogYamlPath); err != nil {
 		return fmt.Errorf("failed to enable otelcollector in datadog.yaml: %v", err)
 	}
-
 	// Restart agent to pick up otelcollector config changes
 	if err = agentService.RestartStable(ctx); err != nil {
 		return fmt.Errorf("failed to restart agent after enabling otelcollector: %v", err)
 	}
-
 	if err := agentDDOTService.WriteStable(ctx); err != nil {
 		return fmt.Errorf("failed to write stable units: %s", err)
 	}
@@ -273,10 +276,6 @@ func postInstallDDOTExtension(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to set DDOT config ownerships: %v", err)
 	}
 
-	if err := writeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
-		return fmt.Errorf("failed to write DDOT process manager config: %w", err)
-	}
-
 	return nil
 }
 
@@ -291,10 +290,6 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 		log.Warnf("failed to disable otelcollector config: %s", err)
 	}
 
-	if err := removeDDOTProcmgrConfig(ctx.PackagePath); err != nil {
-		log.Warnf("failed to remove DDOT process manager config: %v", err)
-	}
-
 	return nil
 }
 
@@ -305,33 +300,6 @@ func copyFile(src, dst string, perm os.FileMode) error {
 		return err
 	}
 	return os.WriteFile(dst, data, perm)
-}
-
-// writeDDOTProcmgrConfig writes the dd-procmgr config for DDOT into the package processes.d. The
-// config's --config/--core-config reference ${DD_CONF_DIR}, which the supervising dd-procmgr
-// substitutes at launch with its own config directory (/etc/datadog-agent for the stable procmgr,
-// /etc/datadog-agent-exp for the experiment procmgr), so the experiment collector reads the
-// experiment config without the process definition itself changing.
-func writeDDOTProcmgrConfig(installRoot string) error {
-	otelAgentPath := filepath.Join(installRoot, "ext", "ddot", "embedded", "bin", "otel-agent")
-	if _, err := os.Stat(otelAgentPath); err != nil {
-		return nil
-	}
-	processesDir := filepath.Join(installRoot, "processes.d")
-	config := strings.ReplaceAll(embedded.DDOTProcessConfig, "/opt/datadog-agent", installRoot)
-	if err := os.MkdirAll(processesDir, 0755); err != nil {
-		return fmt.Errorf("failed to write DDOT procmgr config: %w", err)
-	}
-	path := filepath.Join(processesDir, ddotProcmgrConfigName)
-	return os.WriteFile(path, []byte(config), 0644)
-}
-
-func removeDDOTProcmgrConfig(installRoot string) error {
-	path := filepath.Join(installRoot, "processes.d", ddotProcmgrConfigName)
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
 }
 
 // modifyDDOTUnitFileForBackwardsCompatibility modifies the systemd unit file to remove "/ext/ddot" from paths

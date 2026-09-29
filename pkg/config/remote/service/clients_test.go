@@ -6,11 +6,13 @@
 package service
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
@@ -63,4 +65,39 @@ func TestCacheBypassClientsRateLimit(t *testing.T) {
 	// New window
 	clock.Add(4 * time.Second)
 	assert.False(t, cacheBypassClients.Limit())
+}
+
+// TestClientsSeenActiveClientsRace catches concurrent mutation of a *pbgo.Client shared via seen()/activeClients(); run with -race.
+func TestClientsSeenActiveClientsRace(t *testing.T) {
+	testTTL := time.Second * 5
+	realClock := clock.New()
+	clients := newClients(realClock, testTTL)
+
+	// Shared *pbgo.Client, mimicking a reused request.Client.
+	pbClient := &pbgo.Client{
+		Id:       "client1",
+		Products: []string{"APM_SAMPLING"},
+	}
+
+	const iterations = 2000
+	var wg sync.WaitGroup
+	// Repeatedly mark the client as seen, like ClientGetConfigs does.
+	wg.Go(func() {
+		for i := 0; i < iterations; i++ {
+			clients.seen(pbClient)
+		}
+	})
+
+	// Repeatedly fetch and marshal active clients, like refresh() does.
+	wg.Go(func() {
+		for i := 0; i < iterations; i++ {
+			for _, active := range clients.activeClients() {
+				if _, err := proto.Marshal(active); err != nil {
+					t.Errorf("failed to marshal client: %v", err)
+				}
+			}
+		}
+	})
+
+	wg.Wait()
 }

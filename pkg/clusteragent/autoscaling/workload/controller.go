@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -86,6 +87,7 @@ type Controller struct {
 	localSender sender.Sender
 
 	isFallbackEnabled bool
+	fallbackMu        sync.Mutex // guards isFallbackEnabled
 
 	metricsStore *metricsstore.MetricsStore[*model.PodAutoscalerInternal]
 }
@@ -403,7 +405,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		podAutoscalerInternal.ClearCurrentReplicas()
 		podAutoscalerInternal.ClearHorizontalState()
 		podAutoscalerInternal.ClearVerticalState()
-		return autoscaling.NoRequeue, c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, nil, podAutoscalerInternal, podAutoscaler)
+		return c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, nil, podAutoscalerInternal, podAutoscaler)
 	}
 
 	// Validate autoscaler requirements
@@ -446,7 +448,8 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	podAutoscalerInternal.SetCurrentReplicas(int32(currentReplicas))
 
 	// Update status based on latest state
-	return result, c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
+	statusResult, statusErr := c.updateAutoscalerStatusAndUpsert(ctx, item, ns, name, scalingErr, podAutoscalerInternal, podAutoscaler)
+	return result.Merge(statusResult), statusErr
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal, targetGVK schema.GroupVersionKind, target NamespacedPodOwner, scale *autoscalingv1.Scale, gr schema.GroupResource, scaleErr error) (autoscaling.ProcessResult, error) {
@@ -636,11 +639,19 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	return nil
 }
 
-func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *autoscalingstore.LockedItem[model.PodAutoscalerInternal], ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *autoscalingstore.LockedItem[model.PodAutoscalerInternal], ns, name string, err error, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) (autoscaling.ProcessResult, error) {
 	// Update status based on latest state
+	result := autoscaling.NoRequeue
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
 	if statusErr != nil {
 		log.Errorf("Failed to update status for PodAutoscaler: %s/%s, err: %v", ns, name, statusErr)
+
+		// Requeue so a subsequent reconcile restarts the full process: it re-reads the
+		// object from the informer cache (which will have observed the concurrent write
+		// that caused a conflict) and retries the status update with a fresh
+		// resourceVersion. The workqueue rate-limiter backs off between attempts and
+		// Process() caps them at maxRetry.
+		result = autoscaling.Requeue
 
 		// We want to return the status error if none to count in the requeue retries.
 		if err == nil {
@@ -649,7 +660,7 @@ func (c *Controller) updateAutoscalerStatusAndUpsert(ctx context.Context, item *
 	}
 
 	item.Upsert(podAutoscalerInternal, c.ID)
-	return err
+	return result, err
 }
 
 func (c *Controller) updateLocalFallbackEnabled(_ *model.PodAutoscalerInternal, activeHorizontalSource *datadoghqcommon.DatadogPodAutoscalerValueSource) {
@@ -657,7 +668,11 @@ func (c *Controller) updateLocalFallbackEnabled(_ *model.PodAutoscalerInternal, 
 		return
 	}
 
-	// Logic when local fallback is activated/deactivated for horizontal scaling
+	// Logic when local fallback is activated/deactivated for horizontal scaling.
+	// Multiple worker goroutines call Process() concurrently, so guard the
+	// read-modify-write of isFallbackEnabled.
+	c.fallbackMu.Lock()
+	defer c.fallbackMu.Unlock()
 	if c.isFallbackEnabled && *activeHorizontalSource == datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource {
 		log.Debugf("Product horizontal scaling values are no longer stale, deactivating local fallback")
 		c.isFallbackEnabled = false

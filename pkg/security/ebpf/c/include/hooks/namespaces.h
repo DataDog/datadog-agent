@@ -18,7 +18,7 @@ int hook_switch_task_namespaces(ctx_t *ctx) {
     bpf_probe_read(&mnt_ns, sizeof(mnt_ns), (void *)new_ns + nsproxy_mnt_ns_offset);
     if (mnt_ns != NULL) {
         u32 inum = 0;
-        bpf_probe_read(&inum, sizeof(inum), (void *)mnt_ns + get_mount_offset_of_nscommon_inum());
+        bpf_probe_read(&inum, sizeof(inum), (void *)mnt_ns + get_ns_common_inum_offset());
 
         u32 pid = bpf_get_current_pid_tgid() >> 32;
         bpf_map_update_elem(&mntns_cache, &pid, &inum, BPF_ANY);

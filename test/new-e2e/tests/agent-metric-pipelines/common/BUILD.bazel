@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = ["adp.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/e2e-framework/components/datadog/agentparams",
+        "//test/e2e-framework/components/datadog/dockeragentparams",
+        "//test/e2e-framework/testing/components",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

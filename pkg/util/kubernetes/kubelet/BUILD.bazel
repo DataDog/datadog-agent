@@ -86,6 +86,7 @@ dd_agent_go_test(
             "orchestrator",
         ],
         [
+            "cel",
             "docker",
             "kubelet",
         ],

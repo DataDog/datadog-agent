@@ -12,10 +12,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil",
     tags = ["manual"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/ebpf/ebpftest",
-        "//pkg/ebpf/prebuilt",
-    ] + select({
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf/ebpftest",
+            "//pkg/ebpf/prebuilt",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf/ebpftest",
+            "//pkg/ebpf/prebuilt",
+        ],
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//require",
         ],

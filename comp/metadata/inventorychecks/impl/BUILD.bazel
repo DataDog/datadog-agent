@@ -34,7 +34,7 @@ go_library(
         "//pkg/util/option",
         "//pkg/util/scrubber",
         "//pkg/util/uuid",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
@@ -51,6 +51,7 @@ dd_agent_go_test(
         "//comp/collector/collector/mock",
         "//comp/core",
         "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers",
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/hostname/hostnameinterface/def",

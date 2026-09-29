@@ -134,6 +134,7 @@ func (c *Check) InjectXIDEventsForTest(uuid string, events []ddnvml.DeviceEventD
 func SetupWorkloadmetaGPUs(t *testing.T, wmetaMock workloadmetamock.Mock, fakeTagger taggermock.Mock, mode gpuspec.DeviceMode, validateDeviceCount bool) {
 	// Create the NVML collector to ensure we get the data in the same way as with real checks
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"gpu.enabled": true,
 		"gpu.integrate_with_workloadmeta_processes": false,
 	})
 	nvmlCollector := collectors.GetNvmlCollector(t, cfg)

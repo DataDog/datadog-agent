@@ -1,6 +1,16 @@
 new-e2e-agent-platform-install-script-macos-x64:
   extends:
     - .new_e2e_template
+  before_script:
+    - !reference [.new_e2e_template, before_script]
+    - export E2E_MACOS_POOL_ENABLED=$(dda self feature ci-datadog-agent-e2e-macos-pools --default false)
+  script:
+    - |
+      if [ "$NOT_NIGHTLY" = "true" ] && [ "$E2E_MACOS_POOL_ENABLED" = "false" ]; then
+        echo "⚠️  Skipping macOS e2e install job: NOT_NIGHTLY is set and E2E_MACOS_POOL_ENABLED is false"
+        exit 0
+      fi
+    - !reference [.new_e2e_template, script]
   stage: e2e_install_packages
   needs:
     - !reference [.needs_new_e2e_template]
@@ -8,6 +18,10 @@ new-e2e-agent-platform-install-script-macos-x64:
   rules:
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy]
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH  # Temporary execution + allow failure for main branch, to stress test the system. NOT_NIGHTLY is used to skip all the main run if we need to disable with the feature flag. It would not handle the load
+      allow_failure: true
+      variables:
+        NOT_NIGHTLY: true
     - !reference [.manual]
   retry: !reference [.retry_only_infra_failure, retry]
   variables:

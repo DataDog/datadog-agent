@@ -384,11 +384,12 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         body = call_args[1]['body']
         self.assertIn('### Error', body)
         self.assertIn('Change', body)
-        self.assertIn('Size (prev', body)
+        self.assertIn('Size (prev', body)  # )  to make vim indent happy
         self.assertIn('gateA', body)
         self.assertIn('gateB', body)
         self.assertIn('Gate failure full details', body)
-        self.assertIn('Static quality gates prevent the PR to merge!', body)
+        # Make sure we have a link to a docs page.
+        self.assertIn('https://datadoghq.atlassian.net/wiki', body)
         # Check dashboard link is present
         self.assertIn('Static Quality Gates Dashboard', body)
 
@@ -563,8 +564,6 @@ class TestNonBlockingPrComment(unittest.TestCase):
         body = call_args[1]['body']
         # Should show error indicator for blocking failure
         self.assertIn('❌', body)
-        # Should contain the blocking failure message
-        self.assertIn('prevent the PR to merge', body)
 
     @patch.dict(
         'os.environ',
@@ -612,7 +611,7 @@ class TestNonBlockingPrComment(unittest.TestCase):
         self.assertIn('❌', body)
         self.assertIn('⚠️', body)
         # Should contain the blocking failure message (since there's a blocking failure)
-        self.assertIn('prevent the PR to merge', body)
+        self.assertIn('prevent', body)
 
 
 class TestExceptionBanner(unittest.TestCase):

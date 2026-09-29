@@ -15,7 +15,7 @@ import (
 
 	"regexp"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 const (
@@ -371,7 +371,7 @@ func (a ArchitectureSpec) UnsupportedFieldsForMode(mode DeviceMode, archSpecs *A
 	return names
 }
 
-// SupportedNVLinkGeneration returns the highest NVLink generation this architecture can support.
+// SupportedNVLinkGeneration returns the highest NVML NVLink version this architecture can support.
 func (a ArchitectureSpec) SupportedNVLinkGeneration() int {
 	maxGeneration := a.Capabilities.NVLink
 	for _, support := range a.Support {

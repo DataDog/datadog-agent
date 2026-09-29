@@ -127,12 +127,13 @@ cc_shared_library(
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 dd_cc_packaged(
     name = "bz2_pkg",
     input = ":bz2",
+    dest_dir = "embedded/lib",
     version = VERSION,
     installed_files = [":hdr_files"],
     visibility = ["//visibility:public"],
@@ -143,6 +144,5 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    prefix = "embedded",
     visibility = ["//visibility:public"],
 )

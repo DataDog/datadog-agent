@@ -32,7 +32,7 @@ type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	defaultConfig  any           // typed config value (e.g. CUSUMConfig, RRCFConfig)
+	defaultConfig  any           // typed config value (e.g. BOCPDConfig, HoltResidualConfig)
 	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
 
@@ -90,6 +90,52 @@ type ComponentSettings struct {
 	configs map[string]any
 }
 
+// ApplyTestbenchDefaults applies replay-specific defaults used by the offline
+// testbench. Production builds ComponentSettings from the agent config and
+// never calls this function. Explicit testbench --config component entries
+// take precedence over this profile.
+func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
+	if settings.Enabled == nil {
+		settings.Enabled = make(map[string]bool)
+	}
+	if settings.configs == nil {
+		settings.configs = make(map[string]any)
+	}
+
+	bocpd := DefaultBOCPDConfig()
+	bocpd.WarmupPoints = 40
+	holt := DefaultHoltResidualConfig()
+	holt.WarmupPoints = 15
+	holt.ResidualWindow = 25
+	tukey := DefaultTukeyBiweightConfig()
+	tukey.WindowSize = 40
+	tukey.MinPoints = 40
+
+	for name, cfg := range map[string]any{
+		"bocpd":          bocpd,
+		"holt_residual":  holt,
+		"tukey_biweight": tukey,
+	} {
+		if _, explicitlyConfigured := settings.configs[name]; !explicitlyConfigured {
+			settings.configs[name] = cfg
+		}
+	}
+
+	// Evals should score the scorer's correlation episodes. Preserve explicit
+	// component choices in --config, which are used for ablations and manual
+	// comparisons.
+	if _, explicitlyEnabled := settings.Enabled["anomaly_scorer"]; !explicitlyEnabled {
+		settings.Enabled["anomaly_scorer"] = true
+	}
+	if _, explicitlyConfigured := settings.configs["anomaly_scorer"]; !explicitlyConfigured {
+		scorer := DefaultAnomalyScorerConfig()
+		scorer.CorrelationEvents = true
+		scorer.CooldownSecs = 0
+		settings.configs["anomaly_scorer"] = scorer
+	}
+	return settings
+}
+
 // componentCatalog is the shared registry of all available pipeline components.
 // Both the live observer and the testbench use this to discover and instantiate
 // detectors, correlators, and extractors.
@@ -134,6 +180,15 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultLogPatternExtractorConfig(),
 				factory:        func(cfg any) any { return NewLogPatternExtractor(cfg.(LogPatternExtractorConfig)) },
 				defaultEnabled: true,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultLogPatternExtractorConfig()
+					if key := prefix + "max_patterns"; reader.IsConfigured(key) {
+						if value := reader.GetInt(key); value > 0 {
+							cfg.MaxPatterns = value
+						}
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(LogPatternExtractorConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -143,21 +198,6 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			// ---- Detectors ----
-			{
-				name:           "cusum",
-				displayName:    "CUSUM",
-				kind:           componentDetector,
-				defaultConfig:  DefaultCUSUMConfig(),
-				factory:        func(cfg any) any { return NewCUSUMDetector(cfg.(CUSUMConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CUSUMConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("cusum: failed to parse JSON config: %w", err)
-					}
-					return cfg, nil
-				},
-			},
 			{
 				name:           "bocpd",
 				displayName:    "BOCPD",
@@ -170,6 +210,9 @@ func defaultCatalog() *componentCatalog {
 					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
 						cfg.WarmupPoints = reader.GetInt(key)
 					}
+					if key := prefix + "max_run_length"; reader.IsConfigured(key) {
+						cfg.MaxRunLength = reader.GetInt(key)
+					}
 					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
@@ -181,33 +224,66 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			{
-				name:           "rrcf",
-				displayName:    "RRCF",
-				kind:           componentDetector,
-				defaultConfig:  DefaultRRCFConfig(),
-				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
-				defaultEnabled: true,
+				name:        "scanmw",
+				displayName: "ScanMW",
+				kind:        componentDetector,
+				factory: func(cfg any) any {
+					c := cfg.(*ScanMWDetector)
+					d := NewScanMWDetector()
+					d.MinPoints = c.MinPoints
+					d.MaxPoints = c.MaxPoints
+					return d
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(RRCFConfig)
+					cfg := *defaults.(*ScanMWDetector)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("rrcf: failed to parse JSON config: %w", err)
+						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
 					}
-					return cfg, nil
+					return &cfg, nil
+				},
+				defaultEnabled: false,
+				defaultConfig:  NewScanMWDetector(),
+				readConfig: func(reader ConfigReader, prefix string) any {
+					d := NewScanMWDetector()
+					if k := prefix + "min_points"; reader.IsConfigured(k) {
+						d.MinPoints = reader.GetInt(k)
+					}
+					if k := prefix + "max_points"; reader.IsConfigured(k) {
+						d.MaxPoints = reader.GetInt(k)
+					}
+					return d
 				},
 			},
 			{
-				name:           "scanmw",
-				displayName:    "ScanMW",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanMWDetector() },
+				name:        "scanwelch",
+				displayName: "ScanWelch",
+				kind:        componentDetector,
+				factory: func(cfg any) any {
+					c := cfg.(*ScanWelchDetector)
+					d := NewScanWelchDetector()
+					d.MinPoints = c.MinPoints
+					d.MaxPoints = c.MaxPoints
+					return d
+				},
 				defaultEnabled: false,
-			},
-			{
-				name:           "scanwelch",
-				displayName:    "ScanWelch",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewScanWelchDetector() },
-				defaultEnabled: false,
+				defaultConfig:  NewScanWelchDetector(),
+				readConfig: func(reader ConfigReader, prefix string) any {
+					d := NewScanWelchDetector()
+					if k := prefix + "min_points"; reader.IsConfigured(k) {
+						d.MinPoints = reader.GetInt(k)
+					}
+					if k := prefix + "max_points"; reader.IsConfigured(k) {
+						d.MaxPoints = reader.GetInt(k)
+					}
+					return d
+				},
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := *defaults.(*ScanWelchDetector)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
+					}
+					return &cfg, nil
+				},
 			},
 			{
 				name:           "holt_residual",
@@ -216,6 +292,16 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultHoltResidualConfig(),
 				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
 				defaultEnabled: false,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultHoltResidualConfig()
+					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
+						cfg.WarmupPoints = reader.GetInt(key)
+					}
+					if key := prefix + "residual_window"; reader.IsConfigured(key) {
+						cfg.ResidualWindow = reader.GetInt(key)
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(HoltResidualConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -231,6 +317,16 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultTukeyBiweightConfig(),
 				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
 				defaultEnabled: false,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultTukeyBiweightConfig()
+					if key := prefix + "min_points"; reader.IsConfigured(key) {
+						cfg.MinPoints = reader.GetInt(key)
+					}
+					if key := prefix + "window_size"; reader.IsConfigured(key) {
+						cfg.WindowSize = reader.GetInt(key)
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TukeyBiweightConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -241,27 +337,12 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Correlators ----
 			{
-				name:           "cross_signal",
-				displayName:    "CrossSignal",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultCorrelatorConfig(),
-				factory:        func(cfg any) any { return NewCorrelator(cfg.(CorrelatorConfig)) },
-				defaultEnabled: false,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(CorrelatorConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, fmt.Errorf("cross_signal: failed to parse JSON config: %w", err)
-					}
-					return cfg, nil
-				},
-			},
-			{
 				name:           "time_cluster",
 				displayName:    "TimeCluster",
 				kind:           componentCorrelator,
 				defaultConfig:  DefaultTimeClusterConfig(),
 				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
-				defaultEnabled: true,
+				defaultEnabled: false,
 				readConfig:     readTimeClusterConfig,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TimeClusterConfig)
@@ -270,13 +351,6 @@ func defaultCatalog() *componentCatalog {
 					}
 					return cfg, nil
 				},
-			},
-			{
-				name:           "passthrough",
-				displayName:    "Passthrough",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
-				defaultEnabled: false,
 			},
 			// ---- Anomaly Scorer (treated as a Correlator by the engine) ----
 			{
@@ -376,10 +450,15 @@ type CatalogEntry struct {
 	DefaultEnabled bool
 }
 
+// TestbenchPassthroughComponentName is the testbench-only adapter that converts
+// each raw anomaly into an evaluation period. It is deliberately absent from
+// the production component catalog.
+const TestbenchPassthroughComponentName = "passthrough"
+
 // ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded
-// per-component overrides (e.g. from a --config params file). Each value may
-// contain an optional "enabled" bool plus component-specific hyperparameters.
-// Unknown component names are rejected.
+// per-component overrides (e.g. from a testbench --config params file). Each
+// value may contain an optional "enabled" bool plus component-specific
+// hyperparameters. Unknown component names are rejected.
 func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
 	cat := defaultCatalog()
 	settings := ComponentSettings{
@@ -387,6 +466,19 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 		configs: make(map[string]any),
 	}
 	for name, raw := range overrides {
+		var wrapper struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := json.Unmarshal(raw, &wrapper); err != nil {
+			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
+		}
+		if name == TestbenchPassthroughComponentName {
+			if wrapper.Enabled != nil {
+				settings.Enabled[name] = *wrapper.Enabled
+			}
+			continue
+		}
+
 		var entry *componentEntry
 		for i := range cat.entries {
 			if cat.entries[i].name == name {
@@ -396,12 +488,6 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 		}
 		if entry == nil {
 			return ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
-		}
-		var wrapper struct {
-			Enabled *bool `json:"enabled"`
-		}
-		if err := json.Unmarshal(raw, &wrapper); err != nil {
-			return ComponentSettings{}, fmt.Errorf("parsing enabled for %q: %w", name, err)
 		}
 		if wrapper.Enabled != nil {
 			settings.Enabled[name] = *wrapper.Enabled
@@ -421,15 +507,21 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 // Used by the CLI to implement --only without hardcoding component lists.
 func TestbenchCatalogEntries() []CatalogEntry {
 	cat := defaultCatalog()
-	result := make([]CatalogEntry, len(cat.entries))
-	for i, e := range cat.entries {
-		result[i] = CatalogEntry{
+	result := make([]CatalogEntry, 0, len(cat.entries)+1)
+	for _, e := range cat.entries {
+		result = append(result, CatalogEntry{
 			Name:           e.name,
 			DisplayName:    e.displayName,
 			Kind:           kindString(e.kind),
 			DefaultEnabled: e.defaultEnabled,
-		}
+		})
 	}
+	result = append(result, CatalogEntry{
+		Name:           TestbenchPassthroughComponentName,
+		DisplayName:    "Passthrough",
+		Kind:           kindString(componentCorrelator),
+		DefaultEnabled: false,
+	})
 	return result
 }
 
@@ -453,42 +545,9 @@ func kindString(k componentKind) string {
 	}
 }
 
-// statelessDetectorAllowlist enumerates catalog detectors that are explicitly
-// permitted to NOT implement observerdef.SeriesRemover. A stateless detector
-// keeps no per-series state (no posterior maps, no segment trackers, no
-// visible-count tracking) and therefore needs nothing freed when storage
-// evicts a series; the engine's fanOutSeriesRemoval safely no-ops on it.
-//
-// Any new entry added here is asserting "this detector is genuinely stateless
-// across detect calls". If a detector ever grows per-series memory (cache,
-// tracker, accumulator keyed by SeriesRef), it must implement SeriesRemover
-// and be removed from this list — otherwise its memory grows with the
-// cumulative number of series ever observed even after storage evicts them.
-var statelessDetectorAllowlist = map[string]struct{}{
-	// SeriesDetector implementations are wrapped at instantiation time by
-	// seriesDetectorAdapter, which itself implements SeriesRemover — so the
-	// raw SeriesDetector struct doesn't need to. The adapter handles teardown
-	// of its own lastVisibleCount cache and forwards to the wrapped detector
-	// only if it also satisfies SeriesRemover.
-	//
-	// Truly-stateless catalog Detectors are listed below.
-
-	// RRCF tracks a FIXED set of metric definitions configured at construction
-	// (RRCFConfig.Metrics, with DefaultRRCFMetrics() as the fallback). Its
-	// resolvedKeys / cursors maps are keyed by cursorKey (a metric definition
-	// identifier), not by ingested SeriesRef — so the map size is bounded by
-	// the configured metrics, not by storage cardinality. Adding storage-eviction
-	// fan-out would not free anything because RRCF state isn't keyed by SeriesRef.
-	// If RRCF is ever extended to track per-tag-combination state keyed by
-	// SeriesRef, this entry must be removed and RRCF must implement
-	// SeriesRemover.
-	"rrcf": {},
-}
-
 // validateDetectorTeardownContract checks that every detector entry in the
-// catalog either implements observerdef.SeriesRemover (so engine eviction
-// fan-out can free its per-series state) or is explicitly listed in
-// statelessDetectorAllowlist. Returns nil on success and a descriptive error
+// catalog implements observerdef.SeriesRemover so engine eviction fan-out can
+// free its per-series state. Returns nil on success and a descriptive error
 // on the first violator.
 //
 // Intended use: a unit test calls this against defaultCatalog() so any new
@@ -500,9 +559,6 @@ var statelessDetectorAllowlist = map[string]struct{}{
 func (c *componentCatalog) validateDetectorTeardownContract() error {
 	for _, entry := range c.entries {
 		if entry.kind != componentDetector {
-			continue
-		}
-		if _, allowed := statelessDetectorAllowlist[entry.name]; allowed {
 			continue
 		}
 		// Build the same instance Instantiate would. We use defaultConfig
@@ -523,7 +579,7 @@ func (c *componentCatalog) validateDetectorTeardownContract() error {
 			if _, ok := d.(observerdef.SeriesRemover); ok {
 				continue
 			}
-			return &detectorTeardownContractError{name: entry.name, reason: "detector neither implements observerdef.SeriesRemover nor is listed in statelessDetectorAllowlist"}
+			return &detectorTeardownContractError{name: entry.name, reason: "detector does not implement observerdef.SeriesRemover"}
 		}
 		return &detectorTeardownContractError{name: entry.name, reason: "factory product is neither observerdef.Detector nor observerdef.SeriesDetector"}
 	}

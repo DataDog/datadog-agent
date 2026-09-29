@@ -95,6 +95,7 @@ type Check struct {
 	dbVersion                               string
 	driver                                  string
 	metricLastRun                           time.Time
+	customQueryLastRuns                     []time.Time
 	statementsLastRun                       time.Time
 	dbInstanceLastRun                       time.Time
 	tablespaceLastRun                       time.Time
@@ -232,49 +233,46 @@ func (c *Check) Run() error {
 			handleServiceCheck(c, nil)
 		}
 
-		if c.config.OnlyCustomQueries {
-			if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
-				err = c.CustomQueries()
-				var message string
-				var status servicecheck.ServiceCheckStatus
-				if allErrors == nil {
-					status = servicecheck.ServiceCheckOK
-				} else {
-					status = servicecheck.ServiceCheckCritical
-					message = allErrors.Error()
-				}
-				sendServiceCheck(c, serviceCheckName, status, message)
-				commit(c)
-				return err
-			}
-		}
-
-		if !c.legacyIntegrationCompatibilityMode {
+		if !c.config.OnlyCustomQueries && !c.legacyIntegrationCompatibilityMode {
 			err := c.OS_Stats()
 			if err != nil {
 				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect os stats %w", c.logPrompt, err))
 			}
 		}
 
-		if c.config.SysMetrics.Enabled {
-			log.Debugf("%s Entered sysmetrics", c.logPrompt)
-			_, err := c.sysMetrics()
-			if err != nil {
-				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err))
+		if !c.config.OnlyCustomQueries {
+			if c.config.SysMetrics.Enabled {
+				log.Debugf("%s Entered sysmetrics", c.logPrompt)
+				_, err := c.sysMetrics()
+				if err != nil {
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err))
+				}
+			}
+			if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
+				err := c.ProcessMemory()
+				if err != nil {
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect process memory %w", c.logPrompt, err))
+				}
 			}
 		}
-		if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
-			err := c.ProcessMemory()
-			if err != nil {
-				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect process memory %w", c.logPrompt, err))
-			}
+	}
+
+	if len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0 {
+		if err := c.CustomQueries(); err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
 		}
-		if metricIntervalExpired && (len(c.config.InstanceConfig.CustomQueries) > 0 || len(c.config.InitConfig.CustomQueries) > 0) {
-			err := c.CustomQueries()
-			if err != nil {
-				allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to execute custom queries %w", c.logPrompt, err))
-			}
+	}
+
+	if c.config.OnlyCustomQueries {
+		var message string
+		status := servicecheck.ServiceCheckOK
+		if allErrors != nil {
+			status = servicecheck.ServiceCheckCritical
+			message = allErrors.Error()
 		}
+		sendServiceCheck(c, serviceCheckName, status, message)
+		commit(c)
+		return allErrors
 	}
 
 	tablespaceIntervalExpired := checkIntervalExpired(&c.tablespaceLastRun, c.config.Tablespaces.CollectionInterval)
@@ -380,6 +378,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if err != nil {
 		return fmt.Errorf("failed to build check config: %w", err)
 	}
+	c.clock = clock.New()
 
 	// Must be called before c.CommonConfigure because this integration supports multiple instances
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)

@@ -443,9 +443,6 @@ func (m *Manager) finalizeKernelEventCollection(ad *dump.ActivityDump, releaseTr
 
 		ad.Profile.AddVersionContext(selector.Tag, vCtx)
 	}
-
-	// scrub processes and retain args envs now
-	ad.Profile.ScrubProcessArgsEnvs(m.resolvers.ProcessResolver)
 }
 
 // stopDumpsWithSelector stops the active dumps for the given selector and prevent a workload with the provided selector from ever being dumped again

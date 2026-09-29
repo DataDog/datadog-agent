@@ -16,9 +16,10 @@ runs:
     - name: Pull or push Bazel-managed repository cache(s)
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        key: bazel-${{ hashFiles('.go-version', '.python-version') }}
+        key: bazel-${{ hashFiles('MODULE.bazel.lock') }}
         path: |
           .cache/bazel/*/cache
           .cache/go
+          .cache/golangci-lint
           .cache/ms-go
           .cache/pip

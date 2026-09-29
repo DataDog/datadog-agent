@@ -65,7 +65,7 @@ def create_gke(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     extra_flags = {
         "ddinfra:env": f"gcp/{account if account else cfg.get_gcp().account}",
@@ -121,7 +121,4 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
 
     print(f"\nYou can run the following command to connect to the GKE cluster\n\n{command}\n")
     if copy_to_clipboard:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+        tool.copy_to_clipboard_if_supported(command, prompt="Press a key to copy command to clipboard...")

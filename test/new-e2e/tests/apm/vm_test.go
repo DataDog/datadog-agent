@@ -79,7 +79,7 @@ sudo usermod -a -G docker dd-agent
 			// Create the /var/run/datadog directory and ensure
 			// permissions are correct so the agent can create
 			// unix sockets for the UDS transport and communicate with the docker socket.
-			ec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+			ec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript), ec2.WithInternetAccess()),
 		),
 	)
 	return opts

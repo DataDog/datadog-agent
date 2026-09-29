@@ -446,6 +446,11 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.
 	e.Resolved = false
 }
 
+// ResolveSpanContext resolves the span context of the event.
+func (fh *EBPFLessFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
+	return &ev.SpanContext
+}
+
 // ResolveSyscallCtxArgsStr1 resolve syscall ctx
 func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr1(_ *model.Event, e *model.SyscallContext) string {
 	return e.StrArg1

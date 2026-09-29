@@ -7,6 +7,7 @@
 package rules
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -112,5 +114,34 @@ func TestRuleEngineNoMatchMetric(t *testing.T) {
 		assert.Equal(t, int64(1), matched[0].val)
 		assert.Contains(t, matched[0].tags, "event_type:exec")
 		assert.Contains(t, matched[0].tags, "category:"+model.GetEventTypeCategory("exec").String())
+	}
+}
+
+func TestRuleEngineCapabilitiesEventTypeEnabled(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the capabilities event type is only available on Linux")
+	}
+
+	tests := []struct {
+		name                  string
+		capsMonitoringEnabled bool
+	}{
+		{name: "caps monitoring enabled", capsMonitoringEnabled: true},
+		{name: "caps monitoring disabled", capsMonitoringEnabled: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			engine := &RuleEngine{
+				config: &config.RuntimeSecurityConfig{RuntimeEnabled: true},
+				probe: &probe.Probe{
+					Config: &config.Config{
+						Probe: &pconfig.Config{CapabilitiesMonitoringEnabled: tt.capsMonitoringEnabled},
+					},
+				},
+			}
+
+			assert.Equal(t, tt.capsMonitoringEnabled, engine.getEventTypeEnabled()[model.CapabilitiesEventType.String()])
+		})
 	}
 }

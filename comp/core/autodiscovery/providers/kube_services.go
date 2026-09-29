@@ -181,7 +181,8 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		}
 
 		serviceID := apiserver.EntityForService(svc)
-		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID)
+		hybridIgnoreADTags := ddConf.GetBool("cluster_checks.support_hybrid_ignore_ad_tags")
+		svcConf, errors := utils.ExtractTemplatesFromAnnotations(serviceID, svc.Annotations, kubeServiceID, hybridIgnoreADTags)
 		if len(errors) > 0 {
 			errMsgSet := make(types.ErrorMsgSet)
 			for _, err := range errors {

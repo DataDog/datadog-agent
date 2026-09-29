@@ -18,7 +18,7 @@ import (
 // It is used to determine the type of config and how to handle it.
 type Type int32
 
-//go:generate go run golang.org/x/tools/cmd/stringer -tags linux_bpf -type=Type -linecomment
+//go:generate go run golang.org/x/tools/cmd/stringer -tags bpf -type=Type -linecomment
 
 const (
 	// TypeDefault is the default config type.

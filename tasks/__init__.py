@@ -5,6 +5,8 @@
 Invoke entrypoint, import here all the tasks we want to make available
 """
 
+import sys
+
 from invoke import Collection, Task
 
 from tasks import (
@@ -65,7 +67,6 @@ from tasks import (
     owners,
     package,
     pipeline,
-    pkg_template,
     pre_commit,
     privateactionrunner,
     process_agent,
@@ -105,6 +106,7 @@ from tasks.e2e_framework import localpodman as e2e_localpodman
 from tasks.e2e_framework import test as e2e_test
 from tasks.e2e_framework.deploy import check_s3_image_exists
 from tasks.e2e_framework.setup import setup as e2e_setup
+from tasks.e2e_framework.vm import get_vm_password as e2e_get_vm_password
 from tasks.fuzz import fuzz
 from tasks.fuzz_infra import build_and_upload_fuzz
 from tasks.go import (
@@ -133,6 +135,7 @@ from tasks.gotest import (
     lint_go,
     send_unit_tests_stats,
     test,
+    test_legacy,
 )
 from tasks.install_tasks import (
     download_tools,
@@ -155,7 +158,15 @@ Task.__call__ = custom__call__
 ns = Collection()
 
 # add single tasks to the root
-ns.add_task(test)
+# AIX gets routed to the legacy task because it doesn't support bazel.
+# macos and windows will be onboarded to bazel-by-default when ready
+if sys.platform in ("win32", "darwin", "aix"):
+    ns.add_task(test_legacy, name="test")
+    ns.add_task(test, name="test-new")
+else:
+    ns.add_task(test)
+    ns.add_task(test_legacy)
+
 ns.add_task(integration_tests)
 ns.add_task(deps)
 ns.add_task(deps_vendored)
@@ -278,7 +289,6 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(schema)
 ns.add_collection(sbomgen)
-ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
 ns.add_collection(files_inventory)
 
@@ -293,6 +303,7 @@ e2e_ns = Collection("e2e")
 e2e_ns.add_collection(e2e_setup)
 e2e_ns.add_collection(e2e_test)
 e2e_ns.add_task(check_s3_image_exists)
+e2e_ns.add_task(e2e_get_vm_password, name="get-vm-password")
 
 ns.add_collection(e2e_ns)
 ns.configure(

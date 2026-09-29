@@ -178,7 +178,13 @@ func GetCustomResourceClientsAndCollectors(factories []customresource.RegistryFa
 		}
 
 		cl := c.DynamicCl.Resource(gvr)
-		clients[factory.Name()] = cl
+		// Key the client by the fully-qualified GVR string rather than the
+		// bare resource (plural) name. Two CRDs can share the same Kind/plural
+		// across different API groups (e.g. Artifactory and SonarQube both
+		// exposing "projects"); keying by name alone would collide them onto a
+		// single client and cause "Unexpected watch event object gvk" errors
+		// and mixed counts. This matches the lookup key used by the builder.
+		clients[gvr.String()] = cl
 		collectors = append(collectors, gvr.String())
 	}
 

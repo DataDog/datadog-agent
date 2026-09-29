@@ -47,7 +47,9 @@ func TestProcessAutodiscoverySuite(t *testing.T) {
 		agentparams.WithIntegration("nginx.d", nginxProcessAutodiscoveryConfigStr),
 	}
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentParams...)))),
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(
+			scenec2.WithAgentOptions(agentParams...),
+			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())))),
 	}
 	e2e.Run(t, &processAutodiscoverySuite{}, options...)
 }

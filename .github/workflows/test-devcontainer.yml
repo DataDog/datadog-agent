@@ -28,7 +28,7 @@ jobs:
         | jq -s 'add' > pr-files.json
 
     - name: Fetch changed files (push)
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       if: github.event_name == 'push'
       with:
         persist-credentials: false
@@ -77,14 +77,14 @@ jobs:
         os: [ubuntu-latest, ubuntu-24.04-arm]
 
     steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
         fetch-depth: 1000
         fetch-tags: true
 
     - name: Setup Node.js
-      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
 
     - name: Install dda
       uses: ./.github/actions/install-dda

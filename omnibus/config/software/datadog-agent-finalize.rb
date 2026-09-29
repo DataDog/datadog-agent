@@ -93,12 +93,14 @@ build do
             mkdir "/var/log/datadog"
 
             # Move the built-in shared-library checks into the package's checks.d,
-            # strip them to reduce size, then re-assert owner-only (0500) perms.
+            # strip them to reduce size, then re-assert root/root-group-only (0550)
+            # perms. Group-readable so init containers can copy them on OpenShift,
+            # where containers run with a random UID in the root group.
             Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
               dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
               move lib, dest, :force => true
               command "strip --strip-unneeded #{dest}"
-              command "chmod 0500 #{dest}"
+              command "chmod 0550 #{dest}"
             end
 
             # Process manager config directory (read-only, under install dir)
@@ -269,7 +271,6 @@ build do
             # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
             allow_list = [
               "libddwaf\\.dylib",
-              "secret-generic-connector",
             ]
             command_on_repo_root "./omnibus/scripts/check_macos_version.sh",
                                  live_stream: Omnibus.logger.live_stream(:info),

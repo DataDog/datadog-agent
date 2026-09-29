@@ -33,7 +33,10 @@ import (
 
 // ProcessKillerOS interface defines an os specific process killer
 type ProcessKillerOS interface {
-	Kill(sig uint32, pc *killContext) error
+	// Kill sends the given signal to the given processes, and returns the pids that could not be
+	// killed and the ones that were. Implementations may kill them in fewer operations than there
+	// are processes, as long as they kill no process outside of the given list.
+	Kill(sig uint32, kcs []killContext) (failedPids []uint32, killedPids []uint32)
 	getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error)
 }
 
@@ -80,7 +83,7 @@ type processKillerStats struct {
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller, error) {
 	if pkos == nil {
-		pkos = NewProcessKillerOS(nil, nil)
+		pkos = NewProcessKillerOS(nil, nil, cfg.RuntimeSecurity.EnforcementCgroupKillEnabled)
 	}
 	p := &ProcessKiller{
 		cfg:             cfg,
@@ -301,35 +304,28 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 // KillProcesses kills the given list of processes, returns the list of pids that failed to be killed (nil if everything went well)
 func (p *ProcessKiller) KillProcesses(killDirectly bool, ruleID string, sig int, kcs []killContext) ([]uint32, []uint32) {
-	var failedPids []uint32
-	var killedPids []uint32
 	if !p.cfg.RuntimeSecurity.EnforcementEnabled {
-		return failedPids, killedPids
-	}
-	var processesKilled int64
-	for _, pc := range kcs {
-		log.Debugf("requesting signal %d to be sent to %d", sig, pc.pid)
-
-		if err := p.os.Kill(uint32(sig), &pc); err != nil {
-			seclog.Debugf("failed to kill process %d: %s.", pc.pid, err)
-			failedPids = append(failedPids, uint32(pc.pid))
-
-		} else {
-			killedPids = append(killedPids, uint32(pc.pid))
-			processesKilled++
-		}
+		return nil, nil
 	}
 
+	log.Debugf("requesting signal %d to be sent to %d processes", sig, len(kcs))
+
+	failedPids, killedPids := p.os.Kill(uint32(sig), kcs)
+	p.updateKilledStats(ruleID, killDirectly, int64(len(killedPids)))
+
+	return failedPids, killedPids
+}
+
+func (p *ProcessKiller) updateKilledStats(ruleID string, killDirectly bool, processesKilled int64) {
 	p.perRuleStatsLock.Lock()
+	defer p.perRuleStatsLock.Unlock()
+
 	stats := p.getRuleStats(ruleID)
 	if killDirectly {
 		stats.processesKilledDirectly += processesKilled
 	} else {
 		stats.processesKilledAfterQueue += processesKilled
 	}
-	p.perRuleStatsLock.Unlock()
-
-	return failedPids, killedPids
 }
 
 // Start starts the go routine responsible for flushing the disarmer caches and the pending kill queue
@@ -466,23 +462,23 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 		return
 	}
 
+	// Collect the pending kills of every report, making sure a pid is only killed once.
 	var allKills []killContext
+	seen := make(map[int]bool)
 	for _, r := range disarmer.pendingReports {
-		allKills = append(allKills, r.pendingKills...)
-	}
-	slices.SortFunc(allKills, func(a, b killContext) int {
-		if a.pid < b.pid {
-			return -1
+		for _, kc := range r.pendingKills {
+			if seen[kc.pid] {
+				continue
+			}
+			seen[kc.pid] = true
+			allKills = append(allKills, kc)
 		}
-		return 1
-	})
-	allKills = slices.CompactFunc(allKills, func(a, b killContext) bool {
-		return a.pid == b.pid
-	})
+	}
 
 	if len(allKills) == 0 {
 		seclog.Debugf("no pending kill for rule `%s`", disarmer.ruleID)
 	}
+
 	failedPids, killedPids := p.KillProcesses(false, disarmer.ruleID, disarmer.killSignal, allKills)
 	for _, r := range disarmer.pendingReports {
 		updateKillActionReport(r, now, failedPids, killedPids)

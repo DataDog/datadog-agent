@@ -64,7 +64,7 @@ mkdir -p "$EMBEDDED_DESTDIR/share"
 #
 ZLIB_VERSION="1.3.1"
 BZIP2_VERSION="1.0.8"
-OPENSSL_VERSION="3.5.7"
+OPENSSL_VERSION="3.5.8"
 XZ_VERSION="5.8.1"
 LIBXML2_VERSION="2.15.3"    # built from source (AIX Toolbox also available but we build)
 LIBXSLT_VERSION="1.1.45"   # from AIX Toolbox (yum install libxslt-devel; source build fails on AIX)
@@ -267,11 +267,21 @@ else
     # DEFAULT_CONFIG): strip legacy/weak algorithms and the GOST engine.
     # no-zlib (not zlib-dynamic like Linux, on purpose): shared zlib can't be
     # dlopen'd on AIX.
+    # -Wl,-blibpath: bake the install-time library search path into the XCOFF
+    # loader section of every OpenSSL binary and shared library (notably the
+    # `openssl` CLI). Without it, running `openssl` directly from a plain shell
+    # fails with "Dependent module /usr/lib/libssl.a(libssl64.so.3) could not be
+    # loaded" because the AIX loader finds the system libssl.a first (which has
+    # no libssl64.so.3 member). $EMBEDDED (not $EMBEDDED_DESTDIR) is used
+    # because -blibpath is the runtime search path, resolved on the installed
+    # host where the libs live at $EMBEDDED/lib. The freeware and system paths
+    # are kept as fallbacks for libgcc_s etc.
     ./Configure aix64-gcc \
         --prefix="$EMBEDDED" \
         --openssldir="$EMBEDDED/ssl" \
         --libdir=lib \
         -Wl,-brtl \
+        -Wl,-blibpath:"$EMBEDDED"/lib:/opt/freeware/lib64:/opt/freeware/lib:/usr/lib:/lib \
         shared \
         no-docs \
         no-idea \

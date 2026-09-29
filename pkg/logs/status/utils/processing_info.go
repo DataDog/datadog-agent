@@ -8,6 +8,7 @@ package utils
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -69,4 +70,9 @@ func (p *ProcessingInfo) Info() []string {
 	sort.Strings(info)
 
 	return info
+}
+
+// String returns a lock-safe, formatted representation of the processing info.
+func (p *ProcessingInfo) String() string {
+	return strings.Join(p.Info(), ", ")
 }

@@ -1,4 +1,6 @@
 ---
+agents:
+  enabled: true
 clusterAgent:
   admissionController:
     configMode: "hostip"

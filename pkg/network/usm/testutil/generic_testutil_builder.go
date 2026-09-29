@@ -28,11 +28,13 @@ func buildGoBinary(srcDir, outPath, buildFlags string) (string, error) {
 
 	// If there is a compiled binary already, skip the compilation.
 	// Meant for the CI.
-	if _, err := os.Stat(cachedServerBinaryPath); err == nil {
-		return cachedServerBinaryPath, nil
+	if _, ok := os.LookupEnv("GITLAB_CI"); ok {
+		if _, err := os.Stat(cachedServerBinaryPath); err == nil {
+			return cachedServerBinaryPath, nil
+		}
 	}
 
-	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test,netgo,linux_bpf", buildFlags, "-o", cachedServerBinaryPath, serverSrcDir)
+	c := exec.Command("go", "build", "-buildvcs=false", "-a", "-tags=test,netgo,bpf", buildFlags, "-o", cachedServerBinaryPath, serverSrcDir)
 	out, err := c.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("could not build unix transparent proxy server test binary: %s\noutput: %s", err, string(out))

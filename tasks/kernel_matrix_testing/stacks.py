@@ -27,6 +27,7 @@ from tasks.kernel_matrix_testing.libvirt import (
 )
 from tasks.kernel_matrix_testing.tool import Exit, error, info, warn
 from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT, VMCONFIG
+from tasks.schema.generate import schema_codegen
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
@@ -274,6 +275,9 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
 
 
 def build_start_microvms_binary(ctx):
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     # building the binary improves start up time for local usage where we invoke this multiple times.
     ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
 

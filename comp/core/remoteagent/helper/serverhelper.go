@@ -81,8 +81,12 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 	// remote agent runs in a separate guest VM from the core agent, so the callback listener
 	// (used for status/flare/telemetry pulls) must also be reachable over AF_VSOCK.
 	listenURI := "https://127.0.0.1:0"
-	if config.GetString("vsock_addr") != "" {
-		listenURI = "vsock://0"
+	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
+		cid, err := discoverLocalVSockCID(vsockAddr, agentIpcAddress)
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine local vsock context ID: %w", err)
+		}
+		listenURI = fmt.Sprintf("vsock://%d:0", cid)
 	}
 	ral, err := buildRemoteAgentListener(listenURI)
 	if err != nil {
@@ -123,8 +127,9 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		if sessionID == "" {
 			return nil, errors.New("remote agent is not registered yet")
 		}
-		err = grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID}))
-		if err != nil {
+		// Use a local err so concurrent RPCs (this interceptor runs per request) don't
+		// race on the outer err captured from NewUnimplementedRemoteAgentServer.
+		if err := grpc.SetHeader(ctx, metadata.New(map[string]string{"session_id": sessionID})); err != nil {
 			return nil, err
 		}
 		return handler(ctx, req)
@@ -139,9 +144,30 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		})
 	}
 
+	streamSessionIDInterceptor := func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		remoteAgentServer.sessionIDMutex.RLock()
+		sessionID := remoteAgentServer.sessionID
+		remoteAgentServer.sessionIDMutex.RUnlock()
+		if sessionID == "" {
+			return errors.New("remote agent is not registered yet")
+		}
+		if err := stream.SetHeader(metadata.New(map[string]string{"session_id": sessionID})); err != nil {
+			return err
+		}
+		return handler(srv, stream)
+	}
+
+	chainedStreamInterceptor := func(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		authHandler := grpc_auth.StreamServerInterceptor(grpcutil.StaticAuthInterceptor(remoteAgentServer.ipcComp.GetAuthToken()))
+		return authHandler(srv, stream, info, func(srv any, stream grpc.ServerStream) error {
+			return streamSessionIDInterceptor(srv, stream, info, handler)
+		})
+	}
+
 	serverOpts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(remoteAgentServer.ipcComp.GetTLSServerConfig())),
 		grpc.UnaryInterceptor(chainedInterceptor),
+		grpc.StreamInterceptor(chainedStreamInterceptor),
 	}
 
 	remoteAgentServer.grpcServer = grpc.NewServer(serverOpts...)
@@ -273,6 +299,37 @@ type remoteAgentListener struct {
 	cleanupSocketPath string
 }
 
+// discoverLocalVSockCID learns our own vsock context ID without opening /dev/vsock. AF_VSOCK's
+// CID is fixed per-VM, so a successful outbound connection to the core agent (which we need to
+// reach anyway to register) reports our real CID via getsockname() on the resulting *vsock.Conn.
+func discoverLocalVSockCID(vsockAddr, agentIpcAddress string) (uint32, error) {
+	peerCID, err := socket.ParseVSockAddress(vsockAddr)
+	if err != nil {
+		return 0, err
+	}
+
+	_, portStr, err := net.SplitHostPort(agentIpcAddress)
+	if err != nil {
+		return 0, err
+	}
+	port, err := strconv.ParseUint(portStr, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("invalid vsock port %q: %w", portStr, err)
+	}
+
+	conn, err := vsock.Dial(peerCID, uint32(port), &vsock.Config{})
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	addr, ok := conn.LocalAddr().(*vsock.Addr)
+	if !ok {
+		return 0, fmt.Errorf("unexpected vsock local address type %T", conn.LocalAddr())
+	}
+	return addr.ContextID, nil
+}
+
 // buildRemoteAgentListener creates the inbound listener for a remote agent and computes
 // the api_endpoint_uri that should be advertised to the Core Agent.
 //
@@ -316,13 +373,24 @@ func buildRemoteAgentListener(listenURI string) (*remoteAgentListener, error) {
 		// so we refuse to set up a server that advertises plaintext to the registry.
 		return nil, errors.New("http:// scheme is not supported on the remote agent server side (use https:// or unix://)")
 	case "vsock":
-		port, err := strconv.ParseUint(rest, 10, 32)
+		cidStr, portStr, err := net.SplitHostPort(rest)
+		if err != nil {
+			return nil, fmt.Errorf("invalid vsock listen URI %q: %w", listenURI, err)
+		}
+		cid, err := strconv.ParseUint(cidStr, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid vsock listen URI %q: invalid context ID: %w", listenURI, err)
+		}
+		port, err := strconv.ParseUint(portStr, 10, 32)
 		if err != nil {
 			return nil, fmt.Errorf("invalid vsock listen URI %q: invalid port: %w", listenURI, err)
 		}
-		l, err := vsock.Listen(uint32(port), &vsock.Config{})
+		// ListenContextID with an explicit CID never opens /dev/vsock (unlike Listen, which
+		// auto-detects the CID via that device); the CID here is the caller's real, already
+		// known context ID, obtained by discoverLocalVSockCID.
+		l, err := vsock.ListenContextID(uint32(cid), uint32(port), &vsock.Config{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to listen on vsock port %d: %w", port, err)
+			return nil, fmt.Errorf("failed to listen on vsock cid %d port %d: %w", cid, port, err)
 		}
 		addr, ok := l.Addr().(*vsock.Addr)
 		if !ok {
@@ -459,8 +527,11 @@ func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, r
 // registerWithAgent handles the registration logic with the Core Agent
 func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Duration, error) {
 	registerReq := &pbcore.RegisterRemoteAgentRequest{
-		Flavor:         s.agentFlavor,
-		DisplayName:    s.displayName,
+		Flavor: s.agentFlavor,
+		// Suffixed so a remote agent registering under this component and under
+		// configstreamconsumer shows up as two distinct, clearly-labeled entries in
+		// `agent status` rather than looking like a duplicate registration.
+		DisplayName:    s.displayName + " (remoteagent)",
 		ApiEndpointUri: s.registeredAPIURI,
 		Services:       s.services,
 	}

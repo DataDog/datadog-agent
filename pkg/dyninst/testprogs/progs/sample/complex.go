@@ -6,9 +6,12 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 type tierA struct {
@@ -243,7 +246,10 @@ func testLongFunctionWithChangingState() {
 }
 
 //nolint:all
-func executeComplexFuncs() {
+func executeComplexFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.complex")
+	defer span.Finish()
+
 	o := outer{
 		A: &middle{
 			B: &inner{

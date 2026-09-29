@@ -36,11 +36,9 @@ AGENT_CORECHECKS = [
     "network_path",
     "gpu",
     "nccl",
-    "wlan",
     "discovery",
     "versa",
     "network_config_management",
-    "battery",
     "cloud_hostinfo",
 ]
 
@@ -64,6 +62,8 @@ AIX_CORECHECKS = [
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "battery",
+    "powershell",
     "sbom",
     "thermal",
     "windows_registry",
@@ -71,7 +71,15 @@ WINDOWS_CORECHECKS = [
     "wincrashdetect",
     "windows_certificate",
     "winproc",
+    "vdi",
     "win32_event_log",
+    "wlan",
+]
+
+MACOS_CORECHECKS = [
+    "battery",
+    "thermal",
+    "wlan",
 ]
 
 IOT_AGENT_CORECHECKS = [

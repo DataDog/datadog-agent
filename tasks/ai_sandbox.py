@@ -16,20 +16,11 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.libs.common.color import Color, color_message
+from tasks.schema.generate import codegen as schema_codegen
 
 E2E_FRAMEWORK_DIR = "test/e2e-framework"
 CLI_PACKAGE = "./cmd/ai-sandbox"
 CLI_BIN = "bin/ai-sandbox"
-
-
-def _load_e2e_local_config():
-    """Load ~/.test_infra_config.yaml lazily; return the Config or None."""
-    try:
-        from tasks.e2e_framework import config as e2e_config
-
-        return e2e_config.get_local_config()
-    except Exception:
-        return None
 
 
 @task(
@@ -95,15 +86,12 @@ def run(
         joined = " or ".join(cred_vars)
         print(color_message(f"WARNING: none of {joined} is set; {tool} will likely fail to authenticate", Color.ORANGE))
 
-    env_vars = {}
-    # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set, mirroring
-    # new-e2e-tests.run, so developers don't need it in their shell rc.
-    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ:
-        from tasks.e2e_framework.config import get_pulumi_passphrase
+    # Pulls PULUMI_CONFIG_PASSPHRASE out of the local config when the environment doesn't
+    # already carry one, mirroring new-e2e-tests.run, so developers don't need it in
+    # their shell rc.
+    from tasks.e2e_framework import tool as e2e_tool
 
-        passphrase = get_pulumi_passphrase(_load_e2e_local_config())
-        if passphrase:
-            env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
+    env_vars = e2e_tool.pulumi_env(skip_update_check=False)
 
     # Resolve paths to absolute so they are independent of the binary's working directory.
     local_output_dir = str(Path(local_output_dir).expanduser().absolute())
@@ -120,6 +108,9 @@ def run(
     # `go build -o` does not create the output's parent directory, and bin/ is
     # gitignored (absent in a clean checkout), so create it first.
     os.makedirs(os.path.join(E2E_FRAMEWORK_DIR, os.path.dirname(CLI_BIN)), exist_ok=True)
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
 
     try:
         with ctx.cd(E2E_FRAMEWORK_DIR):

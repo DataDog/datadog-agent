@@ -7,7 +7,7 @@ and the include-dir layout it implies stays a single atomic change.
 
 def _winlibs_mingw_repository_impl(ctx):
     ctx.download_and_extract(
-        url = ctx.attr.url,
+        url = ctx.attr.urls,
         sha256 = ctx.attr.sha256,
         stripPrefix = ctx.attr.strip_prefix,
     )
@@ -24,9 +24,9 @@ winlibs_mingw_repository = repository_rule(
     implementation = _winlibs_mingw_repository_impl,
     doc = "Downloads a pinned WinLibs MinGW-w64 zip and exposes it as a hermetic cc_toolchain.",
     attrs = {
-        "url": attr.string(
+        "urls": attr.string_list(
             mandatory = True,
-            doc = "Direct URL to the WinLibs .zip release asset.",
+            doc = "URLs (tried in order) for the WinLibs .zip release asset.",
         ),
         "sha256": attr.string(
             mandatory = True,

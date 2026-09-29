@@ -1,0 +1,230 @@
+## All options defined here are available to all instances.
+#
+# init_config:
+#
+#   ## The check runs only cmdlets that an administrator has approved in the
+#   ## allowlist file. That file is read from a FIXED, non-configurable location:
+#   ##
+#   ##     C:\ProgramData\Datadog\protected\powershell_allowlist.yaml
+#   ##
+#   ## The `protected` directory is created by the Agent installer and is writable
+#   ## only by Administrators and SYSTEM (the Agent user can only read it). The file
+#   ## must be owned by Administrators or SYSTEM. If it is missing, unparseable,
+#   ## fails schema validation, or is not admin-owned, the check runs nothing and
+#   ## logs an error (fail closed).
+#   ##
+#   ## Allowlist format:
+#   ##
+#   ##   version: 1                    # required; only version 1 is supported
+#   ##   allowed_cmdlets:              # required; must contain at least one cmdlet
+#   ##     <Get-Cmdlet>:               # key: a read-only Get-* cmdlet name (Get-<Noun>)
+#   ##       module: <ModuleName>      # required; the cmdlet must resolve to this
+#   ##                                 # module at runtime (rejects a shadowing
+#   ##                                 # function). Must match (Get-Command <cmdlet>).ModuleName.
+#   ##                                 # Use "*" to explicitly skip the module check.
+#   ##       parameters:               # optional; the parameters an instance may pass
+#   ##         <ParameterName>:        # parameter name ([A-Za-z0-9_]); an instance `parameters` entry
+#   ##           required: <bool>      # optional (default false); instance must pass it
+#   ##           allowed_values:       # optional; exact-match whitelist of values
+#   ##             - <value1>
+#   ##             - <value2>
+#   ##           pattern: '<regex>'    # optional; value must match this Go (RE2) regex
+#   ##
+#   ## Rules enforced at configure time (any violation fails the instance closed):
+#   ##   - An instance's `cmdlet` must be a key under `allowed_cmdlets`.
+#   ##   - Every parameter an instance passes via `parameters` must be declared under
+#   ##     that cmdlet's `parameters`; undeclared parameters are rejected.
+#   ##   - A parameter value must satisfy `allowed_values` (if set) OR `pattern` (if
+#   ##     set). `allowed_values` takes precedence. Every declared parameter MUST set
+#   ##     one of the two: an allowlist declaring a parameter with neither is
+#   ##     rejected when it loads, so no value can slip through unconstrained.
+#   ##   - A parameter with `required: true` must be present in the instance.
+#   ##   - Any cmdlet used in an instance's `tag_queries` must ALSO be allowlisted.
+#   ##     Join cmdlets are invoked with no user parameters, so only the name is checked.
+#   ##
+#   ## Note: `pattern` is auto-anchored to the WHOLE value (compiled as \A(?:...)\z),
+#   ## so a partial/substring match never passes. Values are always bound to the cmdlet as data (never
+#   ## interpolated).
+#   ##
+#   ## Note: values are compared as STRINGS. A boolean or numeric instance value must
+#   ## be allowlisted in its string form - `allowed_values: ['false']`, not
+#   ## `[false]` - otherwise it never matches.
+#   ##
+#   ## Note: `pattern` is a Go (RE2) regex and is CASE-SENSITIVE. A pattern of
+#   ## 'dnscache' will not accept "Dnscache" - write '(?i)dnscache' or a character
+#   ## class. RE2 has no lookaround and no backreferences: '(?=...)' and '\1' are
+#   ## rejected when the allowlist loads. Cmdlet keys, parameter names and
+#   ## `allowed_values` are case-sensitive too, so they must be spelled exactly as
+#   ## the instance spells them.
+#   ##
+#   ## Example allowlist:
+#   ##
+#   ##   version: 1
+#   ##   allowed_cmdlets:
+#   ##     Get-Service:                       # any service name of the allowed shape
+#   ##       module: Microsoft.PowerShell.Management
+#   ##       parameters:
+#   ##         Name: { required: false, pattern: '[A-Za-z0-9 _.*-]+' }
+#   ##     Get-Certificate:                   # only these two templates permitted
+#   ##       module: PKI
+#   ##       parameters:
+#   ##         Template: { required: false, allowed_values: [WebServer, CodeSigning] }
+#   ##     Get-Process:                       # no parameters permitted (name only)
+#   ##       module: Microsoft.PowerShell.Management
+#
+#   ## @param service - string - optional
+#   ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
+#   #
+#   # service: <SERVICE>
+#
+# instances:
+#
+#     ## @param cmdlet - string - required
+#     ## The read-only Get-* cmdlet to run. Must be present in the admin allowlist.
+#     #
+#   - cmdlet: Get-Service
+#
+#     ## @param name - string - optional
+#     ## Optional prefix for emitted metric names: `<name>.<metric_name>`. When
+#     ## omitted, the metric name is used as-is (no prefix).
+#     #
+#     name: windows_service
+#
+#     ## @param parameters - list - optional
+#     ## Named cmdlet parameters, bound as data (never interpolated). Each entry is
+#     ## either a [Name, Value] tuple or a {name: ..., value: ...} mapping. Every
+#     ## parameter and value must be permitted by the allowlist.
+#     ##
+#     ## Common parameters work here too. To make a cmdlet skip individual failing
+#     ## items rather than abort the run, pass ErrorAction and allowlist it with
+#     ## `ErrorAction: { allowed_values: [SilentlyContinue] }`.
+#     #
+#     parameters:
+#       - [Name, Dnscache]
+#
+#     ## @param where - list - optional
+#     ## Keep only the output rows matching every entry. Compiled into a
+#     ## Where-Object stage of the command, so comparisons use PowerShell's own
+#     ## semantics. Each entry is either a [Property, Op, Value] tuple or a
+#     ## {property: ..., op: ..., value: ...} mapping.
+#     ##
+#     ## Supported operators: eq, ne, like, notlike, match, notmatch, gt, ge, lt, le
+#     ##   like/notlike   - PowerShell wildcards (* and ?), case-insensitive
+#     ##   match/notmatch - .NET regular expression, case-insensitive, NOT anchored
+#     ##   eq/ne          - case-insensitive comparison
+#     ##   gt/ge/lt/le    - ordering comparison
+#     ##
+#     ## Every operator maps to the matching `Where-Object` switch, so comparisons
+#     ## behave exactly as they do in PowerShell: the comparison follows the
+#     ## PROPERTY's type, not the type of the value you configure. Consequences worth
+#     ## knowing, all of them standard PowerShell:
+#     ##   - A string property compares as a string, so `[Name, gt, 1024]` on a text
+#     ##     property is a lexical comparison and 'abc' is greater than 1024.
+#     ##   - An absent property is $null, so `notlike` on a missing property is TRUE
+#     ##     and `lt`/`le` on one also match.
+#     ##   - Because of that, a MISSPELLED property name is missing on every row, and
+#     ##     `lt`/`le` will match every row rather than none. Check your spelling
+#     ##     against the cmdlet's real output; the check cannot verify it for you.
+#     ##   - For a typed property the value is coerced to that type. With eq/ne a
+#     ##     value that cannot be coerced simply does not match; with gt/ge/lt/le it
+#     ##     is an ERROR that fails the instance, so `[Length, gt, '1GB']` works while
+#     ##     `[Length, gt, '1 KB']` fails. Try a filter as a real Where-Object command
+#     ##     before deploying it.
+#     ##
+#     ## `value` is required in both forms. Write `value: null` to filter on a
+#     ## property that is unset; omitting it is rejected, because comparing against
+#     ## $null by accident keeps every row or none depending on the operator.
+#     ##
+#     ## A `where` property does not need to appear in `metrics` or `tag_by`:
+#     ## filtering happens before projection, so a filter-only property is never
+#     ## collected.
+#     ##
+#     ## Each entry becomes one Where-Object stage, and at most 32 entries are
+#     ## accepted. As with `parameters` above, every property and value is passed to
+#     ## the child process as data; none of it is ever interpolated into the
+#     ## generated PowerShell.
+#     ##
+#     ## Note: filtering reduces what is submitted, and because it runs inside the
+#     ## command it also reduces what is transferred - but the cmdlet still runs in
+#     ## full. To limit what the cmdlet returns in the first place, use one of its
+#     ## own parameters above.
+#     #
+#     where:
+#       - [Status, eq, Running]
+#
+#     ## @param metrics - list - required
+#     ## How to map cmdlet output properties to metrics. Each entry is either a
+#     ## [property, metric_name, metric_type] tuple or a mapping
+#     ## {property: ..., name: ..., type: ...}. `type` defaults to gauge and may be
+#     ## gauge, rate, count, monotonic_count, histogram, or distribution.
+#     ##
+#     ## Use the literal 1 as the property for a metric that emits a constant 1 whose
+#     ## tags carry the signal - useful when all the interesting columns are strings.
+#     ##
+#     ## The mapping form also accepts `mapping` and `default_value`, which turn a
+#     ## non-numeric property into a metric value. Keys are matched
+#     ## case-insensitively, and `default_value` is REQUIRED whenever `mapping` is
+#     ## set, so a value outside the table can never fail the check:
+#     ##
+#     ##   metrics:
+#     ##     - property: Status
+#     ##       name: adapter.status
+#     ##       mapping:
+#     ##         Up: 1
+#     ##         Down: 0
+#     ##       default_value: -1      # anything not listed above, including null
+#     ##
+#     ## Resolution order: an already-numeric value is used as is, then `mapping`,
+#     ## then `default_value`. A numeric value therefore cannot be remapped.
+#     ##
+#     ## `default_value` may also be set on its own, as a fallback for a property
+#     ## that is sometimes null. Neither option applies to a virtual (property 1)
+#     ## metric. With neither set, a non-numeric value is a check error - so a
+#     ## metric pointing at the wrong property still fails loudly rather than
+#     ## silently reporting nothing.
+#     #
+#     metrics:
+#       - [Status, service.status, gauge]
+#
+#     ## @param tag_by - list of strings - optional
+#     ## Add per-row tags from output properties. Each entry is "Property" or
+#     ## "Property AS alias".
+#     #
+#     tag_by:
+#       - Name AS service
+#       - Status
+#
+#     ## @param tag_queries - list - optional
+#     ## Join to another allowlisted Get-* cmdlet to add a tag. Each entry is
+#     ## [LinkSourceProperty, TargetCmdlet, LinkTargetProperty, "TargetProperty AS alias"].
+#     #
+#     tag_queries:
+#       - [<LINK_SOURCE_PROP>, <TARGET_GET_CMDLET>, <LINK_TARGET_PROP>, <TARGET_PROP> AS <alias>]
+#
+#     ## @param timeout - integer - optional - default: 30
+#     ## Maximum seconds to wait for a single cmdlet invocation before killing it.
+#     ## Applies per cmdlet run, so an instance that also uses `tag_queries` allows
+#     ## this many seconds for the main cmdlet and for each join cmdlet separately.
+#     #
+#     timeout: 30
+#
+#     ## @param max_output_bytes - integer - optional - default: 10485760
+#     ## Maximum bytes of JSON buffered from a single cmdlet invocation. A run that
+#     ## produces more fails, and one that passes 80% of the cap logs a warning.
+#     ## Applies per cmdlet run, like `timeout` above.
+#     ##
+#     ## Raise this only if a cmdlet legitimately returns more than the default 10
+#     ## MiB; narrowing `where` or using one of the cmdlet's own parameters is
+#     ## usually better. The value is buffered in Agent memory, so it is capped at
+#     ## 104857600 (100 MiB) and a larger value is clamped to that.
+#     #
+#     max_output_bytes: 10485760
+#
+#     ## @param tags - list of strings - optional
+#     ## A list of tags to attach to every metric emitted by this instance.
+#     ##
+#     ## Learn more about tagging at https://docs.datadoghq.com/tagging
+#     #
+#     tags:
+#       - <KEY_1>:<VALUE_1>
+#       - <KEY_2>:<VALUE_2>

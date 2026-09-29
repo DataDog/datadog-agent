@@ -11,10 +11,11 @@
 //           - type: exclude_at_match
 //             name: drop_dev_dogstatsd
 //             source: dogstatsd
+//             host: noisy-host
 //             tags: ["env:dev"]
 //
 //   code:
-//     if rules.isAllowed(sample.GetName(), source, sample.GetRawTags()) { ... }
+//     if rules.isAllowedWithHost(sample.GetName(), source, sample.GetHost(), sample.GetTags()) { ... }
 
 package observerimpl
 
@@ -28,6 +29,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -44,6 +46,7 @@ type metricsProcessingRule struct {
 	NamePattern string   `mapstructure:"name_pattern"`
 	Tags        []string `mapstructure:"tags"`
 	Source      string   `mapstructure:"source"`
+	Host        string   `mapstructure:"host"`
 }
 
 // metricsFilterRules evaluates the ordered rule list against incoming metrics.
@@ -61,6 +64,7 @@ type metricsCompiledRule struct {
 	namePrefix string
 	tags       []string
 	source     string
+	host       string
 }
 
 // newMetricsFilterRules parses, validates, and compiles rules.
@@ -98,6 +102,7 @@ func newMetricsFilterRules(rules []metricsProcessingRule) (*metricsFilterRules, 
 			namePrefix: namePrefix,
 			tags:       tags,
 			source:     strings.TrimSpace(rule.Source),
+			host:       strings.TrimSpace(rule.Host),
 		})
 	}
 
@@ -170,9 +175,45 @@ func compileRuleTags(tags []string) ([]string, error) {
 	return compiled, nil
 }
 
+type metricFilterPrecheck struct {
+	reject         bool
+	needsTags      bool
+	firstCandidate int
+}
+
+// precheck evaluates the portions of the ordered rule list that do not depend
+// on tags.
+//
+// This lets the high-volume rejected path avoid copying and sorting tags. It
+// deliberately never admits a metric early: admitted metrics still need their
+// tags for the mute check and storage. If the first name/source candidate has
+// tag conditions, firstCandidate lets the tag-aware pass resume there without
+// rescanning rules that cannot match.
+func (f *metricsFilterRules) precheck(name, source, host string) metricFilterPrecheck {
+	if f == nil || source == LogMetricsExtractorName {
+		return metricFilterPrecheck{}
+	}
+
+	for i, rule := range f.rules {
+		if !rule.matchesNameSourceAndHost(name, source, host) {
+			continue
+		}
+		if len(rule.tags) > 0 {
+			return metricFilterPrecheck{needsTags: true, firstCandidate: i}
+		}
+		return metricFilterPrecheck{reject: rule.exclude}
+	}
+
+	return metricFilterPrecheck{}
+}
+
 // isAllowed returns true if the metric should be ingested.
-// tags must be sorted so the mute hash matches seriesKeyHash in storage.
+// tags must be sorted for rule matching and mute-key construction.
 func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool {
+	return f.isAllowedWithHost(name, source, "", tags)
+}
+
+func (f *metricsFilterRules) isAllowedWithHost(name, source, host string, tags []string) bool {
 	if f == nil {
 		return true
 	}
@@ -181,14 +222,33 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 		return true
 	}
 
-	if m := f.muted.Load(); m != nil {
-		if _, ok := (*m)[seriesKeyHash(source, name, tags)]; ok {
-			return false
-		}
+	if f.isMutedWithHost(name, source, host, tags) {
+		return false
 	}
 
-	for _, rule := range f.rules {
-		if rule.matches(name, source, tags) {
+	return f.isAllowedByRulesFromWithHost(name, source, host, tags, 0)
+}
+
+func (f *metricsFilterRules) isMutedWithHost(name, source, host string, tags []string) bool {
+	return f.isMutedWithKey(source, storageKeyForIdentity(source, name, host, tags))
+}
+
+func (f *metricsFilterRules) isMutedWithKey(source string, key uint64) bool {
+	if f == nil || source == LogMetricsExtractorName {
+		return false
+	}
+
+	if m := f.muted.Load(); m != nil {
+		if _, ok := (*m)[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *metricsFilterRules) isAllowedByRulesFromWithHost(name, source, host string, tags []string, start int) bool {
+	for _, rule := range f.rules[start:] {
+		if rule.matchesWithHost(name, source, host, tags) {
 			return !rule.exclude
 		}
 	}
@@ -196,16 +256,46 @@ func (f *metricsFilterRules) isAllowed(name, source string, tags []string) bool 
 	return true
 }
 
-// setMuted publishes the baseline mute set atomically. Called once at freeze
-// from the engine run goroutine; all handle goroutines observe it on next ingest.
-func (f *metricsFilterRules) setMuted(m map[uint64]struct{}) {
+// isAllowedByRulesFromWithHostComposite evaluates tag-aware rules against an
+// immutable CompositeTags view without flattening or sorting it.
+func (f *metricsFilterRules) isAllowedByRulesFromWithHostComposite(name, source, host string, tags tagset.CompositeTags, start int) bool {
+	for _, rule := range f.rules[start:] {
+		if rule.matchesWithHostComposite(name, source, host, tags) {
+			return !rule.exclude
+		}
+	}
+
+	return true
+}
+
+// publishMutedSnapshot atomically publishes an immutable baseline mute union.
+// The engine owns constructing this copy-on-write snapshot; callers and
+// readers must never mutate m after publication.
+func (f *metricsFilterRules) publishMutedSnapshot(m map[uint64]struct{}) {
 	f.muted.Store(&m)
 }
 
-// matches reports whether the rule applies to the given metric.
-// tags must be sorted in ascending order (guaranteed by canonicalizeTags in prepareMetricIngest).
-func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
+func (r metricsCompiledRule) matchesWithHost(name, source, host string, tags []string) bool {
+	return r.matchesNameSourceAndHost(name, source, host) && containsAllTagsSorted(tags, r.tags)
+}
+
+func (r metricsCompiledRule) matchesWithHostComposite(name, source, host string, tags tagset.CompositeTags) bool {
+	if !r.matchesNameSourceAndHost(name, source, host) {
+		return false
+	}
+	for _, ruleTag := range r.tags {
+		if !tags.Find(func(tag string) bool { return tag == ruleTag }) {
+			return false
+		}
+	}
+	return true
+}
+
+func (r metricsCompiledRule) matchesNameSourceAndHost(name, source, host string) bool {
 	if r.source != "" && source != r.source {
+		return false
+	}
+	if r.host != "" && host != r.host {
 		return false
 	}
 
@@ -213,7 +303,7 @@ func (r metricsCompiledRule) matches(name, source string, tags []string) bool {
 		return false
 	}
 
-	return containsAllTagsSorted(tags, r.tags)
+	return true
 }
 
 // containsAllTagsSorted reports whether all ruleTags appear in sampleTags.

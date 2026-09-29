@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/cilium/ebpf/perf"
@@ -95,63 +96,72 @@ func TestOrderGeneration(t *testing.T) {
 }
 
 func TestOrderRate(t *testing.T) {
-	var event []byte
-	rate := 1 * time.Second
-	retention := 5
+	synctest.Test(t, func(t *testing.T) {
+		var event []byte
+		rate := 1 * time.Second
+		retention := 5
 
-	var lock sync.RWMutex
-	ctx, cancel := context.WithCancel(context.Background())
+		var lock sync.RWMutex
+		ctx, cancel := context.WithCancel(context.Background())
 
-	reOrderer := NewReOrderer(ctx, func(record *perf.Record) {
-		lock.Lock()
-		event = append(event, record.RawSample[2])
-		lock.Unlock()
-	},
-		func(record *perf.Record) (QuickInfo, error) {
-			return QuickInfo{
-				CPU:       uint64(record.RawSample[0]),
-				Timestamp: uint64(record.RawSample[1]),
-			}, nil
+		reOrderer := NewReOrderer(ctx, func(record *perf.Record) {
+			lock.Lock()
+			event = append(event, record.RawSample[2])
+			lock.Unlock()
 		},
-		Opts{
-			QueueSize:  100,
-			Rate:       rate,
-			Retention:  uint64(retention),
-			MetricRate: 200 * time.Millisecond,
-		})
+			func(record *perf.Record) (QuickInfo, error) {
+				return QuickInfo{
+					CPU:       uint64(record.RawSample[0]),
+					Timestamp: uint64(record.RawSample[1]),
+				}, nil
+			},
+			Opts{
+				QueueSize:  100,
+				Rate:       rate,
+				Retention:  uint64(retention),
+				MetricRate: 200 * time.Millisecond,
+			})
 
-	var wg sync.WaitGroup
-	defer wg.Wait()
+		var wg sync.WaitGroup
+		defer wg.Wait()
 
-	wg.Add(1)
-	go reOrderer.Start(&wg)
+		wg.Add(1)
+		go reOrderer.Start(&wg)
 
-	var e uint8
-	for i := 0; i != 10; i++ {
-		record := perf.Record{
-			RawSample: []byte{0, byte(i + 1), e},
+		var e uint8
+		for i := 0; i != 10; i++ {
+			record := perf.Record{
+				RawSample: []byte{0, byte(i + 1), e},
+			}
+
+			reOrderer.HandleEvent(&record, nil, nil)
+			e++
 		}
 
-		reOrderer.HandleEvent(&record, nil, nil)
-		e++
-	}
+		// Give the reorderer a chance to process the queued events, but not
+		// enough virtual time for the flush ticker to fire (100ms < rate).
+		synctest.Wait()
+		lock.RLock()
+		assert.Zero(t, event)
+		lock.RUnlock()
 
-	lock.RLock()
-	assert.Zero(t, event)
-	lock.RUnlock()
+		time.Sleep(100 * time.Millisecond)
+		synctest.Wait()
+		lock.RLock()
+		assert.Zero(t, event)
+		lock.RUnlock()
 
-	time.Sleep(100 * time.Millisecond)
+		// Advance virtual time past rate*retention so the flush ticker fires
+		// enough times to release the held events.
+		time.Sleep(rate * time.Duration(retention))
+		synctest.Wait()
 
-	lock.RLock()
-	assert.Zero(t, event)
-	lock.RUnlock()
+		// should now get the elements
+		lock.RLock()
+		assert.Equal(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, event)
+		lock.RUnlock()
 
-	time.Sleep(rate * time.Duration(retention))
-
-	// should now get the elements
-	lock.RLock()
-	assert.Equal(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, event)
-	lock.RUnlock()
-
-	cancel()
+		cancel()
+		synctest.Wait()
+	})
 }

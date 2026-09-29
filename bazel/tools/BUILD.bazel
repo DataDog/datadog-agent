@@ -2,15 +2,6 @@ load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 
 py_binary(
-    name = "go_mod_tidy_all",
-    srcs = ["go_mod_tidy_all.py"],
-    args = ["$(rlocationpath @rules_go//go)"],
-    data = ["@rules_go//go"],
-    visibility = ["//:__pkg__"],
-    deps = ["@rules_python//python/runfiles"],
-)
-
-py_binary(
     name = "generate_module_bazel",
     srcs = ["generate_module_bazel.py"],
     visibility = ["//deps:__subpackages__"],
@@ -30,6 +21,24 @@ alias(
         "@platforms//os:linux": "@llvm_toolchain_llvm//:install-name-tool",
         "@platforms//os:macos": "@llvm_toolchain_llvm//:install-name-tool",
         "//conditions:default": ":_empty_install_name_tool",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+# @llvm_toolchain_llvm//:readelf is only defined for macos and linux.
+# This acts as a replacement to avoid analysis-time failures on windows.
+write_file(
+    name = "_empty_readelf",
+    out = "empty_readelf",
+    is_executable = True,
+)
+
+alias(
+    name = "readelf",
+    actual = select({
+        "@platforms//os:linux": "@llvm_toolchain_llvm//:readelf",
+        "@platforms//os:macos": "@llvm_toolchain_llvm//:readelf",
+        "//conditions:default": ":_empty_readelf",
     }),
     visibility = ["//visibility:public"],
 )

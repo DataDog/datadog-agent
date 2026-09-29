@@ -26,6 +26,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
@@ -114,13 +115,14 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
 		metrics: telemetryMetrics{
 			issuesCounter: tel.NewCounter(
-				"health_platform", "issues_detected", []string{"issue_type"}, ""),
+				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
 		},
 	}
 }
@@ -502,12 +504,13 @@ func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 
 func TestTelemetryCounterIncrements(t *testing.T) {
 	tel := telemetrymock.New(t)
-	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type"}, "")
+	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type", "severity"}, "")
 	h := &healthPlatformImpl{
 		log:              logmock.New(t),
 		telemetry:        tel,
 		hostnameProvider: &mockHostname{name: "test-host"},
 		agentFlavor:      "agent",
+		selfIdent:        selfident.New(nil),
 		issues:           make(map[string]*storedIssue),
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
@@ -517,7 +520,7 @@ func TestTelemetryCounterIncrements(t *testing.T) {
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
 
-	assert.Equal(t, 1.0, counter.WithValues("t").Get())
+	assert.Equal(t, 1.0, counter.WithValues("t", "ISSUE_SEVERITY_UNSPECIFIED").Get())
 }
 
 func TestGetActiveIssueIDsByIssueName(t *testing.T) {
@@ -551,4 +554,14 @@ func TestIssuesObserverResolvedNotification(t *testing.T) {
 	require.Len(t, obs.ResolvedCh, 1)
 	got := <-obs.ResolvedCh
 	assert.Equal(t, IssueStateResolved, got.PersistedIssue.GetState())
+}
+
+// TestResourceIdentityHost verifies the default, non-Kubernetes fallback:
+// resource_type/resource_id describe the plain host agent process by hostname.
+func TestResourceIdentityHost(t *testing.T) {
+	h := newTestStore(t)
+
+	resourceType, resourceID := h.ResourceIdentity("test-host")
+	assert.Equal(t, "host", resourceType)
+	assert.Equal(t, "test-host", resourceID)
 }

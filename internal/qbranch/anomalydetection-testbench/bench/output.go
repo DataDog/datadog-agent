@@ -11,13 +11,15 @@ import (
 	"os"
 	"sort"
 
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
 // ObserverOutput is the top-level JSON structure produced by headless mode.
 type ObserverOutput struct {
-	Metadata       ObserverMetadata      `json:"metadata"`
-	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
+	Metadata          ObserverMetadata         `json:"metadata"`
+	AnomalyPeriods    []ObserverCorrelation    `json:"anomaly_periods"`
+	DetectorAnomalies *[]DetectorOutputAnomaly `json:"detector_anomalies,omitempty"`
 }
 
 // ObserverMetadata describes the scenario and pipeline configuration.
@@ -28,9 +30,20 @@ type ObserverMetadata struct {
 	DetectorsEnabled    []string `json:"detectors_enabled"`
 	CorrelatorsEnabled  []string `json:"correlators_enabled"`
 	TotalAnomalyPeriods int      `json:"total_anomaly_periods"`
+	// TotalDetectorAnomalies is present when detector output recording was requested.
+	TotalDetectorAnomalies *int `json:"total_detector_anomalies,omitempty"`
 	// ComponentConfigs holds the active configuration of every component.
 	ComponentConfigs map[string]map[string]any `json:"component_configs,omitempty"`
 	Stats            *ReplayStats              `json:"stats,omitempty"`
+}
+
+// DetectorOutputAnomaly is a detector return value captured before baseline
+// gating, muting, deduplication, and correlation.
+type DetectorOutputAnomaly struct {
+	Detector  string `json:"detector"`
+	Timestamp int64  `json:"timestamp"`
+	Source    string `json:"source"`
+	Title     string `json:"title"`
 }
 
 // ObserverCorrelation is one correlation cluster.
@@ -60,7 +73,7 @@ type ObserverAnomaly struct {
 func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	tb.mu.RLock()
 	sv := tb.debug.StateView()
-	correlations := sv.CorrelationHistory()
+	correlations := tb.correlationsLocked(sv)
 
 	scenario := tb.loadedScenario
 	timelineStart, timelineEnd, hasBounds := sv.ScenarioBounds()
@@ -87,9 +100,12 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 			correlatorNames = append(correlatorNames, c.Name)
 		}
 	}
+	if tb.isComponentEnabled(observerimpl.TestbenchPassthroughComponentName) {
+		correlatorNames = append(correlatorNames, observerimpl.TestbenchPassthroughComponentName)
+	}
 
 	// Build component configs from catalog + settings.
-	entries := tb.debug.CatalogEntries()
+	entries := tb.catalogEntries()
 	componentConfigs := make(map[string]map[string]any, len(entries))
 	for _, e := range entries {
 		enabled := e.DefaultEnabled
@@ -100,6 +116,31 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	}
 
 	replayStats := tb.replayStats
+	var detectorAnomalies []DetectorOutputAnomaly
+	if tb.config.IncludeDetectorAnomalies {
+		detectorAnomalies = make([]DetectorOutputAnomaly, 0)
+		for _, anomaly := range sv.DetectorOutputAnomalies() {
+			detectorAnomalies = append(detectorAnomalies, DetectorOutputAnomaly{
+				Detector:  anomaly.DetectorName,
+				Timestamp: anomaly.Timestamp,
+				Source:    anomaly.Source.Key(),
+				Title:     anomaly.Title,
+			})
+		}
+		sort.Slice(detectorAnomalies, func(i, j int) bool {
+			left, right := detectorAnomalies[i], detectorAnomalies[j]
+			if left.Detector != right.Detector {
+				return left.Detector < right.Detector
+			}
+			if left.Timestamp != right.Timestamp {
+				return left.Timestamp < right.Timestamp
+			}
+			if left.Source != right.Source {
+				return left.Source < right.Source
+			}
+			return left.Title < right.Title
+		})
+	}
 	tb.mu.RUnlock()
 
 	sort.Strings(detectorNames)
@@ -128,14 +169,10 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 			}
 			oc.Anomalies = make([]ObserverAnomaly, len(corr.Anomalies))
 			for j, a := range corr.Anomalies {
-				sourceID := a.Source.Key()
-				if a.SourceRef != nil {
-					sourceID = a.SourceRef.CompactID()
-				}
 				oc.Anomalies[j] = ObserverAnomaly{
 					Timestamp:      a.Timestamp,
 					Source:         a.Source.String(),
-					SourceSeriesID: sourceID,
+					SourceSeriesID: a.SourceRef.CompactID(),
 					Detector:       a.DetectorName,
 				}
 			}
@@ -144,18 +181,24 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 		outCorrelations[i] = oc
 	}
 
+	metadata := ObserverMetadata{
+		Scenario:            scenario,
+		TimelineStart:       timelineStart,
+		TimelineEnd:         timelineEnd,
+		DetectorsEnabled:    detectorNames,
+		CorrelatorsEnabled:  correlatorNames,
+		TotalAnomalyPeriods: len(outCorrelations),
+		ComponentConfigs:    componentConfigs,
+		Stats:               replayStats,
+	}
 	output := ObserverOutput{
-		Metadata: ObserverMetadata{
-			Scenario:            scenario,
-			TimelineStart:       timelineStart,
-			TimelineEnd:         timelineEnd,
-			DetectorsEnabled:    detectorNames,
-			CorrelatorsEnabled:  correlatorNames,
-			TotalAnomalyPeriods: len(outCorrelations),
-			ComponentConfigs:    componentConfigs,
-			Stats:               replayStats,
-		},
+		Metadata:       metadata,
 		AnomalyPeriods: outCorrelations,
+	}
+	if tb.config.IncludeDetectorAnomalies {
+		output.DetectorAnomalies = &detectorAnomalies
+		totalDetectorAnomalies := len(detectorAnomalies)
+		output.Metadata.TotalDetectorAnomalies = &totalDetectorAnomalies
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")

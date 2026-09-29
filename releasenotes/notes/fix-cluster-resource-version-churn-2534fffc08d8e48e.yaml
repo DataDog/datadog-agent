@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Kubernetes orchestrator: Prevent unchanged clusters from being repeatedly
+    reported as updated when the node listing order changes.

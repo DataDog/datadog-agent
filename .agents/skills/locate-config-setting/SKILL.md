@@ -97,5 +97,5 @@ dda inv -- schema.locate '.*proxy'
 ## Related
 
 - The task lives in `tasks/schema/locate.py` (registered in `tasks/schema/__init__.py`).
-- Schema source: `pkg/config/schema/yaml/`. To regenerate it, see `dda inv schema.generate`.
+- Schema source: `pkg/config/schema/yaml/`.
 - To **add** a new config field (not just locate one), use the `create-config-field` skill.
