@@ -260,7 +260,7 @@ def filter_incompatible_tags(include, platform=None):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
     if target_platform == "win32":
-        include = set(include).union(WINDOWS_INCLUDED_TAGS)
+        include = include.union(WINDOWS_INCLUDED_TAGS)
         exclude = exclude.union(WINDOWS_EXCLUDED_TAGS)
 
     if target_platform == "darwin":
