@@ -92,7 +92,7 @@ cc_shared_library(
 
 pkg_files(
     name = "hdr_files",
-    srcs = glob(["src/popt.h"]),
+    srcs = ["src/popt.h"],
     prefix = "embedded/include",
 )
 
