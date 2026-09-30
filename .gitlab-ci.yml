@@ -149,10 +149,11 @@ include:
   - local: .gitlab/.post/**.yml
   # AIX jobs
   - local: .gitlab/aix/**.yml
-  # Windows jobs - set RUN_WINDOWS=off to exclude all Windows-related jobs (legacy SKIP_WINDOWS=true is also accepted)
+  # Windows jobs - set RUN_WINDOWS=false to exclude all Windows-related jobs (the legacy
+  # SKIP_WINDOWS=true is normalized to RUN_WINDOWS=false by a workflow rule)
   - local: .gitlab/windows/**.yml
     rules:
-      - if: $RUN_WINDOWS == "false" || $SKIP_WINDOWS == "true"
+      - if: $RUN_WINDOWS == "false"
         when: never
       - <<: *if_main_branch
       - <<: *if_release_branch
@@ -572,6 +573,12 @@ workflow:
         RUN_KMT_TESTS: "true"
         RUN_UNIT_TESTS: "true"
         RUN_WINDOWS: "true"
+    # Backward compatibility: normalize the legacy SKIP_WINDOWS variable so every
+    # consumer (windows include rule, e2e jobs, quality gates) sees a consistent
+    # RUN_WINDOWS value.
+    - if: $SKIP_WINDOWS == "true"
+      variables:
+        RUN_WINDOWS: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
