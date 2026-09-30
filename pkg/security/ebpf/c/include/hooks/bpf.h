@@ -47,6 +47,8 @@ __attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cac
         fill_from_syscall_args(syscall, event);
     }
 
+    pop_syscall(EVENT_BPF);
+
     // fill span context and send event
     span_fill_tail_call(ctx, prog_type);
 }
@@ -71,12 +73,13 @@ HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int,
 }
 
 __attribute__((always_inline)) int sys_bpf_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_BPF);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
     if (!syscall) {
         return 0;
     }
 
     if (approve_syscall(syscall, bpf_approvers) == DISCARDED) {
+        pop_syscall(EVENT_BPF);
         return 0;
     }
 
@@ -92,6 +95,8 @@ __attribute__((always_inline)) int sys_bpf_ret_impl(void *ctx, int retval, enum 
 
     // send monitoring event
     send_bpf_event(ctx, syscall, prog_type);
+    pop_syscall(EVENT_BPF);
+
     return 0;
 }
 

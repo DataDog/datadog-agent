@@ -30,7 +30,7 @@ HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int,
 }
 
 int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_CONNECT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
     if (!syscall) {
         return 0;
     }
@@ -39,6 +39,7 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
     // pollute connect_samples and suppress later successful connects to the same endpoint.
     // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64).
     if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
+        pop_syscall(EVENT_CONNECT);
         return 0;
     }
 
@@ -48,6 +49,7 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
 
     // these probes are also loaded with the network probes, only send the event when a rule asks for it
     if (!is_event_enabled(EVENT_CONNECT)) {
+        pop_syscall(EVENT_CONNECT);
         return 0;
     }
 
@@ -59,12 +61,14 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
     }
 
     if (syscall->state == DISCARDED) {
+        pop_syscall(EVENT_CONNECT);
         return 0;
     }
 
     /* pre-fill the event */
     struct connect_event_t *event = SPAN_FILL_EVENT(struct connect_event_t, EVENT_CONNECT);
     if (!event) {
+        pop_syscall(EVENT_CONNECT);
         return 0;
     }
     event->syscall.retval = retval;
@@ -82,6 +86,8 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
     } else {
         entry = fill_process_context(&event->process);
     }
+
+    pop_syscall(EVENT_CONNECT);
     fill_cgroup_context(entry, &event->cgroup);
 
     // v1: check if this PID is traced by an activity dump

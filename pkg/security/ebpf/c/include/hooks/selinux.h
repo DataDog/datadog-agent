@@ -79,27 +79,32 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
 }
 
 int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SELINUX);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SELINUX);
     if (!syscall) {
         return 0;
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
+        pop_syscall(EVENT_SELINUX);
         return 0;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_SELINUX);
     if (syscall->state == DISCARDED) {
+        pop_syscall(EVENT_SELINUX);
         return 0;
     }
 
     struct selinux_event_t *event = SPAN_FILL_EVENT(struct selinux_event_t, EVENT_SELINUX);
     if (!event) {
+        pop_syscall(EVENT_SELINUX);
         return 0;
     }
     event->event_kind = syscall->selinux.event_kind;
     event->file = syscall->selinux.file;
     event->payload = syscall->selinux.payload;
+
+    pop_syscall(EVENT_SELINUX);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);

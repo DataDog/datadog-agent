@@ -75,13 +75,14 @@ int hook_arch_ptrace(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_PTRACE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_PTRACE);
     if (!syscall) {
         return 0;
     }
 
     struct ptrace_event_t *event = SPAN_FILL_EVENT(struct ptrace_event_t, EVENT_PTRACE);
     if (!event) {
+        pop_syscall(EVENT_PTRACE);
         return 0;
     }
     event->syscall.retval = retval;
@@ -89,6 +90,8 @@ int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, en
     event->pid = syscall->ptrace.pid;
     event->addr = syscall->ptrace.addr;
     event->ns_pid = syscall->ptrace.ns_pid;
+
+    pop_syscall(EVENT_PTRACE);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);

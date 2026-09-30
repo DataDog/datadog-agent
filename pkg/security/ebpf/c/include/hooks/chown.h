@@ -56,12 +56,13 @@ HOOK_SYSCALL_ENTRY4(fchownat, int, dirfd, const char *, filename, uid_t, user, g
 }
 
 int __attribute__((always_inline)) sys_chown_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_CHOWN);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CHOWN);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_CHOWN);
         return 0;
     }
 
@@ -69,6 +70,7 @@ int __attribute__((always_inline)) sys_chown_ret_impl(void *ctx, int retval, enu
 
     struct chown_event_t *event = SPAN_FILL_EVENT(struct chown_event_t, EVENT_CHOWN);
     if (!event) {
+        pop_syscall(EVENT_CHOWN);
         return 0;
     }
     event->syscall.retval = retval;
@@ -76,6 +78,8 @@ int __attribute__((always_inline)) sys_chown_ret_impl(void *ctx, int retval, enu
     event->file = syscall->setattr.file;
     event->uid = syscall->setattr.user;
     event->gid = syscall->setattr.group;
+
+    pop_syscall(EVENT_CHOWN);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);

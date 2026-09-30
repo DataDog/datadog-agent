@@ -109,7 +109,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_chdir_exit, struct tracepoint_raw_syscalls_s
 }
 
 int __attribute__((always_inline)) dr_chdir_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_CHDIR);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_CHDIR);
     if (!syscall) {
         return 0;
     }
@@ -117,16 +117,19 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx, enum TAIL_CALL_P
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_CHDIR);
         return 0;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_CHDIR);
     if (syscall->state == DISCARDED) {
+        pop_syscall(EVENT_CHDIR);
         return 0;
     }
 
     struct chdir_event_t *event = SPAN_FILL_EVENT(struct chdir_event_t, EVENT_CHDIR);
     if (!event) {
+        pop_syscall(EVENT_CHDIR);
         return 0;
     }
     event->syscall.retval = retval;
@@ -134,6 +137,8 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx, enum TAIL_CALL_P
     event->file = syscall->chdir.file;
 
     fill_file(syscall->chdir.dentry, &event->file);
+    pop_syscall(EVENT_CHDIR);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 

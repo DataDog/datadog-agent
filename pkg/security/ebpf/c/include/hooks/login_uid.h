@@ -24,7 +24,7 @@ int rethook_audit_set_loginuid(ctx_t *ctx) {
         return 0;
     }
 
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_LOGIN_UID_WRITE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LOGIN_UID_WRITE);
     if (!syscall) {
         return 0;
     }
@@ -33,10 +33,13 @@ int rethook_audit_set_loginuid(ctx_t *ctx) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
+        pop_syscall(EVENT_LOGIN_UID_WRITE);
         return 0;
     }
     bpf_probe_read(&pid_entry->credentials.auid, sizeof(pid_entry->credentials.auid), &syscall->login_uid.auid);
     pid_entry->credentials.is_auid_set = 1;
+
+    pop_syscall(EVENT_LOGIN_UID_WRITE);
 
     // send event to sync userspace caches
     struct login_uid_write_event_t *event = SPAN_FILL_EVENT(struct login_uid_write_event_t, EVENT_LOGIN_UID_WRITE);

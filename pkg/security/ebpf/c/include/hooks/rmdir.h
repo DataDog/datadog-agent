@@ -142,12 +142,13 @@ TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall_with(rmdir_predicate);
+    struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall_with(rmdir_predicate);
         return 0;
     }
 
@@ -166,6 +167,7 @@ int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enu
     if (syscall->state != DISCARDED) {
         struct rmdir_event_t *event = SPAN_FILL_EVENT(struct rmdir_event_t, EVENT_RMDIR);
         if (!event) {
+            pop_syscall_with(rmdir_predicate);
             return 0;
         }
         event->syscall.retval = retval;
@@ -174,10 +176,14 @@ int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enu
                              (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0);
         event->file = syscall->rmdir.file;
 
+        pop_syscall_with(rmdir_predicate);
+
         struct proc_cache_t *entry = fill_process_context(&event->process);
         fill_cgroup_context(entry, &event->cgroup);
 
         span_fill_tail_call(ctx, prog_type);
+    } else {
+        pop_syscall_with(rmdir_predicate);
     }
 
     return 0;

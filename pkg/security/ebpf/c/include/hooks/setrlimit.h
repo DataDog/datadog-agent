@@ -86,12 +86,13 @@ int hook_security_task_setrlimit(ctx_t *ctx)
 static __always_inline int
 sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
 {
-    struct syscall_cache_t *cache = pop_syscall(EVENT_SETRLIMIT);
+    struct syscall_cache_t *cache = peek_syscall(EVENT_SETRLIMIT);
     if (!cache) {
         return 0;
     }
 
     if (ret != 0 && ret != -EPERM) {
+        pop_syscall(EVENT_SETRLIMIT);
         return 0;
     }
 
@@ -102,6 +103,7 @@ sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
 
     struct setrlimit_event_t *evt = SPAN_FILL_EVENT(struct setrlimit_event_t, EVENT_SETRLIMIT);
     if (!evt) {
+        pop_syscall(EVENT_SETRLIMIT);
         return 0;
     }
     evt->syscall.retval = ret;
@@ -109,6 +111,8 @@ sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
     evt->rlim_cur = cache->setrlimit.rlim_cur;
     evt->rlim_max = cache->setrlimit.rlim_max;
     evt->target = cache->setrlimit.pid;
+
+    pop_syscall(EVENT_SETRLIMIT);
 
     struct proc_cache_t *pc = fill_process_context(&evt->process);
     fill_cgroup_context(pc, &evt->cgroup);

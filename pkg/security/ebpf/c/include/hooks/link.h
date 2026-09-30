@@ -232,7 +232,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_link_exit, struct tracepoint_raw_syscalls_sy
 }
 
 int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_LINK);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
     if (!syscall) {
         return 0;
     }
@@ -240,11 +240,13 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, enum TAIL_CAL
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_LINK);
         return 0;
     }
 
     struct link_event_t *event = SPAN_FILL_EVENT(struct link_event_t, EVENT_LINK);
     if (!event) {
+        pop_syscall(EVENT_LINK);
         return 0;
     }
     event->syscall.retval = retval;
@@ -252,6 +254,8 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, enum TAIL_CAL
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
     event->source = syscall->link.src_file;
     event->target = syscall->link.target_file;
+
+    pop_syscall(EVENT_LINK);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);

@@ -29,19 +29,21 @@ static long __attribute__((always_inline)) trace__sys_setsock_opt(void *ctx, u8 
 }
 
 static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_SETSOCKOPT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_SETSOCKOPT);
     if (!syscall) {
         return 0;
     }
     if (approve_syscall(syscall, setsockopt_approvers) == DISCARDED) {
+        pop_syscall(EVENT_SETSOCKOPT);
         return 0;
     }
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event,&key);
 
     if (!event) {
-    return 0;  
-}
+        pop_syscall(EVENT_SETSOCKOPT);
+        return 0;
+    }
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
     event->socket_type = syscall->setsockopt.socket_type;
@@ -56,6 +58,8 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, i
     int size_to_sent = (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE )
         ? MAX_BPF_FILTER_SIZE
         : syscall->setsockopt.filter_size_to_send;
+    pop_syscall(EVENT_SETSOCKOPT);
+
     event->sent_size = size_to_sent;
 
     // The span context is attached and the event emitted (with its partial

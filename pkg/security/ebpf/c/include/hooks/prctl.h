@@ -59,13 +59,14 @@ long __attribute__((always_inline)) trace__sys_prctl(void *ctx, u8 async, int op
 int __attribute__((always_inline)) sys_prctl_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     send_otel_process_ctx_naming_event(ctx);
 
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_PRCTL);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_PRCTL);
     if (!syscall) {
         return 0;
     }
 
     struct prctl_event_t *event = SPAN_FILL_EVENT(struct prctl_event_t, EVENT_PRCTL);
     if (!event) {
+        pop_syscall(EVENT_PRCTL);
         return 0;
     }
     event->syscall.retval = retval;
@@ -76,6 +77,8 @@ int __attribute__((always_inline)) sys_prctl_ret_impl(void *ctx, int retval, enu
     event->sent_size = (syscall->prctl.name_size_to_send >= MAX_PRCTL_NAME_LEN)
         ? MAX_PRCTL_NAME_LEN
         : syscall->prctl.name_size_to_send;
+    pop_syscall(EVENT_PRCTL);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
     span_fill_tail_call(ctx, prog_type);

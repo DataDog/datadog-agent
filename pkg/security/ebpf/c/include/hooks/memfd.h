@@ -69,13 +69,14 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
 }
 
 HOOK_SYSCALL_EXIT(memfd_create) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_TRACER_MEMFD_CREATE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_TRACER_MEMFD_CREATE);
     if (!syscall) {
         return 0;
     }
 
     int retval = SYSCALL_PARMRET(ctx);
     if (retval < 0) {
+        pop_syscall(EVENT_TRACER_MEMFD_CREATE);
         return 0;
     }
 
@@ -91,6 +92,8 @@ HOOK_SYSCALL_EXIT(memfd_create) {
     for (int i = 0; i < TRACER_MEMFD_SUFFIX_LEN; i++) {
         key.suffix[i] = syscall->tracer_memfd_create.suffix[i];
     }
+
+    pop_syscall(EVENT_TRACER_MEMFD_CREATE);
 
     u32 fd = (u32)retval;
     bpf_map_update_elem(&memfd_tracking, &key, &fd, BPF_ANY);

@@ -145,17 +145,19 @@ int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64 event_type, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(event_type);
+    struct syscall_cache_t *syscall = peek_syscall(event_type);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(event_type);
         return 0;
     }
 
     struct setxattr_event_t *event = SPAN_FILL_EVENT(struct setxattr_event_t, event_type);
     if (!event) {
+        pop_syscall(event_type);
         return 0;
     }
 
@@ -175,6 +177,8 @@ int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64
 
     fill_cgroup_context(entry, &event->cgroup);
     fill_file(syscall->xattr.dentry, &event->file);
+
+    pop_syscall(event_type);
 
     span_fill_tail_call(ctx, prog_type);
 

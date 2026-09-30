@@ -46,23 +46,27 @@ int hook_security_file_mprotect(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mprotect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MPROTECT);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MPROTECT);
     if (!syscall) {
         return 0;
     }
 
     if (approve_syscall(syscall, mprotect_approvers) == DISCARDED) {
+        pop_syscall(EVENT_MPROTECT);
         return 0;
     }
 
     struct mprotect_event_t *event = SPAN_FILL_EVENT(struct mprotect_event_t, EVENT_MPROTECT);
     if (!event) {
+        pop_syscall(EVENT_MPROTECT);
         return 0;
     }
     event->vm_protection = syscall->mprotect.vm_protection;
     event->req_protection = syscall->mprotect.req_protection;
     event->vm_start = syscall->mprotect.vm_start;
     event->vm_end = syscall->mprotect.vm_end;
+
+    pop_syscall(EVENT_MPROTECT);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);

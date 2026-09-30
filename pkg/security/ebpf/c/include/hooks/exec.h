@@ -29,23 +29,7 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
     };
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
 
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-    u32 pid = pid_tgid;
-    if (tgid != pid) {
-        // exec is called from a non leader thread:
-        //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
-        //     before sending the event to userspace
-        //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
-        //     the corresponding exit event
-        struct exec_pid_transfer_t transfer = {
-            .pid_tgid = pid_tgid,
-            .task = bpf_get_current_task(),
-        };
-        bpf_map_update_elem(&exec_pid_transfer, &tgid, &transfer, BPF_ANY);
-    }
-
-    cache_syscall_update_cgroup(ctx, &syscall);
+    cache_exec_syscall(ctx, &syscall);
     return 0;
 }
 
@@ -785,7 +769,7 @@ int hook_setup_arg_pages(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = pop_current_or_impersonated_exec_syscall();
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
     if (!syscall) {
         return 0;
     }
@@ -794,8 +778,6 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 now = bpf_ktime_get_ns();
     u32 tgid = pid_tgid >> 32;
-
-    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
 
     struct proc_cache_t pc = {
         .entry = {
@@ -861,12 +843,14 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (fork_entry == NULL) {
             // should never happen, ignore
+            pop_current_or_impersonated_exec_syscall();
             return 0;
         }
     }
 
     struct process_event_t *event = new_process_event(0);
     if (event == NULL) {
+        pop_current_or_impersonated_exec_syscall();
         return 0;
     }
 
@@ -904,6 +888,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // Through symlink
     event->is_through_symlink = syscall->exec.is_through_symlink;
+
+    pop_current_or_impersonated_exec_syscall();
+
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 

@@ -63,17 +63,19 @@ int hook___get_unmapped_area(ctx_t *ctx) {
 }
 
 int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 addr, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_MMAP);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
     }
 
     if (approve_syscall(syscall, mmap_approvers) == DISCARDED) {
+        pop_syscall(EVENT_MMAP);
         return 0;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_MMAP);
     if (syscall->state == DISCARDED) {
+        pop_syscall(EVENT_MMAP);
         return 0;
     }
 
@@ -83,6 +85,7 @@ int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 
 
     struct mmap_event_t *event = SPAN_FILL_EVENT(struct mmap_event_t, EVENT_MMAP);
     if (!event) {
+        pop_syscall(EVENT_MMAP);
         return 0;
     }
     event->syscall.retval = retval;
@@ -96,6 +99,9 @@ int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 
     if (syscall->mmap.dentry != NULL) {
         fill_file(syscall->mmap.dentry, &event->file);
     }
+
+    pop_syscall(EVENT_MMAP);
+
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
 

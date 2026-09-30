@@ -215,7 +215,7 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_rename_exit, struct tracepoint_raw_syscalls_
 }
 
 int __attribute__((always_inline)) dr_rename_callback(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_RENAME);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_RENAME);
     if (!syscall) {
         return 0;
     }
@@ -223,11 +223,13 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, enum TAIL_CALL_
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
+        pop_syscall(EVENT_RENAME);
         return 0;
     }
 
     struct rename_event_t *event = SPAN_FILL_EVENT(struct rename_event_t, EVENT_RENAME);
     if (!event) {
+        pop_syscall(EVENT_RENAME);
         return 0;
     }
     event->syscall.retval = retval;
@@ -235,6 +237,8 @@ int __attribute__((always_inline)) dr_rename_callback(void *ctx, enum TAIL_CALL_
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
     event->old = syscall->rename.src_file;
     event->new = syscall->rename.target_file;
+
+    pop_syscall(EVENT_RENAME);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
