@@ -177,6 +177,13 @@ func Run(ctx *pulumi.Context) error {
 			kubernetesagentparams.WithClusterAgentVersion(param.clusterAgentVersion),
 			kubernetesagentparams.WithHelmValues(utils.YAMLMustMarshal(map[string]any{
 				"datadog": map[string]any{
+					// Single Step Instrumentation requires the admission controller,
+					// which is disabled below, and the chart refuses to render otherwise.
+					"apm": map[string]any{
+						"instrumentation": map[string]any{
+							"enabled": false,
+						},
+					},
 					"nodeLabelsAsTags": map[string]any{
 						"benchmark.datadoghq.com/role":    "role",
 						"benchmark.datadoghq.com/variant": "variant",
@@ -245,6 +252,12 @@ func Run(ctx *pulumi.Context) error {
 						"registerAPIService": false,
 					},
 					"admissionController": map[string]any{
+						// Disabled by default: both installs would otherwise reconcile the
+						// same cluster-scoped datadog-webhook configurations and fight over
+						// them. It can be re-enabled with --helm-config (applied to both
+						// installs), preferably together with distinct webhookName values
+						// and datadog.apm.instrumentation.enabled if needed.
+						"enabled": false,
 						"agentSidecarInjection": map[string]any{
 							"clusterAgentCommunicationEnabled": false,
 						},
@@ -292,9 +305,9 @@ func Run(ctx *pulumi.Context) error {
 		agentDeps = append(agentDeps, kubernetesAgent)
 	}
 
-	// The churn pods are labeled for Fargate sidecar injection, so they must wait for
-	// the Agent admission controllers to be ready, otherwise they would be admitted
-	// without the Datadog sidecar.
+	// The churn pods are labeled for Fargate sidecar injection, so when the admission
+	// controller is enabled they must wait for it to be ready, otherwise they would be
+	// admitted without the Datadog sidecar. The label also schedules them on Fargate.
 	if _, err := churn.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(agentDeps...)); err != nil {
 		return err
 	}
