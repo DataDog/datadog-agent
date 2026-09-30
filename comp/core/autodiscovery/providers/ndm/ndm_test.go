@@ -41,7 +41,7 @@ func newTestConfig(t *testing.T) model.BuildableConfig {
 	confd := t.TempDir()
 	dir := filepath.Join(confd, "snmp.d", "credentials")
 	require.NoError(t, os.MkdirAll(dir, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "creds.yaml"), []byte(`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "snmp_credentials.yaml"), []byte(`
 credentials:
   - id: id-abc
     name: cred-abc
