@@ -20,7 +20,6 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/core",
         "//pkg/util/grpc",
-        "//pkg/util/log",
         "//pkg/util/system",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@org_golang_google_grpc//:grpc",
