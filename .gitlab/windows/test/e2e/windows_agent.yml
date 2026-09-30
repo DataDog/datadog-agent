@@ -22,6 +22,7 @@ new-e2e-agent-runtimes-windows:
           - comp/procmgr/**/*
           - pkg/fleet/installer/packages/embedded/tmpl/gen/windows/**/*
           - pkg/fleet/installer/packages/processmanager/*_windows.go
+          - pkg/fleet/installer/packages/datadog_agent_windows.go
           - cmd/agent/subcommands/run/dependent_services_windows.go
           - test/new-e2e/tests/agent-runtimes/**/*
         compare_to: $COMPARE_TO_BRANCH
