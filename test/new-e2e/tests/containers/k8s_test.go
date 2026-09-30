@@ -1876,6 +1876,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			regexp.MustCompile(`^parent-name:nginx$`),
 			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
 			regexp.MustCompile(`^pod_phase:(running|succeeded|failed)$`),
+			regexp.MustCompile(`^service:nginx-from-annotation$`),
 			regexp.MustCompile(`^team:contp$`),
 		}
 
