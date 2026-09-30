@@ -32,9 +32,6 @@
                         "nstype": {
                             "type": "string"
                         },
-                        "effective_nstype": {
-                            "type": "string"
-                        },
                         "mntns": {
                             "type": "integer"
                         },
