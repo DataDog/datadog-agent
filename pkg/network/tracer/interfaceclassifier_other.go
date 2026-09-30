@@ -3,28 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build !windows && !darwin
 
 package tracer
 
 // InterfaceClassification holds interface metadata looked up by interface index.
-// On non-Windows platforms, this is a stub.
+// On platforms other than Windows and Darwin, this is a stub.
 type InterfaceClassification struct {
 	InterfaceName string
 	InterfaceType string
 }
 
 // InterfaceClassifier resolves interface indices to interface metadata.
-// On non-Windows platforms, this is a no-op stub.
+// On platforms other than Windows and Darwin, this is a no-op stub.
 type InterfaceClassifier struct{}
 
-// NewInterfaceClassifier returns nil on non-Windows platforms
+// NewInterfaceClassifier returns nil on platforms other than Windows and Darwin
 func NewInterfaceClassifier() *InterfaceClassifier { return nil }
 
-// Classify always returns an empty result on non-Windows platforms
+// Classify always returns an empty result on platforms other than Windows and Darwin
 func (c *InterfaceClassifier) Classify(_ uint32) InterfaceClassification {
 	return InterfaceClassification{}
 }
 
-// Close is a no-op on non-Windows platforms
+// Close is a no-op on platforms other than Windows and Darwin
 func (c *InterfaceClassifier) Close() {}

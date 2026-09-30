@@ -85,9 +85,13 @@ func (m *mockConnTracer) Collect(_ chan<- prometheus.Metric) {}
 type mockNetworkState struct {
 	registerClientCalls []string
 	closedConns         []*network.ConnectionStats
+	passThroughActive   bool
 }
 
-func (m *mockNetworkState) GetDelta(_ string, _ uint64, _ []network.ConnectionStats, _ dns.StatsByKeyByNameByType, _ map[protocols.ProtocolType]interface{}) network.Delta {
+func (m *mockNetworkState) GetDelta(_ string, _ uint64, active []network.ConnectionStats, _ dns.StatsByKeyByNameByType, _ map[protocols.ProtocolType]interface{}) network.Delta {
+	if m.passThroughActive {
+		return network.Delta{Conns: active}
+	}
 	return network.Delta{}
 }
 
@@ -196,6 +200,122 @@ func TestDarwinTracer_StoreClosedConnection_SkipsExcluded(t *testing.T) {
 	tr.storeClosedConnection(dnsConn)
 
 	assert.Empty(t, state.closedConns, "local DNS connection should be skipped")
+}
+
+func TestDarwinTracer_GetActiveConnections_TagsResolvedInterface(t *testing.T) {
+	conn := &network.ConnectionStats{
+		ConnectionTuple: network.ConnectionTuple{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("1.1.1.1"),
+			SPort:  12345,
+			DPort:  443,
+		},
+		InterfaceIndex:  14,
+		LastUpdateEpoch: uint64(time.Now().UnixNano()),
+	}
+	conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+	mock := &mockConnTracer{connsToReturn: []*network.ConnectionStats{conn}}
+	state := &mockNetworkState{passThroughActive: true}
+	tr := newTestTracer(mock, state)
+	tr.interfaceClassifier = &InterfaceClassifier{
+		ifCache: map[uint32]cachedInterface{
+			14: {name: "utun3", ifaceType: "tunnel"},
+		},
+		done: make(chan struct{}),
+	}
+
+	_ = tr.RegisterClient("c1")
+	conns, cleanup, err := tr.GetActiveConnections("c1")
+	require.NoError(t, err)
+	cleanup()
+
+	require.Len(t, conns.Conns, 1)
+	assert.True(t, conns.Conns[0].HasTag("interface_name:utun3"))
+	assert.True(t, conns.Conns[0].HasTag("interface_type:tunnel"))
+	assert.True(t, conns.Conns[0].HasTCPErrorsIncomplete())
+	assert.True(t, conn.HasTCPErrorsIncomplete())
+	assert.False(t, conn.HasTag("interface_name:utun3"))
+}
+
+func TestDarwinTracer_GetActiveConnections_SkipsUnresolvedInterface(t *testing.T) {
+	conn := &network.ConnectionStats{
+		ConnectionTuple: network.ConnectionTuple{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("1.1.1.1"),
+			SPort:  12345,
+			DPort:  443,
+		},
+		InterfaceIndex:  99,
+		LastUpdateEpoch: uint64(time.Now().UnixNano()),
+	}
+	mock := &mockConnTracer{connsToReturn: []*network.ConnectionStats{conn}}
+	state := &mockNetworkState{passThroughActive: true}
+	tr := newTestTracer(mock, state)
+	tr.interfaceClassifier = &InterfaceClassifier{
+		ifCache: map[uint32]cachedInterface{
+			14: {name: "utun3", ifaceType: "tunnel"},
+		},
+		done: make(chan struct{}),
+	}
+
+	_ = tr.RegisterClient("c1")
+	conns, cleanup, err := tr.GetActiveConnections("c1")
+	require.NoError(t, err)
+	cleanup()
+
+	require.Len(t, conns.Conns, 1)
+	assert.False(t, conns.Conns[0].HasTag("interface_name:utun3"))
+	assert.Empty(t, conns.Conns[0].Tags)
+}
+
+func TestDarwinTracer_StoreClosedConnection_TagsResolvedInterface(t *testing.T) {
+	state := &mockNetworkState{}
+	tr := newTestTracer(&mockConnTracer{}, state)
+	tr.interfaceClassifier = &InterfaceClassifier{
+		ifCache: map[uint32]cachedInterface{
+			14: {name: "en0", ifaceType: "ethernet_csmacd"},
+		},
+		done: make(chan struct{}),
+	}
+
+	conn := &network.ConnectionStats{
+		ConnectionTuple: network.ConnectionTuple{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("8.8.8.8"),
+			DPort:  443,
+		},
+		InterfaceIndex: 14,
+	}
+	conn.AddTag(network.ConnTagTCPErrorsIncomplete)
+	tr.storeClosedConnection(conn)
+
+	require.Len(t, state.closedConns, 1)
+	assert.True(t, state.closedConns[0].HasTag("interface_name:en0"))
+	assert.True(t, state.closedConns[0].HasTag("interface_type:ethernet_csmacd"))
+	assert.True(t, state.closedConns[0].HasTCPErrorsIncomplete())
+}
+
+func TestDarwinTracer_StoreClosedConnection_SkipsIndexZero(t *testing.T) {
+	state := &mockNetworkState{}
+	tr := newTestTracer(&mockConnTracer{}, state)
+	tr.interfaceClassifier = &InterfaceClassifier{
+		ifCache: map[uint32]cachedInterface{
+			1: {name: "lo0", ifaceType: "software_loopback"},
+		},
+		done: make(chan struct{}),
+	}
+
+	conn := &network.ConnectionStats{
+		ConnectionTuple: network.ConnectionTuple{
+			Source: util.AddressFromString("10.0.0.1"),
+			Dest:   util.AddressFromString("8.8.8.8"),
+			DPort:  443,
+		},
+	}
+	tr.storeClosedConnection(conn)
+
+	require.Len(t, state.closedConns, 1)
+	assert.Empty(t, state.closedConns[0].Tags)
 }
 
 func TestDarwinTracer_StoreClosedConnection_StoresAllowed(t *testing.T) {
