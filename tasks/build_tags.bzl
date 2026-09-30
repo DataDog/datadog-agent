@@ -285,6 +285,7 @@ AIX_EXCLUDED_TAGS = set([
     "cri",
     "docker",
     "fargateprocess",
+    "foldspace",
     "jmx",
     "kubeapiserver",
     "kubelet",
@@ -295,6 +296,9 @@ AIX_EXCLUDED_TAGS = set([
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDED_TAGS = set([
+    # No libfoldspace_go is vendored for Windows. Darwin is not excluded: it has
+    # no vendored library either, but it can link one built locally.
+    "foldspace",
     "requirefips",
 ])
 
