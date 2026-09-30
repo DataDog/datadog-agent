@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -1063,7 +1064,7 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 	}
 }
 
-// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked
+// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked.
 func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
 	if workload == nil {
 		return
@@ -1081,6 +1082,8 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	}
 
 	prof.Instances = append(prof.Instances, workload)
+
+	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
 }
 
 // unlinkWorkloadFromProfile removes a workload from a profile's Instances
@@ -1178,6 +1181,8 @@ func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector
 	secprof.Metadata.ContainerID = event.ProcessContext.Process.ContainerContext.ContainerID
 	secprof.Metadata.CGroupContext = event.ProcessContext.Process.CGroup
 
+	m.resolveAndSaveSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID)
+
 	// Apply eviction right away if configured
 	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
 		workloadID := getWorkloadIDFromEvent(event)
@@ -1228,6 +1233,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		Start:             eventTime,
 		End:               eventTime,
 	}
+	m.resolveAndSaveSecurityContext(secprof, event.ProcessContext.Process.ContainerContext.ContainerID)
 	secprof.Header.Host = m.hostname
 	secprof.Header.Source = ActivityDumpSource
 
@@ -1237,6 +1243,30 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 	}
 
 	return secprof, nil
+}
+
+// resolveAndSaveSecurityContext resolves the container's declared SecurityContext
+// and saves it under its workload-template key. For Localhost seccomp profiles it
+// also resolves the effective filter from the node's kubelet seccomp directory.
+func (m *ManagerV2) resolveAndSaveSecurityContext(secprof *profile.Profile, id containerutils.ContainerID) {
+	if m.resolvers == nil || m.resolvers.SecurityContextResolver == nil || len(id) == 0 {
+		return
+	}
+	key, sc := m.resolvers.SecurityContextResolver.Resolve(id)
+	if sc == nil || key.IsZero() {
+		return
+	}
+
+	if sc.Seccomp != nil && sc.Seccomp.Type == securitycontext.SeccompLocalhost {
+		filter, err := m.resolvers.SecurityContextResolver.ResolveSeccompFilter(sc.Seccomp)
+		if err != nil {
+			seclog.Warnf("seccomp filter resolution failed for container %s: %v", id, err)
+		} else if filter != nil {
+			sc.Seccomp.Filter = filter
+		}
+	}
+
+	secprof.SaveSecurityContext(key, sc)
 }
 
 // resolveAndAddProfileTags resolves tags for the profile's workload and adds them to the profile

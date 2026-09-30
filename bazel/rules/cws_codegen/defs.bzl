@@ -24,6 +24,7 @@ def _operators_impl(name, output, visibility):
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 operators = macro(
@@ -97,6 +98,7 @@ def _bpf_maps_generator_impl(name, header, output, package_name, visibility):
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 bpf_maps_generator = macro(
@@ -118,9 +120,13 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
     # itself is just parsing, so that step stays platform-neutral.
     compatible_with = ["@platforms//os:{}".format(build_tags)] if build_tags else None
 
+    # Outputs referenced by file label must start with `<name>_` in a symbolic macro.
+    bootstrap_go = "{}/bootstrap.go".format(bootstrap)
+    stub = "{}_stub/{}".format(name, output)
     args = [
         "-input=$(execpath {})".format(src),
-        "-output=$(execpath {}/bootstrap.go)".format(name),
+        "-output=$(execpath {})".format(bootstrap_go),
+        "-stub-output=$(execpath {})".format(stub),
         "-package-path={}".format(package_path),
         "-out-basename={}".format(output),
     ]
@@ -131,15 +137,27 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
         name = bootstrap,
         srcs = [src],
         args = args,
-        outs = ["{}/bootstrap.go".format(name)],
+        outs = [
+            bootstrap_go,
+            stub,
+        ],
         tool = "//pkg/security/generators/easyjson_bootstrap",
         tags = ["manual"],
         visibility = ["//visibility:private"],
     )
 
+    # easyjson_stubs in the calling package lists this filegroup. The macro's
+    # visibility attribute is wider (//pkg/security, for the writeback target).
+    native.filegroup(
+        name = "{}_stub".format(name),
+        srcs = [stub],
+        tags = ["manual"],
+        visibility = ["//{}:__pkg__".format(native.package_name())],
+    )
+
     go_library(
         name = "{}_lib".format(name),
-        srcs = [":{}".format(bootstrap)],
+        srcs = [bootstrap_go],
         importpath = "github.com/DataDog/datadog-agent/bazel/rules/cws_codegen/easyjson/{}/{}".format(native.package_name(), name),
         target_compatible_with = compatible_with,
         deps = [
@@ -173,6 +191,7 @@ def _easyjson_impl(name, package, package_path, src, output, build_tags, visibil
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 easyjson = macro(
@@ -186,18 +205,42 @@ derives the program from the `easyjson:json` comments in `src`, and Bazel
 compiles and runs it. Types are never listed here — the annotations stay the
 single source of truth.
 
-The generator links `package`, which already contains the checked-in output, so
-generation is a fixed point: easyjson calls a nested type's MarshalEasyJSON when
-that method exists and inlines a decoder when it does not. Generating from a
-stubbed or stale output therefore yields a different file, and one further run
-converges back.
+The generator links `package`, the package's `easyjson_stubs` library, so it
+builds without the checked-in output. `<name>_stub` holds the empty marshaler
+methods that library compiles in its place.
 """,
     attrs = {
-        "package": attr.label(mandatory = True, configurable = False, doc = "go_library of the package the marshalers are generated for."),
+        "package": attr.label(mandatory = True, configurable = False, doc = "`easyjson_stubs` library of the package the marshalers are generated for."),
         "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package."),
         "src": attr.label(mandatory = True, configurable = False, allow_single_file = [".go"], doc = "Annotated .go file holding the easyjson:json comments (the one carrying the //go:generate directive)."),
         "output": attr.string(mandatory = True, configurable = False, doc = "Name of the generated .go file (e.g. event_easyjson.go)."),
         "build_tags": attr.string(configurable = False, default = "", doc = "Value of the CLI's -build_tags flag, when the annotated file is platform-specific. Doubles as the OS the generator is constrained to, so it must name a @platforms//os value."),
+    },
+)
+
+def _easyjson_stubs_impl(name, sources, package_path, stubs, visibility):
+    go_library(
+        name = name,
+        srcs = stubs,
+        embed = [sources],
+        importpath = package_path,
+        tags = ["manual"],
+        visibility = visibility,
+    )
+
+easyjson_stubs = macro(
+    implementation = _easyjson_stubs_impl,
+    doc = """Compile a package with empty easyjson methods in place of its checked-in marshalers.
+
+`easyjson` generators linked against this library build even when the
+checked-in output no longer compiles, e.g. after a serialized field is removed.
+The package's deps come from `sources`, which already carries jlexer/jwriter
+for the generated files.
+""",
+    attrs = {
+        "sources": attr.label(mandatory = True, configurable = False, doc = "go_source with the package's sources minus its easyjson output: the `<library>_sources` target of `# gazelle:go_split_generated *_easyjson.go`."),
+        "package_path": attr.string(mandatory = True, configurable = False, doc = "Full Go import path of the package."),
+        "stubs": attr.label_list(mandatory = True, configurable = False, doc = "`<name>_stub` of every easyjson call in the package. All of them are needed: easyjson calls a nested annotated type's marshaler only when the type has one, whichever file declares it."),
     },
 )
 
@@ -263,4 +306,5 @@ def accessors(name, tags, model, types_file, output, field_handlers, field_acces
             field_handlers: ":{}/{}".format(out_dir, field_handlers),
             field_accessors_output: ":{}/{}".format(out_dir, field_accessors_output),
         },
+        visibility = visibility,
     )

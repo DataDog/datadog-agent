@@ -116,6 +116,12 @@ gazelle_binary(
     ],
 )
 
+# bazel run //:buildozer -- ...
+go_shim(
+    name = "buildozer",
+    tool = "@multitool//tools/buildozer",
+)
+
 # bazel run //:go -- ...
 alias(
     name = "go",
@@ -137,11 +143,11 @@ run_binary(
     outs = ["go.work.new"],
     args = [
         "--path",
-        "$(location go.work)",
+        "$(execpath go.work)",
         "--modules-file",
-        "$(location modules.yml)",
+        "$(execpath modules.yml)",
         "--output",
-        "$(location go.work.new)",
+        "$(execpath go.work.new)",
     ],
     tool = "//internal/tools/worksynchronizer",
 )
