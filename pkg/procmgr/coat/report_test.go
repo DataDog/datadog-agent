@@ -575,17 +575,27 @@ func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
 		defer cancel()
 
 		deadline, _ := ctx.Deadline()
-		assert.WithinDuration(t, callerDeadline.Add(-flareWriteMargin), deadline, time.Second)
+		// The tolerance has to stay well under flareWriteMargin. Allowing a whole margin of slack
+		// would let this pass whether or not the margin was ever subtracted, which is the one thing
+		// it is here to check.
+		assert.WithinDuration(t, callerDeadline.Add(-flareWriteMargin), deadline, flareWriteMargin/4)
 		assert.True(t, deadline.Before(callerDeadline),
 			"there has to be time left to write the file after collection stops")
 	})
 }
 
 // blockingClient answers nothing until the context it was given is done, standing in for a
-// dd-procmgrd that has stopped responding.
-type blockingClient struct{}
+// dd-procmgrd that has stopped responding. It records the budget it was handed so a test can assert
+// on what collection passed down rather than on how long the call took to return.
+type blockingClient struct {
+	deadline    time.Time
+	hasDeadline bool
+	errOnEntry  error
+}
 
-func (blockingClient) Connect(ctx context.Context) (ProcmgrSession, error) {
+func (c *blockingClient) Connect(ctx context.Context) (ProcmgrSession, error) {
+	c.deadline, c.hasDeadline = ctx.Deadline()
+	c.errOnEntry = ctx.Err()
 	<-ctx.Done()
 	return nil, ctx.Err()
 }
@@ -593,22 +603,27 @@ func (blockingClient) Connect(ctx context.Context) (ProcmgrSession, error) {
 // A caller with almost no time left is the case that decides whether support gets a file. Collection
 // gives up immediately instead of consuming what remains, so the report still reaches the flare, and
 // it says which call failed.
+//
+// Asserted on the budget handed to the client rather than on the wall clock. Timing the call would
+// measure the machine: a loaded runner can stall this goroutine past any deadline chosen here and
+// fail on something the code under test does not control.
 func TestReportYieldsAReportWhenTheCallerIsAlmostOutOfTime(t *testing.T) {
 	callerDeadline := time.Now().Add(flareWriteMargin / 2)
 	ctx, cancel := context.WithDeadline(context.Background(), callerDeadline)
 	defer cancel()
 
-	collector := NewCollectorWithClient(t.TempDir(), blockingClient{})
+	client := &blockingClient{}
+	collector := NewCollectorWithClient(t.TempDir(), client)
 
-	start := time.Now()
 	report := collector.Report(ctx, ScrubOptions{})
 
-	assert.True(t, time.Now().Before(callerDeadline),
-		"collection must return with time to spare, not run the caller's deadline out")
+	require.True(t, client.hasDeadline, "collection must bound every call it makes")
+	assert.True(t, client.deadline.Before(callerDeadline),
+		"collection must stop before the caller does, or there is no time left to write the file")
+	assert.Error(t, client.errOnEntry,
+		"with less than the write margin left there is no time to collect, so the budget is already spent on arrival")
 	assert.NotEmpty(t, report.DaemonError, "the report has to say why it is empty")
 	assert.NotEmpty(t, report.Notes, "and still carry the guidance for reading it")
 	assert.Len(t, report.Services, len(migratableServices),
 		"the catalog is read from disk, so it survives a daemon that never answered")
-	assert.Less(t, time.Since(start), flareCollectionBudget,
-		"the collection budget must not be spent waiting on a caller that already gave up")
 }
