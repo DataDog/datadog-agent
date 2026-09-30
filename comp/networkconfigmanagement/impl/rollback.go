@@ -48,7 +48,7 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 		return nil, types.WrapErrorf(types.ErrWrongHash, "hash mismatch for config %q", configVersion)
 	}
 
-	conn, rberr := n.connectAndEnsureProfile(ctx, dc)
+	conn, rberr := n.connectAndEnsureProfile(ctx, dc, "rollback")
 	if rberr != nil {
 		return nil, rberr
 	}

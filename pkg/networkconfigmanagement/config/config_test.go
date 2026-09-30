@@ -27,7 +27,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 			name: "valid config",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Username: "admin",
 					Password: "password",
 					Port:     "22",
@@ -42,7 +42,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 		{
 			name: "missing IP address",
 			config: DeviceInstance{
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Username: "admin",
 					Password: "password",
 					Port:     "22",
@@ -59,7 +59,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 			name: "invalid IP address",
 			config: DeviceInstance{
 				IPAddress: "not-an-ip",
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Username: "admin",
 					Password: "password",
 					Port:     "22",
@@ -76,7 +76,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 			name: "missing username",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Password: "password",
 					Port:     "22",
 					Protocol: "tcp",
@@ -86,13 +86,13 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing username",
+			errorMsg:    "invalid auth: missing username",
 		},
 		{
 			name: "missing auth method (no password/private key)",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Username: "admin",
 					Port:     "22",
 					Protocol: "tcp",
@@ -102,13 +102,13 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing auth method (either password or private key) for device 100.1.1.1",
+			errorMsg:    "invalid auth: missing auth method (either password or private key)",
 		},
 		{
 			name: "invalid port",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Username: "admin",
 					Password: "password",
 					Port:     "not-a-port",
@@ -119,13 +119,13 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "invalid port, not valid integer",
+			errorMsg:    "invalid port: not an integer",
 		},
 		{
 			name: "port out of range",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Username: "admin",
 					Password: "password",
 					Port:     "99999",
@@ -136,13 +136,13 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "invalid port, out of range",
+			errorMsg:    "invalid port: out of range",
 		},
 		{
 			name: "missing SSH config",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
-				Auth: AuthCredentials{
+				RollbackAuth: AuthCredentials{
 					Username: "admin",
 					Password: "password",
 					Port:     "22",
@@ -150,7 +150,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing SSH configuration for device 100.1.1.1",
+			errorMsg:    "invalid auth: missing SSH configuration",
 		},
 	}
 
@@ -219,7 +219,7 @@ func TestSSHConfig_Validation(t *testing.T) {
 func TestDeviceInstance_YAML_Marshaling(t *testing.T) {
 	config := DeviceInstance{
 		IPAddress: "10.100.1.1",
-		Auth: AuthCredentials{
+		RollbackAuth: AuthCredentials{
 			Username: "admin",
 			Password: "password",
 			Port:     "22",
@@ -238,14 +238,14 @@ func TestDeviceInstance_YAML_Marshaling(t *testing.T) {
 	err = yaml.Unmarshal(data, &parsed)
 	require.NoError(t, err)
 	assert.Equal(t, config.IPAddress, parsed.IPAddress)
-	assert.Equal(t, config.Auth.Username, parsed.Auth.Username)
-	assert.Equal(t, config.Auth.Password, parsed.Auth.Password)
+	assert.Equal(t, config.RollbackAuth.Username, parsed.RollbackAuth.Username)
+	assert.Equal(t, config.RollbackAuth.Password, parsed.RollbackAuth.Password)
 }
 
 func TestAuthCredentials_DefaultValues(t *testing.T) {
 	config := DeviceInstance{
 		IPAddress: "10.100.1.1",
-		Auth: AuthCredentials{
+		RollbackAuth: AuthCredentials{
 			Username: "admin",
 			Password: "password",
 		},
@@ -257,10 +257,59 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 		},
 	}
 	config.applyDefaults(ic)
-	assert.Equal(t, "22", config.Auth.Port)
-	assert.Equal(t, "tcp", config.Auth.Protocol)
+	assert.Equal(t, "22", config.RollbackAuth.Port)
+	assert.Equal(t, "tcp", config.RollbackAuth.Protocol)
 	assert.Equal(t, "thenamespace", config.Namespace)
-	assert.True(t, config.Auth.SSH.InsecureSkipVerify)
+	assert.True(t, config.RollbackAuth.SSH.InsecureSkipVerify)
+}
+
+func TestDeviceInstance_GetCredentials(t *testing.T) {
+	rollbackAuth := AuthCredentials{Username: "rollback-user"}
+	readOnlyAuth := &AuthCredentials{Username: "readonly-user"}
+	adminAuth := &AuthCredentials{Username: "admin-user"}
+	device := DeviceInstance{
+		RollbackAuth: rollbackAuth,
+		ActionCreds: ActionCredentials{
+			ReadOnly: readOnlyAuth,
+			Admin:    adminAuth,
+		},
+	}
+
+	tests := []struct {
+		name     string
+		mode     string
+		expected *AuthCredentials
+		wantErr  bool
+	}{
+		{name: "rollback", mode: "rollback", expected: &rollbackAuth},
+		{name: "readonly", mode: "readonly", expected: readOnlyAuth},
+		{name: "admin", mode: "admin", expected: adminAuth},
+		{name: "unrecognized mode", mode: "superuser", wantErr: true},
+		{name: "empty mode", mode: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			creds, err := device.GetCredentials(tt.mode)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, creds)
+		})
+	}
+}
+
+func TestDeviceInstance_GetCredentials_UnsetActionCreds(t *testing.T) {
+	device := DeviceInstance{RollbackAuth: AuthCredentials{Username: "rollback-user"}}
+
+	creds, err := device.GetCredentials("readonly")
+	require.NoError(t, err)
+	assert.Nil(t, creds)
+
+	creds, err = device.GetCredentials("admin")
+	require.NoError(t, err)
+	assert.Nil(t, creds)
 }
 
 func TestInitConfig_InventoryReportMaxInterval_ApplyDefaults(t *testing.T) {
@@ -373,7 +422,7 @@ auth:
 			initConfig, instanceConfig := newConfigs(tt.timeout)
 			cfg, err := NewNcmCheckContext(instanceConfig, initConfig)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expected, cfg.Device.Auth.SSH.Timeout)
+			assert.Equal(t, tt.expected, cfg.Device.RollbackAuth.SSH.Timeout)
 		})
 	}
 }

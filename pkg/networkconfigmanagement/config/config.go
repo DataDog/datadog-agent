@@ -46,12 +46,62 @@ type AuthCredentials struct { // auth_credentials
 	SSH *SSHConfig `yaml:"ssh"`
 }
 
+func (ac AuthCredentials) Validate() error {
+	if ac.Username == "" {
+		return errors.New("missing username")
+	}
+	// must have at least 1 auth method: password or private key
+	if ac.Password == "" && ac.PrivateKeyFile == "" {
+		return errors.New("missing auth method (either password or private key)")
+	}
+	if ac.SSH == nil {
+		return errors.New("missing SSH configuration")
+	}
+	// Port validation
+	port, err := strconv.Atoi(ac.Port)
+	if err != nil {
+		return fmt.Errorf("invalid port: not an integer: %q", ac.Port)
+	}
+	if !(port >= 0 && port <= 65535) { // max value for 16-bit unsigned int
+		return fmt.Errorf("invalid port: out of range: %q", ac.Port)
+	}
+
+	// if SSH configs exist, ensure they are valid
+	if ac.SSH != nil {
+		if err := ac.SSH.validate(); err != nil {
+			return fmt.Errorf("invalid SSH config: %w", err)
+		}
+	}
+	return nil
+}
+
+// ActionCredentials are the credential sets available for the NCM action
+// runner.
+type ActionCredentials struct {
+	ReadOnly *AuthCredentials `yaml:"read_only,omitempty"`
+	Admin    *AuthCredentials `yaml:"admin,omitempty"`
+}
+
 // DeviceInstance holds the initial config to connect to a network device, including its IP address and authentication credentials.
 type DeviceInstance struct {
-	IPAddress string          `yaml:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
-	Namespace string          `yaml:"namespace"`  // namespace for the device; if empty, defaults to value from initconfig
-	Profile   string          `yaml:"profile"`    // device profile name, e.g., "cisco-ios"
-	Auth      AuthCredentials `yaml:"auth"`
+	IPAddress    string            `yaml:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
+	Namespace    string            `yaml:"namespace"`  // namespace for the device; if empty, defaults to value from initconfig
+	Profile      string            `yaml:"profile"`    // device profile name, e.g., "cisco-ios"
+	RollbackAuth AuthCredentials   `yaml:"auth"`
+	ActionCreds  ActionCredentials `yaml:"action_credentials"`
+}
+
+// GetCredentials gets a specific credential set.
+func (di *DeviceInstance) GetCredentials(mode string) (*AuthCredentials, error) {
+	switch mode {
+	case "rollback":
+		return &di.RollbackAuth, nil
+	case "readonly":
+		return di.ActionCreds.ReadOnly, nil
+	case "admin":
+		return di.ActionCreds.Admin, nil
+	}
+	return nil, fmt.Errorf("unrecognized mode: %q", mode)
 }
 
 // DeviceID returns the formatted ID for this DeviceInstance.
@@ -217,74 +267,62 @@ func (ic *InitConfig) Validate() error {
 
 // Validate checks that the DeviceInstance has all required fields and applies defaults where needed
 func (di *DeviceInstance) Validate() error {
-	// check for missing fields that are required
-	if err := di.hasRequiredFields(); err != nil {
-		return err
-	}
-
 	// check for validity of required/optional fields if present
 	// TODO: Protocol/network check? Are customers aware of what's possible?
+	if di.IPAddress == "" {
+		return errors.New("ip_address is required")
+	}
 	ip := net.ParseIP(di.IPAddress)
 	if ip == nil {
 		return fmt.Errorf("invalid ip_address format: %s", di.IPAddress)
 	}
-
-	// Port validation
-	port, err := strconv.Atoi(di.Auth.Port)
-	if err != nil {
-		return fmt.Errorf("invalid port, not valid integer: %s", di.Auth.Port)
-	}
-	if !(port >= 0 && port <= 65535) { // max value for 16-bit unsigned int
-		return fmt.Errorf("invalid port, out of range: %s", di.Auth.Port)
+	if err := di.RollbackAuth.Validate(); err != nil {
+		return fmt.Errorf("invalid auth: %w", err)
 	}
 
-	// if SSH configs exist, ensure they are valid
-	if di.Auth.SSH != nil {
-		if err := di.Auth.SSH.validate(); err != nil {
-			return fmt.Errorf("invalid SSH config for device %s: %w", di.IPAddress, err)
+	if di.ActionCreds.ReadOnly != nil {
+		if err := di.ActionCreds.ReadOnly.Validate(); err != nil {
+			return fmt.Errorf("invalid action_credentials.read_only: %w", err)
 		}
 	}
+	if di.ActionCreds.Admin != nil {
+		if err := di.ActionCreds.Admin.Validate(); err != nil {
+			return fmt.Errorf("invalid action_credentials.operator: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// applyAuthDefaults sets default values for any optional fields on an AuthCredentials that are not set + not required
+func applyAuthDefaults(ac *AuthCredentials, ipAddress string, initConfig *InitConfig) {
+	if ac.Port == "" {
+		log.Debugf("Applying default port for device %s: %s", ipAddress, "22")
+		ac.Port = "22"
+	}
+	if ac.Protocol == "" {
+		log.Debugf("Applying default protocol for device %s: %s", ipAddress, "tcp")
+		ac.Protocol = "tcp"
+	}
+	// Device-specific SSH config takes precedence, if not set, use init_config's SSH config as a "global"
+	if ac.SSH == nil && initConfig != nil {
+		ac.SSH = initConfig.SSH
+	}
 }
 
 // applyDefaults set default values for any optional fields that are not set + not required
 func (di *DeviceInstance) applyDefaults(initConfig *InitConfig) {
-	if di.Auth.Port == "" {
-		log.Debugf("Applying default port for device %s: %s", di.IPAddress, "22")
-		di.Auth.Port = "22"
+	applyAuthDefaults(&di.RollbackAuth, di.IPAddress, initConfig)
+	if di.ActionCreds.ReadOnly != nil {
+		applyAuthDefaults(di.ActionCreds.ReadOnly, di.IPAddress, initConfig)
 	}
-	if di.Auth.Protocol == "" {
-		log.Debugf("Applying default protocol for device %s: %s", di.IPAddress, "tcp")
-		di.Auth.Protocol = "tcp"
-	}
-	// Device-specific SSH config takes precedence, if not set, use init_config's SSH config as a "global"
-	if di.Auth.SSH == nil && initConfig != nil {
-		di.Auth.SSH = initConfig.SSH
+	if di.ActionCreds.Admin != nil {
+		applyAuthDefaults(di.ActionCreds.Admin, di.IPAddress, initConfig)
 	}
 	if di.Namespace == "" && initConfig != nil {
 		di.Namespace = initConfig.Namespace
 	}
 
-}
-
-func (di *DeviceInstance) hasRequiredFields() error {
-	// check for missing fields that are required for a device instance
-	if di.IPAddress == "" {
-		return errors.New("ip_address is required")
-	}
-	authBaseString := "auth is required: missing %s for device %s"
-	if di.Auth.Username == "" {
-		return fmt.Errorf(authBaseString, "username", di.IPAddress)
-	}
-	// must have at least 1 auth method: password or private key
-	if di.Auth.Password == "" && di.Auth.PrivateKeyFile == "" {
-		return fmt.Errorf(authBaseString, "auth method (either password or private key)", di.IPAddress)
-	}
-	if di.Auth.SSH == nil {
-		return fmt.Errorf(authBaseString, "SSH configuration", di.IPAddress)
-	}
-
-	return nil
 }
 
 func (sc *SSHConfig) validate() error {

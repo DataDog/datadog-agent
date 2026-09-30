@@ -39,36 +39,45 @@ func init() {
 
 // SSHConnector implements Client using SSH
 type SSHConnector struct {
-	device *ncmconfig.DeviceInstance // Device configuration for authentication
+	ipAddress string // Device configuration for authentication
+	auth      *ncmconfig.AuthCredentials
 }
 
 var _ Connector = (*SSHConnector)(nil)
 
 // SSHConnection implements Connection over SSH
 type SSHConnection struct {
-	client *RetryingSSHClient
-	device *ncmconfig.DeviceInstance
-	prof   *profile.NCMProfile
+	client    *RetryingSSHClient
+	ipAddress string
+	prof      *profile.NCMProfile
 }
 
 var _ Connection = (*SSHConnection)(nil)
 
 // NewSSHConnector creates a new SSH connector for the given device configuration
-func NewSSHConnector(device *ncmconfig.DeviceInstance) (Connector, error) {
-	if device.Auth.SSH != nil {
-		if err := ValidateSSHConfig(device.Auth.SSH); err != nil {
+func NewSSHConnector(ipAddress string, auth *ncmconfig.AuthCredentials) (Connector, error) {
+	if auth.SSH != nil {
+		if err := ValidateSSHConfig(auth.SSH); err != nil {
 			return nil, fmt.Errorf("error validating ssh client config: %w", err)
 		}
 	} else {
 		return nil, errors.New("missing ssh client config")
 	}
 	return &SSHConnector{
-		device: device,
+		ipAddress: ipAddress,
+		auth:      auth,
 	}, nil
 }
 
-func ConnectOverSSH(device *ncmconfig.DeviceInstance) (Connection, error) {
-	c, err := NewSSHConnector(device)
+func ConnectOverSSH(device *ncmconfig.DeviceInstance, mode string) (Connection, error) {
+	auth, err := device.GetCredentials(mode)
+	if err != nil {
+		return nil, err
+	}
+	if auth == nil {
+		return nil, fmt.Errorf("no credentials available for mode %q", mode)
+	}
+	c, err := NewSSHConnector(device.IPAddress, auth)
 	if err != nil {
 		return nil, err
 	}
@@ -173,21 +182,21 @@ func (c *SSHConnection) SetProfile(profile *profile.NCMProfile) {
 // Connect establishes a new SSH connection to the specified IP address using the provided authentication credentials
 func (c *SSHConnector) Connect() (Connection, error) {
 	client, err := NewRetryingSSHClient(func() (*ssh.Client, error) {
-		return connectToDevice(c.device)
+		return connectToHost(c.ipAddress, *c.auth)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &SSHConnection{
-		client: client,
-		device: c.device,
+		client:    client,
+		ipAddress: c.ipAddress,
 	}, nil
 }
 
 func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*types.PushResult, types.TypedError) {
 
 	if c.prof == nil {
-		return nil, types.WrapErrorf(types.ErrNoProfile, "no device type provided for %q", c.device.IPAddress)
+		return nil, types.WrapErrorf(types.ErrNoProfile, "no device type provided for %q", c.ipAddress)
 	}
 	pc := c.prof.Commands.PushConfig
 	if !pc.CanPush() {
@@ -200,7 +209,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*type
 		results.CopyConfig = append(results.CopyConfig, result)
 	}
 	if err != nil {
-		return results, types.WrapErrorf(types.ErrCopyFailed, "unable to copy config to device %q: %w", c.device.IPAddress, err)
+		return results, types.WrapErrorf(types.ErrCopyFailed, "unable to copy config to device %q: %w", c.ipAddress, err)
 	}
 	// Set the running configuration from the file
 	result, err = ExecuteCommand(ctx, c.client, pc.SetRunning)
@@ -208,7 +217,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*type
 		results.SetRunning = append(results.SetRunning, result)
 	}
 	if err != nil {
-		return results, types.WrapErrorf(types.ErrSetRunningFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
+		return results, types.WrapErrorf(types.ErrSetRunningFailed, "error while pushing config to device %q: %w", c.ipAddress, err)
 	}
 	if pc.SetStartup != nil {
 		// Set the startup configuration from the running config
@@ -217,7 +226,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*type
 			results.SetStartup = append(results.SetStartup, result)
 		}
 		if err != nil {
-			return results, types.WrapErrorf(types.ErrSetStartupFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
+			return results, types.WrapErrorf(types.ErrSetStartupFailed, "error while pushing config to device %q: %w", c.ipAddress, err)
 		}
 	}
 	return results, nil
@@ -226,7 +235,7 @@ func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*type
 // Verify validates that the profile works as we expect it to
 func (c *SSHConnection) Verify(ctx context.Context) error {
 	if c.prof == nil {
-		return fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+		return fmt.Errorf("no device type provided for %q", c.ipAddress)
 	}
 	cmd := c.prof.Commands.Verify
 	if cmd == nil {
@@ -239,7 +248,7 @@ func (c *SSHConnection) Verify(ctx context.Context) error {
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH
 func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) (*types.CommandResult, error) {
 	if c.prof == nil {
-		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+		return nil, fmt.Errorf("no device type provided for %q", c.ipAddress)
 	}
 	cmd := c.prof.Commands.GetRunning
 	if cmd == nil {
@@ -251,7 +260,7 @@ func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) (*types.Comma
 // RetrieveStartupConfig retrieves the startup configuration for the device connected via SSH
 func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*types.CommandResult, error) {
 	if c.prof == nil {
-		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
+		return nil, fmt.Errorf("no device type provided for %q", c.ipAddress)
 	}
 	cmd := c.prof.Commands.GetStartup
 	if cmd == nil {
@@ -278,17 +287,12 @@ func (c *SSHConnection) Close() error {
 	return nil
 }
 
-// connectToDevice is a shorthand for connectToHost with parameters from the device
-func connectToDevice(device *ncmconfig.DeviceInstance) (*ssh.Client, error) {
-	return connectToHost(device.IPAddress, device.Auth, device.Auth.SSH)
-}
-
 // connectToHost establishes an SSH connection to the specified IP address using the provided authentication credentials
-func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *ncmconfig.SSHConfig) (*ssh.Client, error) {
-	if config == nil {
+func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials) (*ssh.Client, error) {
+	if auth.SSH == nil {
 		return nil, fmt.Errorf("SSH configuration is required (host verification) but not provided for device %s", ipAddress)
 	}
-	callback, err := buildHostKeyCallback(config)
+	callback, err := buildHostKeyCallback(auth.SSH)
 	if err != nil {
 		return nil, err
 	}
@@ -300,12 +304,12 @@ func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *ncm
 		User:            auth.Username,
 		Auth:            methods,
 		HostKeyCallback: callback,
-		Timeout:         config.Timeout,
+		Timeout:         auth.SSH.Timeout,
 		Config: ssh.Config{
-			Ciphers:      config.Ciphers,
-			KeyExchanges: config.KeyExchanges,
+			Ciphers:      auth.SSH.Ciphers,
+			KeyExchanges: auth.SSH.KeyExchanges,
 		},
-		HostKeyAlgorithms: config.HostKeyAlgorithms,
+		HostKeyAlgorithms: auth.SSH.HostKeyAlgorithms,
 	}
 
 	host := fmt.Sprintf("%s:%s", ipAddress, auth.Port)

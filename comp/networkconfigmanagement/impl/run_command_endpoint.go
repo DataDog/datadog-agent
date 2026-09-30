@@ -19,6 +19,7 @@ import (
 type RunCommandRequest struct {
 	DeviceID string `json:"device_id"`
 	Command  string `json:"command"`
+	Mode     string `json:"mode"`
 }
 
 // RunCommandEndpointHandler returns an http.HandlerFunc for POST /agent/ncm/run-command
@@ -30,7 +31,7 @@ func (n *networkDeviceConfigImpl) RunCommandEndpointHandler() http.HandlerFunc {
 			return
 		}
 		var response types.RunCommandResponse
-		result, rcerr := n.RunCommand(r.Context(), req.DeviceID, req.Command)
+		result, rcerr := n.RunCommand(r.Context(), req.DeviceID, req.Command, req.Mode)
 		if result == nil && rcerr == nil {
 			// this shouldn't be possible.
 			httputils.SetJSONError(w, errors.New("no response from RunCommand; this should be impossible"), http.StatusInternalServerError)

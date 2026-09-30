@@ -42,7 +42,7 @@ func (f *fakeIPCClient) Head(_ string, _ ...ipc.RequestOption) ([]byte, error) {
 	return f.postResp, f.postErr
 }
 
-func (f *fakeIPCClient) Post(_ string, _ string, _ io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
+func (f *fakeIPCClient) Post(_ string, _ string, body io.Reader, _ ...ipc.RequestOption) ([]byte, error) {
 	return f.postResp, f.postErr
 }
 
@@ -58,12 +58,13 @@ func (f *fakeIPCClient) NewIPCEndpoint(_ string) (ipc.Endpoint, error) {
 	return nil, errors.New("not implemented")
 }
 
-func makeRunCommandTask(deviceID, command string) *types.Task {
+func makeRunCommandTask(deviceID, command, mode string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{
 			"deviceID": deviceID,
 			"command":  command,
+			"mode":     mode,
 		},
 	}
 	return task
@@ -79,7 +80,7 @@ func TestRunCommandHandler_Success(t *testing.T) {
 	client := &fakeIPCClient{postResp: body}
 	handler := NewRunCommandHandler(client)
 
-	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "show version"), nil)
+	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "show version", "readonly"), nil)
 	require.NoError(t, err)
 
 	result, ok := out.(RunCommandOutputs)
@@ -103,7 +104,7 @@ func TestRunCommandHandler_DeviceError(t *testing.T) {
 	client := &fakeIPCClient{postResp: body}
 	handler := NewRunCommandHandler(client)
 
-	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.99", "show version"), nil)
+	out, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.99", "show version", "readonly"), nil)
 	require.NoError(t, err)
 
 	result, ok := out.(RunCommandOutputs)
@@ -118,13 +119,13 @@ func TestRunCommandHandler_MissingCommand(t *testing.T) {
 	client := &fakeIPCClient{}
 	handler := NewRunCommandHandler(client)
 
-	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", ""), nil)
+	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "", "readonly"), nil)
 	assert.ErrorContains(t, err, "Command input is required")
 }
 
 func TestRunCommandHandler_NoIPCClient(t *testing.T) {
 	handler := NewRunCommandHandler(nil)
 
-	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "show version"), nil)
+	_, err := handler.Run(t.Context(), makeRunCommandTask("default:10.0.0.1", "show version", "readonly"), nil)
 	assert.ErrorContains(t, err, "IPC client is not available")
 }

@@ -42,6 +42,7 @@ func TestRunCommandEndpointHandler_Success(t *testing.T) {
 	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
 		DeviceID: device.DeviceID(),
 		Command:  "show version",
+		Mode:     "readonly",
 	})
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -50,6 +51,24 @@ func TestRunCommandEndpointHandler_Success(t *testing.T) {
 	if assert.NotNil(t, resp.CommandResult) {
 		assert.Equal(t, versionOutput, resp.CommandResult.Output)
 	}
+}
+
+func TestRunCommandEndpointHandler_RollbackModeRejected(t *testing.T) {
+	comp, reqs := createTestComponent(t)
+	device := createTestDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
+
+	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+		DeviceID: device.DeviceID(),
+		Command:  "show version",
+		Mode:     "rollback",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, resp.CommandResult)
+	assert.Equal(t, string(types.ErrCannotConnect), resp.ErrorCode)
+	assert.NotEmpty(t, resp.ErrorMsg)
 }
 
 func TestRunCommandEndpointHandler_UnknownDevice(t *testing.T) {

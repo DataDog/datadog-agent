@@ -134,7 +134,7 @@ type MockConnFactory struct {
 	conn            *MockConnection
 }
 
-func (m *MockConnFactory) Connect(_ *ncmconfig.DeviceInstance) (ncmremote.Connection, error) {
+func (m *MockConnFactory) Connect(_ *ncmconfig.DeviceInstance, _ string) (ncmremote.Connection, error) {
 	if m.connectionError != nil {
 		return nil, m.connectionError
 	}
@@ -219,7 +219,7 @@ func createTestDevice() *ncmconfig.DeviceInstance {
 		IPAddress: "10.0.0.1",
 		Namespace: "default",
 		Profile:   "p2",
-		Auth: ncmconfig.AuthCredentials{
+		RollbackAuth: ncmconfig.AuthCredentials{
 			Username: "admin",
 			Password: "password",
 			Port:     "22",
@@ -511,7 +511,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 	err := comp.RegisterDevice(device)
 	assert.NoError(t, err)
 
-	conn, err := reqs.connFactory.Connect(device)
+	conn, err := reqs.connFactory.Connect(device, "rollback")
 	require.NoError(t, err)
 
 	// Run the profile matching function
@@ -530,7 +530,7 @@ func TestCheck_FindMatchingProfile_Failure(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Remove the version command for the test to fail
-	conn, err := reqs.connFactory.Connect(device)
+	conn, err := reqs.connFactory.Connect(device, "rollback")
 	require.NoError(t, err)
 
 	// Run the profile matching function

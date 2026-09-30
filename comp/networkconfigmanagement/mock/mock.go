@@ -61,7 +61,7 @@ func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ 
 }
 
 // RunCommand implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _, _ string) (*types.CommandResult, types.TypedError) {
+func (m *mockNetworkConfigManagement) RunCommand(_ context.Context, _, _, _ string) (*types.CommandResult, types.TypedError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
 
