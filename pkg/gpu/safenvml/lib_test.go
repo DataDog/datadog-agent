@@ -10,6 +10,7 @@ package safenvml
 import (
 	"errors"
 	"maps"
+	"sync"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -173,9 +174,41 @@ func TestInitFailure(t *testing.T) {
 
 	// First init should fail
 	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
+	require.False(t, safenvml.initialized.Load())
 
 	// Second init should fail too, because the library is not initialized
 	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
+}
+
+func TestHasInitializedDuringInitialization(t *testing.T) {
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	release := sync.OnceFunc(func() { close(proceed) })
+	WithMockNvmlNewFunc(t, func(_ ...nvml.LibraryOption) nvml.Interface {
+		return testutil.NewMockNVML(
+			testutil.WithSymbolsMock(allSymbols),
+			testutil.WithInitCallback(func() nvml.Return {
+				close(entered)
+				<-proceed
+				return nvml.SUCCESS
+			}),
+		)
+	})
+	t.Cleanup(release)
+	done := make(chan error, 1)
+	go func() {
+		err := BeginNVMLUse()
+		if err == nil {
+			EndNVMLUse()
+		}
+		done <- err
+	}()
+	<-entered
+	initialized := HasInitialized()
+	release()
+	require.NoError(t, <-done)
+	require.False(t, initialized, "readiness must not wait for the NVML initialization lock")
+	require.True(t, HasInitialized())
 }
 
 func TestPopulateCapabilitiesFailure(t *testing.T) {
@@ -183,7 +216,7 @@ func TestPopulateCapabilitiesFailure(t *testing.T) {
 
 	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
 		return testutil.NewMockNVML(
-			testutil.WithInitReturn(nvml.ERROR_UNKNOWN),
+			testutil.WithInitReturn(nvml.SUCCESS),
 			testutil.WithSymbolsMock(nil),
 		)
 	}
@@ -192,6 +225,7 @@ func TestPopulateCapabilitiesFailure(t *testing.T) {
 	// the init should fail too, even on consecutive calls
 	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
 	require.Error(t, safenvml.ensureInitWithOpts(mockNewFunc))
+	require.False(t, safenvml.initialized.Load(), "missing critical symbols must block readiness")
 }
 
 func TestInitMultipleTimes(t *testing.T) {
@@ -215,6 +249,7 @@ func TestInitMultipleTimes(t *testing.T) {
 
 	require.NoError(t, safenvml.ensureInitWithOpts(mockNewFunc))
 	require.NoError(t, safenvml.ensureInitWithOpts(mockNewFunc))
+	require.True(t, safenvml.initialized.Load())
 }
 
 func TestInitMultiplePaths(t *testing.T) {

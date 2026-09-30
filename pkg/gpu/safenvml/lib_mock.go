@@ -52,6 +52,7 @@ func resetSingleton() {
 	defer singleton.mu.Unlock()
 
 	singleton.lib = nil
+	singleton.initialized.Store(false)
 	singleton.capabilities = nil
 	singleton.deviceWarningsSeen = nil
 }
@@ -64,6 +65,7 @@ func WithPartialMockNVML(tb testing.TB, lib nvml.Interface, capabilities map[str
 	defer singleton.mu.Unlock()
 
 	singleton.lib = lib
+	singleton.initialized.Store(true)
 	singleton.capabilities = capabilities
 
 	tb.Cleanup(resetSingleton)

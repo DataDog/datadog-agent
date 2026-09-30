@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    When GPU monitoring is enabled, the Linux Agent waits for NVML to initialize
+    before reporting readiness. After five minutes, the NVML readiness check
+    stops blocking readiness even if initialization has not succeeded, so a
+    missing or unusable driver cannot indefinitely block Agent rollouts.
+    NVML availability errors continue to be reported through telemetry.

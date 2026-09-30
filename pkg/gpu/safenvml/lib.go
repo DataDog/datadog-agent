@@ -165,6 +165,7 @@ type SafeNVML interface {
 
 type safeNvml struct {
 	lib                nvml.Interface
+	initialized        atomic.Bool // Latched after the first successful initialization, including capability checks.
 	mu                 sync.Mutex
 	gpmMutex           sync.Mutex
 	fieldValuesMutex   sync.Mutex
@@ -605,6 +606,7 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 
 	// Once everything is verified, set the library so that it can be reused
 	s.lib = lib
+	s.initialized.Store(true)
 
 	return nil
 }
@@ -618,6 +620,14 @@ func (s *safeNvml) ensureInit() error {
 }
 
 var singleton safeNvml
+
+// HasInitialized reports whether NVML has successfully initialized at least once
+// in this process. It does not call NVML or wait for an initialization in progress.
+// The result remains true across shutdowns and GPU reset windows, so it can be
+// used as a startup readiness condition.
+func HasInitialized() bool {
+	return singleton.initialized.Load()
+}
 
 // ErrNVMLReleased is returned by initialization paths while NVML has been
 // deliberately released (a GPU reset window): callers should skip quietly
