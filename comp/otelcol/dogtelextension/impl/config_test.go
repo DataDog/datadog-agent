@@ -90,6 +90,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 	assert.Equal(t, 0, cfg.KubernetesHTTPKubeletPort)
 	assert.Equal(t, 0, cfg.KubernetesHTTPSKubeletPort)
 	assert.Nil(t, cfg.UseKubeletCollector)
+	assert.Equal(t, "", cfg.NodeFromEnvVar)
 }
 
 func TestConfigValidate_StandaloneFields_Valid(t *testing.T) {
@@ -105,6 +106,7 @@ func TestConfigValidate_StandaloneFields_Valid(t *testing.T) {
 	cfg.KubernetesHTTPKubeletPort = 10255
 	cfg.KubernetesHTTPSKubeletPort = 10250
 	cfg.UseKubeletCollector = &falseVal
+	cfg.NodeFromEnvVar = "MY_NODE_NAME"
 	require.NoError(t, cfg.Validate())
 }
 

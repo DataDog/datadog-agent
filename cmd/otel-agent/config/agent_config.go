@@ -307,6 +307,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			if extcfg.UseKubeletCollector != nil {
 				pkgconfig.Set("otelcollector.standalone.use_kubelet_collector", *extcfg.UseKubeletCollector, pkgconfigmodel.SourceFile)
 			}
+			if extcfg.NodeFromEnvVar != "" {
+				pkgconfig.Set("otelcollector.standalone.node_from_env_var", extcfg.NodeFromEnvVar, pkgconfigmodel.SourceFile)
+			}
 		}
 
 		// Resolve ENC[] secrets after dogtelextension config is applied so that

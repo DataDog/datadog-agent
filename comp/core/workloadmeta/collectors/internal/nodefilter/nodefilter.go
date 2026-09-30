@@ -17,6 +17,7 @@ package nodefilter
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -65,17 +66,26 @@ type collector struct {
 	// and only when that mode hasn't opted back out to kubelet.
 	standalone bool
 	useKubelet bool
+
+	// nodeFromEnvVar names the environment variable this collector reads the
+	// local node's name from, mirroring the k8sattributesprocessor's own
+	// "node_from_env_var" filter config (config.go, FilterConfig) rather than
+	// hardcoding a single env var name. Defaults to K8S_NODE_NAME, the name
+	// the OTel Helm chart and Operator already populate via the Kubernetes
+	// downward API (fieldRef: spec.nodeName) for exactly this purpose.
+	nodeFromEnvVar string
 }
 
 // NewCollector returns a nodefilter CollectorProvider that instantiates its collector
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:         collectorID,
-			catalog:    workloadmeta.NodeAgent,
-			config:     deps.Config,
-			standalone: deps.Config.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent,
-			useKubelet: deps.Config.GetBool("otelcollector.standalone.use_kubelet_collector"),
+			id:             collectorID,
+			catalog:        workloadmeta.NodeAgent,
+			config:         deps.Config,
+			standalone:     deps.Config.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent,
+			useKubelet:     deps.Config.GetBool("otelcollector.standalone.use_kubelet_collector"),
+			nodeFromEnvVar: deps.Config.GetString("otelcollector.standalone.node_from_env_var"),
 		},
 	}, nil
 }
@@ -94,9 +104,9 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
-	nodeName := c.config.GetString("kubernetes_kubelet_nodename")
+	nodeName := os.Getenv(c.nodeFromEnvVar)
 	if nodeName == "" {
-		return errors.NewDisabled(componentName, "kubernetes_kubelet_nodename is not set")
+		return errors.NewDisabled(componentName, fmt.Sprintf("environment variable %q (otelcollector.standalone.node_from_env_var) is not set", c.nodeFromEnvVar))
 	}
 
 	client, err := newAPIClient(c.config)

@@ -772,6 +772,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
 	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 }
 
 // TestDogtelExtensionConfig_PartialConfig verifies that only the dogtelextension
@@ -788,6 +789,9 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
 	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	// node_from_env_var not set in dogtelextension config: DD agent schema
+	// default (K8S_NODE_NAME) must remain intact.
+	assert.Equal(t, "K8S_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 }
 
 // TestDogtelExtensionConfig_MetadataDisabled verifies that setting
@@ -892,6 +896,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter()
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
 	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 
 	providers := c.Get("metadata_providers")
 	require.NotNil(t, providers)
@@ -942,6 +947,7 @@ func TestGetDogtelExtensionConfig_EmptyDogtelSection(t *testing.T) {
 	assert.Nil(t, extcfg.EnableMetadataCollection)
 	assert.Nil(t, extcfg.UseKubeletCollector)
 	assert.Equal(t, 0, extcfg.MetadataInterval)
+	assert.Equal(t, "", extcfg.NodeFromEnvVar)
 }
 
 // TestGetDogtelExtensionConfig_EnableMetadataCollectionFalse verifies that
@@ -998,6 +1004,22 @@ func TestGetDogtelExtensionConfig_UseKubeletCollector(t *testing.T) {
 	require.NotNil(t, extcfg)
 	require.NotNil(t, extcfg.UseKubeletCollector)
 	assert.True(t, *extcfg.UseKubeletCollector)
+}
+
+// TestGetDogtelExtensionConfig_NodeFromEnvVar verifies that node_from_env_var
+// is parsed from the dogtelextension config.
+func TestGetDogtelExtensionConfig_NodeFromEnvVar(t *testing.T) {
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel": map[string]any{
+				"node_from_env_var": "MY_NODE_NAME",
+			},
+		},
+	})
+	extcfg, err := getDogtelExtensionConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, extcfg)
+	assert.Equal(t, "MY_NODE_NAME", extcfg.NodeFromEnvVar)
 }
 
 // TestGetDogtelExtensionConfig_InvalidExtensions verifies that a malformed

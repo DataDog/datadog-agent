@@ -43,16 +43,16 @@ func TestDisabledStandalone(t *testing.T) {
 			// case, so a non-"disabled" error below can only come from the
 			// mutual-exclusivity check having let the collector through.
 			pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
-			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
-				"kubernetes_kubelet_nodename": "test-node",
-			})
+			t.Setenv("K8S_NODE_NAME", "test-node")
+			cfg := config.NewMock(t)
 
 			c := &collector{
-				id:         collectorID,
-				catalog:    workloadmeta.NodeAgent,
-				config:     cfg,
-				standalone: tt.standalone,
-				useKubelet: tt.useKubelet,
+				id:             collectorID,
+				catalog:        workloadmeta.NodeAgent,
+				config:         cfg,
+				standalone:     tt.standalone,
+				useKubelet:     tt.useKubelet,
+				nodeFromEnvVar: "K8S_NODE_NAME",
 			}
 
 			err := c.Start(context.Background(), nil)
@@ -69,21 +69,58 @@ func TestDisabledStandalone(t *testing.T) {
 }
 
 // TestDisabledNoNodeName verifies that the collector refuses to start when
-// kubernetes_kubelet_nodename isn't set, since the node-scoped field
-// selector has nothing to filter on.
+// its configured node-name environment variable isn't set, since the
+// node-scoped field selector has nothing to filter on.
 func TestDisabledNoNodeName(t *testing.T) {
 	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
 	cfg := config.NewMock(t)
 
 	c := &collector{
-		id:         collectorID,
-		catalog:    workloadmeta.NodeAgent,
-		config:     cfg,
-		standalone: true,
-		useKubelet: false,
+		id:             collectorID,
+		catalog:        workloadmeta.NodeAgent,
+		config:         cfg,
+		standalone:     true,
+		useKubelet:     false,
+		nodeFromEnvVar: "K8S_NODE_NAME",
 	}
 
 	err := c.Start(context.Background(), nil)
 	require.Error(t, err)
 	assert.True(t, pkgerrors.IsDisabled(err))
+}
+
+// TestNodeFromEnvVar_CustomName verifies that the collector reads the node
+// name from whichever environment variable nodeFromEnvVar names, mirroring
+// k8sattributesprocessor's configurable node_from_env_var filter rather than
+// hardcoding a single env var.
+func TestNodeFromEnvVar_CustomName(t *testing.T) {
+	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+	t.Setenv("MY_CUSTOM_NODE_NAME_VAR", "test-node")
+	cfg := config.NewMock(t)
+
+	c := &collector{
+		id:             collectorID,
+		catalog:        workloadmeta.NodeAgent,
+		config:         cfg,
+		standalone:     true,
+		useKubelet:     false,
+		nodeFromEnvVar: "MY_CUSTOM_NODE_NAME_VAR",
+	}
+
+	err := c.Start(context.Background(), nil)
+	require.Error(t, err)
+	// Node name resolved successfully; it now fails building a real
+	// Kubernetes API client, which is not a "disabled" error.
+	assert.False(t, pkgerrors.IsDisabled(err))
+}
+
+// TestNewCollector_NodeFromEnvVarDefault verifies that NewCollector caches
+// nodeFromEnvVar from the otelcollector.standalone.node_from_env_var config
+// key, whose DD agent schema default is K8S_NODE_NAME.
+func TestNewCollector_NodeFromEnvVarDefault(t *testing.T) {
+	cfg := config.NewMock(t)
+	provider, err := NewCollector(dependencies{Config: cfg})
+	require.NoError(t, err)
+	c := provider.Collector.(*collector)
+	assert.Equal(t, "K8S_NODE_NAME", c.nodeFromEnvVar)
 }

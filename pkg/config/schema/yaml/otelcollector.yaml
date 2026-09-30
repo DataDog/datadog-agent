@@ -63,6 +63,11 @@ properties:
     node_type: section
     type: object
     properties:
+      node_from_env_var:
+        node_type: setting
+        type: string
+        default: K8S_NODE_NAME
+        comment: name of the environment variable the nodefilter workloadmeta collector reads the local node's name from, mirroring k8sattributesprocessor's own node_from_env_var filter config
       use_kubelet_collector:
         node_type: setting
         type: boolean

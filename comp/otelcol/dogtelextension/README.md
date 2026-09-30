@@ -27,10 +27,12 @@ In standalone mode, the otel-agent runs a **local tagger** backed by workloadmet
 
 The pod/K8s-metadata source defaults to **`nodefilter`**: a workloadmeta collector that watches pods directly from the K8s API server, scoped to the local node via a `spec.nodeName` field selector. This avoids granting the broader kubelet-API RBAC that the previous `kubelet`-only default required. Set `use_kubelet_collector: true` in the extension config to opt back out to the `kubelet` collector (e.g. if the API-server RBAC below isn't obtainable, or to reduce API-server load).
 
+`nodefilter` reads the local node's name from an environment variable, mirroring the `k8sattributesprocessor`'s own `node_from_env_var` filter config rather than hardcoding a single env var name. It defaults to `K8S_NODE_NAME`, already populated by the OTel Helm chart and Operator; set `node_from_env_var` in the extension config to point at a different env var (e.g. `DD_KUBERNETES_KUBELET_NODENAME`, populated by the Datadog Helm chart/Operator).
+
 **Required deployment configuration (`nodefilter`, the default):**
 ```yaml
 env:
-  - name: DD_KUBERNETES_KUBELET_NODENAME
+  - name: K8S_NODE_NAME
     valueFrom:
       fieldRef:
         fieldPath: spec.nodeName
@@ -115,6 +117,7 @@ extensions:
 
     # K8s tag enrichment collector selection (default: nodefilter)
     use_kubelet_collector: false      # Opt back out to the kubelet collector (default: false)
+    node_from_env_var: K8S_NODE_NAME  # Env var nodefilter reads the local node's name from (default: K8S_NODE_NAME)
 
 service:
   extensions: [dogtel]  # Only include when DD_OTEL_STANDALONE=true
