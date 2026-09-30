@@ -32,8 +32,8 @@ type bucketBounds struct {
 type CheckSampler struct {
 	id                     checkid.ID
 	batchSize              int
-	batchSamples           int
 	nextBatchCommit        time.Time
+	batchDrained           chan time.Time
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
 	contextResolver        *countBasedContextResolver
@@ -218,10 +218,10 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
-func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
+func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher, intermediate bool) {
 
 	flush := cs.metrics.Flush
-	if cs.batchSize > 0 && cs.batchSamples >= cs.batchSize {
+	if intermediate {
 		flush = cs.metrics.FlushBatch
 	}
 	series, errors := flush(timestamp)
@@ -282,7 +282,15 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 }
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
-	cs.commitSeries(timestamp, filterList)
+	cs.commitMetrics(timestamp, filterList, false)
+}
+
+func (cs *CheckSampler) commitBatch(timestamp float64, filterList *metricname.Matcher) {
+	cs.commitMetrics(timestamp, filterList, true)
+}
+
+func (cs *CheckSampler) commitMetrics(timestamp float64, filterList *metricname.Matcher, intermediate bool) {
+	cs.commitSeries(timestamp, filterList, intermediate)
 	cs.commitSketches(timestamp, filterList)
 
 	cs.metrics.RemoveExpired(timestamp)
@@ -293,7 +301,7 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 		// Reclaim contexts every batch, but age bucket baselines only at the
 		// check's final commit. Retaining a baseline does not retain its tags.
 		expiredBucketKeys = nil
-		if cs.batchSamples < cs.batchSize {
+		if !intermediate {
 			for key, lastSeen := range cs.bucketLastSeen {
 				if lastSeen <= cs.bucketRun-cs.contextResolver.expireCountInterval {
 					expiredBucketKeys = append(expiredBucketKeys, key)

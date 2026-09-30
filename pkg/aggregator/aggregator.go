@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -280,10 +281,9 @@ type BufferedAggregator struct {
 	checkItems chan senderItem
 	// Batching is opt-in; unconfigured checks keep their normal commit boundary.
 	batchFlushRequested    chan struct{}
-	batchFlushPending      bool // owned by run(), like checkItems processing
+	batchSizes             map[string]int
 	batchClock             clock.Clock
-	batchCommitPending     *CheckSampler
-	batchCommitReady       <-chan time.Time
+	batchStopped           chan struct{}
 	orchestratorMetadataIn chan senderOrchestratorMetadata
 	orchestratorManifestIn chan senderOrchestratorManifest
 	eventPlatformIn        chan senderEventPlatformEvent
@@ -374,7 +374,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		checkItems:          make(chan senderItem, bufferSize),
 		batchFlushRequested: make(chan struct{}, 1),
+		batchSizes:          maps.Clone(cast.ToStringMapInt(pkgconfigsetup.Datadog().Get("check_sampler_batch_sizes"))),
 		batchClock:          clock.New(),
+		batchStopped:        make(chan struct{}),
 
 		orchestratorMetadataIn: make(chan senderOrchestratorMetadata, bufferSize),
 		orchestratorManifestIn: make(chan senderOrchestratorManifest, bufferSize),
@@ -499,48 +501,14 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			agg.commitCheckSampler(checkSampler)
+			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
-			if checkSampler.batchSize > 0 {
-				checkSampler.batchSamples++
-				if checkSampler.batchSamples >= checkSampler.batchSize {
-					agg.commitCheckSampler(checkSampler)
-				}
-			}
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
 	}
-}
-
-// Called with agg.mu held. Batched commits, including the final remainder, need
-// distinct whole-second timestamps: ingestion replaces rather than sums duplicates.
-func (agg *BufferedAggregator) commitCheckSampler(cs *CheckSampler) {
-	if cs.batchSize <= 0 {
-		cs.commit(timeNowNano(), &agg.flushFilterList)
-		return
-	}
-	now := agg.batchClock.Now()
-	if now.Before(cs.nextBatchCommit) {
-		agg.batchCommitPending = cs
-		agg.batchCommitReady = agg.batchClock.After(cs.nextBatchCommit.Sub(now))
-		return
-	}
-	cs.commit(float64(now.Unix()), &agg.flushFilterList)
-	cs.nextBatchCommit = time.Unix(now.Unix()+1, 0)
-	if cs.batchSamples >= cs.batchSize {
-		// Stop accepting samples until this batch enters the bounded serializer
-		// pipeline, without cycling the sender's per-run statistics.
-		checkBatchCommits.Add(1)
-		agg.batchFlushPending = true
-		select {
-		case agg.batchFlushRequested <- struct{}{}:
-		default:
-		}
-	}
-	cs.batchSamples = 0
 }
 
 func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBucket) {
@@ -632,6 +600,10 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 
 		for _, sk := range sketches {
 			sketchesSink.Append(sk)
+		}
+		if checkSampler.batchDrained != nil {
+			checkSampler.batchDrained <- time.Time{}
+			checkSampler.batchDrained = nil
 		}
 
 		if checkSampler.deregistered {
@@ -870,27 +842,15 @@ func (agg *BufferedAggregator) run() {
 	aggregatorEventPlatformErrorLogged := false
 
 	for {
-		checkItems := agg.checkItems
-		if agg.batchFlushPending || agg.batchCommitPending != nil {
-			// Keep servicing flushes and shutdown; waiting inside handleSenderSample
-			// would prevent the flush needed to unblock the producer.
-			checkItems = nil
-		}
 		select {
 		case stop := <-agg.stopChan:
+			close(agg.batchStopped)
 			log.Info("Stopping aggregator")
 			agg.health.Deregister() //nolint:errcheck
 			close(stop)
 			return
-		case <-agg.batchCommitReady:
-			agg.mu.Lock()
-			cs := agg.batchCommitPending
-			agg.batchCommitPending, agg.batchCommitReady = nil, nil
-			agg.commitCheckSampler(cs)
-			agg.mu.Unlock()
 		case trigger := <-agg.flushChan:
 			agg.Flush(trigger)
-			agg.batchFlushPending = false
 
 			// Do this here, rather than in the Flush():
 			// - make sure Shrink doesn't happen concurrently with sample processing.
@@ -904,7 +864,7 @@ func (agg *BufferedAggregator) run() {
 		case matcher := <-agg.tagFilterListChan:
 			agg.setFilterList(matcher)
 		case <-agg.health.C:
-		case checkItem := <-checkItems:
+		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
@@ -1114,10 +1074,6 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)
 	}
-	// Manual-flush consumers such as `agent check` retain metrics for printing.
-	if agg.flushInterval > 0 {
-		batchSizes := cast.ToStringMapInt(pkgconfigsetup.Datadog().Get("check_sampler_batch_sizes"))
-		cs.batchSize = batchSizes[checkid.IDToCheckName(id)]
-	}
+	cs.batchSize = agg.batchSize(id)
 	agg.checkSamplers[id] = cs
 }

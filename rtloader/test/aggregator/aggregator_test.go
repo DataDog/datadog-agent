@@ -442,6 +442,9 @@ func TestSubmitHistogramBucket(t *testing.T) {
 			if out != "" {
 				t.Errorf("Unexpected printed value: '%s'", out)
 			}
+			if !bucketGILReleased {
+				t.Fatal("bucket callback holds the GIL while it may wait for its batch")
+			}
 			if bucketCallback != tc.callback {
 				t.Fatalf("Unexpected callback: %s", bucketCallback)
 			}

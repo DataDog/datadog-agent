@@ -66,6 +66,7 @@ var (
 )
 
 var metricGILReleased bool
+var bucketGILReleased bool
 
 type event struct {
 	title          string
@@ -243,6 +244,9 @@ func submitHistogramBucketMulti(id *C.char, cMetricName *C.char, cVal C.longlong
 
 func recordHistogramBucket(callback string, id *C.char, cMetricName *C.char, cVal C.longlong, bucketLowerBound float64, bucketUpperBound float64, cMonotonic C.int, cHostname *C.char, t **C.char, fFirstValue C.bool) {
 	bucketCallback = callback
+	state := C.ensure_gil(rtloader)
+	bucketGILReleased = state == C.DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
+	C.release_gil(rtloader, state)
 	checkID = C.GoString(id)
 	name = C.GoString(cMetricName)
 	intValue = int(cVal)

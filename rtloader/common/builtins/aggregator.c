@@ -426,12 +426,15 @@ static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histo
     if ((tags = py_tag_to_c(py_tags)) == NULL)
         goto error;
 
+    // Buckets use the same bounded submission path as ordinary metrics.
+    Py_BEGIN_ALLOW_THREADS
     if (cb_multi != NULL) {
         cb_multi(check_id, name, value, lower_bound, upper_bound, monotonic, hostname, tags, flush_first_value);
     } else {
         // Same values as parsing the bounds with the "f" format
         cb(check_id, name, value, (float)lower_bound, (float)upper_bound, monotonic, hostname, tags, flush_first_value);
     }
+    Py_END_ALLOW_THREADS
 
     free_tags(tags);
 

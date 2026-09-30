@@ -97,28 +97,12 @@ func NewPythonCheck(senderManager sender.SenderManager, name string, class *C.rt
 }
 
 func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
-	// Lock the GIL and release it at the end of the run
-	gstate, err := newStickyLock()
+	checkErrStr, err := c.runCheckWithGIL()
 	if err != nil {
 		return err
 	}
-	defer gstate.unlock()
-
-	if c.cancelled {
-		return fmt.Errorf("check %s is already cancelled", c.ModuleName)
-	}
-
-	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
-
-	cResult := C.run_check(rtloader, c.instance)
-	if cResult == nil {
-		if err := getRtLoaderError(); err != nil {
-			return err
-		}
-		return fmt.Errorf("An error occurred while running python check %s", c.ModuleName)
-	}
-	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
-
+	// Committing can wait for a batch to drain. All Python access is complete,
+	// and the GIL has been released before entering the metric pipeline.
 	if commitMetrics {
 		s, err := c.senderManager.GetSender(c.ID())
 		if err != nil {
@@ -126,15 +110,34 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 		}
 		s.Commit()
 	}
-
-	// grab the warnings and add them to the struct
-	c.lastWarnings = c.getPythonWarnings()
-
-	checkErrStr := C.GoString(cResult)
-	if checkErrStr == "" {
-		return nil
+	if checkErrStr != "" {
+		return errors.New(checkErrStr)
 	}
-	return errors.New(checkErrStr)
+	return nil
+}
+
+func (c *PythonCheck) runCheckWithGIL() (string, error) {
+	gstate, err := newStickyLock()
+	if err != nil {
+		return "", err
+	}
+	defer gstate.unlock()
+
+	if c.cancelled {
+		return "", fmt.Errorf("check %s is already cancelled", c.ModuleName)
+	}
+
+	log.Debugf("Running python check %s (version: '%s', id: '%s')", c.ModuleName, c.version, c.id)
+	cResult := C.run_check(rtloader, c.instance)
+	if cResult == nil {
+		if err := getRtLoaderError(); err != nil {
+			return "", err
+		}
+		return "", fmt.Errorf("An error occurred while running python check %s", c.ModuleName)
+	}
+	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
+	c.lastWarnings = c.getPythonWarnings()
+	return C.GoString(cResult), nil
 }
 
 func (c *PythonCheck) runCheck(commitMetrics bool) error {

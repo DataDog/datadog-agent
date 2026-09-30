@@ -38,6 +38,7 @@ type checkSender struct {
 	priormetricStats        stats.SenderStats
 	statsLock               sync.RWMutex
 	itemsOut                chan<- senderItem
+	batch                   *checkBatch
 	serviceCheckOut         chan<- servicecheck.ServiceCheck
 	eventOut                chan<- event.Event
 	orchestratorMetadataOut chan<- senderOrchestratorMetadata
@@ -159,7 +160,7 @@ func (s *checkSender) SetNoIndex(noIndex bool) {
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
-	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	s.submitItem(&senderMetricSample{s.id, &metrics.MetricSample{}, true}, true)
 	s.cyclemetricStats()
 }
 
@@ -179,7 +180,7 @@ func (s *checkSender) cyclemetricStats() {
 // SendRawMetricSample sends the raw sample
 // Useful for testing - submitting precomputed samples.
 func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.itemsOut <- &senderMetricSample{s.id, sample, false}
+	s.submitItem(&senderMetricSample{s.id, sample, false}, false)
 }
 
 func (s *checkSender) sendMetricSample(
@@ -221,7 +222,7 @@ func (s *checkSender) sendMetricSample(
 		metricSample.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
+	s.submitItem(&senderMetricSample{s.id, metricSample, false}, false)
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
@@ -333,7 +334,7 @@ func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound
 		histogramBucket.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderHistogramBucket{s.id, histogramBucket}
+	s.submitItem(&senderHistogramBucket{s.id, histogramBucket}, false)
 
 	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++
@@ -468,6 +469,10 @@ func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {
 	sp.m.Lock()
 	defer sp.m.Unlock()
 
+	// Another caller may have created the sender after getSender released m.
+	if existing, ok := sp.senders[id]; ok {
+		return existing, nil
+	}
 	err := sp.agg.registerSender(id)
 	sender := newCheckSender(
 		id,
@@ -479,6 +484,9 @@ func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
 	)
+	if limit := sp.agg.batchSize(id); limit > 0 {
+		sender.batch = &checkBatch{limit: limit, clock: sp.agg.batchClock, stopped: sp.agg.batchStopped}
+	}
 	sp.senders[id] = sender
 	return sender, err
 }
