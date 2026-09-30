@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -45,6 +46,20 @@ func TestExecuteCommand_NonZeroExit(t *testing.T) {
 	assert.Equal(t, 3, result.ExitCode)
 	assert.Contains(t, err.Error(), "exit code 3")
 	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestExecuteCommand_PermissionDenied(t *testing.T) {
+	scriptPath := filepath.Join(t.TempDir(), "script.sh")
+	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o600))
+
+	result, err := ExecuteCommand(context.Background(), exec.Command(scriptPath))
+
+	require.Error(t, err)
+	assert.Equal(t, -1, result.ExitCode)
+	assert.ErrorIs(t, err, os.ErrPermission)
+	assert.Contains(t, err.Error(), "execution was denied by the host")
+	assert.Contains(t, err.Error(), "application-allowlisting policies such as fapolicyd")
+	assert.Contains(t, err.Error(), scriptPath)
 }
 
 func TestExecuteCommand_NilContext(t *testing.T) {

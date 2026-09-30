@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -62,7 +63,11 @@ func executeCommand(ctx context.Context, cmd *exec.Cmd, outputLimit int64) (Resu
 
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
-		return Result{ExitCode: -1, Duration: time.Since(start)}, err
+		result := Result{ExitCode: -1, Duration: time.Since(start)}
+		if errors.Is(err, os.ErrPermission) {
+			return result, fmt.Errorf("authored-script execution was denied by the host; check file permissions and application-allowlisting policies such as fapolicyd: %w", err)
+		}
+		return result, err
 	}
 
 	waitCh := make(chan error, 1)
