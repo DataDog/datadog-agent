@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "stackbudget",
+    srcs = ["stackbudget.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/ebpf/stackbudget",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/safeelf"],
+)
+
+# keep
+dd_agent_go_test(
+    name = "stackbudget_test",
+    srcs = ["stackbudget_test.go"],
+    data = [
+        "//pkg/dyninst/ebpf:dyninst_event.aarch64",
+        "//pkg/dyninst/ebpf:dyninst_event.x86_64",
+        "//pkg/dyninst/ebpf:dyninst_event-debug.aarch64",
+        "//pkg/dyninst/ebpf:dyninst_event-debug.x86_64",
+    ],
+    embed = [":stackbudget"],
+    env = {
+        "DYNINST_EBPF_OBJ_ARM64": "$(rootpath //pkg/dyninst/ebpf:dyninst_event.aarch64)",
+        "DYNINST_EBPF_OBJ_ARM64_DEBUG": "$(rootpath //pkg/dyninst/ebpf:dyninst_event-debug.aarch64)",
+        "DYNINST_EBPF_OBJ_X86_64": "$(rootpath //pkg/dyninst/ebpf:dyninst_event.x86_64)",
+        "DYNINST_EBPF_OBJ_X86_64_DEBUG": "$(rootpath //pkg/dyninst/ebpf:dyninst_event-debug.x86_64)",
+    },
+)

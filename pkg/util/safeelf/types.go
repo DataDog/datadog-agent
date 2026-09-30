@@ -58,6 +58,7 @@ const PF_R = elf.PF_R
 const STB_GLOBAL = elf.STB_GLOBAL
 const STB_WEAK = elf.STB_WEAK
 const STT_OBJECT = elf.STT_OBJECT
+const STT_SECTION = elf.STT_SECTION
 const STT_FUNC = elf.STT_FUNC
 const STT_FILE = elf.STT_FILE
 const SHN_UNDEF = elf.SHN_UNDEF

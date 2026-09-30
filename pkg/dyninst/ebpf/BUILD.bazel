@@ -35,3 +35,36 @@ ebpf_prog(
         "//pkg/ebpf/c:ebpf_c_headers",
     ],
 )
+
+# Both architectures, built explicitly, for //pkg/dyninst/ebpf/stackbudget.
+# The verifier's combined-stack limit is architecture-sensitive: a call chain
+# can fit on x86_64 and overflow on aarch64. Frame sizes are compiler output,
+# so building both here lets the budget be checked from any host instead of
+# waiting for an arm64 KMT job to fail to load the program.
+[
+    ebpf_prog(
+        name = "dyninst_event%s.%s" % (suffix, arch),
+        src = "event.c",
+        core = True,
+        debug = debug,
+        extra_flags = ["-Ipkg/dyninst/ebpf"] + extra,
+        target_arch = arch,
+        visibility = ["//visibility:public"],
+        deps = [
+            ":dyninst_ebpf_headers",
+            "//pkg/ebpf/c:ebpf_c_headers",
+        ],
+    )
+    for arch in [
+        "x86_64",
+        "aarch64",
+    ]
+    for suffix, debug, extra in [
+        ("", False, []),
+        (
+            "-debug",
+            True,
+            ["-DDYNINST_DEBUG=1"],
+        ),
+    ]
+]
