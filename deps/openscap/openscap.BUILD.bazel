@@ -28,9 +28,9 @@ package_metadata(
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz",
         package = "openscap",
         version = VERSION,
-        download_url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz",
     ),
 )
 
@@ -47,8 +47,6 @@ ship_source_offer(name = "ship_source_offer")
 filegroup(
     name = "all_deps",
     srcs = [
-        "@libyaml",
-        "@lua//:liblua",
         "@acl",
         "@attr",
         "@bzip2//:bz2_pkg",
@@ -58,6 +56,8 @@ filegroup(
         "@libsepol//:sepol_pkg",
         "@libxml2",
         "@libxslt",
+        "@libyaml",
+        "@lua//:liblua",
         "@nghttp2//:libnghttp2",
         "@pcre2//:pcre2-8_pkg",
         "@popt",
@@ -143,7 +143,6 @@ ENABLED_FEATURES = [
 
 dd_agent_expand_template(
     name = "gen_config_h",
-    template = "config.h.in",
     out = "config.h",
     substitutions = {
                         "@OPENSCAP_VERSION@": VERSION,
@@ -164,9 +163,11 @@ dd_agent_expand_template(
                     } | {"#cmakedefine {}".format(key): "#define {} 1".format(key) for key in ENABLED_FEATURES} |
                     # whatever cmakedefine are left after we processed everyting above, we want them to be #undef
                     {"#cmakedefine": "#undef"},
+    template = "config.h.in",
 )
 
 PUBLIC_HEADERS = glob(["src/**/public/*.h"])
+
 PUBLIC_HEADERS_DIRS = list(set([header.rpartition("/")[0] for header in PUBLIC_HEADERS]))
 
 COMMON_INCLUDE_DIRS = [
@@ -203,18 +204,18 @@ cc_library(
     srcs = [
         "compat/dev_to_tty.c",
     ] + PUBLIC_HEADERS,
+    implementation_deps = [
+        ":config_h",
+    ],
+    includes = COMMON_INCLUDE_DIRS + [
+        ".",
+        "compat/",
+    ],
     local_defines = [
         "HAVE_CONFIG_H",
     ],
     deps = [
         ":compat_hdrs",
-    ],
-    implementation_deps = [
-        ":config_h",
-    ],
-    includes = COMMON_INCLUDE_DIRS + [
-        "compat/",
-        ".",
     ],
 )
 
@@ -244,19 +245,23 @@ cc_library(
         "src/XCCDF_POLICY/*.c",
         "src/XCCDF_POLICY/*.h",
     ]) + [
+        "src/OVAL/_oval_probe_handler.h",
+        "src/OVAL/_oval_probe_session.h",
         "src/OVAL/collectVarRefs.c",
         "src/OVAL/collectVarRefs_impl.h",
-        "src/OVAL/oval_agent.c",
-        "src/OVAL/oval_session.c",
-        "src/OVAL/oval_defModel.c",
-        "src/OVAL/oval_sysModel.c",
+        "src/OVAL/fts_sun.c",
+        "src/OVAL/fts_sun.h",
         "src/OVAL/oval_affected.c",
+        "src/OVAL/oval_agent.c",
         "src/OVAL/oval_agent_api_impl.h",
         "src/OVAL/oval_behavior.c",
         "src/OVAL/oval_component.c",
         "src/OVAL/oval_criteriaNode.c",
+        "src/OVAL/oval_defModel.c",
         "src/OVAL/oval_definition.c",
         "src/OVAL/oval_definitions_impl.h",
+        "src/OVAL/oval_directives.c",
+        "src/OVAL/oval_directives_impl.h",
         "src/OVAL/oval_entity.c",
         "src/OVAL/oval_enumerations.c",
         "src/OVAL/oval_filter.c",
@@ -268,66 +273,62 @@ cc_library(
         "src/OVAL/oval_objectContent.c",
         "src/OVAL/oval_parser.c",
         "src/OVAL/oval_parser_impl.h",
+        "src/OVAL/oval_probe.c",
+        "src/OVAL/oval_probe_ext.c",
+        "src/OVAL/oval_probe_ext.h",
+        "src/OVAL/oval_probe_handler.c",
+        "src/OVAL/oval_probe_hint.c",
+        "src/OVAL/oval_probe_impl.h",
+        "src/OVAL/oval_probe_session.c",
         "src/OVAL/oval_recordField.c",
         "src/OVAL/oval_reference.c",
-        "src/OVAL/oval_directives.c",
-        "src/OVAL/oval_directives_impl.h",
         "src/OVAL/oval_schema_version.c",
+        "src/OVAL/oval_session.c",
         "src/OVAL/oval_set.c",
+        "src/OVAL/oval_sexp.c",
+        "src/OVAL/oval_sexp.h",
         "src/OVAL/oval_state.c",
         "src/OVAL/oval_stateContent.c",
         "src/OVAL/oval_sysEnt.c",
         "src/OVAL/oval_sysInfo.c",
         "src/OVAL/oval_sysInterface.c",
         "src/OVAL/oval_sysItem.c",
+        "src/OVAL/oval_sysModel.c",
+        "src/OVAL/oval_sys_parser.c",
         "src/OVAL/oval_syschar.c",
         "src/OVAL/oval_syscharIterator.c",
         "src/OVAL/oval_system_characteristics_impl.h",
         "src/OVAL/oval_test.c",
         "src/OVAL/oval_value.c",
-        "src/OVAL/oval_variable.c",
-        "src/OVAL/oval_variableBinding.c",
-        "src/OVAL/oval_sys_parser.c",
         "src/OVAL/oval_varModel.c",
         "src/OVAL/oval_vardefMapping.c",
-        "src/OVAL/oval_probe.c",
-        "src/OVAL/oval_probe_hint.c",
-        "src/OVAL/oval_probe_session.c",
-        "src/OVAL/_oval_probe_session.h",
-        "src/OVAL/oval_probe_handler.c",
-        "src/OVAL/_oval_probe_handler.h",
-        "src/OVAL/probes/probe-api.c",
+        "src/OVAL/oval_variable.c",
+        "src/OVAL/oval_variableBinding.c",
         "src/OVAL/probes/_probe-api.h",
-        "src/OVAL/probes/probe-table.c",
-        "src/OVAL/oval_sexp.c",
-        "src/OVAL/oval_sexp.h",
-        "src/OVAL/oval_probe_ext.h",
-        "src/OVAL/oval_probe_impl.h",
-        "src/OVAL/fts_sun.c",
-        "src/OVAL/fts_sun.h",
         "src/OVAL/probes/fsdev.c",
         "src/OVAL/probes/fsdev.h",
-        "src/OVAL/probes/oval_fts.c",
-        "src/OVAL/probes/oval_fts.h",
-        "src/OVAL/oval_probe_ext.c",
-        "src/OVAL/probes/independent/environmentvariable_probe.c",
-        "src/OVAL/probes/independent/environmentvariable_probe.h",
         "src/OVAL/probes/independent/environmentvariable58_probe.c",
         "src/OVAL/probes/independent/environmentvariable58_probe.h",
+        "src/OVAL/probes/independent/environmentvariable_probe.c",
+        "src/OVAL/probes/independent/environmentvariable_probe.h",
         "src/OVAL/probes/independent/family_probe.c",
         "src/OVAL/probes/independent/family_probe.h",
         "src/OVAL/probes/independent/filehash58_probe.c",
         "src/OVAL/probes/independent/filehash58_probe.h",
         "src/OVAL/probes/independent/system_info_probe.c",
         "src/OVAL/probes/independent/system_info_probe.h",
-        "src/OVAL/probes/independent/textfilecontent_probe.c",
-        "src/OVAL/probes/independent/textfilecontent_probe.h",
         "src/OVAL/probes/independent/textfilecontent54_probe.c",
         "src/OVAL/probes/independent/textfilecontent54_probe.h",
+        "src/OVAL/probes/independent/textfilecontent_probe.c",
+        "src/OVAL/probes/independent/textfilecontent_probe.h",
         "src/OVAL/probes/independent/variable_probe.c",
         "src/OVAL/probes/independent/variable_probe.h",
         "src/OVAL/probes/independent/xmlfilecontent_probe.c",
         "src/OVAL/probes/independent/xmlfilecontent_probe.h",
+        "src/OVAL/probes/oval_fts.c",
+        "src/OVAL/probes/oval_fts.h",
+        "src/OVAL/probes/probe-api.c",
+        "src/OVAL/probes/probe-table.c",
         "src/OVAL/probes/unix/dnscache_probe.c",
         "src/OVAL/probes/unix/dnscache_probe.h",
         "src/OVAL/probes/unix/file_probe.c",
@@ -336,33 +337,19 @@ cc_library(
         "src/OVAL/probes/unix/fileextendedattribute_probe.h",
         "src/OVAL/probes/unix/interface_probe.c",
         "src/OVAL/probes/unix/interface_probe.h",
-        "src/OVAL/probes/unix/password_probe.c",
-        "src/OVAL/probes/unix/password_probe.h",
-        "src/OVAL/probes/unix/process_probe.c",
-        "src/OVAL/probes/unix/process_probe.h",
-        "src/OVAL/probes/unix/routingtable_probe.c",
-        "src/OVAL/probes/unix/routingtable_probe.h",
-        "src/OVAL/probes/unix/runlevel_probe.c",
-        "src/OVAL/probes/unix/runlevel_probe.h",
-        "src/OVAL/probes/unix/shadow_probe.c",
-        "src/OVAL/probes/unix/shadow_probe.h",
-        "src/OVAL/probes/unix/symlink_probe.c",
-        "src/OVAL/probes/unix/symlink_probe.h",
-        "src/OVAL/probes/unix/sysctl_probe.c",
-        "src/OVAL/probes/unix/sysctl_probe.h",
-        "src/OVAL/probes/unix/uname_probe.c",
-        "src/OVAL/probes/unix/uname_probe.h",
-        "src/OVAL/probes/unix/xinetd_probe.c",
-        "src/OVAL/probes/unix/xinetd_probe.h",
         "src/OVAL/probes/unix/linux/dpkginfo-helper.c",
         "src/OVAL/probes/unix/linux/dpkginfo-helper.h",
         "src/OVAL/probes/unix/linux/dpkginfo_probe.c",
         "src/OVAL/probes/unix/linux/dpkginfo_probe.h",
+        "src/OVAL/probes/unix/linux/fwupdsecattr_probe.c",
+        "src/OVAL/probes/unix/linux/fwupdsecattr_probe.h",
+        "src/OVAL/probes/unix/linux/iflisteners-proto.h",
         "src/OVAL/probes/unix/linux/iflisteners_probe.c",
         "src/OVAL/probes/unix/linux/iflisteners_probe.h",
-        "src/OVAL/probes/unix/linux/iflisteners-proto.h",
         "src/OVAL/probes/unix/linux/inetlisteningservers_probe.c",
         "src/OVAL/probes/unix/linux/inetlisteningservers_probe.h",
+        "src/OVAL/probes/unix/linux/oval_dbus.c",
+        "src/OVAL/probes/unix/linux/oval_dbus.h",
         "src/OVAL/probes/unix/linux/partition_probe.c",
         "src/OVAL/probes/unix/linux/partition_probe.h",
         "src/OVAL/probes/unix/linux/probe-chroot.c",
@@ -382,20 +369,34 @@ cc_library(
         "src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.c",
         "src/OVAL/probes/unix/linux/selinuxsecuritycontext_probe.h",
         "src/OVAL/probes/unix/linux/systemdshared.h",
-        "src/OVAL/probes/unix/linux/oval_dbus.c",
-        "src/OVAL/probes/unix/linux/oval_dbus.h",
         "src/OVAL/probes/unix/linux/systemdunitdependency_probe.c",
         "src/OVAL/probes/unix/linux/systemdunitdependency_probe.h",
         "src/OVAL/probes/unix/linux/systemdunitproperty_probe.c",
         "src/OVAL/probes/unix/linux/systemdunitproperty_probe.h",
-        "src/OVAL/probes/unix/linux/fwupdsecattr_probe.c",
-        "src/OVAL/probes/unix/linux/fwupdsecattr_probe.h",
+        "src/OVAL/probes/unix/password_probe.c",
+        "src/OVAL/probes/unix/password_probe.h",
+        "src/OVAL/probes/unix/process_probe.c",
+        "src/OVAL/probes/unix/process_probe.h",
+        "src/OVAL/probes/unix/routingtable_probe.c",
+        "src/OVAL/probes/unix/routingtable_probe.h",
+        "src/OVAL/probes/unix/runlevel_probe.c",
+        "src/OVAL/probes/unix/runlevel_probe.h",
+        "src/OVAL/probes/unix/shadow_probe.c",
+        "src/OVAL/probes/unix/shadow_probe.h",
+        "src/OVAL/probes/unix/symlink_probe.c",
+        "src/OVAL/probes/unix/symlink_probe.h",
+        "src/OVAL/probes/unix/sysctl_probe.c",
+        "src/OVAL/probes/unix/sysctl_probe.h",
+        "src/OVAL/probes/unix/uname_probe.c",
+        "src/OVAL/probes/unix/uname_probe.h",
+        "src/OVAL/probes/unix/xinetd_probe.c",
+        "src/OVAL/probes/unix/xinetd_probe.h",
         "src/OVAL/results/oval_cmp.c",
-        "src/OVAL/results/oval_cmp_impl.h",
         "src/OVAL/results/oval_cmp_basic.c",
         "src/OVAL/results/oval_cmp_basic_impl.h",
         "src/OVAL/results/oval_cmp_evr_string.c",
         "src/OVAL/results/oval_cmp_evr_string_impl.h",
+        "src/OVAL/results/oval_cmp_impl.h",
         "src/OVAL/results/oval_cmp_ip_address.c",
         "src/OVAL/results/oval_cmp_ip_address_impl.h",
         "src/OVAL/results/oval_resModel.c",
@@ -403,34 +404,14 @@ cc_library(
         "src/OVAL/results/oval_resultDefinition.c",
         "src/OVAL/results/oval_resultDefinitionIterator.c",
         "src/OVAL/results/oval_resultItem.c",
-        "src/OVAL/results/oval_results_impl.h",
         "src/OVAL/results/oval_resultSystem.c",
         "src/OVAL/results/oval_resultTest.c",
         "src/OVAL/results/oval_resultTestIterator.c",
+        "src/OVAL/results/oval_results_impl.h",
         "src/OVAL/results/oval_status_counter.c",
         "src/OVAL/results/oval_status_counter.h",
     ],
     hdrs = PUBLIC_HEADERS,
-    deps = [
-        "@attr//:libattr",
-        "@bzip2//:libbz2",
-        "@curl//:curl_static",
-        "@dbus//:dbus-1",
-        "@gcrypt//:libgcrypt",
-        "@libselinux//:libselinux",
-        "@libsepol//:libsepol",
-        "@libxslt//:libexslt",
-        "@libyaml//:libyaml",
-        "@pcre2//:libpcre2",
-        "@popt//:libpopt",
-        "@rpm//:librpm",
-        "@rpm//:librpmio",
-        "@util-linux//:libblkid",
-        "@libxml2//:libxml2",
-        "@xmlsec//:libxmlsec1",
-        "@xmlsec//:libxmlsec1-openssl",
-        "@acl//:libacl",
-    ],
     copts = [
         "-O2",
     ],
@@ -448,6 +429,26 @@ cc_library(
         "src/XCCDF_POLICY",
     ],
     local_defines = COMMON_DEFINES,
+    deps = [
+        "@acl//:libacl",
+        "@attr//:libattr",
+        "@bzip2//:libbz2",
+        "@curl//:curl_static",
+        "@dbus//:dbus-1",
+        "@gcrypt//:libgcrypt",
+        "@libselinux",
+        "@libsepol",
+        "@libxml2",
+        "@libxslt//:libexslt",
+        "@libyaml",
+        "@pcre2//:libpcre2",
+        "@popt//:libpopt",
+        "@rpm//:librpm",
+        "@rpm//:librpmio",
+        "@util-linux//:libblkid",
+        "@xmlsec//:libxmlsec1",
+        "@xmlsec//:libxmlsec1-openssl",
+    ],
 )
 
 cc_library(
@@ -461,39 +462,36 @@ cc_library(
         ],
         exclude = ["src/SCE/public/*.h"],
     ) + [
-        "src/common/error.c",
         "src/common/err_queue.c",
+        "src/common/error.c",
         "src/common/list.c",
-        "src/common/oscap_string.c",
         "src/common/oscap_buffer.c",
+        "src/common/oscap_string.c",
         "src/common/util.c",
     ] + PUBLIC_HEADERS,
-    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS + [
-        ".",
-        "src",
+    copts = [
+        "-O2",
     ],
     implementation_deps = [
         ":compat",
         ":config_h",
     ],
-    copts = [
-        "-O2",
+    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS + [
+        ".",
+        "src",
     ],
+    local_defines = COMMON_DEFINES,
     deps = [
         # libxml2 is needed only for the <libxml/xmlerror.h> header pulled in by
         # common/_error.h. The xmlError type is referenced as a pointer parameter
         # but no libxml2 function is actually called, so nothing from libxml2
         # gets linked into libopenscap_sce.so.
-        "@libxml2//:libxml2",
+        "@libxml2",
     ],
-    local_defines = COMMON_DEFINES,
 )
 
 cc_shared_library(
     name = "openscap",
-    deps = [
-        ":libopenscap",
-    ],
     dynamic_deps = [
         "@attr//:attr_pkg",
         "@bzip2//:bz2_pkg",
@@ -516,6 +514,9 @@ cc_shared_library(
         "@xmlsec//:xmlsec1_pkg",
         "@xmlsec//:xmlsec1-openssl_pkg",
         "@acl//:acl_pkg",
+    ],
+    deps = [
+        ":libopenscap",
     ],
 )
 
@@ -533,11 +534,6 @@ cc_binary(
         "utils/*.h",
         "src/common/*.h",
     ]) + PUBLIC_HEADERS,
-    deps = [
-        ":config_h",
-        ":compat_hdrs",
-    ],
-    linkstatic = False,
     copts = [
         "-O2",
     ],
@@ -573,7 +569,12 @@ cc_binary(
         "@nghttp2//:nghttp2_pkg",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
+    linkstatic = False,
     local_defines = COMMON_DEFINES,
+    deps = [
+        ":compat_hdrs",
+        ":config_h",
+    ],
 )
 
 cc_binary(
@@ -582,11 +583,6 @@ cc_binary(
         "utils/oscap-io/*.c",
         "src/common/*.h",
     ]) + PUBLIC_HEADERS,
-    deps = [
-        ":config_h",
-        ":compat_hdrs",
-    ],
-    linkstatic = False,
     copts = [
         "-O2",
     ],
@@ -621,29 +617,38 @@ cc_binary(
         "@nghttp2//:nghttp2_pkg",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
+    linkstatic = False,
     local_defines = COMMON_DEFINES,
+    deps = [
+        ":compat_hdrs",
+        ":config_h",
+    ],
 )
 
 pkg_files(
     name = "xccdf-resources",
-    srcs = glob(["xsl/*.xsl", "xsl/*.xml"]),
-    prefix = "share/openscap/xsl",
+    srcs = glob([
+        "xsl/*.xsl",
+        "xsl/*.xml",
+    ]),
     attributes = pkg_attributes("0644"),
+    prefix = "embedded/share/openscap/xsl",
 )
 
 pkg_files(
     name = "cpe_files",
     srcs = glob(["cpe/*.xml"]),
-    prefix = "share/openscap/cpe",
     attributes = pkg_attributes("0644"),
+    prefix = "embedded/share/openscap/cpe",
 )
 
 dd_cc_packaged(
     name = "openscap_pkg",
+    dest_dir = "embedded/lib",
     input = ":openscap",
     installed_executables = {
-        ":oscap": "bin",
-        ":oscap-io": "bin",
+        ":oscap": "embedded/bin",
+        ":oscap-io": "embedded/bin",
     },
     installed_files = [
         ":xccdf-resources",
@@ -655,6 +660,7 @@ dd_cc_packaged(
 
 dd_cc_packaged(
     name = "openscap_sce_pkg",
+    dest_dir = "embedded/lib",
     input = ":openscap_sce",
     version = "33.1.2",
     visibility = ["//visibility:public"],
@@ -674,5 +680,4 @@ pkg_filegroup(
     srcs = [
         ":_dep_libs",
     ],
-    prefix = "embedded",
 )

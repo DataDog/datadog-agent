@@ -25,6 +25,7 @@ _arch_names = {
     "deb": {
         "aarch64": "arm64",
         "arm64": "arm64",
+        "armv7": "armhf",
         "k8": "amd64",
         "x86_64": "amd64",
         "x86": "amd64",
@@ -34,6 +35,7 @@ _arch_names = {
     "rpm": {
         "aarch64": "aarch64",
         "arm64": "aarch64",
+        "armv7": "armv7hl",
         "amd64": "x86_64",
         "k8": "x86_64",
         "x86": "x86_64",
@@ -56,6 +58,7 @@ And other thing which might be useful:
 - cpu: raw cpu name from CC toolchain.
 - libc: raw libc name from CC toolchain.
 - milestone: Next product milestone version.
+- install_dir: value of the //:install_dir flag.
 """
 
 def make_version():
@@ -129,6 +132,7 @@ def _package_name_variables_impl(ctx):
     values["compiler"] = cc_toolchain.compiler
     values["libc"] = cc_toolchain.libc
     values["compilation_mode"] = ctx.var.get("COMPILATION_MODE")
+    values["install_dir"] = ctx.attr._install_dir[BuildSettingInfo].value
 
     # For initial testing: buildifier: disable=print
     # print(json.encode_indent(values))
@@ -144,6 +148,7 @@ package_name_variables = rule(
             default = "datadog-agent",
         ),
         "_flavor": attr.label(default = "//packages/agent:flavor"),
+        "_install_dir": attr.label(default = "//:install_dir"),
         "_variables": attr.label(default = "//bazel/rules/variables"),
     },
     toolchains = use_cc_toolchain(),

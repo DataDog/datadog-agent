@@ -20,6 +20,7 @@ write_source_file(
     name = "policy_schema",
     in_file = ":policy_schema_gen",
     out_file = "policy.schema.json",
+    visibility = ["//pkg/security:__pkg__"],
 )
 
 go_library(
