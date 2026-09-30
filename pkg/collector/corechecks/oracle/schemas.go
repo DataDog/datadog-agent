@@ -31,15 +31,6 @@ const defaultSchemaPayloadChunkSize = 1000
 
 const schemaOwnersQuery = `SELECT con_id, username, user_id FROM cdb_users WHERE oracle_maintained = 'N'`
 
-// Oracle object IDs are unique only within a container.
-const objectIDsQuery = `SELECT con_id, owner, object_name, object_id FROM cdb_objects
-WHERE object_type = 'TABLE' AND /*RELATIONS*/`
-
-// CDB_* scans must be owner-scoped; unfiltered scans can consume tens of millions of buffer gets.
-// Object table metadata comes from cdb_object_tables, while its columns remain in cdb_tab_cols;
-// cdb_object_tables also lacks CLUSTERING and READ_ONLY.
-//
-// Relation identities are selected before columns so a table is never split.
 const tableIdentitiesQueryTemplate = `SELECT con_id, owner, table_name FROM (
 	SELECT con_id, owner, table_name FROM (
 		SELECT t.con_id, t.owner, t.table_name
@@ -202,7 +193,7 @@ ORDER BY v.con_id, v.owner, v.view_name, c.internal_column_id`
 const viewDefinitionsQuery = `SELECT con_id, owner, view_name, text_vc
 FROM cdb_views WHERE /*RELATIONS*/`
 
-const viewObjectsQuery = `SELECT con_id, owner, object_name, object_id, created, last_ddl_time
+const viewObjectsQuery = `SELECT con_id, owner, object_name, created, last_ddl_time
 FROM cdb_objects WHERE object_type = 'VIEW' AND /*RELATIONS*/`
 
 // These 21c+ views are optional and separately granted.
@@ -406,7 +397,6 @@ type objectTypeDetail struct {
 }
 
 type tableDetails struct {
-	ID             string
 	Comment        string
 	ColumnComments map[string]string
 	ColumnDefaults map[string]string
@@ -421,7 +411,6 @@ type tableDetails struct {
 }
 
 type schemaTable struct {
-	ID          string            `json:"id,omitempty"`
 	Name        string            `json:"name"`
 	Owner       string            `json:"owner"`
 	TableType   string            `json:"table_type"`
@@ -448,7 +437,6 @@ type schemaObject struct {
 }
 
 type viewObject struct {
-	ID         string         `json:"id,omitempty"`
 	Name       string         `json:"name"`
 	Owner      string         `json:"owner"`
 	Definition string         `json:"definition,omitempty"`
@@ -459,7 +447,6 @@ type viewObject struct {
 }
 
 type viewDetails struct {
-	ID         string
 	Definition string
 	Comment    string
 	CreateDate string
@@ -751,7 +738,7 @@ func (s *schemaCollector) addView(r schemaRowDB) {
 	if newView {
 		v := &viewObject{Name: r.TableName, Owner: r.Owner}
 		if d := s.views[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
-			v.ID, v.Definition, v.Comment = d.ID, d.Definition, d.Comment
+			v.Definition, v.Comment = d.Definition, d.Comment
 			v.CreateDate, v.ModifyDate = d.CreateDate, d.ModifyDate
 		}
 		s.currentSchema.Views = append(s.currentSchema.Views, v)
@@ -802,7 +789,6 @@ func (s *schemaCollector) add(r schemaRowDB) {
 			}
 		}
 		if d := s.details[tableKey{conID: r.ConID, owner: r.Owner, table: r.TableName}]; d != nil {
-			t.ID = d.ID
 			t.Comment = d.Comment
 			for _, idx := range d.Indexes {
 				if len(idx.Columns) > 0 {
@@ -1571,21 +1557,6 @@ func (c *Check) tableDetailsForPage(ctx context.Context, allowed map[tableKey]st
 		return nil
 	})
 
-	c.queryDetails(ctx, "object ids", objectIDsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
-		var (
-			conID        int64
-			owner, table string
-			objectID     sql.NullInt64
-		)
-		if err := rows.Scan(&conID, &owner, &table, &objectID); err != nil {
-			return err
-		}
-		if objectID.Valid {
-			at(conID, owner, table).ID = strconv.FormatInt(objectID.Int64, 10)
-		}
-		return nil
-	})
-
 	keys := make(map[tableKey][]string)
 	c.queryDetails(ctx, "partitioning", partTablesQuery, allowed, relationColumnNames{conID: "pt.con_id", owner: "pt.owner", relation: "pt.table_name"}, func(rows *sqlx.Rows) error {
 		var (
@@ -1808,15 +1779,11 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 	c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name string
-		var objectID sql.NullInt64
 		var created, modified sql.NullTime
-		if err := rows.Scan(&conID, &owner, &name, &objectID, &created, &modified); err != nil {
+		if err := rows.Scan(&conID, &owner, &name, &created, &modified); err != nil {
 			return err
 		}
 		d := at(conID, owner, name)
-		if objectID.Valid {
-			d.ID = strconv.FormatInt(objectID.Int64, 10)
-		}
 		if created.Valid {
 			d.CreateDate = created.Time.UTC().Format(time.RFC3339)
 		}

@@ -387,7 +387,6 @@ func TestSchemaCollectionAgainstDatabase(t *testing.T) {
 
 	assert.Equal(t, "table", orders.TableType)
 	assert.Equal(t, "Schema collection fixture", orders.Comment)
-	assert.NotEmpty(t, orders.ID, "table id comes from cdb_objects.object_id")
 
 	columns := columnMap(orders.Columns)
 	require.Contains(t, columns, "ORDER_ID")
@@ -429,7 +428,6 @@ func TestSchemaCollectionAgainstDatabase(t *testing.T) {
 	require.NotNil(t, addresses.ObjectType)
 	assert.Equal(t, strings.ToUpper(schemaTestUser), strings.ToUpper(addresses.ObjectType.TypeOwner))
 	assert.Equal(t, "DD_ADDRESS_T", strings.ToUpper(addresses.ObjectType.TypeName))
-	assert.NotEmpty(t, addresses.ID, "object tables get their id from cdb_objects like any other table")
 
 	addressColumns := columnMap(addresses.Columns)
 	require.Contains(t, addressColumns, "STREET")
@@ -637,7 +635,8 @@ func TestSchemaCollectionViews(t *testing.T) {
 	require.NotNil(t, view, "the fixture view was not collected")
 	assert.Equal(t, "Schema collection view fixture", view.Comment)
 	assert.Contains(t, strings.ToUpper(view.Definition), "DD_ORDERS")
-	assert.NotEmpty(t, view.ID)
+	assert.NotEmpty(t, view.CreateDate)
+	assert.NotEmpty(t, view.ModifyDate)
 
 	columns := columnMap(view.Columns)
 	require.Contains(t, columns, "ORDER_ID")

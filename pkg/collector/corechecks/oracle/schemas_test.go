@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -65,6 +66,25 @@ func (c *Check) hydrateTablePage(ctx context.Context, keys []tableKey, maxColumn
 		add(row)
 	}
 	return nil
+}
+
+func TestSchemaRelationsDoNotEmitObjectIDs(t *testing.T) {
+	for name, relation := range map[string]any{
+		"table": schemaTable{Name: "ORDERS", Owner: "APP"},
+		"view":  viewObject{Name: "ORDERS", Owner: "APP"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, hasID := reflect.TypeOf(relation).FieldByName("ID")
+			assert.False(t, hasID)
+			payload, err := json.Marshal(relation)
+			require.NoError(t, err)
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(payload, &fields))
+			assert.NotContains(t, fields, "id")
+			assert.Equal(t, "ORDERS", fields["name"])
+			assert.Equal(t, "APP", fields["owner"])
+		})
+	}
 }
 
 func newSchemaCheck(t *testing.T) (Check, *sqlx.DB, sqlmock.Sqlmock, func()) {
@@ -1764,7 +1784,7 @@ func TestSnapshotKeepsTableWhenCappedViewsDisappear(t *testing.T) {
 	dbMock.ExpectQuery("WITH ranked_columns").WillReturnRows(addTableWithoutColumns(emptyTablesRows(), 3, "APP", "T"))
 	for _, view := range []string{
 		"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_col_comments",
-		"cdb_indexes", "cdb_constraints", "cdb_external_tables", "cdb_objects", "cdb_part_tables",
+		"cdb_indexes", "cdb_constraints", "cdb_external_tables", "cdb_part_tables",
 	} {
 		dbMock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 	}
@@ -2259,15 +2279,22 @@ func TestViewDetailsAreScopedToPage(t *testing.T) {
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "VIEW_NAME", "TEXT_VC"}).
 			AddRow(3, "APP", "V1", "SELECT 1 FROM dual").
 			AddRow(3, "APP", "V2", "SELECT 2 FROM dual"))
-	dbMock.ExpectQuery("cdb_objects").WillReturnRows(
-		sqlmock.NewRows([]string{"CON_ID", "OWNER", "OBJECT_NAME", "OBJECT_ID", "CREATED", "LAST_DDL_TIME"}))
+	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	modified := created.Add(time.Hour)
+	dbMock.ExpectQuery("SELECT con_id, owner, object_name, created, last_ddl_time").WillReturnRows(
+		sqlmock.NewRows([]string{"CON_ID", "OWNER", "OBJECT_NAME", "CREATED", "LAST_DDL_TIME"}).
+			AddRow(3, "APP", "V1", created, modified).
+			AddRow(3, "APP", "V2", created, modified))
 	dbMock.ExpectQuery("cdb_tab_comments").WillReturnRows(
 		sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COMMENTS"}))
 
 	details := c.viewDetailsForPage(context.Background(), map[tableKey]struct{}{key: {}})
 	require.Len(t, details, 1)
 	assert.Equal(t, "SELECT 1 FROM dual", details[key].Definition)
+	assert.Equal(t, created.Format(time.RFC3339), details[key].CreateDate)
+	assert.Equal(t, modified.Format(time.RFC3339), details[key].ModifyDate)
 	assert.NotContains(t, details, tableKey{conID: 3, owner: "APP", table: "V2"})
+	require.NoError(t, dbMock.ExpectationsWereMet())
 }
 
 func TestSchemaCollectionSkipsOwnerContainerAbsentFromAvailabilityLookup(t *testing.T) {
