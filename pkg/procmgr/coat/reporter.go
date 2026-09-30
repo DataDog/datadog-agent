@@ -39,7 +39,7 @@ func StartReporter(ctx context.Context, tlm telemetry.Component) {
 			"runtime",
 			"procmgr_process_state",
 			[]string{"process", "state"},
-			"State dd-procmgrd reports for a managed process",
+			"1 for the state dd-procmgrd currently reports for a managed process, 0 for all other states",
 		),
 		serviceInstalled: tlm.NewGauge(
 			"runtime",
