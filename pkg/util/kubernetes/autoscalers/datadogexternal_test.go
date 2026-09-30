@@ -306,7 +306,7 @@ func TestValidateDatadogExternalQuery(t *testing.T) {
 		},
 		{
 			name:    "top-level comma",
-			query:   "avg:attacker{*},avg:victim{*}",
+			query:   "avg:first{*},avg:second{*}",
 			wantErr: "query contains a top-level comma",
 		},
 		{
@@ -432,36 +432,36 @@ func TestMatchDatadogExternalSeriesAcceptsRewrittenExpression(t *testing.T) {
 	}
 }
 
-func TestQueryExternalMetricRejectsInjectedSubqueriesRegardlessOfOrder(t *testing.T) {
-	const attackerQuery = "avg:attacker{*},avg:injected-a{*},avg:injected-b{*}"
-	victimQueries := []string{"avg:victim-a{*}", "avg:victim-b{*}"}
+func TestQueryExternalMetricRejectsMultiExpressionQueriesRegardlessOfOrder(t *testing.T) {
+	const invalidQuery = "avg:multi-expression{*},avg:additional-a{*},avg:additional-b{*}"
+	validQueries := []string{"avg:valid-a{*}", "avg:valid-b{*}"}
 
 	tests := []struct {
 		name    string
 		queries []string
 	}{
-		{name: "attacker first", queries: []string{attackerQuery, victimQueries[0], victimQueries[1]}},
-		{name: "attacker middle", queries: []string{victimQueries[0], attackerQuery, victimQueries[1]}},
-		{name: "attacker last", queries: []string{victimQueries[0], victimQueries[1], attackerQuery}},
+		{name: "invalid query first", queries: []string{invalidQuery, validQueries[0], validQueries[1]}},
+		{name: "invalid query middle", queries: []string{validQueries[0], invalidQuery, validQueries[1]}},
+		{name: "invalid query last", queries: []string{validQueries[0], validQueries[1], invalidQuery}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			datadogClientComp := datadogclientmock.New(t).Comp
 			datadogClientComp.SetQueryMetricsFunc(func(_ int64, _ int64, query string) ([]datadog.Series, error) {
-				require.Equal(t, strings.Join(victimQueries, ","), query)
+				require.Equal(t, strings.Join(validQueries, ","), query)
 				return []datadog.Series{
 					{
-						Expression: pointer.Ptr(victimQueries[0]),
+						Expression: pointer.Ptr(validQueries[0]),
 						QueryIndex: pointer.Ptr(0),
-						Metric:     pointer.Ptr("victim-a"),
+						Metric:     pointer.Ptr("valid-a"),
 						Scope:      pointer.Ptr("*"),
 						Points:     []datadog.DataPoint{makePoints(100000, 10), makePoints(200000, 10)},
 					},
 					{
-						Expression: pointer.Ptr(victimQueries[1]),
+						Expression: pointer.Ptr(validQueries[1]),
 						QueryIndex: pointer.Ptr(1),
-						Metric:     pointer.Ptr("victim-b"),
+						Metric:     pointer.Ptr("valid-b"),
 						Scope:      pointer.Ptr("*"),
 						Points:     []datadog.DataPoint{makePoints(100000, 20), makePoints(200000, 20)},
 					},
@@ -471,12 +471,12 @@ func TestQueryExternalMetricRejectsInjectedSubqueriesRegardlessOfOrder(t *testin
 			p := Processor{datadogClient: datadogClientComp, parallelQueries: 1}
 			points := p.QueryExternalMetric(test.queries, time.Minute)
 
-			require.False(t, points[attackerQuery].Valid)
-			require.ErrorContains(t, points[attackerQuery].Error, "top-level comma")
-			require.Equal(t, 10.0, points[victimQueries[0]].Value)
-			require.True(t, points[victimQueries[0]].Valid)
-			require.Equal(t, 20.0, points[victimQueries[1]].Value)
-			require.True(t, points[victimQueries[1]].Valid)
+			require.False(t, points[invalidQuery].Valid)
+			require.ErrorContains(t, points[invalidQuery].Error, "top-level comma")
+			require.Equal(t, 10.0, points[validQueries[0]].Value)
+			require.True(t, points[validQueries[0]].Valid)
+			require.Equal(t, 20.0, points[validQueries[1]].Value)
+			require.True(t, points[validQueries[1]].Valid)
 		})
 	}
 }

@@ -179,27 +179,27 @@ func TestRetrieveMetricsBasic(t *testing.T) {
 	}
 }
 
-func TestRetrieveMetricsRejectsCrossNamespaceQueryInjectionRegardlessOfOrder(t *testing.T) {
+func TestRetrieveMetricsExcludesInvalidMultiExpressionQueriesRegardlessOfOrder(t *testing.T) {
 	configmock.New(t)
 
-	const attackerQuery = "avg:attacker{*},avg:injected-a{*},avg:injected-b{*}"
-	victimQueries := []string{"avg:victim-a{*}", "avg:victim-b{*}"}
+	const invalidQuery = "avg:multi-expression{*},avg:additional-a{*},avg:additional-b{*}"
+	validQueries := []string{"avg:valid-a{*}", "avg:valid-b{*}"}
 
 	tests := []struct {
 		name  string
 		order []string
 	}{
-		{name: "attacker first", order: []string{"attacker/injected", "victim-a/metric", "victim-b/metric"}},
-		{name: "attacker middle", order: []string{"victim-a/metric", "attacker/injected", "victim-b/metric"}},
-		{name: "attacker last", order: []string{"victim-a/metric", "victim-b/metric", "attacker/injected"}},
+		{name: "invalid query first", order: []string{"invalid/multi-expression", "valid-a/metric", "valid-b/metric"}},
+		{name: "invalid query middle", order: []string{"valid-a/metric", "invalid/multi-expression", "valid-b/metric"}},
+		{name: "invalid query last", order: []string{"valid-a/metric", "valid-b/metric", "invalid/multi-expression"}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			queriesByID := map[string]string{
-				"attacker/injected": attackerQuery,
-				"victim-a/metric":   victimQueries[0],
-				"victim-b/metric":   victimQueries[1],
+				"invalid/multi-expression": invalidQuery,
+				"valid-a/metric":           validQueries[0],
+				"valid-b/metric":           validQueries[1],
 			}
 
 			store := NewDatadogMetricsInternalStore()
@@ -225,16 +225,16 @@ func TestRetrieveMetricsRejectsCrossNamespaceQueryInjectionRegardlessOfOrder(t *
 				timestamp := float64(time.Now().Add(-time.Second).UnixMilli())
 				return []datadog.Series{
 					{
-						Expression: pointer.Ptr(victimQueries[0]),
+						Expression: pointer.Ptr(validQueries[0]),
 						QueryIndex: pointer.Ptr(0),
-						Metric:     pointer.Ptr("victim-a"),
+						Metric:     pointer.Ptr("valid-a"),
 						Scope:      pointer.Ptr("*"),
 						Points:     []datadog.DataPoint{{&timestamp, pointer.Ptr(10.0)}},
 					},
 					{
-						Expression: pointer.Ptr(victimQueries[1]),
+						Expression: pointer.Ptr(validQueries[1]),
 						QueryIndex: pointer.Ptr(1),
-						Metric:     pointer.Ptr("victim-b"),
+						Metric:     pointer.Ptr("valid-b"),
 						Scope:      pointer.Ptr("*"),
 						Points:     []datadog.DataPoint{{&timestamp, pointer.Ptr(20.0)}},
 					},
@@ -248,28 +248,28 @@ func TestRetrieveMetricsRejectsCrossNamespaceQueryInjectionRegardlessOfOrder(t *
 
 			select {
 			case query := <-queried:
-				require.Equal(t, victimQueries[0]+","+victimQueries[1], query)
+				require.Equal(t, validQueries[0]+","+validQueries[1], query)
 			default:
-				require.Fail(t, "expected the valid victim queries to be sent to Datadog")
+				require.Fail(t, "expected the valid queries to be sent to Datadog")
 			}
 
-			attacker := store.Get("attacker/injected")
-			require.NotNil(t, attacker)
-			require.False(t, attacker.Valid)
-			require.ErrorContains(t, attacker.Error, "top-level comma")
-			require.Equal(t, 1.0, attacker.Value)
+			invalid := store.Get("invalid/multi-expression")
+			require.NotNil(t, invalid)
+			require.False(t, invalid.Valid)
+			require.ErrorContains(t, invalid.Error, "top-level comma")
+			require.Equal(t, 1.0, invalid.Value)
 
-			victimA := store.Get("victim-a/metric")
-			require.NotNil(t, victimA)
-			require.True(t, victimA.Valid)
-			require.NoError(t, victimA.Error)
-			require.Equal(t, 10.0, victimA.Value)
+			validA := store.Get("valid-a/metric")
+			require.NotNil(t, validA)
+			require.True(t, validA.Valid)
+			require.NoError(t, validA.Error)
+			require.Equal(t, 10.0, validA.Value)
 
-			victimB := store.Get("victim-b/metric")
-			require.NotNil(t, victimB)
-			require.True(t, victimB.Valid)
-			require.NoError(t, victimB.Error)
-			require.Equal(t, 20.0, victimB.Value)
+			validB := store.Get("valid-b/metric")
+			require.NotNil(t, validB)
+			require.True(t, validB.Valid)
+			require.NoError(t, validB.Error)
+			require.Equal(t, 20.0, validB.Value)
 		})
 	}
 }
