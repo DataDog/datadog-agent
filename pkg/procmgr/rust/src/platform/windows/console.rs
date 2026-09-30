@@ -70,14 +70,25 @@ pub(crate) struct CallerConsoleState {
     has_console: bool,
     stdout: bool,
     stderr: bool,
+    /// Raw std handle values, and only for a process with no console of its own.
+    ///
+    /// Liveness alone accepts a slot left pointing at a closed console handle once
+    /// Windows has reassigned that value to something else. Whether a graceful stop
+    /// leaves that behind is the open question this is here to answer, so the values are
+    /// not an invariant for a process that does have a console: reattaching to the parent
+    /// reopens `CONOUT$`, and fresh handles there are correct.
+    std_handles: Option<[usize; 3]>,
 }
 
 #[cfg(test)]
 pub(crate) fn caller_console_state() -> CallerConsoleState {
+    let has_console = has_console();
     CallerConsoleState {
-        has_console: has_console(),
+        has_console,
         stdout: stdout_inheritable(),
         stderr: stderr_inheritable(),
+        std_handles: (!has_console)
+            .then(|| CONSOLE_STD_HANDLES.map(|(kind, _)| unsafe { GetStdHandle(kind) } as usize)),
     }
 }
 
