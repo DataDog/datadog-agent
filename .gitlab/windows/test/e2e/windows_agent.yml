@@ -18,6 +18,16 @@ new-e2e-agent-runtimes-windows:
     - !reference [.on_e2e_main_release_or_rc]
     - changes:
         paths:
+          # This job owns the procmgr suite, the only end-to-end coverage of the Windows
+          # cutovers: dd-procmgr supervising a workload while the legacy SCM service it
+          # replaced stays stopped. Listing only the test directory meant a change to
+          # dd-procmgr itself, to the processes.d definitions the MSI writes, or to the core
+          # Agent's decision to skip a service ran none of it.
+          - pkg/procmgr/**/*
+          - comp/procmgr/**/*
+          - pkg/fleet/installer/packages/embedded/tmpl/gen/windows/**/*
+          - pkg/fleet/installer/packages/processmanager/*_windows.go
+          - cmd/agent/subcommands/run/dependent_services_windows.go
           - test/new-e2e/tests/agent-runtimes/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
