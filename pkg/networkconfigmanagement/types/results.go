@@ -62,7 +62,7 @@ type RollbackResponse struct {
 
 // RunCommandResponse is the JSON body returned by the /agent/ncm/run-command endpoint.
 type RunCommandResponse struct {
-	CommandResult *CommandResult `json:"result"`
+	CommandResult *CommandResult `json:"command_result"`
 	ErrorCode     string         `json:"error_code,omitempty"`
 	ErrorMsg      string         `json:"error_msg,omitempty"`
 }
