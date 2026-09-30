@@ -717,7 +717,7 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		// updating it.
 		yamlConf, err := yaml.Marshal(config.AllSettings())
 		if err != nil {
-			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
+			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %w", err)
 		}
 
 		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
