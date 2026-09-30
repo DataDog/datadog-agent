@@ -1,0 +1,29 @@
+---
+# e2e stage - container-platform owned DatadogInstrumentation jobs
+# Owned by: container-platform, agent-devx
+
+.on_ddi_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - cmd/cluster-agent/subcommands/start/**/*
+        - comp/core/autodiscovery/listeners/**/*
+        - comp/core/autodiscovery/providers/**/*
+        - pkg/clusteragent/instrumentation/**/*
+        - pkg/config/autodiscovery/**/*
+        - pkg/util/kubernetes/apiserver/controllers/instrumentation_controller.go
+        - test/e2e-framework/components/datadog/apps/nginx/**/*
+        - test/new-e2e/tests/ddi/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+new-e2e-ddi:
+  extends: .new_e2e_template_needs_container_deploy_linux
+  rules:
+    - !reference [.on_ddi_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/ddi
+    TEAM: container-platform
+    ON_NIGHTLY_FIPS: "true"

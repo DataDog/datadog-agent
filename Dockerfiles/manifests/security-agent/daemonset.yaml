@@ -16,7 +16,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: "datadog"
-        app.kubernetes.io/instance: datadog-agent
+        app.kubernetes.io/instance: "datadog-agent"
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/part-of: default-datadog
         app.kubernetes.io/component: agent
@@ -32,7 +32,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.82.3"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           securityContext:
@@ -66,6 +66,8 @@ spec:
                   fieldPath: status.hostIP
             - name: DD_KUBELET_USE_API_SERVER
               value: "false"
+            - name: DD_KUBERNETES_USE_ENDPOINT_SLICES
+              value: "true"
             - name: DD_OTLP_CONFIG_LOGS_ENABLED
               value: "false"
             - name: DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED
@@ -104,7 +106,7 @@ spec:
             - name: DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL
               value: "false"
             - name: DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION
-              value: "false"
+              value: "true"
             - name: DD_HEALTH_PORT
               value: "5555"
             - name: DD_EXTRA_CONFIG_PROVIDERS
@@ -119,12 +121,16 @@ spec:
               value: "6000"
             - name: DD_COMPLIANCE_CONFIG_ENABLED
               value: "true"
+            - name: DD_COMPLIANCE_CONFIG_RUN_IN_SYSTEM_PROBE
+              value: "false"
             - name: DD_CONTAINER_IMAGE_ENABLED
               value: "true"
             - name: DD_KUBELET_CORE_CHECK_ENABLED
               value: "true"
             - name: DD_KUBERNETES_KUBELET_PODRESOURCES_SOCKET
               value: "/var/lib/kubelet/pod-resources/kubelet.sock"
+            - name: DD_INSTRUMENTATION_CRD_CONTROLLER_ENABLED
+              value: "true"
             - name: DD_KUBERNETES_KUBE_SERVICE_IGNORE_READINESS
               value: "false"
             - name: DD_ORCHESTRATOR_EXPLORER_KUBELET_CONFIG_CHECK_ENABLED
@@ -207,7 +213,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: system-probe
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.82.3"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -252,12 +258,20 @@ spec:
                   fieldPath: status.hostIP
             - name: DD_KUBELET_USE_API_SERVER
               value: "false"
+            - name: DD_KUBERNETES_USE_ENDPOINT_SLICES
+              value: "true"
             - name: DD_OTLP_CONFIG_LOGS_ENABLED
               value: "false"
             - name: DD_LOG_LEVEL
               value: "INFO"
             - name: HOST_ROOT
               value: "/host/root"
+            - name: DD_DOGSTATSD_PORT
+              value: "8125"
+            - name: DD_COMPLIANCE_CONFIG_ENABLED
+              value: "true"
+            - name: DD_COMPLIANCE_CONFIG_RUN_IN_SYSTEM_PROBE
+              value: "false"
           resources: {}
           volumeMounts:
             - name: auth-token
@@ -313,8 +327,44 @@ spec:
               mountPath: /host/root
               mountPropagation: None
               readOnly: true
+            - name: modules
+              mountPath: /lib/modules
+              mountPropagation: None
+              readOnly: true
+            - name: src
+              mountPath: /usr/src
+              mountPropagation: None
+              readOnly: true
+            - name: runtime-compiler-output-dir
+              mountPath: /var/tmp/datadog-agent/system-probe/build
+              mountPropagation: None
+              readOnly: false
+            - name: kernel-headers-download-dir
+              mountPath: /var/tmp/datadog-agent/system-probe/kernel-headers
+              readOnly: false # Need RW for sys-probe kernel headers
+            - name: apt-config-dir
+              mountPath: /host/etc/apt
+              readOnly: true
+            - name: yum-repos-dir
+              mountPath: /host/etc/yum.repos.d
+              readOnly: true
+            - name: opensuse-repos-dir
+              mountPath: /host/etc/zypp
+              readOnly: true
+            - name: public-key-dir
+              mountPath: /host/etc/pki
+              readOnly: true
+            - name: yum-vars-dir
+              mountPath: /host/etc/yum/vars
+              readOnly: true
+            - name: dnf-vars-dir
+              mountPath: /host/etc/dnf/vars
+              readOnly: true
+            - name: rhel-subscription-dir
+              mountPath: /host/etc/rhsm
+              readOnly: true
         - name: security-agent
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.82.3"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -348,6 +398,8 @@ spec:
                   fieldPath: status.hostIP
             - name: DD_KUBELET_USE_API_SERVER
               value: "false"
+            - name: DD_KUBERNETES_USE_ENDPOINT_SLICES
+              value: "true"
             - name: DD_OTLP_CONFIG_LOGS_ENABLED
               value: "false"
             - name: DD_CLUSTER_AGENT_ENABLED
@@ -428,18 +480,18 @@ spec:
               readOnly: true
       initContainers:
         - name: init-volume
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.82.3"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
-            - cp -r /etc/datadog-agent /opt
+            - cp -r /etc/datadog-agent /opt && mkdir -p /opt/datadog-agent/auth
           volumeMounts:
             - name: config
               mountPath: /opt/datadog-agent
               readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.82.3"
           imagePullPolicy: IfNotPresent
           command:
             - bash
@@ -489,11 +541,13 @@ spec:
                   fieldPath: status.hostIP
             - name: DD_KUBELET_USE_API_SERVER
               value: "false"
+            - name: DD_KUBERNETES_USE_ENDPOINT_SLICES
+              value: "true"
             - name: DD_OTLP_CONFIG_LOGS_ENABLED
               value: "false"
           resources: {}
         - name: seccomp-setup
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.82.3"
           imagePullPolicy: IfNotPresent
           command:
             - cp
@@ -561,6 +615,41 @@ spec:
           name: debugfs
         - name: sysprobe-socket-dir
           emptyDir: {}
+        - hostPath:
+            path: /lib/modules
+          name: modules
+        - hostPath:
+            path: /usr/src
+          name: src
+        - hostPath:
+            path: /var/tmp/datadog-agent/system-probe/build
+            type: DirectoryOrCreate
+          name: runtime-compiler-output-dir
+        - hostPath:
+            path: /var/tmp/datadog-agent/system-probe/kernel-headers
+            type: DirectoryOrCreate
+          name: kernel-headers-download-dir
+        - hostPath:
+            path: /etc/apt
+          name: apt-config-dir
+        - hostPath:
+            path: /etc/yum.repos.d
+          name: yum-repos-dir
+        - hostPath:
+            path: /etc/zypp
+          name: opensuse-repos-dir
+        - hostPath:
+            path: /etc/pki
+          name: public-key-dir
+        - hostPath:
+            path: /etc/yum/vars
+          name: yum-vars-dir
+        - hostPath:
+            path: /etc/dnf/vars
+          name: dnf-vars-dir
+        - hostPath:
+            path: /etc/rhsm
+          name: rhel-subscription-dir
         - hostPath:
             path: /etc/passwd
           name: passwd

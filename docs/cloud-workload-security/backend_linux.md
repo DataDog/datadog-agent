@@ -312,6 +312,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Container ID"
                 },
+                "pod_uid": {
+                    "type": "string",
+                    "description": "Kubernetes pod UID"
+                },
                 "source": {
                     "type": "string",
                     "description": "Source of the container entry (event or procfs)"
@@ -1958,6 +1962,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "event_type_state": {
                     "type": "string",
                     "description": "State of the event type in this profile"
+                },
+                "profile_already_sent": {
+                    "type": "boolean",
+                    "description": "True if the profile had already been persisted to the backend when this event was emitted"
                 }
             },
             "additionalProperties": false,
@@ -1967,7 +1975,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "version",
                 "tags",
                 "event_in_profile",
-                "event_type_state"
+                "event_type_state",
+                "profile_already_sent"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
@@ -3129,6 +3138,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Container ID"
         },
+        "pod_uid": {
+            "type": "string",
+            "description": "Kubernetes pod UID"
+        },
         "source": {
             "type": "string",
             "description": "Source of the container entry (event or procfs)"
@@ -3153,6 +3166,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | Container ID |
+| `pod_uid` | Kubernetes pod UID |
 | `source` | Source of the container entry (event or procfs) |
 | `created_at` | Creation time of the container |
 | `variables` | Variable values |
@@ -5511,6 +5525,10 @@ ancestor lineage to find the same value. |
         "event_type_state": {
             "type": "string",
             "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+            "type": "boolean",
+            "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
     },
     "additionalProperties": false,
@@ -5520,7 +5538,8 @@ ancestor lineage to find the same value. |
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -5534,6 +5553,7 @@ ancestor lineage to find the same value. |
 | `tags` | List of tags associated to this profile |
 | `event_in_profile` | True if the corresponding event is part of this profile |
 | `event_type_state` | State of the event type in this profile |
+| `profile_already_sent` | True if the profile had already been persisted to the backend when this event was emitted |
 
 
 ## `SetSockOptEvent`

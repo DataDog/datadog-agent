@@ -7,6 +7,8 @@ go_library(
         "installer_paths.go",
         "installer_paths_utils.go",
         "installer_paths_windows.go",
+        "remove_all_other.go",
+        "remove_all_windows.go",
         "rename_other.go",
         "rename_windows.go",
         "testhelpers_windows.go",
@@ -31,14 +33,18 @@ dd_agent_go_test(
     name = "paths_test",
     srcs = [
         "paths_windows_test.go",
+        "remove_all_test.go",
+        "remove_all_windows_test.go",
         "rename_windows_test.go",
     ],
     embed = [":paths"],
-    deps = select({
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ] + select({
         "@rules_go//go/platform:windows": [
+            "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_microsoft_go_winio//:go-winio",
-            "@com_github_stretchr_testify//assert",
-            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

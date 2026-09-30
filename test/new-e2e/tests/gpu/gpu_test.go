@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -36,6 +37,11 @@ import (
 var devMode = flag.Bool("devmode", false, "enable dev mode")
 var imageTag = flag.String("image-tag", "main", "Docker image tag to use")
 var mandatoryMetricTags = []string{"gpu_uuid", "gpu_device", "gpu_vendor", "gpu_driver_version"}
+
+// migProfileTagValue matches the gpu_mig_profile tag values: NVIDIA's profile
+// name lowercased, with '+' (outside the tag charset) written as '_' --
+// "1g.35gb", "1g.24gb_me", "1g.24gb-me", "1g.24gb_me.all", "4g.96gb_gfx".
+var migProfileTagValue = regexp.MustCompile(`^[0-9]+g\.[0-9]+gb(?:[_-][a-z]+(?:\.[a-z]+)*)?$`)
 
 type gpuBaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
@@ -186,19 +192,6 @@ func TestGPUK8sSuiteUbuntu2204(t *testing.T) {
 // on that system.
 
 func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
-	// incident-33572. Pulumi seems to sometimes fail to create the stack with an error
-	// we are not able to debug from the logs. We mark the test as flaky in that case only.
-	flake.MarkOnLog(t, "error: an unhandled error occurred: waiting for RPCs:")
-
-	// Temporary fix while we debug the issue
-	flake.MarkOnLog(t, "panic: Expected to find a single pod")
-
-	// incident-36753: unattended-upgrades is not being disabled properly
-	flake.MarkOnLog(t, "Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), is another process using it?")
-
-	// Nvidia GPU operator images are not mirrored in our private registries, so ensure
-	// we're not breaking main if we get rate limited
-	flake.MarkOnLog(t, "rate limit")
 	provParams := getDefaultProvisionerParams()
 
 	systemData, ok := gpuSystems[gpuSystem]
@@ -355,6 +348,57 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
 			assert.NoError(c, err)
 			assertMetricsHaveExpectedTagKeys(c, metrics, mandatoryMetricTags, metricName)
+		}
+	}, 5*time.Minute, 10*time.Second)
+}
+
+// TestMIGProfileTagScope checks the gpu_mig_profile tag contract: every GPU
+// metric carries exactly one value -- a profile name (or "unknown") on MIG
+// instances, and "none" on everything else, matching how the other device tags
+// are set on every device. CI GPUs are not MIG-capable, so in practice this
+// guards the whole-card side: a physical card must carry "none", not a
+// profile and not nothing. The positive path on real MIG hardware is covered
+// by pkg/gpu/integrationtests (RUN_MIG_TESTS=1) and the value mapping by the
+// tagger unit tests.
+func (v *gpuBaseSuite[Env]) TestMIGProfileTagScope() {
+	if !v.systemData.hasAllNVMLCriticalAPIs {
+		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
+	}
+
+	const metricName = "gpu.core.limit"
+	const migProfileTagKey = "gpu_mig_profile"
+
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0))
+		assert.NoError(c, err)
+		if !assertMetricsHaveExpectedTagKeys(c, metrics, mandatoryMetricTags, metricName) {
+			return
+		}
+
+		for _, metric := range metrics {
+			var isMIGDevice bool
+			var profileValues []string
+			for _, tag := range metric.GetTags() {
+				switch {
+				case strings.HasPrefix(tag, "gpu_uuid:mig-"):
+					isMIGDevice = true
+				case strings.HasPrefix(tag, migProfileTagKey+":"):
+					profileValues = append(profileValues, strings.TrimPrefix(tag, migProfileTagKey+":"))
+				}
+			}
+
+			if !assert.Len(c, profileValues, 1, "GPU metric should carry exactly one %s tag, tags: %v", migProfileTagKey, metric.GetTags()) {
+				continue
+			}
+			if isMIGDevice {
+				if profileValues[0] != "unknown" {
+					assert.Regexp(c, migProfileTagValue, profileValues[0],
+						"%s value should be a canonical profile name, tags: %v", migProfileTagKey, metric.GetTags())
+				}
+			} else {
+				assert.Equal(c, "none", profileValues[0],
+					"non-MIG device metric should carry %s:none, tags: %v", migProfileTagKey, metric.GetTags())
+			}
 		}
 	}, 5*time.Minute, 10*time.Second)
 }

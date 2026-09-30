@@ -25,9 +25,6 @@ import (
 //go:embed fixtures/datadog-agent.yaml
 var agentConfig string
 
-//go:embed fixtures/datasecurity.yaml
-var datasecurityConfig string
-
 func postgresScanProvisioner() provisioners.PulumiEnvRunFunc[postgresScanEnv] {
 	return func(ctx *pulumi.Context, env *postgresScanEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
@@ -76,7 +73,7 @@ func postgresScanProvisioner() provisioners.PulumiEnvRunFunc[postgresScanEnv] {
 		agentComp, err := agent.NewHostAgent(&awsEnv, host,
 			agentparams.WithFakeintake(fi),
 			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithIntegration("datasecurity.d", datasecurityConfig),
+			agentparams.WithIntegration("datasecurity.d", datasecurityCheckYAML()),
 			agentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(pgStack)),
 		)
 		if err != nil {
