@@ -90,8 +90,14 @@ func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.C
 		}
 		if condition.Status == corev1.ConditionTrue {
 			ready = true
-			t := condition.LastTransitionTime.Time
-			readyTimestamp = &t
+			// Leave readyTimestamp nil when the transition time is unknown
+			// (omitted/zero), like the kubeapiserver collector's pod parser,
+			// so consumers treat the readiness time as unknown rather than
+			// year 1.
+			if !condition.LastTransitionTime.IsZero() {
+				t := condition.LastTransitionTime.Time
+				readyTimestamp = &t
+			}
 		}
 		break
 	}

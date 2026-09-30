@@ -291,6 +291,28 @@ func TestParsePod_DeletionTimestamp(t *testing.T) {
 	assert.Equal(t, deletionTime.Time, *podEntity.DeletionTimestamp)
 }
 
+// TestParsePod_ReadyWithoutTransitionTime verifies that a Ready pod whose
+// Ready condition carries no transition time gets a nil ReadyTimestamp rather
+// than a zero-valued one.
+func TestParsePod_ReadyWithoutTransitionTime(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", UID: types.UID("pod-uid")},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			Conditions: []corev1.PodCondition{
+				{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+			},
+		},
+	}
+
+	events := parsePod(pod, false)
+
+	require.Len(t, events, 1)
+	podEntity := events[0].Entity.(*workloadmeta.KubernetesPod)
+	assert.True(t, podEntity.Ready)
+	assert.Nil(t, podEntity.ReadyTimestamp)
+}
+
 // TestParsePod_EphemeralContainers verifies that ephemeral containers are
 // only parsed into events and into KubernetesPod.EphemeralContainers when
 // collectEphemeralContainers is set, mirroring the kubelet collector's own
