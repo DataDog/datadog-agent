@@ -233,6 +233,8 @@ func (p *Pool) process(job ScanJob) {
 	switch {
 	case err == nil:
 		p.stats.Scans.Add(1)
+		// Matches counts individual rule matches, not scans with at least one match: a file
+		// matching 3 rules adds 3. Scans with a match are the "yara: match" log lines.
 		p.stats.Matches.Add(int64(len(matches)))
 	case p.ctx.Err() != nil:
 		// cancelled by Stop: not a scan failure, and not a completed scan attempt either
