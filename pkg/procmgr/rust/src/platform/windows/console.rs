@@ -135,21 +135,28 @@ pub(crate) struct CallerConsoleState {
     has_console: bool,
     stdout: bool,
     stderr: bool,
-    /// Raw std handle values. Liveness alone accepts a slot left pointing at a closed
-    /// console handle once Windows has reassigned that value to something else, which is
-    /// exactly the state a graceful stop must not leave behind.
-    std_handles: [usize; 3],
+    /// Raw std handle values, and only for a process with no console of its own.
+    ///
+    /// Liveness alone accepts a slot left pointing at a closed console handle once
+    /// Windows has reassigned that value to something else, which is exactly the state a
+    /// graceful stop must not leave behind. The values are not an invariant for a process
+    /// that does have a console: reattaching to the parent reopens `CONOUT$`, so fresh
+    /// handles there are correct rather than a regression.
+    std_handles: Option<[usize; 3]>,
 }
 
 #[cfg(test)]
 pub(crate) fn caller_console_state() -> CallerConsoleState {
+    let has_console = has_console();
     CallerConsoleState {
-        has_console: has_console(),
+        has_console,
         stdout: std_handle_live(STD_OUTPUT_HANDLE),
         stderr: std_handle_live(STD_ERROR_HANDLE),
-        std_handles: StdHandleSlots::capture()
-            .0
-            .map(|(_, handle)| handle as usize),
+        std_handles: (!has_console).then(|| {
+            StdHandleSlots::capture()
+                .0
+                .map(|(_, handle)| handle as usize)
+        }),
     }
 }
 
