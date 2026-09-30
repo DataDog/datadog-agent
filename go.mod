@@ -33,7 +33,7 @@ replace (
 require (
 	code.cloudfoundry.org/bbs v1.3.0
 	code.cloudfoundry.org/bbs/models v0.0.0-20260618205254-dc4b9f8d5bc9
-	code.cloudfoundry.org/garden v0.4.0
+	code.cloudfoundry.org/garden v0.5.0
 	code.cloudfoundry.org/lager/v3 v3.88.0
 	dario.cat/mergo v1.0.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
@@ -152,6 +152,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.82.0
 	github.com/DataDog/datadog-agent/pkg/proto v0.82.0
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0
+	github.com/DataDog/datadog-agent/pkg/remoteflags v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/security/secl v0.56.0
 	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.56.0
 	github.com/DataDog/datadog-agent/pkg/serializer v0.82.0
@@ -410,7 +411,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4
 	gitlab.com/gitlab-org/api/client-go/v3 v3.13.0
 	go.etcd.io/bbolt v1.5.0
-	go.etcd.io/etcd/client/v2 v2.305.33
+	go.etcd.io/etcd/client/v2 v2.305.34
 	go.mongodb.org/mongo-driver/v2 v2.9.1
 	go.opentelemetry.io/collector/component v1.65.0
 	go.opentelemetry.io/collector/component/componentstatus v0.159.0
@@ -1372,6 +1373,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ./pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ./pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ./pkg/serializer
