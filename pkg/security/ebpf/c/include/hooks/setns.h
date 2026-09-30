@@ -6,6 +6,7 @@
 #include "constants/offsets/process.h"
 #include "constants/syscall_macro.h"
 #include "helpers/discarders.h"
+#include "helpers/span_fill.h"
 #include "helpers/syscalls.h"
 #include "events_definition.h"
 
@@ -102,7 +103,7 @@ static void __attribute__((always_inline)) fill_namespace_ids(struct namespace_i
     ids->user = read_ns_inum(read_ptr(cred, offset), ns_offset);
 }
 
-static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_SETNS);
     if (!syscall) {
         return 0;
@@ -117,18 +118,19 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval) {
         nstype = (u32)syscall->setns.nstype;
     }
 
-    struct setns_event_t event = {
-        .syscall.retval = retval,
-        .nstype = nstype,
-        .before = syscall->setns.before,
-    };
-    fill_namespace_ids(&event.after);
+    struct setns_event_t *event = SPAN_FILL_EVENT(struct setns_event_t, EVENT_SETNS);
+    if (!event) {
+        return 0;
+    }
+    event->syscall.retval = retval;
+    event->nstype = nstype;
+    event->before = syscall->setns.before;
+    fill_namespace_ids(&event->after);
 
-    struct proc_cache_t *entry = fill_process_context(&event.process);
-    fill_cgroup_context(entry, &event.cgroup);
-    fill_span_context(&event.span, &event.go_labels);
+    struct proc_cache_t *entry = fill_process_context(&event->process);
+    fill_cgroup_context(entry, &event->cgroup);
 
-    send_event(ctx, EVENT_SETNS, event);
+    span_fill_tail_call(ctx, prog_type);
     return 0;
 }
 
@@ -150,11 +152,11 @@ HOOK_SYSCALL_ENTRY2(setns, int, fd, int, nstype) {
 }
 
 HOOK_SYSCALL_EXIT(setns) {
-    return sys_setns_ret(ctx, (int)SYSCALL_PARMRET(ctx));
+    return sys_setns_ret(ctx, (int)SYSCALL_PARMRET(ctx), KPROBE_OR_FENTRY_TYPE);
 }
 
 TAIL_CALL_TRACEPOINT_FNC(handle_sys_setns_exit, struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    return sys_setns_ret(args, args->ret);
+    return sys_setns_ret(args, args->ret, TRACEPOINT_TYPE);
 }
 
 static int __attribute__((always_inline)) handle_ns_install(u32 nstype) {
