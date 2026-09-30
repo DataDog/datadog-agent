@@ -28,15 +28,6 @@ import (
 
 const schemaOwnersQuery = `SELECT con_id, username, user_id FROM cdb_users WHERE oracle_maintained = 'N'`
 
-// Oracle object IDs are unique only within a container.
-const objectIDsQuery = `SELECT con_id, owner, object_name, object_id FROM cdb_objects
-WHERE object_type = 'TABLE' AND /*RELATIONS*/`
-
-// CDB_* scans must be owner-scoped; unfiltered scans can consume tens of millions of buffer gets.
-// Object table metadata comes from cdb_object_tables, while its columns remain in cdb_tab_cols;
-// cdb_object_tables also lacks CLUSTERING and READ_ONLY.
-//
-// Relation identities are selected before columns so a table is never split.
 const tableIdentitiesQueryTemplate = `SELECT con_id, owner, table_name FROM (
 	SELECT con_id, owner, table_name FROM (
 		SELECT t.con_id, t.owner, t.table_name
@@ -286,7 +277,7 @@ ORDER BY rv.con_id, rv.owner, rv.view_name, c.internal_column_id`
 const viewDefinitionsQuery = `SELECT con_id, owner, view_name, text_vc
 FROM cdb_views WHERE /*RELATIONS*/`
 
-const viewObjectsQuery = `SELECT con_id, owner, object_name, object_id, created, last_ddl_time
+const viewObjectsQuery = `SELECT con_id, owner, object_name, created, last_ddl_time
 FROM cdb_objects WHERE object_type = 'VIEW' AND /*RELATIONS*/`
 
 // ORA-01795 limits an IN list to 1000 expressions.
@@ -411,7 +402,6 @@ type objectTypeDetail struct {
 }
 
 type tableDetails struct {
-	ID             string
 	Comment        string
 	ColumnComments map[string]string
 	ColumnDefaults map[string]string
@@ -426,7 +416,6 @@ type tableDetails struct {
 }
 
 type schemaTable struct {
-	ID          string            `json:"id,omitempty"`
 	Name        string            `json:"name"`
 	Owner       string            `json:"owner"`
 	TableType   string            `json:"table_type"`
@@ -453,7 +442,6 @@ type schemaObject struct {
 }
 
 type viewObject struct {
-	ID         string         `json:"id,omitempty"`
 	Name       string         `json:"name"`
 	Owner      string         `json:"owner"`
 	Definition string         `json:"definition,omitempty"`
@@ -464,7 +452,6 @@ type viewObject struct {
 }
 
 type viewDetails struct {
-	ID         string
 	Definition string
 	Comment    string
 	CreateDate string
