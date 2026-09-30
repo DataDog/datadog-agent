@@ -36,7 +36,7 @@ type credential struct {
 	PrivProtocol    string `yaml:"privProtocol"`
 	PrivKey         string `yaml:"privKey"`
 	ContextName     string `yaml:"context_name"`
-	// context_engine_id is absent: the snmp check's InstanceConfig has no such field.
+	ContextEngineID string `yaml:"context_engine_id"`
 }
 
 // credentialsDocument is one credential file.
@@ -102,7 +102,8 @@ func readCredentialsFile(path string) (credentialsDocument, error) {
 		return credentialsDocument{}, nil
 	}
 	if err != nil {
-		return credentialsDocument{}, fmt.Errorf("failed to read %s: %w", path, err)
+		// The fs.PathError already names the file.
+		return credentialsDocument{}, fmt.Errorf("failed to read the credentials file: %w", err)
 	}
 
 	var doc credentialsDocument
@@ -119,8 +120,14 @@ func readCredentialsFile(path string) (credentialsDocument, error) {
 func validate(c credential) error {
 	switch c.SNMPVersion {
 	case "1", "2c":
+		if c.CommunityString == "" {
+			return fmt.Errorf("credential %q is SNMP version %q and has no community_string", c.Name, c.SNMPVersion)
+		}
 		return nil
 	case "3":
+		if c.User == "" {
+			return fmt.Errorf("credential %q is SNMP version 3 and has no user", c.Name)
+		}
 		// An empty protocol means "none".
 		if c.AuthProtocol != "" {
 			if _, err := gosnmplib.GetAuthProtocol(c.AuthProtocol); err != nil {

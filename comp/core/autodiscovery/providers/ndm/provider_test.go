@@ -102,7 +102,8 @@ func rawConfig(body string) state.RawConfig {
 }
 
 // drain reads every change currently queued on the provider's channel,
-// skipping the empty value the channel is primed with.
+// skipping the empty value the channel is primed with. Update sends before it
+// returns, so the queue is complete by the time a caller drains it.
 func drain(t *testing.T, ch <-chan integration.ConfigChanges) []integration.ConfigChanges {
 	t.Helper()
 
@@ -114,7 +115,7 @@ func drain(t *testing.T, ch <-chan integration.ConfigChanges) []integration.Conf
 				continue
 			}
 			changes = append(changes, c)
-		case <-time.After(50 * time.Millisecond):
+		default:
 			return changes
 		}
 	}

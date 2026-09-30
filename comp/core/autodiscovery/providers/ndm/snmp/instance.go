@@ -121,6 +121,7 @@ type checkInstance struct {
 	PrivProtocol          string                              `yaml:"privProtocol,omitempty"`
 	PrivKey               string                              `yaml:"privKey,omitempty"`
 	ContextName           string                              `yaml:"context_name,omitempty"`
+	ContextEngineID       string                              `yaml:"context_engine_id,omitempty"`
 	Port                  int                                 `yaml:"port,omitempty"`
 	Timeout               int                                 `yaml:"timeout,omitempty"`
 	Retries               int                                 `yaml:"retries,omitempty"`
@@ -174,6 +175,7 @@ func renderInstance(in documentInstance, c credential) (integration.Data, error)
 		PrivProtocol:          c.PrivProtocol,
 		PrivKey:               c.PrivKey,
 		ContextName:           c.ContextName,
+		ContextEngineID:       c.ContextEngineID,
 		Port:                  in.Port,
 		Timeout:               in.TimeoutSec,
 		Retries:               in.Retries,
