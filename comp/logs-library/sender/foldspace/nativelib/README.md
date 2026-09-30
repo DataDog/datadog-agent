@@ -11,14 +11,14 @@ library's own sources stay in its repository.
 | | |
 |---|---|
 | Source | `DataDog/foldspace`, crate `bindings/go/native` (`foldspace-go-ffi`) |
-| Commit | `30d68b0b982fa70466f74a1c82ce70e9b570da31` |
+| Commit | `926d529e59a3c8c3612ef7ba50911377c2294b22` |
 | Rust | 1.94.0, per the library's `rust-toolchain.toml` |
-| ABI | 1, as asserted against `FOLDSPACE_ABI_VERSION` at construction |
+| ABI | 4, as asserted against `FOLDSPACE_ABI_VERSION` at construction |
 
 | Platform | sha256 |
 |---|---|
-| `linux_amd64/libfoldspace_go.so` | `bb3443009921da3fbaf0b40519fb6d091f8deda518a1700e352289432e1d7194` |
-| `linux_arm64/libfoldspace_go.so` | `a75519f49e400f898f4a85b00ef7e636b15f94791ee041f4ff24121c48d4ffb0` |
+| `linux_amd64/libfoldspace_go.so` | `f00ec97ccefd01c62975eb3e83cc3479b8aac0798168998e04fa9f3cd491d1c8` |
+| `linux_arm64/libfoldspace_go.so` | `865842f53a28f670c807713e8fc6d842a0b51b64d8fec1f91b8075bff23c89be` |
 
 Platforms without a binary here cannot build the `foldspace` tag, which is why
 it appears in the excluded tag sets for darwin, Windows and AIX in
@@ -35,7 +35,7 @@ Both arches build in an `arm64` container. `amd64` is cross-compiled rather
 than emulated, because QEMU crashes gcc while building zstd's C sources.
 
 ```bash
-git -C <foldspace> worktree add /tmp/fs-pin 30d68b0b982fa70466f74a1c82ce70e9b570da31
+git -C <foldspace> worktree add /tmp/fs-pin 926d529e59a3c8c3612ef7ba50911377c2294b22
 
 docker run --rm --platform linux/arm64 \
   -v /tmp/fs-pin:/src:ro -v /tmp/fs-out:/out -w /src \

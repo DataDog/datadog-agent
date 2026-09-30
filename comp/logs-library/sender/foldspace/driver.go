@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,6 +35,13 @@ type DriverOptions struct {
 	// DualShip, when true, means the primary destination owns the auditor sink,
 	// so this driver must not release metadata to it.
 	DualShip bool
+	// Config reads multi_region_failover.enabled/failover_logs, mirroring
+	// destination_sender.go's canSend() gate for the primary HTTP path. Nil
+	// disables MRF routing regardless of MRFRoute.
+	Config pkgconfigmodel.Reader
+	// MRFRoute names the senders built from MRF endpoints. Zero means none:
+	// every sender is routed unconditionally and mrfEnabled is never consulted.
+	MRFRoute Route
 }
 
 // Driver consumes processor output, drives a Core, and fans payloads out
@@ -51,6 +59,9 @@ type Driver struct {
 	shutdownTimeout time.Duration
 	batchWait       time.Duration
 	dualShip        bool
+	cfg             pkgconfigmodel.Reader
+	mrfRoute        Route
+	nonMRFRoute     Route
 
 	pending    *pendingTable
 	nextID     atomic.Uint64
@@ -60,11 +71,12 @@ type Driver struct {
 	notifyWake chan struct{}
 	capacity   chan struct{}
 
-	stopOnce     sync.Once
-	stop         chan struct{}
-	stopped      chan struct{}
-	ingestDone   chan struct{}
-	ingestCancel chan struct{}
+	stopOnce       sync.Once
+	stop           chan struct{}
+	stopped        chan struct{}
+	ingestDone     chan struct{}
+	ingestCancel   chan struct{}
+	ingestStopping chan struct{}
 
 	wg sync.WaitGroup
 }
@@ -134,6 +146,9 @@ func NewDriver(opts DriverOptions) *Driver {
 		shutdownTimeout: opts.ShutdownTimeout,
 		batchWait:       opts.BatchWait,
 		dualShip:        opts.DualShip,
+		cfg:             opts.Config,
+		mrfRoute:        opts.MRFRoute,
+		nonMRFRoute:     AllSenders(n) &^ opts.MRFRoute,
 		pending:         newPendingTable(),
 		startNanos:      time.Now().UnixNano(),
 		wake:            wake,
@@ -143,6 +158,7 @@ func NewDriver(opts DriverOptions) *Driver {
 		stopped:         make(chan struct{}),
 		ingestDone:      make(chan struct{}),
 		ingestCancel:    make(chan struct{}),
+		ingestStopping:  make(chan struct{}),
 	}
 }
 
@@ -155,15 +171,21 @@ func (d *Driver) PipelineMonitor() metrics.PipelineMonitor { return d.monitor }
 // Tap returns a tap feeding this driver's ingest, for use when the primary
 // destination owns the auditor sink and foldspace observes the rendered message
 // alongside it.
-func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input} }
+func (d *Driver) Tap() *DriverTap { return &DriverTap{input: d.input, stopping: d.ingestStopping} }
 
 // Offer sends msg to ingest, blocking while the buffer is full so that
-// back-pressure reaches the processor rather than costing a record.
+// back-pressure reaches the processor rather than costing a record. It gives
+// up once Stop has started, rather than ever racing a close of d.input: a
+// shutdown that starts while this call is blocked must be able to release it
+// without the send panicking.
 //
 // This driver owns the auditor sink here, so the message's metadata rides along
 // to be released once the record is durable.
 func (d *Driver) Offer(msg *message.Message) {
-	d.input <- ingestItem{record: recordFromMessage(msg), meta: &msg.MessageMetadata}
+	select {
+	case d.input <- ingestItem{record: recordFromMessage(msg), meta: &msg.MessageMetadata}:
+	case <-d.ingestStopping:
+	}
 }
 
 // Start launches ingest, per-sender workers, and the notification drain.
@@ -187,7 +209,9 @@ func (d *Driver) Start() {
 // Stop flushes, drains until the deadline, then abandons anything remaining.
 func (d *Driver) Stop() {
 	d.stopOnce.Do(func() {
-		close(d.input)
+		// Closing d.ingestStopping, not d.input, is what lets a concurrently
+		// blocked Offer/Tap release safely: see their doc comments.
+		close(d.ingestStopping)
 		select {
 		case <-d.ingestDone:
 		case <-time.After(d.shutdownTimeout):
@@ -231,6 +255,56 @@ func (d *Driver) Stop() {
 	<-d.stopped
 }
 
+// DriverGroup presents a set of Drivers as the single sender.PipelineComponent
+// the pipeline provider starts and stops.
+//
+// Each pipeline owns one Driver, and each Driver one Core, because a Core admits
+// a single ingest caller at a time: stateful encoding parallelizes only by
+// running parallel cores. The drivers share a pipeline monitor so the provider
+// still reports one set of component snapshots.
+type DriverGroup struct {
+	drivers []*Driver
+	monitor metrics.PipelineMonitor
+}
+
+var _ sender.PipelineComponent = (*DriverGroup)(nil)
+
+// NewDriverGroup returns a group over drivers, which must be non-empty and must
+// share a pipeline monitor.
+func NewDriverGroup(drivers []*Driver) *DriverGroup {
+	return &DriverGroup{drivers: drivers, monitor: drivers[0].PipelineMonitor()}
+}
+
+// Drivers returns the drivers in the group, indexed by pipeline.
+func (g *DriverGroup) Drivers() []*Driver { return g.drivers }
+
+// In is unused: foldspace consumes *message.Message, not *message.Payload.
+func (g *DriverGroup) In() chan *message.Payload { return nil }
+
+// PipelineMonitor returns the monitor shared by every driver in the group.
+func (g *DriverGroup) PipelineMonitor() metrics.PipelineMonitor { return g.monitor }
+
+// Start starts every driver.
+func (g *DriverGroup) Start() {
+	for _, d := range g.drivers {
+		d.Start()
+	}
+}
+
+// Stop stops the drivers concurrently, so draining N of them costs one shutdown
+// timeout rather than N.
+func (g *DriverGroup) Stop() {
+	var wg sync.WaitGroup
+	for _, d := range g.drivers {
+		wg.Add(1)
+		go func(d *Driver) {
+			defer wg.Done()
+			d.Stop()
+		}(d)
+	}
+	wg.Wait()
+}
+
 func (d *Driver) ingestLoop() {
 	defer close(d.ingestDone)
 	defer d.wg.Done()
@@ -244,15 +318,24 @@ func (d *Driver) ingestLoop() {
 
 	for {
 		select {
-		case item, ok := <-d.input:
-			if !ok {
-				return
-			}
+		case item := <-d.input:
 			d.offer(item)
 		case <-ticker.C:
 			// A refused flush needs no handling here: the next tick retries it.
 			_, progress := d.core.Flush()
 			d.dispatch(progress)
+		case <-d.ingestStopping:
+			// d.input is never closed: Offer/Tap race this same signal on their
+			// send, and closing a channel out from under a blocked sender panics
+			// it. Drain whatever is already buffered non-blockingly instead.
+			for {
+				select {
+				case item := <-d.input:
+					d.offer(item)
+				default:
+					return
+				}
+			}
 		}
 	}
 }
@@ -274,7 +357,11 @@ func (d *Driver) offer(item ingestItem) {
 			d.pending.store(id, item.meta)
 		}
 		now := uint64(time.Now().UnixNano() - d.startNanos)
-		admission, progress := d.core.PushLog(item.record, now, id)
+		route := d.nonMRFRoute
+		if d.mrfRoute != 0 && item.record.MRFAllowed && d.mrfEnabled() {
+			route |= d.mrfRoute
+		}
+		admission, progress := d.core.PushLog(item.record, now, id, route)
 		d.dispatch(progress)
 		switch admission {
 		case Accepted:
@@ -298,6 +385,14 @@ func (d *Driver) offer(item ingestItem) {
 	}
 }
 
+// mrfEnabled reports whether MRF failover is currently active, mirroring
+// destination_sender.go's canSend() gate for the primary HTTP path.
+func (d *Driver) mrfEnabled() bool {
+	return d.cfg != nil &&
+		d.cfg.GetBool("multi_region_failover.enabled") &&
+		d.cfg.GetBool("multi_region_failover.failover_logs")
+}
+
 func (d *Driver) ackTooLarge(id uint64) {
 	meta := d.pending.take(id)
 	if meta == nil || d.dualShip || d.sink == nil || d.sink.Channel() == nil {
@@ -317,6 +412,20 @@ func (d *Driver) senderLoop(sender SenderID) {
 	// one responsible for delivering.
 	acks := make(chan streamAck, d.pipelineDepth*2)
 	timers := make(chan scheduledTimer, 4)
+
+	// sendCtx bounds Stream.Send: a stalled intake can block it indefinitely via
+	// gRPC flow control, and that would hold this goroutine past d.stop being
+	// closed, which is what Stop's d.wg.Wait() waits on. Tying it to d.stop lets
+	// shutdown unblock a stuck send instead of waiting out the full connection.
+	sendCtx, cancelSend := context.WithCancel(context.Background())
+	defer cancelSend()
+	go func() {
+		select {
+		case <-d.stop:
+			cancelSend()
+		case <-sendCtx.Done():
+		}
+	}()
 
 	var current Stream
 	var currentID StreamID
@@ -380,7 +489,7 @@ func (d *Driver) senderLoop(sender SenderID) {
 					}
 					data := append([]byte(nil), effect.Batch.Bytes()...)
 					effect.Batch.Release()
-					if err := current.Send(context.Background(), effect.BatchID, data); err != nil {
+					if err := current.Send(sendCtx, effect.BatchID, data); err != nil {
 						progress := d.core.HandleStreamError(sender, effect.Stream, err.Error())
 						d.dispatch(progress)
 						stopRecv()
@@ -483,14 +592,10 @@ func (d *Driver) handleNotification(n Notification) {
 	switch n.Kind {
 	case PayloadDurable:
 		d.releaseToSink(n.MetadataIDs)
-	case PayloadDropped:
-		if n.Abandoned {
-			d.dropPending(n.MetadataIDs)
-			return
-		}
-		for range n.MetadataIDs {
-			metrics.TlmFoldspaceDropped.Inc()
-		}
+	case PayloadAbandoned:
+		d.dropPending(n.MetadataIDs)
+	case DroppedStats:
+		metrics.TlmFoldspaceDropped.Add(float64(n.Records))
 	}
 }
 
@@ -606,11 +711,18 @@ func (s *FanInStrategy) Stop() {
 // and neither destination waits on the other. A buffer that fills anyway means
 // the pipeline is running faster than a destination can ship, which is what
 // back-pressure is for; shedding instead would trade a delay for a lost log.
+//
+// It gives up once the driver's Stop has started rather than blocking the
+// processor goroutine past that point: see Driver.Offer for why.
 type DriverTap struct {
-	input chan ingestItem
+	input    chan ingestItem
+	stopping chan struct{}
 }
 
 // Tap snapshots msg onto the driver's ingest channel.
 func (t *DriverTap) Tap(msg *message.Message) {
-	t.input <- ingestItem{record: recordFromMessage(msg)}
+	select {
+	case t.input <- ingestItem{record: recordFromMessage(msg)}:
+	case <-t.stopping:
+	}
 }

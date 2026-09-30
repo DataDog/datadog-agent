@@ -118,6 +118,7 @@ func recordFromMessage(msg *message.Message) Record {
 		TimestampMillis: msg.GetTimestampUnixMilli(),
 		Status:          msg.Status,
 		Hostname:        msg.GetHostname(),
+		MRFAllowed:      msg.ParsingExtra.IsMRFAllow,
 	}
 	if msg.Origin != nil {
 		r.Service = msg.Origin.Service()
