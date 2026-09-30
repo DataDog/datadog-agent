@@ -1,0 +1,12 @@
+---
+security:
+  - |
+    APM : The ``db.statement`` and ``db.query.text`` tags of SQL and Cassandra
+    spans are now obfuscated, like the span resource.
+enhancements:
+  - |
+    APM : The Agent no longer adds a ``sql.query`` tag to SQL and Cassandra spans
+    when the tracer did not send one, since it duplicated the span resource.
+    When the tracer sends a ``sql.query`` tag that differs from the resource,
+    the Agent now keeps an obfuscated copy of that value instead of replacing it
+    with the obfuscated resource.
