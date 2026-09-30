@@ -10,3 +10,8 @@ features:
     the connection was uniquely matched by packet enrichment. NStat-mode
     connections may carry the ``tcp_errors_incomplete`` tag when those
     TCP error fields are unknown.
+
+    NStat-mode connections also include ``interface_name`` and
+    ``interface_type`` tags when the socket is associated with a network
+    interface. ``interface_name`` is the interface name, such as ``en0`` or
+    ``utun3``.
