@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// InitReadiness is a no-op when the GPU check is not supported.
+func InitReadiness() {}
+
 // Factory creates a new check factory
 func Factory(_ tagger.Component, _ telemetry.Component, _ workloadmeta.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()

@@ -47,6 +47,11 @@ const (
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 
+var (
+	readiness      *health.Handle
+	readinessTimer *time.Timer
+)
+
 var _ check.IssueAwareCheck = (*Check)(nil)
 
 // Check represents the GPU check that will be periodically executed via the Run() function
@@ -72,8 +77,6 @@ type Check struct {
 	releaseWindowStart  time.Time                        // releaseWindowStart is when the current NVML release window opened (WARN diagnostics); only touched from the Run goroutine
 	sysprobeNvmlState   sysprobeNvmlStateNotifier        // sysprobeNvmlState pushes the release state to the system-probe GPU monitoring probe
 	nodeInfo            *hostinfo.NodeInfo               // nodeInfo caches the node metadata client (created lazily: NewNodeInfo goes through kubelet.GetKubeUtil); only touched from the Run goroutine
-	readiness           *health.Handle
-	readinessTimer      *time.Timer
 }
 
 type checkTelemetry struct {
@@ -89,6 +92,19 @@ type checkTelemetryMetrics struct {
 	activeMetrics              telemetry.Gauge
 	missingContainerGpuMapping telemetry.Counter
 	deviceCount                telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
+}
+
+// InitReadiness must be called once, before the health probe server and checks start.
+// Readiness belongs to the agent process and survives check cancellation and reloads.
+func InitReadiness() {
+	handle := health.RegisterReadiness(CheckName, health.Once)
+	readiness = handle
+	readinessTimer = time.AfterFunc(5*time.Minute, func() {
+		select {
+		case <-handle.C:
+		default:
+		}
+	})
 }
 
 // Factory creates a new check factory
@@ -212,16 +228,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer(driverEventsSource)
 
-	// Wait for the first successful collection, but do not block readiness indefinitely.
-	readiness := health.RegisterReadiness(CheckName, health.Once)
-	c.readiness = readiness
-	c.readinessTimer = time.AfterFunc(5*time.Minute, func() {
-		select {
-		case <-readiness.C:
-		default:
-		}
-	})
-
 	return nil
 }
 
@@ -291,13 +297,6 @@ func (c *Check) isDeviceExcluded(deviceUUID string) bool {
 
 // Cancel stops the check
 func (c *Check) Cancel() {
-	if c.readinessTimer != nil {
-		c.readinessTimer.Stop()
-	}
-	if c.readiness != nil {
-		_ = c.readiness.Deregister()
-	}
-
 	if c.deviceEvtGatherer != nil {
 		if err := c.deviceEvtGatherer.Stop(); err != nil {
 			log.Warnf("error stopping event set gatherer: %v", err)
@@ -474,10 +473,10 @@ func (c *Check) Run() error {
 
 	// A nil Run error alone is not success: errors above are intentionally logged
 	// without preventing partial metric collection. Empty collections do not count either.
-	if successful && emitted > 0 {
-		c.readinessTimer.Stop()
+	if successful && emitted > 0 && readiness != nil {
+		readinessTimer.Stop()
 		select {
-		case <-c.readiness.C:
+		case <-readiness.C:
 		default:
 		}
 	}

@@ -314,6 +314,17 @@ func TestRunDoesNotError(t *testing.T) {
 	require.NoError(t, check.Run())
 }
 
+func initReadiness(t *testing.T) {
+	t.Helper()
+	InitReadiness()
+	t.Cleanup(func() {
+		readinessTimer.Stop()
+		require.NoError(t, readiness.Deregister())
+		readiness = nil
+		readinessTimer = nil
+	})
+}
+
 func TestReadinessRequiresSuccessfulCollection(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -386,6 +397,7 @@ func TestReadinessRequiresSuccessfulCollection(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
+				initReadiness(t)
 				lib := nvmltestutil.SetupMockNVML(t, testutil.WithPhysicalDeviceUUIDs([]string{testutil.DefaultGpuUUID}), testutil.WithMockAllFunctions())
 				check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
 				collector := &mockCollector{
@@ -420,6 +432,7 @@ func TestReadinessRequiresSuccessfulCollection(t *testing.T) {
 
 func TestReadinessStaysHealthyAfterFirstSuccess(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		initReadiness(t)
 		nvmltestutil.SetupMockNVML(t, testutil.WithPhysicalDeviceUUIDs([]string{testutil.DefaultGpuUUID}), testutil.WithMockAllFunctions())
 		check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
 		var collectionError error
@@ -449,29 +462,41 @@ func TestReadinessStaysHealthyAfterFirstSuccess(t *testing.T) {
 		time.Sleep(time.Minute)
 		synctest.Wait()
 		require.Contains(t, health.GetReady().Healthy, CheckName)
+
+		check.Cancel()
+		require.Contains(t, health.GetReady().Healthy, CheckName)
+		newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+		require.Contains(t, health.GetReady().Healthy, CheckName)
+		require.NotContains(t, health.GetReady().Unhealthy, CheckName)
 	})
 }
 
-func TestReadinessTimeoutAndCancel(t *testing.T) {
-	for _, cancel := range []bool{false, true} {
-		t.Run(fmt.Sprintf("cancel=%t", cancel), func(t *testing.T) {
+func TestReadinessBeforeCheckConfiguration(t *testing.T) {
+	for _, reload := range []bool{false, true} {
+		t.Run(fmt.Sprintf("reload=%t", reload), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+				initReadiness(t)
+				// Readiness must block even before autodiscovery configures the check.
 				require.Contains(t, health.GetReady().Unhealthy, CheckName)
 				synctest.Wait()
-				if cancel {
+				time.Sleep(4 * time.Minute)
+				synctest.Wait()
+				require.Contains(t, health.GetReady().Unhealthy, CheckName)
+				if reload {
+					check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
 					check.Cancel()
-					require.NotContains(t, health.GetReady().Unhealthy, CheckName)
+					require.Contains(t, health.GetReady().Unhealthy, CheckName)
+					newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
 				}
 
-				// The timeout must work even when the check never runs.
-				time.Sleep(5*time.Minute - time.Second)
+				// The startup deadline must survive delayed scheduling and reloads.
+				time.Sleep(time.Minute - time.Second)
 				synctest.Wait()
-				require.Equal(t, !cancel, slices.Contains(health.GetReady().Unhealthy, CheckName))
+				require.Contains(t, health.GetReady().Unhealthy, CheckName)
 				time.Sleep(16 * time.Second)
 				synctest.Wait()
 				require.NotContains(t, health.GetReady().Unhealthy, CheckName)
-				require.Equal(t, !cancel, slices.Contains(health.GetReady().Healthy, CheckName))
+				require.Contains(t, health.GetReady().Healthy, CheckName)
 			})
 		})
 	}
