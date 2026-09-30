@@ -1,0 +1,74 @@
+# Kubelet side of TestDogtelTagParity: tags the calendar app's telemetry from
+# the pods the kubelet workloadmeta collector finds, and forwards it as received
+# to the nodefilter side (dogtel-tag-parity-nodefilter.yml), so that both
+# otel-agents tag the same payloads.
+extensions:
+  dogtel:
+    use_kubelet_collector: true
+  pprof:
+  health_check:
+  zpages:
+    endpoint: "localhost:55679"
+  ddflare:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  infraattributes:
+    cardinality: 2
+  # Marks the payloads this otel-agent exports. The key must match the
+  # tagParityCollectorAttr constant in dogtel_tag_parity_test.go.
+  resource/collector:
+    attributes:
+      - key: e2e.workloadmeta.collector
+        value: kubelet
+        action: upsert
+
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+  # Forwards to the nodefilter otel-agent's Service. The name and namespace
+  # must match the tagParityNodefilterName and tagParityNodefilterNamespace
+  # constants in dogtel_tag_parity_test.go.
+  otlp/nodefilter:
+    endpoint: "nodefilter-otel-agent.datadog-nodefilter.svc.cluster.local:4317"
+    tls:
+      insecure: true
+
+service:
+  extensions: [dogtel, pprof, health_check, zpages, ddflare]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    # Without processors, these pipelines forward the payloads as received:
+    # the ones above work on copies, as their processors mutate data.
+    traces/forward:
+      receivers: [otlp]
+      exporters: [otlp/nodefilter]
+    metrics/forward:
+      receivers: [otlp]
+      exporters: [otlp/nodefilter]
+    logs/forward:
+      receivers: [otlp]
+      exporters: [otlp/nodefilter]

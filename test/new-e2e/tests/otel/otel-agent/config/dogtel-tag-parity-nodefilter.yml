@@ -1,0 +1,54 @@
+# Nodefilter side of TestDogtelTagParity: tags the calendar app's telemetry,
+# as forwarded by the kubelet side (dogtel-tag-parity-kubelet.yml), from the
+# pods the default nodefilter workloadmeta collector finds.
+extensions:
+  dogtel:
+  pprof:
+  health_check:
+  zpages:
+    endpoint: "localhost:55679"
+  ddflare:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  infraattributes:
+    cardinality: 2
+  # Marks the payloads this otel-agent exports. The key must match the
+  # tagParityCollectorAttr constant in dogtel_tag_parity_test.go.
+  resource/collector:
+    attributes:
+      - key: e2e.workloadmeta.collector
+        value: nodefilter
+        action: upsert
+
+exporters:
+  datadog:
+    metrics:
+      resource_attributes_as_tags: true
+    api:
+      key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
+
+service:
+  extensions: [dogtel, pprof, health_check, zpages, ddflare]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      processors: [infraattributes, resource/collector]
+      exporters: [datadog]

@@ -102,7 +102,7 @@ func isKindLocal() bool {
 // The otel-agent opts out of the default nodefilter workloadmeta collector to
 // collect pods through the kubelet, as it did before nodefilter existed; the
 // fixture's default RBAC grants the kubelet access this needs. It opts out
-// through the environment rather than through the equivalent
+// through the environment, while TestDogtelTagParity covers the equivalent
 // extensions.dogtel.use_kubelet_collector key.
 //
 // The name is intentionally short (≤20 lowercase chars) to prevent Kubernetes
