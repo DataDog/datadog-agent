@@ -389,12 +389,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "capabilities.attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(ev, &ev.CapabilitiesUsage))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "capabilities.used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.FieldHandlers.ResolveCapabilitiesUsed(ev, &ev.CapabilitiesUsage))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "capabilities.used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(ev, &ev.CapabilitiesUsage))
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2315,12 +2337,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Exec.Process.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3884,12 +3928,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exit.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Exit.Process.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -8653,6 +8719,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.caps_attempted_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsAttemptedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsAttemptedHostUserNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.caps_used":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -8672,6 +8765,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(current.ProcessContext.Process.CapsUsed)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.caps_used_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsUsedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsUsedHostUserNS)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -11932,12 +12052,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.BaseEvent.ProcessContext.Process.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -13156,6 +13298,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13165,6 +13321,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.BaseEvent.ProcessContext.Parent.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -15247,6 +15417,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.caps_attempted_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsAttemptedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsAttemptedHostUserNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.caps_used":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -15266,6 +15463,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(current.ProcessContext.Process.CapsUsed)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.caps_used_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsUsedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsUsedHostUserNS)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -18526,12 +18750,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.PTrace.Tracee.Process.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -19750,6 +19996,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -19759,6 +20019,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.PTrace.Tracee.Parent.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -23269,6 +23543,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.caps_attempted_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsAttemptedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsAttemptedHostUserNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.caps_used":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -23288,6 +23589,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(current.ProcessContext.Process.CapsUsed)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.caps_used_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsUsedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsUsedHostUserNS)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -26548,12 +26876,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Setrlimit.Target.Process.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -27772,6 +28122,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -27781,6 +28145,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Setrlimit.Target.Parent.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -30385,6 +30763,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.caps_attempted_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsAttemptedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsAttemptedHostUserNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.caps_used":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -30404,6 +30809,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
 					return int(current.ProcessContext.Process.CapsUsed)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.caps_used_host_userns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.CapsUsedHostUserNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.CapsUsedHostUserNS)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -33664,12 +34096,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return int(ev.Signal.Target.Process.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -34888,6 +35342,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.caps_attempted_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.CapsAttemptedHostUserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.caps_used":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -34897,6 +35365,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return 0
 				}
 				return int(ev.Signal.Target.Parent.CapsUsed)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.caps_used_host_userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.CapsUsedHostUserNS)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -37919,7 +38401,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"bpf.prog.type",
 		"bpf.retval",
 		"capabilities.attempted",
+		"capabilities.attempted_host_userns",
 		"capabilities.used",
+		"capabilities.used_host_userns",
 		"capset.cap_effective",
 		"capset.cap_permitted",
 		"cgroup_write.file.change_time",
@@ -38088,7 +38572,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.cap_effective",
 		"exec.cap_permitted",
 		"exec.caps_attempted",
+		"exec.caps_attempted_host_userns",
 		"exec.caps_used",
+		"exec.caps_used_host_userns",
 		"exec.cgroup.created_at",
 		"exec.cgroup.file.inode",
 		"exec.cgroup.file.mount_id",
@@ -38213,7 +38699,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cap_effective",
 		"exit.cap_permitted",
 		"exit.caps_attempted",
+		"exit.caps_attempted_host_userns",
 		"exit.caps_used",
+		"exit.caps_used_host_userns",
 		"exit.cause",
 		"exit.cgroup.created_at",
 		"exit.cgroup.file.inode",
@@ -38596,7 +39084,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.cap_effective",
 		"process.ancestors.cap_permitted",
 		"process.ancestors.caps_attempted",
+		"process.ancestors.caps_attempted_host_userns",
 		"process.ancestors.caps_used",
+		"process.ancestors.caps_used_host_userns",
 		"process.ancestors.cgroup.created_at",
 		"process.ancestors.cgroup.file.inode",
 		"process.ancestors.cgroup.file.mount_id",
@@ -38713,7 +39203,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.cap_effective",
 		"process.cap_permitted",
 		"process.caps_attempted",
+		"process.caps_attempted_host_userns",
 		"process.caps_used",
+		"process.caps_used_host_userns",
 		"process.cgroup.created_at",
 		"process.cgroup.file.inode",
 		"process.cgroup.file.mount_id",
@@ -38807,7 +39299,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.cap_effective",
 		"process.parent.cap_permitted",
 		"process.parent.caps_attempted",
+		"process.parent.caps_attempted_host_userns",
 		"process.parent.caps_used",
+		"process.parent.caps_used_host_userns",
 		"process.parent.cgroup.created_at",
 		"process.parent.cgroup.file.inode",
 		"process.parent.cgroup.file.mount_id",
@@ -38941,7 +39435,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.cap_effective",
 		"ptrace.tracee.ancestors.cap_permitted",
 		"ptrace.tracee.ancestors.caps_attempted",
+		"ptrace.tracee.ancestors.caps_attempted_host_userns",
 		"ptrace.tracee.ancestors.caps_used",
+		"ptrace.tracee.ancestors.caps_used_host_userns",
 		"ptrace.tracee.ancestors.cgroup.created_at",
 		"ptrace.tracee.ancestors.cgroup.file.inode",
 		"ptrace.tracee.ancestors.cgroup.file.mount_id",
@@ -39058,7 +39554,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.cap_effective",
 		"ptrace.tracee.cap_permitted",
 		"ptrace.tracee.caps_attempted",
+		"ptrace.tracee.caps_attempted_host_userns",
 		"ptrace.tracee.caps_used",
+		"ptrace.tracee.caps_used_host_userns",
 		"ptrace.tracee.cgroup.created_at",
 		"ptrace.tracee.cgroup.file.inode",
 		"ptrace.tracee.cgroup.file.mount_id",
@@ -39152,7 +39650,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.cap_effective",
 		"ptrace.tracee.parent.cap_permitted",
 		"ptrace.tracee.parent.caps_attempted",
+		"ptrace.tracee.parent.caps_attempted_host_userns",
 		"ptrace.tracee.parent.caps_used",
+		"ptrace.tracee.parent.caps_used_host_userns",
 		"ptrace.tracee.parent.cgroup.created_at",
 		"ptrace.tracee.parent.cgroup.file.inode",
 		"ptrace.tracee.parent.cgroup.file.mount_id",
@@ -39414,7 +39914,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.cap_effective",
 		"setrlimit.target.ancestors.cap_permitted",
 		"setrlimit.target.ancestors.caps_attempted",
+		"setrlimit.target.ancestors.caps_attempted_host_userns",
 		"setrlimit.target.ancestors.caps_used",
+		"setrlimit.target.ancestors.caps_used_host_userns",
 		"setrlimit.target.ancestors.cgroup.created_at",
 		"setrlimit.target.ancestors.cgroup.file.inode",
 		"setrlimit.target.ancestors.cgroup.file.mount_id",
@@ -39531,7 +40033,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.cap_effective",
 		"setrlimit.target.cap_permitted",
 		"setrlimit.target.caps_attempted",
+		"setrlimit.target.caps_attempted_host_userns",
 		"setrlimit.target.caps_used",
+		"setrlimit.target.caps_used_host_userns",
 		"setrlimit.target.cgroup.created_at",
 		"setrlimit.target.cgroup.file.inode",
 		"setrlimit.target.cgroup.file.mount_id",
@@ -39625,7 +40129,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.cap_effective",
 		"setrlimit.target.parent.cap_permitted",
 		"setrlimit.target.parent.caps_attempted",
+		"setrlimit.target.parent.caps_attempted_host_userns",
 		"setrlimit.target.parent.caps_used",
+		"setrlimit.target.parent.caps_used_host_userns",
 		"setrlimit.target.parent.cgroup.created_at",
 		"setrlimit.target.parent.cgroup.file.inode",
 		"setrlimit.target.parent.cgroup.file.mount_id",
@@ -39806,7 +40312,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.cap_effective",
 		"signal.target.ancestors.cap_permitted",
 		"signal.target.ancestors.caps_attempted",
+		"signal.target.ancestors.caps_attempted_host_userns",
 		"signal.target.ancestors.caps_used",
+		"signal.target.ancestors.caps_used_host_userns",
 		"signal.target.ancestors.cgroup.created_at",
 		"signal.target.ancestors.cgroup.file.inode",
 		"signal.target.ancestors.cgroup.file.mount_id",
@@ -39923,7 +40431,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.cap_effective",
 		"signal.target.cap_permitted",
 		"signal.target.caps_attempted",
+		"signal.target.caps_attempted_host_userns",
 		"signal.target.caps_used",
+		"signal.target.caps_used_host_userns",
 		"signal.target.cgroup.created_at",
 		"signal.target.cgroup.file.inode",
 		"signal.target.cgroup.file.mount_id",
@@ -40017,7 +40527,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.cap_effective",
 		"signal.target.parent.cap_permitted",
 		"signal.target.parent.caps_attempted",
+		"signal.target.parent.caps_attempted_host_userns",
 		"signal.target.parent.caps_used",
+		"signal.target.parent.caps_used_host_userns",
 		"signal.target.parent.cgroup.created_at",
 		"signal.target.parent.cgroup.file.inode",
 		"signal.target.parent.cgroup.file.mount_id",
@@ -40312,7 +40824,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "bpf", reflect.Int, "int", false, nil
 	case "capabilities.attempted":
 		return "capabilities", reflect.Int, "int", false, nil
+	case "capabilities.attempted_host_userns":
+		return "capabilities", reflect.Int, "int", false, nil
 	case "capabilities.used":
+		return "capabilities", reflect.Int, "int", false, nil
+	case "capabilities.used_host_userns":
 		return "capabilities", reflect.Int, "int", false, nil
 	case "capset.cap_effective":
 		return "capset", reflect.Int, "int", false, nil
@@ -40650,7 +41166,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.caps_attempted":
 		return "exec", reflect.Int, "int", false, nil
+	case "exec.caps_attempted_host_userns":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.caps_used":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.caps_used_host_userns":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.cgroup.created_at":
 		return "exec", reflect.Int, "int", false, nil
@@ -40900,7 +41420,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.caps_attempted":
 		return "exit", reflect.Int, "int", false, nil
+	case "exit.caps_attempted_host_userns":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.caps_used":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.caps_used_host_userns":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.cause":
 		return "exit", reflect.Int, "int", false, nil
@@ -41666,7 +42190,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.caps_attempted":
 		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.caps_attempted_host_userns":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.caps_used":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.caps_used_host_userns":
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.cgroup.created_at":
 		return "", reflect.Int, "int", false, nil
@@ -41900,7 +42428,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.caps_attempted":
 		return "", reflect.Int, "int", false, nil
+	case "process.caps_attempted_host_userns":
+		return "", reflect.Int, "int", false, nil
 	case "process.caps_used":
+		return "", reflect.Int, "int", false, nil
+	case "process.caps_used_host_userns":
 		return "", reflect.Int, "int", false, nil
 	case "process.cgroup.created_at":
 		return "", reflect.Int, "int", false, nil
@@ -42088,7 +42620,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.caps_attempted":
 		return "", reflect.Int, "int", false, nil
+	case "process.parent.caps_attempted_host_userns":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.caps_used":
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.caps_used_host_userns":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.cgroup.created_at":
 		return "", reflect.Int, "int", false, nil
@@ -42356,7 +42892,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.caps_attempted":
 		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.caps_attempted_host_userns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.caps_used":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.caps_used_host_userns":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.cgroup.created_at":
 		return "ptrace", reflect.Int, "int", false, nil
@@ -42590,7 +43130,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.caps_attempted":
 		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.caps_attempted_host_userns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.caps_used":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.caps_used_host_userns":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cgroup.created_at":
 		return "ptrace", reflect.Int, "int", false, nil
@@ -42778,7 +43322,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.caps_attempted":
 		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.caps_attempted_host_userns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.caps_used":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.caps_used_host_userns":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.cgroup.created_at":
 		return "ptrace", reflect.Int, "int", false, nil
@@ -43302,7 +43850,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.caps_attempted":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.caps_attempted_host_userns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.caps_used":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.caps_used_host_userns":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.cgroup.created_at":
 		return "setrlimit", reflect.Int, "int", false, nil
@@ -43536,7 +44088,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.caps_attempted":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.caps_attempted_host_userns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.caps_used":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.caps_used_host_userns":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cgroup.created_at":
 		return "setrlimit", reflect.Int, "int", false, nil
@@ -43724,7 +44280,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.caps_attempted":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.caps_attempted_host_userns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.caps_used":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.caps_used_host_userns":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.cgroup.created_at":
 		return "setrlimit", reflect.Int, "int", false, nil
@@ -44086,7 +44646,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.caps_attempted":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.caps_attempted_host_userns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.caps_used":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.caps_used_host_userns":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.cgroup.created_at":
 		return "signal", reflect.Int, "int", false, nil
@@ -44320,7 +44884,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.caps_attempted":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.caps_attempted_host_userns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.caps_used":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.caps_used_host_userns":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cgroup.created_at":
 		return "signal", reflect.Int, "int", false, nil
@@ -44508,7 +45076,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.caps_attempted":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.caps_attempted_host_userns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.caps_used":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.caps_used_host_userns":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.cgroup.created_at":
 		return "signal", reflect.Int, "int", false, nil
@@ -45049,8 +45621,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setInt64FieldValue("bpf.retval", &ev.BPF.SyscallEvent.Retval, value)
 	case "capabilities.attempted":
 		return ev.setUint64FieldValue("capabilities.attempted", &ev.CapabilitiesUsage.Attempted, value)
+	case "capabilities.attempted_host_userns":
+		return ev.setUint64FieldValue("capabilities.attempted_host_userns", &ev.CapabilitiesUsage.AttemptedHostUserNS, value)
 	case "capabilities.used":
 		return ev.setUint64FieldValue("capabilities.used", &ev.CapabilitiesUsage.Used, value)
+	case "capabilities.used_host_userns":
+		return ev.setUint64FieldValue("capabilities.used_host_userns", &ev.CapabilitiesUsage.UsedHostUserNS, value)
 	case "capset.cap_effective":
 		return ev.setUint64FieldValue("capset.cap_effective", &ev.Capset.CapEffective, value)
 	case "capset.cap_permitted":
@@ -45415,8 +45991,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("exec.cap_permitted", &ev.Exec.Process.Credentials.CapPermitted, value)
 	case "exec.caps_attempted":
 		return ev.setUint64FieldValue("exec.caps_attempted", &ev.Exec.Process.CapsAttempted, value)
+	case "exec.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("exec.caps_attempted_host_userns", &ev.Exec.Process.CapsAttemptedHostUserNS, value)
 	case "exec.caps_used":
 		return ev.setUint64FieldValue("exec.caps_used", &ev.Exec.Process.CapsUsed, value)
+	case "exec.caps_used_host_userns":
+		return ev.setUint64FieldValue("exec.caps_used_host_userns", &ev.Exec.Process.CapsUsedHostUserNS, value)
 	case "exec.cgroup.created_at":
 		return ev.setUint64FieldValue("exec.cgroup.created_at", &ev.Exec.Process.CGroup.CreatedAt, value)
 	case "exec.cgroup.file.inode":
@@ -45786,8 +46366,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("exit.cap_permitted", &ev.Exit.Process.Credentials.CapPermitted, value)
 	case "exit.caps_attempted":
 		return ev.setUint64FieldValue("exit.caps_attempted", &ev.Exit.Process.CapsAttempted, value)
+	case "exit.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("exit.caps_attempted_host_userns", &ev.Exit.Process.CapsAttemptedHostUserNS, value)
 	case "exit.caps_used":
 		return ev.setUint64FieldValue("exit.caps_used", &ev.Exit.Process.CapsUsed, value)
+	case "exit.caps_used_host_userns":
+		return ev.setUint64FieldValue("exit.caps_used_host_userns", &ev.Exit.Process.CapsUsedHostUserNS, value)
 	case "exit.cause":
 		return ev.setUint32FieldValue("exit.cause", &ev.Exit.Cause, value)
 	case "exit.cgroup.created_at":
@@ -46733,8 +47317,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("process.ancestors.cap_permitted", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.CapPermitted, value)
 	case "process.ancestors.caps_attempted":
 		return ev.setUint64FieldValue("process.ancestors.caps_attempted", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CapsAttempted, value)
+	case "process.ancestors.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("process.ancestors.caps_attempted_host_userns", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CapsAttemptedHostUserNS, value)
 	case "process.ancestors.caps_used":
 		return ev.setUint64FieldValue("process.ancestors.caps_used", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CapsUsed, value)
+	case "process.ancestors.caps_used_host_userns":
+		return ev.setUint64FieldValue("process.ancestors.caps_used_host_userns", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CapsUsedHostUserNS, value)
 	case "process.ancestors.cgroup.created_at":
 		return ev.setUint64FieldValue("process.ancestors.cgroup.created_at", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CreatedAt, value)
 	case "process.ancestors.cgroup.file.inode":
@@ -47088,8 +47676,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("process.cap_permitted", &ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted, value)
 	case "process.caps_attempted":
 		return ev.setUint64FieldValue("process.caps_attempted", &ev.BaseEvent.ProcessContext.Process.CapsAttempted, value)
+	case "process.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("process.caps_attempted_host_userns", &ev.BaseEvent.ProcessContext.Process.CapsAttemptedHostUserNS, value)
 	case "process.caps_used":
 		return ev.setUint64FieldValue("process.caps_used", &ev.BaseEvent.ProcessContext.Process.CapsUsed, value)
+	case "process.caps_used_host_userns":
+		return ev.setUint64FieldValue("process.caps_used_host_userns", &ev.BaseEvent.ProcessContext.Process.CapsUsedHostUserNS, value)
 	case "process.cgroup.created_at":
 		return ev.setUint64FieldValue("process.cgroup.created_at", &ev.BaseEvent.ProcessContext.Process.CGroup.CreatedAt, value)
 	case "process.cgroup.file.inode":
@@ -47386,8 +47978,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("process.parent.cap_permitted", &ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted, value)
 	case "process.parent.caps_attempted":
 		return ev.setUint64FieldValue("process.parent.caps_attempted", &ev.BaseEvent.ProcessContext.Parent.CapsAttempted, value)
+	case "process.parent.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("process.parent.caps_attempted_host_userns", &ev.BaseEvent.ProcessContext.Parent.CapsAttemptedHostUserNS, value)
 	case "process.parent.caps_used":
 		return ev.setUint64FieldValue("process.parent.caps_used", &ev.BaseEvent.ProcessContext.Parent.CapsUsed, value)
+	case "process.parent.caps_used_host_userns":
+		return ev.setUint64FieldValue("process.parent.caps_used_host_userns", &ev.BaseEvent.ProcessContext.Parent.CapsUsedHostUserNS, value)
 	case "process.parent.cgroup.created_at":
 		return ev.setUint64FieldValue("process.parent.cgroup.created_at", &ev.BaseEvent.ProcessContext.Parent.CGroup.CreatedAt, value)
 	case "process.parent.cgroup.file.inode":
@@ -47774,8 +48370,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.cap_permitted", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.CapPermitted, value)
 	case "ptrace.tracee.ancestors.caps_attempted":
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.caps_attempted", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CapsAttempted, value)
+	case "ptrace.tracee.ancestors.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.caps_attempted_host_userns", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CapsAttemptedHostUserNS, value)
 	case "ptrace.tracee.ancestors.caps_used":
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.caps_used", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CapsUsed, value)
+	case "ptrace.tracee.ancestors.caps_used_host_userns":
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.caps_used_host_userns", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CapsUsedHostUserNS, value)
 	case "ptrace.tracee.ancestors.cgroup.created_at":
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.cgroup.created_at", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.CGroup.CreatedAt, value)
 	case "ptrace.tracee.ancestors.cgroup.file.inode":
@@ -48129,8 +48729,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("ptrace.tracee.cap_permitted", &ev.PTrace.Tracee.Process.Credentials.CapPermitted, value)
 	case "ptrace.tracee.caps_attempted":
 		return ev.setUint64FieldValue("ptrace.tracee.caps_attempted", &ev.PTrace.Tracee.Process.CapsAttempted, value)
+	case "ptrace.tracee.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("ptrace.tracee.caps_attempted_host_userns", &ev.PTrace.Tracee.Process.CapsAttemptedHostUserNS, value)
 	case "ptrace.tracee.caps_used":
 		return ev.setUint64FieldValue("ptrace.tracee.caps_used", &ev.PTrace.Tracee.Process.CapsUsed, value)
+	case "ptrace.tracee.caps_used_host_userns":
+		return ev.setUint64FieldValue("ptrace.tracee.caps_used_host_userns", &ev.PTrace.Tracee.Process.CapsUsedHostUserNS, value)
 	case "ptrace.tracee.cgroup.created_at":
 		return ev.setUint64FieldValue("ptrace.tracee.cgroup.created_at", &ev.PTrace.Tracee.Process.CGroup.CreatedAt, value)
 	case "ptrace.tracee.cgroup.file.inode":
@@ -48427,8 +49031,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("ptrace.tracee.parent.cap_permitted", &ev.PTrace.Tracee.Parent.Credentials.CapPermitted, value)
 	case "ptrace.tracee.parent.caps_attempted":
 		return ev.setUint64FieldValue("ptrace.tracee.parent.caps_attempted", &ev.PTrace.Tracee.Parent.CapsAttempted, value)
+	case "ptrace.tracee.parent.caps_attempted_host_userns":
+		return ev.setUint64FieldValue("ptrace.tracee.parent.caps_attempted_host_userns", &ev.PTrace.Tracee.Parent.CapsAttemptedHostUserNS, value)
 	case "ptrace.tracee.parent.caps_used":
 		return ev.setUint64FieldValue("ptrace.tracee.parent.caps_used", &ev.PTrace.Tracee.Parent.CapsUsed, value)
+	case "ptrace.tracee.parent.caps_used_host_userns":
+		return ev.setUint64FieldValue("ptrace.tracee.parent.caps_used_host_userns", &ev.PTrace.Tracee.Parent.CapsUsedHostUserNS, value)
 	case "ptrace.tracee.parent.cgroup.created_at":
 		return ev.setUint64FieldValue("ptrace.tracee.parent.cgroup.created_at", &ev.PTrace.Tracee.Parent.CGroup.CreatedAt, value)
 	case "ptrace.tracee.parent.cgroup.file.inode":
@@ -49131,6 +49739,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.ancestors.caps_attempted", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CapsAttempted, value)
+	case "setrlimit.target.ancestors.caps_attempted_host_userns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.caps_attempted_host_userns", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CapsAttemptedHostUserNS, value)
 	case "setrlimit.target.ancestors.caps_used":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -49139,6 +49755,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.ancestors.caps_used", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CapsUsed, value)
+	case "setrlimit.target.ancestors.caps_used_host_userns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.caps_used_host_userns", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.CapsUsedHostUserNS, value)
 	case "setrlimit.target.ancestors.cgroup.created_at":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50149,11 +50773,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.caps_attempted", &ev.Setrlimit.Target.Process.CapsAttempted, value)
+	case "setrlimit.target.caps_attempted_host_userns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.caps_attempted_host_userns", &ev.Setrlimit.Target.Process.CapsAttemptedHostUserNS, value)
 	case "setrlimit.target.caps_used":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.caps_used", &ev.Setrlimit.Target.Process.CapsUsed, value)
+	case "setrlimit.target.caps_used_host_userns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.caps_used_host_userns", &ev.Setrlimit.Target.Process.CapsUsedHostUserNS, value)
 	case "setrlimit.target.cgroup.created_at":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50759,6 +51393,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.parent.caps_attempted", &ev.Setrlimit.Target.Parent.CapsAttempted, value)
+	case "setrlimit.target.parent.caps_attempted_host_userns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.parent.caps_attempted_host_userns", &ev.Setrlimit.Target.Parent.CapsAttemptedHostUserNS, value)
 	case "setrlimit.target.parent.caps_used":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50767,6 +51409,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("setrlimit.target.parent.caps_used", &ev.Setrlimit.Target.Parent.CapsUsed, value)
+	case "setrlimit.target.parent.caps_used_host_userns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.parent.caps_used_host_userns", &ev.Setrlimit.Target.Parent.CapsUsedHostUserNS, value)
 	case "setrlimit.target.parent.cgroup.created_at":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51986,6 +52636,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("signal.target.ancestors.caps_attempted", &ev.Signal.Target.Ancestor.ProcessContext.Process.CapsAttempted, value)
+	case "signal.target.ancestors.caps_attempted_host_userns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("signal.target.ancestors.caps_attempted_host_userns", &ev.Signal.Target.Ancestor.ProcessContext.Process.CapsAttemptedHostUserNS, value)
 	case "signal.target.ancestors.caps_used":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -51994,6 +52652,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setUint64FieldValue("signal.target.ancestors.caps_used", &ev.Signal.Target.Ancestor.ProcessContext.Process.CapsUsed, value)
+	case "signal.target.ancestors.caps_used_host_userns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("signal.target.ancestors.caps_used_host_userns", &ev.Signal.Target.Ancestor.ProcessContext.Process.CapsUsedHostUserNS, value)
 	case "signal.target.ancestors.cgroup.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53004,11 +53670,21 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("signal.target.caps_attempted", &ev.Signal.Target.Process.CapsAttempted, value)
+	case "signal.target.caps_attempted_host_userns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("signal.target.caps_attempted_host_userns", &ev.Signal.Target.Process.CapsAttemptedHostUserNS, value)
 	case "signal.target.caps_used":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setUint64FieldValue("signal.target.caps_used", &ev.Signal.Target.Process.CapsUsed, value)
+	case "signal.target.caps_used_host_userns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("signal.target.caps_used_host_userns", &ev.Signal.Target.Process.CapsUsedHostUserNS, value)
 	case "signal.target.cgroup.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53614,6 +54290,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("signal.target.parent.caps_attempted", &ev.Signal.Target.Parent.CapsAttempted, value)
+	case "signal.target.parent.caps_attempted_host_userns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("signal.target.parent.caps_attempted_host_userns", &ev.Signal.Target.Parent.CapsAttemptedHostUserNS, value)
 	case "signal.target.parent.caps_used":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53622,6 +54306,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setUint64FieldValue("signal.target.parent.caps_used", &ev.Signal.Target.Parent.CapsUsed, value)
+	case "signal.target.parent.caps_used_host_userns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("signal.target.parent.caps_used_host_userns", &ev.Signal.Target.Parent.CapsUsedHostUserNS, value)
 	case "signal.target.parent.cgroup.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

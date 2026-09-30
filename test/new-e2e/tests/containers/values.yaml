@@ -1,6 +1,3 @@
 datadog:
   namespaceLabelsAsTags:
     related_team: team
-  kubernetesResourcesAnnotationsAsTags:
-    pods:
-      x-service-name: service

@@ -277,7 +277,14 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
 
-		deps := append(validateDevices, installEcrCredsHelperCmd)
+		// TEMPORARY: install kind at runtime, the GPU AMIs do not ship it. See
+		// runtime_installs.go.
+		kindInstall, err := installGPUKind(&awsEnv, host)
+		if err != nil {
+			return fmt.Errorf("installGPUKind: %w", err)
+		}
+
+		deps := append(validateDevices, installEcrCredsHelperCmd, kindInstall)
 
 		clusterOpts := nvidia.NewKindClusterOptions(
 			nvidia.WithKubeVersion(awsEnv.KubernetesVersion()),

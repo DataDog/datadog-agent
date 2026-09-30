@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The Private Action Runner now allows the read-only Datadog Agent diagnostic
+    actions ``getStatus``, ``getConfig``, and ``getDiagnose`` by default on
+    node agent flavors. To opt out, set ``private_action_runner.default_actions_enabled``
+    to ``false`` in ``datadog.yaml``.

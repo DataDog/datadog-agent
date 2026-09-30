@@ -1177,9 +1177,14 @@ def build_object_files(
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
-        sudo = "" if is_root() else "sudo"
+        # Keep Bazel unprivileged: its sandbox needs access to the caller's repository cache.
+        # Only the installer needs elevated permissions to write under /opt. Prevent its
+        # Python launcher from creating root-owned bytecode in Bazel's user-owned runfiles.
+        needs_sudo = not is_root()
+        sudo = "sudo" if needs_sudo else ""
+        run_under = ("--run_under=sudo env PYTHONDONTWRITEBYTECODE=1",) if needs_sudo else ()
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        bazel("run", *arch_flags, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent", sudo=not is_root())
+        bazel("run", *arch_flags, *run_under, "--", "@llvm_bpf//:install", "--destdir=/opt/datadog-agent")
 
         # Build eBPF .o files via Bazel
         bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir)

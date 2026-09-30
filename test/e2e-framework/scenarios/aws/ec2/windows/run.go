@@ -15,13 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -43,7 +43,8 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.Windows
 		idx := pickVersionIndex(versions, seed)
 		osDesc = versions[idx]
 	}
-	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(osDesc))
+	// Prepend the option so it has lower priority than already set options.
+	params.instanceOptions = append([]ec2.VMOption{ec2.WithOS(osDesc)}, params.instanceOptions...)
 
 	host, err := ec2.NewVM(awsEnv, params.Name, params.instanceOptions...)
 	if err != nil {

@@ -152,6 +152,12 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 					hookFunc("hook_override_creds"),
 					hookFunc("hook_revert_creds"),
 				}},
+				// these only collect the caps checked against the initial/host user ns:
+				// capabilities monitoring still works if these cannot be attached, so they are best-effort
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_capable"),
+					hookFunc("hook_netlink_capable"),
+				}},
 			},
 		},
 	}
