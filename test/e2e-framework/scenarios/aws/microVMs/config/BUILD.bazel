@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+package(default_package_metadata = ["//test/e2e-framework:go_package_metadata"])
+
 go_library(
     name = "config",
     srcs = ["config.go"],

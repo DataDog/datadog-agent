@@ -3,6 +3,7 @@
 import os
 
 _ELF_MAGIC = b"\x7fELF"
+_PE_MAGIC = b"MZ"
 
 # All Mach-O magic numbers we care about: 32/64-bit thin, fat (universal), in
 # both byte orders. See <mach-o/loader.h> and <mach-o/fat.h>.
@@ -41,3 +42,8 @@ def is_macho(path: str) -> bool:
     Covers thin (32/64-bit) and fat (universal) binaries in either byte order.
     """
     return _first_four_bytes(path) in _MACHO_MAGICS
+
+
+def is_pe(path: str) -> bool:
+    """Return True if ``path`` is a regular file starting with the DOS "MZ" magic of PE images."""
+    return _first_four_bytes(path).startswith(_PE_MAGIC)

@@ -4,6 +4,8 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 load("//bazel/rules/go_msgp:defs.bzl", "go_msgp")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
+package(default_package_metadata = ["//pkg/proto:go_package_metadata"])
+
 filegroup(
     name = "trace_go_proto_tagged_srcs",
     srcs = ["//pkg/proto/datadog/trace:trace_go_proto_tagged"],

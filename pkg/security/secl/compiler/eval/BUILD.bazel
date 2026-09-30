@@ -2,6 +2,8 @@ load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/cws_codegen:defs.bzl", "operators")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
+package(default_package_metadata = ["//pkg/security/secl:go_package_metadata"])
+
 # Source-level export so the //pkg/security/secl/model:event_deep_copy_*
 # Bazel codegens can resolve eval.MatchingValue, eval.MatchingSubExpr, the
 # eval.Field alias, and eval.EventType.

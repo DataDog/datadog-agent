@@ -1,6 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules:windows_resources.bzl", "win_messagetable")
 
+package(default_package_metadata = ["//pkg/util/winutil:go_package_metadata"])
+
 win_messagetable(
     name = "messagetable",
     src = "messagestrings.mc",

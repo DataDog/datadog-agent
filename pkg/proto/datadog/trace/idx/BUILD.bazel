@@ -2,6 +2,8 @@
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 
+package(default_package_metadata = ["//pkg/proto:go_package_metadata"])
+
 proto_library(
     name = "idx_proto",
     srcs = [

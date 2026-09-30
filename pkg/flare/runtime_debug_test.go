@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -28,6 +29,13 @@ func TestGetRuntimeDebugInfo(t *testing.T) {
 	assert.Contains(t, content, "GOMEMLIMIT:")
 	assert.Contains(t, content, "Num GC:")
 	assert.Contains(t, content, "Pause Total:")
+}
+
+func TestWriteBuildInfo(t *testing.T) {
+	var buf bytes.Buffer
+	writeBuildInfo(&buf)
+
+	assert.Contains(t, buf.String(), "Main Module: github.com/DataDog/datadog-agent@")
 }
 
 func TestProvideRuntimeDebugInfo(t *testing.T) {
