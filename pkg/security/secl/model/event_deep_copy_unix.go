@@ -1198,8 +1198,8 @@ func deepCopySysCtlEvent(fieldToCopy SysCtlEvent) SysCtlEvent {
 func deepCopySyscallsEvent(fieldToCopy SyscallsEvent) SyscallsEvent {
 	copied := SyscallsEvent{}
 	copied.EventReason = fieldToCopy.EventReason
-	copied.SyscallID = fieldToCopy.SyscallID
 	copied.SampleCookie = fieldToCopy.SampleCookie
+	copied.SyscallID = fieldToCopy.SyscallID
 	return copied
 }
 func deepCopyTracerMemfdSealEvent(fieldToCopy TracerMemfdSealEvent) TracerMemfdSealEvent {
