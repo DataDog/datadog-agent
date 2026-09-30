@@ -8,12 +8,8 @@
 // Coordinated sampling: make one keep/drop decision per trace and apply it to
 // every probe in that trace. See pkg/dyninst/docs/coordinated-sampling-plan.md.
 //
-// Note on structure: much of this file is shaped by BPF verifier / 512-byte
-// combined-stack limits rather than by the logic. Working state lives in
-// per-CPU scratch instead of the stack, and coord_extract_trace_id /
-// coordinated_should_drop are noinline, because they inline into
-// probe_run_with_cookie (which also inlines probe_run) and would otherwise
-// overflow the stack.
+// Working state lives in per-CPU scratch and the helpers are noinline to keep
+// the combined stack under the verifier's 512-byte limit.
 
 // Probe ids at or above this bound skip the per-trace per-probe cap.
 #define COORD_MAX_PROBES 256
@@ -57,9 +53,8 @@ struct {
   __type(value, coord_scratch_t);
 } coord_scratch_buf SEC(".maps");
 
-// Draw one unit from the session-global budget without gating. Used for
-// inherited emits; may go negative, which suppresses future traces' entry
-// decisions until should_throttle() refreshes the period.
+// Draw one unit from the session-global budget without gating, for inherited
+// emits. May go negative, suppressing future traces until the period refreshes.
 static inline __attribute__((always_inline)) void
 session_throttler_consume(void) {
   uint32_t idx = session_throttler_idx;
@@ -70,8 +65,8 @@ session_throttler_consume(void) {
 }
 
 // The first event of a trace decides via the session-global throttler and
-// stores the result; later events inherit it. On EMIT, each probe may emit at
-// most once per trace. Returns true to drop.
+// stores it; later events inherit it. On EMIT each probe emits at most once per
+// trace. Returns true to drop.
 static __attribute__((noinline)) bool
 coordinated_should_drop(const probe_params_t* params, uint64_t start_ns,
                         uint64_t trace_id) {
@@ -109,8 +104,8 @@ coordinated_should_drop(const probe_params_t* params, uint64_t start_ns,
     return true;
   }
 
-  // Per-probe cap. Index via a switch so the verifier sees constant offsets
-  // into the map value; a computed index defeats its bounds tracking.
+  // Index via a switch so the verifier sees constant offsets; a computed index
+  // defeats its bounds tracking.
   if (probe_id < COORD_MAX_PROBES) {
     uint32_t word = (probe_id >> 6) & (COORD_BITSET_WORDS - 1);
     uint64_t mask = 1ULL << (probe_id & 63);
@@ -136,11 +131,8 @@ coordinated_should_drop(const probe_params_t* params, uint64_t start_ns,
 
 #define COORD_PREGATE_MAX_DEPTH 16
 
-// Read DWARF integer register regnum (0-15, the Go register-ABI arg registers).
-// regs must point to a copy of pt_regs, not the raw uprobe context: the
-// verifier rejects dereferencing the context pointer at a computed offset. The
-// switch keeps each case a constant-offset load (DWARF_REGISTER needs a
-// constant index).
+// Read Go register-ABI arg register regnum (0-15) from a pt_regs copy. The
+// switch keeps each load at a constant offset, which the verifier requires.
 static inline __attribute__((always_inline)) uint64_t
 coord_read_arg_reg(const struct pt_regs* regs, uint8_t regnum) {
   uint64_t v = 0;
@@ -166,17 +158,10 @@ coord_read_arg_reg(const struct pt_regs* regs, uint8_t regnum) {
   return v;
 }
 
-// Copy the pt_regs fields the trace_id path reads (DWARF arg registers 0-15
-// plus the frame and stack pointers) out of the raw uprobe context into the
-// per-CPU scratch.
-//
-// This must run in the caller, on the real context pointer, and copy one field
-// at a time. Copying the whole struct instead (s->regs = *regs) is rejected by
-// the verifier: arm64 pt_regs is 336 bytes, wider than the context window the
-// verifier allows, so the tail of the copy fails with "invalid bpf_context
-// access off=335". Constant-offset field reads stay in range, and handing the
-// scratch copy onward keeps the context pointer out of the noinline
-// subprograms entirely.
+// Copy the pt_regs fields the trace_id path reads into per-CPU scratch, one
+// field at a time. Must run in the caller on the real context pointer: copying
+// the whole struct is rejected by the verifier (off beyond its context window),
+// and the scratch copy keeps the context pointer out of the noinline helpers.
 static inline __attribute__((always_inline)) void
 coord_copy_regs(const struct pt_regs* regs) {
   uint32_t zero = 0;
@@ -208,14 +193,21 @@ coord_copy_regs(const struct pt_regs* regs) {
   s->regs.DWARF_SP_REG = regs->DWARF_SP_REG;
 }
 
+// Publish "no trace in scope" so the probe falls back to the per-probe throttler.
+static inline __attribute__((always_inline)) void coord_clear_trace_id(void) {
+  uint32_t zero = 0;
+  coord_scratch_t* s =
+      (coord_scratch_t*)bpf_map_lookup_elem(&coord_scratch_buf, &zero);
+  if (s) {
+    s->present = 0;
+    s->trace_id = 0;
+  }
+}
+
 // Walk the in-scope context.Context (located via params->ctx_loc_*) to the
-// active dd-trace span and publish its trace_id into coord scratch
-// (s->trace_id / s->present). Runs before the gate, reusing the capture-time
-// span-extraction / interface-resolution helpers from stack_machine.h. Only
-// included by event.c, after walk_stack.h has pulled in stack_machine.h.
-//
-// Reads the registers from scratch, which coord_copy_regs must have populated
-// first; the raw context pointer deliberately does not cross into here.
+// active dd-trace span and publish its trace_id into scratch. Reads the
+// registers from scratch, which coord_copy_regs must have populated first.
+// Included by event.c after walk_stack.h has pulled in stack_machine.h.
 static __attribute__((noinline)) int
 coord_extract_trace_id(const probe_params_t* params) {
   uint32_t zero = 0;
@@ -291,9 +283,8 @@ coord_extract_trace_id(const probe_params_t* params) {
   return 0;
 }
 
-// Single sampling-decision seam for both throttle gates. Uses the per-trace
-// decision when coord_extract_trace_id found a trace, else the per-probe
-// throttler. Returns true to drop.
+// Sampling decision for both throttle gates: per-trace when a trace was found,
+// else per-probe. Returns true to drop.
 static inline __attribute__((always_inline)) bool
 should_drop_event(const probe_params_t* params, uint64_t start_ns) {
   uint32_t zero = 0;
