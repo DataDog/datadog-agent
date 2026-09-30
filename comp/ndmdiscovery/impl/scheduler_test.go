@@ -29,7 +29,7 @@ func testRangeConfig(id, cidr string) rangeConfig {
 			Port:    161,
 			Timeout: 2 * time.Second,
 			Retries: 1,
-			Creds:   []credRef{{ID: "cred-a", Name: "cred-a"}},
+			CredIDs: []string{"cred-a"},
 		}},
 	}
 }
@@ -82,7 +82,7 @@ func TestSchedulerKeepsARangeWhoseProbeCannotBeResolved(t *testing.T) {
 	defer s.stop()
 
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
-	cfg.Probes.SNMP.Creds = []credRef{{ID: "cred-missing", Name: "cred-missing"}}
+	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
 
 	require.NoError(t, s.set(cfg), "a missing credential no longer rejects the range")
 	assert.Equal(t, 1, s.count(), "the range keeps its schedule and self-heals when the credential arrives")
@@ -114,7 +114,7 @@ func TestSchedulerDropsOnlyTheProbeItCannotResolve(t *testing.T) {
 
 	cfg := testRangeConfig("ad-1", "10.0.0.0/24")
 	cfg.Probes.Ping = &pingprobe.Options{Count: 1, Interval: time.Second, Timeout: time.Second}
-	cfg.Probes.SNMP.Creds = []credRef{{ID: "cred-missing", Name: "cred-missing"}}
+	cfg.Probes.SNMP.CredIDs = []string{"cred-missing"}
 	require.NoError(t, s.set(cfg))
 
 	require.Eventually(t, func() bool { return len(scanner.recorded()) == 1 }, 5*time.Second, 10*time.Millisecond)

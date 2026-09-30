@@ -196,14 +196,14 @@ func TestScheduleStopsARangeAbsentFromTheSnapshot(t *testing.T) {
 	comp, _ := newScheduleTestComponent(t)
 
 	errs := comp.Schedule([]ndmdiscovery.Range{
-		{ID: "ad-1", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"creds":[{"id":"cred-a","name":"cred-a"}]}`)}},
-		{ID: "ad-2", NetworkAddress: "10.0.1.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"creds":[{"id":"cred-a","name":"cred-a"}]}`)}},
+		{ID: "ad-1", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_ids":["cred-a"]}`)}},
+		{ID: "ad-2", NetworkAddress: "10.0.1.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_ids":["cred-a"]}`)}},
 	})
 	assert.Empty(t, errs)
 	assert.Equal(t, 2, comp.RangeCount())
 
 	errs = comp.Schedule([]ndmdiscovery.Range{
-		{ID: "ad-1", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"creds":[{"id":"cred-a","name":"cred-a"}]}`)}},
+		{ID: "ad-1", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_ids":["cred-a"]}`)}},
 	})
 	assert.Empty(t, errs)
 	assert.Equal(t, 1, comp.RangeCount())
@@ -214,7 +214,7 @@ func TestScheduleStopsARangeAbsentFromTheSnapshot(t *testing.T) {
 
 func TestScheduleReportsOneErrorPerRejectedRange(t *testing.T) {
 	comp, _ := newScheduleTestComponent(t)
-	snmp := map[string]json.RawMessage{"snmp": json.RawMessage(`{"creds":[{"id":"cred-a","name":"cred-a"}]}`)}
+	snmp := map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_ids":["cred-a"]}`)}
 
 	errs := comp.Schedule([]ndmdiscovery.Range{
 		{ID: "good", NetworkAddress: "10.0.0.0/24", Probes: snmp},
@@ -234,7 +234,7 @@ func TestScheduleAcceptsARangeWhoseCredentialIsMissing(t *testing.T) {
 	errs := comp.Schedule([]ndmdiscovery.Range{{
 		ID:             "ad-1",
 		NetworkAddress: "10.0.0.0/24",
-		Probes:         map[string]json.RawMessage{"snmp": json.RawMessage(`{"creds":[{"id":"cred-z","name":"cred-z"}]}`)},
+		Probes:         map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_ids":["cred-z"]}`)},
 	}})
 
 	assert.Empty(t, errs, "a missing credential is a cycle-time problem, not a configuration error")
@@ -259,7 +259,7 @@ func TestScheduleOnADisabledComponentRejectsEveryRange(t *testing.T) {
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
 
-	errs := provides.Comp.Schedule([]ndmdiscovery.Range{{ID: "ad-1", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"creds":[{"id":"cred-a","name":"cred-a"}]}`)}}})
+	errs := provides.Comp.Schedule([]ndmdiscovery.Range{{ID: "ad-1", NetworkAddress: "10.0.0.0/24", Probes: map[string]json.RawMessage{"snmp": json.RawMessage(`{"cred_ids":["cred-a"]}`)}}})
 	require.Len(t, errs, 1)
 	assert.ErrorIs(t, errs["ad-1"], errDisabled)
 }
