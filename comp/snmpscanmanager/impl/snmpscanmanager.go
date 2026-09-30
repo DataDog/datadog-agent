@@ -210,7 +210,7 @@ func (m *snmpScanManagerImpl) scanWorker() {
 func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest) error {
 	snmpConfig, namespace, err := m.snmpConfigProvider.GetDeviceConfig(req.DeviceIP, m.agentConfig, m.httpClient)
 	if err != nil {
-		m.onDeviceScanFailure(req, false)
+		m.onDeviceScanFailure(req, err, false)
 		return err
 	}
 
@@ -235,7 +235,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 			return nil
 		}
 
-		m.onDeviceScanFailure(req, isRetryableError(err))
+		m.onDeviceScanFailure(req, err, isRetryableError(err))
 		return err
 	}
 
@@ -263,7 +263,7 @@ func (m *snmpScanManagerImpl) onDeviceScanSuccess(req snmpscanmanager.ScanReques
 	m.scheduleScanRefresh(req, now)
 }
 
-func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanRequest, canRetry bool) {
+func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanRequest, err error, canRetry bool) {
 	now := time.Now()
 
 	if !canRetry {
@@ -287,6 +287,7 @@ func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanReques
 		ScanStatus: failedScan,
 		ScanEndTs:  now,
 		Failures:   failuresCount,
+		Error:      err.Error(),
 	}
 	m.mtx.Unlock()
 

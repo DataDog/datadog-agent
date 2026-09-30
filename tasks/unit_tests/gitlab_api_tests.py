@@ -699,6 +699,50 @@ class TestGetGitlabToken(unittest.TestCase):
         mock_session.get.return_value = mock_response
         return mock_session.get
 
+    @patch.dict('os.environ', {'GITLAB_TOKEN': 'legacy-token'})
+    @patch('tasks.libs.ciproviders.gitlab_api.running_in_ci', return_value=True)
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=False)
+    def test_ci_does_not_depend_on_feature_flag(
+        self, mock_is_enabled, mock_infra_token, mock_session_cls, _mock_running_in_ci
+    ):
+        mock_get = self._mock_bti_call(mock_session_cls)
+        ctx = MagicMock()
+
+        self.assertEqual(get_gitlab_token(ctx), 'fake-token')
+
+        mock_is_enabled.assert_not_called()
+        ctx.run.assert_not_called()
+        mock_infra_token.assert_called_once_with(ctx, audience='sdm')
+        mock_get.assert_called_once()
+
+    @patch('tasks.libs.ciproviders.gitlab_api.running_in_ci', return_value=True)
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
+    def test_ci_token_request_failure_does_not_fall_back(
+        self, _mock_infra_token, mock_session_cls, _mock_running_in_ci
+    ):
+        self._mock_bti_call(mock_session_cls)
+        response = mock_session_cls.return_value.get.return_value
+        response.ok = False
+        response.status_code = 403
+        response.text = 'Forbidden'
+        ctx = MagicMock()
+
+        with self.assertRaisesRegex(RuntimeError, 'Failed to retrieve Gitlab token, request failed with code 403'):
+            get_gitlab_token(ctx)
+
+        ctx.run.assert_not_called()
+
+    @patch.dict('os.environ', {'GITLAB_TOKEN': 'local-token'})
+    @patch('tasks.libs.ciproviders.gitlab_api.running_in_ci', return_value=False)
+    @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=False)
+    @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
+    def test_local_token_override_is_preserved(self, mock_session_cls, _mock_is_enabled, _mock_running_in_ci):
+        self.assertEqual(get_gitlab_token(MockContext()), 'local-token')
+        mock_session_cls.assert_not_called()
+
     @patch('tasks.libs.ciproviders.gitlab_api.requests.Session')
     @patch('tasks.libs.ciproviders.gitlab_api.datadog_infra_token', return_value='Bearer faketoken')
     @patch('tasks.libs.ciproviders.gitlab_api.is_enabled', return_value=True)

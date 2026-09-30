@@ -9,6 +9,9 @@
 ## Unreleased
 <!-- Add entries here for changes not yet in a release. -->
 
+- Live Processes: fix garbled process names, `command` tags and full commands for processes whose argument list cannot be read (kernel threads, some RSCT daemons, e.g. `[IBM.Softdird]`). The agent now reports the executable name from `psinfo` for those and falls back to the bracketed name — the same convention as `ps` — instead of shipping the raw unreadable bytes as the command line.
+- Fix `hostname_fqdn` on AIX: AIX `hostname` has no `-f` flag, so the agent always failed to detect the FQDN and fell back to the short hostname. The agent now resolves the host's fully qualified domain name itself (canonical name from `/etc/hosts` or DNS, matching `hostname -f` semantics on other platforms).
+- Redirect each SRC subsystem's stderr to `/var/log/datadog/{agent,trace-agent,agent-data-plane}-stderr.log`, so output that bypasses the agents' internal logging (startup errors before the log file is opened, AIX loader errors, panics, Go fatal errors) is kept on disk instead of only going to `/dev/console`.
 - The services now start automatically on reboot. Install adds an `/etc/inittab` entry via `mkitab` (`datadog-agent:2:once:startsrc -g datadog-agent`) that starts the SRC group when init enters multi-user run level; the entry is removed on uninstall (`rmitab`). Previously the services were only started during install/upgrade and had to be started manually after every reboot.
 - The agent, trace-agent, and agent-data-plane SRC subsystems are now registered in a shared `datadog-agent` SRC group, so all services can be started/stopped together with `startsrc -g datadog-agent` / `stopsrc -g datadog-agent` (and listed with `lssrc -g datadog-agent`) instead of one subsystem at a time. Individual subsystems can still be addressed with `-s` as before, but this might change in the future, group should be used.
 

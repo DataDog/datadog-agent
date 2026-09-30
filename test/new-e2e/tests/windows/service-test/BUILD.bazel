@@ -51,6 +51,7 @@ dd_agent_go_test(
         "//test/new-e2e/tests/windows/common",
         "//test/new-e2e/tests/windows/common/agent",
         "@com_github_cenkalti_backoff_v7//:backoff",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//suite",
     ],
 )

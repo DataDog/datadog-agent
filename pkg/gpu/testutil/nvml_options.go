@@ -154,6 +154,25 @@ func WithGpmMetricValues(values map[nvml.GpmMetricId]MockGpmMetricValue) NvmlMoc
 	})
 }
 
+// WithMIGComputeInstance overrides the compute instance ID MIG child devices
+// report from GetComputeInstanceId (the default is 0, the 1-CI-per-GI case).
+// Use it to exercise multi-CI GPU instances, e.g. 3g.71gb split into 3x 1c.3g.
+func WithMIGComputeInstance(ci int) NvmlDeviceOption {
+	return deviceOption(func(o *deviceOptions) {
+		o.migComputeInstanceIndex = &ci
+	})
+}
+
+// WithMinorNumber sets the minor number devices report from GetMinorNumber
+// (the default is the device index, which is what ordinary hardware does). Use
+// it to exercise the case where /dev/nvidiaN disagrees with NVML's enumeration
+// order, which silently misattributes a whole-card claim if not handled.
+func WithMinorNumber(minor int) NvmlDeviceOption {
+	return deviceOption(func(o *deviceOptions) {
+		o.minorNumber = &minor
+	})
+}
+
 // WithGpmSupport configures GPM support for devices in this option's scope.
 func WithGpmSupport(supported bool) NvmlDeviceOption {
 	return deviceOption(func(o *deviceOptions) {
