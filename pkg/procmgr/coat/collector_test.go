@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -357,6 +358,38 @@ func TestCollectDaemonUnreachable(t *testing.T) {
 	assert.Equal(t, ManagementModeNone, service.ManagementMode,
 		"daemon failure prevents listing processes")
 	assert.Equal(t, ProcessStateUnknown, service.ProcmgrState)
+}
+
+// deadlineRecordingClient records the budget it was handed and fails at once, so a test can assert
+// on what Collect passed down without waiting out a real timeout.
+type deadlineRecordingClient struct {
+	deadline    time.Time
+	hasDeadline bool
+}
+
+func (c *deadlineRecordingClient) Connect(ctx context.Context) (ProcmgrSession, error) {
+	c.deadline, c.hasDeadline = ctx.Deadline()
+	return nil, errors.New("dial failed")
+}
+
+// The per-service supervisor checks are local, so they are the one part of a snapshot still worth
+// having when dd-procmgrd is what failed. They share the collection context, and a context cannot
+// outlive an expired parent, so a daemon that hangs until the budget is gone would otherwise leave
+// every "systemctl is-active" failing on arrival and every service reporting management_mode "none":
+// no supervisor owns this, rather than we could not tell.
+func TestCollectLeavesTimeForTheServiceSweepWhenTheDaemonHangs(t *testing.T) {
+	client := &deadlineRecordingClient{}
+	collector := NewCollectorWithClient(t.TempDir(), client)
+
+	start := time.Now()
+	collector.Collect(context.Background())
+
+	require.True(t, client.hasDeadline, "collection must bound every call it makes")
+	// Tolerance well under the reserve: at a tolerance of the reserve itself this would hold whether
+	// or not any time was actually held back.
+	assert.WithinDuration(t, start.Add(clientTimeout-serviceSweepReserve), client.deadline,
+		serviceSweepReserve/4,
+		"the daemon calls get the collection budget less the reserve, so a hung daemon cannot starve the service sweep")
 }
 
 func TestCollectDaemonReachableListFails(t *testing.T) {

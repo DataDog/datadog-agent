@@ -79,17 +79,6 @@ const flareCollectionBudget = 8 * time.Second
 // call failed, and a missing file tells them nothing at all.
 const flareWriteMargin = time.Second
 
-// flareServiceSweepReserve is the part of the collection budget held back from the dd-procmgrd calls
-// so the per-service supervisor checks still have time to run.
-//
-// Those checks are the only part of the report that does not go through dd-procmgrd, which makes
-// them what a reader is left with when the daemon is itself the problem. They share the collection
-// context, and a context cannot outlive an expired parent, so without a reserve a daemon that hangs
-// long enough to exhaust the budget makes every "systemctl is-active" fail on arrival. Every service
-// would then report management_mode "none", which claims no supervisor owns it rather than admitting
-// we could not tell, in precisely the situation this file exists to explain.
-const flareServiceSweepReserve = 2 * time.Second
-
 // flareContext bounds collection so it ends before the caller stops waiting, whichever of the two
 // budgets is tighter.
 func flareContext(parent context.Context) (context.Context, context.CancelFunc) {
@@ -107,21 +96,6 @@ func flareContext(parent context.Context) (context.Context, context.CancelFunc) 
 		}
 	}
 	return context.WithTimeout(parent, budget)
-}
-
-// daemonPhaseContext bounds the dd-procmgrd calls so they cannot spend the whole collection budget,
-// leaving flareServiceSweepReserve of it for the local checks that run afterwards.
-//
-// Derived from the collection context rather than the caller's, so the reserve is carved out of
-// collection's own budget and the write margin is still respected. An already-expired result is
-// left as it is: when the caller has this little time left, failing every call at once and saying
-// so is the report support wants.
-func daemonPhaseContext(collection context.Context) (context.Context, context.CancelFunc) {
-	deadline, ok := collection.Deadline()
-	if !ok {
-		return context.WithCancel(collection)
-	}
-	return context.WithDeadline(collection, deadline.Add(-flareServiceSweepReserve))
 }
 
 // Report returns a dump of dd-procmgrd state for a flare. It never fails: every error is
