@@ -177,7 +177,10 @@ const redactedValue = "********"
 // hyphenSpelledSecretWords covers the hyphenated spellings of words procutil's defaults only list
 // with underscores, so "--api-key" is recognized as readily as "--api_key". They are expressed in
 // procutil's own wildcard syntax, which keeps this a list of data rather than matching logic.
-var hyphenSpelledSecretWords = []string{"*api*key*", "*auth*token*", "*access*token*"}
+//
+// One entry per underscore-spelled default, so the list can be checked against procutil's for
+// completeness rather than read as an arbitrary selection.
+var hyphenSpelledSecretWords = []string{"*api*key*", "*auth*token*", "*access*token*", "*mysql*pwd*"}
 
 // scrubProcessArgs redacts secret values in the command lines of supervised processes.
 //

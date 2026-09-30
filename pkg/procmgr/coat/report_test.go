@@ -313,6 +313,13 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 			want: []string{"--api-key", wantRedacted},
 		},
 		{
+			// procutil's defaults spell this one with an underscore as well, so it needs the same
+			// widening as the others or the hyphenated form a command line actually uses is missed.
+			name: "hyphenated mysql_pwd flag with a separate value",
+			args: []string{"--mysql-pwd", "leaked-by-spelling-too"},
+			want: []string{"--mysql-pwd", wantRedacted},
+		},
+		{
 			name: "colon delimiter keeps the value in the same token",
 			args: []string{"--password:leaked-by-delimiter", "--verbose"},
 			want: []string{"--password:" + wantRedacted, "--verbose"},
@@ -451,6 +458,7 @@ func TestRedactionKeepsNothingProcutilWouldRedact(t *testing.T) {
 		{"--passwd", "alias-value"},
 		{"--credentials", "creds-value"},
 		{"--mysql_pwd", "pwd-value"},
+		{"--mysql-pwd", "hyphen-spelled-pwd-value"},
 		{"--password"},
 		{"--verbose", "--config", "/etc/datadog-agent/datadog.yaml"},
 	}
@@ -491,6 +499,7 @@ func TestNamesSecretAgreesWithProcutil(t *testing.T) {
 
 	for _, flag := range []string{
 		"--password", "--api_key", "--api-key", "--auth_token", "--AUTH-TOKEN",
+		"--mysql_pwd", "--mysql-pwd",
 		"--config", "--verbose", "--sysprobe-config",
 	} {
 		t.Run(flag, func(t *testing.T) {
