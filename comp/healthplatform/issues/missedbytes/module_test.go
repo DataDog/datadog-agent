@@ -7,6 +7,7 @@ package missedbytes
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,7 +55,7 @@ func TestModule_LogsEnabledWithLossReports(t *testing.T) {
 		t.Run(yaml, func(t *testing.T) {
 			logsmetrics.ResetMissedBytesForTest()
 			logsmetrics.MarkLogsAgentRunning()
-			logsmetrics.RecordMissedBytes("nginx", "web", 4096)
+			logsmetrics.RecordMissedBytes("nginx", "web", 4096, time.Now())
 
 			n, err := runModule(t, yaml)
 
