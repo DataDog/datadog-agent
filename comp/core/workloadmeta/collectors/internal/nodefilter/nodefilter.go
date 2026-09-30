@@ -162,11 +162,26 @@ func newAPIClient(cfg config.Component) (kubernetes.Interface, error) {
 	var err error
 	if cfgPath == "" {
 		clientConfig, err = rest.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+
+		if !cfg.GetBool("kubernetes_apiserver_tls_verify") {
+			clientConfig.TLSClientConfig.Insecure = true
+		}
+
+		if customCAPath := cfg.GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
+			clientConfig.TLSClientConfig.CAFile = customCAPath
+		}
 	} else {
 		clientConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if err != nil {
-		return nil, err
+
+	if cfg.GetBool("kubernetes_apiserver_use_protobuf") {
+		clientConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	}
 
 	clientConfig.Timeout = time.Duration(cfg.GetInt64("kubernetes_apiserver_informer_client_timeout")) * time.Second
