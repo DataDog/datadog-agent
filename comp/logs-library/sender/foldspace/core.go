@@ -15,7 +15,7 @@ import "time"
 type Core interface {
 	Start() Progress
 	HasCapacity() bool
-	PushLog(record Record, nowNanos uint64, metadataID uint64) (Admission, Progress)
+	PushLog(record Record, nowNanos uint64, metadataID uint64, route Route) (Admission, Progress)
 	Flush() (Admission, Progress)
 	BeginShutdown() (Admission, Progress)
 	Abandon() Progress

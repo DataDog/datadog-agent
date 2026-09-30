@@ -40,13 +40,21 @@ const (
 )
 
 // Compression is the encoding applied to every batch body.
+//
+// Numbering matches enum foldspace_encoding in foldspace_go.h exactly;
+// core_native.go asserts that at construction, since this file cannot import
+// "C" and stay buildable without the foldspace tag.
 type Compression int
 
 const (
+	// Default asks the library for its own choice of encoding. It is the zero
+	// value, so a zero-initialized Config cannot silently request an encoding
+	// the library would not itself have picked.
+	Default Compression = 0
 	// Identity leaves bodies uncompressed.
-	Identity Compression = 0
+	Identity Compression = 1
 	// Zstd compresses each body at Config.ZstdLevel.
-	Zstd Compression = 1
+	Zstd Compression = 2
 )
 
 // Admission is what the library did with an offered record, or with a flush.
@@ -138,14 +146,24 @@ const (
 )
 
 // NotificationKind is which outcome a notification reports.
+//
+// Two families: a resolution (PayloadDurable, PayloadAbandoned) names records
+// and ends their life; telemetry (DroppedStats) counts and names a sender, and
+// moves no cursor. Numbering matches enum foldspace_notification_kind in
+// foldspace_go.h; core_native.go asserts that at construction. Value 3
+// (FOLDSPACE_NOTIFICATION_SENT_STATS) has no Go constant: nothing here
+// consumes it, and notificationFrom passes it through unrecognized.
 type NotificationKind int
 
 const (
 	// PayloadDurable resolves every record it names.
 	PayloadDurable NotificationKind = 1
-	// PayloadDropped names records a sender gave up on, or that abandonment
-	// gave up on globally.
-	PayloadDropped NotificationKind = 2
+	// PayloadAbandoned resolves every record it names as given up on, whether by
+	// one sender's abandoning drop or a global Abandon.
+	PayloadAbandoned NotificationKind = 2
+	// DroppedStats counts a sender's non-abandoning drops. It names no records:
+	// Records and Bytes are aggregate counts, not a resolution.
+	DroppedStats NotificationKind = 4
 )
 
 // AckOK is the wire status of a batch the server accepted. Anything else
@@ -167,7 +185,6 @@ type Config struct {
 	MaxInflightPayloads    int
 	BatchCapacity          int
 	MaxPayloadBytes        int
-	CoalesceThresholdBytes int
 	Compression            Compression
 	ZstdLevel              int
 	ReconnectBackoffBase   time.Duration
@@ -193,7 +210,25 @@ type Record struct {
 	UUID            string
 	Tags            []string
 	ProcessingTags  []string
+	// MRFAllowed mirrors pkg/logs/message/message.go's Payload.IsMRF(): whether
+	// this record may reach an MRF sender, when failover is active.
+	MRFAllowed bool
 }
+
+// Route names which senders a pushed record is bound for, as a bitset over
+// sender indices. There is no value meaning "all of them": that can only mean
+// "however many are configured", which is the caller's knowledge, not the
+// library's or this package's.
+type Route uint64
+
+// AllSenders returns a Route naming every sender in [0, n).
+func AllSenders(n int) Route { return Route(1)<<uint(n) - 1 }
+
+// Contains reports whether sender is named in the route.
+func (r Route) Contains(sender SenderID) bool { return r&(Route(1)<<uint(sender)) != 0 }
+
+// WithSender returns r with sender added.
+func (r Route) WithSender(sender SenderID) Route { return r | Route(1)<<uint(sender) }
 
 // Progress is what a state-changing call left behind. Every field is a level
 // rather than an edge, so a consumer acting on one has not had to observe
@@ -247,12 +282,18 @@ type Effect struct {
 
 // Notification is a final or diagnostic outcome for records the consumer
 // offered.
+//
+// A resolution (Kind PayloadDurable or PayloadAbandoned) names records in
+// MetadataIDs and ends their life; Records and Bytes are zero. Telemetry
+// (Kind DroppedStats) counts in Records and Bytes and names no records:
+// MetadataIDs is empty.
 type Notification struct {
 	Kind        NotificationKind
 	Sender      SenderID
 	HasSender   bool
-	Abandoned   bool
 	MetadataIDs []uint64
+	Records     uint64
+	Bytes       uint64
 }
 
 // Lease holds the bytes of one sealed batch.
