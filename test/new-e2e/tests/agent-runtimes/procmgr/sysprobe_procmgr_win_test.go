@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -42,7 +41,7 @@ type sysprobeProcmgrWindowsSuite struct {
 	cli string
 	// autoSpawnPID is the system-probe PID dd-procmgr reported after the install, before any
 	// test could act on the process. Later tests require this same PID still be the one
-	// supervised, held for procmgrPIDHoldFor rather than checked once.
+	// supervised, held for procmgrHoldFor rather than checked once.
 	autoSpawnPID string
 }
 
@@ -84,9 +83,11 @@ func (s *sysprobeProcmgrWindowsSuite) SetupSuite() {
 // The PID is what makes this stronger than asserting the process is Running. system-probe is
 // restart: on-failure with restart_sec 2, so a crash loop spends most of its time Running with
 // a different PID each time. requireProcmgrRunningPID holds the PID SetupSuite recorded for
-// procmgrPIDHoldFor instead of accepting the first poll that still shows it. A restart during
+// procmgrHoldFor instead of accepting the first poll that still shows it. A restart during
 // that hold fails the test, and so does a failed auto-start that something else later repaired.
-// The two minute argument is the deadline for that hold, not the hold itself.
+// requireLegacySCMServiceDown holds the other half for the same window, so a legacy service
+// that starts and then stops cannot pass on a lucky poll. The durations passed to both are
+// deadlines for reaching the hold, not the hold itself.
 func (s *sysprobeProcmgrWindowsSuite) TestSystemProbeCutoverSupervisedByProcmgrAndLegacySCMStopped() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
@@ -98,20 +99,7 @@ func (s *sysprobeProcmgrWindowsSuite) TestSystemProbeCutoverSupervisedByProcmgrA
 		"fleet system-probe processes.d config should exist at %s")
 
 	requireProcmgrRunningPID(s.T(), host, s.cli, sysprobeProcessName, s.autoSpawnPID, 2*time.Minute)
-
-	// Anything short of Stopped, StartPending in particular, can be the SCM on its way to a
-	// second system-probe, so only Stopped or Absent passes.
-	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		out, err := host.Execute(fmt.Sprintf(
-			`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
-			sysprobeLegacySCMServiceName,
-		))
-		if !assert.NoError(ct, err) {
-			return
-		}
-		assert.Contains(ct, []string{"Stopped", "Absent"}, strings.TrimSpace(out),
-			"%s Windows service must stay down when system-probe is managed by dd-procmgr", sysprobeLegacySCMServiceName)
-	}, 30*time.Second, 3*time.Second)
+	requireLegacySCMServiceDown(s.T(), host, sysprobeLegacySCMServiceName, time.Minute)
 }
 
 // TestSystemProbePrivilegedSpawnRunsAsLocalSystem checks the half of the cutover the state
