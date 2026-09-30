@@ -5,9 +5,8 @@
 
 package bench
 
-// Parquet reading utilities for the testbench.
-// Arrow/parquet deps live only in the testbench's own go.mod — not in the
-// main agent module — so this file must stay in internal/qbranch/.
+// Parquet reading utilities for the testbench. The Agent's tagged recorder
+// writes v1 files; the testbench owns offline loading and replay.
 
 import (
 	"container/heap"

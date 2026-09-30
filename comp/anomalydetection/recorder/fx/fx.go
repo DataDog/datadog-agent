@@ -13,15 +13,16 @@ import (
 
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	recorderimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl"
+	recorderparquet "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/parquet"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// Module wires the optional recorder without registering a writer backend.
+// Module wires the optional recorder with its Parquet writer backend.
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(func() option.Option[recorder.WriterFactory] {
-			return option.None[recorder.WriterFactory]()
+			return option.New[recorder.WriterFactory](recorderparquet.Factory{})
 		}),
 		fxutil.ProvideComponentConstructor(recorderimpl.NewConfiguredComponent),
 	)

@@ -27,6 +27,7 @@ go_library(
     deps = [
         "//comp/anomalydetection/recorder/def",
         "//comp/anomalydetection/recorder/impl",
+        "//comp/anomalydetection/recorder/parquet",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@org_uber_go_fx//:fx",
@@ -57,8 +58,10 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/anomalydetection/observer/def",
         "//comp/anomalydetection/recorder/def",
         "//comp/core/config",
+        "//pkg/tagset",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_stretchr_testify//require",
