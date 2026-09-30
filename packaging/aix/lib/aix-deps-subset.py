@@ -24,7 +24,14 @@ NATIVE_OPTIONAL = {"pyodbc"}
 
 
 def pkg_name(spec):
-    """Extract the package name from a requirement spec line."""
+    """Extract the lowercased package name from a requirement spec line.
+
+    Input examples — everything from the first version operator, extras
+    bracket, or environment marker onward is dropped:
+      'requests==2.34.2'                          -> 'requests'
+      'psycopg[c,pool]==3.3.4'                    -> 'psycopg'
+      'pywin32==312; sys_platform == "win32"'     -> 'pywin32'
+    """
     return re.split(r"[<>=!;\[]", spec.strip(), maxsplit=1)[0].strip().lower()
 
 
