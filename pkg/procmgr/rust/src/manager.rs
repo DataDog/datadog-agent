@@ -250,20 +250,39 @@ impl ProcessManager {
         Ok(StartResult { uuid, pid, state })
     }
 
+    /// Stop a process, holding the lock only to start and to record the stop.
+    ///
+    /// The wait in between runs for as long as `stop_timeout`, and `list`,
+    /// `describe`, `status`, and `config` answer straight from the same lock
+    /// rather than through this command channel, so holding it across the wait
+    /// makes every read hang for the duration.
     pub(crate) async fn handle_stop(&self, name_or_uuid: &str) -> Result<StopResult, Status> {
-        let mut procs = self.processes.write().await;
-        let idx = resolve_index(&procs, name_or_uuid)?;
-        let proc = &mut procs[idx];
+        let (uuid, wait) = {
+            let mut procs = self.processes.write().await;
+            let idx = resolve_index(&procs, name_or_uuid)?;
+            let proc = &mut procs[idx];
 
-        if !proc.is_running() {
-            return Err(Status::failed_precondition(format!(
-                "process '{}' is not running",
-                proc.name()
-            )));
+            if !proc.is_running() {
+                return Err(Status::failed_precondition(format!(
+                    "process '{}' is not running",
+                    proc.name()
+                )));
+            }
+            proc.request_stop();
+            (proc.uuid().to_owned(), proc.take_stop_wait())
+        };
+
+        if let Some(wait) = wait {
+            wait.run().await;
         }
-        let uuid = proc.uuid().to_owned();
-        proc.request_stop();
-        proc.wait_for_stop().await;
+
+        // Re-resolved rather than kept as an index: nothing else may reorder
+        // the list while the event loop is parked on this command, but only
+        // the uuid says so at the point of use.
+        let mut procs = self.processes.write().await;
+        let idx = resolve_index(&procs, &uuid)?;
+        let proc = &mut procs[idx];
+        proc.finish_stop();
         let state = proc.state();
         Ok(StopResult { uuid, state })
     }
@@ -340,23 +359,33 @@ impl ProcessManager {
         }
 
         // Wait for modified processes that were running to stop, then restart
-        // with the new config.
-        {
-            let mut procs = self.processes.write().await;
-            for name in &modified_running {
+        // with the new config. The lock goes back between each one for the same
+        // reason as in `handle_stop`: reads must not queue behind the wait.
+        for name in &modified_running {
+            let wait = {
+                let mut procs = self.processes.write().await;
                 let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
                     continue;
                 };
-                proc.wait_for_stop().await;
-                if !proc.may_respawn() {
-                    info!("[{name}] not restarting after reload: start conditions not met");
-                    proc.mark_restart_blocked_already_accounted();
-                    continue;
-                }
-                info!("[{name}] restarting with updated config");
-                if let Err(e) = proc.spawn(exit_tx.clone()) {
-                    warn!("[{name}] failed to restart: {e:#}");
-                }
+                proc.take_stop_wait()
+            };
+            if let Some(wait) = wait {
+                wait.run().await;
+            }
+
+            let mut procs = self.processes.write().await;
+            let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
+                continue;
+            };
+            proc.finish_stop();
+            if !proc.may_respawn() {
+                info!("[{name}] not restarting after reload: start conditions not met");
+                proc.mark_restart_blocked_already_accounted();
+                continue;
+            }
+            info!("[{name}] restarting with updated config");
+            if let Err(e) = proc.spawn(exit_tx.clone()) {
+                warn!("[{name}] failed to restart: {e:#}");
             }
         }
 
@@ -573,6 +602,59 @@ mod tests {
         );
         assert_eq!(resolve_index(&procs, "aabbccdd-1").unwrap(), 0);
         assert_eq!(resolve_index(&procs, "aabbccdd-2").unwrap(), 1);
+    }
+
+    /// A child that ignores the graceful stop, so the stop runs for the whole
+    /// `stop_timeout` rather than returning at once.
+    #[cfg(unix)]
+    fn ignores_stop_def(name: &str, stop_timeout_secs: u64) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::trap_term_sleep();
+        let mut config = test_helpers::make_config(cmd, args);
+        config.stop_timeout = Some(stop_timeout_secs);
+        ProcessDefinition {
+            name: name.to_string(),
+            config,
+        }
+    }
+
+    /// `list`, `describe`, `status`, and `config` read the process table
+    /// directly rather than through the command channel, so a stop that holds
+    /// the write lock while it waits takes all of them down with it: the daemon
+    /// is alive and answers nothing (AGENTRUN-1507).
+    ///
+    /// Unix-only for want of a portable child, not because the lock scope is
+    /// platform-specific: `handle_stop` is the same code everywhere. The test
+    /// needs one that outlives its graceful stop long enough to read around,
+    /// and on Windows a managed child has no console, so the stop cannot be
+    /// delivered and escalates straight to the kill this test must outlast.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_stop_leaves_reads_answerable() -> anyhow::Result<()> {
+        let mgr = ProcessManager::new(loader(vec![ignores_stop_def("svc", 60)]), uuid_gen());
+        let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
+        mgr.handle_start("svc", &exit_tx).await?;
+        let pid = mgr.processes().await[0].pid().expect("spawned pid");
+        // The child only ignores the graceful stop once its handler is in
+        // place. Signaling before that ends the stop at once, and a read taken
+        // after it finished proves nothing.
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        let stopping = tokio::spawn({
+            let mgr = mgr.clone();
+            async move { mgr.handle_stop("svc").await }
+        });
+        // Long enough for the stop to have taken the lock and started waiting,
+        // short enough to stay well inside its 60s timeout.
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        let read = tokio::time::timeout(std::time::Duration::from_secs(5), mgr.processes()).await;
+        let procs = read.map_err(|_| anyhow::anyhow!("a read queued behind an in-flight stop"))?;
+        assert_eq!(procs[0].state(), ProcessState::Running);
+        drop(procs);
+
+        stopping.abort();
+        test_helpers::cleanup_process(pid);
+        Ok(())
     }
 
     #[tokio::test]

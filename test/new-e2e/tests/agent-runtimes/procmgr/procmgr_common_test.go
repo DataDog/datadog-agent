@@ -75,6 +75,23 @@ func (s *baseProcmgrSuite) requireCLI() {
 	}
 }
 
+// retryCLIAction runs a mutating dd-procmgr command until it succeeds.
+//
+// A single attempt is not a fair test of the daemon: the CLI opens a fresh
+// connection per invocation, so one transport fault fails the command outright
+// and, with MustExecute, the whole test with it. alreadyDone is the daemon's
+// refusal when a retry finds the work done, which is a success here.
+func (s *baseProcmgrSuite) retryCLIAction(action, procName, alreadyDone string) {
+	s.T().Helper()
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd(action + " " + procName))
+		if err == nil || strings.Contains(err.Error(), alreadyDone) {
+			return
+		}
+		assert.NoError(ct, err, "%s %s: %s", action, procName, out)
+	}, 60*time.Second, 2*time.Second)
+}
+
 // ---------------------------------------------------------------------------
 // Shared tests — run on both Linux and Windows
 // ---------------------------------------------------------------------------
@@ -149,8 +166,8 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
 	}, 30*time.Second, 2*time.Second)
 
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("stop " + procName))
-	s.Env().RemoteHost.MustExecute(s.platform.cliCmd("start " + procName))
+	s.retryCLIAction("stop", procName, "is not running")
+	s.retryCLIAction("start", procName, "is already running")
 
 	var pidBeforeKill uint64
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {

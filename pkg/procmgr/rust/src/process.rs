@@ -111,6 +111,88 @@ enum RestartBlock {
     AlreadyAccounted,
 }
 
+/// What it takes to force-kill a child, held apart from [`ManagedProcess`] so a
+/// stop can escalate after the manager has released it.
+struct ProcessKiller {
+    pid: Option<u32>,
+    #[cfg(windows)]
+    job_object: Option<platform::JobObject>,
+}
+
+impl ProcessKiller {
+    fn force_kill(&mut self, name: &str) {
+        #[cfg(windows)]
+        if let Some(ref job) = self.job_object {
+            if let Err(e) = job.terminate() {
+                warn!("[{name}] job object terminate failed: {e}");
+            } else {
+                self.job_object = None;
+                return;
+            }
+        }
+
+        if let Some(pid) = self.pid
+            && let Err(e) = platform::send_force_kill(pid)
+        {
+            warn!("[{name}] force kill failed: {e}");
+        }
+    }
+}
+
+/// The waiting half of a stop, self-contained so that it can be awaited without
+/// the lock guarding the process it belongs to.
+///
+/// A stop runs for as long as `stop_timeout`, which read-only RPCs must not
+/// queue behind: from the outside, a manager that cannot answer `list` for a
+/// minute and a half is indistinguishable from a dead one.
+pub(crate) struct StopWait {
+    name: String,
+    handle: JoinHandle<()>,
+    /// How long to let the child exit on its own. `None` escalates at once,
+    /// which is the only useful answer when it was never asked to stop.
+    timeout: Option<Duration>,
+    killer: ProcessKiller,
+}
+
+impl StopWait {
+    pub(crate) async fn run(self) {
+        let StopWait {
+            name,
+            handle,
+            timeout,
+            mut killer,
+        } = self;
+        tokio::pin!(handle);
+
+        let escalate = match timeout {
+            None => {
+                warn!("[{name}] graceful stop was not delivered, force-killing now");
+                true
+            }
+            Some(stop) => {
+                let timed_out = time::timeout(stop, &mut handle).await.is_err();
+                if timed_out {
+                    warn!(
+                        "[{name}] stop timeout ({}s) reached, force-killing",
+                        stop.as_secs()
+                    );
+                }
+                timed_out
+            }
+        };
+
+        if escalate {
+            killer.force_kill(&name);
+            if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, handle)
+                .await
+                .is_err()
+            {
+                warn!("[{name}] still running after force-kill, giving up");
+            }
+        }
+    }
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -122,6 +204,9 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
+    /// Set by `request_stop` when the stop signal never reached the child, so
+    /// `wait_for_stop` knows waiting out `stop_timeout` would change nothing.
+    graceful_stop_failed: bool,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
     restart_block: RestartBlock,
@@ -164,6 +249,7 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             stop_requested: false,
+            graceful_stop_failed: false,
             restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
@@ -392,6 +478,7 @@ impl ManagedProcess {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.stop_requested = false;
+        self.graceful_stop_failed = false;
         // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
         self.restart_block = RestartBlock::None;
@@ -475,34 +562,21 @@ impl ManagedProcess {
         if self.is_running() {
             self.stop_requested = true;
             info!("[{}] sending graceful stop (stop requested)", self.name);
-            self.graceful_stop();
+            self.graceful_stop_failed = !self.graceful_stop();
         }
     }
 
-    fn graceful_stop(&self) {
-        if let Some(pid) = self.pid
-            && let Err(e) = platform::send_graceful_stop(pid)
-        {
+    /// Ask the child to exit. Returns whether the request reached it.
+    fn graceful_stop(&self) -> bool {
+        let Some(pid) = self.pid else {
+            warn!("[{}] no pid to send a graceful stop to", self.name);
+            return false;
+        };
+        if let Err(e) = platform::send_graceful_stop(pid) {
             warn!("[{}] graceful stop failed: {e}", self.name);
+            return false;
         }
-    }
-
-    fn force_kill(&mut self) {
-        #[cfg(windows)]
-        if let Some(ref job) = self.job_object {
-            if let Err(e) = job.terminate() {
-                warn!("[{}] job object terminate failed: {e}", self.name);
-            } else {
-                self.job_object = None;
-                return;
-            }
-        }
-
-        if let Some(pid) = self.pid
-            && let Err(e) = platform::send_force_kill(pid)
-        {
-            warn!("[{}] force kill failed: {e}", self.name);
-        }
+        true
     }
 
     #[cfg(unix)]
@@ -529,23 +603,39 @@ impl ManagedProcess {
         if !self.is_running() {
             return;
         }
-        let stop = self.stop_timeout();
-        if let Some(handle) = self.watcher_handle.take() {
-            tokio::pin!(handle);
-            if time::timeout(stop, &mut handle).await.is_err() {
-                warn!(
-                    "[{}] stop timeout ({}s) reached, force-killing",
-                    self.name,
-                    stop.as_secs()
-                );
-                self.force_kill();
-                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle)
-                    .await
-                    .is_err()
-                {
-                    warn!("[{}] still running after force-kill, giving up", self.name);
-                }
-            }
+        if let Some(wait) = self.take_stop_wait() {
+            wait.run().await;
+        }
+        self.finish_stop();
+    }
+
+    /// Detach the part of a stop that only waits, so a caller holding a shared
+    /// lock can release it first. `finish_stop` must follow once the returned
+    /// [`StopWait`] has run. Returns `None` when there is nothing to wait for.
+    pub(crate) fn take_stop_wait(&mut self) -> Option<StopWait> {
+        if !self.is_running() {
+            return None;
+        }
+        let handle = self.watcher_handle.take()?;
+        Some(StopWait {
+            name: self.name.clone(),
+            handle,
+            // A stop that never reached the child leaves nothing to wait for:
+            // the timeout would pass with the process untouched.
+            timeout: (!self.graceful_stop_failed).then(|| self.stop_timeout()),
+            killer: ProcessKiller {
+                pid: self.pid,
+                #[cfg(windows)]
+                job_object: self.job_object.take(),
+            },
+        })
+    }
+
+    /// Record the stop that [`StopWait::run`] carried out. A process that is no
+    /// longer alive was never this stop's to mark.
+    pub(crate) fn finish_stop(&mut self) {
+        if !self.is_running() {
+            return;
         }
         self.mark_stopped();
     }
@@ -1234,6 +1324,40 @@ runtime_success_sec: 5
         let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    /// A graceful stop that never reached the child leaves nothing to wait for,
+    /// so the timeout only postpones the kill. On Windows this is the common
+    /// case, not the rare one: a managed child has no console of its own, so
+    /// `AttachConsole` fails and `CTRL_BREAK` is never delivered.
+    #[tokio::test]
+    async fn test_undelivered_graceful_stop_skips_the_stop_timeout() {
+        let (cmd, args) = test_helpers::trap_term_sleep();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.stop_timeout = Some(30);
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+        let mut exit_rx = spawn_ok(&mut proc);
+        // The child only ignores the graceful stop once its handler is in
+        // place. Signaling before that kills it, which would leave nothing to
+        // force-kill and pass the assertion below for the wrong reason.
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+        proc.request_stop();
+        // What a failed `send_graceful_stop` records. Set here rather than
+        // provoked, since making the platform call fail against a live child is
+        // not portable.
+        proc.graceful_stop_failed = true;
+
+        let started = std::time::Instant::now();
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "an undelivered stop should force-kill instead of waiting out stop_timeout (took {:?})",
+            started.elapsed()
+        );
     }
 
     #[tokio::test]
