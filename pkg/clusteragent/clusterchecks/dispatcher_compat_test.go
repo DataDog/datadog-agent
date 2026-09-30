@@ -236,6 +236,33 @@ func TestUseUtilizationRebalance(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
+// TestUpdateRunnersStatsFetchesWorkersWhenCompatForcesUtilization covers
+// rebalance_with_utilization=false with compat declared: the utilization
+// algorithm is forced, so worker counts must be fetched, otherwise every
+// runner's utilization is 0 and nothing is ever rebalanced.
+func TestUpdateRunnersStatsFetchesWorkersWhenCompatForcesUtilization(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.rebalance_with_utilization", false)
+	dispatcher := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	dispatcher.clcRunnersClient = &rebalanceTestClcRunnerClient{testStats: map[string]types.CLCRunnersStats{}}
+	workers := func() int {
+		dispatcher.store.RLock()
+		defer dispatcher.store.RUnlock()
+		return dispatcher.store.nodes["runner1"].workers
+	}
+
+	// No compat: busyness algorithm, worker counts aren't needed.
+	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, nil)
+	dispatcher.updateRunnersStats()
+	assert.Zero(t, workers())
+
+	// Compat declared: utilization is forced, worker counts are fetched.
+	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner, kubeCompat())
+	dispatcher.updateRunnersStats()
+	assert.Equal(t, constants.DefaultNumWorkers, workers())
+
+	requireNotLocked(t, dispatcher.store)
+}
+
 // rebalanceWorker is a CLC runner registered by newRebalanceDispatcher, with
 // the cluster checks it currently runs (check ID -> check name).
 type rebalanceWorker struct {

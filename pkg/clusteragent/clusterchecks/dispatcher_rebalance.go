@@ -259,14 +259,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 
 // useUtilizationRebalance picks the rebalance algorithm; compat declarations force the utilization one (the only compat-aware).
 func (d *dispatcher) useUtilizationRebalance() bool {
-	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
-		return true
-	}
-	if d.anyCompatDeclared() {
-		log.Warn("Cluster check runner compatibility declarations are present: falling back to the utilization rebalance algorithm, the busyness algorithm does not support compatibility groups")
-		return true
-	}
-	return false
+	return pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") || d.anyCompatDeclared()
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster

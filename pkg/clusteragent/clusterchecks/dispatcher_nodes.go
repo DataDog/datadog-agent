@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -289,6 +288,10 @@ func (d *dispatcher) updateRunnersStats() {
 		updateStatsDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
 	}()
 
+	// Worker counts feed the utilization algorithm, also when compat forces it.
+	// Computed before locking the store: it takes the store read lock itself.
+	fetchWorkers := d.useUtilizationRebalance()
+
 	d.store.Lock()
 	defer d.store.Unlock()
 	for name, node := range d.store.nodes {
@@ -296,7 +299,7 @@ func (d *dispatcher) updateRunnersStats() {
 		ip := node.clientIP
 		node.RUnlock()
 
-		if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+		if fetchWorkers {
 			workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
 			if err != nil {
 				// This can happen in old versions of the runners that do not expose this information.
