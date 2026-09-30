@@ -56,6 +56,7 @@ type queuedSend struct {
 type fakePayload struct {
 	id           uint64
 	body         []byte
+	route        Route
 	acked        []bool
 	dropped      []bool
 	batchOn      []uint32
@@ -174,8 +175,10 @@ func (c *FakeCore) hasCapacityLocked() bool {
 	return !c.shuttingDown && !c.abandoned && c.inflight < c.maxInflight
 }
 
-// PushLog offers one record.
-func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64) (Admission, Progress) {
+// PushLog offers one record. Only senders named in route receive it; a
+// reliable sender excluded from route contributes nothing to reliableLeft, or
+// the payload would wait forever on an ack from a sender it was never sent to.
+func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64, route Route) (Admission, Progress) {
 	c.enterIngest()
 	defer c.leaveIngest()
 	c.mu.Lock()
@@ -195,21 +198,27 @@ func (c *FakeCore) PushLog(record Record, nowNanos uint64, metadataID uint64) (A
 	p := &fakePayload{
 		id:      metadataID,
 		body:    body,
+		route:   route,
 		acked:   make([]bool, len(c.classes)),
 		dropped: make([]bool, len(c.classes)),
 		batchOn: make([]uint32, len(c.classes)),
 	}
 	for i, class := range c.classes {
+		if !route.Contains(SenderID(i)) {
+			continue
+		}
 		if class == Reliable {
 			p.reliableLeft++
 		}
-		_ = i
 	}
 	c.pending[metadataID] = p
 	c.order = append(c.order, metadataID)
 
 	wake := make([]SenderID, 0, len(c.classes))
 	for i := range c.classes {
+		if !route.Contains(SenderID(i)) {
+			continue
+		}
 		c.enqueueSendLocked(SenderID(i), metadataID, body)
 		wake = append(wake, SenderID(i))
 	}
@@ -281,8 +290,7 @@ func (c *FakeCore) Abandon() Progress {
 	}
 	if len(ids) > 0 {
 		c.notifications = append(c.notifications, Notification{
-			Kind:        PayloadDropped,
-			Abandoned:   true,
+			Kind:        PayloadAbandoned,
 			MetadataIDs: ids,
 		})
 		c.inflight = 0
@@ -383,7 +391,9 @@ func (c *FakeCore) resolveLocked(p *fakePayload, n Notification) {
 }
 
 // Drop marks a sender as having given up on an in-flight payload without
-// acknowledging it. Unreliable drops never resolve the auditor.
+// acknowledging it. A non-abandoning drop is telemetry only: it names no
+// record and never resolves the auditor. An abandoning drop from a reliable
+// sender is a resolution: it names the record and ends its life.
 func (c *FakeCore) Drop(sender SenderID, stream StreamID, abandoned bool) Progress {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
@@ -397,20 +407,31 @@ func (c *FakeCore) Drop(sender SenderID, stream StreamID, abandoned bool) Progre
 		if p == nil || p.resolved || p.acked[sender] || p.dropped[sender] {
 			continue
 		}
+		if !p.route.Contains(sender) {
+			continue
+		}
 		p.dropped[sender] = true
+		if !abandoned {
+			c.notifications = append(c.notifications, Notification{
+				Kind:      DroppedStats,
+				Sender:    sender,
+				HasSender: true,
+				Records:   1,
+				Bytes:     uint64(len(p.body)),
+			})
+			continue
+		}
 		c.notifications = append(c.notifications, Notification{
-			Kind:        PayloadDropped,
+			Kind:        PayloadAbandoned,
 			Sender:      sender,
 			HasSender:   true,
-			Abandoned:   abandoned,
 			MetadataIDs: []uint64{p.id},
 		})
-		if abandoned && c.classes[sender] == Reliable {
+		if c.classes[sender] == Reliable {
 			c.resolveLocked(p, Notification{
-				Kind:        PayloadDropped,
+				Kind:        PayloadAbandoned,
 				Sender:      sender,
 				HasSender:   true,
-				Abandoned:   true,
 				MetadataIDs: []uint64{p.id},
 			})
 		}
