@@ -35,8 +35,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -182,15 +180,18 @@ func NewServer(options ...Option) *Server {
 	}))
 
 	fi.grpc = newStatefulGRPC(fi)
-	h2s := &http2.Server{}
-	fi.server.Handler = h2c.NewHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	protocols := &http.Protocols{}
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+	fi.server.Protocols = protocols
+	fi.server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Fakeintake-ID", fi.uuid.String())
 		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
 			fi.grpc.ServeHTTP(w, r)
 			return
 		}
 		mux.ServeHTTP(w, r)
-	}), h2s)
+	})
 
 	return fi
 }
