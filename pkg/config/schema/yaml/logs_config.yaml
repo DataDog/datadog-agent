@@ -153,6 +153,15 @@ properties:
         node_type: setting
         type: integer
         default: 5242880
+      stream_lifetime:
+        node_type: setting
+        type: string
+        default: 15m
+        comment: |-
+          Positive stream interning-epoch lifetime with units (e.g. 15m or 90s).
+          Independent of HTTP connection_reset_interval. Zero, negative and
+          malformed durations are rejected by the foldspace destination builder.
+          For accelerated replay, scale with batch_wait by effective replay speed.
       shutdown_timeout:
         node_type: setting
         type: string
