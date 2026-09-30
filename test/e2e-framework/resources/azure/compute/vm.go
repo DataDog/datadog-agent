@@ -150,11 +150,8 @@ func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, ena
 	copy(nwOpts, opts)
 	nwOpts = append(nwOpts, e.WithProviders(config.ProviderAzure))
 	nwInt, err := network.NewNetworkInterface(e.Ctx(), e.Namer.ResourceName(name), &network.NetworkInterfaceArgs{
-		NetworkInterfaceName: e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),
-		ResourceGroupName:    pulumi.String(e.DefaultResourceGroup()),
-		NetworkSecurityGroup: network.NetworkSecurityGroupTypeArgs{
-			Id: pulumi.String(e.DefaultSecurityGroup()),
-		},
+		NetworkInterfaceName:        e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),
+		ResourceGroupName:           pulumi.String(e.DefaultResourceGroup()),
 		EnableAcceleratedNetworking: pulumi.BoolPtr(enableAcceleratedNetworking),
 		IpConfigurations: network.NetworkInterfaceIPConfigurationArray{
 			network.NetworkInterfaceIPConfigurationArgs{
