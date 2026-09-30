@@ -30,41 +30,40 @@ const (
 	defaultPingCount      = 1
 	defaultPingIntervalMs = 1000
 	defaultPingTimeoutMs  = 1000
-	maxPingCount          = 10
-	maxPingIntervalMs     = 60_000
-	maxPingTimeoutMs      = 60_000
+	maxPingCount          = 1000
+	maxPingIntervalMs     = 3_600_000
+	maxPingTimeoutMs      = 3_600_000
 )
 
 // Defaults and bounds of the snmp probe options. An out-of-bounds value falls
 // back to its default.
 const (
-	defaultSNMPPort      = 161
-	defaultSNMPTimeoutMs = 2000
-	defaultSNMPRetries   = 1
-	maxSNMPTimeoutMs     = 60_000
-	maxSNMPRetries       = 10
+	defaultSNMPPort       = 161
+	defaultSNMPTimeoutSec = 2
+	defaultSNMPRetries    = 1
+	maxSNMPTimeoutSec     = 3600
+	maxSNMPRetries        = 100
 )
 
 // pingJSON is the ping block of a range's probes object.
 type pingJSON struct {
-	Count      int `json:"count"`
-	IntervalMs int `json:"interval_ms"`
-	TimeoutMs  int `json:"timeout_ms"`
+	Count      int            `json:"count"`
+	IntervalMs int            `json:"interval_ms"`
+	TimeoutMs  int            `json:"timeout_ms"`
+	Linux      *pingLinuxJSON `json:"linux"`
 }
 
-// credRef is one credential a range references. Name is resolved against the
-// credential files on this Agent, ID is reported back as the probe's cred_id.
-type credRef struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+// pingLinuxJSON is the linux block of a range's ping options.
+type pingLinuxJSON struct {
+	UseRawSocket *bool `json:"use_raw_socket"`
 }
 
 // snmpJSON is the snmp block of a range's probes object.
 type snmpJSON struct {
-	Creds     []credRef `json:"creds"`
-	Port      int       `json:"port"`
-	TimeoutMs int       `json:"timeout_ms"`
-	Retries   *int      `json:"retries"`
+	CredIDs    []string `json:"cred_ids"`
+	Port       int      `json:"port"`
+	TimeoutSec int      `json:"timeout_sec"`
+	Retries    *int     `json:"retries"`
 }
 
 // snmpParams is the snmp probe's per-range configuration. The credentials are
@@ -73,7 +72,7 @@ type snmpParams struct {
 	Port    uint16
 	Timeout time.Duration
 	Retries int
-	Creds   []credRef
+	CredIDs []string
 }
 
 // probeParams is one range's usable probes. A nil field is a probe that does
@@ -154,11 +153,18 @@ func parsePing(body json.RawMessage, ping pingprobe.Capability, logger log.Compo
 		}
 	}
 
+	// The document can only turn the raw socket off, never on over what the
+	// Agent is able to do.
+	useRawSocket := ping.UseRawSocket
+	if opts.Linux != nil && opts.Linux.UseRawSocket != nil && !*opts.Linux.UseRawSocket {
+		useRawSocket = false
+	}
+
 	return &pingprobe.Options{
 		Count:        count,
 		Interval:     time.Duration(intervalMs) * time.Millisecond,
 		Timeout:      time.Duration(timeoutMs) * time.Millisecond,
-		UseRawSocket: ping.UseRawSocket,
+		UseRawSocket: useRawSocket,
 	}, nil
 }
 
@@ -167,12 +173,12 @@ func parseSNMP(body json.RawMessage, logger log.Component) (*snmpParams, error) 
 	if err := json.Unmarshal(body, &opts); err != nil {
 		return nil, fmt.Errorf("the snmp options are not an object: %w", err)
 	}
-	if len(opts.Creds) == 0 {
-		return nil, errors.New("creds must hold at least one credential")
+	if len(opts.CredIDs) == 0 {
+		return nil, errors.New("cred_ids must hold at least one credential id")
 	}
-	for _, c := range opts.Creds {
-		if c.Name == "" {
-			return nil, errors.New("every entry of creds needs a name")
+	for _, id := range opts.CredIDs {
+		if id == "" {
+			return nil, errors.New("every entry of cred_ids must be a credential id")
 		}
 	}
 
@@ -185,12 +191,12 @@ func parseSNMP(body json.RawMessage, logger log.Component) (*snmpParams, error) 
 		}
 	}
 
-	timeoutMs := defaultSNMPTimeoutMs
-	if opts.TimeoutMs != 0 {
-		if opts.TimeoutMs >= 1 && opts.TimeoutMs <= maxSNMPTimeoutMs {
-			timeoutMs = opts.TimeoutMs
+	timeoutSec := defaultSNMPTimeoutSec
+	if opts.TimeoutSec != 0 {
+		if opts.TimeoutSec >= 1 && opts.TimeoutSec <= maxSNMPTimeoutSec {
+			timeoutSec = opts.TimeoutSec
 		} else {
-			logger.Warnf("ndmdiscovery: snmp timeout_ms %d is out of range (expected 1-%d), using %d", opts.TimeoutMs, maxSNMPTimeoutMs, defaultSNMPTimeoutMs)
+			logger.Warnf("ndmdiscovery: snmp timeout_sec %d is out of range (expected 1-%d), using %d", opts.TimeoutSec, maxSNMPTimeoutSec, defaultSNMPTimeoutSec)
 		}
 	}
 
@@ -206,9 +212,9 @@ func parseSNMP(body json.RawMessage, logger log.Component) (*snmpParams, error) 
 
 	return &snmpParams{
 		Port:    uint16(port),
-		Timeout: time.Duration(timeoutMs) * time.Millisecond,
+		Timeout: time.Duration(timeoutSec) * time.Second,
 		Retries: retries,
-		Creds:   opts.Creds,
+		CredIDs: opts.CredIDs,
 	}, nil
 }
 
@@ -226,7 +232,7 @@ func (p probeParams) resolve(store credentialStore) (probe.Options, []string) {
 	}
 
 	if p.SNMP != nil {
-		creds, err := resolveSNMPCredentials(store, p.SNMP.Creds)
+		creds, err := resolveSNMPCredentials(store, p.SNMP.CredIDs)
 		if err != nil {
 			dropped = append(dropped, fmt.Sprintf("skipping the snmp probe for this cycle: %v", err))
 		} else {
@@ -242,10 +248,10 @@ func (p probeParams) resolve(store credentialStore) (probe.Options, []string) {
 	return opts, dropped
 }
 
-// resolveSNMPCredentials maps a range's credential references to credentials,
-// keeping the configured order so the most likely credential is tried first.
-func resolveSNMPCredentials(store credentialStore, refs []credRef) ([]snmpprobe.Credential, error) {
-	if len(refs) == 0 {
+// resolveSNMPCredentials maps a range's credential ids to credentials, keeping
+// the configured order so the most likely credential is tried first.
+func resolveSNMPCredentials(store credentialStore, ids []string) ([]snmpprobe.Credential, error) {
+	if len(ids) == 0 {
 		return nil, errors.New("the range references no credentials")
 	}
 
@@ -254,18 +260,14 @@ func resolveSNMPCredentials(store credentialStore, refs []credRef) ([]snmpprobe.
 		return nil, err
 	}
 
-	creds := make([]snmpprobe.Credential, 0, len(refs))
-	for _, ref := range refs {
-		c, ok := available[ref.Name]
+	creds := make([]snmpprobe.Credential, 0, len(ids))
+	for _, id := range ids {
+		c, ok := available[id]
 		if !ok {
-			return nil, fmt.Errorf("credential %q is not available on this agent", ref.Name)
+			return nil, fmt.Errorf("credential %q is not available on this agent", id)
 		}
 		if err := credentials.Validate(c); err != nil {
 			return nil, err
-		}
-		id := ref.ID
-		if id == "" {
-			id = c.Name
 		}
 		creds = append(creds, snmpprobe.Credential{
 			ID:           id,

@@ -44,8 +44,8 @@ const oneRange = `{"ranges":[{
 	"ignored_ip_addresses":["10.0.0.1"],
 	"tags":["site:paris"],
 	"probes":{
-		"ping":{"count":2,"interval_ms":500,"timeout_ms":1000},
-		"snmp":{"creds":[{"id":"cred-a","name":"cred-a"}],"port":1161,"timeout_ms":2000,"retries":0}
+		"ping":{"count":2,"interval_ms":500,"timeout_ms":1000,"linux":{"use_raw_socket":false}},
+		"snmp":{"cred_ids":["cred-a"],"port":1161,"timeout_sec":2,"retries":0}
 	}
 }]}`
 
@@ -73,8 +73,8 @@ func TestSnapshotPassesTheWholePayloadThrough(t *testing.T) {
 	assert.Equal(t, []string{"site:paris"}, r.Tags)
 
 	require.Len(t, r.Probes, 2)
-	assert.JSONEq(t, `{"count":2,"interval_ms":500,"timeout_ms":1000}`, string(r.Probes["ping"]))
-	assert.JSONEq(t, `{"creds":[{"id":"cred-a","name":"cred-a"}],"port":1161,"timeout_ms":2000,"retries":0}`, string(r.Probes["snmp"]),
+	assert.JSONEq(t, `{"count":2,"interval_ms":500,"timeout_ms":1000,"linux":{"use_raw_socket":false}}`, string(r.Probes["ping"]))
+	assert.JSONEq(t, `{"cred_ids":["cred-a"],"port":1161,"timeout_sec":2,"retries":0}`, string(r.Probes["snmp"]),
 		"the handler never interprets a probe block")
 }
 

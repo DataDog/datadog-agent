@@ -46,8 +46,8 @@ func (s *stubCredentialStore) loadCount() int {
 
 func v2cStore() *stubCredentialStore {
 	return &stubCredentialStore{creds: map[string]credentials.Credential{
-		"cred-1": {Name: "cred-1", SNMPVersion: "2c", CommunityString: "public"},
-		"cred-2": {Name: "cred-2", SNMPVersion: "2c", CommunityString: "other"},
+		"cred-1": {ID: "cred-1", Name: "one", SNMPVersion: "2c", CommunityString: "public"},
+		"cred-2": {ID: "cred-2", Name: "two", SNMPVersion: "2c", CommunityString: "other"},
 	}}
 }
 
@@ -67,7 +67,7 @@ func raw(t *testing.T, kinds map[string]string) map[string]json.RawMessage {
 func TestParseProbesReadsBothKinds(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{"count":3,"interval_ms":200,"timeout_ms":1500}`,
-		"snmp": `{"creds":[{"id":"cred-1","name":"cred-1"}],"port":1161,"timeout_ms":3000,"retries":0}`,
+		"snmp": `{"cred_ids":["cred-1"],"port":1161,"timeout_sec":3,"retries":0}`,
 	}), available(), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
@@ -79,13 +79,13 @@ func TestParseProbesReadsBothKinds(t *testing.T) {
 	assert.Equal(t, uint16(1161), params.SNMP.Port)
 	assert.Equal(t, 3*time.Second, params.SNMP.Timeout)
 	assert.Equal(t, 0, params.SNMP.Retries)
-	assert.Equal(t, []credRef{{ID: "cred-1", Name: "cred-1"}}, params.SNMP.Creds)
+	assert.Equal(t, []string{"cred-1"}, params.SNMP.CredIDs)
 }
 
 func TestParseProbesAppliesTheDefaults(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"creds":[{"id":"cred-1","name":"cred-1"}]}`,
+		"snmp": `{"cred_ids":["cred-1"]}`,
 	}), available(), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
@@ -95,14 +95,14 @@ func TestParseProbesAppliesTheDefaults(t *testing.T) {
 
 	require.NotNil(t, params.SNMP)
 	assert.Equal(t, uint16(defaultSNMPPort), params.SNMP.Port)
-	assert.Equal(t, time.Duration(defaultSNMPTimeoutMs)*time.Millisecond, params.SNMP.Timeout)
+	assert.Equal(t, time.Duration(defaultSNMPTimeoutSec)*time.Second, params.SNMP.Timeout)
 	assert.Equal(t, defaultSNMPRetries, params.SNMP.Retries)
 }
 
 func TestParseProbesFallsBackOnAnOutOfBoundsKnob(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
-		"ping": `{"count":9000,"interval_ms":-1,"timeout_ms":600000}`,
-		"snmp": `{"creds":[{"id":"cred-1","name":"cred-1"}],"port":70000,"timeout_ms":600000,"retries":99}`,
+		"ping": `{"count":9000,"interval_ms":-1,"timeout_ms":4000000}`,
+		"snmp": `{"cred_ids":["cred-1"],"port":70000,"timeout_sec":4000,"retries":999}`,
 	}), available(), logmock.New(t))
 
 	require.NotNil(t, params.Ping)
@@ -112,7 +112,7 @@ func TestParseProbesFallsBackOnAnOutOfBoundsKnob(t *testing.T) {
 
 	require.NotNil(t, params.SNMP)
 	assert.Equal(t, uint16(defaultSNMPPort), params.SNMP.Port)
-	assert.Equal(t, time.Duration(defaultSNMPTimeoutMs)*time.Millisecond, params.SNMP.Timeout)
+	assert.Equal(t, time.Duration(defaultSNMPTimeoutSec)*time.Second, params.SNMP.Timeout)
 	assert.Equal(t, defaultSNMPRetries, params.SNMP.Retries)
 }
 
@@ -127,7 +127,7 @@ func TestParseProbesCarriesTheDetectedSocketType(t *testing.T) {
 func TestParseProbesDropsPingWhenItIsNotAvailable(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"creds":[{"id":"cred-1","name":"cred-1"}]}`,
+		"snmp": `{"cred_ids":["cred-1"]}`,
 	}), pingprobe.Capability{Reason: "ping is not supported on plan9"}, logmock.New(t))
 
 	assert.Nil(t, params.Ping)
@@ -136,11 +136,11 @@ func TestParseProbesDropsPingWhenItIsNotAvailable(t *testing.T) {
 
 func TestParseProbesDropsWhatItCannotUse(t *testing.T) {
 	tests := map[string]map[string]string{
-		"a malformed ping block":    {"ping": `"not-an-object"`},
-		"a malformed snmp block":    {"snmp": `[]`},
-		"snmp with no credential":   {"snmp": `{"creds":[]}`},
-		"a credential with no name": {"snmp": `{"creds":[{"id":"cred-1"}]}`},
-		"an unknown kind":           {"ssh": `{}`},
+		"a malformed ping block":  {"ping": `"not-an-object"`},
+		"a malformed snmp block":  {"snmp": `[]`},
+		"snmp with no credential": {"snmp": `{"cred_ids":[]}`},
+		"a blank credential id":   {"snmp": `{"cred_ids":[""]}`},
+		"an unknown kind":         {"ssh": `{}`},
 	}
 
 	for name, kinds := range tests {
@@ -156,7 +156,7 @@ func TestParseProbesDropsWhatItCannotUse(t *testing.T) {
 func TestResolveBuildsTheProbeOptionsInProbeOrder(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"creds":[{"id":"cred-2","name":"cred-2"},{"id":"cred-1","name":"cred-1"}]}`,
+		"snmp": `{"cred_ids":["cred-2","cred-1"]}`,
 	}), available(), logmock.New(t))
 
 	opts, dropped := params.resolve(v2cStore())
@@ -177,7 +177,7 @@ func TestResolveBuildsTheProbeOptionsInProbeOrder(t *testing.T) {
 func TestResolveDropsOnlyTheProbeWhoseCredentialIsMissing(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
 		"ping": `{}`,
-		"snmp": `{"creds":[{"id":"cred-9","name":"cred-9"}]}`,
+		"snmp": `{"cred_ids":["cred-9"]}`,
 	}), available(), logmock.New(t))
 
 	opts, dropped := params.resolve(v2cStore())
@@ -190,7 +190,7 @@ func TestResolveDropsOnlyTheProbeWhoseCredentialIsMissing(t *testing.T) {
 
 func TestResolveSurfacesALoadFailureWithoutTheCredentialMaterial(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"creds":[{"id":"cred-1","name":"cred-1"}]}`,
+		"snmp": `{"cred_ids":["cred-1"]}`,
 	}), available(), logmock.New(t))
 
 	opts, dropped := params.resolve(&stubCredentialStore{err: errors.New("the secret backend is down")})
@@ -203,11 +203,11 @@ func TestResolveSurfacesALoadFailureWithoutTheCredentialMaterial(t *testing.T) {
 
 func TestResolveRejectsAnInvalidCredential(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"creds":[{"id":"cred-bad","name":"cred-bad"}]}`,
+		"snmp": `{"cred_ids":["cred-bad"]}`,
 	}), available(), logmock.New(t))
 
 	store := &stubCredentialStore{creds: map[string]credentials.Credential{
-		"cred-bad": {Name: "cred-bad", SNMPVersion: "9", CommunityString: "s3cret-community"},
+		"cred-bad": {ID: "cred-bad", Name: "cred-bad", SNMPVersion: "9", CommunityString: "s3cret-community"},
 	}}
 
 	opts, dropped := params.resolve(store)
@@ -220,7 +220,7 @@ func TestResolveRejectsAnInvalidCredential(t *testing.T) {
 
 func TestResolveReadsTheStoreOnEveryCall(t *testing.T) {
 	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"creds":[{"id":"cred-1","name":"cred-1"}]}`,
+		"snmp": `{"cred_ids":["cred-1"]}`,
 	}), available(), logmock.New(t))
 	store := v2cStore()
 
@@ -230,29 +230,25 @@ func TestResolveReadsTheStoreOnEveryCall(t *testing.T) {
 	assert.Equal(t, 2, store.loadCount())
 }
 
-func TestResolveReportsTheCredentialIDNotItsName(t *testing.T) {
-	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"creds":[{"id":"7f3c-e21a","name":"cred-1"}]}`,
-	}), available(), logmock.New(t))
+func TestParseProbesLetsTheDocumentTurnTheRawSocketOffButNotOn(t *testing.T) {
+	tests := map[string]struct {
+		body    string
+		capable bool
+		want    bool
+	}{
+		"off over a capable agent":   {body: `{"linux":{"use_raw_socket":false}}`, capable: true},
+		"on over a capable agent":    {body: `{"linux":{"use_raw_socket":true}}`, capable: true, want: true},
+		"on over an incapable agent": {body: `{"linux":{"use_raw_socket":true}}`},
+		"unset over a capable agent": {body: `{}`, capable: true, want: true},
+	}
 
-	opts, dropped := params.resolve(v2cStore())
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			params := parseProbes("r1", raw(t, map[string]string{"ping": tc.body}),
+				pingprobe.Capability{Available: true, UseRawSocket: tc.capable}, logmock.New(t))
 
-	assert.Empty(t, dropped)
-	require.NotNil(t, opts.SNMP)
-	require.Len(t, opts.SNMP.Credentials, 1)
-	assert.Equal(t, "7f3c-e21a", opts.SNMP.Credentials[0].ID)
-	assert.Equal(t, "public", opts.SNMP.Credentials[0].Community)
-}
-
-func TestResolveFallsBackToTheCredentialNameWhenTheIDIsEmpty(t *testing.T) {
-	params := parseProbes("r1", raw(t, map[string]string{
-		"snmp": `{"creds":[{"name":"cred-1"}]}`,
-	}), available(), logmock.New(t))
-
-	opts, dropped := params.resolve(v2cStore())
-
-	assert.Empty(t, dropped)
-	require.NotNil(t, opts.SNMP)
-	require.Len(t, opts.SNMP.Credentials, 1)
-	assert.Equal(t, "cred-1", opts.SNMP.Credentials[0].ID)
+			require.NotNil(t, params.Ping)
+			assert.Equal(t, tc.want, params.Ping.UseRawSocket)
+		})
+	}
 }
