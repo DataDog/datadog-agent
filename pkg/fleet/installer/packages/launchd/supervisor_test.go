@@ -69,7 +69,7 @@ func TestDeadlineExpiredCases(t *testing.T) {
 
 	t.Run("a deadline comfortably within the window is not expired", func(t *testing.T) {
 		d := testDeadline(t)
-		require.NoError(t, d.Write(30 * time.Minute))
+		require.NoError(t, d.Write(30*time.Minute))
 		expired, err := d.Expired(time.Hour)
 		require.NoError(t, err)
 		assert.False(t, expired)
