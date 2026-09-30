@@ -19,7 +19,6 @@ new-e2e-agent-runtimes-windows:
     - changes:
         paths:
           - pkg/procmgr/**/*
-          - comp/procmgr/**/*
           - pkg/fleet/installer/packages/embedded/tmpl/gen/windows/**/*
           - pkg/fleet/installer/packages/processmanager/*_windows.go
           - pkg/fleet/installer/packages/datadog_agent_windows.go
