@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -27,6 +28,25 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSchemaRelationsDoNotEmitObjectIDs(t *testing.T) {
+	for name, relation := range map[string]any{
+		"table": schemaTable{Name: "ORDERS", Owner: "APP"},
+		"view":  viewObject{Name: "ORDERS", Owner: "APP"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, hasID := reflect.TypeOf(relation).FieldByName("ID")
+			assert.False(t, hasID)
+			payload, err := json.Marshal(relation)
+			require.NoError(t, err)
+			var fields map[string]any
+			require.NoError(t, json.Unmarshal(payload, &fields))
+			assert.NotContains(t, fields, "id")
+			assert.Equal(t, "ORDERS", fields["name"])
+			assert.Equal(t, "APP", fields["owner"])
+		})
+	}
+}
 
 func newSchemaCheck(t *testing.T) (Check, *sqlx.DB, sqlmock.Sqlmock, func()) {
 	db, dbMock, err := sqlmock.New()
