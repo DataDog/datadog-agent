@@ -106,7 +106,9 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
 
     // Workload profiles v2 syscall sampler. Gate on sampled_cgroups to keep host/systemd syscalls
     // out of the sample LRU and rate limiter. Armed in-kernel at cgroup_write, pruned by userspace.
-    if (!event->process.is_kworker && bpf_map_lookup_elem(&sampled_cgroups, &event->cgroup.path_key.ino) != NULL) {
+    // The map key must live on the stack (event is a per-CPU map value, rejected as a key).
+    u64 sampled_cgroup_ino = event->cgroup.path_key.ino;
+    if (!event->process.is_kworker && bpf_map_lookup_elem(&sampled_cgroups, &sampled_cgroup_ino) != NULL) {
         // Fast-exit high-frequency, low-signal syscalls (read/write/futex/poll/...). Userspace
         // seeds them into profiles so a KILL-default seccomp profile stays valid.
         struct syscall_table_key_t ignore_key = {
