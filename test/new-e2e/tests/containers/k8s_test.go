@@ -707,7 +707,6 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
-				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			AcceptUnexpectedTags: true,
@@ -769,7 +768,7 @@ func (suite *k8sSuite) TestNginx() {
 	// Test Nginx logs
 	suite.testLog(&testLogArgs{
 		Filter: testLogFilterArgs{
-			Service: "nginx-from-annotation",
+			Service: "apps-nginx-server",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
 			},
@@ -799,7 +798,6 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^org:agent-org$`,
 				`^parent-name:nginx$`,
-				`^service:nginx-from-annotation$`,
 				`^team:contp$`,
 			}, sourceCodeIntegrationTags),
 			Message: `GET / HTTP/1\.1`,
