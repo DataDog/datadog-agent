@@ -394,5 +394,22 @@ func TestGpuVendorsFromLimits(t *testing.T) {
 	}
 
 	vendors := gpuVendorsFromLimits(limits)
-	assert.ElementsMatch(t, []string{"nvidia", "amd"}, vendors)
+	assert.Equal(t, []string{"amd", "nvidia"}, vendors)
+}
+
+func TestGpuVendorsFromContainers(t *testing.T) {
+	initContainers := []corev1.Container{
+		{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{
+			"nvidia.com/gpu": resource.MustParse("1"),
+		}}},
+	}
+	containers := []corev1.Container{
+		{Resources: corev1.ResourceRequirements{Limits: corev1.ResourceList{
+			"nvidia.com/gpu": resource.MustParse("1"),
+			"amd.com/gpu":    resource.MustParse("1"),
+		}}},
+	}
+
+	vendors := gpuVendorsFromContainers(initContainers, containers)
+	assert.Equal(t, []string{"amd", "nvidia"}, vendors)
 }

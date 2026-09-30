@@ -341,11 +341,7 @@ func gpuVendorsFromContainers(containerSpecLists ...[]corev1.Container) []string
 		}
 	}
 
-	vendors := make([]string, 0, len(unique))
-	for vendor := range unique {
-		vendors = append(vendors, vendor)
-	}
-	return vendors
+	return sortedKeys(unique)
 }
 
 func gpuVendorsFromLimits(limits corev1.ResourceList) []string {
@@ -356,9 +352,17 @@ func gpuVendorsFromLimits(limits corev1.ResourceList) []string {
 		}
 	}
 
-	vendors := make([]string, 0, len(unique))
-	for vendor := range unique {
-		vendors = append(vendors, vendor)
+	return sortedKeys(unique)
+}
+
+// sortedKeys returns the set's members in a stable order, so an unchanged pod
+// always yields the same GPUVendorList instead of whatever order map
+// iteration happens to produce.
+func sortedKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
 	}
-	return vendors
+	slices.Sort(keys)
+	return keys
 }
