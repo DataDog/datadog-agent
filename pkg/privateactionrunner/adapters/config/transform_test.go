@@ -293,6 +293,9 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		// common actions should also be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
 		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// agent read-only diagnostics are node-agent only and must NOT be present
+		_, hasAgentBundle := allowlist["com.datadoghq.remoteaction.datadogagent"]
+		assert.False(t, hasAgentBundle)
 		// inherited actions should also be present for the kubernetes prefix
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
@@ -309,6 +312,10 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		// common actions should be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
 		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// agent read-only diagnostics should be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getStatus"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getConfig"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getDiagnose"))
 		// cluster-agent-specific actions should NOT be present
 		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
 		assert.False(t, hasK8sApps)
