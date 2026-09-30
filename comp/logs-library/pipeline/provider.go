@@ -175,6 +175,13 @@ func foldspaceDrivers(
 		cores = append(cores, core)
 	}
 
+	var mrfRoute foldspace.Route
+	for i, s := range dest.Senders {
+		if s.IsMRF {
+			mrfRoute = mrfRoute.WithSender(foldspace.SenderID(i))
+		}
+	}
+
 	drivers := make([]*foldspace.Driver, 0, numberOfPipelines)
 	for _, core := range cores {
 		drivers = append(drivers, foldspace.NewDriver(foldspace.DriverOptions{
@@ -189,6 +196,8 @@ func foldspaceDrivers(
 			StateRequestBytes: dest.StateRequestBytes,
 			BatchWait:         dest.BatchWait,
 			DualShip:          dualShip,
+			Config:            cfg,
+			MRFRoute:          mrfRoute,
 		}))
 	}
 	return drivers
