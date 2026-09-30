@@ -289,14 +289,17 @@ func Run(ctx *pulumi.Context) error {
 						"effect":   "NoSchedule",
 					}, param.variant),
 					// Same as for the Cluster Agent: the runner hosts the KSM check, whose
-					// memory grows with the number of objects in the cluster.
+					// memory grows with the number of objects in the cluster. Its CPU is
+					// not limited, as KSM check runs are bursts that a limit would throttle
+					// and stretch on a large cluster. The null value removes the limit set
+					// by the e2e framework defaults.
 					"resources": map[string]any{
 						"requests": map[string]any{
-							"cpu":    "200m",
+							"cpu":    "1",
 							"memory": "512Mi",
 						},
 						"limits": map[string]any{
-							"cpu":    "1",
+							"cpu":    nil,
 							"memory": "2Gi",
 						},
 					},
