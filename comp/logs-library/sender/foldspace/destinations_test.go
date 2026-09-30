@@ -54,7 +54,7 @@ func TestUnreliableExtra(t *testing.T) {
 	assert.Equal(t, Unreliable, dest.Senders[1].Class)
 }
 
-func TestMRFOmitted(t *testing.T) {
+func TestMRFSenderReinstated(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 32)
 	cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
@@ -67,9 +67,11 @@ func TestMRFOmitted(t *testing.T) {
 
 	dest, err := BuildDestinationConfig(cfg, endpoints)
 	require.NoError(t, err)
-	require.Len(t, dest.Senders, 1)
+	require.Len(t, dest.Senders, 2)
 	assert.Equal(t, "main.example:443", dest.Senders[0].Address)
-	assert.Equal(t, 1, dest.SkippedMRF)
+	assert.False(t, dest.Senders[0].IsMRF)
+	assert.Equal(t, "mrf.example:443", dest.Senders[1].Address)
+	assert.True(t, dest.Senders[1].IsMRF)
 }
 
 func TestWindowingRejected(t *testing.T) {
