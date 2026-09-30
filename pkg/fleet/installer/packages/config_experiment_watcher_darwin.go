@@ -52,7 +52,11 @@ func watchExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("watcher: could not arm exit observer: %w", err)
 	}
-	defer observer.Disarm()
+	defer func() {
+		if err := observer.Disarm(); err != nil {
+			log.Warnf("watcher: could not disarm exit observer: %v", err)
+		}
+	}()
 
 	ticker := time.NewTicker(deadlineTickInterval)
 	defer ticker.Stop()
