@@ -32,7 +32,7 @@ import (
 //	datadog.runtime_security.event_monitoring.yara.too_big          files skipped for being over max_file_size
 //	datadog.runtime_security.event_monitoring.yara.not_regular      files skipped for not being regular files
 //	datadog.runtime_security.event_monitoring.yara.scans            scans run
-//	datadog.runtime_security.event_monitoring.yara.matches          matches, as counted by the scan pool
+//	datadog.runtime_security.event_monitoring.yara.matches          individual rule matches (a file matching 3 rules counts 3)
 //	datadog.runtime_security.event_monitoring.yara.scan_errors      scans that failed
 //	datadog.runtime_security.event_monitoring.yara.scan_timeouts    scans that hit scan_timeout
 //	datadog.runtime_security.event_monitoring.yara.queue_drops      scans dropped because the scan queue was full
