@@ -61,7 +61,13 @@ func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, c
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	return i.setupInstallerCmd(ctx, span, cmd)
+	iCmd := i.setupInstallerCmd(ctx, span, cmd)
+	// setupInstallerCmd's platform hook (newInstallerCmdPlatform) sets Cancel on every cmd to
+	// tie it to ctx, but Go's exec package refuses to start a Cmd with a non-nil Cancel unless
+	// it was built with CommandContext -- and this one is deliberately built with exec.Command
+	// (see above) so it survives ctx being cancelled. Clear it back out here.
+	iCmd.Cmd.Cancel = nil
+	return iCmd
 }
 
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
