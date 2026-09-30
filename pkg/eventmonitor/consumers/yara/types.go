@@ -69,6 +69,8 @@ type Deduper interface {
 	// ReleaseHash forgets a claimed hash, so that a later exec retries the scan. It must be called
 	// when a claimed scan is dropped or fails.
 	ReleaseHash(sum [32]byte)
+	// Sizes returns the number of identities and hashes currently held, for gauges
+	Sizes() (identities int, hashes int)
 }
 
 // Match is a single YARA rule match
@@ -110,4 +112,6 @@ type ScanPool interface {
 	// Submit queues a job without blocking. It returns false when the queue is full; the job is
 	// then dropped, and the pool has already released its hash and called its Done.
 	Submit(job ScanJob) bool
+	// QueueDepth returns the number of jobs waiting for a worker, for gauges
+	QueueDepth() int
 }
