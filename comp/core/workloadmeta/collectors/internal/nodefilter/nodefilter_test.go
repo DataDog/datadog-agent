@@ -8,12 +8,21 @@
 package nodefilter
 
 import (
+	"context"
+	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -108,4 +117,85 @@ func TestLocalNodeName_CustomEnvVar(t *testing.T) {
 	nodeName, err := localNodeName(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "test-node", nodeName)
+}
+
+// standaloneConfig returns a config under which this collector applies, with
+// test-node as the local node's name.
+func standaloneConfig(t *testing.T) config.Component {
+	flavor.SetTestFlavor(t, flavor.OTelAgent)
+	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+	t.Setenv("K8S_NODE_NAME", "test-node")
+	return config.NewMockWithOverrides(t, map[string]interface{}{
+		"otel_standalone": true,
+	})
+}
+
+// TestStart verifies that Start lists and watches pods scoped to the local
+// node, and pushes both listed and later-watched pods to workloadmeta.
+func TestStart(t *testing.T) {
+	cfg := standaloneConfig(t)
+	wlm := mockedWorkloadmeta(t)
+
+	client := fake.NewClientset(podWithContainer("listed-pod", "listed-pod-uid", "listed-container-id"))
+
+	// The fake clientset ignores field selectors, so record the ones the
+	// collector asks for instead.
+	var mu sync.Mutex
+	var fieldSelectors []string
+	client.PrependReactor("list", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		fieldSelectors = append(fieldSelectors, action.(k8stesting.ListAction).GetListRestrictions().Fields.String())
+		return false, nil, nil
+	})
+
+	c := &collector{
+		id:      collectorID,
+		catalog: workloadmeta.NodeAgent,
+		config:  cfg,
+		newClient: func(config.Component) (kubernetes.Interface, error) {
+			return client, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	require.NoError(t, c.Start(ctx, wlm))
+
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := wlm.GetKubernetesPod("listed-pod-uid")
+		assert.NoError(ct, err)
+	}, eventuallyTimeout, eventuallyInterval)
+
+	mu.Lock()
+	assert.Equal(t, []string{"spec.nodeName=test-node"}, fieldSelectors)
+	mu.Unlock()
+
+	watchedPod := podWithContainer("watched-pod", "watched-pod-uid", "watched-container-id")
+	_, err := client.CoreV1().Pods(watchedPod.Namespace).Create(ctx, watchedPod, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := wlm.GetKubernetesPod("watched-pod-uid")
+		assert.NoError(ct, err)
+		_, err = wlm.GetContainer("watched-container-id")
+		assert.NoError(ct, err)
+	}, eventuallyTimeout, eventuallyInterval)
+}
+
+// TestStart_ClientError verifies that failing to build the API client fails
+// Start without disabling the collector.
+func TestStart_ClientError(t *testing.T) {
+	c := &collector{
+		id:      collectorID,
+		catalog: workloadmeta.NodeAgent,
+		config:  standaloneConfig(t),
+		newClient: func(config.Component) (kubernetes.Interface, error) {
+			return nil, errors.New("no in-cluster config")
+		},
+	}
+
+	err := c.Start(context.Background(), nil)
+	require.Error(t, err)
+	assert.False(t, pkgerrors.IsDisabled(err))
 }

@@ -66,6 +66,10 @@ type collector struct {
 	catalog workloadmeta.AgentType
 	config  config.Component
 
+	// newClient builds the clientset the pod reflector lists and watches
+	// with: newAPIClient, or a fake clientset in tests.
+	newClient func(config.Component) (kubernetes.Interface, error)
+
 	// includeEphemeralContainers mirrors the kubelet collector's own
 	// include_ephemeral_containers config key.
 	includeEphemeralContainers bool
@@ -78,6 +82,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			id:                         collectorID,
 			catalog:                    workloadmeta.NodeAgent,
 			config:                     deps.Config,
+			newClient:                  newAPIClient,
 			includeEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 		},
 	}, nil
@@ -137,14 +142,14 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	client, err := newAPIClient(c.config)
+	client, err := c.newClient(c.config)
 	if err != nil {
 		return fmt.Errorf("cannot create Kubernetes API client: %w", err)
 	}
 
 	fieldSelector := fields.OneTermEqualSelector("spec.nodeName", nodeName).String()
 
-	podListerWatcher := &cache.ListWatch{
+	podListWatch := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			options.FieldSelector = fieldSelector
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
@@ -154,6 +159,11 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 			return client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
 		},
 	}
+
+	// Let the reflector know whether client supports WatchList semantics, as
+	// generated informers do: a bare ListWatch hides it, and the reflector
+	// would otherwise wait forever on a client that doesn't (e.g. a fake one).
+	podListerWatcher := cache.ToListWatcherWithWatchListSemantics(podListWatch, client)
 
 	podReflector := cache.NewNamedReflector(componentName, podListerWatcher, &corev1.Pod{}, newPodStore(store, c.includeEphemeralContainers), noResync)
 
