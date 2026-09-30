@@ -94,41 +94,43 @@ func (m *WindowsMonitor) Start() {
 	m.hei.StartReadingHttpFlows()
 
 	m.eventLoopWG.Add(1)
-	go func() {
-		defer m.eventLoopWG.Done()
-		// Keep draining until both producers are done. Stop closes them one at
-		// a time, and a producer that is blocked on a send it cannot complete
-		// never returns, which would deadlock Stop.
-		driverChannel := m.di.DataChannel
-		etwChannel := m.hei.DataChannel
-		for driverChannel != nil || etwChannel != nil {
-			select {
-			case transactionBatch, ok := <-driverChannel:
-				if !ok {
-					// A nil channel blocks forever, disabling this case.
-					driverChannel = nil
-					continue
-				}
-				// dbtodo
-				// the linux side has an error code potentially, that
-				// gets aggregated under the hood.  Do we need somthing
-				// analogous
-				m.process(transactionBatch)
-			case transactions, ok := <-etwChannel:
-				if !ok {
-					etwChannel = nil
-					continue
-				}
-				// dbtodo
-				// the linux side has an error code potentially, that
-				// gets aggregated under the hood.  Do we need somthing
-				// analogous
-				if len(transactions) > 0 {
-					m.process(transactions)
-				}
+	go m.eventLoop()
+}
+
+// eventLoop keeps draining until both producers are done. Stop closes them one
+// at a time, and a producer that is blocked on a send it cannot complete never
+// returns, which would deadlock Stop.
+func (m *WindowsMonitor) eventLoop() {
+	defer m.eventLoopWG.Done()
+	driverChannel := m.di.DataChannel
+	etwChannel := m.hei.DataChannel
+	for driverChannel != nil || etwChannel != nil {
+		select {
+		case transactionBatch, ok := <-driverChannel:
+			if !ok {
+				// A nil channel blocks forever, disabling this case.
+				driverChannel = nil
+				continue
+			}
+			// dbtodo
+			// the linux side has an error code potentially, that
+			// gets aggregated under the hood.  Do we need somthing
+			// analogous
+			m.process(transactionBatch)
+		case transactions, ok := <-etwChannel:
+			if !ok {
+				etwChannel = nil
+				continue
+			}
+			// dbtodo
+			// the linux side has an error code potentially, that
+			// gets aggregated under the hood.  Do we need somthing
+			// analogous
+			if len(transactions) > 0 {
+				m.process(transactions)
 			}
 		}
-	}()
+	}
 }
 
 func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
