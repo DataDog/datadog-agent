@@ -47,6 +47,12 @@ const (
 	// noResync matches the kubeapiserver collector's own reflector_store.go:
 	// Resync() is never called, so the store never needs to implement it.
 	noResync = time.Duration(0)
+
+	// informerClientQPS and informerClientBurst match the limits
+	// pkg/util/kubernetes/apiserver/apiserver.go gives its own informer
+	// clients: a single reflector only issues a list plus periodic re-watches.
+	informerClientQPS   = 5
+	informerClientBurst = 10
 )
 
 type dependencies struct {
@@ -140,10 +146,15 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 }
 
 // newAPIClient builds a Kubernetes clientset, following the same
-// in-cluster/kubeconfig bootstrap and client tuning as
+// in-cluster/kubeconfig bootstrap and informer client tuning as
 // pkg/util/kubernetes/apiserver/apiserver.go, minus the cluster-agent-only
 // concerns (leader election, CRD/kueue informers) that package also carries
 // and that a node-scoped, node-agent-side collector doesn't need.
+//
+// The client only backs a reflector, so it uses the informer client timeout
+// (no timeout by default) rather than kubernetes_apiserver_client_timeout:
+// rest.Config.Timeout bounds the whole HTTP request, so a short one would cut
+// every long-lived watch short and force constant re-watches.
 func newAPIClient(cfg config.Component) (kubernetes.Interface, error) {
 	cfgPath := cfg.GetString("kubernetes_kubeconfig_path")
 
@@ -158,9 +169,9 @@ func newAPIClient(cfg config.Component) (kubernetes.Interface, error) {
 		return nil, err
 	}
 
-	clientConfig.Timeout = time.Duration(cfg.GetInt64("kubernetes_apiserver_client_timeout")) * time.Second
-	clientConfig.QPS = float32(cfg.GetFloat64("kubernetes_apiserver_client_qps"))
-	clientConfig.Burst = cfg.GetInt("kubernetes_apiserver_client_burst")
+	clientConfig.Timeout = time.Duration(cfg.GetInt64("kubernetes_apiserver_informer_client_timeout")) * time.Second
+	clientConfig.QPS = informerClientQPS
+	clientConfig.Burst = informerClientBurst
 	clientConfig.UserAgent = fmt.Sprintf("datadog-%s/%s", strings.ReplaceAll(flavor.GetFlavor(), "_", "-"), version.AgentVersion)
 
 	return kubernetes.NewForConfig(clientConfig)
