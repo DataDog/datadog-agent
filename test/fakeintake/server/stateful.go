@@ -114,12 +114,17 @@ func (s statefulIntake) StatefulStream(stream grpc.BidiStreamingServer[statefulB
 			apiKey = vals[0]
 		}
 	}
+	// Dictionary entries and the service/tags carry-forward state are
+	// stream-scoped: the client only re-sends a dict_entry_define, or a
+	// non-zero Log.service/Log.tags, when the value changes, so a later batch
+	// on the same stream can reference ids a prior batch defined.
+	decodeState := newStatefulDecodeState()
 	for {
 		batch, err := stream.Recv()
 		if err != nil {
 			return nil
 		}
-		logs := decodeStatefulLogs(batch.Data)
+		logs := decodeState.decodeLogs(batch.Data)
 		if len(logs) == 0 {
 			logs = []*aggregator.Log{{Message: string(batch.Data), Service: "foldspace"}}
 		}
@@ -137,9 +142,47 @@ func (s statefulIntake) StatefulStream(stream grpc.BidiStreamingServer[statefulB
 	}
 }
 
-func decodeStatefulLogs(data []byte) []*aggregator.Log {
-	// LogDatumSequence.data is field 1, repeated. Each LogDatum is a oneof;
-	// Log is field 4, and Log.raw_log is field 7.
+// statefulDecodeState carries stream-scoped decode state across batches on
+// one StatefulStream: dictionary entries, and the service/tags "last value"
+// a Log's delta fields carry forward from. Mirrors the reference decoder
+// (resolve_delta_value / optional_dictionary_value in the foldspace server
+// crate's lib/server/src/lib.rs), scaled down to the fields this fakeintake
+// stub needs: dictionary strings and Log.service/Log.tags.
+type statefulDecodeState struct {
+	dict        map[uint64]string
+	lastService uint64
+	lastTags    uint64
+}
+
+func newStatefulDecodeState() *statefulDecodeState {
+	return &statefulDecodeState{dict: make(map[uint64]string)}
+}
+
+// resolveDelta mirrors resolve_delta_value: 0 means "reuse the last resolved
+// id"; any other value both selects and becomes the new last.
+func resolveDelta(last *uint64, value uint64) uint64 {
+	if value == 0 {
+		return *last
+	}
+	*last = value
+	return value
+}
+
+// dictValue mirrors optional_dictionary_value: ids 0 and 1 both mean "absent"
+// (0 is reserved for delta encoding, 1 for explicit absence).
+func (s *statefulDecodeState) dictValue(id uint64) string {
+	if id == 0 || id == 1 {
+		return ""
+	}
+	return s.dict[id]
+}
+
+// decodeLogs decodes one batch's LogDatumSequence.data (field 1, repeated).
+// Each LogDatum is a oneof; this stub only acts on dict_entry_define (field
+// 1) and log (field 4) — the fields fakeintake's log aggregator surfaces.
+// Pattern/JSON-schema datums are left undecoded, matching Log.raw_log being
+// the only payload shape the current e2e coverage sends.
+func (s *statefulDecodeState) decodeLogs(data []byte) []*aggregator.Log {
 	var logs []*aggregator.Log
 	rest := data
 	for len(rest) > 0 {
@@ -148,7 +191,7 @@ func decodeStatefulLogs(data []byte) []*aggregator.Log {
 			return logs
 		}
 		rest = rest[n:]
-		if num != 1 || typ != protowire.BytesType {
+		if typ != protowire.BytesType {
 			skip := protowire.ConsumeFieldValue(num, typ, rest)
 			if skip < 0 {
 				return logs
@@ -161,39 +204,68 @@ func decodeStatefulLogs(data []byte) []*aggregator.Log {
 			return logs
 		}
 		rest = rest[n:]
-		if l := decodeLogDatum(datum); l != nil {
-			logs = append(logs, l)
+		switch num {
+		case 1: // dict_entry_define
+			s.decodeDictEntryDefine(datum)
+		case 4: // log
+			if l := s.decodeLog(datum); l != nil {
+				logs = append(logs, l)
+			}
 		}
 	}
 	return logs
 }
 
-func decodeLogDatum(datum []byte) *aggregator.Log {
+// decodeDictEntryDefine decodes a DictEntryDefine{id uint64 = 1, value string
+// = 2} and stores it, so later Logs that reference id resolve to value.
+func (s *statefulDecodeState) decodeDictEntryDefine(datum []byte) {
+	var id uint64
+	var value string
 	rest := datum
 	for len(rest) > 0 {
 		num, typ, n := protowire.ConsumeTag(rest)
 		if n < 0 {
-			return nil
+			return
 		}
 		rest = rest[n:]
-		if num == 4 && typ == protowire.BytesType {
-			logMsg, n := protowire.ConsumeBytes(rest)
+		switch {
+		case num == 1 && typ == protowire.VarintType:
+			v, n := protowire.ConsumeVarint(rest)
 			if n < 0 {
-				return nil
+				return
 			}
-			return decodeLog(logMsg)
+			id = v
+			rest = rest[n:]
+		case num == 2 && typ == protowire.BytesType:
+			v, n := protowire.ConsumeBytes(rest)
+			if n < 0 {
+				return
+			}
+			value = string(v)
+			rest = rest[n:]
+		default:
+			skip := protowire.ConsumeFieldValue(num, typ, rest)
+			if skip < 0 {
+				return
+			}
+			rest = rest[skip:]
 		}
-		skip := protowire.ConsumeFieldValue(num, typ, rest)
-		if skip < 0 {
-			return nil
-		}
-		rest = rest[skip:]
 	}
-	return nil
+	// id 0 is reserved for delta encoding; a definition under it is malformed
+	// and would otherwise poison dictValue's "absent" sentinel.
+	if id != 0 {
+		s.dict[id] = value
+	}
 }
 
-func decodeLog(msg []byte) *aggregator.Log {
-	out := &aggregator.Log{}
+// decodeLog decodes a Log message: service (field 3) and tags (field 4) are
+// delta-encoded dictionary ids, resolved against this stream's carried-
+// forward state; raw_log (field 7) is the message body. Pattern-encoded logs
+// (pattern_id + dynamic_values instead of raw_log) are not decoded, matching
+// the datum-level scope note above.
+func (s *statefulDecodeState) decodeLog(msg []byte) *aggregator.Log {
+	var serviceID, tagsID uint64
+	var rawLog string
 	rest := msg
 	for len(rest) > 0 {
 		num, typ, n := protowire.ConsumeTag(rest)
@@ -201,23 +273,45 @@ func decodeLog(msg []byte) *aggregator.Log {
 			break
 		}
 		rest = rest[n:]
-		if num == 7 && typ == protowire.BytesType {
-			val, n := protowire.ConsumeBytes(rest)
+		switch {
+		case num == 3 && typ == protowire.VarintType: // service
+			v, n := protowire.ConsumeVarint(rest)
 			if n < 0 {
-				break
+				return nil
 			}
-			out.Message = string(val)
+			serviceID = v
 			rest = rest[n:]
-			continue
+		case num == 4 && typ == protowire.VarintType: // tags
+			v, n := protowire.ConsumeVarint(rest)
+			if n < 0 {
+				return nil
+			}
+			tagsID = v
+			rest = rest[n:]
+		case num == 7 && typ == protowire.BytesType: // raw_log
+			v, n := protowire.ConsumeBytes(rest)
+			if n < 0 {
+				return nil
+			}
+			rawLog = string(v)
+			rest = rest[n:]
+		default:
+			skip := protowire.ConsumeFieldValue(num, typ, rest)
+			if skip < 0 {
+				return nil
+			}
+			rest = rest[skip:]
 		}
-		skip := protowire.ConsumeFieldValue(num, typ, rest)
-		if skip < 0 {
-			break
-		}
-		rest = rest[skip:]
 	}
-	if strings.TrimSpace(out.Message) == "" {
+	if strings.TrimSpace(rawLog) == "" {
 		return nil
+	}
+	out := &aggregator.Log{
+		Message: rawLog,
+		Service: s.dictValue(resolveDelta(&s.lastService, serviceID)),
+	}
+	if tagsStr := s.dictValue(resolveDelta(&s.lastTags, tagsID)); tagsStr != "" {
+		out.Tags = strings.Split(tagsStr, ",")
 	}
 	return out
 }
