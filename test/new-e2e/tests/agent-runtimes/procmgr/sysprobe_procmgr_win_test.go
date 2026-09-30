@@ -82,12 +82,10 @@ func (s *sysprobeProcmgrWindowsSuite) SetupSuite() {
 //
 // The PID is what makes this stronger than asserting the process is Running. system-probe is
 // restart: on-failure with restart_sec 2, so a crash loop spends most of its time Running with
-// a different PID each time. requireProcmgrRunningPID holds the PID SetupSuite recorded for
-// procmgrHoldFor instead of accepting the first poll that still shows it. A restart during
-// that hold fails the test, and so does a failed auto-start that something else later repaired.
-// requireLegacySCMServiceDown holds the other half for the same window, so a legacy service
-// that starts and then stops cannot pass on a lucky poll. The durations passed to both are
-// deadlines for reaching the hold, not the hold itself.
+// a different PID each time. requireSupervisedOnlyByProcmgr requires the PID SetupSuite
+// recorded, which also rules out an auto-start that failed and was later repaired by something
+// else, and it holds that together with the legacy service being down over one window, since
+// the claim is that both are true at once. The two minutes is the deadline for that hold.
 func (s *sysprobeProcmgrWindowsSuite) TestSystemProbeCutoverSupervisedByProcmgrAndLegacySCMStopped() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
@@ -98,8 +96,8 @@ func (s *sysprobeProcmgrWindowsSuite) TestSystemProbeCutoverSupervisedByProcmgrA
 	requireHostPath(s.T(), host, processesDConfig(installRoot, sysprobeProcmgrConfigFileName),
 		"fleet system-probe processes.d config should exist at %s")
 
-	requireProcmgrRunningPID(s.T(), host, s.cli, sysprobeProcessName, s.autoSpawnPID, 2*time.Minute)
-	requireLegacySCMServiceDown(s.T(), host, sysprobeLegacySCMServiceName, time.Minute)
+	requireSupervisedOnlyByProcmgr(s.T(), host, s.cli, sysprobeProcessName, s.autoSpawnPID,
+		sysprobeLegacySCMServiceName, 2*time.Minute)
 }
 
 // TestSystemProbePrivilegedSpawnRunsAsLocalSystem checks the half of the cutover the state

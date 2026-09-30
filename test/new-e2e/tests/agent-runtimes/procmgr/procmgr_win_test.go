@@ -179,37 +179,65 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 	return pid
 }
 
-// requireProcmgrRunningPID polls until name has been Running as wantPID for procmgrHoldFor.
-// timeout is the deadline for reaching that hold, not the length of it.
+// requireSupervisedOnlyByProcmgr requires that dd-procmgr is the one thing running name, for
+// procmgrHoldFor: name is Running under dd-procmgr as wantPID, and legacyService, which used to
+// run it, is Stopped or not registered. timeout is the deadline for reaching that hold, not the
+// length of it.
 //
-// A different PID fails at once rather than waiting out the deadline, since the process the
-// assertion is about is already gone and the rest of the polling would only describe its
-// replacement. A describe error or a non-Running state resets the hold and keeps polling, so a
-// process that is not up yet can still make the deadline.
+// Both are read on every tick and share one window, because "only" is a claim about the pair.
+// Given a window each in turn, the workload could restart during the service half and the test
+// would still pass, which is exactly what this rules out: a workload run twice, or not at all.
+//
+// Two states fail at once rather than waiting out the deadline, since neither can be undone by
+// polling longer. A PID other than wantPID means the process the assertion is about is gone,
+// and the rest of the polling would only describe its replacement. A legacy service in any
+// state but Stopped, StartPending in particular, means the SCM is already bringing up a second
+// copy of a workload dd-procmgr supervises.
+//
+// Everything else resets the hold and keeps polling, so a host that has not settled yet can
+// still make the deadline.
 //
 // Polled directly rather than through EventuallyWithT because that runs its condition on
 // another goroutine, where require and t.Fatal are not valid: FailNow there stops the worker,
 // and the tick still reports no failure, so the assertion passes.
-func requireProcmgrRunningPID(t *testing.T, host *components.RemoteHost, cli, name, wantPID string, timeout time.Duration) {
+func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, cli, name, wantPID, legacyService string, timeout time.Duration) {
 	t.Helper()
 	require.NotEmpty(t, wantPID, "wantPID must be set (capture it with waitProcmgrRunning)")
 
+	serviceQuery := fmt.Sprintf(
+		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+		legacyService,
+	)
+
 	var heldSince time.Time
-	lastDescribe := "dd-procmgr describe never returned"
+	last := "neither dd-procmgr describe nor Get-Service returned"
 	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); time.Sleep(3 * time.Second) {
-		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		describe, err := host.Execute(procmgrCmd(cli, "describe "+name))
 		if err != nil {
 			heldSince = time.Time{}
-			lastDescribe = fmt.Sprintf("describe %s failed: %v", name, err)
+			last = fmt.Sprintf("describe %s failed: %v", name, err)
 			continue
 		}
-		lastDescribe = out
-
-		state, pid := fieldValue(out, "State"), fieldValue(out, "PID")
+		state, pid := fieldValue(describe, "State"), fieldValue(describe, "PID")
 		if pid != "" && pid != "-" && pid != wantPID {
 			require.FailNowf(t, "supervised process restarted",
-				"process %s should still be the auto-spawned PID %s: %s", name, wantPID, out)
+				"process %s should still be the auto-spawned PID %s: %s", name, wantPID, describe)
 		}
+
+		status, err := host.Execute(serviceQuery)
+		if err != nil {
+			heldSince = time.Time{}
+			last = fmt.Sprintf("Get-Service %s failed: %v", legacyService, err)
+			continue
+		}
+		serviceState := strings.TrimSpace(status)
+		if serviceState != "Stopped" && serviceState != "Absent" {
+			require.FailNowf(t, "legacy SCM service came up",
+				"%s must stay down while dd-procmgr supervises %s, Get-Service returned %q",
+				legacyService, name, serviceState)
+		}
+
+		last = fmt.Sprintf("%s is %s as PID %q and %s is %s", name, state, pid, legacyService, serviceState)
 		if state != "Running" || pid != wantPID {
 			heldSince = time.Time{}
 			continue
@@ -221,51 +249,9 @@ func requireProcmgrRunningPID(t *testing.T, host *components.RemoteHost, cli, na
 			return
 		}
 	}
-	require.FailNowf(t, "supervised process never held its PID",
-		"process %s did not stay Running as PID %s for %s within %s, last describe: %s",
-		name, wantPID, procmgrHoldFor, timeout, lastDescribe)
-}
-
-// requireLegacySCMServiceDown requires service to report Stopped or absent for
-// procmgrHoldFor, so a legacy service that starts and then stops fails rather than passing
-// on whichever poll happens to catch it back down.
-//
-// Anything short of Stopped, StartPending in particular, can be the SCM on its way to a second
-// copy of a workload dd-procmgr already supervises, so only Stopped or Absent holds the window.
-func requireLegacySCMServiceDown(t *testing.T, host *components.RemoteHost, service string, timeout time.Duration) {
-	t.Helper()
-
-	query := fmt.Sprintf(
-		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
-		service,
-	)
-
-	var downSince time.Time
-	lastStatus := "Get-Service never returned"
-	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); time.Sleep(3 * time.Second) {
-		out, err := host.Execute(query)
-		if err != nil {
-			downSince = time.Time{}
-			lastStatus = fmt.Sprintf("Get-Service %s failed: %v", service, err)
-			continue
-		}
-		lastStatus = strings.TrimSpace(out)
-
-		if lastStatus != "Stopped" && lastStatus != "Absent" {
-			require.FailNowf(t, "legacy SCM service came up",
-				"%s must stay down when the workload is managed by dd-procmgr, Get-Service returned %q",
-				service, lastStatus)
-		}
-		if downSince.IsZero() {
-			downSince = time.Now()
-		}
-		if time.Since(downSince) >= procmgrHoldFor {
-			return
-		}
-	}
-	require.FailNowf(t, "legacy SCM service never held a down state",
-		"%s was not Stopped or Absent for %s within %s, last Get-Service returned %q",
-		service, procmgrHoldFor, timeout, lastStatus)
+	require.FailNowf(t, "workload was never supervised only by dd-procmgr",
+		"%s did not stay Running as PID %s with %s down for %s within %s, last seen: %s",
+		name, wantPID, legacyService, procmgrHoldFor, timeout, last)
 }
 
 func ensureWindowsDirPS(dir string) string {

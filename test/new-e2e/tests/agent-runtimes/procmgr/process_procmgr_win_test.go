@@ -146,10 +146,9 @@ func (s *processProcmgrWindowsSuite) resetProcessAgent() {
 // none at all.
 //
 // SetupSuite records the auto-spawned PID before any test can start process-agent. This test
-// requires that same PID still be Running (same process), and that the legacy service stayed
-// down, each held for a window rather than accepted on the first matching poll. The method
-// name starts with Cutover so it runs first in lexical order, before tests that respawn
-// process-agent.
+// requires that same PID still be Running (same process) while the legacy service stays down,
+// both over one window rather than accepted on the first matching poll. The method name starts
+// with Cutover so it runs first in lexical order, before tests that respawn process-agent.
 func (s *processProcmgrWindowsSuite) TestProcessAgentCutoverSupervisedByProcmgrAndLegacySCMStopped() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
@@ -162,8 +161,8 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentCutoverSupervisedByProcmgrA
 	requireHostPath(s.T(), host, processesDConfig(installRoot, processProcmgrConfigFileName),
 		"fleet process-agent processes.d config should exist at %s")
 
-	requireProcmgrRunningPID(s.T(), host, s.cli, processProcessName, s.autoSpawnPID, 2*time.Minute)
-	requireLegacySCMServiceDown(s.T(), host, processLegacySCMServiceName, time.Minute)
+	requireSupervisedOnlyByProcmgr(s.T(), host, s.cli, processProcessName, s.autoSpawnPID,
+		processLegacySCMServiceName, 2*time.Minute)
 }
 
 // TestProcessAgentInheritsFilteredLegacyScmEnvironment covers the environment hand-off that
