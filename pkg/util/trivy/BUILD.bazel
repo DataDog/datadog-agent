@@ -110,6 +110,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",
+        "//pkg/sbom",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_aquasecurity_trivy//pkg/fanal/types",
