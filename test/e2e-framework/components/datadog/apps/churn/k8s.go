@@ -119,6 +119,11 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 				},
 			},
 			Replicas: pulumi.IntPtr(1),
+			// churn creates its objects from scratch and fails on the ones a previous
+			// instance left behind, so two instances must never overlap during a rollout.
+			Strategy: &appsv1.DeploymentStrategyArgs{
+				Type: pulumi.String("Recreate"),
+			},
 			Template: corev1.PodTemplateSpecArgs{
 				Metadata: &metav1.ObjectMetaArgs{
 					Labels: pulumi.StringMap{
