@@ -194,6 +194,34 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  tracing:
+    node_type: section
+    type: object
+    visibility: public
+    description: |-
+      Configure the tracers injected into GPU workloads. The fields match an
+      apm_config.instrumentation.targets entry of Single Step Instrumentation.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Set to true to inject tracers into GPU workloads.
+      ddTraceVersions:
+        node_type: setting
+        type: object
+        default: {}
+        additionalProperties:
+          type: string
+        env_parser: json
+        visibility: public
+        description: |-
+          Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+        example: |2-
+
+            c: "0.24.0"
   use_sp_process_metrics:
     node_type: setting
     type: boolean

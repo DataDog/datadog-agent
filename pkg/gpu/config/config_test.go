@@ -57,3 +57,41 @@ func TestNewJobsConfigDefaults(t *testing.T) {
 	assert.False(t, got.JobsConfig.Run.Configured())
 	assert.False(t, got.JobsConfig.Group.Configured())
 }
+
+func TestNewTracingConfig(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+gpu:
+  tracing:
+    enabled: true
+    ddTraceVersions:
+      c: "0.24.0"
+`)
+
+	got := New()
+
+	assert.Equal(t, newTracingConfig(cfg), got.TracingConfig)
+	assert.Equal(t, TracingConfig{
+		Enabled:        true,
+		TracerVersions: map[string]string{"c": "0.24.0"},
+	}, got.TracingConfig)
+}
+
+func TestNewTracingConfigFromEnv(t *testing.T) {
+	t.Setenv("DD_GPU_TRACING_ENABLED", "true")
+	t.Setenv("DD_GPU_TRACING_DDTRACEVERSIONS", `{"c":"0.24.0"}`)
+	configmock.New(t)
+
+	got := NewTracingConfig()
+
+	assert.True(t, got.Enabled)
+	assert.Equal(t, map[string]string{"c": "0.24.0"}, got.TracerVersions)
+}
+
+func TestNewTracingConfigDefaults(t *testing.T) {
+	configmock.New(t)
+
+	got := NewTracingConfig()
+
+	assert.False(t, got.Enabled)
+	assert.Empty(t, got.TracerVersions)
+}

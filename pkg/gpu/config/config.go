@@ -64,6 +64,8 @@ type Config struct {
 	CgroupReapplyInfinitely bool
 	// JobsConfig provides the ability for the user to define run/group identifiers to be attached to traces and metrics.
 	JobsConfig JobsConfig
+	// TracingConfig configures the tracers injected into GPU workloads.
+	TracingConfig TracingConfig
 }
 
 // StreamConfig is the configuration for the streams.
@@ -139,6 +141,27 @@ func newIdentifierConfig(cfg model.Reader, prefix string) IdentifierConfig {
 	}
 }
 
+// TracingConfig configures the tracers injected into GPU workloads. Its fields match an
+// apm_config.instrumentation.targets entry of Single Step Instrumentation.
+type TracingConfig struct {
+	// Enabled indicates whether tracers should be injected into GPU workloads.
+	Enabled bool
+	// TracerVersions maps a tracer language to the tracer version to inject.
+	TracerVersions map[string]string
+}
+
+// NewTracingConfig reads the GPU tracing configuration from the agent configuration.
+func NewTracingConfig() TracingConfig {
+	return newTracingConfig(pkgconfigsetup.Datadog())
+}
+
+func newTracingConfig(cfg model.Reader) TracingConfig {
+	return TracingConfig{
+		Enabled:        cfg.GetBool("gpu.tracing.enabled"),
+		TracerVersions: cfg.GetStringMapString("gpu.tracing.ddTraceVersions"),
+	}
+}
+
 // New generates a new configuration for the GPU monitoring probe.
 func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
@@ -173,5 +196,6 @@ func New() *Config {
 		CgroupReapplyInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_interval")),
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
 		JobsConfig:                 NewJobsConfig(),
+		TracingConfig:              NewTracingConfig(),
 	}
 }
