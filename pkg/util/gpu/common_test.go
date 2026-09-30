@@ -7,10 +7,63 @@ package gpu
 
 import (
 	"strings"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
+
+func TestMonitoringReadiness(t *testing.T) {
+	for _, scenario := range []string{"success", "timeout", "shutdown"} {
+		t.Run(scenario, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clk := clock.NewMock()
+				cleanup := RegisterReadiness(clk)
+				t.Cleanup(cleanup)
+				assert.Contains(t, health.GetReady().Unhealthy, "gpu-check")
+				assert.NotContains(t, health.GetLive().Unhealthy, "gpu-check")
+				assert.NotContains(t, health.GetLive().Healthy, "gpu-check")
+
+				switch scenario {
+				case "success":
+					MarkReady()
+				case "shutdown":
+					cleanup()
+				}
+				clk.Add(5*time.Minute - time.Nanosecond)
+				synctest.Wait()
+				if scenario == "timeout" {
+					assert.Contains(t, health.GetReady().Unhealthy, "gpu-check")
+				} else {
+					assert.NotContains(t, health.GetReady().Unhealthy, "gpu-check")
+				}
+				clk.Add(time.Nanosecond)
+				synctest.Wait()
+				assert.NotContains(t, health.GetReady().Unhealthy, "gpu-check")
+				MarkReady() // Late success after timeout or shutdown is harmless.
+			})
+		})
+	}
+}
+
+func TestMonitoringReadinessConcurrentCompletion(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clk := clock.NewMock()
+		cleanup := RegisterReadiness(clk)
+		t.Cleanup(cleanup)
+		var wg sync.WaitGroup
+		for _, complete := range []func(){MarkReady, cleanup, func() { clk.Add(5 * time.Minute) }} {
+			wg.Go(complete)
+		}
+		wg.Wait()
+		assert.NotContains(t, health.GetReady().Unhealthy, "gpu-check")
+	})
+}
 
 func TestExtractSimpleGPUName(t *testing.T) {
 	tests := []struct {

@@ -34,7 +34,10 @@ import (
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -44,6 +47,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -243,7 +247,8 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	metricTime := time.Now()
 	metricTimestamp := float64(metricTime.UnixNano()) / float64(time.Second)
 	require.NoError(t, check.deviceCache.Refresh())
-	require.NoError(t, check.emitMetrics(mockSender, gpuToContainersMap, metricTime))
+	_, err := check.emitMetrics(mockSender, gpuToContainersMap, metricTime)
+	require.NoError(t, err)
 
 	// Verify metrics for each device
 	for i, deviceUUID := range []string{device1UUID, device2UUID} {
@@ -309,6 +314,103 @@ func TestRunDoesNotError(t *testing.T) {
 	})
 
 	require.NoError(t, check.Run())
+}
+
+func TestRunReadiness(t *testing.T) {
+	for _, scenario := range []string{"success", "collection error", "partial collection error", "empty collection", "no devices", "excluded devices", "initialization failure", "missing critical symbols", "device discovery failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			var lib *testutil.MockNVML
+			initFailure := scenario == "initialization failure" || scenario == "missing critical symbols"
+			if initFailure {
+				ret := nvml.Return(nvml.ERROR_UNKNOWN)
+				if scenario == "missing critical symbols" {
+					ret = nvml.SUCCESS
+				}
+				ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface {
+					return testutil.NewMockNVML(testutil.WithInitReturn(ret), testutil.WithSymbolsMock(nil))
+				})
+			} else {
+				lib = nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
+			}
+			check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+			collector := &mockCollector{
+				name:       "device",
+				deviceUUID: testutil.GPUUUIDs[0],
+				samples:    []nvidia.Sample{nvidia.NewMetric("power.usage", 10, ddmetrics.GaugeType, 0, nil, nil)},
+			}
+			check.collectors = []nvidia.Collector{collector}
+			switch scenario {
+			case "collection error", "partial collection error":
+				collector.collectFunc = func() ([]nvidia.Sample, error) {
+					return nil, errors.New("NVML collection failed")
+				}
+				if scenario == "partial collection error" {
+					check.collectors = append(check.collectors, &mockCollector{
+						name: "fields", deviceUUID: collector.deviceUUID, samples: collector.samples,
+					})
+				}
+			case "empty collection":
+				collector.samples = nil
+			case "no devices":
+				lib.DeviceGetCountFunc = func() (int, nvml.Return) { return 0, nvml.SUCCESS }
+			case "excluded devices":
+				check.excludedDeviceUUIDs[strings.ToLower(collector.deviceUUID)] = struct{}{}
+			case "device discovery failure":
+				lib.DeviceGetCountFunc = func() (int, nvml.Return) { return 0, nvml.ERROR_UNKNOWN }
+			}
+
+			cleanup := gpuutil.RegisterReadiness(clock.NewMock())
+			t.Cleanup(cleanup)
+			assert.Contains(t, health.GetReady().Unhealthy, "gpu-check")
+			err := check.Run()
+			if initFailure || scenario == "device discovery failure" {
+				require.Error(t, err)
+			} else {
+				// Run still returns nil on collection errors. They must not clear readiness.
+				require.NoError(t, err)
+			}
+			if scenario == "success" {
+				assert.NotContains(t, health.GetReady().Unhealthy, "gpu-check")
+				collector.collectFunc = func() ([]nvidia.Sample, error) { return nil, errors.New("later failure") }
+				require.NoError(t, check.Run())
+				assert.NotContains(t, health.GetReady().Unhealthy, "gpu-check", "startup readiness must not re-arm")
+			} else {
+				assert.Contains(t, health.GetReady().Unhealthy, "gpu-check")
+				if scenario == "collection error" {
+					collector.collectFunc = nil
+					require.NoError(t, check.Run())
+					assert.NotContains(t, health.GetReady().Unhealthy, "gpu-check", "a successful retry releases readiness")
+				}
+			}
+		})
+	}
+}
+
+func TestReadinessTimeoutDuringGPUCollection(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		nvmltestutil.SetupMockNVML(t, testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
+		check := newConfiguredGPUCheck(t, taggerfxmock.SetupFakeTagger(t), testutil.GetWorkloadMetaMock(t), mocksender.CreateDefaultDemultiplexer(t), nil)
+		entered, proceed, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		check.collectors = []nvidia.Collector{&mockCollector{
+			name:       "device",
+			deviceUUID: testutil.GPUUUIDs[0],
+			collectFunc: func() ([]nvidia.Sample, error) {
+				close(entered)
+				<-proceed
+				return []nvidia.Sample{nvidia.NewMetric("power.usage", 10, ddmetrics.GaugeType, 0, nil, nil)}, nil
+			},
+		}}
+		clk := clock.NewMock()
+		cleanup := gpuutil.RegisterReadiness(clk)
+		t.Cleanup(cleanup)
+		go func() { done <- check.Run() }()
+		t.Cleanup(func() { close(proceed); require.NoError(t, <-done) })
+		<-entered
+		assert.Contains(t, health.GetReady().Unhealthy, "gpu-check")
+		clk.Add(5 * time.Minute)
+		synctest.Wait()
+		assert.NotContains(t, health.GetReady().Unhealthy, "gpu-check")
+	})
 }
 
 func TestSyncNvmlHealthIssue(t *testing.T) {
@@ -545,7 +647,8 @@ func TestEmitMetricsCollectsCollectorsInParallel(t *testing.T) {
 	}
 
 	require.NoError(t, check.deviceCache.Refresh())
-	require.NoError(t, check.emitMetrics(mockSender, nil, time.Now()))
+	_, err := check.emitMetrics(mockSender, nil, time.Now())
+	require.NoError(t, err)
 	require.Equal(t, int32(collectorCount), started.Load())
 }
 
@@ -620,7 +723,8 @@ func TestEmitMetricsCollectsCollectorsSeriallyWhenParallelCollectionDisabled(t *
 	require.NoError(t, check.deviceCache.Refresh())
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- check.emitMetrics(mockSender, nil, time.Now())
+		_, err := check.emitMetrics(mockSender, nil, time.Now())
+		errCh <- err
 	}()
 
 	select {
@@ -792,7 +896,8 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	// First run: minimal GPU tags (just uuid fallback)
 	metricTime1 := time.Now()
 	metricTimestamp1 := float64(metricTime1.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime1))
+	_, err := check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime1)
+	require.NoError(t, err)
 
 	expectedTags1 := []string{"gpu_uuid:" + deviceUUID}
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(expectedTags1), metricTimestamp1)
@@ -806,7 +911,8 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 
 	metricTime2 := time.Now()
 	metricTimestamp2 := float64(metricTime2.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime2))
+	_, err = check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime2)
+	require.NoError(t, err)
 
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(gpuTags1), metricTimestamp2)
 
@@ -819,7 +925,8 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 
 	metricTime3 := time.Now()
 	metricTimestamp3 := float64(metricTime3.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime3))
+	_, err = check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime3)
+	require.NoError(t, err)
 	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mockMatchesTags(gpuTags2), metricTimestamp3)
 }
 
@@ -852,7 +959,8 @@ func TestStrictIntervalMetricsEmitOnTheirOwnCadence(t *testing.T) {
 	for run := range 7 {
 		mockSender.ResetCalls()
 		runTime := start.Add(time.Duration(run) * 5 * time.Second)
-		require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, runTime))
+		_, err := check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, runTime)
+		require.NoError(t, err)
 
 		runTimestamp := float64(runTime.UnixNano()) / float64(time.Second)
 		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.regular_metric", 2.0, "", mock.Anything, runTimestamp)

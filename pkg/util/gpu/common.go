@@ -9,7 +9,54 @@ package gpu
 import (
 	"regexp"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/benbjohnson/clock"
+
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var monitoringReadiness struct {
+	sync.Mutex
+	complete func()
+}
+
+// RegisterReadiness delays Agent readiness until the first successful GPU check
+// or five minutes elapse. Call during component construction when GPU monitoring
+// is enabled, and call the returned cleanup function on shutdown.
+func RegisterReadiness(clk clock.Clock) func() {
+	monitoringReadiness.Lock()
+	defer monitoringReadiness.Unlock()
+	if monitoringReadiness.complete != nil {
+		monitoringReadiness.complete()
+	}
+
+	handle := health.RegisterReadiness("gpu-check")
+	complete := sync.OnceFunc(func() {
+		if err := handle.Deregister(); err != nil {
+			log.Warnf("Unable to deregister GPU readiness check: %v", err)
+		}
+	})
+	// This timer must fire even if the GPU check never runs or is stuck in NVML.
+	timer := clk.AfterFunc(5*time.Minute, complete)
+	monitoringReadiness.complete = func() {
+		timer.Stop()
+		complete()
+	}
+	return monitoringReadiness.complete
+}
+
+// MarkReady releases the startup readiness condition after a successful GPU
+// collection. It is safe to call repeatedly, including after the timeout.
+func MarkReady() {
+	monitoringReadiness.Lock()
+	defer monitoringReadiness.Unlock()
+	if monitoringReadiness.complete != nil {
+		monitoringReadiness.complete()
+	}
+}
 
 // ResourceGPU represents a GPU resource
 type ResourceGPU string

@@ -31,6 +31,7 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -371,8 +372,14 @@ func (c *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("get metric sender: %w", err)
 	}
-	// Commit the metrics even in case of an error
-	defer snd.Commit()
+	collectionSucceeded := false
+	defer func() {
+		// Commit the metrics even in case of an error.
+		snd.Commit()
+		if collectionSucceeded {
+			gpuutil.MarkReady()
+		}
+	}()
 
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
@@ -430,8 +437,14 @@ func (c *Check) Run() error {
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
 
-	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
-		log.Warnf("error while sending gpu metrics: %s", err)
+	samples, err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime)
+	// Run also returns nil for skipped, empty, and partially failed runs.
+	// Only an actual successful collection completes startup readiness.
+	collectionSucceeded = err == nil && samples > 0
+	if err != nil {
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("error while sending gpu metrics: %s", err)
+		}
 	}
 
 	return nil
@@ -521,10 +534,10 @@ type collectorSamplesCollection struct {
 	duration      time.Duration
 }
 
-func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
+func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) (int, error) {
 	err := c.ensureInitCollectors()
 	if err != nil {
-		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
+		return 0, fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
 	perDeviceSamples := make(map[string]*deviceSamplesCollection)
@@ -560,6 +573,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		c.telemetry.metrics.metricsSent.Add(float64(len(collectorResult.samples)), string(collectorResult.name))
 	}
 
+	emittedSamples := 0
 	// Iterate through devices to emit their samples.
 	for deviceUUID, deviceData := range perDeviceSamples {
 		deduplicatedSamples := nvidia.RemoveDuplicateSamples(deviceData.collectorSamples)
@@ -573,11 +587,13 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		for _, sample := range deduplicatedSamples {
 			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
 				multiErr = append(multiErr, fmt.Errorf("error emitting sample %s: %w", sample.Key(), err))
+			} else {
+				emittedSamples++
 			}
 		}
 	}
 
-	return errors.Join(multiErr...)
+	return emittedSamples, errors.Join(multiErr...)
 }
 
 func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesCollection {
