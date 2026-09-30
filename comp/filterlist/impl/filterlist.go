@@ -273,7 +273,7 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 
 	filterList, droppedRules := metricname.NewMatcherWithPrefixRules(metricNames, matchPrefix, prefixRules)
 	for _, prefix := range droppedRules {
-		fl.log.Warnf("metric_filterlist_prefix: dropping entry %q: a broader prefix already matches every metric name it could ever match unconditionally, so its exceptions could never apply", prefix)
+		fl.log.Warnf("metric_filterlist_prefix: dropping entry %q: covered by an unconditional metric_filterlist prefix", prefix)
 	}
 	histoFilterList := filterList.RestrictExact(fl.isHistogramAggregateSuffix)
 

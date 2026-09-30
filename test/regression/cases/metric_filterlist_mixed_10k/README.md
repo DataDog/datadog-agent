@@ -1,16 +1,15 @@
 # `metric_filterlist_mixed_10k`
 
-Measures the cost of exception-bearing metric prefix rules.
+Measures the cost of metric prefix rules with exceptions.
 
 | case | entries | exceptions |
 |---|---|---|
 | `metric_filterlist_mixed_10k` | 1,250 prefix (+ 1,250 legacy copies) + 5,000 exact | 10,000 |
 
-Every prefix entry carries 8 exceptions, so the prefix side stays in
-`Matcher.rules` (the linear exception-bearing path), not in the compacted bare
-`prefixes` path. Exact entries stay under `metric_filterlist`; prefix rules use
-`metric_filterlist_prefix`. The flat list also carries legacy `prefix*` copies
-so comparison images filter the same prefix-hit traffic.
+Every prefix entry carries 8 exceptions. Exact entries stay under
+`metric_filterlist`; prefix rules use `metric_filterlist_prefix`. The flat list
+also carries legacy `prefix*` copies so comparison images filter the same
+prefix-hit traffic.
 
 ## ADP compatibility
 
@@ -57,7 +56,7 @@ matches come only from prefix matching, not equality.
 The comparison image filters `prefix_hit` through legacy `metric_filterlist`
 `prefix*` entries; the target image filters it through `metric_filterlist_prefix`.
 This keeps the forwarded workload comparable while still measuring the new
-exception-bearing matcher path.
+prefix-exception matcher path.
 
 ## Regenerating
 

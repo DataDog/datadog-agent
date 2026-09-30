@@ -16,10 +16,13 @@ import (
 type Matcher struct {
 	// sorted, deduplicated, and not covered by prefixes.
 	exact []string
-	// exception-free prefixes; sorted, deduplicated, and compacted.
+	// metric_filterlist prefixes; sorted, deduplicated, and compacted.
 	prefixes []string
-	// exception-bearing rules; nested prefixes may both matter.
-	rules []compiledPrefixRule
+	// metric_filterlist_prefix prefixes; sorted, deduplicated, and compacted.
+	rulePrefixes []string
+	// global exceptions for metric_filterlist_prefix.
+	exceptExact  []string
+	exceptPrefix []string
 }
 
 // PrefixRule is a metric_filterlist_prefix entry.
@@ -30,15 +33,6 @@ type PrefixRule struct {
 	Prefix       string
 	ExceptExact  []string
 	ExceptPrefix []string
-}
-
-// compiledPrefixRule has compacted exception lists for binary search.
-type compiledPrefixRule struct {
-	prefix string
-	// sorted and deduplicated.
-	exceptExact []string
-	// sorted and compacted.
-	exceptPrefix []string
 }
 
 // NewMatcher creates a matcher for metric_filterlist only.
@@ -62,43 +56,40 @@ func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRu
 		exact = append(exact, entry)
 	}
 
-	var compiled []compiledPrefixRule
+	var rulePrefixes []string
+	var exceptExact []string
+	var exceptPrefix []string
 	for _, rule := range rules {
-		exceptExact := compactExact(slices.Clone(rule.ExceptExact), nil)
-		exceptPrefix := compactPrefixes(slices.Clone(rule.ExceptPrefix))
-
-		if len(exceptExact) == 0 && len(exceptPrefix) == 0 {
-			// No surviving exceptions: use the faster bare-prefix path.
-			prefixes = append(prefixes, rule.Prefix)
-			continue
-		}
-
-		compiled = append(compiled, compiledPrefixRule{
-			prefix:       rule.Prefix,
-			exceptExact:  exceptExact,
-			exceptPrefix: exceptPrefix,
-		})
+		rulePrefixes = append(rulePrefixes, rule.Prefix)
+		exceptExact = append(exceptExact, rule.ExceptExact...)
+		exceptPrefix = append(exceptPrefix, rule.ExceptPrefix...)
 	}
 
 	prefixes = compactPrefixes(prefixes)
 	exact = compactExact(exact, prefixes)
+	exceptPrefix = compactPrefixes(exceptPrefix)
+	exceptExact = compactExact(exceptExact, exceptPrefix)
 
-	// A broader unconditional prefix makes these exceptions dead.
 	var dropped []string
-	var kept []compiledPrefixRule
-	for _, rule := range compiled {
-		if len(prefixes) > 0 && testPrefixes(prefixes, rule.prefix) {
-			dropped = append(dropped, rule.prefix)
-			continue
+	if len(prefixes) > 0 {
+		kept := rulePrefixes[:0]
+		for _, prefix := range rulePrefixes {
+			if testPrefixes(prefixes, prefix) {
+				dropped = append(dropped, prefix)
+				continue
+			}
+			kept = append(kept, prefix)
 		}
-		kept = append(kept, rule)
+		rulePrefixes = kept
 	}
-	compiled = kept
+	rulePrefixes = compactPrefixes(rulePrefixes)
 
 	return Matcher{
-		exact:    exact,
-		prefixes: prefixes,
-		rules:    compiled,
+		exact:        exact,
+		prefixes:     prefixes,
+		rulePrefixes: rulePrefixes,
+		exceptExact:  exceptExact,
+		exceptPrefix: exceptPrefix,
 	}, dropped
 }
 
@@ -193,9 +184,11 @@ func (m Matcher) RestrictExact(keep func(string) bool) Matcher {
 		}
 	}
 	return Matcher{
-		exact:    exact,
-		prefixes: m.prefixes,
-		rules:    m.rules,
+		exact:        exact,
+		prefixes:     m.prefixes,
+		rulePrefixes: m.rulePrefixes,
+		exceptExact:  m.exceptExact,
+		exceptPrefix: m.exceptPrefix,
 	}
 }
 
@@ -204,20 +197,22 @@ func (m *Matcher) Len() int {
 	if m == nil {
 		return 0
 	}
-	return len(m.exact) + len(m.prefixes) + len(m.rules)
+	return len(m.exact) + len(m.prefixes) + len(m.rulePrefixes)
 }
 
 // MatchesAll reports whether an unconditional empty prefix matches all names.
-// Empty exception-bearing rules do not count.
 func (m *Matcher) MatchesAll() bool {
 	if m == nil {
 		return false
 	}
-	return len(m.prefixes) == 1 && m.prefixes[0] == ""
+	if len(m.prefixes) == 1 && m.prefixes[0] == "" {
+		return true
+	}
+	return len(m.rulePrefixes) == 1 && m.rulePrefixes[0] == "" && len(m.exceptExact) == 0 && len(m.exceptPrefix) == 0
 }
 
-// Test reports whether name matches an exact entry, a bare prefix, or an
-// unexcepted prefix rule.
+// Test reports whether name matches an exact entry, metric_filterlist prefix,
+// or unexcepted metric_filterlist_prefix entry.
 //
 // The name is normalized before being compared. The Agent sees names exactly as
 // they were submitted, but the intake rewrites them on ingest, so a raw name
@@ -255,10 +250,6 @@ func (m *Matcher) Test(name string) bool {
 
 // search looks name up in the compiled lists. name must already be normalized.
 func (m *Matcher) search(name string) bool {
-	if len(m.prefixes) > 0 && testPrefixes(m.prefixes, name) {
-		return true
-	}
-
 	if len(m.exact) > 0 {
 		i := sort.SearchStrings(m.exact, name)
 		if i < len(m.exact) && name == m.exact[i] {
@@ -266,28 +257,21 @@ func (m *Matcher) search(name string) bool {
 		}
 	}
 
-	for i := range m.rules {
-		if matchesPrefixRule(&m.rules[i], name) {
-			return true
-		}
+	if len(m.prefixes) > 0 && testPrefixes(m.prefixes, name) {
+		return true
 	}
 
-	return false
-}
-
-// name must already be normalized.
-func matchesPrefixRule(rule *compiledPrefixRule, name string) bool {
-	if !strings.HasPrefix(name, rule.prefix) {
+	if len(m.rulePrefixes) == 0 || !testPrefixes(m.rulePrefixes, name) {
 		return false
 	}
 
-	if len(rule.exceptPrefix) > 0 && testPrefixes(rule.exceptPrefix, name) {
+	if len(m.exceptPrefix) > 0 && testPrefixes(m.exceptPrefix, name) {
 		return false
 	}
 
-	if len(rule.exceptExact) > 0 {
-		i := sort.SearchStrings(rule.exceptExact, name)
-		if i < len(rule.exceptExact) && name == rule.exceptExact[i] {
+	if len(m.exceptExact) > 0 {
+		i := sort.SearchStrings(m.exceptExact, name)
+		if i < len(m.exceptExact) && name == m.exceptExact[i] {
 			return false
 		}
 	}

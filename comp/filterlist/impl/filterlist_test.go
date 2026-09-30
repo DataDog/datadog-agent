@@ -300,7 +300,7 @@ func TestMetricFilterListPrefixEmptyPrefixMatchesAll(t *testing.T) {
 	require.True(t, matcher.Test("other.metric"))
 }
 
-func TestMetricFilterListPrefixDeadRuleIsDropped(t *testing.T) {
+func TestMetricFilterListPrefixExceptionsApplyAcrossRules(t *testing.T) {
 	cfg := map[string]interface{}{
 		"metric_filterlist_prefix": prefixListConfig(
 			MetricPrefixListEntry{Prefix: "postgresql."},
@@ -312,5 +312,6 @@ func TestMetricFilterListPrefixDeadRuleIsDropped(t *testing.T) {
 	}
 	matcher := newTestFilterList(t, cfg).GetMetricFilterList()
 
-	require.True(t, matcher.Test("postgresql.locks.waiting"), "the dead rule's exception has no effect")
+	require.False(t, matcher.Test("postgresql.locks.waiting"))
+	require.True(t, matcher.Test("postgresql.locks.blocked"))
 }

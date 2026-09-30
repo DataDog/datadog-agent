@@ -185,7 +185,9 @@ func TestNewMatcherPatterns(t *testing.T) {
 			m := NewMatcher(c.list, c.matchPrefix)
 			assert.Equal(t, c.exact, m.exact, "exact entries")
 			assert.Equal(t, c.prefixes, m.prefixes, "prefix entries")
-			assert.Empty(t, m.rules)
+			assert.Empty(t, m.rulePrefixes)
+			assert.Empty(t, m.exceptExact)
+			assert.Empty(t, m.exceptPrefix)
 			assert.Equal(t, len(c.exact)+len(c.prefixes), m.Len())
 		})
 	}
@@ -252,15 +254,16 @@ func prefixRulesFrom(prefixes []string) []PrefixRule {
 	return rules
 }
 
-func TestNewMatcherWithPrefixRulesBareRulesFoldIntoPrefixes(t *testing.T) {
-	// Exception-free rules use the compacted prefix fast path.
+func TestNewMatcherWithPrefixRulesBareRulesCompileAsRulePrefixes(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "redis."},
 		{Prefix: "postgresql.", ExceptExact: nil, ExceptPrefix: nil},
 	})
 	assert.Empty(t, dropped)
-	assert.Equal(t, []string{"postgresql.", "redis."}, m.prefixes)
-	assert.Empty(t, m.rules)
+	assert.Empty(t, m.prefixes)
+	assert.Equal(t, []string{"postgresql.", "redis."}, m.rulePrefixes)
+	assert.Empty(t, m.exceptExact)
+	assert.Empty(t, m.exceptPrefix)
 }
 
 func TestNewMatcherWithPrefixRulesExceptExact(t *testing.T) {
@@ -268,7 +271,8 @@ func TestNewMatcherWithPrefixRulesExceptExact(t *testing.T) {
 		{Prefix: "postgresql.", ExceptExact: []string{"postgresql.connections"}},
 	})
 	assert.Empty(t, dropped)
-	assert.Len(t, m.rules, 1)
+	assert.Equal(t, []string{"postgresql."}, m.rulePrefixes)
+	assert.Equal(t, []string{"postgresql.connections"}, m.exceptExact)
 
 	assert.True(t, m.Test("postgresql.locks"))
 	assert.False(t, m.Test("postgresql.connections"), "excepted exact name is kept")
@@ -325,8 +329,7 @@ func TestNewMatcherWithPrefixRulesDoesNotRetainExceptionInputSlices(t *testing.T
 	assert.False(t, first.Test("postgresql.metrics.waiting"))
 }
 
-// Exceptions are scoped to the entry that declares them.
-func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRule(t *testing.T) {
+func TestNewMatcherWithPrefixRulesExactEntriesStillBlockExceptedNames(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(
 		[]string{"postgresql.connections"},
 		false,
@@ -339,33 +342,28 @@ func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRule(t *testing.T) {
 	assert.True(t, m.Test("postgresql.connections"))
 }
 
-func TestNewMatcherWithPrefixRulesExceptionsAreScopedToTheirRuleAmongRules(t *testing.T) {
-	bothExcept, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+func TestNewMatcherWithPrefixRulesExceptionsApplyAcrossRules(t *testing.T) {
+	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "foo.", ExceptExact: []string{"foo.bar"}},
-		{Prefix: "foo.b", ExceptExact: []string{"foo.bar"}},
+		{Prefix: "foo.b"},
 	})
 	assert.Empty(t, dropped)
-	assert.False(t, bothExcept.Test("foo.bar"), "excepted by every covering rule")
-	assert.True(t, bothExcept.Test("foo.other"))
 
-	oneExcepts, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
-		{Prefix: "foo.", ExceptExact: []string{"foo.bar"}},
-		{Prefix: "foo.b", ExceptExact: []string{"foo.baz"}},
-	})
-	assert.Empty(t, dropped)
-	assert.True(t, oneExcepts.Test("foo.bar"), "excepted by one rule, but still matched by the other")
+	assert.False(t, m.Test("foo.bar"), "one exception allowlists across all prefix rules")
+	assert.True(t, m.Test("foo.baz"))
+	assert.True(t, m.Test("foo.other"))
 }
 
-// Rules shadowed by unconditional prefixes are dropped.
-func TestNewMatcherWithPrefixRulesDeadRuleDetection(t *testing.T) {
+func TestNewMatcherWithPrefixRulesNestedExceptionsApplyToBroaderRules(t *testing.T) {
 	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "postgresql."},
 		{Prefix: "postgresql.locks.", ExceptExact: []string{"postgresql.locks.waiting"}},
 	})
-	assert.Equal(t, []string{"postgresql.locks."}, dropped)
-	assert.Empty(t, m.rules)
+	assert.Empty(t, dropped)
+	assert.Equal(t, []string{"postgresql."}, m.rulePrefixes)
 
-	assert.True(t, m.Test("postgresql.locks.waiting"))
+	assert.False(t, m.Test("postgresql.locks.waiting"))
+	assert.True(t, m.Test("postgresql.locks.blocked"))
 }
 
 func TestNewMatcherWithPrefixRulesDeadRuleFromMatchPrefix(t *testing.T) {
@@ -377,7 +375,7 @@ func TestNewMatcherWithPrefixRulesDeadRuleFromMatchPrefix(t *testing.T) {
 		},
 	)
 	assert.Equal(t, []string{"postgresql.locks."}, dropped)
-	assert.Empty(t, m.rules)
+	assert.Empty(t, m.rulePrefixes)
 	assert.True(t, m.Test("postgresql.locks.waiting"))
 }
 
@@ -423,7 +421,9 @@ func TestRestrictExact(t *testing.T) {
 	assert.Equal(t, []string{"foo.count"}, restricted.exact)
 	// Prefix state is shared for histogram aggregate matchers.
 	assert.Equal(t, m.prefixes, restricted.prefixes)
-	assert.Equal(t, m.rules, restricted.rules)
+	assert.Equal(t, m.rulePrefixes, restricted.rulePrefixes)
+	assert.Equal(t, m.exceptExact, restricted.exceptExact)
+	assert.Equal(t, m.exceptPrefix, restricted.exceptPrefix)
 
 	assert.True(t, restricted.Test("foo.count"))
 	assert.False(t, restricted.Test("foo.max"))
@@ -513,7 +513,7 @@ func benchmarkStringsMatcher(b *testing.B, words, values []string) {
 	}
 }
 
-// Bare prefix rules should stay on the compacted-prefix fast path.
+// Bare prefix rules should stay on a compacted binary-search prefix path.
 func BenchmarkStringsMatcherMixed(b *testing.B) {
 	const size = 5000
 
@@ -552,7 +552,6 @@ func BenchmarkStringsMatcherMixed(b *testing.B) {
 	}
 }
 
-// Exception-bearing prefix rules are the linear-scan path.
 func BenchmarkStringsMatcherPrefixRulesExceptions(b *testing.B) {
 	words := []string{
 		"foo.bar",
@@ -568,7 +567,7 @@ func BenchmarkStringsMatcherPrefixRulesExceptions(b *testing.B) {
 					ExceptExact: []string{fmt.Sprintf("unrelated%d.keep", i)},
 				})
 			}
-			// Include the bare-prefix fast path in every run.
+			// Include a matching bare prefix in every run.
 			rules = append(rules, PrefixRule{Prefix: "foo."})
 
 			matcher, _ := NewMatcherWithPrefixRules(nil, false, rules)

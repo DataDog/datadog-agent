@@ -196,7 +196,7 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 }
 
 // buildMetricPrefixListConfig converts RC prefix rules into the local YAML shape.
-// Duplicate prefixes are preserved; exceptions are scoped per rule.
+// Duplicate prefixes are preserved; prefix exceptions are applied globally.
 func (*FilterList) buildMetricPrefixListConfig(metricPrefixListUpdates []filteredMetricPrefixes) []MetricPrefixListEntry {
 	var prefixEntries []MetricPrefixListEntry
 	for _, update := range metricPrefixListUpdates {

@@ -308,8 +308,8 @@ func TestFilterListUpdateWithDuplicateMetricPrefixRulesPreservesBoth(t *testing.
 
 	matcher := filterList.GetMetricFilterList()
 	require.True(matcher.Test("test.dup.anything"))
-	require.True(matcher.Test("test.dup.keep.one"), "the second duplicate rule still matches")
-	require.True(matcher.Test("test.dup.keep.two"), "the first duplicate rule still matches")
+	require.False(matcher.Test("test.dup.keep.one"), "exceptions apply across duplicate rules")
+	require.False(matcher.Test("test.dup.keep.two"), "exceptions apply across duplicate rules")
 	require.False(matcher.Test("test.dup.keep.both"), "excepted by both duplicate rules")
 }
 
