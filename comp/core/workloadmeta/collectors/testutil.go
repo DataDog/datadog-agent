@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx/fxtest"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nvml"
@@ -20,7 +21,10 @@ import (
 
 // GetNvmlCollector creates the NVML collector, exposed here for testing purposes only
 func GetNvmlCollector(t *testing.T, config config.Component) workloadmeta.Collector {
-	collector, err := nvml.NewCollector(config)
+	lc := fxtest.NewLifecycle(t)
+	collector, err := nvml.NewCollector(config, lc)
 	require.NoError(t, err, "failed to create NVML collector")
+	lc.RequireStart()
+	t.Cleanup(lc.RequireStop)
 	return collector.Collector
 }

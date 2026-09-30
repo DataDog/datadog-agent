@@ -15,10 +15,14 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx/fxtest"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -27,6 +31,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
 func newTestCollector(t *testing.T, store workloadmeta.Component) *collector {
@@ -45,6 +50,101 @@ func TestStartDisabledWhenGPUMonitoringDisabled(t *testing.T) {
 	err := c.Start(context.Background(), nil)
 
 	require.Equal(t, dderrors.NewDisabled(componentName, "GPU monitoring is disabled"), err)
+}
+
+func TestStartBeforeNVMLIsAvailable(t *testing.T) {
+	env.SetFeatures(t)
+	c := newTestCollector(t, nil)
+	require.NoError(t, c.Start(context.Background(), nil), "explicitly enabled monitoring must retry NVML even if startup detection missed it")
+}
+
+func TestReadinessRegistration(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{"gpu.enabled": enabled})
+			lc := fxtest.NewLifecycle(t)
+			_, err := NewCollector(cfg, lc)
+			require.NoError(t, err)
+			// The collector has not started or called NVML yet.
+			assert.Equal(t, enabled, slices.Contains(health.GetReady().Unhealthy, "gpu-nvml"))
+			assert.NotContains(t, health.GetLive().Unhealthy, "gpu-nvml")
+			assert.NotContains(t, health.GetLive().Healthy, "gpu-nvml")
+			lc.RequireStart()
+			t.Cleanup(lc.RequireStop)
+			lc.RequireStop()
+			assert.NotContains(t, health.GetReady().Unhealthy, "gpu-nvml")
+		})
+	}
+}
+
+func TestReadiness(t *testing.T) {
+	for _, scenario := range []string{"success", "recovers", "initialization failure", "missing critical symbols", "never pulled"} {
+		t.Run(scenario, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clk := clock.NewMock()
+				c := newTestCollector(t, nil)
+				c.registerReadiness(clk)
+				t.Cleanup(c.completeReadiness)
+				assert.Contains(t, health.GetReady().Unhealthy, "gpu-nvml")
+				if scenario == "recovers" {
+					ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface {
+						return testutil.NewMockNVML(testutil.WithInitReturn(nvml.ERROR_LIBRARY_NOT_FOUND))
+					})
+					require.Error(t, c.Pull(context.Background()))
+					assert.Contains(t, health.GetReady().Unhealthy, "gpu-nvml")
+				}
+
+				switch scenario {
+				case "success", "recovers":
+					lib := nvmltestutil.SetupMockNVML(t)
+					lib.DeviceGetCountFunc = func() (int, nvml.Return) { return 0, nvml.ERROR_UNKNOWN }
+					// Initialization is enough; a later collection error must not block readiness.
+					require.Error(t, c.Pull(context.Background()))
+					assert.NotContains(t, health.GetReady().Unhealthy, "gpu-nvml")
+				case "initialization failure", "missing critical symbols":
+					ret := nvml.Return(nvml.ERROR_UNKNOWN)
+					if scenario == "missing critical symbols" {
+						ret = nvml.SUCCESS
+					}
+					ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface {
+						return testutil.NewMockNVML(testutil.WithInitReturn(ret), testutil.WithSymbolsMock(nil))
+					})
+					require.Error(t, c.Pull(context.Background()))
+				}
+
+				clk.Add(nvmlReadinessTimeout - time.Nanosecond)
+				synctest.Wait()
+				assert.Equal(t, scenario != "success" && scenario != "recovers", slices.Contains(health.GetReady().Unhealthy, "gpu-nvml"))
+				clk.Add(time.Nanosecond)
+				synctest.Wait()
+				assert.NotContains(t, health.GetReady().Unhealthy, "gpu-nvml")
+				c.completeReadiness() // Late success or shutdown after timeout is harmless.
+			})
+		})
+	}
+}
+
+func TestReadinessTimeoutDuringNVMLInitialization(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clk := clock.NewMock()
+		c := newTestCollector(t, nil)
+		c.registerReadiness(clk)
+		t.Cleanup(c.completeReadiness)
+		entered, proceed, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface {
+			return testutil.NewMockNVML(testutil.WithInitCallback(func() nvml.Return {
+				close(entered)
+				<-proceed
+				return nvml.ERROR_UNKNOWN
+			}))
+		})
+		go func() { done <- c.Pull(context.Background()) }()
+		t.Cleanup(func() { close(proceed); require.Error(t, <-done) })
+		<-entered
+		clk.Add(nvmlReadinessTimeout)
+		synctest.Wait()
+		assert.NotContains(t, health.GetReady().Unhealthy, "gpu-nvml")
+	})
 }
 
 func TestPull(t *testing.T) {

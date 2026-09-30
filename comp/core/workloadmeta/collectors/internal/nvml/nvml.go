@@ -16,8 +16,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"go.uber.org/fx"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -25,9 +27,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,6 +38,9 @@ const (
 	collectorID   = "nvml"
 	componentName = "workloadmeta-nvml"
 	nvidiaVendor  = "nvidia"
+
+	// Match the grace period used by safenvml's NVML availability telemetry.
+	nvmlReadinessTimeout = 5 * time.Minute
 )
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
@@ -52,6 +57,7 @@ type collector struct {
 	integrateWithWorkloadmetaProcesses bool
 	gpuMonitoringEnabled               bool
 	lastCollectionTimestamp            time.Time
+	completeReadiness                  func()
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -242,6 +248,7 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 		store:                   store,
 		lastCollectionTimestamp: time.Now(),
 		gpuMonitoringEnabled:    true,
+		completeReadiness:       func() {},
 	}
 
 	if config != nil {
@@ -252,11 +259,36 @@ func newCollector(store workloadmeta.Component, config config.Component) *collec
 	return collector
 }
 
-// NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector(config config.Component) (workloadmeta.CollectorProvider, error) {
+// NewCollector creates the NVML collector and registers readiness when GPU monitoring is enabled.
+func NewCollector(config config.Component, lc fx.Lifecycle) (workloadmeta.CollectorProvider, error) {
+	c := newCollector(nil, config)
+	c.registerReadiness(clock.New())
+	lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		c.completeReadiness()
+		return nil
+	}})
 	return workloadmeta.CollectorProvider{
-		Collector: newCollector(nil, config),
+		Collector: c,
 	}, nil
+}
+
+func (c *collector) registerReadiness(clk clock.Clock) {
+	if !c.gpuMonitoringEnabled {
+		return
+	}
+	// Register during construction, before any collectors or GPU checks start.
+	handle := health.RegisterReadiness("gpu-nvml")
+	complete := sync.OnceFunc(func() {
+		if err := handle.Deregister(); err != nil {
+			log.Warnf("Unable to deregister NVML readiness check: %v", err)
+		}
+	})
+	// The timeout must fire even if NVML initialization is stuck or never runs.
+	timer := clk.AfterFunc(nvmlReadinessTimeout, complete)
+	c.completeReadiness = func() {
+		timer.Stop()
+		complete()
+	}
 }
 
 // GetFxOptions returns the FX framework options for the collector
@@ -264,12 +296,9 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
-// Start initializes the NVML library and sets the store
+// Start sets the store. NVML initialization is retried by Pull, including when
+// the library was not present during startup feature detection.
 func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
-	if !env.IsFeaturePresent(env.NVML) {
-		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
-	}
-
 	if !c.gpuMonitoringEnabled {
 		return dderrors.NewDisabled(componentName, "GPU monitoring is disabled")
 	}
@@ -288,6 +317,7 @@ func (c *collector) Pull(ctx context.Context) error {
 	// the in-flight pull to finish instead of racing it. The gated helper
 	// keeps the library wrapper from escaping.
 	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
+		c.completeReadiness()
 		deviceCache := ddnvml.NewDeviceCache(ddnvml.WithDeviceCacheLib(lib))
 		if err := deviceCache.Refresh(); err != nil {
 			return fmt.Errorf("failed to initialize device cache: %w", err)

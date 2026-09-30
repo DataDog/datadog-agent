@@ -216,10 +216,6 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 - Safe wrapper around NVIDIA NVML library
 - Handles library loading, error recovery
 - Caches device info to reduce NVML calls
-- `HasInitialized()` is a thread-safe, non-blocking startup signal. It becomes
-  true after the first successful initialization and critical-symbol checks,
-  and stays true through GPU reset windows. Core Agent readiness observes it
-  when `gpu.enabled` is true, with a five-minute fail-open deadline.
 
 ### NVML test mocks (`testutil/`)
 - Use `safenvml/testutil.SetupMockNVML` as the main setup entry point outside

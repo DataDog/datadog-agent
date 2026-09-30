@@ -6,9 +6,6 @@ go_library(
     srcs = [
         "agent_check_metadata.go",
         "collector.go",
-        "gpu_readiness.go",
-        "gpu_readiness_nvml.go",
-        "gpu_readiness_stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/impl",
     tags = ["manual"],  # keep
@@ -41,23 +38,13 @@ go_library(
         "//pkg/jmxfetch",
         "//pkg/serializer",
         "//pkg/status/collector",
-        "//pkg/status/health",
         "//pkg/status/jmx",
         "//pkg/util/fxutil",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@com_github_benbjohnson_clock//:clock",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_atomic//:atomic",
-    ] + select({
-        "@rules_go//go/platform:android": [
-            "//pkg/gpu/safenvml",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/gpu/safenvml",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 dd_agent_go_test(
@@ -66,11 +53,8 @@ dd_agent_go_test(
         "agent_check_metadata_test.go",
         "collector_demux_test.go",
         "collector_test.go",
-        "gpu_readiness_nvml_test.go",
-        "gpu_readiness_test.go",
     ],
     embed = [":impl"],
-    gotags_sets = [["nvml"]],
     deps = [
         "//comp/aggregator/demultiplexer/def",
         "//comp/aggregator/demultiplexer/impl",
@@ -92,22 +76,10 @@ dd_agent_go_test(
         "//pkg/collector/externalhost",
         "//pkg/metrics",
         "//pkg/serializer",
-        "//pkg/status/health",
         "//pkg/util/option",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",
         "@com_github_stretchr_testify//suite",
-    ] + select({
-        "@rules_go//go/platform:android": [
-            "//pkg/gpu/safenvml",
-            "//pkg/gpu/testutil",
-        ],
-        "@rules_go//go/platform:linux": [
-            "//pkg/gpu/safenvml",
-            "//pkg/gpu/testutil",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )

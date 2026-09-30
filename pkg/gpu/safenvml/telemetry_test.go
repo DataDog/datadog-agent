@@ -164,40 +164,6 @@ func TestNvmlStateTelemetry_Unavailable(t *testing.T) {
 	assert.False(t, tracker.Unavailable(), "NVML should recover when initialization succeeds")
 }
 
-func TestNvmlStateTelemetry_InitializationReadiness(t *testing.T) {
-	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
-	telemetryMock := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
-	tracker := NewNvmlStateTelemetry(telemetryMock)
-
-	assert.False(t, HasInitialized())
-	tracker.Check()
-	assert.False(t, HasInitialized(), "the telemetry grace period is not a successful initialization")
-
-	tracker.firstCheckTime = time.Now().Add(-2 * nvmlUnavailableThreshold)
-	tracker.Check()
-	assert.True(t, tracker.Unavailable())
-	assert.False(t, HasInitialized(), "the readiness timeout must not change NVML availability")
-
-	nvmlNewFunc = func(_ ...nvml.LibraryOption) nvml.Interface {
-		lib := testutil.NewMockNVML(testutil.WithSymbolsMock(allSymbols))
-		lib.ShutdownFunc = func() nvml.Return { return nvml.SUCCESS }
-		return lib
-	}
-	tracker.Check()
-	require.True(t, HasInitialized())
-	assert.False(t, tracker.Unavailable())
-
-	require.NoError(t, ReleaseNVML())
-	tracker.Check()
-	assert.True(t, HasInitialized(), "a GPU reset window must not rearm startup readiness")
-
-	ReacquireNVML()
-	nvmlNewFunc = mockFailingNvmlNew
-	tracker.Check()
-	assert.False(t, tracker.LastNvmlInitSuccess())
-	assert.True(t, HasInitialized(), "later failures must not rearm startup readiness")
-}
-
 func TestNvmlStateTelemetry_StartStop(t *testing.T) {
 	WithMockNvmlNewFunc(t, mockFailingNvmlNew)
 	telemetryMock := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
