@@ -10,7 +10,7 @@
 // spec.nodeName field selector), mirroring OTel's own k8sattributesprocessor
 // "node" filter mode. It exists as a lower-RBAC alternative to the kubelet
 // collector for otel-agent running in DDOT standalone mode: it only needs
-// read access to pods/nodes on the API server, not kubelet API access
+// read access to pods on the API server, not kubelet API access
 // (nodes/proxy, nodes/stats).
 package nodefilter
 
