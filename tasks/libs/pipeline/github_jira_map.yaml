@@ -62,4 +62,4 @@
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': AAD
 '@datadog/agent-anomaly-detection': AAD
-'@datadog/gpu-monitoring-agent': EBPF
+'@datadog/accelerator-telemetry': EBPF

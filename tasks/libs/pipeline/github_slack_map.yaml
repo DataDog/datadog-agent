@@ -307,12 +307,12 @@
   review:
     name: '#fleet-automation'
     id: 'C05PUSNU4H5'
-'@datadog/gpu-monitoring-agent':
+'@datadog/accelerator-telemetry':
   notification:
-    name: '#gpu-monitoring-agent-ops'
+    name: '#accelerator-telemetry-ops'
     id: 'C0APTNVCC04'
   review:
-    name: '#gpu-monitoring-agent-reviews'
+    name: '#accelerator-telemetry-reviews'
     id: 'C0B7VF7LKGT'
 '@datadog/injection-platform':
   notification:
