@@ -385,7 +385,6 @@ func (c *Check) Run() error {
 	}
 
 	currentExecutionTime := time.Now()
-	successful := true
 
 	snd, err := c.GetSender()
 	if err != nil {
@@ -397,6 +396,13 @@ func (c *Check) Run() error {
 	// Check the state of the NVML library for telemetry
 	c.telemetry.nvmlState.Check()
 	c.syncNvmlHealthIssue(c.telemetry.nvmlState.Unavailable(), c.telemetry.nvmlState.LastNvmlInitSuccess())
+	if c.telemetry.nvmlState.LastNvmlInitSuccess() && readiness != nil {
+		readinessTimer.Stop()
+		select {
+		case <-readiness.C:
+		default:
+		}
+	}
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
@@ -404,7 +410,6 @@ func (c *Check) Run() error {
 
 	deviceCount, err := c.deviceCache.Count()
 	if err != nil {
-		successful = false
 		if logLimitCheck.ShouldLog() {
 			log.Warnf("failed to get device count: %v", err)
 		}
@@ -414,30 +419,21 @@ func (c *Check) Run() error {
 
 	// Refresh system-probe data before collecting metrics.
 	if c.spCache != nil && c.gpuConfig.EnableEBPFProbes {
-		if err := c.spCache.Refresh(); err != nil {
-			successful = false
-			if logLimitCheck.ShouldLog() {
-				log.Warnf("error refreshing system-probe stats cache: %v", err)
-			}
+		if err := c.spCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error refreshing system-probe stats cache: %v", err)
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
 		}
-		// Refresh also suppresses startup errors while system-probe is not ready.
-		successful = successful && c.spCache.IsValid()
 	}
 
 	if c.prmCache != nil {
-		if err := c.prmCache.Refresh(); err != nil {
-			successful = false
-			if logLimitCheck.ShouldLog() {
-				log.Warnf("error refreshing PRM cache: %v", err)
-			}
+		if err := c.prmCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error refreshing PRM cache: %v", err)
 		}
 	}
 
 	// start device event gatherer if we have not already
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
-			successful = false
 			log.Warnf("error starting device events collection: %v", err)
 		}
 		// The (re)started gatherer has a fresh event set: reset the
@@ -447,11 +443,8 @@ func (c *Check) Run() error {
 	}
 
 	// Attempt refreshing device events
-	if err := c.deviceEvtGatherer.Refresh(currentExecutionTime); err != nil {
-		successful = false
-		if logLimitCheck.ShouldLog() {
-			log.Warnf("error refreshing device events cache: %v", err)
-		}
+	if err := c.deviceEvtGatherer.Refresh(currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("error refreshing device events cache: %v", err)
 		// Might cause empty metrics in collectors depending on device events
 	}
 
@@ -463,22 +456,8 @@ func (c *Check) Run() error {
 	// metrics with the tags of containers that are using them
 	gpuToContainersMap := c.getGPUToContainersMap()
 
-	emitted, err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime)
-	if err != nil {
-		successful = false
-		if logLimitCheck.ShouldLog() {
-			log.Warnf("error while sending gpu metrics: %s", err)
-		}
-	}
-
-	// A nil Run error alone is not success: errors above are intentionally logged
-	// without preventing partial metric collection. Empty collections do not count either.
-	if successful && emitted > 0 && readiness != nil {
-		readinessTimer.Stop()
-		select {
-		case <-readiness.C:
-		default:
-		}
+	if err := c.emitMetrics(snd, gpuToContainersMap, currentExecutionTime); err != nil && logLimitCheck.ShouldLog() {
+		log.Warnf("error while sending gpu metrics: %s", err)
 	}
 
 	return nil
@@ -568,10 +547,10 @@ type collectorSamplesCollection struct {
 	duration      time.Duration
 }
 
-func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) (int, error) {
+func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
-		return 0, fmt.Errorf("failed to initialize NVML collectors: %w", err)
+		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
 	}
 
 	perDeviceSamples := make(map[string]*deviceSamplesCollection)
@@ -608,7 +587,6 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 	}
 
 	// Iterate through devices to emit their samples.
-	emitted := 0
 	for deviceUUID, deviceData := range perDeviceSamples {
 		deduplicatedSamples := nvidia.RemoveDuplicateSamples(deviceData.collectorSamples)
 		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedSamples)), deviceUUID)
@@ -621,13 +599,11 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		for _, sample := range deduplicatedSamples {
 			if err := c.emitSample(sample, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
 				multiErr = append(multiErr, fmt.Errorf("error emitting sample %s: %w", sample.Key(), err))
-			} else {
-				emitted++
 			}
 		}
 	}
 
-	return emitted, errors.Join(multiErr...)
+	return errors.Join(multiErr...)
 }
 
 func collectSamplesSerial(collectors []nvidia.Collector) []collectorSamplesCollection {
