@@ -40,11 +40,11 @@ func TestSameSecondFlushesPreserveEveryBatch(t *testing.T) {
 
 	for i, suffix := range []string{"", "_000000001"} {
 		name := []string{"first", "second"}[i]
-		readOneBatch(t, filepath.Join(dir, "observer-metrics-20260102-030405Z"+suffix+".parquet"), func(rec arrow.RecordBatch) {
+		readOneBatch(t, filepath.Join(dir, "observer-metrics-20260102-030405Z"+suffix+".parquet"), nil, func(rec arrow.RecordBatch) {
 			require.Equal(t, int64(1), rec.NumRows())
 			require.Equal(t, name, rec.Column(2).(*array.String).Value(0))
 		})
-		readOneBatch(t, filepath.Join(dir, "observer-logs-20260102-030405Z"+suffix+".parquet"), func(rec arrow.RecordBatch) {
+		readOneBatch(t, filepath.Join(dir, "observer-logs-20260102-030405Z"+suffix+".parquet"), nil, func(rec arrow.RecordBatch) {
 			require.Equal(t, int64(1), rec.NumRows())
 			require.Equal(t, []byte(name), rec.Column(2).(*array.Binary).Value(0))
 		})

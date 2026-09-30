@@ -25,7 +25,7 @@ import (
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 )
 
-func readOneBatch(t *testing.T, pattern string, check func(arrow.RecordBatch)) {
+func readOneBatch(t *testing.T, pattern string, bloomColumns []string, check func(arrow.RecordBatch)) {
 	t.Helper()
 	paths, err := filepath.Glob(pattern)
 	require.NoError(t, err)
@@ -43,6 +43,9 @@ func readOneBatch(t *testing.T, pattern string, check func(arrow.RecordBatch)) {
 		column, err := meta.RowGroup(0).ColumnChunk(i)
 		require.NoError(t, err)
 		require.Equal(t, compress.Codecs.Zstd, column.Compression())
+	}
+	if len(bloomColumns) > 0 {
+		assertBloomFilters(t, pf, bloomColumns)
 	}
 	r, err := pqarrow.NewFileReader(pf, pqarrow.ArrowReadProperties{BatchSize: 1024}, memory.DefaultAllocator)
 	require.NoError(t, err)
@@ -68,7 +71,7 @@ func TestMetricParquetV1Format(t *testing.T) {
 	}))
 	require.NoError(t, w.Close())
 
-	readOneBatch(t, filepath.Join(dir, "observer-metrics-*.parquet"), func(rec arrow.RecordBatch) {
+	readOneBatch(t, filepath.Join(dir, "observer-metrics-*.parquet"), []string{"MetricName", "Tags.list.element"}, func(rec arrow.RecordBatch) {
 		require.Equal(t, []string{"RunID", "Time", "MetricName", "ValueFloat", "Tags", "Dropped"}, fieldNames(rec.Schema()))
 		require.Equal(t, []string{"utf8", "int64", "utf8", "float64", "list<element: utf8, nullable>", "bool"}, fieldTypes(rec.Schema()))
 		require.Equal(t, int64(2), rec.NumRows())
@@ -95,7 +98,7 @@ func TestLogParquetV1Format(t *testing.T) {
 	}))
 	require.NoError(t, w.Close())
 
-	readOneBatch(t, filepath.Join(dir, "observer-logs-*.parquet"), func(rec arrow.RecordBatch) {
+	readOneBatch(t, filepath.Join(dir, "observer-logs-*.parquet"), []string{"Status"}, func(rec arrow.RecordBatch) {
 		require.Equal(t, []string{"RunID", "Time", "Content", "Status", "Hostname", "Tags"}, fieldNames(rec.Schema()))
 		require.Equal(t, []string{"utf8", "int64", "binary", "utf8", "utf8", "list<element: utf8, nullable>"}, fieldTypes(rec.Schema()))
 		require.Equal(t, int64(1), rec.NumRows())
@@ -106,6 +109,30 @@ func TestLogParquetV1Format(t *testing.T) {
 		require.Equal(t, "test-host", rec.Column(4).(*array.String).Value(0))
 		require.Equal(t, []string{"service:api"}, listValues(rec.Column(5).(*array.List), 0))
 	})
+}
+
+func assertBloomFilters(t *testing.T, reader *file.Reader, paths []string) {
+	t.Helper()
+	rowGroup, err := reader.GetBloomFilterReader().RowGroup(0)
+	require.NoError(t, err)
+	columns := reader.MetaData().RowGroup(0)
+	for _, path := range paths {
+		found := false
+		for i := 0; i < columns.NumColumns(); i++ {
+			column, err := columns.ColumnChunk(i)
+			require.NoError(t, err)
+			if column.PathInSchema().String() != path {
+				continue
+			}
+			found = true
+			require.Positive(t, column.BloomFilterOffset(), path)
+			require.Positive(t, column.BloomFilterLength(), path)
+			filter, err := rowGroup.GetColumnBloomFilter(i)
+			require.NoError(t, err, path)
+			require.NotNil(t, filter, path)
+		}
+		require.True(t, found, "missing parquet column %s", path)
+	}
 }
 
 func fieldNames(schema *arrow.Schema) []string {
