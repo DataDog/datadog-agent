@@ -97,7 +97,7 @@ func (w *jobWatcher) handleJobEvent(ctx context.Context, ev watch.Event) {
 	case watch.Deleted:
 		job, ok := ev.Object.(*batchv1.Job)
 		if !ok {
-			log.Debugf("[HelmActions] Job %s/%s deleted, unexpected object type: %T, ignoring", job.Namespace, job.Name, ev.Object)
+			log.Debugf("[HelmActions] Job deleted, unexpected object type: %T, ignoring", ev.Object)
 			return
 		}
 		w.store.RemoveJob(job.UID)

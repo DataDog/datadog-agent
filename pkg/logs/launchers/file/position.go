@@ -72,7 +72,7 @@ func Position(registry auditor.Registry, identifier string, mode config.TailingM
 	if filePath != "" {
 		prevFingerprint := registry.GetFingerprint(identifier)
 		if prevFingerprint != nil {
-			newFingerprint, ferr := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config)
+			newFingerprint, ferr := fingerprinter.ComputeFingerprintFromConfig(filePath, prevFingerprint.Config, fileOpener)
 			if ferr != nil {
 				// The fingerprint could not be computed, so keep trusting the stored offset rather
 				// than re-reading the file from the start and sending its contents twice.

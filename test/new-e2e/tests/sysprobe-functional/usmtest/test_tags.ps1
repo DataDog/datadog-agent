@@ -8,12 +8,95 @@ param(
     [Parameter(Mandatory=$true)][string[]]$ExpectedServerTags,
     [Parameter(Mandatory=$true)][string]$ConnExe
 )
+# dd-procmgr supervises process-agent and system-probe, so their legacy SCM services are
+# stopped and starting or stopping them would not touch the running processes.
+$installPath = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\Datadog\Datadog Agent' -Name InstallPath).InstallPath
+$procmgr = Join-Path $installPath 'bin\agent\dd-procmgr.exe'
+
+# The harness runs this script with $ErrorActionPreference='Stop', which turns anything a
+# native command writes to stderr into a terminating error. dd-procmgr reports failures there,
+# so its exit code is the only signal worth acting on and the preference has to be relaxed for
+# the call itself.
+function invoke-procmgr {
+    param([Parameter(Mandatory=$true)][string[]]$ProcmgrArgs)
+    $ErrorActionPreference = 'Continue'
+    $out = & $procmgr @ProcmgrArgs 2>&1
+    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $out }
+}
+
+# Returns $null when the state could not be read, which callers treat as "not converged yet"
+# rather than as a state of its own: a failed describe must never pass for a stopped process.
+function get-procmgrstate {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    $result = invoke-procmgr -ProcmgrArgs @("describe", $Name)
+    if ($result.ExitCode -ne 0) {
+        Write-Host -ForegroundColor Yellow "dd-procmgr describe $Name failed: $($result.Output -join ' ')"
+        return $null
+    }
+    foreach ($line in @($result.Output)) {
+        if ($line -match '^\s*State:\s*(\S+)') {
+            return $Matches[1]
+        }
+    }
+    Write-Host -ForegroundColor Yellow "dd-procmgr describe $Name reported no state: $($result.Output -join ' ')"
+    return $null
+}
+
+# Drives $Name into one of $ReachedStates, re-issuing "dd-procmgr $Verb" whenever the current
+# state calls for it. Requests go through a local gRPC channel that can abort mid-call, so a
+# single failed request is not fatal as long as the state converges. States in neither list are
+# transitions in flight and are simply waited out.
+function converge-procmgrstate {
+    param(
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][string]$Verb,
+        [Parameter(Mandatory=$true)][string[]]$ReachedStates,
+        [Parameter(Mandatory=$true)][string[]]$RequestStates,
+        [Parameter(Mandatory=$false)][int]$TimeoutSeconds=120
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $state = $null
+    while ((Get-Date) -lt $deadline) {
+        $state = get-procmgrstate -Name $Name
+        if ($ReachedStates -contains $state) {
+            return
+        }
+        if ($RequestStates -contains $state) {
+            $result = invoke-procmgr -ProcmgrArgs @($Verb, $Name)
+            if ($result.ExitCode -ne 0) {
+                Write-Host -ForegroundColor Yellow "dd-procmgr $Verb $Name failed: $($result.Output -join ' ')"
+            }
+        }
+        Start-Sleep -Seconds 1
+    }
+    $reported = if ($null -eq $state) { "unreadable" } else { $state }
+    Write-Host -ForegroundColor Red "$Name is $reported after $TimeoutSeconds seconds, expected one of $($ReachedStates -join ', ')"
+    exit 1
+}
+
+# A settled state is anything but Running that dd-procmgrd will not leave on its own: a process
+# whose config gate is closed sits in Created and never transitions, and stopping runs both
+# before and after the test body, so an already-stopped process is the normal case.
+$settledStates = @("Stopped", "Created", "Exited", "Failed")
+
+function stop-procmgrprocess {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    converge-procmgrstate -Name $Name -Verb "stop" `
+        -ReachedStates $settledStates -RequestStates @("Running")
+}
+
+function start-procmgrprocess {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    converge-procmgrstate -Name $Name -Verb "start" `
+        -ReachedStates @("Running") -RequestStates $settledStates
+}
+
 function stop-servicesfortest {
     # disable process agent so that it doesn't query the connections endpoint while we're running
-    stop-service -force datadog-process-agent -ErrorAction Stop
+    stop-procmgrprocess -Name datadog-agent-process
 
     # stop system probe to clean out any connections we're not interested in
-    stop-service -force datadog-system-probe -ErrorAction Stop
+    stop-procmgrprocess -Name datadog-agent-sysprobe
 }
 
 function make-connectionrequest {
@@ -51,7 +134,7 @@ stop-servicesfortest
 #   it sets the DD_SERVICE: service1  DD_ENV: staging DD_VERSION: 1.0-prerelease
 
 ## start the system probe
-start-service datadog-system-probe
+start-procmgrprocess -Name datadog-agent-sysprobe
 
 ## just give everything a chance to settle into place.
 Start-Sleep -Seconds 5

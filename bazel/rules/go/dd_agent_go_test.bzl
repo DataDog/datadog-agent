@@ -6,7 +6,6 @@ load(
     "DARWIN_EXCLUDED_TAGS",
     "LINUX_ONLY_TAGS",
     "WINDOWS_EXCLUDED_TAGS",
-    "WINDOWS_INCLUDED_TAGS",
 )
 
 # Short target-name suffixes for gotags sets whose joined form is too long to fit in
@@ -39,8 +38,6 @@ def _excluded_os(gotags):
     excluded = []
     if tags & LINUX_ONLY_TAGS:
         excluded.extend(["macos", "windows"])
-    if tags & WINDOWS_INCLUDED_TAGS:
-        excluded.extend(["linux", "macos"])
     if tags & WINDOWS_EXCLUDED_TAGS:
         excluded.append("windows")
     if tags & DARWIN_EXCLUDED_TAGS:
@@ -51,18 +48,8 @@ def _excluded_os(gotags):
 
 def _test_tag_set_tags(gotags = None):
     if gotags == None:
-        tags = BASE_TEST_TAGS
-    else:
-        tags = sorted(set(BASE_TEST_TAGS) | set(gotags))
-
-    # Windows builds always define WINDOWS_INCLUDED_TAGS, as
-    # filter_incompatible_tags() does in tasks/build_tags.py. Without them,
-    # sources gated on `windows && wmi` drop out while the tests covering them
-    # still compile.
-    return select({
-        "@platforms//os:windows": sorted(set(tags) | WINDOWS_INCLUDED_TAGS),
-        "//conditions:default": tags,
-    })
+        return BASE_TEST_TAGS
+    return sorted(set(BASE_TEST_TAGS) | set(gotags))
 
 def _test_tag_set_suffix(gotags):
     key = _tag_set_key(gotags)
@@ -83,19 +70,6 @@ def _test_tag_set_check_name(name, gotags = None):
              "_TAG_SET_SUFFIX_ALIASES in //bazel/rules/go:dd_agent_go_test.bzl.") % (name, length, _WINDOWS_MAX_PATH),
         )
 
-def _test_tag_set_target_compatible_with(gotags):
-    if gotags == None:
-        return []
-
-    excluded = _excluded_os(gotags)
-    if not excluded:
-        return []
-
-    conditions = {"//conditions:default": []}
-    for os_name in excluded:
-        conditions["@platforms//os:" + os_name] = ["@platforms//:incompatible"]
-    return select(conditions)
-
 def dd_agent_go_test(
         name,
         gotags_sets = None,
@@ -110,12 +84,20 @@ def dd_agent_go_test(
         gotags_sets: Lists of Go build tags, such as [["zlib", "zstd"]].
         include_default: Whether to emit the minimally tagged default test.
         tags: Optional user-supplied Bazel tags.
-        target_compatible_with: Optional user-supplied target_compatible_with;
-              merged with gotags-set platform restrictions.
+        target_compatible_with: Optional user-supplied target_compatible_with.
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     user_tags = tags or []
     user_tcw = [] if target_compatible_with == None else target_compatible_with
+
+    #TODO(regis): make our Gazelle extension manage the following attributes (didn't want to bloat #56569)
+    importpath = "github.com/DataDog/datadog-agent/" + native.package_name()
+    if kwargs.get("importpath") not in (None, importpath):
+        fail('{}: expected `importpath = "{}"`, got `importpath = "{}"`'.format(name, importpath, kwargs["importpath"]))
+    visibility = None
+    if native.package_name().startswith("test/new-e2e/tests/"):
+        kwargs["importpath"] = importpath  # for CI Visibility's module-identity parity
+        visibility = ["//test/new-e2e/tests:__subpackages__"]  # needed by //test/new-e2e/tests:test_binaries
 
     if include_default:
         _test_tag_set_check_name(name)
@@ -124,6 +106,7 @@ def dd_agent_go_test(
             gotags = _test_tag_set_tags(),
             tags = user_tags + ["dd_agent_go_test"],
             target_compatible_with = user_tcw,
+            visibility = visibility,
             **kwargs
         )
 
@@ -134,6 +117,7 @@ def dd_agent_go_test(
             name = name + "_" + suffix,
             gotags = _test_tag_set_tags(gotags),
             tags = user_tags + ["dd_agent_go_test", "tagset_" + suffix],
-            target_compatible_with = user_tcw + _test_tag_set_target_compatible_with(gotags),
+            target_compatible_with = user_tcw,
+            visibility = visibility,
             **kwargs
         )

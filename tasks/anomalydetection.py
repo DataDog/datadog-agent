@@ -494,7 +494,7 @@ def eval_scenarios(
     source of truth for anomaly detection accuracy.
 
     Uses testbench --only to control which components are active.
-    Default (no --only): uses testbench defaults (bocpd, rrcf, and
+    Default (no --only): uses testbench defaults (bocpd and
       anomaly_scorer; time_cluster is disabled).
     With --only: enables ONLY listed components + extractors, disables everything else.
       time_cluster is auto-added if not specified.
@@ -1201,7 +1201,7 @@ def eval_bayesian(
 
     Examples:
         dda inv --feat anomalydetection anomalydetection.eval-bayesian
-        dda inv --feat anomalydetection anomalydetection.eval-bayesian --components bocpd,rrcf,time_cluster
+        dda inv --feat anomalydetection anomalydetection.eval-bayesian --components bocpd,scanmw,time_cluster
         dda inv --feat anomalydetection anomalydetection.eval-bayesian --only bocpd
         dda inv --feat anomalydetection anomalydetection.eval-bayesian --n-trials 100 --seed 42
         dda inv --feat anomalydetection anomalydetection.eval-bayesian --eval-backend ddeval \
