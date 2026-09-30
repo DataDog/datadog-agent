@@ -9,7 +9,6 @@
   needs: ["go_deps"]
   variables:
     FLAVORS: "--flavor base"
-    KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
   before_script:

@@ -22,9 +22,9 @@ package_metadata(
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
+        download_url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-{version}.tar.bz2",
         package = "gpg-error",
         version = VERSION,
-        download_url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-{version}.tar.bz2",
     ),
 )
 
@@ -39,18 +39,24 @@ ship_source_offer(name = "ship_source_offer")
 
 genrule(
     name = "code_to_errno_h",
-    srcs = ["src/mkerrnos.awk", "src/errnos.in"],
-    tools = ["@gawk"],
-    cmd = "$(execpath @gawk) -f $(execpath src/mkerrnos.awk) $(execpath src/errnos.in) > $@",
+    srcs = [
+        "src/mkerrnos.awk",
+        "src/errnos.in",
+    ],
     outs = ["code-to-errno.h"],
+    cmd = "$(execpath @gawk) -f $(execpath src/mkerrnos.awk) $(execpath src/errnos.in) > $@",
+    tools = ["@gawk"],
 )
 
 genrule(
     name = "_mkerrcodes_h",
-    srcs = ["src/mkerrcodes1.awk", "src/errnos.in"],
-    tools = ["@gawk"],
-    cmd = "$(execpath @gawk) -f $(execpath src/mkerrcodes1.awk) $(execpath src/errnos.in) > $@",
+    srcs = [
+        "src/mkerrcodes1.awk",
+        "src/errnos.in",
+    ],
     outs = ["_mkerrcodes.h"],
+    cmd = "$(execpath @gawk) -f $(execpath src/mkerrcodes1.awk) $(execpath src/errnos.in) > $@",
+    tools = ["@gawk"],
 )
 
 c_preprocessor(
@@ -61,26 +67,32 @@ c_preprocessor(
 
 genrule(
     name = "mkerrcodes_h",
-    srcs = ["src/mkerrcodes.awk", ":mkerrcodes_tmp_h"],
-    tools = ["@gawk"],
-    cmd = "grep GPG_ERR_ $(execpath :mkerrcodes_tmp_h) | $(execpath @gawk) -f $(execpath src/mkerrcodes.awk) > $@",
+    srcs = [
+        "src/mkerrcodes.awk",
+        ":mkerrcodes_tmp_h",
+    ],
     outs = ["mkerrcodes.h"],
+    cmd = "grep GPG_ERR_ $(execpath :mkerrcodes_tmp_h) | $(execpath @gawk) -f $(execpath src/mkerrcodes.awk) > $@",
+    tools = ["@gawk"],
 )
 
 cc_binary(
     name = "mkerrcodes",
-    srcs = ["src/mkerrcodes.c", ":mkerrcodes_h"],
+    srcs = [
+        "src/mkerrcodes.c",
+        ":mkerrcodes_h",
+    ],
 )
 
 genrule(
     name = "code_from_errno_h",
     srcs = ["src/mkerrcodes2.awk"],
     outs = ["code-from-errno.h"],
+    cmd = "$(execpath mkerrcodes) | $(execpath @gawk) -f $(execpath src/mkerrcodes2.awk) > $@",
     tools = [
         ":mkerrcodes",
         "@gawk",
     ],
-    cmd = "$(execpath mkerrcodes) | $(execpath @gawk) -f $(execpath src/mkerrcodes2.awk) > $@",
 )
 
 genrule(
@@ -90,8 +102,8 @@ genrule(
         "src/err-sources.h.in",
     ],
     outs = ["err-sources-sym.h"],
-    tools = ["@gawk"],
     cmd = "$(execpath @gawk) -f $(execpath src/mkstrtable.awk) -v textidx=2 -v nogettext=1 $(execpath src/err-sources.h.in) > $@",
+    tools = ["@gawk"],
 )
 
 genrule(
@@ -101,8 +113,8 @@ genrule(
         "src/err-codes.h.in",
     ],
     outs = ["err-codes-sym.h"],
-    tools = ["@gawk"],
     cmd = "$(execpath @gawk) -f $(execpath src/mkstrtable.awk) -v textidx=2 -v nogettext=1 $(execpath src/err-codes.h.in) > $@",
+    tools = ["@gawk"],
 )
 
 genrule(
@@ -112,8 +124,8 @@ genrule(
         "src/errnos.in",
     ],
     outs = ["errnos-sym.h"],
-    tools = ["@gawk"],
     cmd = "$(execpath @gawk) -f $(execpath src/mkstrtable.awk) -v textidx=2 -v nogettext=1 -v prefix=GPG_ERR_ -v pkg_namespace=errnos_ $(execpath src/errnos.in) > $@",
+    tools = ["@gawk"],
 )
 
 copy_file(
@@ -140,8 +152,8 @@ genrule(
         "src/err-codes.h.in",
     ],
     outs = ["err-codes.h"],
-    tools = ["@gawk"],
     cmd = "$(execpath @gawk) -f $(execpath src/mkstrtable.awk) -v textidx=3 $(execpath src/err-codes.h.in) > $@",
+    tools = ["@gawk"],
 )
 
 genrule(
@@ -151,8 +163,8 @@ genrule(
         "src/err-sources.h.in",
     ],
     outs = ["err-sources.h"],
-    tools = ["@gawk"],
     cmd = "$(execpath @gawk) -f $(execpath src/mkstrtable.awk) -v textidx=3 $(execpath src/err-sources.h.in) > $@",
+    tools = ["@gawk"],
 )
 
 cc_binary(
@@ -162,19 +174,22 @@ cc_binary(
 
 cc_binary(
     name = "gen-posix-lock-obj",
-    srcs = ["src/gen-posix-lock-obj.c", "src/posix-lock-obj.h"],
+    srcs = [
+        "src/gen-posix-lock-obj.c",
+        "src/posix-lock-obj.h",
+    ],
+    includes = ["src"],
     local_defines = ["HAVE_CONFIG_H"],
     deps = [
         ":config_h",
     ],
-    includes = ["src"],
 )
 
 genrule(
     name = "lock-obj-pub_native_h",
     outs = ["lock-obj-pub.native.h"],
-    tools = [":gen-posix-lock-obj"],
     cmd = "$(execpath :gen-posix-lock-obj) > $@",
+    tools = [":gen-posix-lock-obj"],
 )
 
 # The mkheader tool will use the folder containing gpg-error.h.in as the source
@@ -190,6 +205,7 @@ config_to_abi = {
     "linux_x86_64": "x86_64-unknown-linux-gnu",
     "linux_arm64": "arm-unknown-linux-gnueabi",
 }
+
 mkheader_cmds = {
     arch: """cp $(execpath :lock-obj-pub_native_h) $$(pwd) && \
             $(execpath :mkheader) {} $(execpath src/gpg-error.h.in) $(execpath :copy_config_h) \
@@ -207,10 +223,10 @@ genrule(
         "src/gpg-error.h.in",
         ":lock-obj-pub_native_h",
     ],
-    tools = [":mkheader"],
     outs = ["src/gpg-error.h"],
     cmd = select({"@@//:%s" % config: mkheader_cmds[config] for config in config_to_abi.keys()}),
     target_compatible_with = ["@platforms//os:linux"],
+    tools = [":mkheader"],
 )
 
 cc_library(
@@ -255,6 +271,11 @@ cc_library(
     hdrs = [
         ":gpg-error_h",
     ],
+    copts = ["-O2"],
+    implementation_deps = [
+        ":config_h",
+    ],
+    includes = ["src"],
     local_defines = [
         "GPG_ERR_ENABLE_GETTEXT_MACROS=1",
         "GPGRT_ENABLE_ES_MACROS=1",
@@ -263,18 +284,13 @@ cc_library(
         "HAVE_CONFIG_H",
         "LOCALEDIR=NULL",
     ],
-    copts = ["-O2"],
-    includes = ["src"],
     visibility = ["//visibility:public"],
-    implementation_deps = [
-        ":config_h",
-    ],
 )
 
 cc_shared_library(
     name = "gpg-error",
-    deps = [":libgpg-error"],
     visibility = ["//visibility:public"],
+    deps = [":libgpg-error"],
 )
 
 pkg_files(
@@ -285,10 +301,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "gpg-error_pkg",
-    input = ":gpg-error",
     dest_dir = "embedded/lib",
-    version = "0.34.0",
+    input = ":gpg-error",
     installed_files = [":hdr_files"],
+    version = "0.34.0",
     visibility = ["//visibility:public"],
 )
 

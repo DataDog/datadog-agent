@@ -35,6 +35,8 @@
       when: on_success
   variables:
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+    KUBERNETES_CPU_REQUEST: 8
+    KUBERNETES_CPU_LIMIT: 16
 
 .bazel:defs:cache:omnibus-transition:
   extends: .bazel:defs
@@ -87,7 +89,6 @@
   tags: [ "arch:amd64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
-    KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
 
@@ -98,7 +99,6 @@
   tags: [ "arch:arm64", "specific:true" ]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
-    KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
 
