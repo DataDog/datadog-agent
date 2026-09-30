@@ -124,17 +124,59 @@ func writeTempFile(t *testing.T, dir, name string, content []byte) string {
 
 // scriptExec returns an ExecFile opened through /proc/<test pid>/root/<path>: IsScript skips
 // /proc/<pid>/exe, which would point at the test binary. The container ID prevents the pid 1
-// fallback of host processes.
-func scriptExec(path string, inode uint64) ExecFile {
-	return ExecFile{
+// fallback of host processes. It carries the real inode and ctime of path, like an exec event
+// would, so that it passes the identity check of the path fallback. A missing file gets a zero
+// inode and ctime.
+func scriptExec(t *testing.T, path string) ExecFile {
+	t.Helper()
+	f := ExecFile{
 		PID:         uint32(os.Getpid()),
 		ContainerID: "test-container",
 		Path:        path,
 		MountID:     1,
-		Inode:       inode,
-		CTime:       1,
 		IsScript:    true,
 	}
+	var st syscall.Stat_t
+	if err := syscall.Stat(path, &st); err == nil {
+		f.Inode = st.Ino
+		f.CTime = uint64(syscall.TimespecToNsec(st.Ctim))
+	}
+	return f
+}
+
+func fileCTime(t *testing.T, path string) int64 {
+	t.Helper()
+	var st syscall.Stat_t
+	require.NoError(t, syscall.Stat(path, &st))
+	return syscall.TimespecToNsec(st.Ctim)
+}
+
+// waitCTimeChange chmods path until its ctime differs from before. The kernel updates the ctime
+// with a coarse clock, so two changes in the same tick may leave it unchanged.
+func waitCTimeChange(t *testing.T, path string, before int64) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for fileCTime(t, path) == before {
+		require.True(t, time.Now().Before(deadline), "ctime of %s didn't change", path)
+		time.Sleep(time.Millisecond)
+		require.NoError(t, os.Chmod(path, 0o755))
+	}
+}
+
+// changeCTime changes the ctime of path, like a chmod, without changing its content
+func changeCTime(t *testing.T, path string) {
+	t.Helper()
+	before := fileCTime(t, path)
+	require.NoError(t, os.Chmod(path, 0o755))
+	waitCTimeChange(t, path, before)
+}
+
+// rewriteFile rewrites path in place (same inode), and ensures its ctime changed
+func rewriteFile(t *testing.T, path string, content []byte) {
+	t.Helper()
+	before := fileCTime(t, path)
+	require.NoError(t, os.WriteFile(path, content, 0o755))
+	waitCTimeChange(t, path, before)
 }
 
 func TestFileReaderDoneWhen(t *testing.T) {
@@ -142,7 +184,7 @@ func TestFileReaderDoneWhen(t *testing.T) {
 	dir := t.TempDir()
 	content := []byte("#!/bin/sh\necho v1\n")
 	path := writeTempFile(t, dir, "bin", content)
-	f := scriptExec(path, 42)
+	f := scriptExec(t, path)
 
 	// the same binary executed 10,000 times is read once
 	for i := 0; i < 10000; i++ {
@@ -157,8 +199,8 @@ func TestFileReaderDoneWhen(t *testing.T) {
 
 	// rewriting the binary changes its ctime: exactly one more read and one more scan
 	rewritten := []byte("#!/bin/sh\necho v2\n")
-	require.NoError(t, os.WriteFile(path, rewritten, 0o755))
-	f.CTime++
+	rewriteFile(t, path, rewritten)
+	f = scriptExec(t, path)
 	for i := 0; i < 10000; i++ {
 		fx.reader.Process(f)
 	}
@@ -169,7 +211,7 @@ func TestFileReaderDoneWhen(t *testing.T) {
 
 	// the same content at another path and identity is read, but not scanned again
 	copyPath := writeTempFile(t, dir, "copy", rewritten)
-	fx.reader.Process(scriptExec(copyPath, 43))
+	fx.reader.Process(scriptExec(t, copyPath))
 	assert.EqualValues(t, 3, fx.stats.Reads.Load())
 	assert.EqualValues(t, 1, fx.stats.ShaHits.Load())
 	assert.Equal(t, 2, fx.pool.submitted())
@@ -183,11 +225,11 @@ func TestFileReaderDoneWhen(t *testing.T) {
 func TestFileReaderCTimeChangeSameContent(t *testing.T) {
 	fx := newReaderFixture(t, FileReaderOpts{})
 	path := writeTempFile(t, t.TempDir(), "bin", []byte("content"))
-	f := scriptExec(path, 42)
+	f := scriptExec(t, path)
 
 	fx.reader.Process(f)
-	f.CTime++ // e.g. chmod: new identity, same content
-	fx.reader.Process(f)
+	changeCTime(t, path) // e.g. chmod: new identity, same content
+	fx.reader.Process(scriptExec(t, path))
 
 	assert.EqualValues(t, 2, fx.stats.Reads.Load())
 	assert.EqualValues(t, 1, fx.stats.ShaHits.Load())
@@ -197,7 +239,7 @@ func TestFileReaderCTimeChangeSameContent(t *testing.T) {
 func TestFileReaderTTLExpiry(t *testing.T) {
 	fx := newReaderFixture(t, FileReaderOpts{})
 	path := writeTempFile(t, t.TempDir(), "bin", []byte("content"))
-	f := scriptExec(path, 42)
+	f := scriptExec(t, path)
 
 	fx.reader.Process(f)
 	fx.clock.Advance(59 * time.Minute)
@@ -223,13 +265,14 @@ func TestFileReaderIdentityBypass(t *testing.T) {
 		t.Run(fsType, func(t *testing.T) {
 			fx := newReaderFixture(t, FileReaderOpts{})
 			path := writeTempFile(t, t.TempDir(), "bin", []byte("v1"))
-			f := scriptExec(path, 42)
+			f := scriptExec(t, path)
 			f.Filesystem = fsType
 
 			fx.reader.Process(f)
 			fx.reader.Process(f)
 
-			// a remote write that the local ctime doesn't reflect is still caught
+			// a remote write that the local ctime doesn't reflect is still caught: f keeps the old
+			// ctime, which the identity check ignores on these filesystems
 			require.NoError(t, os.WriteFile(path, []byte("v2"), 0o755))
 			fx.reader.Process(f)
 
@@ -253,7 +296,7 @@ func TestBypassIdentityCache(t *testing.T) {
 func TestFileReaderPoolDropReleasesHash(t *testing.T) {
 	fx := newReaderFixture(t, FileReaderOpts{})
 	path := writeTempFile(t, t.TempDir(), "bin", []byte("content"))
-	f := scriptExec(path, 42)
+	f := scriptExec(t, path)
 
 	fx.pool.reject = true
 	fx.reader.Process(f)
@@ -263,8 +306,8 @@ func TestFileReaderPoolDropReleasesHash(t *testing.T) {
 
 	// the next exec of the same content at another identity is scanned
 	fx.pool.reject = false
-	f.CTime++
-	fx.reader.Process(f)
+	changeCTime(t, path)
+	fx.reader.Process(scriptExec(t, path))
 	assert.Equal(t, 2, fx.pool.submitted())
 	assert.EqualValues(t, 0, fx.stats.ShaHits.Load())
 	_, hashes = fx.deduper.Sizes()
@@ -275,11 +318,11 @@ func TestFileReaderTooBig(t *testing.T) {
 	fx := newReaderFixture(t, FileReaderOpts{MaxFileSize: 10})
 	dir := t.TempDir()
 
-	small := scriptExec(writeTempFile(t, dir, "small", []byte("0123456789")), 1)
+	small := scriptExec(t, writeTempFile(t, dir, "small", []byte("0123456789")))
 	fx.reader.Process(small)
 	assert.EqualValues(t, 1, fx.stats.Reads.Load())
 
-	big := scriptExec(writeTempFile(t, dir, "big", []byte("0123456789a")), 2)
+	big := scriptExec(t, writeTempFile(t, dir, "big", []byte("0123456789a")))
 	fx.reader.Process(big)
 	fx.reader.Process(big)
 	assert.EqualValues(t, 1, fx.stats.TooBig.Load(), "too big is permanent for an identity")
@@ -298,8 +341,8 @@ func TestFileReaderNotRegular(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		fx.reader.Process(scriptExec(fifo, 1))
-		fx.reader.Process(scriptExec(dir, 2))
+		fx.reader.Process(scriptExec(t, fifo))
+		fx.reader.Process(scriptExec(t, dir))
 	}()
 	select {
 	case <-done:
@@ -315,14 +358,15 @@ func TestFileReaderNotRegular(t *testing.T) {
 func TestFileReaderNotFoundIsRetried(t *testing.T) {
 	fx := newReaderFixture(t, FileReaderOpts{})
 	path := filepath.Join(t.TempDir(), "missing")
-	f := scriptExec(path, 42)
 
-	fx.reader.Process(f)
+	fx.reader.Process(scriptExec(t, path))
 	assert.Equal(t, map[string]int64{"not_found": 1}, fx.readErrors())
+	identities, _ := fx.deduper.Sizes()
+	assert.Equal(t, 0, identities)
 
 	// open errors don't mark the identity, so the next exec retries
 	require.NoError(t, os.WriteFile(path, []byte("content"), 0o755))
-	fx.reader.Process(f)
+	fx.reader.Process(scriptExec(t, path))
 	assert.EqualValues(t, 1, fx.stats.Reads.Load())
 	assert.Equal(t, 1, fx.pool.submitted())
 }
@@ -335,7 +379,7 @@ func TestFileReaderPermissionError(t *testing.T) {
 	path := writeTempFile(t, t.TempDir(), "bin", []byte("content"))
 	require.NoError(t, os.Chmod(path, 0o100))
 
-	fx.reader.Process(scriptExec(path, 42))
+	fx.reader.Process(scriptExec(t, path))
 	assert.Equal(t, map[string]int64{"permission": 1}, fx.readErrors())
 }
 
@@ -348,7 +392,7 @@ func TestFileReaderContainerPIDsFallback(t *testing.T) {
 		},
 	})
 	path := writeTempFile(t, t.TempDir(), "bin", []byte("content"))
-	f := scriptExec(path, 42)
+	f := scriptExec(t, path)
 	// a pid that doesn't exist: the exec'ing process is gone
 	f.PID = 1 << 30
 
@@ -366,7 +410,8 @@ func TestFileReaderProcExe(t *testing.T) {
 	content, err := os.ReadFile(exe)
 	require.NoError(t, err)
 
-	// the path doesn't exist in the mount namespace: /proc/<pid>/exe is used
+	// the path doesn't exist in the mount namespace: /proc/<pid>/exe is used. Its identity is not
+	// checked (Inode is wrong here): it is the executed inode itself.
 	fx.reader.Process(ExecFile{
 		PID:         uint32(os.Getpid()),
 		ContainerID: "test-container",
@@ -382,34 +427,94 @@ func TestCandidatePaths(t *testing.T) {
 		ContainerPIDs: func(containerutils.ContainerID) []uint32 { return []uint32{10, 11, 12} },
 	})
 
+	exe := func(pid uint32) candidatePath { return candidatePath{path: utils.ProcExePath(pid)} }
+	root := func(pid uint32) candidatePath {
+		return candidatePath{path: utils.ProcRootFilePath(pid, "/usr/bin/true"), verify: true}
+	}
+
 	f := ExecFile{PID: 11, ContainerID: "c", Path: "/usr/bin/true"}
-	assert.Equal(t, []string{
-		utils.ProcExePath(11),
-		utils.ProcRootFilePath(11, "/usr/bin/true"),
-		utils.ProcRootFilePath(10, "/usr/bin/true"),
-		utils.ProcRootFilePath(12, "/usr/bin/true"),
-	}, r.candidatePaths(&f))
+	assert.Equal(t, []candidatePath{exe(11), root(11), root(10), root(12)}, r.candidatePaths(&f))
 
 	f.IsScript = true
-	assert.Equal(t, []string{
-		utils.ProcRootFilePath(11, "/usr/bin/true"),
-		utils.ProcRootFilePath(10, "/usr/bin/true"),
-		utils.ProcRootFilePath(12, "/usr/bin/true"),
-	}, r.candidatePaths(&f))
+	assert.Equal(t, []candidatePath{root(11), root(10), root(12)}, r.candidatePaths(&f))
 
 	host := ExecFile{PID: 11, Path: "/usr/bin/true"}
-	assert.Equal(t, []string{
-		utils.ProcExePath(11),
-		utils.ProcRootFilePath(11, "/usr/bin/true"),
-		utils.ProcRootFilePath(1, "/usr/bin/true"),
-	}, r.candidatePaths(&host))
+	assert.Equal(t, []candidatePath{exe(11), root(11), root(1)}, r.candidatePaths(&host))
 
 	noLookup := NewFileReader(NewStandInDeduper(), &recordingPool{}, &Stats{}, FileReaderOpts{})
 	f.IsScript = false
-	assert.Equal(t, []string{
-		utils.ProcExePath(11),
-		utils.ProcRootFilePath(11, "/usr/bin/true"),
-	}, noLookup.candidatePaths(&f))
+	assert.Equal(t, []candidatePath{exe(11), root(11)}, noLookup.candidatePaths(&f))
+}
+
+func TestFileReaderIdentityMismatch(t *testing.T) {
+	for name, tc := range map[string]struct {
+		mutate     func(f *ExecFile)
+		filesystem string
+		mismatch   bool
+	}{
+		"match":                      {mutate: func(*ExecFile) {}},
+		"inode differs":              {mutate: func(f *ExecFile) { f.Inode++ }, mismatch: true},
+		"ctime differs":              {mutate: func(f *ExecFile) { f.CTime++ }, mismatch: true},
+		"no ctime in the event":      {mutate: func(f *ExecFile) { f.CTime = 0 }},
+		"inode differs on nfs":       {mutate: func(f *ExecFile) { f.Inode++ }, filesystem: "nfs", mismatch: true},
+		"ctime ignored on nfs":       {mutate: func(f *ExecFile) { f.CTime++ }, filesystem: "nfs"},
+		"mount id can't be compared": {mutate: func(f *ExecFile) { f.MountID += 10 }},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fx := newReaderFixture(t, FileReaderOpts{})
+			path := writeTempFile(t, t.TempDir(), "bin", []byte("content"))
+			f := scriptExec(t, path)
+			f.Filesystem = tc.filesystem
+			tc.mutate(&f)
+
+			fx.reader.Process(f)
+			if !tc.mismatch {
+				assert.EqualValues(t, 1, fx.stats.Reads.Load())
+				assert.Equal(t, 1, fx.pool.submitted())
+				assert.Empty(t, fx.readErrors())
+				return
+			}
+			identities, _ := fx.deduper.Sizes()
+			assert.EqualValues(t, 0, fx.stats.Reads.Load())
+			assert.Equal(t, 0, fx.pool.submitted(), "not scanned under the event's identity")
+			assert.Equal(t, map[string]int64{"other": 1}, fx.readErrors())
+			assert.Equal(t, 0, identities, "the identity is not marked")
+		})
+	}
+}
+
+func TestFileReaderPathReplaced(t *testing.T) {
+	fx := newReaderFixture(t, FileReaderOpts{})
+	dir := t.TempDir()
+	path := writeTempFile(t, dir, "bin", []byte("executed"))
+	f := scriptExec(t, path)
+
+	// the path is replaced between the exec and the open
+	replacement := writeTempFile(t, dir, "replacement", []byte("benign"))
+	require.NoError(t, os.Rename(replacement, path))
+
+	fx.reader.Process(f)
+	assert.Equal(t, 0, fx.pool.submitted())
+	assert.Equal(t, map[string]int64{"other": 1}, fx.readErrors())
+
+	// the next exec, of the new file, is read and scanned
+	fx.reader.Process(scriptExec(t, path))
+	require.Equal(t, 1, fx.pool.submitted())
+	assert.Equal(t, []byte("benign"), fx.pool.datas[0])
+}
+
+func TestFileReaderContainerPIDsMismatch(t *testing.T) {
+	fx := newReaderFixture(t, FileReaderOpts{
+		ContainerPIDs: func(containerutils.ContainerID) []uint32 { return []uint32{uint32(os.Getpid())} },
+	})
+	path := writeTempFile(t, t.TempDir(), "bin", []byte("content"))
+	f := scriptExec(t, path)
+	f.PID = 1 << 30 // gone: only the other container pid is tried
+	f.Inode++
+
+	fx.reader.Process(f)
+	assert.Equal(t, 0, fx.pool.submitted())
+	assert.Equal(t, map[string]int64{"other": 1}, fx.readErrors(), "a mismatch wins over not found")
 }
 
 func TestReadAll(t *testing.T) {
@@ -442,8 +547,8 @@ func TestFileReaderBuffersReused(t *testing.T) {
 
 	dir := t.TempDir()
 	for i := 0; i < 5; i++ {
-		path := writeTempFile(t, dir, "bin", []byte(strings.Repeat("x", i+1)))
-		fx.reader.Process(scriptExec(path, uint64(i)))
+		path := writeTempFile(t, dir, "bin"+string(rune('0'+i)), []byte(strings.Repeat("x", i+1)))
+		fx.reader.Process(scriptExec(t, path))
 	}
 	assert.Equal(t, 5, done)
 	assert.EqualValues(t, 5, fx.stats.Reads.Load())
@@ -471,7 +576,7 @@ func TestFileReaderConcurrent(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		content := []byte{byte('a' + i%2)}
 		path := writeTempFile(t, dir, "bin"+string(rune('0'+i)), content)
-		files = append(files, scriptExec(path, uint64(i)))
+		files = append(files, scriptExec(t, path))
 	}
 
 	var wg sync.WaitGroup

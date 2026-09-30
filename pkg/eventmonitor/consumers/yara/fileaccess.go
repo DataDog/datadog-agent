@@ -88,9 +88,14 @@ const (
 // (not regular, too big): those outcomes can only change with a new ctime. It is not marked on
 // open or read errors, which may be transient, so that a later exec retries. Two concurrent
 // execs of a new identity may both read the file; the content level still ensures one scan.
+// A file found through a path fallback that isn't the executed file (see matchesIdentity) is an
+// open error: it is neither scanned nor marked.
 //
 // On FUSE and network filesystems the identity is neither checked nor marked: the ctime seen
-// by the kernel may not reflect remote writes, so every exec is read and hashed.
+// by the kernel may not reflect remote writes, so every exec is read and hashed. Script entries
+// have no Filesystem (the consumer doesn't resolve it, see ExecConsumer.Copy), so this bypass
+// doesn't apply to scripts on those filesystems: a script rewritten remotely without a local
+// ctime change is only re-read after recheck_ttl. Accepted for the PoC.
 func (r *FileReader) Process(f ExecFile) {
 	id := f.Identity()
 	useIdentity := !bypassIdentityCache(f.Filesystem)
@@ -132,18 +137,13 @@ func (r *FileReader) Process(f ExecFile) {
 func (r *FileReader) read(f *ExecFile) (*[]byte, [32]byte, readOutcome) {
 	var sum [32]byte
 
-	file, err := r.open(f)
+	file, info, err := r.open(f)
 	if err != nil {
 		r.stats.IncReadError(openErrorReason(err))
 		return nil, sum, readFailed
 	}
 	defer file.Close()
 
-	info, err := file.Stat()
-	if err != nil {
-		r.stats.IncReadError(ReadErrorOther)
-		return nil, sum, readFailed
-	}
 	if !info.Mode().IsRegular() {
 		r.stats.NotRegular.Add(1)
 		return nil, sum, readSkipped
@@ -172,15 +172,28 @@ func (r *FileReader) read(f *ExecFile) (*[]byte, [32]byte, readOutcome) {
 	return buf, sum, readOK
 }
 
-// open opens the first candidate path that works. See candidatePaths for the order.
-func (r *FileReader) open(f *ExecFile) (*os.File, error) {
+// errIdentityMismatch is returned when every file found at the event's path is a different file
+// than the executed one: its inode or ctime differs from the event's identity
+var errIdentityMismatch = errors.New("opened file doesn't match the executed file identity")
+
+// candidatePath is a path to try, and whether the file found there must be checked against the
+// event's identity
+type candidatePath struct {
+	path string
+	// verify is false for /proc/<pid>/exe, which is the executed inode itself, and true for the
+	// path fallbacks, where the path may now point at a different file
+	verify bool
+}
+
+// open opens the first candidate path that works, and returns the file with its fstat info. See
+// candidatePaths for the order. A file found through a path fallback is only used when it matches
+// the event's identity: see matchesIdentity.
+func (r *FileReader) open(f *ExecFile) (*os.File, os.FileInfo, error) {
 	var lastErr error
-	for _, path := range r.candidatePaths(f) {
-		// O_NONBLOCK so that opening a FIFO found at the path doesn't block; it has no effect on
-		// regular files. Non-regular files are then rejected after fstat.
-		file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	for _, candidate := range r.candidatePaths(f) {
+		file, info, err := openCandidate(f, candidate)
 		if err == nil {
-			return file, nil
+			return file, info, nil
 		}
 		// keep the most informative error: anything but "not found" wins
 		if !isNotFound(err) || lastErr == nil {
@@ -188,9 +201,62 @@ func (r *FileReader) open(f *ExecFile) (*os.File, error) {
 		}
 	}
 	if lastErr == nil {
-		return nil, os.ErrNotExist
+		return nil, nil, os.ErrNotExist
 	}
-	return nil, lastErr
+	return nil, nil, lastErr
+}
+
+// openCandidate opens and fstats one candidate path, and checks its identity if needed
+func openCandidate(f *ExecFile, candidate candidatePath) (*os.File, os.FileInfo, error) {
+	// O_NONBLOCK so that opening a FIFO found at the path doesn't block; it has no effect on
+	// regular files. Non-regular files are then rejected after fstat.
+	file, err := os.OpenFile(candidate.path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, nil, err
+	}
+	if candidate.verify && !matchesIdentity(f, info) {
+		file.Close()
+		return nil, nil, errIdentityMismatch
+	}
+	return file, info, nil
+}
+
+// matchesIdentity returns true when info, the fstat of a file opened through a path fallback,
+// is the file of the exec event. The path may have been replaced (rename over it, or a
+// different file at the same path in another mount namespace) between the exec and the open:
+// scanning that file would report its content under the executed file's identity, and marking
+// the identity would hide the executed file until the TTL expires.
+//
+// Only the inode and the ctime are compared. The event's MountID is the kernel's mount ID, which
+// fstat doesn't expose (it would need statx STATX_MNT_ID, Linux 5.8+), and st_dev can't be
+// mapped to it without the mount resolver. Inode + ctime is enough for the PoC: a different file
+// on another filesystem with both the same inode number and the same ctime to the nanosecond is
+// not something an unprivileged attacker controls.
+//
+// The ctime isn't compared when the event has none (0: not resolved on this kernel), nor on the
+// filesystems that bypass the identity cache, whose ctime can't be trusted (see
+// bypassIdentityCache): the file is re-read on every exec there anyway.
+//
+// Overlayfs: the event's inode comes from the dentry resolved by the eBPF probe, and fstat
+// through an overlay mount may report the overlay's inode instead. A mismatch there only means
+// the file is not read through the fallback (counted as a read error), never a wrong scan.
+func matchesIdentity(f *ExecFile, info os.FileInfo) bool {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false
+	}
+	if st.Ino != f.Inode {
+		return false
+	}
+	if f.CTime == 0 || bypassIdentityCache(f.Filesystem) {
+		return true
+	}
+	return uint64(syscall.TimespecToNsec(st.Ctim)) == f.CTime
 }
 
 // candidatePaths returns the paths to try, in order:
@@ -199,16 +265,18 @@ func (r *FileReader) open(f *ExecFile) (*os.File, error) {
 //  2. /proc/<pid>/root/<path>, the path in the process' mount namespace.
 //  3. /proc/<other pid>/root/<path>, for the other processes of the same container, in case the
 //     exec'ing process is gone. For host processes, pid 1 is used.
-func (r *FileReader) candidatePaths(f *ExecFile) []string {
-	paths := make([]string, 0, 4)
+//
+// The files found through 2 and 3 are checked against the event's identity.
+func (r *FileReader) candidatePaths(f *ExecFile) []candidatePath {
+	paths := make([]candidatePath, 0, 4)
 	if !f.IsScript && f.PID != 0 {
-		paths = append(paths, utils.ProcExePath(f.PID))
+		paths = append(paths, candidatePath{path: utils.ProcExePath(f.PID)})
 	}
 	if f.Path == "" {
 		return paths
 	}
 	if f.PID != 0 {
-		paths = append(paths, utils.ProcRootFilePath(f.PID, f.Path))
+		paths = append(paths, candidatePath{path: utils.ProcRootFilePath(f.PID, f.Path), verify: true})
 	}
 
 	var others []uint32
@@ -221,7 +289,7 @@ func (r *FileReader) candidatePaths(f *ExecFile) []string {
 		if pid == f.PID || pid == 0 {
 			continue
 		}
-		paths = append(paths, utils.ProcRootFilePath(pid, f.Path))
+		paths = append(paths, candidatePath{path: utils.ProcRootFilePath(pid, f.Path), verify: true})
 	}
 	return paths
 }
@@ -280,7 +348,7 @@ func isNotFound(err error) bool {
 	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
 }
 
-// openErrorReason classifies an open error
+// openErrorReason classifies an open error. An identity mismatch is counted as ReadErrorOther.
 func openErrorReason(err error) ReadErrorReason {
 	switch {
 	case isNotFound(err):
