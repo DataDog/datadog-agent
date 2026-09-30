@@ -6,7 +6,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
-package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
+package(default_package_metadata = [
+    ":package_metadata",
+    ":ship_source_offer",
+])
 
 VERSION = "3.5"
 
@@ -17,9 +20,9 @@ package_metadata(
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
+        download_url = "https://github.com/SELinuxProject/selinux/releases/download/{version}/libsepol-{version}.tar.gz",
         package = "libsepol",
         version = VERSION,
-        download_url = "https://github.com/SELinuxProject/selinux/releases/download/{version}/libsepol-{version}.tar.gz",
     ),
 )
 
@@ -45,45 +48,56 @@ genrule(
 
 cc_library(
     name = "libsepol",
-    srcs = glob(["src/*.c", "src/*.h", "cil/src/*.c", "cil/src/*.h"]) + [":cil_lexer_src"],
-    hdrs = glob(["include/sepol/**/*.h", "cil/include/cil/*.h"]),
-    local_defines = [
-        "_GNU_SOURCE",
-        # If we drop support for glibcs older than 2.28 we can provide this:
-        # "-DHAVE_REALLOCARRAY",
-    ],
+    srcs = glob([
+        "src/*.c",
+        "src/*.h",
+        "cil/src/*.c",
+        "cil/src/*.h",
+    ]) + [":cil_lexer_src"],
+    hdrs = glob([
+        "include/sepol/**/*.h",
+        "cil/include/cil/*.h",
+    ]),
     copts = [
         "-O2",
         "-fPIC",
         "-fno-semantic-interposition",
     ],
     includes = [
-        "include/",
         "cil/include",
-        "include/sepol/",
         "cil/src",
+        "include/",
+        "include/sepol/",
+    ],
+    local_defines = [
+        "_GNU_SOURCE",
+        # If we drop support for glibcs older than 2.28 we can provide this:
+        # "-DHAVE_REALLOCARRAY",
     ],
     visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "sepol",
-    deps = [
-        ":libsepol",
-    ],
     additional_linker_inputs = [
         "src/libsepol.map.in",
     ],
     user_link_flags = [
         "-Wl,-soname=libsepol.so",
-        "-Wl,--version-script=$(location src/libsepol.map.in)",
+        "-Wl,--version-script=$(execpath src/libsepol.map.in)",
     ],
     visibility = ["//visibility:public"],
+    deps = [
+        ":libsepol",
+    ],
 )
 
 pkg_files(
     name = "hdr_files",
-    srcs = glob(["include/sepol/*.h", "cil/include/cil/*.h"]),
+    srcs = glob([
+        "include/sepol/*.h",
+        "cil/include/cil/*.h",
+    ]),
     prefix = "embedded/include/sepol",
 )
 
@@ -95,8 +109,8 @@ pkg_files(
 
 dd_cc_packaged(
     name = "sepol_pkg",
-    input = ":sepol",
     dest_dir = "embedded/lib",
+    input = ":sepol",
     installed_files = [
         ":hdr_files",
         ":policy_hdr_files",
@@ -110,5 +124,8 @@ pkg_filegroup(
         ":hdr_files",
         ":policy_hdr_files",
     ],
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )

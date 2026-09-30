@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -91,7 +92,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 			}
 
 			// 2. Provision EC2 VM
-			host, err := ec2.NewVM(awsEnv, name)
+			host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.UbuntuKindDefault))
 			if err != nil {
 				return fmt.Errorf("ec2.NewVM: %w", err)
 			}

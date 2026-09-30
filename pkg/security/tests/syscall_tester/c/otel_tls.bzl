@@ -5,8 +5,10 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 
 # -mtls-dialect spells the two general-dynamic dialects differently per
-# architecture; the rest of the flags are the same everywhere.
-_TLS_DIALECT = select({
+# architecture; the rest of the flags are the same everywhere. Exported: the
+# Node.js tester in BUILD.bazel needs it too, and it is the only access model
+# that one ever builds.
+TLS_DIALECT = select({
     "@platforms//cpu:aarch64": ["-mtls-dialect=desc"],
     "@platforms//cpu:x86_64": ["-mtls-dialect=gnu2"],
 })
@@ -21,7 +23,7 @@ _TLS_ALT_DIALECT = select({
 # local-dynamic only appears when the TLS symbol is hidden, hence
 # OTEL_TLS_HIDDEN.
 _DSO_FLAVORS = {
-    "": _TLS_DIALECT,
+    "": TLS_DIALECT,
     "_gnu": _TLS_ALT_DIALECT,
     "_ie": ["-ftls-model=initial-exec"],
     "_ld": ["-DOTEL_TLS_HIDDEN", "-ftls-model=local-dynamic"] + _TLS_ALT_DIALECT,

@@ -200,6 +200,28 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		[]byte(`$1 "********"`),
 	)
 	snmpMultilineReplacer.LastUpdated = parseVersion("7.34.0") // https://github.com/DataDog/datadog-agent/pull/10305
+
+	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
+	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
+		walk(&data, func(key string, _ any) (bool, any) {
+			switch key {
+			// ADD rule info that can be shown
+			case "id", "license":
+				return false, nil
+			}
+			return true, defaultReplacement
+		})
+		return data
+	})
+	scanningRulesYaml.LastUpdated = parseVersion("7.85.0") // https://github.com/DataDog/datadog-agent/pull/56761
+
+	// Single-line YAML text, e.g. integration.Config.Dump in the scheduling trace log.
+	scanningRulesPatternReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(\bpattern\s*:)\s+.+`),
+		Hints:       []string{"scanning_rules"},
+		Repl:        []byte(`$1 "********"`),
+		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
+	}
 	certReplacer := Replacer{
 		/*
 		   Try to match as accurately as possible. RFC 7468's ABNF
@@ -356,6 +378,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, secretReplacer)
 	scrubber.AddReplacer(SingleLine, accessKeyReplacer)
 	scrubber.AddReplacer(SingleLine, snmpReplacer)
+	scrubber.AddReplacer(SingleLine, scanningRulesYaml)
+	scrubber.AddReplacer(SingleLine, scanningRulesPatternReplacer)
 
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
