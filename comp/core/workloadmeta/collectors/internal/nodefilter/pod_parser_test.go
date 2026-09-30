@@ -219,6 +219,40 @@ func TestParsePodContainers_PrefersSpecImage(t *testing.T) {
 	assert.Equal(t, wantImage, container.Image)
 }
 
+// TestParsePodContainers_UnparsableSpecImage verifies that the status's image
+// is kept when the spec's image can't be parsed, instead of being replaced by
+// a half-populated image.
+func TestParsePodContainers_UnparsableSpecImage(t *testing.T) {
+	specs := []corev1.Container{
+		{Name: "nginx-container", Image: ""},
+	}
+	statuses := []corev1.ContainerStatus{
+		{
+			Name:        "nginx-container",
+			Image:       "nginx:1.25.2",
+			ImageID:     "5dbe7e1b6b9c",
+			ContainerID: "docker://containerID",
+		},
+	}
+
+	podContainers, events := parsePodContainers(specs, statuses, nil)
+
+	wantImage := workloadmeta.ContainerImage{
+		ID:        "5dbe7e1b6b9c",
+		RawName:   "nginx:1.25.2",
+		Name:      "nginx",
+		ShortName: "nginx",
+		Tag:       "1.25.2",
+	}
+
+	require.Len(t, podContainers, 1)
+	assert.Equal(t, wantImage, podContainers[0].Image)
+
+	require.Len(t, events, 1)
+	container := events[0].Entity.(*workloadmeta.Container)
+	assert.Equal(t, wantImage, container.Image)
+}
+
 func TestParsePod_SkipsContainerWithoutID(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", UID: types.UID("pod-uid")},

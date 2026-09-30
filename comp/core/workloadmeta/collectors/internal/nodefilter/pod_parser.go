@@ -184,12 +184,15 @@ func parsePodContainers(
 			// Prefer the image from the spec over the status: the status's
 			// image can still be the previous one right after a container is
 			// resized/recreated, while the spec always reflects the current
-			// desired image.
+			// desired image. Keep the status's image if the spec's can't be
+			// parsed (e.g. it is empty), rather than overwriting a good image
+			// with a half-populated one.
 			specImage, specErr := workloadmeta.NewContainerImage(imageID, spec.Image)
 			if specErr != nil {
 				log.Debugf("cannot parse image name %q for container %q: %s", spec.Image, status.Name, specErr)
+			} else {
+				image = specImage
 			}
-			image = specImage
 		} else {
 			log.Debugf("cannot find spec for container %q", status.Name)
 		}
