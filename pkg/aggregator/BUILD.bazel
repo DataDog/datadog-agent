@@ -5,6 +5,7 @@ go_library(
     name = "aggregator",
     srcs = [
         "aggregator.go",
+        "check_batch.go",
         "check_sampler.go",
         "context_resolver.go",
         "context_resolver_debug.go",
@@ -96,6 +97,7 @@ dd_agent_go_test(
     name = "aggregator_test",
     srcs = [
         "aggregator_test.go",
+        "check_batch_test.go",
         "check_batching_test.go",
         "check_sampler_bench_test.go",
         "check_sampler_test.go",
