@@ -1,6 +1,6 @@
 # YARA Exec Scanner PoC — Work Plan
 
-**Area:** CWS / system-probe · **Status:** Planning · **Platforms:** Linux amd64 / arm64
+**Area:** CWS / system-probe · **Status:** Wave 1 done (A, B, C, D, F), M1 integration next · **Engine for the PoC:** libyara (see WS-A) · **Platforms:** Linux amd64 / arm64
 **Threat model (PoC):** unprivileged attacker on local filesystems
 
 Goal: scan every executed binary with YARA rules, once per distinct file content, without slowing the event path.
@@ -156,6 +156,19 @@ Pick between yara-x (Rust, C API + Go bindings) and libyara via go-yara. Either 
 
 **Done when:** a short decision doc with numbers is agreed, plus a throwaway `Scanner` prototype on the chosen engine.
 
+**Outcome (2026-09-30):** spike on branch `yara/ws-a` (`spike/yara-engine/DECISION.md`, arm64 only; amd64 not measured). 503 signature-base rules:
+
+| | libyara 4.5.8 + go-yara | yara-x 1.21 slim |
+|---|---|---|
+| Scan 1 / 20 / 100 MB | 4.4 / 88 / 450 ms | 2.8 / 43.5 / 249 ms |
+| Compiled rules RSS | 11.3 MiB | 19.4 MiB |
+| Binary delta (stripped / gzip) | +0.6 / +0.26 MiB | +20.6 / +7.8 MiB |
+| Build | ~3 s, C, `cc_library` | ~110 s, Rust, ~196 crates |
+
+The spike recommends yara-x for production (memory-safe, libyara is in maintenance mode, ~1.8× faster, Pulley interpreter avoids JIT memory).
+
+**Decision for the PoC: libyara 4.5.8 + go-yara**, built without crypto and with only the modules we need (elf, pe, hash, math, …). It keeps WS-E small (one `cc_library`, +0.6 MiB, no Rust toolchain or crate tree) and the engine sits behind WS-D's `Compiler` seam, so switching later is one new `Scanner` implementation plus build work. **Switching to yara-x is a gate item for M4** (before any wider pilot), because libyara parses untrusted binaries in C as root.
+
 ### WS-B — Exec consumer, config and wiring
 **Size:** M · **Can start:** now, with stand-ins
 
@@ -198,7 +211,12 @@ Consumer skeleton: receive exec events, build `ExecFile`, hand it to the dedupe 
 - [ ] At start, load and compile every rule file in `rules_dir`. On a compile error, log it and disable scanning; never crash system-probe
 - [ ] `RulesVersion()` returns a hash of the rule file contents; include it in every report
 - [x] Stand-in scanner that matches a marker string, for tests and M1 (`MarkerScanner`, landed with the contracts)
-- [ ] Real engine implementation once WS-A decides
+- [ ] Real engine implementation: libyara via go-yara (WS-A decision), as a `Compiler`. Requirements from the spike:
+  - compiled rules are shared; each worker needs its **own** scanner object (`yr.NewScanner(rules)` per worker)
+  - a scan can't be cancelled once started, and the engine timeout is in **whole seconds**: check `ctx.Err()` before scanning, set the engine timeout to `ceil(time until ctx deadline)`
+  - keep `Scan` synchronous, so the buffer is never returned to the pool while C code still reads it
+  - compile from `.yar` source only; never load pre-compiled (serialized) rules (GHSA-2jx3-ff3v-j7jj)
+  - behind the `yara` build tag (cgo); the default build keeps the stand-in
 - [ ] Cap memory: buffered bytes ≤ `workers × max_file_size`
 
 **Done when:** with the stand-in scanner, flooding the queue drops scans cleanly without blocking. With the real engine, a test rule matches a test binary.
@@ -208,7 +226,8 @@ Consumer skeleton: receive exec events, build `ExecFile`, hand it to the dedupe 
 
 Likely the longest task. Involve the build and packaging owners early.
 
-- [ ] Add the native lib and Go binding as dependencies (Bazel; see `bazel/AGENTS.md`)
+- [ ] Add the native lib and Go binding as dependencies (Bazel; see `bazel/AGENTS.md`). For libyara: a `cc_library` under `deps/` (see the `update-3rd-party-libs` skill), `--without-crypto`, only the needed modules, static link. go-yara uses `#cgo pkg-config`, which rules_go doesn't support: patch the binding or add a thin cgo wrapper
+- [ ] Check the glibc floor on the agent's build sysroot (the spike built on glibc 2.39)
 - [ ] Add a `yara` build tag to the system-probe flavors in `tasks/build_tags.bzl`, Linux only
 - [ ] Package with the agent (`packages/`; omnibus only if unavoidable)
 - [ ] Update `LICENSE-3rdparty.csv`
@@ -268,7 +287,19 @@ Sizes are relative: S ≈ a few days, M ≈ 1–2 weeks, L ≈ several weeks (mo
 1. **M1: dry run with no cgo.** WS-B + WS-C + WS-D with the stand-in scanner + WS-F. Logs `would scan sha256=…` and emits metrics on a dev VM. Shows the dedupe ratio and overhead before any native code.
 2. **M2: real engine in a local build.** WS-A decided and WS-D has the real engine. A test rule matches a test binary on a locally built system-probe.
 3. **M3: CI build and tests.** WS-E lands; WS-G integration tests run in CI on amd64 and arm64.
-4. **M4: performance validated.** WS-G benchmark report, defaults tuned, go/no-go for a wider pilot.
+4. **M4: performance validated.** WS-G benchmark report, defaults tuned, go/no-go for a wider pilot. **Gate:** engine switched to yara-x (or an explicit, reviewed exception to stay on libyara).
+
+### M1 integration checklist (after wave 1)
+
+Wave 1 branches B, C, D, F are merged and green on `yara/merge-trial`. To do while wiring consumer → `FileReader` → `Pool` → `StructuredReporter` / `Metrics`:
+
+- [ ] **Isolate init failures:** `createYaraExecConsumer` currently returns its error from `createEventMonitorModule`, which would take down the whole event monitor (CWS included). Log and continue instead.
+- [ ] **Check the opened file is the executed one:** on the path fallbacks (`ProcRootFilePath`, other container PIDs), compare the `fstat` inode (and ctime) with the event's `Identity`; on mismatch, don't scan it under the event's identity and don't mark the identity.
+- [ ] **Root-owned rules only:** the rule loader refuses `rules_dir` and rule files that aren't root-owned or are group/world-writable.
+- [ ] Wire `FileReaderOpts.ContainerPIDs` to the cgroup resolver.
+- [ ] Pin down `Stats.Matches` semantics (rule matches vs scans with ≥ 1 match).
+- [ ] Consider an optional `Close()` on `Scanner`, so the real engine can free compiled rules.
+- [ ] `Filesystem` is empty for script entries, so the FUSE/NFS bypass doesn't apply to scripts; resolve it or accept it for the PoC.
 
 ## 8. Config (proposed)
 
@@ -291,6 +322,8 @@ These defaults are starting guesses; WS-G tunes them.
 ## 9. Risks
 
 - **Native dependency in system-probe.** Build, packaging, size and security review may take longer than the code. Mitigation: M1 needs no cgo; start the WS-E conversations during WS-A.
+- **C parser on untrusted input, as root (libyara).** A memory-safety bug in a libyara module could be triggered by a crafted binary that any user executes. Mitigation for the PoC: off by default, dev VMs only, minimal module set. Before M4: switch to yara-x.
+- **Rules are code.** Whoever can write to `rules_dir` controls what runs against every binary. The loader must refuse rule files (and the directory) that aren't root-owned or are group/world-writable.
 - **Exec bursts overflow the channel.** Some execs are missed. The next exec of the same binary retries, so persistent malware is still caught, but one-shot binaries may not be. Watch the drop metric.
 - **Short-lived processes.** `/proc/pid/exe` may be gone before the worker runs. The path fallback covers most cases; a deleted binary run by a short-lived process is lost.
 - **Cold start cost.** On agent start or a large deploy, every binary is new at once. Queue bounds and drops keep this safe, but the backlog clears slowly.
@@ -300,6 +333,9 @@ These defaults are starting guesses; WS-G tunes them.
 ## 10. Open questions
 
 - Which team owns the consumer long term: CWS or event monitor?
-- After the PoC, where do rules come from: bundled, customer-supplied, or Remote Config?
+- After the PoC, where do rules come from: bundled, customer-supplied, or Remote Config? (PoC: rules placed by hand in `rules_dir`, e.g. `/etc/datadog-agent/yara.d`, nothing bundled.)
+  - *Bundled*: install into `/etc/datadog-agent/<dir>` like CWS's `runtime-security.d`; rule updates need an agent release. Check rule licenses first (signature-base is Detection Rule License 1.1, not BSD).
+  - *Remote Config*: like CWS policies; needs hot reload (recompile, swap the scanner), signing, backend work.
+  - *Customer-supplied*: files dropped by config management; no work for us.
 - What per-host CPU and memory budget is acceptable for the pilot?
 - Where should matches go after the PoC (signal, event, or profile annotation)?
