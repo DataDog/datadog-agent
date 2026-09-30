@@ -96,6 +96,7 @@ type healthPlatformImpl struct {
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
 	remoteLoader    *remoteIssueLoader
+	remoteSnapshot  *remoteIssueSnapshot
 
 	// Issue observers: receive issue events outside issuesMux.
 	observersMu sync.RWMutex
@@ -268,6 +269,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Info("Creating health platform component")
 
 	agentFlavor := flavor.GetFlavor()
+	selfIdent := selfident.New(reqs.Workloadmeta)
 	isKubernetes := configenv.IsKubernetes()
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
 	var persistence issuesPersistence
@@ -275,7 +277,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if isKubernetes && !persistOnKubernetes {
 		reqs.Log.Info("Running on Kubernetes: local health platform persistence disabled (set health_platform.persist_on_kubernetes: true to enable)")
 		persistence = &noopPersistence{}
-		remoteLoader = newRemoteIssueLoaderIfEnabled(reqs, agentFlavor)
+		remoteLoader = newRemoteIssueLoaderIfEnabled(reqs, agentFlavor, selfIdent)
 	} else {
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
@@ -289,7 +291,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      agentFlavor,
-		selfIdent:        selfident.New(reqs.Workloadmeta),
+		selfIdent:        selfIdent,
 
 		issues:       make(map[string]*storedIssue),
 		issuesByName: make(map[string][]string),
@@ -406,7 +408,11 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	}
 	h.issuesMux.RUnlock()
 
-	h.handleIssueStateChange(issue.Source, previousIssue, issue)
+	if previousIssue == nil && h.remoteSnapshot.contains(issue.Id) {
+		h.log.Debugf("health platform: issue %s was already active in remote state", issue.Id)
+	} else {
+		h.handleIssueStateChange(issue.Source, previousIssue, issue)
+	}
 	h.storeIssue(issue.IssueName, issue)
 	return nil
 }
@@ -722,13 +728,15 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	return h.restorePersistedState(state)
 }
 
-// loadFromRemote restores lifecycle state reported by the backend.
+// loadFromRemote loads the backend's active issue ID snapshot for startup reconciliation.
 func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
-	state, err := h.remoteLoader.load(ctx)
+	snapshot, err := h.remoteLoader.load(ctx)
 	if err != nil {
 		return err
 	}
-	return h.restorePersistedState(state)
+	h.remoteSnapshot = snapshot
+	h.log.Infof("Loaded %d active remote health platform issue IDs", len(snapshot.issueIDs))
+	return nil
 }
 
 // restorePersistedState restores lifecycle state into the in-memory store.

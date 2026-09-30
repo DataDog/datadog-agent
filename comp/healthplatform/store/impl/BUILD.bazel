@@ -31,6 +31,7 @@ go_library(
         "//pkg/util/http",
         "//pkg/version",
         "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_twmb_murmur3//:murmur3",
         "@org_golang_google_protobuf//proto",
         "@org_golang_google_protobuf//types/known/structpb",
     ],

@@ -16,8 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/twmb/murmur3"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -29,8 +30,9 @@ const (
 	remoteIssuesEndpointPrefix   = "https://api."
 	remoteIssuesEndpointPath     = "/api/v2/agenthealth/hosts/%s/issues"
 	remoteIssuesAgentTypeParam   = "agent_type"
+	remoteIssuesNodeAgentType    = "node"
 	remoteIssuesClusterAgentType = "cluster"
-	remoteIssuesResourceType     = "agent_health_issue"
+	remoteIssuesResourceType     = "agent_health_issue_ids"
 	remoteIssuesHTTPTimeout      = 10 * time.Second
 	remoteIssuesMaxResponse      = 10 * 1024 * 1024
 	jsonAPIContentType           = "application/vnd.api+json"
@@ -38,14 +40,14 @@ const (
 
 type remoteIssueLoader struct {
 	config     config.Component
-	hostname   hostnameinterface.Component
 	agentType  string
+	resourceID func() string
 	baseURL    string
 	httpClient *http.Client
 }
 
 type remoteIssuesResponse struct {
-	Data *[]remoteIssueResource `json:"data"`
+	Data *remoteIssueResource `json:"data"`
 }
 
 type remoteIssueResource struct {
@@ -55,16 +57,27 @@ type remoteIssueResource struct {
 }
 
 type remoteIssueAttributes struct {
-	IssueName  string `json:"issue_name"`
-	DetectedAt string `json:"detected_at"`
+	OrgID    *int64    `json:"org_id"`
+	IssueIDs *[]string `json:"issue_ids"`
 }
 
-func newRemoteIssueLoader(cfg config.Component, hostname hostnameinterface.Component) *remoteIssueLoader {
+type remoteIssueSnapshot struct {
+	orgID    int64
+	issueIDs map[string]struct{}
+}
+
+type remoteResourceIdentity interface {
+	DeploymentID() string
+	ClusterID() string
+}
+
+func newRemoteIssueLoader(cfg config.Component, agentType string, resourceID func() string) *remoteIssueLoader {
 	site := strings.TrimSpace(cfg.GetString("site"))
 	return &remoteIssueLoader{
-		config:   cfg,
-		hostname: hostname,
-		baseURL:  configutils.BuildURLWithPrefix(remoteIssuesEndpointPrefix, site),
+		config:     cfg,
+		agentType:  agentType,
+		resourceID: resourceID,
+		baseURL:    configutils.BuildURLWithPrefix(remoteIssuesEndpointPrefix, site),
 		httpClient: &http.Client{
 			Timeout:       remoteIssuesHTTPTimeout,
 			Transport:     httputils.CreateHTTPTransport(cfg),
@@ -73,12 +86,11 @@ func newRemoteIssueLoader(cfg config.Component, hostname hostnameinterface.Compo
 	}
 }
 
-func hasRemoteRestorationCredentials(cfg config.Component) bool {
-	return configutils.SanitizeAPIKey(cfg.GetString("api_key")) != "" &&
-		configutils.SanitizeAPIKey(cfg.GetString("app_key")) != ""
+func hasRemoteRestorationCredential(cfg config.Component) bool {
+	return configutils.SanitizeAPIKey(cfg.GetString("api_key")) != ""
 }
 
-func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string) *remoteIssueLoader {
+func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string, identity remoteResourceIdentity) *remoteIssueLoader {
 	remoteEnabled := reqs.RemoteRestoration != nil && reqs.RemoteRestoration.Enabled
 	if !remoteEnabled || confighelper.IsCLCRunner(reqs.Config) {
 		reqs.Log.Info("Running on Kubernetes: remote health platform restoration disabled for this process")
@@ -90,11 +102,6 @@ func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string) *remoteIss
 		return nil
 	}
 
-	agentType := ""
-	if agentFlavor == flavor.ClusterAgent {
-		agentType = remoteIssuesClusterAgentType
-	}
-
 	if reqs.Config.GetBool("fips.enabled") {
 		reqs.Log.Info("Running on Kubernetes: remote health platform restoration is unsupported with the FIPS proxy")
 		return nil
@@ -103,43 +110,37 @@ func newRemoteIssueLoaderIfEnabled(reqs Requires, agentFlavor string) *remoteIss
 		reqs.Log.Info("Running on Kubernetes: remote health platform restoration requires TLS certificate verification")
 		return nil
 	}
-	if !hasRemoteRestorationCredentials(reqs.Config) {
-		reqs.Log.Info("Running on Kubernetes: remote health platform restoration requires both api_key and app_key")
+	if !hasRemoteRestorationCredential(reqs.Config) {
+		reqs.Log.Info("Running on Kubernetes: remote health platform restoration requires api_key")
 		return nil
 	}
 
 	reqs.Log.Info("Running on Kubernetes: restoring health platform issue state from the Datadog API")
-	loader := newRemoteIssueLoader(reqs.Config, reqs.Hostname)
-	loader.agentType = agentType
-	return loader
+	if agentFlavor == flavor.ClusterAgent {
+		return newRemoteIssueLoader(reqs.Config, remoteIssuesClusterAgentType, identity.ClusterID)
+	}
+	return newRemoteIssueLoader(reqs.Config, remoteIssuesNodeAgentType, identity.DeploymentID)
 }
 
-func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
+func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, error) {
 	apiKey := configutils.SanitizeAPIKey(r.config.GetString("api_key"))
-	appKey := configutils.SanitizeAPIKey(r.config.GetString("app_key"))
-	if apiKey == "" || appKey == "" {
-		return nil, errors.New("API key and application key are required for remote issue restoration")
+	if apiKey == "" {
+		return nil, errors.New("API key is required for remote issue restoration")
 	}
 
-	hostname, err := r.hostname.Get(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolve hostname for remote issue restoration: %w", err)
-	}
-	hostname = strings.TrimSpace(hostname)
-	if hostname == "" {
-		return nil, errors.New("hostname is required for remote issue restoration")
+	resourceID := strings.TrimSpace(r.resourceID())
+	if resourceID == "" {
+		return nil, errors.New("resource ID is required for remote issue restoration")
 	}
 
-	endpoint := strings.TrimRight(r.baseURL, "/") + fmt.Sprintf(remoteIssuesEndpointPath, url.PathEscape(hostname))
+	endpoint := strings.TrimRight(r.baseURL, "/") + fmt.Sprintf(remoteIssuesEndpointPath, url.PathEscape(resourceID))
 	endpointURL, err := url.Parse(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("parse remote issue endpoint: %w", err)
 	}
-	if r.agentType != "" {
-		query := endpointURL.Query()
-		query.Set(remoteIssuesAgentTypeParam, r.agentType)
-		endpointURL.RawQuery = query.Encode()
-	}
+	query := endpointURL.Query()
+	query.Set(remoteIssuesAgentTypeParam, r.agentType)
+	endpointURL.RawQuery = query.Encode()
 	if !strings.EqualFold(endpointURL.Scheme, "https") {
 		return nil, errors.New("remote issue endpoint must use HTTPS")
 	}
@@ -149,7 +150,6 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
 	}
 	req.Header.Set("Accept", jsonAPIContentType)
 	req.Header.Set("DD-API-KEY", apiKey)
-	req.Header.Set("DD-APPLICATION-KEY", appKey)
 	req.Header.Set("DD-Agent-Version", version.AgentVersion)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
@@ -175,45 +175,50 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*PersistedState, error) {
 		return nil, fmt.Errorf("decode remote issue response: %w", err)
 	}
 	if response.Data == nil {
-		return nil, errors.New("remote issue response must contain a data array")
+		return nil, errors.New("remote issue response must contain data")
 	}
-	resources := *response.Data
-
-	now := time.Now().UTC().Format(time.RFC3339)
-	state := &PersistedState{
-		Version:   persistedStateVersion,
-		UpdatedAt: now,
-		Issues:    make(map[string]*PersistedIssue, len(resources)),
+	resource := response.Data
+	if resource.Type != remoteIssuesResourceType {
+		return nil, fmt.Errorf("remote issue response has unexpected type %q", resource.Type)
 	}
-	for i, resource := range resources {
-		if resource.Type != remoteIssuesResourceType {
-			return nil, fmt.Errorf("remote issue at index %d has unexpected type %q", i, resource.Type)
-		}
-		if resource.ID == "" {
-			return nil, fmt.Errorf("remote issue at index %d has no ID", i)
-		}
-		if resource.Attributes.IssueName == "" {
-			return nil, fmt.Errorf("remote issue %q has no issue name", resource.ID)
-		}
-		if _, exists := state.Issues[resource.ID]; exists {
-			// Distinct recommendations can represent the same issue. The store is
-			// keyed by issue ID, so retain the first occurrence.
-			continue
-		}
-
-		firstSeen := resource.Attributes.DetectedAt
-		if firstSeen == "" {
-			firstSeen = now
-		}
-
-		state.Issues[resource.ID] = &PersistedIssue{
-			IssueID:   resource.ID,
-			IssueType: resource.Attributes.IssueName,
-			State:     IssueStateActive,
-			FirstSeen: firstSeen,
-			LastSeen:  firstSeen,
-		}
+	if resource.ID != resourceID {
+		return nil, fmt.Errorf("remote issue response has resource ID %q, expected %q", resource.ID, resourceID)
+	}
+	if resource.Attributes.OrgID == nil {
+		return nil, errors.New("remote issue response has no org_id")
+	}
+	if resource.Attributes.IssueIDs == nil {
+		return nil, errors.New("remote issue response has no issue_ids")
 	}
 
-	return state, nil
+	snapshot := &remoteIssueSnapshot{
+		orgID:    *resource.Attributes.OrgID,
+		issueIDs: make(map[string]struct{}, len(*resource.Attributes.IssueIDs)),
+	}
+	for _, issueID := range *resource.Attributes.IssueIDs {
+		if strings.TrimSpace(issueID) == "" {
+			return nil, errors.New("remote issue response contains an empty issue ID")
+		}
+		snapshot.issueIDs[issueID] = struct{}{}
+	}
+
+	return snapshot, nil
+}
+
+func (s *remoteIssueSnapshot) contains(agentIssueID string) bool {
+	if s == nil {
+		return false
+	}
+	_, ok := s.issueIDs[remoteIssueID(s.orgID, agentIssueID)]
+	return ok
+}
+
+func remoteIssueID(orgID int64, agentIssueID string) string {
+	return murmurUUID(fmt.Sprintf("%d:%s", orgID, agentIssueID))
+}
+
+func murmurUUID(value string) string {
+	h1, h2 := murmur3.StringSum128(value)
+	hash := fmt.Sprintf("%016x%016x", h1, h2)
+	return fmt.Sprintf("%s-%s-%s-%s-%s", hash[:8], hash[8:12], hash[12:16], hash[16:20], hash[20:])
 }
