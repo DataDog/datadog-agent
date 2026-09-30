@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -66,14 +68,26 @@ func watchExperiment(ctx context.Context) error {
 				exitCh = nil
 				continue
 			}
+			if exitedCleanly(ev.Status) {
+				// A job whose feature is disabled (e.g. system-probe with no module
+				// enabled) exits on its own moments after being kickstarted, by
+				// design -- the stable job set does exactly the same and nothing
+				// watches it for that. Only an abnormal exit of a sibling job should
+				// pull the rest of the set down with it.
+				continue
+			}
 			reason := fmt.Sprintf("experiment pid %d exited (status %d)", ev.Pid, ev.Status)
-			acted, err := revertExperimentIfStillPending(ctx, deadline, reason)
+			_, err := revertExperimentIfStillPending(ctx, deadline, reason)
 			if err != nil {
 				return err
 			}
-			if acted {
-				return nil
-			}
+			// Whether this call reverted or found the deadline already cleared by a
+			// deliberate stop/promote, the experiment this watcher was supervising is no
+			// longer pending -- staying alive any longer would leave an orphan process
+			// whose later, delayed exit events could race a *different* experiment that
+			// later reuses the same shared deadline file (the file carries no per-
+			// experiment identity), reverting it by mistake.
+			return nil
 		case <-ticker.C:
 			expired, err := deadline.Expired(configExperimentDeadlineWindow)
 			if err != nil {
@@ -83,15 +97,26 @@ func watchExperiment(ctx context.Context) error {
 			if !expired {
 				continue
 			}
-			acted, err := revertExperimentIfStillPending(ctx, deadline, "experiment deadline expired")
-			if err != nil {
+			if _, err := revertExperimentIfStillPending(ctx, deadline, "experiment deadline expired"); err != nil {
 				return err
 			}
-			if acted {
-				return nil
-			}
+			return nil
 		}
 	}
+}
+
+// exitedCleanly reports whether a wait(2) status word (as delivered by NOTE_EXITSTATUS) describes
+// a normal, voluntary exit(0). agentJobSet swaps agent, sysprobe and data-plane as one unit, and a
+// job whose feature is off exits this way the instant it is kickstarted -- that is expected
+// lifecycle, not a crash, and must not cost the rest of the set an otherwise-healthy experiment.
+//
+// A pid that had already exited before ArmExitObserver could arm it also reports status 0 (its
+// real exit status is unrecoverable by then, see ArmExitObserver's doc comment on that residual
+// race): this treats that case the same as a clean exit rather than a crash, narrowing an already
+// zero-width, documented race rather than introducing a new one.
+func exitedCleanly(status int) bool {
+	ws := unix.WaitStatus(status)
+	return ws.Exited() && ws.ExitStatus() == 0
 }
 
 // revertExperimentIfStillPending reverts to the stable job set unless the deadline file has
