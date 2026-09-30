@@ -132,6 +132,10 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		}
 	}
 
+	if err := createYaraExecConsumer(evm); err != nil {
+		return nil, fmt.Errorf("cannot create yara exec consumer: %w", err)
+	}
+
 	gpucfg := gpuconfig.New()
 	// Only the eBPF probes consume these events, so skip the consumer entirely
 	// when they are disabled. Kept in sync with the module gate in

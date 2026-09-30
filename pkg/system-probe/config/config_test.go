@@ -25,6 +25,7 @@ func TestEventMonitor(t *testing.T) {
 		cws, fim, networkEvents, gpu bool
 		gpuEBPFProbes                bool
 		usmEvents                    bool
+		yara                         bool
 		enabled                      bool
 	}{
 		{cws: false, fim: false, networkEvents: false, enabled: false},
@@ -41,6 +42,8 @@ func TestEventMonitor(t *testing.T) {
 		{cws: false, fim: false, networkEvents: false, gpu: true, gpuEBPFProbes: false, enabled: false},
 		{cws: false, fim: false, networkEvents: false, gpu: false, gpuEBPFProbes: true, enabled: false},
 		{usmEvents: true, enabled: true},
+		// the YARA exec scanner is an event monitor consumer, available on Linux only
+		{yara: true, enabled: runtime.GOOS == "linux"},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Logf("%+v\n", tc)
@@ -54,6 +57,7 @@ func TestEventMonitor(t *testing.T) {
 			t.Setenv("DD_GPU_MONITORING_ENABLE_EBPF_PROBES", strconv.FormatBool(tc.gpuEBPFProbes))
 			t.Setenv("DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED", strconv.FormatBool(tc.usmEvents))
 			t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", strconv.FormatBool(tc.usmEvents))
+			t.Setenv("DD_EVENT_MONITORING_CONFIG_YARA_ENABLED", strconv.FormatBool(tc.yara))
 
 			cfg, err := New("/doesnotexist", "")
 			t.Logf("%+v\n", cfg)
