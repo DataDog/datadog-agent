@@ -559,11 +559,19 @@ impl ManagedProcess {
     }
 
     pub fn request_stop(&mut self) {
-        if self.is_running() {
-            self.stop_requested = true;
-            info!("[{}] sending graceful stop (stop requested)", self.name);
-            self.graceful_stop_failed = !self.graceful_stop();
+        if !self.is_running() {
+            return;
         }
+        self.stop_requested = true;
+        // The manager lock is free while the child goes down, so this state is
+        // what `list`, `describe`, and `status` report for as long as the stop
+        // runs. Reporting `Running` throughout is how a stop that takes its
+        // time reads from the outside as a process that ignored one.
+        if matches!(self.state, ProcessState::Running) {
+            self.transition_to(ProcessState::Stopping);
+        }
+        info!("[{}] sending graceful stop (stop requested)", self.name);
+        self.graceful_stop_failed = !self.graceful_stop();
     }
 
     /// Ask the child to exit. Returns whether the request reached it.

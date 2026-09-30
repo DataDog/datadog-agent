@@ -649,7 +649,11 @@ mod tests {
 
         let read = tokio::time::timeout(std::time::Duration::from_secs(5), mgr.processes()).await;
         let procs = read.map_err(|_| anyhow::anyhow!("a read queued behind an in-flight stop"))?;
-        assert_eq!(procs[0].state(), ProcessState::Running);
+        assert_eq!(
+            procs[0].state(),
+            ProcessState::Stopping,
+            "a read taken mid-stop should say so, not report the child as Running"
+        );
         drop(procs);
 
         stopping.abort();
