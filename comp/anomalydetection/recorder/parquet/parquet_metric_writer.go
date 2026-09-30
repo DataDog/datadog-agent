@@ -51,8 +51,8 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
 		parquet.WithCompression(compress.Codecs.Zstd),
-		parquet.WithBloomFilterEnabledFor("Tags", true),
-		parquet.WithBloomFilterFPPFor("Tags", 0.01), // 1% false positive rate
+		parquet.WithBloomFilterEnabledFor("Tags.list.element", true),
+		parquet.WithBloomFilterFPPFor("Tags.list.element", 0.01), // 1% false positive rate
 		parquet.WithBloomFilterEnabledFor("MetricName", true),
 		parquet.WithBloomFilterFPPFor("MetricName", 0.01),
 	)

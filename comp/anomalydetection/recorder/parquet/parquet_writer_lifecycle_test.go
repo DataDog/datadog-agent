@@ -8,6 +8,8 @@
 package parquet
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -114,6 +116,44 @@ func TestFinalFlushErrorIsStableAcrossCloseCalls(t *testing.T) {
 	require.ErrorContains(t, first, "final flush")
 	require.EqualError(t, w.Close(), first.Error())
 	require.False(t, w.WriteMetric(recorder.MetricData{Name: "late"}))
+}
+
+type failingOutput struct {
+	*os.File
+	err    error
+	closed bool
+}
+
+func (f *failingOutput) Write([]byte) (int, error) {
+	return 0, f.err
+}
+
+func (f *failingOutput) Close() error {
+	f.closed = true
+	return f.File.Close()
+}
+
+func TestWriteFailureClosesAndDoesNotPublishParquetFile(t *testing.T) {
+	dir := t.TempDir()
+	w, err := newMetricParquetWriter(dir, time.Hour, 0)
+	require.NoError(t, err)
+	failure := errors.New("disk full")
+	var output *failingOutput
+	w.openFile = func(path string) (io.WriteCloser, error) {
+		file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
+		if err != nil {
+			return nil, err
+		}
+		output = &failingOutput{File: file, err: failure}
+		return output, nil
+	}
+	require.True(t, w.WriteMetric(recorder.MetricData{Name: "test"}))
+	require.ErrorIs(t, w.Close(), failure)
+	require.NotNil(t, output)
+	require.True(t, output.closed)
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Empty(t, entries)
 }
 
 func parquetRowCount(t *testing.T, dir, prefix string) int64 {

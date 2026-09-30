@@ -10,6 +10,7 @@ package parquet
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,7 @@ type parquetWriter struct {
 	mu                sync.Mutex
 	workers           sync.WaitGroup
 	now               func() time.Time
+	openFile          func(string) (io.WriteCloser, error)
 }
 
 // start launches the background flush and cleanup goroutines.
@@ -57,18 +59,27 @@ func (b *parquetWriter) start() {
 }
 
 // writeRecord writes a nonempty batch while b.mu is held.
-func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
+func (b *parquetWriter) writeRecord(record arrow.RecordBatch) (err error) {
 	baseName := fmt.Sprintf("%s-%sZ", b.filePrefix, b.now().UTC().Format("20060102-150405"))
-	var file *os.File
-	var filePath string
+	var (
+		file      io.WriteCloser
+		filePath  string
+		tempPath  string
+		published bool
+	)
 	for sequence := 0; ; sequence++ {
 		filename := baseName + ".parquet"
 		if sequence > 0 {
 			filename = fmt.Sprintf("%s_%09d.parquet", baseName, sequence)
 		}
 		filePath = filepath.Join(b.outputDir, filename)
-		var err error
-		file, err = os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
+		tempPath = filePath + ".tmp"
+		if _, statErr := os.Lstat(filePath); statErr == nil {
+			continue
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return fmt.Errorf("checking parquet file %s: %w", filePath, statErr)
+		}
+		file, err = b.openTemporaryFile(tempPath)
 		if errors.Is(err, os.ErrExist) {
 			continue
 		}
@@ -77,6 +88,14 @@ func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
 		}
 		break
 	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && !errors.Is(closeErr, os.ErrClosed) && err == nil {
+			err = fmt.Errorf("closing parquet file: %w", closeErr)
+		}
+		if !published {
+			_ = os.Remove(tempPath)
+		}
+	}()
 
 	// WithStoreSchema embeds the Arrow schema into Parquet metadata,
 	// enabling proper reconstruction of nested types like list<string>.
@@ -84,7 +103,6 @@ func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
 
 	writer, err := pqarrow.NewFileWriter(b.schema, file, b.writerProps, arrowProps)
 	if err != nil {
-		file.Close()
 		return fmt.Errorf("creating parquet writer: %w", err)
 	}
 
@@ -96,9 +114,23 @@ func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
 	if err := writer.Close(); err != nil {
 		return fmt.Errorf("closing parquet writer: %w", err)
 	}
+	if err := file.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
+		return fmt.Errorf("closing parquet file: %w", err)
+	}
+	if err := os.Rename(tempPath, filePath); err != nil {
+		return fmt.Errorf("publishing parquet file %s: %w", filePath, err)
+	}
+	published = true
 
 	logging.Debugf("Wrote parquet file: %s (%d rows)", filePath, record.NumRows())
 	return nil
+}
+
+func (b *parquetWriter) openTemporaryFile(path string) (io.WriteCloser, error) {
+	if b.openFile != nil {
+		return b.openFile(path)
+	}
+	return os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
 }
 
 // flush writes accumulated data to a new file if there is data to write.

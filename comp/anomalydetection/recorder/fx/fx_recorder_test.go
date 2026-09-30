@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -153,7 +152,7 @@ func TestTaggedModuleFlushesRealWritersOnStop(t *testing.T) {
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"anomaly_detection.recording.enabled":        true,
 		"anomaly_detection.recording.output_dir":     dir,
-		"anomaly_detection.recording.flush_interval": int(time.Hour / time.Second),
+		"anomaly_detection.recording.flush_interval": "1h",
 	})
 	var provided option.Option[recorder.Component]
 	app := fx.New(
