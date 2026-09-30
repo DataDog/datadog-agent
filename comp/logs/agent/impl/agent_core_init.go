@@ -8,7 +8,7 @@
 package agentimpl
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/spf13/afero"
@@ -177,7 +177,7 @@ func validateFoldspace(coreConfig model.Reader) error {
 		return err
 	}
 	if config.FoldspaceEnabled(coreConfig) && !foldspace.BuiltWithFoldspace {
-		return fmt.Errorf("logs_config.foldspace.enabled is set but this agent was not built with the foldspace tag")
+		return errors.New("logs_config.foldspace.enabled is set but this agent was not built with the foldspace tag")
 	}
 	return nil
 }
