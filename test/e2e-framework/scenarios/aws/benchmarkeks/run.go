@@ -248,6 +248,19 @@ func Run(ctx *pulumi.Context) error {
 						"value":    "cluster-agent",
 						"effect":   "NoSchedule",
 					}, param.variant),
+					// The e2e framework defaults throttle the CPU and would OOM-kill the
+					// Cluster Agent on a large simulated cluster. It has a dedicated node,
+					// so generous limits starve nothing and keep them out of the results.
+					"resources": map[string]any{
+						"requests": map[string]any{
+							"cpu":    "200m",
+							"memory": "256Mi",
+						},
+						"limits": map[string]any{
+							"cpu":    "1",
+							"memory": "1Gi",
+						},
+					},
 					"metricsProvider": map[string]any{
 						"registerAPIService": false,
 					},
@@ -275,6 +288,18 @@ func Run(ctx *pulumi.Context) error {
 						"value":    "cluster-checks",
 						"effect":   "NoSchedule",
 					}, param.variant),
+					// Same as for the Cluster Agent: the runner hosts the KSM check, whose
+					// memory grows with the number of objects in the cluster.
+					"resources": map[string]any{
+						"requests": map[string]any{
+							"cpu":    "200m",
+							"memory": "512Mi",
+						},
+						"limits": map[string]any{
+							"cpu":    "1",
+							"memory": "2Gi",
+						},
+					},
 				},
 				// The datadog-crds subchart renders cluster-scoped CRDs with Helm
 				// ownership annotations, so only one of the two releases may own them.
