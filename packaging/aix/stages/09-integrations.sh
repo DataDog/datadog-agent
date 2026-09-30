@@ -143,58 +143,8 @@ if [ ! -f "$AGENT_REQ" ]; then
     log "ERROR: $AGENT_REQ not found — is the integrations-core checkout complete?"
     exit 1
 fi
-python3.12 - "$INTEGRATIONS_CORE" "$AGENT_REQ" "$STAGING/constraints.txt" "$AIX_DEPS" <<'PYEOF'
-import json, os, re, sys, tomllib
-ic, req_in, constraints, out = sys.argv[1:5]
-# Native C extensions Stage 06 builds conditionally on host prerequisites.
-# If absent from the frozen constraints (i.e. not built), skip them rather
-# than fail the install with a source build that cannot succeed.
-NATIVE_OPTIONAL = {"pyodbc"}
-
-def pkg_name(spec):
-    return re.split(r"[<>=!;\[]", spec.strip(), 1)[0].strip().lower()
-
-# 1. Collect the dep package names declared by every AIX-tagged check's
-#    [deps] extra. These are the only deps the AIX package needs.
-needed = set()
-for name in sorted(os.listdir(ic)):
-    pp = os.path.join(ic, name, "pyproject.toml")
-    mp = os.path.join(ic, name, "manifest.json")
-    if not (os.path.isfile(pp) and os.path.isfile(mp)):
-        continue
-    with open(mp) as f:
-        if "Supported OS::AIX" not in json.load(f).get("tile", {}).get("classifier_tags", []):
-            continue
-    with open(pp, "rb") as f:
-        t = tomllib.load(f)
-    for d in t.get("project", {}).get("optional-dependencies", {}).get("deps", []):
-        needed.add(pkg_name(d))
-
-# 2. Drop native deps Stage 06 did not build (absent from the freeze).
-installed = set()
-with open(constraints) as f:
-    for line in f:
-        n = pkg_name(line)
-        if n:
-            installed.add(n)
-for n in sorted(needed):
-    if n in NATIVE_OPTIONAL and n not in installed:
-        print(f"# skipped (native, not built): {n}", file=sys.stderr)
-        needed.discard(n)
-
-# 3. Emit the matching lines from agent_requirements.in (canonical pins).
-#    pip evaluates each line's environment markers, so win32/darwin-marked
-#    lines that slipped into `needed` are skipped on AIX automatically.
-missing = set(needed)
-with open(req_in) as f, open(out, "w") as w:
-    for line in f:
-        n = pkg_name(line)
-        if n in needed:
-            w.write(line)
-            missing.discard(n)
-for n in sorted(missing):
-    print(f"# WARNING: {n} needed by an AIX check but not in agent_requirements.in", file=sys.stderr)
-PYEOF
+python3.12 "$SCRIPT_DIR/../lib/aix-deps-subset.py" \
+    "$INTEGRATIONS_CORE" "$AGENT_REQ" "$STAGING/constraints.txt" "$AIX_DEPS"
 log "AIX dependency subset written to $AIX_DEPS ($(wc -l < "$AIX_DEPS" | tr -d ' ') entries):"
 sed 's/^/  /' "$AIX_DEPS" >&2
 
