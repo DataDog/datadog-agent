@@ -806,6 +806,18 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorFromD
 	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 }
 
+// TestDogtelExtensionConfig_UseKubeletCollectorExplicitFalse verifies that an
+// explicit use_kubelet_collector: false in the dogtelextension config still
+// overrides the value set in datadog.yaml.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorExplicitFalse() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "testdata/datadog_use_kubelet_collector.yaml", []string{"testdata/config_standalone_no_kubelet_collector.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+}
+
 // TestDogtelExtensionConfig_MetadataDisabled verifies that setting
 // enable_metadata_collection: false propagates to the DD agent config.
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataDisabled() {
@@ -957,7 +969,7 @@ func TestGetDogtelExtensionConfig_EmptyDogtelSection(t *testing.T) {
 	assert.Equal(t, "", extcfg.Hostname)
 	assert.Nil(t, extcfg.KubeletTLSVerify)
 	assert.Nil(t, extcfg.EnableMetadataCollection)
-	assert.False(t, extcfg.UseKubeletCollector)
+	assert.Nil(t, extcfg.UseKubeletCollector)
 	assert.Equal(t, 0, extcfg.MetadataInterval)
 	assert.Equal(t, "", extcfg.NodeFromEnvVar)
 }
@@ -1000,20 +1012,22 @@ func TestGetDogtelExtensionConfig_KubeletTLSVerify(t *testing.T) {
 }
 
 // TestGetDogtelExtensionConfig_UseKubeletCollector verifies that
-// use_kubelet_collector can be explicitly set to true to opt back out of the
-// default nodefilter collector.
+// use_kubelet_collector can be explicitly set to true (distinguishable from
+// the unset/nil state, which defaults to the nodefilter collector).
 func TestGetDogtelExtensionConfig_UseKubeletCollector(t *testing.T) {
+	trueVal := true
 	cfg := confmap.NewFromStringMap(map[string]any{
 		"extensions": map[string]any{
 			"dogtel": map[string]any{
-				"use_kubelet_collector": true,
+				"use_kubelet_collector": trueVal,
 			},
 		},
 	})
 	extcfg, err := getDogtelExtensionConfig(cfg)
 	require.NoError(t, err)
 	require.NotNil(t, extcfg)
-	assert.True(t, extcfg.UseKubeletCollector)
+	require.NotNil(t, extcfg.UseKubeletCollector)
+	assert.True(t, *extcfg.UseKubeletCollector)
 }
 
 // TestGetDogtelExtensionConfig_NodeFromEnvVar verifies that node_from_env_var

@@ -77,9 +77,10 @@ type Config struct {
 	// UseKubeletCollector opts standalone otel-agent back out of the
 	// nodefilter workloadmeta collector (a node-scoped K8s API-server pod
 	// watch) and back onto the kubelet collector for K8s tag enrichment.
-	// Default false (nodefilter) matches the Go zero value, so no tri-state
-	// pointer is needed here.
-	UseKubeletCollector bool `mapstructure:"use_kubelet_collector"`
+	// Pointer so that nil ("not set") is distinguishable from an explicit
+	// false, leaving the DD agent default (nodefilter, i.e. false) intact
+	// when the field is absent.
+	UseKubeletCollector *bool `mapstructure:"use_kubelet_collector"`
 	// NodeFromEnvVar names the environment variable the nodefilter
 	// workloadmeta collector reads the local node's name from, mirroring the
 	// k8sattributesprocessor's own "node_from_env_var" filter config (rather
