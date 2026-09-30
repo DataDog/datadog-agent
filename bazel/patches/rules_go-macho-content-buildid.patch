@@ -1,0 +1,630 @@
+diff --git a/go/tools/builders/BUILD.bazel b/go/tools/builders/BUILD.bazel
+index 8883f0f0..dbc70862 100644
+--- a/go/tools/builders/BUILD.bazel
++++ b/go/tools/builders/BUILD.bazel
+@@ -145,6 +145,7 @@ filegroup(
+         "cc.go",
+         "cgo2.go",
+         "cgo_response.go",
++        "codesign.go",
+         "compilepkg.go",
+         "constants.go",
+         "cover.go",
+diff --git a/go/tools/builders/buildid.go b/go/tools/builders/buildid.go
+index f7ecd62a..8650609e 100644
+--- a/go/tools/builders/buildid.go
++++ b/go/tools/builders/buildid.go
+@@ -18,12 +18,14 @@ import (
+ 	"bytes"
+ 	"crypto/sha256"
+ 	"debug/elf"
++	"debug/macho"
+ 	"encoding/hex"
++	"fmt"
+ 	"os"
+ 	"strings"
+ )
+ 
+-// buildIDPlaceholder makes the linker emit the Go and GNU build ID notes, which
++// buildIDPlaceholder makes the linker emit the Go and host build IDs, which
+ // setContentBuildID overwrites in place once the binary is linked. Its length
+ // matches the hex-encoded ID written over it.
+ var buildIDPlaceholder = strings.Repeat("0", 2*buildIDSize)
+@@ -33,21 +35,29 @@ const buildIDSize = 20
+ // hasContentBuildID reports whether setContentBuildID supports binaries for goos.
+ func hasContentBuildID(goos string) bool {
+ 	switch goos {
+-	case "android", "dragonfly", "freebsd", "illumos", "linux", "netbsd", "openbsd", "solaris":
++	case "android", "darwin", "dragonfly", "freebsd", "illumos", "ios", "linux", "netbsd", "openbsd", "solaris":
+ 		return true
+ 	}
+ 	return false
+ }
+ 
+-// setContentBuildID replaces the placeholder Go build ID and the GNU build ID
+-// of the ELF binary at path with a hash of the binary, so that distinct
+-// binaries get distinct IDs and rebuilds stay reproducible. Binaries without
+-// the placeholder, e.g. built with -buildid in gc_linkopts, are left untouched.
++// setContentBuildID replaces the placeholder Go build ID and the host build ID
++// (ELF GNU build ID or Mach-O LC_UUID) of the binary at path with a hash of the
++// binary, so that distinct binaries get distinct IDs and rebuilds stay
++// reproducible. Binaries without the placeholder, e.g. built with -buildid in
++// gc_linkopts, are left untouched.
+ func setContentBuildID(path string) error {
+ 	data, err := os.ReadFile(path)
+ 	if err != nil {
+ 		return err
+ 	}
++	if bytes.HasPrefix(data, []byte(elf.ELFMAG)) {
++		return setELFBuildID(path, data)
++	}
++	return setMachOBuildID(path, data)
++}
++
++func setELFBuildID(path string, data []byte) error {
+ 	f, err := elf.NewFile(bytes.NewReader(data))
+ 	if err != nil {
+ 		return err
+@@ -77,6 +87,62 @@ func setContentBuildID(path string) error {
+ 	return out.Close()
+ }
+ 
++// setMachOBuildID re-signs the binary after patching it, because the code
++// signature covers both the Go build ID and LC_UUID.
++func setMachOBuildID(path string, data []byte) error {
++	f, err := macho.NewFile(bytes.NewReader(data))
++	if err != nil {
++		return err
++	}
++	if f.Magic != macho.Magic64 {
++		return fmt.Errorf("not 64-bit Mach-O file: %s", path)
++	}
++	// The Go linker stores the Go build ID in the text segment on Mach-O.
++	prefix := "\xff Go build ID: \""
++	i := bytes.Index(data, []byte(prefix+buildIDPlaceholder+"\"\n \xff"))
++	if i < 0 {
++		return nil
++	}
++
++	sum := sha256.Sum256(data)
++	out, err := os.OpenFile(path, os.O_WRONLY, 0)
++	if err != nil {
++		return err
++	}
++	defer out.Close()
++	if _, err := out.WriteAt([]byte(hex.EncodeToString(sum[:buildIDSize])), int64(i+len(prefix))); err != nil {
++		return err
++	}
++	if off, ok := machoUUIDOffset(f); ok {
++		uuid := make([]byte, 16)
++		copy(uuid, sum[:])
++		// Same RFC 4122 version and variant bits as the Go linker sets.
++		uuid[6] = uuid[6]&0x0f | 0x30
++		uuid[8] = uuid[8]&0x3f | 0xc0
++		if _, err := out.WriteAt(uuid, off); err != nil {
++			return err
++		}
++	}
++	if err := out.Close(); err != nil {
++		return err
++	}
++	return machoCodeSign(path)
++}
++
++// machoUUIDOffset returns the file offset of the LC_UUID payload.
++func machoUUIDOffset(f *macho.File) (int64, bool) {
++	const lcUUID = 0x1b
++	off := int64(machoHeaderSize64)
++	for _, l := range f.Loads {
++		raw := l.Raw()
++		if f.ByteOrder.Uint32(raw) == lcUUID {
++			return off + 8, true
++		}
++		off += int64(f.ByteOrder.Uint32(raw[4:]))
++	}
++	return 0, false
++}
++
+ // noteDesc returns the file offsets of the descriptor of the first note in the
+ // named section.
+ func noteDesc(f *elf.File, name string) (start, end int64, ok bool) {
+diff --git a/go/tools/builders/codesign.go b/go/tools/builders/codesign.go
+new file mode 100644
+index 00000000..153735bd
+--- /dev/null
++++ b/go/tools/builders/codesign.go
+@@ -0,0 +1,360 @@
++// Copyright 2020 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++// This file was adapted from Go src/cmd/internal/codesign/codesign.go and the
++// machoCodeSign function in src/cmd/link/internal/ld/macho.go at go1.26.7.
++// It re-signs Mach-O binaries after setContentBuildID patches them, using the
++// same ad-hoc signing algorithm as the Go and Darwin linkers.
++
++package main
++
++import (
++	"crypto/sha256"
++	"debug/macho"
++	"encoding/binary"
++	"fmt"
++	"io"
++	"os"
++	"unsafe"
++)
++
++// Code signature layout.
++//
++// The code signature is a block of bytes that contains
++// a SuperBlob, which contains one or more Blobs. For ad-hoc
++// signing, a single CodeDirectory Blob suffices.
++//
++// A SuperBlob starts with its header (the binary representation
++// of the SuperBlob struct), followed by a list of (in our case,
++// one) Blobs (offset and size). A CodeDirectory Blob starts
++// with its head (the binary representation of CodeDirectory struct),
++// followed by the identifier (as a C string) and the hashes, at
++// the corresponding offsets.
++//
++// The signature data must be included in the __LINKEDIT segment.
++// In the Mach-O file header, an LC_CODE_SIGNATURE load command
++// points to the data.
++
++const (
++	pageSizeBits = 12
++	pageSize     = 1 << pageSizeBits
++)
++
++const LC_CODE_SIGNATURE = 0x1d
++
++// Constants and struct layouts are from
++// https://opensource.apple.com/source/xnu/xnu-4903.270.47/osfmk/kern/cs_blobs.h
++
++const (
++	CSMAGIC_REQUIREMENT        = 0xfade0c00 // single Requirement blob
++	CSMAGIC_REQUIREMENTS       = 0xfade0c01 // Requirements vector (internal requirements)
++	CSMAGIC_CODEDIRECTORY      = 0xfade0c02 // CodeDirectory blob
++	CSMAGIC_EMBEDDED_SIGNATURE = 0xfade0cc0 // embedded form of signature data
++	CSMAGIC_DETACHED_SIGNATURE = 0xfade0cc1 // multi-arch collection of embedded signatures
++
++	CSSLOT_CODEDIRECTORY = 0 // slot index for CodeDirectory
++)
++
++const (
++	CS_HASHTYPE_SHA1             = 1
++	CS_HASHTYPE_SHA256           = 2
++	CS_HASHTYPE_SHA256_TRUNCATED = 3
++	CS_HASHTYPE_SHA384           = 4
++)
++
++const (
++	CS_EXECSEG_MAIN_BINARY     = 0x1   // executable segment denotes main binary
++	CS_EXECSEG_ALLOW_UNSIGNED  = 0x10  // allow unsigned pages (for debugging)
++	CS_EXECSEG_DEBUGGER        = 0x20  // main binary is debugger
++	CS_EXECSEG_JIT             = 0x40  // JIT enabled
++	CS_EXECSEG_SKIP_LV         = 0x80  // skip library validation
++	CS_EXECSEG_CAN_LOAD_CDHASH = 0x100 // can bless cdhash for execution
++	CS_EXECSEG_CAN_EXEC_CDHASH = 0x200 // can execute blessed cdhash
++)
++
++type Blob struct {
++	typ    uint32 // type of entry
++	offset uint32 // offset of entry
++	// data follows
++}
++
++func (b *Blob) put(out []byte) []byte {
++	out = put32be(out, b.typ)
++	out = put32be(out, b.offset)
++	return out
++}
++
++const blobSize = 2 * 4
++
++type SuperBlob struct {
++	magic  uint32 // magic number
++	length uint32 // total length of SuperBlob
++	count  uint32 // number of index entries following
++	// blobs []Blob
++}
++
++func (s *SuperBlob) put(out []byte) []byte {
++	out = put32be(out, s.magic)
++	out = put32be(out, s.length)
++	out = put32be(out, s.count)
++	return out
++}
++
++const superBlobSize = 3 * 4
++
++type CodeDirectory struct {
++	magic         uint32 // magic number (CSMAGIC_CODEDIRECTORY)
++	length        uint32 // total length of CodeDirectory blob
++	version       uint32 // compatibility version
++	flags         uint32 // setup and mode flags
++	hashOffset    uint32 // offset of hash slot element at index zero
++	identOffset   uint32 // offset of identifier string
++	nSpecialSlots uint32 // number of special hash slots
++	nCodeSlots    uint32 // number of ordinary (code) hash slots
++	codeLimit     uint32 // limit to main image signature range
++	hashSize      uint8  // size of each hash in bytes
++	hashType      uint8  // type of hash (cdHashType* constants)
++	_pad1         uint8  // unused (must be zero)
++	pageSize      uint8  // log2(page size in bytes); 0 => infinite
++	_pad2         uint32 // unused (must be zero)
++	scatterOffset uint32
++	teamOffset    uint32
++	_pad3         uint32
++	codeLimit64   uint64
++	execSegBase   uint64
++	execSegLimit  uint64
++	execSegFlags  uint64
++	// data follows
++}
++
++func (c *CodeDirectory) put(out []byte) []byte {
++	out = put32be(out, c.magic)
++	out = put32be(out, c.length)
++	out = put32be(out, c.version)
++	out = put32be(out, c.flags)
++	out = put32be(out, c.hashOffset)
++	out = put32be(out, c.identOffset)
++	out = put32be(out, c.nSpecialSlots)
++	out = put32be(out, c.nCodeSlots)
++	out = put32be(out, c.codeLimit)
++	out = put8(out, c.hashSize)
++	out = put8(out, c.hashType)
++	out = put8(out, c._pad1)
++	out = put8(out, c.pageSize)
++	out = put32be(out, c._pad2)
++	out = put32be(out, c.scatterOffset)
++	out = put32be(out, c.teamOffset)
++	out = put32be(out, c._pad3)
++	out = put64be(out, c.codeLimit64)
++	out = put64be(out, c.execSegBase)
++	out = put64be(out, c.execSegLimit)
++	out = put64be(out, c.execSegFlags)
++	return out
++}
++
++const codeDirectorySize = 13*4 + 4 + 4*8
++
++// CodeSigCmd is Mach-O LC_CODE_SIGNATURE load command.
++type CodeSigCmd struct {
++	Cmd      uint32 // LC_CODE_SIGNATURE
++	Cmdsize  uint32 // sizeof this command (16)
++	Dataoff  uint32 // file offset of data in __LINKEDIT segment
++	Datasize uint32 // file size of data in __LINKEDIT segment
++}
++
++func FindCodeSigCmd(f *macho.File) (CodeSigCmd, bool) {
++	get32 := f.ByteOrder.Uint32
++	for _, l := range f.Loads {
++		data := l.Raw()
++		cmd := get32(data)
++		if cmd == LC_CODE_SIGNATURE {
++			return CodeSigCmd{
++				cmd,
++				get32(data[4:]),
++				get32(data[8:]),
++				get32(data[12:]),
++			}, true
++		}
++	}
++	return CodeSigCmd{}, false
++}
++
++func put32be(b []byte, x uint32) []byte { binary.BigEndian.PutUint32(b, x); return b[4:] }
++func put64be(b []byte, x uint64) []byte { binary.BigEndian.PutUint64(b, x); return b[8:] }
++func put8(b []byte, x uint8) []byte     { b[0] = x; return b[1:] }
++func puts(b, s []byte) []byte           { n := copy(b, s); return b[n:] }
++
++// Size computes the size of the code signature.
++// id is the identifier used for signing (a field in CodeDirectory blob, which
++// has no significance in ad-hoc signing).
++func Size(codeSize int64, id string) int64 {
++	nhashes := (codeSize + pageSize - 1) / pageSize
++	idOff := int64(codeDirectorySize)
++	hashOff := idOff + int64(len(id)+1)
++	cdirSz := hashOff + nhashes*sha256.Size
++	return int64(superBlobSize+blobSize) + cdirSz
++}
++
++// Sign generates an ad-hoc code signature and writes it to out.
++// out must have length at least Size(codeSize, id).
++// data is the file content without the signature, of size codeSize.
++// textOff and textSize is the file offset and size of the text segment.
++// isMain is true if this is a main executable.
++// id is the identifier used for signing (a field in CodeDirectory blob, which
++// has no significance in ad-hoc signing).
++func Sign(out []byte, data io.Reader, id string, codeSize, textOff, textSize int64, isMain bool) {
++	nhashes := (codeSize + pageSize - 1) / pageSize
++	idOff := int64(codeDirectorySize)
++	hashOff := idOff + int64(len(id)+1)
++	sz := Size(codeSize, id)
++
++	// emit blob headers
++	sb := SuperBlob{
++		magic:  CSMAGIC_EMBEDDED_SIGNATURE,
++		length: uint32(sz),
++		count:  1,
++	}
++	blob := Blob{
++		typ:    CSSLOT_CODEDIRECTORY,
++		offset: superBlobSize + blobSize,
++	}
++	cdir := CodeDirectory{
++		magic:        CSMAGIC_CODEDIRECTORY,
++		length:       uint32(sz) - (superBlobSize + blobSize),
++		version:      0x20400,
++		flags:        0x20002, // adhoc | linkerSigned
++		hashOffset:   uint32(hashOff),
++		identOffset:  uint32(idOff),
++		nCodeSlots:   uint32(nhashes),
++		codeLimit:    uint32(codeSize),
++		hashSize:     sha256.Size,
++		hashType:     CS_HASHTYPE_SHA256,
++		pageSize:     uint8(pageSizeBits),
++		execSegBase:  uint64(textOff),
++		execSegLimit: uint64(textSize),
++	}
++	if isMain {
++		cdir.execSegFlags = CS_EXECSEG_MAIN_BINARY
++	}
++
++	outp := out
++	outp = sb.put(outp)
++	outp = blob.put(outp)
++	outp = cdir.put(outp)
++
++	// emit the identifier
++	outp = puts(outp, []byte(id+"\000"))
++
++	// emit hashes
++	var buf [pageSize]byte
++	p := 0
++	for p < int(codeSize) {
++		n, err := io.ReadFull(data, buf[:])
++		if err == io.EOF {
++			break
++		}
++		if err != nil && err != io.ErrUnexpectedEOF {
++			panic(err)
++		}
++		if p+n > int(codeSize) {
++			n = int(codeSize) - p
++		}
++		p += n
++		b := sha256.Sum256(buf[:n])
++		outp = puts(outp, b[:])
++	}
++}
++
++const machoHeaderSize64 = 8 * 4 // size of 64-bit Mach-O header
++
++// machoCodeSign code-signs Mach-O file fname with an ad-hoc signature.
++// This is used for updating an external linker generated binary.
++func machoCodeSign(fname string) error {
++	f, err := os.OpenFile(fname, os.O_RDWR, 0)
++	if err != nil {
++		return err
++	}
++	defer f.Close()
++
++	mf, err := macho.NewFile(f)
++	if err != nil {
++		return err
++	}
++	if mf.Magic != macho.Magic64 {
++		return fmt.Errorf("not 64-bit Mach-O file: %s", fname)
++	}
++
++	// Find existing LC_CODE_SIGNATURE and __LINKEDIT segment
++	var sigOff, sigSz, csCmdOff, linkeditOff int64
++	var linkeditSeg, textSeg *macho.Segment
++	loadOff := int64(machoHeaderSize64)
++	get32 := mf.ByteOrder.Uint32
++	for _, l := range mf.Loads {
++		data := l.Raw()
++		cmd, sz := get32(data), get32(data[4:])
++		if cmd == LC_CODE_SIGNATURE {
++			sigOff = int64(get32(data[8:]))
++			sigSz = int64(get32(data[12:]))
++			csCmdOff = loadOff
++		}
++		if seg, ok := l.(*macho.Segment); ok {
++			switch seg.Name {
++			case "__LINKEDIT":
++				linkeditSeg = seg
++				linkeditOff = loadOff
++			case "__TEXT":
++				textSeg = seg
++			}
++		}
++		loadOff += int64(sz)
++	}
++
++	if sigOff == 0 {
++		// The C linker doesn't generate a signed binary, for some reason.
++		// Skip.
++		return nil
++	}
++
++	fi, err := f.Stat()
++	if err != nil {
++		return err
++	}
++	if sigOff+sigSz != fi.Size() {
++		// We don't expect anything after the signature (this will invalidate
++		// the signature anyway.)
++		return fmt.Errorf("unexpected content after code signature")
++	}
++
++	sz := Size(sigOff, "a.out")
++	if sz != sigSz {
++		// Update the load command,
++		var tmp [8]byte
++		mf.ByteOrder.PutUint32(tmp[:4], uint32(sz))
++		_, err = f.WriteAt(tmp[:4], csCmdOff+12)
++		if err != nil {
++			return err
++		}
++
++		// Uodate the __LINKEDIT segment.
++		segSz := sigOff + sz - int64(linkeditSeg.Offset)
++		mf.ByteOrder.PutUint64(tmp[:8], uint64(segSz))
++		_, err = f.WriteAt(tmp[:8], linkeditOff+int64(unsafe.Offsetof(macho.Segment64{}.Memsz)))
++		if err != nil {
++			return err
++		}
++		_, err = f.WriteAt(tmp[:8], linkeditOff+int64(unsafe.Offsetof(macho.Segment64{}.Filesz)))
++		if err != nil {
++			return err
++		}
++	}
++
++	cs := make([]byte, sz)
++	Sign(cs, f, "a.out", sigOff, int64(textSeg.Offset), int64(textSeg.Filesz), mf.Type == macho.TypeExec)
++	_, err = f.WriteAt(cs, sigOff)
++	if err != nil {
++		return err
++	}
++	err = f.Truncate(sigOff + sz)
++	return err
++}
+diff --git a/tests/core/go_binary/BUILD.bazel b/tests/core/go_binary/BUILD.bazel
+index ef9362fb..d62b9f63 100644
+--- a/tests/core/go_binary/BUILD.bazel
++++ b/tests/core/go_binary/BUILD.bazel
+@@ -19,6 +19,12 @@ go_bazel_test(
+     target_compatible_with = ["@platforms//os:linux"],
+ )
+ 
++go_bazel_test(
++    name = "buildid_darwin_test",
++    srcs = ["buildid_darwin_test.go"],
++    target_compatible_with = ["@platforms//os:macos"],
++)
++
+ go_bazel_test(
+     name = "configurable_attribute_bad_test",
+     srcs = ["configurable_attribute_bad_test.go"],
+diff --git a/tests/core/go_binary/buildid_darwin_test.go b/tests/core/go_binary/buildid_darwin_test.go
+new file mode 100644
+index 00000000..327000f1
+--- /dev/null
++++ b/tests/core/go_binary/buildid_darwin_test.go
+@@ -0,0 +1,111 @@
++// Copyright 2026 The Bazel Authors. All rights reserved.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//    http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++//go:build darwin
++
++package buildid_darwin_test
++
++import (
++	"bytes"
++	"debug/macho"
++	"os"
++	"os/exec"
++	"strings"
++	"testing"
++
++	"github.com/bazelbuild/rules_go/go/tools/bazel_testing"
++)
++
++func TestMain(m *testing.M) {
++	bazel_testing.TestMain(m, bazel_testing.Args{
++		Main: `
++-- src/pure.go --
++package main
++
++func main() {}
++
++-- src/cgo.go --
++package main
++
++import "C"
++
++func main() {}
++
++-- src/BUILD.bazel --
++load("@io_bazel_rules_go//go:def.bzl", "go_binary")
++
++go_binary(
++    name = "pure",
++    srcs = ["pure.go"],
++    pure = "on",
++)
++
++go_binary(
++    name = "cgo",
++    srcs = ["cgo.go"],
++    cgo = True,
++)
++`,
++	})
++}
++
++func TestContentBuildID(t *testing.T) {
++	pure := build(t, "//src:pure")
++	cgo := build(t, "//src:cgo")
++	for name, uuid := range map[string][]byte{"pure": pure, "cgo": cgo} {
++		if uuid == nil || bytes.Count(uuid, []byte{0}) == len(uuid) {
++			t.Errorf("%s: LC_UUID %x is not set", name, uuid)
++		}
++	}
++	if bytes.Equal(pure, cgo) {
++		t.Errorf("pure and cgo binaries share LC_UUID %x", pure)
++	}
++}
++
++// build returns the LC_UUID of target after checking that the patched binary
++// still runs, which on arm64 requires a valid code signature.
++func build(t *testing.T, target string) []byte {
++	t.Helper()
++	if err := bazel_testing.RunBazel("build", target); err != nil {
++		t.Fatal(err)
++	}
++	out, err := bazel_testing.BazelOutput("cquery", "--output=files", target)
++	if err != nil {
++		t.Fatal(err)
++	}
++	path := strings.TrimSpace(string(out))
++	if err := exec.Command(path).Run(); err != nil {
++		t.Fatalf("running %s: %v", target, err)
++	}
++
++	data, err := os.ReadFile(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if bytes.Contains(data, []byte(strings.Repeat("0", 40))) {
++		t.Errorf("%s: Go build ID placeholder was not replaced", target)
++	}
++	f, err := macho.Open(path)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer f.Close()
++	for _, l := range f.Loads {
++		raw := l.Raw()
++		if f.ByteOrder.Uint32(raw) == 0x1b { // LC_UUID
++			return bytes.Clone(raw[8:24])
++		}
++	}
++	return nil
++}
