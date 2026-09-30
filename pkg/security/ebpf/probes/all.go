@@ -36,9 +36,9 @@ const (
 	OpenSamplesMaxEntries    = 20000
 	ConnectSamplesMaxEntries = 10000
 	SyscallSamplesMaxEntries = 20000
-	// SampledCgroupsMaxEntries sizes the sampled_cgroups LRU: it transiently holds all active
-	// cgroups (containers + not-yet-pruned host), so it needs more room than the profile count.
-	SampledCgroupsMaxEntries = 4096
+	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
+	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
+	ExcludedCgroupsMaxEntries = 4096
 )
 
 var (
@@ -334,8 +334,8 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: SyscallSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
-		editors["sampled_cgroups"] = manager.MapSpecEditor{
-			MaxEntries: SampledCgroupsMaxEntries,
+		editors["excluded_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: ExcludedCgroupsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

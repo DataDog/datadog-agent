@@ -1242,6 +1242,23 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
+// EventSamplingEnabledFor reports whether the V2 sampler for the given event type is active: its
+// per-type knob is on, security profile V2 is enabled, and the type is in the V2 event types.
+func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventType) bool {
+	var enabled bool
+	switch eventType {
+	case model.FileOpenEventType:
+		enabled = c.EventSamplingOpenEnabled
+	case model.ConnectEventType:
+		enabled = c.EventSamplingConnectEnabled
+	case model.SyscallsEventType:
+		enabled = c.EventSamplingSyscallsEnabled
+	default:
+		return false
+	}
+	return enabled && c.SecurityProfileV2Enabled && slices.Contains(c.SecurityProfileV2EventTypes, eventType)
+}
+
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
 	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true))

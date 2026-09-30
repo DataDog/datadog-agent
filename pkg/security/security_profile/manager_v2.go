@@ -78,13 +78,13 @@ func (e sampleCookieEntry) isOrphaned() bool {
 // nodes of running workloads be evicted.
 func sampleCookieMapSize(cfg *config.Config) int {
 	var size int
-	if cfg.RuntimeSecurity.EventSamplingOpenEnabled {
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType) {
 		size += probes.OpenSamplesMaxEntries
 	}
-	if cfg.RuntimeSecurity.EventSamplingConnectEnabled {
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType) {
 		size += probes.ConnectSamplesMaxEntries
 	}
-	if cfg.RuntimeSecurity.EventSamplingSyscallsEnabled {
+	if cfg.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		size += probes.SyscallSamplesMaxEntries
 	}
 	if size == 0 {
@@ -196,14 +196,14 @@ type ManagerV2 struct {
 	containerFilters workloadfilter.FilterBundle
 	imageExcluder    *imageExcluder
 
-	// sampledCgroupsMap holds the container cgroup inodes the kernel syscall sampler is
-	// allowed to sample. Populated on container cgroup creation, cleared on deletion.
-	sampledCgroupsMap *ebpf.Map
+	// excludedCgroupsMap holds host/systemd cgroup inodes the v2 syscall sampler must skip.
+	// The sampler samples every cgroup by default; userspace is the sole writer of exclusions.
+	excludedCgroupsMap *ebpf.Map
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
 
-	sampledCgroupsMap, err := managerhelper.Map(ebpf, "sampled_cgroups")
+	excludedCgroupsMap, err := managerhelper.Map(ebpf, "excluded_cgroups")
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +290,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 		evictionNodesEvicted:        atomic.NewUint64(0),
 		containerFilters:            containerFilter,
 		imageExcluder:               imgExcluder,
-		sampledCgroupsMap:           sampledCgroupsMap,
+		excludedCgroupsMap:          excludedCgroupsMap,
 	}
 
 	m.initMetricsMap()
@@ -393,12 +393,12 @@ func (m *ManagerV2) Start(ctx context.Context) {
 		seclog.Errorf("failed to register cgroup deletion listener: %v", err)
 	}
 
-	// Register listener for cgroup creations to gate the kernel syscall sampler on containers
-	if m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+	// Register listener for cgroup creations to exclude host/systemd cgroups from the syscall sampler
+	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupCreated, m.onCGroupCreated); err != nil {
 			seclog.Errorf("failed to register cgroup creation listener: %v", err)
 		} else {
-			// Backfill cgroups discovered before this registration (the resolver snapshot can run first).
+			// Exclude cgroups discovered before this registration (the resolver snapshot can run first).
 			m.resolvers.CGroupResolver.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
 				m.onCGroupCreated(cgce)
 				return false
@@ -465,20 +465,20 @@ func (m *ManagerV2) setupStalePurgeTicker() <-chan time.Time {
 	return time.NewTicker(10 * time.Second).C
 }
 
-// onCGroupCreated keeps container cgroups armed in sampled_cgroups and prunes the host/systemd
-// ones the kernel armed optimistically at cgroup_write time.
+// onCGroupCreated excludes host/systemd cgroups from the v2 syscall sampler and un-excludes
+// container cgroups (defensive against cgroup inode reuse).
 func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
 	inode := cgce.GetCGroupInode()
 
 	if cgce.IsContainerContextNull() {
-		if err := m.sampledCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			seclog.Debugf("couldn't prune non-container cgroup inode %d from sampled_cgroups: %v", inode, err)
+		if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
+			seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
 		}
 		return
 	}
 
-	if err := m.sampledCgroupsMap.Put(inode, uint8(1)); err != nil {
-		seclog.Debugf("couldn't register cgroup inode %d in sampled_cgroups: %v", inode, err)
+	if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+		seclog.Debugf("couldn't un-exclude container cgroup inode %d: %v", inode, err)
 	}
 }
 
@@ -486,10 +486,10 @@ func (m *ManagerV2) onCGroupCreated(cgce *cgroupModel.CacheEntry) {
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
 
-	if m.config.RuntimeSecurity.EventSamplingSyscallsEnabled && !cgce.IsContainerContextNull() {
+	if m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		inode := cgce.GetCGroupInode()
-		if err := m.sampledCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-			seclog.Debugf("couldn't remove cgroup inode %d from sampled_cgroups: %v", inode, err)
+		if err := m.excludedCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
+			seclog.Debugf("couldn't remove cgroup inode %d from exclusion map: %v", inode, err)
 		}
 	}
 
@@ -660,11 +660,11 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	// Filter out systemd cgroups for now, we will add support for them later
 	if event.ProcessContext.Process.ContainerContext.IsNull() {
-		// A host cgroup re-armed in-kernel at cgroup_write can leak a syscall sample; prune it here.
-		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+		// A host/systemd cgroup that slipped a syscall sample through before being excluded: exclude it now.
+		if event.GetEventType() == model.SyscallsEventType && m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 			if inode := event.ProcessContext.Process.CGroup.CGroupPathKey.Inode; inode != 0 {
-				if err := m.sampledCgroupsMap.Delete(inode); err != nil && !errors.Is(err, ebpf.ErrKeyNotExist) {
-					seclog.Debugf("couldn't prune non-container cgroup inode %d from sampled_cgroups: %v", inode, err)
+				if err := m.excludedCgroupsMap.Put(inode, uint8(1)); err != nil {
+					seclog.Debugf("couldn't exclude cgroup inode %d from sampling: %v", inode, err)
 				}
 			}
 		}
@@ -842,6 +842,8 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
 
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
+		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
+		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
 	}
 }
@@ -1417,7 +1419,7 @@ func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
 
 // seededSyscalls returns the sampler ignore-list ids for the running arch, or nil when off.
 func (m *ManagerV2) seededSyscalls() []uint32 {
-	if !m.config.RuntimeSecurity.EventSamplingSyscallsEnabled {
+	if !m.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		return nil
 	}
 	ids := utils.SampledIgnoredSyscallIDsForArch(runtime.GOARCH)

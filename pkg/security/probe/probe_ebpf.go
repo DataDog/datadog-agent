@@ -2539,9 +2539,9 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 	switch eventType {
 	case model.FileOpenEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingOpenEnabled
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)
 	case model.ConnectEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)
 	}
 	return false
 }
@@ -2632,7 +2632,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	if needRawSyscalls ||
 		(p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
 		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.syscallSamplerEnabled() {
+		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 
@@ -3315,7 +3315,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingOpenEnabled),
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_rate",
@@ -3327,7 +3327,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_connect_rate",
@@ -3347,7 +3347,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_syscalls_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingSyscallsEnabled),
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType)),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_syscalls_rate",
@@ -3467,9 +3467,9 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
-		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
-		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
-		EventSamplingSyscallsEnabled:  p.syscallSamplerEnabled(),
+		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
+		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
+		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3546,19 +3546,12 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 	return nil
 }
 
-// syscallSamplerEnabled reports whether the V2 syscall sampler should run (and its tracepoint attach).
-func (p *EBPFProbe) syscallSamplerEnabled() bool {
-	return p.config.RuntimeSecurity.SecurityProfileV2Enabled &&
-		p.config.RuntimeSecurity.EventSamplingSyscallsEnabled &&
-		slices.Contains(p.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.SyscallsEventType)
-}
-
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
 	if (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
 		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
-		p.syscallSamplerEnabled() {
+		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
