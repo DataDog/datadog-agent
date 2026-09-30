@@ -72,7 +72,25 @@ flowchart LR
 
 ## 4. Shared contracts
 
-Agree on these types first, so WS-B, C, D and F can build against each other using stand-in implementations. Suggested package: `pkg/eventmonitor/consumers/yara` (WS-B makes the final call).
+Agree on these types first, so WS-B, C, D and F can build against each other using stand-in implementations.
+
+**Landed:** the contracts live in `pkg/eventmonitor/consumers/yara/types.go` (source of truth; the snippet below is a summary). Stand-ins in `standin.go`: `StandInDeduper` (unbounded maps), `MarkerScanner` (matches a marker string), `LogReporter`, and `InlineScanPool` (scans synchronously). Changes to `types.go` must be agreed across workstreams.
+
+In addition to the snippet below, `types.go` defines the hand-off between WS-C and WS-D:
+
+```go
+// ScanJob: bytes read once, hashed into Sum, passed as-is to the scanner.
+type ScanJob struct {
+    File ExecFile
+    Sum  [32]byte
+    Data []byte
+    Done func() // called exactly once when the pool is done with Data (returns the buffer)
+}
+
+type ScanPool interface {
+    Submit(job ScanJob) bool // non-blocking; on false the pool has released the hash and called Done
+}
+```
 
 ```go
 // ExecFile is what Copy() extracts from the event. Keep it small: it is built on the hot path.
@@ -179,7 +197,7 @@ Consumer skeleton: receive exec events, build `ExecFile`, hand it to the dedupe 
 - [ ] Per-scan timeout (`scan_timeout`). On timeout, count it and release the hash
 - [ ] At start, load and compile every rule file in `rules_dir`. On a compile error, log it and disable scanning; never crash system-probe
 - [ ] `RulesVersion()` returns a hash of the rule file contents; include it in every report
-- [ ] Stand-in scanner that matches a marker string, for tests and M1
+- [x] Stand-in scanner that matches a marker string, for tests and M1 (`MarkerScanner`, landed with the contracts)
 - [ ] Real engine implementation once WS-A decides
 - [ ] Cap memory: buffered bytes ≤ `workers × max_file_size`
 
