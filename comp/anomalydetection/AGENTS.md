@@ -220,6 +220,8 @@ Keys are declared in the config schema (`pkg/config/schema/yaml/`).
 | `anomaly_detection.metrics.enabled` | `true` | External metric ingestion at handles |
 | `anomaly_detection.metrics.processing_rules` | `[]` | Ordered metric filter rules (source/name/tags) |
 | `anomaly_detection.recording.enabled` | `false` | Enables recording when a writer provider is registered; none is registered in this PR |
+| `anomaly_detection.recording.flush_interval` | `60s` | Duration passed to the writer backend; `0s` uses `60s` |
+| `anomaly_detection.recording.retention` | `24h` | Duration passed to the writer backend |
 | `anomaly_detection.logs.enabled` | `true` | Parent gate for all log sources |
 | `anomaly_detection.logs.processing_rules` | `[]` | Ordered log filter rules evaluated per message for all log sources (container, kubelet, agent-internal) |
 | `anomaly_detection.logs.time_buckets.enabled` | `false` | Materialize fixed-width count buckets for log-derived `.count` series |

@@ -74,7 +74,7 @@ func testRecordingConfig(t *testing.T, overrides map[string]interface{}) config.
 	values := map[string]interface{}{
 		"anomaly_detection.recording.enabled":        true,
 		"anomaly_detection.recording.output_dir":     t.TempDir(),
-		"anomaly_detection.recording.flush_interval": 10,
+		"anomaly_detection.recording.flush_interval": "10s",
 		"anomaly_detection.recording.retention":      "48h",
 	}
 	for key, value := range overrides {
@@ -112,8 +112,11 @@ func TestWriterConfigurationAndDefaults(t *testing.T) {
 		retention time.Duration
 	}{
 		{"explicit", nil, 10 * time.Second, 48 * time.Hour},
+		{"subsecond", map[string]interface{}{
+			"anomaly_detection.recording.flush_interval": "1500ms",
+		}, 1500 * time.Millisecond, 48 * time.Hour},
 		{"fallbacks", map[string]interface{}{
-			"anomaly_detection.recording.flush_interval": 0,
+			"anomaly_detection.recording.flush_interval": "0s",
 			"anomaly_detection.recording.retention":      "-1h",
 		}, 60 * time.Second, 24 * time.Hour},
 		{"zero retention", map[string]interface{}{
@@ -143,15 +146,16 @@ func TestWriterConfigurationAndDefaults(t *testing.T) {
 }
 
 func TestInvalidSettingsFailBeforeWriterCreation(t *testing.T) {
-	tooLarge := int((1<<63-1)/int64(time.Second) + 1)
 	for _, tc := range []struct {
 		name      string
 		overrides map[string]interface{}
 	}{
 		{"empty output", map[string]interface{}{"anomaly_detection.recording.output_dir": ""}},
 		{"whitespace output", map[string]interface{}{"anomaly_detection.recording.output_dir": "  "}},
-		{"negative flush", map[string]interface{}{"anomaly_detection.recording.flush_interval": -1}},
-		{"overflow flush", map[string]interface{}{"anomaly_detection.recording.flush_interval": tooLarge}},
+		{"negative flush", map[string]interface{}{"anomaly_detection.recording.flush_interval": "-1s"}},
+		{"overflow flush", map[string]interface{}{"anomaly_detection.recording.flush_interval": "100000000000000000000h"}},
+		{"malformed flush", map[string]interface{}{"anomaly_detection.recording.flush_interval": "ten seconds"}},
+		{"unitless flush", map[string]interface{}{"anomaly_detection.recording.flush_interval": "60"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			factory := &lifecycleTestFactory{}
