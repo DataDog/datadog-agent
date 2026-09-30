@@ -211,6 +211,11 @@ func (p *Processor) processMessage(msg *message.Message) {
 			p.filterMRFMessages(msg)
 		}
 
+		// Resolve the hostname before either destination consumes the message.
+		// File tailers leave it empty; the tap needs the same fallback as the encoder.
+		hostname := p.GetHostname(msg)
+		msg.Hostname = hostname
+
 		// Fan out to a secondary destination while the message still holds its
 		// rendered content: the encoder below rewrites it in place. A Tap may
 		// block here, which is how a secondary destination applies back-pressure.
@@ -219,7 +224,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 
 		// encode the message to its final format, it is done in-place
-		if err := p.encoder.Encode(msg, p.GetHostname(msg)); err != nil {
+		if err := p.encoder.Encode(msg, hostname); err != nil {
 			log.Error("unable to encode msg ", err)
 			return
 		}
