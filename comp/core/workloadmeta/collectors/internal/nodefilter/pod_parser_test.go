@@ -184,6 +184,41 @@ func TestParsePod(t *testing.T) {
 	}, container.Image)
 }
 
+// TestParsePodContainers_PrefersSpecImage verifies that the container spec's
+// image, not the status's, is used for the Container entity and its
+// OrchestratorContainer reference, mirroring the kubelet collector's own
+// preference for the spec's image over the status's.
+func TestParsePodContainers_PrefersSpecImage(t *testing.T) {
+	specs := []corev1.Container{
+		{Name: "nginx-container", Image: "nginx:1.25.3"},
+	}
+	statuses := []corev1.ContainerStatus{
+		{
+			Name:        "nginx-container",
+			Image:       "nginx:1.25.2",
+			ImageID:     "5dbe7e1b6b9c",
+			ContainerID: "docker://containerID",
+		},
+	}
+
+	podContainers, events := parsePodContainers(specs, statuses, nil)
+
+	wantImage := workloadmeta.ContainerImage{
+		ID:        "5dbe7e1b6b9c",
+		RawName:   "nginx:1.25.3",
+		Name:      "nginx",
+		ShortName: "nginx",
+		Tag:       "1.25.3",
+	}
+
+	require.Len(t, podContainers, 1)
+	assert.Equal(t, wantImage, podContainers[0].Image)
+
+	require.Len(t, events, 1)
+	container := events[0].Entity.(*workloadmeta.Container)
+	assert.Equal(t, wantImage, container.Image)
+}
+
 func TestParsePod_SkipsContainerWithoutID(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", UID: types.UID("pod-uid")},

@@ -166,6 +166,16 @@ func parsePodContainers(
 			env = extractEnvFromSpec(spec.Env)
 			resources = extractResources(spec)
 			resizePolicy = extractResizePolicy(spec)
+
+			// Prefer the image from the spec over the status: the status's
+			// image can still be the previous one right after a container is
+			// resized/recreated, while the spec always reflects the current
+			// desired image.
+			specImage, specErr := workloadmeta.NewContainerImage(imageID, spec.Image)
+			if specErr != nil {
+				log.Debugf("cannot parse image name %q for container %q: %s", spec.Image, status.Name, specErr)
+			}
+			image = specImage
 		} else {
 			log.Debugf("cannot find spec for container %q", status.Name)
 		}
