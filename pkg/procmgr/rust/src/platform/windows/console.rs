@@ -4,10 +4,11 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::Result;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
+    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, GetLastError, HANDLE,
+    INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
@@ -18,6 +19,7 @@ use windows_sys::Win32::System::Console::{
     GetConsoleCP, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
     SetConsoleCtrlHandler, SetStdHandle,
 };
+use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 use super::wide;
 
@@ -43,12 +45,75 @@ fn std_handle_live(handle: u32) -> bool {
     }
 }
 
-pub fn stdout_inheritable() -> bool {
-    std_handle_live(STD_OUTPUT_HANDLE)
+/// The supervisor's own stdout and stderr, duplicated before anything can touch the
+/// console. These are the only handles an `inherit` spawn may hand to a child.
+///
+/// Reading `GetStdHandle` at spawn time instead is unsafe: a graceful stop attaches the
+/// supervisor to the child's console and detaches again, which leaves closed console
+/// handles in the std slots (see `std_handle_live`). Windows reuses handle values, so a
+/// later read can return one the OS has since given to an unrelated object, such as the
+/// named pipe carrying an in-flight gRPC call. A child that inherited that as its stdout
+/// would write its output straight into someone else's connection. Owning a duplicate
+/// pins both the object and its value for the lifetime of the supervisor.
+struct StartupStdio {
+    stdout: Option<HANDLE>,
+    stderr: Option<HANDLE>,
 }
 
-pub fn stderr_inheritable() -> bool {
-    std_handle_live(STD_ERROR_HANDLE)
+// SAFETY: the handles are owned for the process lifetime and only ever duplicated from.
+unsafe impl Send for StartupStdio {}
+unsafe impl Sync for StartupStdio {}
+
+static STARTUP_STDIO: OnceLock<StartupStdio> = OnceLock::new();
+
+/// Pins the supervisor's stdio. Idempotent, and the first call is the one that counts, so
+/// every path that manipulates the console calls it before doing so.
+pub fn capture_startup_stdio() {
+    let _ = startup_stdio();
+}
+
+fn startup_stdio() -> &'static StartupStdio {
+    STARTUP_STDIO.get_or_init(|| StartupStdio {
+        stdout: own_std_handle(STD_OUTPUT_HANDLE),
+        stderr: own_std_handle(STD_ERROR_HANDLE),
+    })
+}
+
+/// A private duplicate of a std handle, or `None` when the slot holds nothing usable,
+/// which is the service case.
+fn own_std_handle(kind: u32) -> Option<HANDLE> {
+    if !std_handle_live(kind) {
+        return None;
+    }
+    let mut dup: HANDLE = std::ptr::null_mut();
+    let ok = unsafe {
+        DuplicateHandle(
+            GetCurrentProcess(),
+            GetStdHandle(kind),
+            GetCurrentProcess(),
+            &mut dup,
+            0,
+            0,
+            DUPLICATE_SAME_ACCESS,
+        )
+    };
+    if ok == 0 {
+        log::warn!(
+            "DuplicateHandle(std handle {kind}) failed: {}, spawns will not inherit it",
+            std::io::Error::last_os_error()
+        );
+        return None;
+    }
+    Some(dup)
+}
+
+/// The handle an `inherit` spawn should duplicate for `kind`, if any.
+pub(crate) fn startup_std_handle(kind: u32) -> Option<HANDLE> {
+    match kind {
+        STD_OUTPUT_HANDLE => startup_stdio().stdout,
+        STD_ERROR_HANDLE => startup_stdio().stderr,
+        _ => None,
+    }
 }
 
 /// True when the process is attached to a console.
@@ -70,14 +135,21 @@ pub(crate) struct CallerConsoleState {
     has_console: bool,
     stdout: bool,
     stderr: bool,
+    /// Raw std handle values. Liveness alone accepts a slot left pointing at a closed
+    /// console handle once Windows has reassigned that value to something else, which is
+    /// exactly the state a graceful stop must not leave behind.
+    std_handles: [usize; 3],
 }
 
 #[cfg(test)]
 pub(crate) fn caller_console_state() -> CallerConsoleState {
     CallerConsoleState {
         has_console: has_console(),
-        stdout: stdout_inheritable(),
-        stderr: stderr_inheritable(),
+        stdout: std_handle_live(STD_OUTPUT_HANDLE),
+        stderr: std_handle_live(STD_ERROR_HANDLE),
+        std_handles: StdHandleSlots::capture()
+            .0
+            .map(|(_, handle)| handle as usize),
     }
 }
 
@@ -125,6 +197,26 @@ const CONSOLE_STD_HANDLES: [(u32, &str); 3] = [
     (STD_ERROR_HANDLE, "CONOUT$"),
 ];
 
+/// The std handle slots as they were before attaching to another process's console.
+struct StdHandleSlots([(u32, HANDLE); 3]);
+
+impl StdHandleSlots {
+    fn capture() -> Self {
+        Self(CONSOLE_STD_HANDLES.map(|(kind, _)| (kind, unsafe { GetStdHandle(kind) })))
+    }
+
+    fn restore(&self) {
+        for (kind, handle) in self.0 {
+            if unsafe { SetStdHandle(kind, handle) } == 0 {
+                log::warn!(
+                    "SetStdHandle({kind}) failed: {}, the slot keeps a stale console handle",
+                    std::io::Error::last_os_error()
+                );
+            }
+        }
+    }
+}
+
 /// Reattaches the caller to its own console once signaling is done.
 ///
 /// Signaling requires leaving that console (see `ChildConsoleGuard`). A supervisor started
@@ -132,12 +224,14 @@ const CONSOLE_STD_HANDLES: [(u32, &str); 3] = [
 /// of the process lifetime.
 struct CallerConsoleGuard {
     had_console: bool,
+    std_handles: StdHandleSlots,
 }
 
 impl CallerConsoleGuard {
     fn capture() -> Self {
         Self {
             had_console: has_console(),
+            std_handles: StdHandleSlots::capture(),
         }
     }
 }
@@ -145,6 +239,11 @@ impl CallerConsoleGuard {
 impl Drop for CallerConsoleGuard {
     fn drop(&mut self) {
         if !self.had_console {
+            // A supervisor with no console of its own still gets the child console's
+            // handles written into its std slots by AttachConsole, and the matching
+            // FreeConsole then closes them. Putting the original values back keeps a
+            // later GetStdHandle from returning one Windows has since reassigned.
+            self.std_handles.restore();
             return;
         }
         // The console we left belongs to whoever launched us, so it is reachable through
@@ -253,6 +352,8 @@ fn signal_ctrl_break(pgid: u32) -> Result<()> {
 // after leaving the child's and before the ctrl handler goes back to normal.
 pub fn send_graceful_stop(pid: u32) -> Result<()> {
     let _guard = console_lock();
+    // Pin stdio before the console churn below can replace the std handles.
+    capture_startup_stdio();
     let _ignore_ctrl = IgnoreCtrlGuard::install()?;
     let _caller_console = CallerConsoleGuard::capture();
     let _child_console = ChildConsoleGuard::attach(pid)?;
@@ -315,7 +416,7 @@ pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_crash_exit;
+    use super::*;
 
     /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
     /// this is the only place Windows classification gets real CI coverage.
@@ -351,5 +452,53 @@ mod tests {
                 "{code:#X} is an ExitProcess value, not a crash"
             );
         }
+    }
+
+    fn open_nul() -> HANDLE {
+        let nul = wide::null_terminated("NUL");
+        let handle = unsafe {
+            CreateFileW(
+                nul.as_ptr(),
+                FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                std::ptr::null_mut(),
+            )
+        };
+        assert!(
+            handle != INVALID_HANDLE_VALUE && !handle.is_null(),
+            "CreateFileW(NUL) failed: {}",
+            std::io::Error::last_os_error()
+        );
+        handle
+    }
+
+    fn slot_values(slots: &StdHandleSlots) -> [usize; 3] {
+        slots.0.map(|(_, handle)| handle as usize)
+    }
+
+    /// The no-console arm of `CallerConsoleGuard` is this round trip, and it is the only
+    /// thing keeping a closed console handle out of a std slot after a graceful stop.
+    #[test]
+    fn std_handle_slots_restore_the_captured_values() {
+        let _guard = console_lock();
+        let captured = StdHandleSlots::capture();
+
+        let scratch = open_nul();
+        for (kind, _) in CONSOLE_STD_HANDLES {
+            assert_ne!(
+                unsafe { SetStdHandle(kind, scratch) },
+                0,
+                "SetStdHandle({kind}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+        captured.restore();
+        let restored = StdHandleSlots::capture();
+        unsafe { CloseHandle(scratch) };
+
+        assert_eq!(slot_values(&captured), slot_values(&restored));
     }
 }
