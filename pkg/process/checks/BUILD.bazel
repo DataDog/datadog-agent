@@ -236,7 +236,10 @@ dd_agent_go_test(
         "user_nix_test.go",
     ],
     embed = [":checks"],
-    env_inherit = ["PATH"],  # CollectSystemInfo invokes system utilities (e.g. ioreg on macOS)
+    env_inherit = select({
+        "@platforms//os:macos": ["PATH"],  # hostinfo collection invokes ioreg on macOS
+        "//conditions:default": [],
+    }),
     gotags_sets = [["systemprobechecks"]],
     deps = [
         "//comp/core",
