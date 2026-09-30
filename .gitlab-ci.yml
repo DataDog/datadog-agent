@@ -178,6 +178,10 @@ default:
   retry:
     max: 1 # Retry everything once on failure
     when: always
+  # Used by `dda self feature` to fetch its client token. Not merged into jobs that define their own `id_tokens`.
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 # Full git history. Override the default shallow clone.
 .needs_full_git_history:
