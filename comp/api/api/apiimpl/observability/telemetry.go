@@ -80,8 +80,12 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) func(http.Ha
 // consistent with the templates planted by WrapWithRouteTemplate. Patterns
 // without a method qualifier start with a path or host and are returned as-is.
 func stripMethodFromPattern(pattern string) string {
-	if i := strings.IndexByte(pattern, ' '); i >= 0 && pattern[0] != '/' {
-		return pattern[i+1:]
+	if pattern == "" || pattern[0] == '/' {
+		// No method qualifier: the pattern is a path (or empty).
+		return pattern
+	}
+	if _, rest, ok := strings.Cut(pattern, " "); ok {
+		return rest
 	}
 	return pattern
 }
