@@ -163,6 +163,15 @@ func fmtProcessStats(
 	return chunked
 }
 
+// calculateRate returns the average counter growth per second, or zero when there is no valid baseline.
+func calculateRate(cur, prev uint64, now, before time.Time) float32 {
+	diff := now.Unix() - before.Unix()
+	if before.IsZero() || diff <= 0 || prev == 0 || prev > cur {
+		return 0
+	}
+	return float32(cur-prev) / float32(diff)
+}
+
 // filterRealtimeStats removes nil entries and, when configured, zombie entries
 // from realtime process stats.
 func filterRealtimeStats(stats map[int32]*procutil.Stats, zombiesIgnored bool) map[int32]*procutil.Stats {
@@ -174,15 +183,6 @@ func filterRealtimeStats(stats map[int32]*procutil.Stats, zombiesIgnored bool) m
 		filtered[pid] = stat
 	}
 	return filtered
-}
-
-// calculateRate returns the average counter growth per second, or zero when there is no valid baseline.
-func calculateRate(cur, prev uint64, now, before time.Time) float32 {
-	diff := now.Unix() - before.Unix()
-	if before.IsZero() || diff <= 0 || prev == 0 || prev > cur {
-		return 0
-	}
-	return float32(cur-prev) / float32(diff)
 }
 
 func pidsForRealtimeSystemProbeStats(pids []int32, stats map[int32]*procutil.Stats) []int32 {
