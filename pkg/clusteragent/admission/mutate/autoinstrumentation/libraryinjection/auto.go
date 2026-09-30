@@ -8,7 +8,9 @@
 package libraryinjection
 
 import (
+	"cmp"
 	"slices"
+	"strings"
 
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
@@ -19,12 +21,61 @@ import (
 
 const minCSIKubeVersion = "v1.20"
 
+// libCompat describes which library images ship /datadog-init/package, which
+// the CSI driver mounts. Older images only work with init containers.
+type libCompat struct {
+	// minMajor is the oldest major line with images that ship the layout.
+	minMajor string
+	// minVersionPerMajor is the first version that ships the layout, per major
+	// line. Lines from minMajor that are not listed always ship it. Versions
+	// must be X.Y.0 so that minor tags (v2.11) compare correctly.
+	minVersionPerMajor map[string]string
+}
+
+// minCSILibraryVersions lists, per language, the library images that the CSI
+// driver can mount (released in August 2024 or later). Languages that are not
+// listed always ship the layout.
+var minCSILibraryVersions = map[string]libCompat{
+	"java": {
+		minMajor: "v1",
+		minVersionPerMajor: map[string]string{
+			"v1": "v1.38.0",
+		},
+	},
+	"js": {
+		minMajor: "v4",
+		minVersionPerMajor: map[string]string{
+			"v4": "v4.45.0",
+			"v5": "v5.21.0",
+		},
+	},
+	"python": {
+		minMajor: "v2",
+		minVersionPerMajor: map[string]string{
+			"v2": "v2.11.0",
+		},
+	},
+	"dotnet": {
+		minMajor: "v2",
+		minVersionPerMajor: map[string]string{
+			"v2": "v2.57.0",
+		},
+	},
+	"ruby": {
+		minMajor: "v2",
+		minVersionPerMajor: map[string]string{
+			"v2": "v2.3.0",
+		},
+	},
+}
+
 // AutoProvider implements LibraryInjectionProvider.
 // It picks the best concrete provider for a pod based on the runtime
 // environment, currently:
 //   - CSIProvider when the Datadog CSI driver is registered in the cluster
 //     with APM SSI advertised, the cluster is not OpenShift, runs Kubernetes
-//     1.20 or later, and all images use supported registries;
+//     1.20 or later, all images use supported registries, and all library
+//     versions support CSI;
 //   - InitContainerProvider otherwise.
 type AutoProvider struct {
 	realProvider LibraryInjectionProvider
@@ -66,6 +117,12 @@ func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
 		log.Debugf("library injection auto provider: registry %q requires workload image pull credentials, using InitContainerProvider", registry)
 		return NewInitContainerProvider(cfg)
 	}
+	for _, library := range cfg.Libraries {
+		if !isCSICompatibleLibrary(library) {
+			log.Debugf("library injection auto provider: %s library version %q predates CSI support, using InitContainerProvider", library.Language, libraryVersion(library))
+			return NewInitContainerProvider(cfg)
+		}
+	}
 	log.Debugf("library injection auto provider: Datadog CSI driver %q is registered with APM enabled, using CSIProvider", csiDriverName)
 	return NewCSIProvider(cfg)
 }
@@ -85,6 +142,38 @@ func firstUnsupportedCSIRegistry(cfg LibraryInjectionConfig) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func libraryVersion(library LibraryConfig) string {
+	return cmp.Or(library.Package.CanonicalVersion, library.Package.Version)
+}
+
+// isCSICompatibleLibrary reports whether the library image ships the layout
+// that the CSI driver mounts. Only semver tags are checked: other tags
+// (latest, digests, dev builds) are assumed to be recent.
+func isCSICompatibleLibrary(library LibraryConfig) bool {
+	compat, found := minCSILibraryVersions[library.Language]
+	if !found {
+		return true
+	}
+	tag := libraryVersion(library)
+	if !strings.HasPrefix(tag, "v") {
+		tag = "v" + tag
+	}
+	if !semver.IsValid(tag) {
+		return true
+	}
+	major := semver.Major(tag)
+	if semver.Compare(major, compat.minMajor) < 0 {
+		return false
+	}
+	minVersion, found := compat.minVersionPerMajor[major]
+	if !found || tag == major {
+		// Newer lines always ship the layout, and major tags (v2) point to
+		// the newest release of the line.
+		return true
+	}
+	return semver.Compare(tag, minVersion) >= 0
 }
 
 // GetName returns the effective injection mode of the resolved concrete provider,

@@ -41,7 +41,7 @@ func parseInjectedLibraries(t *testing.T, pod *corev1.Pod) []libraryAnnotationEn
 func javaLib() libraryinjection.LibraryConfig {
 	return libraryinjection.LibraryConfig{
 		Language: "java",
-		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.30.0", "1.30.0"),
+		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.40.0", "1.40.0"),
 	}
 }
 
@@ -136,7 +136,7 @@ func TestInjectAPMLibraries_Annotations_InitContainer(t *testing.T) {
 	entries := parseInjectedLibraries(t, pod)
 	require.Len(t, entries, 2)
 	assert.Equal(t, libraryAnnotationEntry{Name: "injector", Image: "gcr.io/datadoghq/apm-inject:0.52.0", Status: "injected"}, entries[0])
-	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.30.0", Status: "injected"}, entries[1])
+	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.40.0", Status: "injected"}, entries[1])
 }
 
 // TestInjectAPMLibraries_Annotations_CSI verifies the annotations written
@@ -158,7 +158,7 @@ func TestInjectAPMLibraries_Annotations_CSI(t *testing.T) {
 	entries := parseInjectedLibraries(t, pod)
 	require.Len(t, entries, 2)
 	assert.Equal(t, libraryAnnotationEntry{Name: "injector", Image: "gcr.io/datadoghq/apm-inject:0.52.0", Status: "injected"}, entries[0])
-	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.30.0", Status: "injected"}, entries[1])
+	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.40.0", Status: "injected"}, entries[1])
 }
 
 // TestInjectAPMLibraries_Annotations_Auto_CSI verifies that auto mode resolving
@@ -276,7 +276,7 @@ func TestInjectAPMLibraries_InjectedLibraries_UnsupportedLanguage(t *testing.T) 
 	entries := parseInjectedLibraries(t, pod)
 	require.Len(t, entries, 3)
 	assert.Equal(t, libraryAnnotationEntry{Name: "injector", Image: "gcr.io/datadoghq/apm-inject:0.52.0", Status: "injected"}, entries[0])
-	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.30.0", Status: "injected"}, entries[1])
+	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.40.0", Status: "injected"}, entries[1])
 	assert.Equal(t, libraryAnnotationEntry{Name: "cobol", Image: "gcr.io/datadoghq/dd-lib-cobol-init:1.0.0", Status: "skipped"}, entries[2])
 }
 

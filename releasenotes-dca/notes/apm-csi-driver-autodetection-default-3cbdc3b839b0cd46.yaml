@@ -10,9 +10,10 @@ upgrade:
     - The injector and tracer images come from a Datadog public registry.
     - The cluster is not OpenShift.
     - The cluster runs Kubernetes 1.20 or later.
+    - The tracer images are compatible with the CSI driver (released in
+      August 2024 or later).
 
     Otherwise, it still uses init containers. To keep init containers, set
-    ``apm_config.instrumentation.injection_mode`` to ``init_container``.
-
-    Detection requires the Cluster Agent to list and watch
-    ``csidrivers.storage.k8s.io``.
+    ``datadog.apm.instrumentation.injectionMode`` (Helm) or
+    ``features.apm.instrumentation.injectionMode`` (Operator) to
+    ``init_container``.

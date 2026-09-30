@@ -197,6 +197,71 @@ func TestAutoProvider_FallsBackToInitContainerOnOpenShift(t *testing.T) {
 	assert.NotNil(t, vol.EmptyDir, "on OpenShift, AutoProvider must fall back to an EmptyDir volume")
 }
 
+func TestAutoProvider_LibraryVersion(t *testing.T) {
+	lib := func(language, version, canonicalVersion string) libraryinjection.LibraryConfig {
+		return libraryinjection.LibraryConfig{
+			Language: language,
+			Package: libraryinjection.LibraryImage{
+				Registry:         "gcr.io/datadoghq",
+				Name:             "dd-lib-" + language + "-init",
+				Version:          version,
+				CanonicalVersion: canonicalVersion,
+			},
+		}
+	}
+	tests := []struct {
+		name      string
+		libraries []libraryinjection.LibraryConfig
+		wantMode  string
+	}{
+		{"uses csi with the default java version", []libraryinjection.LibraryConfig{lib("java", "v1", "")}, "csi (auto)"},
+		{"uses csi with the default python version", []libraryinjection.LibraryConfig{lib("python", "v4", "")}, "csi (auto)"},
+		{"uses csi with the default js version", []libraryinjection.LibraryConfig{lib("js", "v6", "")}, "csi (auto)"},
+		{"uses csi with the default dotnet version", []libraryinjection.LibraryConfig{lib("dotnet", "v3", "")}, "csi (auto)"},
+		{"uses csi with the default ruby version", []libraryinjection.LibraryConfig{lib("ruby", "v2", "")}, "csi (auto)"},
+		{"uses csi with the default php version", []libraryinjection.LibraryConfig{lib("php", "v1", "")}, "csi (auto)"},
+		{"uses csi with latest", []libraryinjection.LibraryConfig{lib("python", "latest", "")}, "csi (auto)"},
+		{"uses csi with the first python version with the layout", []libraryinjection.LibraryConfig{lib("python", "v2.11.0", "")}, "csi (auto)"},
+		{"uses csi with a python minor tag with the layout", []libraryinjection.LibraryConfig{lib("python", "v2.11", "")}, "csi (auto)"},
+		{"uses csi with a python version without v prefix", []libraryinjection.LibraryConfig{lib("python", "2.12.0", "")}, "csi (auto)"},
+		{"uses csi with the js v4 major tag", []libraryinjection.LibraryConfig{lib("js", "v4", "")}, "csi (auto)"},
+		{"uses csi with the js v5 major tag", []libraryinjection.LibraryConfig{lib("js", "v5", "")}, "csi (auto)"},
+		{"uses csi with a js v4 minor tag with the layout", []libraryinjection.LibraryConfig{lib("js", "v4.45", "")}, "csi (auto)"},
+		{"uses csi with the first js v5 version with the layout", []libraryinjection.LibraryConfig{lib("js", "v5.21.0", "")}, "csi (auto)"},
+		{"uses csi with any php version", []libraryinjection.LibraryConfig{lib("php", "v0.1.0", "")}, "csi (auto)"},
+		{"uses csi with a digest and a recent canonical version", []libraryinjection.LibraryConfig{lib("java", "sha256:abc", "v1.40.0")}, "csi (auto)"},
+		{"uses csi with a digest", []libraryinjection.LibraryConfig{lib("java", "sha256:abc", "")}, "csi (auto)"},
+		{"uses csi with a custom tag", []libraryinjection.LibraryConfig{lib("ruby", "custom", "")}, "csi (auto)"},
+		{"uses csi with a dev build tag", []libraryinjection.LibraryConfig{lib("ruby", "2.4.0.dev.ba4d451", "")}, "csi (auto)"},
+		{"uses csi with a recent prerelease", []libraryinjection.LibraryConfig{lib("js", "4.47.0-pipeline.45492227.beta.b42c17c4", "")}, "csi (auto)"},
+		{"falls back with an old python version", []libraryinjection.LibraryConfig{lib("python", "v2.10.4", "")}, "init_container (auto)"},
+		{"falls back with an old python version without v prefix", []libraryinjection.LibraryConfig{lib("python", "2.7.3", "")}, "init_container (auto)"},
+		{"falls back with an old python minor tag", []libraryinjection.LibraryConfig{lib("python", "v2.10", "")}, "init_container (auto)"},
+		{"falls back with the python v1 major tag", []libraryinjection.LibraryConfig{lib("python", "v1", "")}, "init_container (auto)"},
+		{"falls back with a java v0 version", []libraryinjection.LibraryConfig{lib("java", "v0.99.0", "")}, "init_container (auto)"},
+		{"falls back with a js major line older than the first one with the layout", []libraryinjection.LibraryConfig{lib("js", "v2.0.0", "")}, "init_container (auto)"},
+		{"falls back with the js v3 major tag", []libraryinjection.LibraryConfig{lib("js", "v3", "")}, "init_container (auto)"},
+		{"falls back with an old js v4 version", []libraryinjection.LibraryConfig{lib("js", "v4.44.0", "")}, "init_container (auto)"},
+		{"falls back with an old js v5 version", []libraryinjection.LibraryConfig{lib("js", "v5.20.0", "")}, "init_container (auto)"},
+		{"falls back with a prerelease of the first java version with the layout", []libraryinjection.LibraryConfig{lib("java", "v1.38.0-rc1", "")}, "init_container (auto)"},
+		{"falls back with a digest and an old canonical version", []libraryinjection.LibraryConfig{lib("java", "sha256:abc", "v1.37.1")}, "init_container (auto)"},
+		{"falls back when one library is too old", []libraryinjection.LibraryConfig{lib("java", "v1", ""), lib("dotnet", "v2.56.0", "")}, "init_container (auto)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
+				Injector:          injectorConfig(),
+				Libraries:         tt.libraries,
+				CSIAutoRegistries: defaultCSIAutoRegistries,
+				CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+				KubeServerVersion: csiKubeVersion,
+			})
+			require.Equal(t, tt.wantMode, provider.GetName())
+		})
+	}
+}
+
 func TestAutoProvider_KubernetesVersion(t *testing.T) {
 	tests := []struct {
 		name          string
