@@ -584,6 +584,29 @@ func TestFlareContextEndsBeforeTheCallerStopsWaiting(t *testing.T) {
 	})
 }
 
+// The per-service supervisor checks are local, so they are the one part of the report still worth
+// having when dd-procmgrd is what failed. They share the collection context, and a context cannot
+// outlive an expired parent, so a daemon that hangs until the budget is gone would otherwise leave
+// every "systemctl is-active" failing on arrival and every service reporting management_mode "none".
+func TestDaemonCallsLeaveTimeForTheServiceSweep(t *testing.T) {
+	collection, cancel := flareContext(context.Background())
+	defer cancel()
+	collectionDeadline, ok := collection.Deadline()
+	require.True(t, ok)
+
+	daemon, cancelDaemon := daemonPhaseContext(collection)
+	defer cancelDaemon()
+
+	daemonDeadline, ok := daemon.Deadline()
+	require.True(t, ok, "the daemon calls must be bounded, or they can spend the whole budget")
+	assert.True(t, daemonDeadline.Before(collectionDeadline),
+		"the daemon calls must give up while the collection context still has time on it")
+	// Tolerance well under the reserve: at a tolerance of the reserve itself this would hold whether
+	// or not any time was actually held back.
+	assert.WithinDuration(t, collectionDeadline.Add(-flareServiceSweepReserve), daemonDeadline,
+		flareServiceSweepReserve/4)
+}
+
 // blockingClient answers nothing until the context it was given is done, standing in for a
 // dd-procmgrd that has stopped responding. It records the budget it was handed so a test can assert
 // on what collection passed down rather than on how long the call took to return.
@@ -620,6 +643,9 @@ func TestReportYieldsAReportWhenTheCallerIsAlmostOutOfTime(t *testing.T) {
 	require.True(t, client.hasDeadline, "collection must bound every call it makes")
 	assert.True(t, client.deadline.Before(callerDeadline),
 		"collection must stop before the caller does, or there is no time left to write the file")
+	assert.WithinDuration(t, callerDeadline.Add(-flareWriteMargin-flareServiceSweepReserve), client.deadline,
+		flareServiceSweepReserve/4,
+		"the daemon calls get the collection budget less the reserve, so a hung daemon cannot starve the service sweep")
 	assert.Error(t, client.errOnEntry,
 		"with less than the write margin left there is no time to collect, so the budget is already spent on arrival")
 	assert.NotEmpty(t, report.DaemonError, "the report has to say why it is empty")
