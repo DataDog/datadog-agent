@@ -40,10 +40,17 @@ dda env dev run --id follow-pr-attach-7C2C42F6 -- ddgl attach --detail=normal --
 
 ## Step 1: Determine the target
 
-If the user gave a ref, branch, or pipeline ID, pass it through (`--ref <ref>` or `--pipeline <id>`).
-Otherwise omit both — `ddgl attach` resolves the pipeline for the current branch on its own.
+1. Determine the ref to follow - either the user passed it in explicitly, or use the current branch (`git branch --show-current`).
+2. Check if there is an open PR using `gh pr status` (ex: `gh pr status --json number,labels -q=.currentBranch` if it's the current branch)
 
-## Step 2: 
+> If the user provided a direct pipeline ID, skip to [Step 3](#step-3-resolve-the-autonomy-policy).
+
+## Step 2: Attach the label to the PR
+
+If there is a PR associated to the pipeline you are meant to follow, make sure that PR contains the `follow-pr` label:
+```bash
+gh pr edit <number from previous step> --add-label "follow-pr"
+```
 
 ## Step 3: Resolve the autonomy policy
 
