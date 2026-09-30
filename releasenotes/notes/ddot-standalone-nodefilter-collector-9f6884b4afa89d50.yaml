@@ -1,0 +1,36 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    DDOT (Datadog Distribution of OpenTelemetry Collector): when the
+    OpenTelemetry Agent runs in standalone mode (``DD_OTEL_STANDALONE=true``)
+    on Kubernetes, it now collects the pods used for Kubernetes tag enrichment
+    from the Kubernetes API server, watching only the pods scheduled on its own
+    node, instead of from the kubelet. The node name is read from the
+    ``K8S_NODE_NAME`` environment variable, which the OpenTelemetry Helm chart
+    and Operator already set. Use the ``node_from_env_var`` setting of the
+    ``dogtel`` extension (``otelcollector.standalone.node_from_env_var`` in
+    ``datadog.yaml``) to read it from another environment variable. Set
+    ``use_kubelet_collector: true`` in the ``dogtel`` extension
+    (``otelcollector.standalone.use_kubelet_collector`` in ``datadog.yaml``)
+    to keep collecting pods from the kubelet.
+upgrade:
+  - |
+    DDOT (Datadog Distribution of OpenTelemetry Collector): in standalone mode
+    (``DD_OTEL_STANDALONE=true``) on Kubernetes, the OpenTelemetry Agent now
+    collects pods from the Kubernetes API server instead of from the kubelet
+    whenever the ``K8S_NODE_NAME`` environment variable (or the one named by
+    ``otelcollector.standalone.node_from_env_var``) is set. Its service account
+    then needs ``get``, ``list`` and ``watch`` permissions on ``pods``;
+    otherwise Kubernetes tags such as ``kube_deployment`` and
+    ``kube_replica_set`` go missing from telemetry, and the agent logs a
+    warning each time the API server refuses the request. To keep the previous behavior, set
+    ``use_kubelet_collector: true`` in the ``dogtel`` extension, or
+    ``otelcollector.standalone.use_kubelet_collector: true`` in
+    ``datadog.yaml``.
