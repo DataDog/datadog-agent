@@ -474,7 +474,7 @@ require (
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba
 	golang.org/x/arch v0.30.0
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/exp v0.0.0-20260813180055-c1d0aacb2297
 	golang.org/x/mod v0.40.0
 	golang.org/x/net v0.58.0
