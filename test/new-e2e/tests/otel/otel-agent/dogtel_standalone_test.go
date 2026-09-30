@@ -19,7 +19,9 @@ import (
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	pulumicorev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -121,6 +123,54 @@ func TestDogtelStandalone(t *testing.T) {
 			"otel-agent": true,
 		}),
 	)
+}
+
+// dogtelNodefilterTestSuite runs the dogtelStandaloneTestSuite tests against a
+// standalone otel-agent in its default mode, where the nodefilter workloadmeta
+// collector watches this node's pods through the API server, and whose
+// ClusterRole grants only the pod read access nodefilter documents: no kubelet
+// API access (nodes/proxy) the kubelet collector would need. It is a distinct
+// type so that it gets its own stack.
+type dogtelNodefilterTestSuite struct {
+	dogtelStandaloneTestSuite
+}
+
+// podReadRule grants the read access to pods that the nodefilter collector
+// (and the k8sobjects receiver in dogtel-standalone.yml) needs.
+func podReadRule() *rbacv1.PolicyRuleArgs {
+	return &rbacv1.PolicyRuleArgs{
+		ApiGroups: pulumi.StringArray{pulumi.String("")},
+		Resources: pulumi.StringArray{pulumi.String("pods")},
+		Verbs:     pulumi.StringArray{pulumi.String("get"), pulumi.String("list"), pulumi.String("watch")},
+	}
+}
+
+// TestDogtelNodefilter is the entry point for the dogtelNodefilterTestSuite.
+// Its name is exactly 20 characters, the limit TestDogtelStandalone documents.
+func TestDogtelNodefilter(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &dogtelNodefilterTestSuite{dogtelStandaloneTestSuite{workloadmetaCollector: "nodefilter"}},
+		e2e.WithProvisioner(dogtelStandaloneProvisioner(
+			otelstandalone.WithClusterRoleRules(podReadRule()),
+		)),
+		e2e.WithCoverageRequired(map[string]bool{
+			"agent":      false,
+			"otel-agent": true,
+		}),
+	)
+}
+
+// TestDogtelNoKubeletAccess checks that the otel-agent's ServiceAccount can
+// list pods but can't reach the kubelet API, so that the enrichment the
+// inherited tests assert on can only come through nodefilter.
+func (s *dogtelNodefilterTestSuite) TestDogtelNoKubeletAccess() {
+	// The fixture names the ServiceAccount after the deployment, like the pods'
+	// app label.
+	sa := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	assert.True(s.T(), serviceAccountCan(s, "datadog", sa, authorizationv1.ResourceAttributes{Verb: "list", Resource: "pods"}),
+		"ServiceAccount %s should be allowed to list pods", sa)
+	assert.False(s.T(), serviceAccountCan(s, "datadog", sa, authorizationv1.ResourceAttributes{Verb: "get", Resource: "nodes", Subresource: "proxy"}),
+		"ServiceAccount %s should not be allowed to reach the kubelet API (get nodes/proxy)", sa)
 }
 
 var dogtelParams = utils.IAParams{
@@ -355,6 +405,20 @@ func assertWorkloadmetaCollector(s utils.OTelTestSuite, namespace, appLabel, wan
 			assert.Contains(c, collectorLogs.String(), steppedAside, "pod %s", pod.Name)
 		}
 	}, 2*time.Minute, 10*time.Second)
+}
+
+// serviceAccountCan reports whether the Kubernetes API server authorizes the
+// ServiceAccount name in namespace to perform access.
+func serviceAccountCan(s utils.OTelTestSuite, namespace, name string, access authorizationv1.ResourceAttributes) bool {
+	review, err := s.Env().KubernetesCluster.Client().AuthorizationV1().SubjectAccessReviews().Create(context.Background(), &authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
+			User:               fmt.Sprintf("system:serviceaccount:%s:%s", namespace, name),
+			Groups:             []string{"system:serviceaccounts", "system:serviceaccounts:" + namespace, "system:authenticated"},
+			ResourceAttributes: &access,
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(s.T(), err)
+	return review.Status.Allowed
 }
 
 func getPodByAppLabel(s *dogtelCoexistTestSuite, namespace, appLabel string) corev1.Pod {
