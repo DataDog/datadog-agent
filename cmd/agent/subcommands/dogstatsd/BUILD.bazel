@@ -31,7 +31,10 @@ dd_agent_go_test(
     embed = [":dogstatsd"],
     deps = [
         "//cmd/agent/command",
+        "//pkg/aggregator",
+        "//pkg/aggregator/contexttop",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

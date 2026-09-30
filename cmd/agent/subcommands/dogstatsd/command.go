@@ -9,7 +9,9 @@ package dogstatsd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -32,6 +34,8 @@ type topFlags struct {
 	path               string
 	nmetrics           int
 	ntags              int
+	outputJSON         bool
+	output             io.Writer
 	logLevelDefaultOff command.LogLevelDefaultOff
 }
 
@@ -47,7 +51,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	topCmd := &cobra.Command{
 		Use:   "top",
 		Short: "Display metrics with most contexts in the aggregator",
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			topFlags.output = cmd.OutOrStdout()
+			if topFlags.path != "" {
+				return topContextsFromFile(&topFlags)
+			}
 			return fxutil.OneShot(
 				topContexts,
 				fx.Supply(&topFlags),
@@ -64,6 +72,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	topCmd.Flags().StringVarP(&topFlags.path, "path", "p", "", "use specified file for input instead of getting contexts from the agent")
 	topCmd.Flags().IntVarP(&topFlags.nmetrics, "num-metrics", "m", 10, "number of metrics to show")
 	topCmd.Flags().IntVarP(&topFlags.ntags, "mum-tags", "t", 5, "number of tags to show per metric")
+	topCmd.Flags().BoolVar(&topFlags.outputJSON, "json", false, "print the result as JSON")
 
 	c.AddCommand(topCmd)
 
@@ -136,40 +145,62 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Wrote %s\n", path)
+		if !flags.outputJSON {
+			fmt.Fprintf(flags.outputWriter(), "Wrote %s\n", path)
+		}
 	}
 
+	return renderTopContexts(path, flags)
+}
+
+func topContextsFromFile(flags *topFlags) error {
+	return renderTopContexts(flags.path, flags)
+}
+
+func renderTopContexts(path string, flags *topFlags) error {
 	top, err := contexttop.FromFile(path, flags.nmetrics, flags.ntags)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf(" % 10s\t%s\t(%s)\n", "Contexts", "Metric name", "number of unique values for each tag")
+	if flags.outputJSON {
+		return json.NewEncoder(flags.outputWriter()).Encode(top)
+	}
+
+	output := flags.outputWriter()
+	fmt.Fprintf(output, " % 10s\t%s\t(%s)\n", "Contexts", "Metric name", "number of unique values for each tag")
 	for _, metric := range top.Metrics {
-		fmt.Printf(" % 10d\t%s\t(", metric.Contexts, metric.Name)
-		printTopTags(metric)
-		fmt.Println(")")
+		fmt.Fprintf(output, " % 10d\t%s\t(", metric.Contexts, metric.Name)
+		printTopTags(output, metric)
+		fmt.Fprintln(output, ")")
 	}
 
 	if top.OtherMetrics > 0 {
-		fmt.Printf(" % 10d\t(other %d metrics)\n", top.OtherContexts, top.OtherMetrics)
+		fmt.Fprintf(output, " % 10d\t(other %d metrics)\n", top.OtherContexts, top.OtherMetrics)
 	}
 
 	return nil
 }
 
-func printTopTags(metric contexttop.Metric) {
+func (flags *topFlags) outputWriter() io.Writer {
+	if flags.output == nil {
+		return os.Stdout
+	}
+	return flags.output
+}
+
+func printTopTags(output io.Writer, metric contexttop.Metric) {
 	for i, tag := range metric.Tags {
 		if i > 0 {
-			fmt.Printf(", ")
+			fmt.Fprint(output, ", ")
 		}
-		fmt.Printf("%d %s", tag.UniqueValues, tag.Key)
+		fmt.Fprintf(output, "%d %s", tag.UniqueValues, tag.Key)
 	}
 
 	if metric.OtherTags > 0 {
 		if len(metric.Tags) > 0 {
-			fmt.Printf(", ")
+			fmt.Fprint(output, ", ")
 		}
-		fmt.Printf("%d values in %d other tags", metric.OtherTagValues, metric.OtherTags)
+		fmt.Fprintf(output, "%d values in %d other tags", metric.OtherTagValues, metric.OtherTags)
 	}
 }
