@@ -67,9 +67,6 @@ end
 # Dependencies
 # ------------------------------------
 
-# creates required build directories
-dependency 'preparation'
-
 # Datadog agent
 dependency 'trace-agent-windows-cf'
 dependency 'datadog-dogstatsd'

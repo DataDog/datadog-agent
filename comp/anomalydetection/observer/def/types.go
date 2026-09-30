@@ -93,8 +93,9 @@ type MetricOutput struct {
 	Value float64
 	Host  string
 	// Tags is an immutable view retained by the observer storage.
-	Tags    tagset.CompositeTags
-	Context *MetricContext // optional; stored on the series for anomaly enrichment
+	Tags       tagset.CompositeTags
+	Context    MetricContext // stored on the series when HasContext is true
+	HasContext bool
 }
 
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
@@ -246,8 +247,6 @@ type Anomaly struct {
 	SourceRef *QueryHandle
 	// DetectorName identifies which detector produced this anomaly.
 	DetectorName string
-	Title        string
-	Description  string
 	// Context carries optional enrichment about the originating signal, such as
 	// a synthesized pattern and example source data.
 	Context   *MetricContext
@@ -278,7 +277,41 @@ type AnomalyDebugInfo struct {
 	Threshold      float64 // threshold that was crossed
 	CurrentValue   float64 // value at detection time
 	DeviationSigma float64 // how many sigmas from baseline
+
+	// Change-point test details. ScanMW and ScanWelch retain these values so
+	// output formatters can explain a detected change without detector state.
+	PValue        float64 `json:"-"`
+	EffectSize    float64 `json:"-"`
+	TestStatistic float64 `json:"-"` // ScanWelch's absolute Welch t statistic
+
+	// BOCPD retains both trigger measurements because either one can open an
+	// alert. BOCPDTrigger identifies which threshold caused this anomaly.
+	BOCPDTrigger         BOCPDTrigger `json:"-"`
+	BOCPDChangePointProb float64      `json:"-"`
+	BOCPDShortRunMass    float64      `json:"-"`
+	BOCPDShortRunLength  int          `json:"-"`
+
+	// Holt residual model values captured before detector state is updated.
+	Forecast  float64 `json:"-"`
+	Residual  float64 `json:"-"`
+	HoltLevel float64 `json:"-"`
+	HoltTrend float64 `json:"-"`
+	ValueMADs float64 `json:"-"`
+
+	// TukeyBiweightSampleCount is the baseline window size used by the Tukey
+	// biweight detector.
+	TukeyBiweightSampleCount int     `json:"-"`
+	TukeyBiweightZScore      float64 `json:"-"`
 }
+
+// BOCPDTrigger identifies the BOCPD condition that opened an anomaly.
+type BOCPDTrigger uint8
+
+const (
+	BOCPDTriggerUnknown BOCPDTrigger = iota
+	BOCPDTriggerChangePointProbability
+	BOCPDTriggerShortRunMass
+)
 
 // ReportOutput is the output model passed to reporters after each advance cycle.
 // It carries enough data for reporters to act without reaching back into engine internals.
@@ -570,9 +603,9 @@ type StorageReader interface {
 	// has been evicted.
 	GetSeriesMeta(ref SeriesRef) *SeriesMeta
 
-	// GetContext returns the optional context associated with a series, or nil
-	// if the series has been evicted or has no context.
-	GetContext(ref SeriesRef) *MetricContext
+	// GetContext returns a value snapshot of the series context. The boolean is
+	// false if the series has been evicted or has no context.
+	GetContext(ref SeriesRef) (MetricContext, bool)
 
 	// GetSeriesRange returns points within a time range (start, end].
 	// Start is exclusive, end is inclusive. Use start=0 to read from the beginning.
