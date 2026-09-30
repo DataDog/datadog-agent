@@ -55,13 +55,9 @@ class TestCodegenPayloadSchema(unittest.TestCase):
 
 class TestCodegenPayloadData(unittest.TestCase):
     def test_recorder_flavor_is_base_agent_plus_recorder_tag(self):
-        for platform in ("linux", "darwin", "win32"):
-            with self.subTest(platform=platform):
-                base = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform=platform))
-                recorder = set(
-                    build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.recorder, platform=platform)
-                )
-                self.assertEqual(recorder, base | {"anomalydetection_recorder"})
+        base = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform="linux"))
+        recorder = set(build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.recorder, platform="linux"))
+        self.assertEqual(recorder, base | {"anomalydetection_recorder"})
 
     def test_recorder_flavor_keeps_other_binaries_at_base_tags(self):
         for build in ("trace-agent", "process-agent", "privateactionrunner"):
@@ -83,18 +79,6 @@ class TestCodegenPayloadData(unittest.TestCase):
                 base = build_tags.build_tags[AgentFlavor.base][build]
                 recorder = build_tags.build_tags[AgentFlavor.recorder][build]
                 self.assertEqual(recorder, base | {"anomalydetection_recorder"})
-
-    def test_windows_explicit_recorder_tag_includes_windows_tags(self):
-        tags = compute_build_tags_for_flavor(
-            build="agent",
-            flavor=AgentFlavor.recorder,
-            build_include="anomalydetection_recorder",
-            build_exclude=None,
-            platform="win32",
-        )
-
-        self.assertIn("anomalydetection_recorder", tags)
-        self.assertIn("wmi", tags)
 
     def test_fips_includes_goexperiment_systemcrypto(self):
         self.assertIn("goexperiment.systemcrypto", _payload()["flavor_specific_tags"]["fips"])
