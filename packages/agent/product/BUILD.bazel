@@ -12,7 +12,7 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
-load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
 load("//packages/rules:agent_path.bzl", "ETC_DIR_SELECTOR", "etc_dir")
 
 _USE_RELATIVE_RPATHS = select({
@@ -163,112 +163,88 @@ pkg_install(
     srcs = [":conf_dir_files"],
 )
 
-rewrite_rpath(
-    name = "agent_binary_rpath",
-    destination = "{install_dir}/bin/agent",
-    inputs = ["//cmd/agent"],
-    use_relative_rpaths = _USE_RELATIVE_RPATHS,
-)
-
-pkg_files(
+agent_binary_for_package(
     name = "agent_binary",
-    srcs = [":agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = "bin/agent",
-)
-
-rewrite_rpath(
-    name = "process_agent_binary_rpath",
-    destination = select({
-        "@platforms//os:windows": "{install_dir}/bin/agent",
-        "//conditions:default": "{install_dir}/embedded/bin",
-    }),
-    inputs = ["//cmd/process-agent"],
+    target = "//cmd/agent",
     use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "process_agent_binary",
-    srcs = [":process_agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = select({
-        "@platforms//os:windows": "bin/agent",
-        "//conditions:default": "embedded/bin",
-    }),
-)
-
-pkg_files(
-    name = "privateactionrunner_binary",
-    srcs = [
-        "//cmd/privateactionrunner",
-    ],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
-)
-
-pkg_files(
-    name = "trace_agent_binary",
-    srcs = ["//cmd/trace-agent"],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
-)
-
-pkg_files(
-    name = "secret_generic_connector_binary",
-    srcs = ["//cmd/secret-generic-connector"],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = select({
-        "@platforms//os:windows": "bin/agent",
-        "//conditions:default": "embedded/bin",
-    }),
-)
-
-rewrite_rpath(
-    name = "security_agent_binary_rpath",
     destination = select({
         "@platforms//os:windows": "{install_dir}/bin/agent",
         "//conditions:default": "{install_dir}/embedded/bin",
     }),
-    inputs = ["//cmd/security-agent"],
-    use_relative_rpaths = _USE_RELATIVE_RPATHS,
-)
-
-pkg_files(
-    name = "security_agent_binary",
-    srcs = [":security_agent_binary_rpath"],
-    attributes = pkg_attributes(mode = "755"),
+    patch_rpath = True,
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
+    target = "//cmd/process-agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
-    name = "cws_instrumentation_binary",
-    srcs = ["//cmd/cws-instrumentation"],
-    attributes = pkg_attributes(mode = "755"),
+agent_binary_for_package(
+    name = "privateactionrunner_binary",
     prefix = "embedded/bin",
+    target = "//cmd/privateactionrunner",
 )
 
-pkg_files(
+agent_binary_for_package(
+    name = "trace_agent_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/trace-agent",
+)
+
+agent_binary_for_package(
+    name = "secret_generic_connector_binary",
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = "//cmd/secret-generic-connector",
+)
+
+agent_binary_for_package(
+    name = "security_agent_binary",
+    destination = select({
+        "@platforms//os:windows": "{install_dir}/bin/agent",
+        "//conditions:default": "{install_dir}/embedded/bin",
+    }),
+    patch_rpath = True,
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = "//cmd/security-agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
+agent_binary_for_package(
+    name = "cws_instrumentation_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/cws-instrumentation",
+)
+
+agent_binary_for_package(
     name = "systray_binary",
-    srcs = ["//cmd/systray"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = "bin/agent",
+    target = "//cmd/systray",
 )
 
-pkg_files(
+agent_binary_for_package(
     name = "installer_binary",
-    srcs = ["//cmd/installer"],
-    attributes = pkg_attributes(mode = "755"),
     prefix = select({
         "@platforms//os:windows": "",
         "//conditions:default": "embedded/bin",
     }),
     renames = select({
-        "@platforms//os:windows": {"//cmd/installer": "datadog-installer.exe"},
+        "@platforms//os:windows": {":installer_binary_stripped": "datadog-installer.exe"},
         "//conditions:default": {},
     }),
+    target = "//cmd/installer",
 )
 
 pkg_files(
