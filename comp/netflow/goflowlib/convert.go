@@ -13,6 +13,7 @@ import (
 	flowpb "github.com/netsampler/goflow2/pb"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 )
 
 // ConvertFlow convert goflow flow structure to internal flow structure
@@ -56,14 +57,26 @@ const (
 
 // ConvertFlowWithAdditionalFields converts a flow with additional fields to internal flow structure(s).
 // When enableBiflowParsing is true and biflow sentinels are present, a reverse flow is also returned.
-func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string, enableBiflowParsing bool) (*common.Flow, *common.Flow) {
+// When enableDPI is true, the application id is moved from the additional fields to the flow.
+func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string, enableBiflowParsing bool, enableDPI bool) (*common.Flow, *common.Flow) {
 	flow := ConvertFlow(srcFlow.FlowMessage, namespace)
-	flow.DPI = srcFlow.DPI
 	applyAdditionalFields(flow, srcFlow.AdditionalFields)
+	if enableDPI {
+		extractApplicationID(flow)
+	}
 	if enableBiflowParsing {
 		return splitBiflow(flow)
 	}
 	return flow, nil
+}
+
+// extractApplicationID moves the application id mapped by goflowlib from the additional fields to the flow
+func extractApplicationID(flow *common.Flow) {
+	if flow.AdditionalFields == nil {
+		return
+	}
+	flow.ApplicationID, _ = flow.AdditionalFields[dpi.ApplicationIDField].(uint64)
+	delete(flow.AdditionalFields, dpi.ApplicationIDField)
 }
 
 // splitBiflow detects bidirectional flow records and splits them into two unidirectional flows.

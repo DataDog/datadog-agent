@@ -39,7 +39,8 @@ func mapAdditionalField(additionalFields common.AdditionalFields, v []byte, cfg 
 	}
 }
 
-func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping) common.AdditionalFields {
+// ConvertNetFlowDataSet collects the fields of a record using the given config
+func ConvertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping) common.AdditionalFields {
 	additionalFields := make(common.AdditionalFields)
 
 	for i := range record {
@@ -50,7 +51,7 @@ func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 			continue
 		}
 
-		mappingConfig, ok := fieldsConfig[df.Type]
+		mappingConfig, ok := lookupMapping(fieldsConfig, df)
 		if !ok {
 			continue
 		}
@@ -61,10 +62,22 @@ func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 	return additionalFields
 }
 
+func lookupMapping(fieldsConfig map[uint16]config.Mapping, df netflow.DataField) (config.Mapping, bool) {
+	// ignore the enterprise bit (0x8000), which goflow2 strips from data template fields but not options templates
+	mappingConfig, ok := fieldsConfig[df.Type&^0x8000]
+	if !ok {
+		return mappingConfig, false
+	}
+	if mappingConfig.MatchPen && (df.PenProvided != (mappingConfig.Pen != 0) || df.Pen != mappingConfig.Pen) {
+		return mappingConfig, false
+	}
+	return mappingConfig, true
+}
+
 func searchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
 	var setsAdditionalFields []common.AdditionalFields
 	for _, record := range dataRecords {
-		additionalFields := convertNetFlowDataSet(record.Values, fieldsConfig)
+		additionalFields := ConvertNetFlowDataSet(record.Values, fieldsConfig)
 		if additionalFields != nil {
 			setsAdditionalFields = append(setsAdditionalFields, additionalFields)
 		}

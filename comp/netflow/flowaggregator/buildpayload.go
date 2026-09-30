@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
-func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
+func buildPayload(aggFlow *common.Flow, app dpi.Application, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		FlushTimestamp: flushTime.UnixMilli(),
 		FlowType:       string(aggFlow.FlowType),
@@ -64,19 +65,19 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 			IP: format.IPAddr(aggFlow.NextHop),
 		},
 		DPI: payload.DPI{
-			ApplicationID:          aggFlow.DPI.ID,
-			ApplicationName:        aggFlow.DPI.ApplicationName,
-			ApplicationDescription: aggFlow.DPI.ApplicationDescription,
-			Category:               aggFlow.DPI.Category,
-			SubCategory:            aggFlow.DPI.SubCategory,
-			ApplicationGroup:       aggFlow.DPI.ApplicationGroup,
-			P2PTechnology:          aggFlow.DPI.P2PTechnology,
-			TunnelTechnology:       aggFlow.DPI.TunnelTechnology,
-			EncryptedTechnology:    aggFlow.DPI.EncryptedTechnology,
-			TrafficClass:           aggFlow.DPI.TrafficClass,
-			BusinessRelevance:      aggFlow.DPI.BusinessRelevance,
-			ApplicationSet:         aggFlow.DPI.ApplicationSet,
-			ApplicationFamily:      aggFlow.DPI.ApplicationFamily,
+			ApplicationID:          aggFlow.ApplicationID,
+			ApplicationName:        app.Name,
+			ApplicationDescription: app.Description,
+			Category:               app.Category,
+			SubCategory:            app.SubCategory,
+			ApplicationGroup:       app.ApplicationGroup,
+			P2PTechnology:          app.P2PTechnology,
+			TunnelTechnology:       app.TunnelTechnology,
+			EncryptedTechnology:    app.EncryptedTechnology,
+			TrafficClass:           app.TrafficClass,
+			BusinessRelevance:      app.BusinessRelevance,
+			ApplicationSet:         app.ApplicationSet,
+			ApplicationFamily:      app.ApplicationFamily,
 		},
 		AdditionalFields: aggFlow.AdditionalFields,
 	}

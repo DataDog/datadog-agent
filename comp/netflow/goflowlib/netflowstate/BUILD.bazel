@@ -12,8 +12,9 @@ go_library(
     deps = [
         "//comp/netflow/common",
         "//comp/netflow/config/def",
+        "//comp/netflow/dpi",
         "//comp/netflow/goflowlib/additionalfields",
-        "//comp/netflow/goflowlib/dpi",
+        "//comp/netflow/goflowlib/dpioptions",
         "@com_github_netsampler_goflow2//decoders/netflow",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",
         "@com_github_netsampler_goflow2//format",
@@ -30,7 +31,11 @@ dd_agent_go_test(
     srcs = ["netflow_test.go"],
     embed = [":netflowstate"],
     deps = [
+        "//comp/netflow/common",
+        "//comp/netflow/config/def",
+        "//comp/netflow/dpi",
         "//comp/netflow/testutil",
+        "@com_github_netsampler_goflow2//decoders/netflow",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",
         "@com_github_netsampler_goflow2//decoders/netflow/templates/memory",
         "@com_github_netsampler_goflow2//utils",

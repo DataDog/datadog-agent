@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "dpi",
+    srcs = ["cache.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/dpi",
+    visibility = ["//visibility:public"],
+    deps = ["@org_uber_go_atomic//:atomic"],
+)
+
+dd_agent_go_test(
+    name = "dpi_test",
+    srcs = ["cache_test.go"],
+    embed = [":dpi"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

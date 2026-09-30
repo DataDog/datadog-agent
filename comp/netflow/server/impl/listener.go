@@ -10,6 +10,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
@@ -27,6 +28,11 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 	listenerAtomicErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 
+	var appCache *dpi.ApplicationCache
+	if listenerConfig.EnableDPI {
+		appCache = flowAgg.GetApplicationCache()
+	}
+
 	flowState, err := goflowlib.StartFlowRoutine(
 		listenerConfig.FlowType,
 		listenerConfig.BindHost,
@@ -35,7 +41,7 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 		listenerConfig.Namespace,
 		listenerConfig.Mapping,
 		listenerConfig.EnableBiflowParsing,
-		listenerConfig.EnableDPI,
+		appCache,
 		flowAgg.GetFlowInChan(),
 		logger,
 		listenerAtomicErr,

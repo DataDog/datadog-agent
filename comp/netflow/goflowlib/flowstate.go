@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -52,14 +53,14 @@ func StartFlowRoutine(
 	namespace string,
 	fieldMappings []config.Mapping,
 	enableBiflowParsing bool,
-	enableDPI bool,
+	appCache *dpi.ApplicationCache,
 	flowInChan chan *common.Flow,
 	logger log.Component,
 	atomicErr *atomic.String,
 	listenerFlowCount *atomic.Int64) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
 
-	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace, listenerFlowCount, enableBiflowParsing)
+	formatDriver := NewAggregatorFormatDriver(flowInChan, namespace, listenerFlowCount, enableBiflowParsing, appCache != nil)
 	goflowLogger := &GoflowLoggerAdapter{logger}
 	ctx := context.Background()
 
@@ -71,7 +72,7 @@ func StartFlowRoutine(
 		}
 		defer templateSystem.Close(ctx)
 
-		state := netflowstate.NewStateNetFlow(fieldMappings, enableBiflowParsing, enableDPI)
+		state := netflowstate.NewStateNetFlow(fieldMappings, enableBiflowParsing, namespace, appCache)
 		state.Format = formatDriver
 		state.Logger = goflowLogger
 		state.TemplateSystem = templateSystem

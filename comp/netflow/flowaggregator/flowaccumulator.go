@@ -164,6 +164,9 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
 		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
 		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
+		if aggFlow.flow.ApplicationID == 0 {
+			aggFlow.flow.ApplicationID = flowToAdd.ApplicationID
+		}
 
 		// keep first non-null value for custom fields
 		if flowToAdd.AdditionalFields != nil {
