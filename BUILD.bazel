@@ -4,6 +4,7 @@
 # gazelle:go_canonical_test_tag_set bpf
 # gazelle:go_canonical_test_tag_set containerd cel
 # gazelle:go_canonical_test_tag_set docker kubelet cel
+# gazelle:go_canonical_test_tag_set nodefilter
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
