@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -24,6 +26,7 @@ import (
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -100,10 +103,16 @@ type serializerConsumer struct {
 	apmReceiverAddr string
 	ipath           ingestionPath
 	hosts           map[string]struct{}
+	fargateTagSets  map[tagSetKey][]string
 	buildInfo       component.BuildInfo
 	// standalone reports whether otel-agent is running standalone (DD_OTEL_STANDALONE=true),
 	// as opposed to embedded/connected to the core Agent. Only used to gate addRunningMetric.
 	standalone bool
+	// sawMetric reports whether this flush contained any real (non-APM-stats)
+	// metric, set from ConsumeTimeSeries/ConsumeSketch. Used to gate
+	// addRunningMetric so that an APM-stats-only flush never emits the running
+	// billing metric.
+	sawMetric bool
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -142,6 +151,7 @@ func enrichTags(extraTags []string, dimensions *otlpmetrics.Dimensions) []string
 }
 
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, interval int64, qsketch *quantile.Sketch) {
+	c.sawMetric = true
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -174,6 +184,7 @@ func apiTypeFromTranslatorType(typ otlpmetrics.DataType) metrics.APIMetricType {
 }
 
 func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *otlpmetrics.Dimensions, typ otlpmetrics.DataType, ts uint64, interval int64, value float64) {
+	c.sawMetric = true
 	msrc, ok := metricOriginsMappings[dimensions.OriginProductDetail()]
 	if !ok {
 		msrc = metrics.MetricSourceOpenTelemetryCollectorUnknown
@@ -193,7 +204,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 }
 
 // addTelemetryMetric to know if an Agent is using OTLP metrics.
-func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge, wi workloadIdentity) {
+func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge, _ workloadIdentity) {
 	timestamp := float64(time.Now().Unix())
 	c.series = append(c.series, &metrics.Serie{
 		Name:           "datadog.agent.otlp.metrics",
@@ -214,8 +225,14 @@ func (c *serializerConsumer) addTelemetryMetric(agentHostname string, params exp
 		for host := range c.hosts {
 			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, host, "")
 		}
-		if wi.fargateTaskARN != "" {
-			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", wi.fargateTaskARN)
+		for _, tags := range c.fargateTagSets {
+			prefix := string(source.AWSECSFargateKind) + ":"
+			idx := slices.IndexFunc(tags, func(t string) bool { return strings.HasPrefix(t, prefix) })
+			if idx == -1 {
+				continue
+			}
+			taskArn := strings.TrimPrefix(tags[idx], prefix)
+			coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, "", taskArn)
 		}
 	case agentOTLPIngest:
 		coatUsageMetric.Set(1.0, buildInfo.Version, buildInfo.Command, agentHostname)
@@ -328,6 +345,19 @@ func (c *serializerConsumer) ConsumeHost(host string) {
 	c.hosts[host] = struct{}{}
 }
 
+// ConsumeTagSet implements the metrics.TagSetConsumer interface. It is only
+// used to attribute coatUsageMetric to individual ECS Fargate tasks sharing a
+// gateway; other workload types don't need per-task telemetry attribution.
+func (c *serializerConsumer) ConsumeTagSet(metricSuffix string, tags []string) {
+	if metricSuffix != "fargate" {
+		return
+	}
+	sorted := slices.Clone(tags)
+	slices.Sort(sorted)
+	key := tagSetKey{metricSuffix: metricSuffix, sortedTags: strings.Join(sorted, ",")}
+	c.fargateTagSets[key] = sorted
+}
+
 // addRunningMetric emits the otel.ddot_collector.metrics.running billing metric,
 // mirroring otel.datadog_exporter.metrics.running (emitted for the ossCollector
 // path by collectorConsumer), but only for the ddot ingestion path while
@@ -347,8 +377,13 @@ func (c *serializerConsumer) ConsumeHost(host string) {
 // deliberately emitted without consulting c.hosts: such a workload reports a
 // tag set rather than a host, so ConsumeHost is never called for it and
 // gating on c.hosts would suppress the metric entirely.
+//
+// wi is derived from the local environment, independent of payload content,
+// so c.sawMetric additionally gates all variants: without it, a flush that
+// contains only APM stats (no real metrics) would still emit the running
+// metric purely because the workload identity happened to be detected.
 func (c *serializerConsumer) addRunningMetric(hostname string, wi workloadIdentity) {
-	if c.ipath != ddot || !c.standalone {
+	if c.ipath != ddot || !c.standalone || !c.sawMetric {
 		return
 	}
 	timestamp := float64(time.Now().Unix())

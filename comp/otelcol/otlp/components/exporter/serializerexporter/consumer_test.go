@@ -239,6 +239,7 @@ func TestAddRunningMetric_NotStandalone(t *testing.T) {
 func TestAddRunningMetric_HostOnly(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, true)
 	c.ConsumeHost("otel-host")
+	c.sawMetric = true
 
 	c.addRunningMetric("agent-hostname", workloadIdentity{})
 
@@ -255,11 +256,25 @@ func TestAddRunningMetric_NoSignals(t *testing.T) {
 	assert.Empty(t, c.series)
 }
 
+// sawMetric is left false (the zero value) even though a host and a workload
+// identity are both present, simulating a flush that only carried APM stats.
+// The running metric must not fire purely because the environment identifies
+// a workload; it must also have seen a real metric this flush.
+func TestAddRunningMetric_NoRealMetricSeen(t *testing.T) {
+	c := newTestSerializerConsumer(ddot, true)
+	c.ConsumeHost("otel-host")
+
+	c.addRunningMetric("agent-hostname", workloadIdentity{fargateTaskARN: "arn:aws:ecs:us-east-1:123:task/cluster/abc"})
+
+	assert.Empty(t, c.series)
+}
+
 // No ConsumeHost here on purpose: a hostless workload reports a tag set rather
 // than a host, so ConsumeHost is never called for it. Seeding a host would make
 // this pass even if the emission were (incorrectly) gated on c.hosts.
 func TestAddRunningMetric_Fargate(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, true)
+	c.sawMetric = true
 
 	c.addRunningMetric("agent-hostname", workloadIdentity{fargateTaskARN: "arn:aws:ecs:us-east-1:123:task/cluster/abc"})
 
@@ -272,6 +287,7 @@ func TestAddRunningMetric_Fargate(t *testing.T) {
 // Hostless, for the same reason as TestAddRunningMetric_Fargate.
 func TestAddRunningMetric_AzureContainerApps(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, true)
+	c.sawMetric = true
 
 	c.addRunningMetric("agent-hostname", workloadIdentity{aca: &acaIdentity{
 		replica:        "replica-1",
@@ -293,6 +309,7 @@ func TestAddRunningMetric_AzureContainerApps(t *testing.T) {
 func TestAddRunningMetric_AzureContainerApps_IncompleteIdentityFallsBackToHost(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, true)
 	c.ConsumeHost("otel-host")
+	c.sawMetric = true
 
 	c.addRunningMetric("agent-hostname", workloadIdentity{aca: &acaIdentity{name: "my-app"}})
 
@@ -303,6 +320,7 @@ func TestAddRunningMetric_AzureContainerApps_IncompleteIdentityFallsBackToHost(t
 
 func TestAddRunningMetric_AzureContainerApps_IncompleteIdentityWithoutHostEmitsNothing(t *testing.T) {
 	c := newTestSerializerConsumer(ddot, true)
+	c.sawMetric = true
 
 	c.addRunningMetric("agent-hostname", workloadIdentity{aca: &acaIdentity{name: "my-app"}})
 
