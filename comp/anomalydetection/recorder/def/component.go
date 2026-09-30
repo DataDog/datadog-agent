@@ -21,12 +21,13 @@ type Component interface {
 
 // MetricData is a recorded metric. Timestamp is in Unix seconds.
 type MetricData struct {
-	Source    string   // Source/namespace
-	Name      string   // Metric name
-	Value     float64  // Metric value
-	Timestamp int64    // Unix timestamp in seconds
-	Tags      []string // Tags in "key:value" format
-	Dropped   bool     // True if the live observer's channel dropped this observation
+	Source     string   // Source/namespace
+	Name       string   // Metric name
+	MetricType string   // Original metric type, or Unknown
+	Value      float64  // Metric value
+	Timestamp  int64    // Unix timestamp in seconds
+	Tags       []string // Tags in "key:value" format
+	Dropped    bool     // True if the live observer's channel dropped this observation
 }
 
 // LogData is a recorded log. TimestampMs is in Unix milliseconds.
