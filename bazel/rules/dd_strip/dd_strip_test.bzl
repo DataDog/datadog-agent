@@ -17,21 +17,6 @@ def harness(name, impl):
         target = name + "_subject",
     )
 
-    # we do not need these for the analysis tests. They are here to make it
-    # easy to build the various outputs and hand verify.
-    native.filegroup(
-        name = name + "_stripped",
-        srcs = [name + "_subject"],
-        output_group = "stripped",
-        tags = ["manual"],
-    )
-    native.filegroup(
-        name = name + "_debug",
-        srcs = [name + "_subject"],
-        output_group = "debug",
-        tags = ["manual"],
-    )
-
 def _test_default_output_is_stripped(name):
     harness(name, _test_default_output_is_stripped_impl)
 
