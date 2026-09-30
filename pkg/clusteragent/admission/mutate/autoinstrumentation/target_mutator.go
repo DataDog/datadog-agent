@@ -33,15 +33,12 @@ const (
 	AppliedPolicyEnvVar = "DD_INSTRUMENTATION_APPLIED_POLICY"
 )
 
-// resolvedTarget is the complete resolution consumed by TargetMutator. The
-// selected target and SSI mode can originate from different sources: an
-// annotation selects libraries, while a matching SSI source still determines
-// whether SSI side effects apply.
-type resolvedTarget struct {
-	target          *targetInternal
-	isSSI           bool
-	selectionSource targetSourceName
-	ssiSource       targetSourceName
+// injectionResolution is the complete resolution consumed by TargetMutator. The
+// selected configuration and SSI mode can originate from different sources.
+type injectionResolution struct {
+	plan       *injectionPlan
+	isSSI      bool
+	selectedBy injectionSourceName
 }
 
 // TargetMutator is an autoinstrumentation mutator that filters pods based on the target based workload selection.
@@ -50,20 +47,20 @@ type TargetMutator struct {
 	securityClientLibraryMutator  containerMutator
 	profilingClientLibraryMutator containerMutator
 	disabledNamespaces            map[string]struct{}
-	sources                       []sourceEntry
-	annotationSource              *annotationTargetSource
-	ddiSource                     *ddiTargetSource
-	remoteSource                  *remotePolicyTargetSource
-	gpuSource                     *policyTargetSource
-	staticSource                  *policyTargetSource
-	injectAllSource               *injectAllTargetSource
+	sources                       []injectionSourceEntry
+	annotationSource              *annotationSource
+	ddiSource                     *ddiSource
+	remoteSource                  *remotePolicySource
+	gpuSource                     *policySource
+	staticSource                  *policySource
+	injectAllSource               *injectAllSource
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
 // efficient internal format for quick lookups. When on-demand instrumentation is enabled and rcClient is non-nil, the
 // mutator also subscribes to remote-config SSI policies, which override matching static targets.
 func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, csiDriverWatcher libraryinjection.CSIDriverWatcher, rcClient *rcclient.Client, ddiTargets DDITargetProvider) (*TargetMutator, error) {
-	defaultLibVersions := getAllLatestDefaultLibraries(config.containerRegistry)
+	defaultLibraries := getAllLatestDefaultLibraries(config.containerRegistry)
 	disabledNamespaces := make(map[string]struct{}, len(config.Instrumentation.DisabledNamespaces))
 	for _, namespace := range config.Instrumentation.DisabledNamespaces {
 		disabledNamespaces[namespace] = struct{}{}
@@ -76,44 +73,41 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 			targets = append(targets, createDefaultTarget(config.Instrumentation.EnabledNamespaces, config.Instrumentation.LibVersions))
 		}
 	}
-
-	staticPolicies, err := newPolicySet(config, targets, defaultLibVersions, wmeta)
+	staticSource, err := newStaticPolicySource(config, targets, defaultLibraries, wmeta)
 	if err != nil {
 		return nil, err
 	}
-	fallback, err := buildInternalTargets(config, []Target{createDefaultTarget(nil, config.Instrumentation.LibVersions)}, defaultLibVersions)
+	fallback, err := buildInjectionPlans(config, []Target{createDefaultTarget(nil, config.Instrumentation.LibVersions)}, defaultLibraries)
 	if err != nil {
 		return nil, err
 	}
 
-	annotationSource := &annotationTargetSource{
-		containerRegistry:  config.containerRegistry,
-		defaultLibVersions: defaultLibVersions,
-		mutateUnlabelled:   config.mutateUnlabelled,
+	annotationSource := &annotationSource{
+		containerRegistry: config.containerRegistry,
+		defaultLibraries:  defaultLibraries,
+		mutateUnlabelled:  config.mutateUnlabelled,
 	}
-	ddiSource := &ddiTargetSource{
-		provider:           ddiTargets,
-		containerRegistry:  config.containerRegistry,
-		defaultLibVersions: defaultLibVersions,
+	ddiSource := &ddiSource{
+		provider:          ddiTargets,
+		containerRegistry: config.containerRegistry,
+		defaultLibraries:  defaultLibraries,
 	}
-	remoteSource := &remotePolicyTargetSource{
-		config:             config,
-		wmeta:              wmeta,
-		defaultLibVersions: defaultLibVersions,
+	remoteSource := &remotePolicySource{
+		config:           config,
+		wmeta:            wmeta,
+		defaultLibraries: defaultLibraries,
 	}
 	var gpuTargets []Target
 	if config.gpuTarget != nil {
 		gpuTargets = append(gpuTargets, *config.gpuTarget)
 	}
-	gpuPolicies, err := newPolicySet(config, gpuTargets, defaultLibVersions, wmeta)
+	gpuSource, err := newStaticPolicySource(config, gpuTargets, defaultLibraries, wmeta)
 	if err != nil {
 		return nil, err
 	}
-	gpuSource := &policyTargetSource{policies: gpuPolicies}
-	staticSource := &policyTargetSource{policies: staticPolicies}
-	injectAllSource := &injectAllTargetSource{
+	injectAllSource := &injectAllSource{
 		enabled: config.Instrumentation.Enabled,
-		target:  &fallback[0],
+		plan:    &fallback[0],
 		remote:  remoteSource,
 		static:  staticSource,
 	}
@@ -130,14 +124,14 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		staticSource:                  staticSource,
 		injectAllSource:               injectAllSource,
 		// This is the single declaration of source precedence. Sources remain
-		// in the chain when unconfigured and decide for themselves to abstain.
-		sources: []sourceEntry{
-			{name: targetSourceAnnotation, source: annotationSource},
-			{name: targetSourceDatadogInstrumentation, determineSSIMode: true, source: ddiSource},
-			{name: targetSourceRemoteConfig, determineSSIMode: true, source: remoteSource},
-			{name: targetSourceGPU, determineSSIMode: true, source: gpuSource},
-			{name: targetSourceStatic, determineSSIMode: true, source: staticSource},
-			{name: targetSourceInjectAll, determineSSIMode: true, source: injectAllSource},
+		// in the list and decide for themselves to pass or inject.
+		sources: []injectionSourceEntry{
+			{name: injectionSourceAnnotation, source: annotationSource},
+			{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: ddiSource},
+			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
+			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
+			{name: injectionSourceStatic, determinesSSIMode: true, source: staticSource},
+			{name: injectionSourceInjectAll, determinesSSIMode: true, source: injectAllSource},
 		},
 	}
 
@@ -205,18 +199,17 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if resolved == nil {
 		return false, nil
 	}
-	target := resolved.target
-	if target.blocked {
-		annotation.Set(pod, annotation.AppliedPolicy, target.json)
+	injection := resolved.plan
+	if injection.blocked {
+		annotation.Set(pod, annotation.AppliedPolicy, injection.appliedMetadataJSON)
 		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
 		return false, nil
 	}
-	extracted := m.core.initExtractedLibInfo(pod, resolved.isSSI).withLibs(target.libVersions)
+	extracted := m.core.initExtractedLibInfo(pod, resolved.isSSI).withLibs(injection.libraries)
 
-	// Language detection is an SSI-only fallback when the selected target did
-	// not pin library versions (annotation short-circuit sets usesDefaultLibs
-	// false, so this path stays for true SSI matches with default libs).
-	if resolved.isSSI && target.usesDefaultLibs {
+	// Language detection is an SSI-only fallback when the selected configuration
+	// uses the default libraries.
+	if resolved.isSSI && injection.languageDetectionEligible {
 		extractedLanguageDetection, usingLanguageDetection := extracted.useLanguageDetectionLibs()
 		if usingLanguageDetection {
 			extracted = extractedLanguageDetection
@@ -235,7 +228,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 
 	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
 	// in the target.
-	for _, envVar := range target.envVars {
+	for _, envVar := range injection.tracerEnvVars {
 		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
 	}
 
@@ -245,32 +238,28 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, fmt.Errorf("error injecting libraries: %w", err)
 	}
 
-	// Only add annotations/env vars if there is a target json to set. This would be blank for local lib injection.
-	if target.json != "" {
-		m.addTargetJSONInfo(pod, target)
+	// Annotation-based injection has no applied target/policy metadata.
+	if injection.appliedMetadataJSON != "" {
+		m.addAppliedMetadata(pod, resolved)
 	}
 
 	return true, nil
 }
 
-func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInternal) {
-	// A remote-config policy match carries its information on a dedicated env
-	// var / annotation, distinct from configuration targets.
+func (m *TargetMutator) addAppliedMetadata(pod *corev1.Pod, resolved *injectionResolution) {
+	injection := resolved.plan
 	envVarName := AppliedTargetEnvVar
 	annotationKey := annotation.AppliedTarget
-	if target.fromPolicy {
+	if resolved.selectedBy == injectionSourceRemoteConfig {
 		envVarName = AppliedPolicyEnvVar
 		annotationKey = annotation.AppliedPolicy
 	}
 
-	// Inject the target json. The is added so that the injector can make use of the target information.
 	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
 		Name:  envVarName,
-		Value: target.json,
+		Value: injection.appliedMetadataJSON,
 	}), true)
-
-	// Add the annotations to the pod.
-	annotation.Set(pod, annotationKey, target.json)
+	annotation.Set(pod, annotationKey, injection.appliedMetadataJSON)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -282,40 +271,39 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 // getTarget returns an injectable resolution. A remote-config denial is not
 // injectable, but resolveTarget still exposes it so MutatePod can record the
 // blocking policy on the pod.
-func (m *TargetMutator) getTarget(pod *corev1.Pod) *resolvedTarget {
+func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 	resolved := m.resolveTarget(pod)
-	if resolved != nil && resolved.target.blocked {
+	if resolved != nil && resolved.plan.blocked {
 		return nil
 	}
 	return resolved
 }
 
-// resolveTarget resolves both the injection target and whether the pod is in
-// SSI mode. The first decisive source selects the target. The first decisive
-// SSI source independently selects the mode so annotations can override
-// libraries without hiding an underlying SSI match.
-func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *resolvedTarget {
+// resolveTarget resolves both the injection plan and whether the pod is in SSI
+// mode. The first decisive source selects the plan. The first decisive SSI
+// source independently selects the mode so annotations can override libraries
+// without hiding an underlying SSI match.
+func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	if _, disabled := m.disabledNamespaces[pod.Namespace]; disabled {
 		return nil
 	}
 
 	var selected sourceResult
-	var selectionSource targetSourceName
+	var selectedBy injectionSourceName
 	selectionDecided := false
 	isSSI := false
-	var ssiSource targetSourceName
 
 	for _, entry := range m.sources {
 		result := entry.source.resolve(pod)
-		// An abstaining source has not target matching this pod, move on to the next.
-		if result.action == sourceAbstain {
+		// An abstaining source has no matching plan, so move on to the next.
+		if result.action == sourcePass {
 			continue
 		}
 
-		// The first decisive source selects the target; a deny blocks fallback.
+		// The first decisive source selects the plan; a deny blocks fallback.
 		if !selectionDecided {
 			selected = result
-			selectionSource = entry.name
+			selectedBy = entry.name
 			selectionDecided = true
 			if result.action == sourceDeny {
 				break
@@ -324,45 +312,44 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *resolvedTarget {
 
 		// An annotation can select libraries without deciding SSI mode, so the
 		// first decisive SSI source may supply only the mode.
-		if entry.determineSSIMode {
+		if entry.determinesSSIMode {
 			isSSI = result.action == sourceInject
-			ssiSource = entry.name
 			break
 		}
 
 		// Only annotation selection needs evaluation to continue for SSI mode.
-		if selectionSource != targetSourceAnnotation {
+		if selectedBy != injectionSourceAnnotation {
 			break
 		}
 	}
 
-	if !selectionDecided || selected.target == nil {
+	if !selectionDecided || selected.plan == nil {
 		return nil
 	}
-	return &resolvedTarget{
-		target:          selected.target,
-		isSSI:           isSSI,
-		selectionSource: selectionSource,
-		ssiSource:       ssiSource,
+	return &injectionResolution{
+		plan:       selected.plan,
+		isSSI:      isSSI,
+		selectedBy: selectedBy,
 	}
 }
 
-// getSSITarget returns the target selected by SSI sources only. It is used by
+// getSSIPlan returns the plan selected by SSI sources only. It is used by
 // behavioral matching tests; production mutation uses getTarget.
-func (m *TargetMutator) getSSITarget(pod *corev1.Pod) *targetInternal {
+func (m *TargetMutator) getSSIPlan(pod *corev1.Pod) *injectionPlan {
 	if _, disabled := m.disabledNamespaces[pod.Namespace]; disabled {
 		return nil
 	}
 	for _, entry := range m.sources {
-		if !entry.determineSSIMode {
+		if !entry.determinesSSIMode {
 			continue
 		}
 		result := entry.source.resolve(pod)
 		switch result.action {
 		case sourceInject:
-			return result.target
+			return result.plan
 		case sourceDeny:
 			return nil
+		default:
 		}
 	}
 	return nil

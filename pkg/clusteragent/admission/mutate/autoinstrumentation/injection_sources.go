@@ -27,16 +27,16 @@ import (
 	"github.com/DataDog/dd-policy-engine/go/policies"
 )
 
-// targetSourceName identifies a source in the target resolution chain.
-type targetSourceName string
+// injectionSourceName identifies a source in the injection resolution chain.
+type injectionSourceName string
 
 const (
-	targetSourceAnnotation             targetSourceName = "annotation"
-	targetSourceDatadogInstrumentation targetSourceName = "datadog-instrumentation"
-	targetSourceRemoteConfig           targetSourceName = "remote-config"
-	targetSourceGPU                    targetSourceName = "gpu"
-	targetSourceStatic                 targetSourceName = "static"
-	targetSourceInjectAll              targetSourceName = "inject-all"
+	injectionSourceAnnotation             injectionSourceName = "annotation"
+	injectionSourceDatadogInstrumentation injectionSourceName = "datadog-instrumentation"
+	injectionSourceRemoteConfig           injectionSourceName = "remote-config"
+	injectionSourceGPU                    injectionSourceName = "gpu"
+	injectionSourceStatic                 injectionSourceName = "static"
+	injectionSourceInjectAll              injectionSourceName = "inject-all"
 )
 
 // allowedTracerConfigPrefixes are the env var name prefixes accepted for tracer configs supplied
@@ -59,208 +59,198 @@ func hasAllowedTracerConfigPrefix(name string) bool {
 type sourceAction uint8
 
 const (
-	sourceAbstain sourceAction = iota
+	sourcePass sourceAction = iota
 	sourceInject
 	sourceDeny
 )
 
 type sourceResult struct {
 	action sourceAction
-	target *targetInternal
+	plan   *injectionPlan
 }
 
-type targetSource interface {
+type injectionSource interface {
 	resolve(*corev1.Pod) sourceResult
 }
 
-type sourceEntry struct {
-	name             targetSourceName
-	determineSSIMode bool
-	source           targetSource
+type injectionSourceEntry struct {
+	name              injectionSourceName
+	determinesSSIMode bool
+	source            injectionSource
 }
 
-// targetInternal is the injection configuration a matched target resolves to.
-// It carries no selector: matching is delegated to the policy engine for
-// static configuration targets and remote-config policies. DDI configuration
-// is resolved directly from its workload target.
-type targetInternal struct {
-	name            string
-	libVersions     []libInfo
-	envVars         []corev1.EnvVar
-	json            string
-	usesDefaultLibs bool
-	// fromPolicy is true when this internal target was derived from a
-	// remote-config policy rather than a configuration target. It selects which
-	// annotation/env var carries the applied information.
-	fromPolicy bool
-	// blocked is true when this target comes from a remote-config policy that
-	// denies injection. The pod is annotated but not mutated otherwise.
+// injectionPlan describes the libraries and tracer configuration selected
+// by an injection source.
+type injectionPlan struct {
+	name                      string
+	libraries                 []libInfo
+	tracerEnvVars             []corev1.EnvVar
+	appliedMetadataJSON       string
+	languageDetectionEligible bool
+	// blocked is true when a remote-config policy denied injection. The plan is
+	// retained so the mutator can record the blocking policy on the pod.
 	blocked bool
 }
 
-// policySet keeps matcher policies aligned with injection targets by index.
-type policySet struct {
-	targets []targetInternal
+// policySource keeps matcher policies aligned with injection plans by index.
+type policySource struct {
+	plans   []injectionPlan
 	matcher *policyMatcher
 }
 
-type policyTargetSource struct {
-	policies policySet
+func (s *policySource) configured() bool {
+	return len(s.plans) > 0 && s.matcher != nil
 }
 
-func (s *policyTargetSource) configured() bool {
-	return len(s.policies.targets) > 0 && s.policies.matcher != nil
-}
-
-func (s *policyTargetSource) resolve(pod *corev1.Pod) sourceResult {
+func (s *policySource) resolve(pod *corev1.Pod) sourceResult {
 	if !s.configured() {
-		return sourceResult{action: sourceAbstain}
+		return sourceResult{action: sourcePass}
 	}
 
-	idx := s.policies.matcher.matchIndex(pod)
-	if idx < 0 || idx >= len(s.policies.targets) {
-		return sourceResult{action: sourceAbstain}
+	idx := s.matcher.matchIndex(pod)
+	if idx < 0 || idx >= len(s.plans) {
+		return sourceResult{action: sourcePass}
 	}
 
-	if !s.policies.matcher.policies[idx].Outcome.Inject {
-		log.Debugf("Pod %q matched policy %q which denies injection", mutatecommon.PodString(pod), s.policies.targets[idx].name)
-		return sourceResult{action: sourceDeny, target: &s.policies.targets[idx]}
+	if !s.matcher.policies[idx].Outcome.Inject {
+		log.Debugf("Pod %q matched policy %q which denies injection", mutatecommon.PodString(pod), s.plans[idx].name)
+		return sourceResult{action: sourceDeny, plan: &s.plans[idx]}
 	}
 
-	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), s.policies.targets[idx].name)
-	return sourceResult{action: sourceInject, target: &s.policies.targets[idx]}
+	log.Debugf("Pod %q matched target %q", mutatecommon.PodString(pod), s.plans[idx].name)
+	return sourceResult{action: sourceInject, plan: &s.plans[idx]}
 }
 
-// remotePolicyTargetSource always occupies its priority slot. It atomically
+// remotePolicySource always occupies its priority slot. It atomically
 // loads the latest RC policy source and abstains when RC is not configured.
-type remotePolicyTargetSource struct {
-	config             *Config
-	wmeta              workloadmeta.Component
-	defaultLibVersions []libInfo
-	policies           atomic.Pointer[policyTargetSource]
+type remotePolicySource struct {
+	config           *Config
+	wmeta            workloadmeta.Component
+	defaultLibraries []libInfo
+	current          atomic.Pointer[policySource]
 }
 
-func (s *remotePolicyTargetSource) setPolicies(ps []policies.Policy) error {
+func (s *remotePolicySource) setPolicies(ps []policies.Policy) error {
 	if len(ps) == 0 {
 		s.clearPolicies()
 		return nil
 	}
 
-	targets, err := buildInternalTargetsFromPolicies(s.config, ps, s.defaultLibVersions)
+	plans, err := buildInjectionPlansFromPolicies(s.config, ps, s.defaultLibraries)
 	if err != nil {
 		return err
 	}
-	s.policies.Store(&policyTargetSource{policies: policySet{
-		targets: targets,
+	s.current.Store(&policySource{
+		plans:   plans,
 		matcher: newPolicyMatcher(ps, s.wmeta),
-	}})
+	})
 	return nil
 }
 
-func (s *remotePolicyTargetSource) clearPolicies() {
-	s.policies.Store(nil)
+func (s *remotePolicySource) clearPolicies() {
+	s.current.Store(nil)
 }
 
-func (s *remotePolicyTargetSource) configured() bool {
-	return s != nil && s.policies.Load() != nil
+func (s *remotePolicySource) configured() bool {
+	return s != nil && s.current.Load() != nil
 }
 
-func (s *remotePolicyTargetSource) resolve(pod *corev1.Pod) sourceResult {
-	policies := s.policies.Load()
-	if policies == nil {
-		return sourceResult{action: sourceAbstain}
+func (s *remotePolicySource) resolve(pod *corev1.Pod) sourceResult {
+	current := s.current.Load()
+	if current == nil {
+		return sourceResult{action: sourcePass}
 	}
-	return policies.resolve(pod)
+	return current.resolve(pod)
 }
 
-// injectAllTargetSource is active only when SSI is enabled and neither RC nor
+// injectAllSource is active only when SSI is enabled and neither RC nor
 // static targeting is configured. Those activation conditions belong to this
 // source rather than to the mutator's priority declaration.
-type injectAllTargetSource struct {
+type injectAllSource struct {
 	enabled bool
-	target  *targetInternal
-	remote  *remotePolicyTargetSource
-	static  *policyTargetSource
+	plan    *injectionPlan
+	remote  *remotePolicySource
+	static  *policySource
 }
 
-func (s *injectAllTargetSource) resolve(_ *corev1.Pod) sourceResult {
-	if !s.enabled || s.target == nil || s.remote.configured() || s.static.configured() {
-		return sourceResult{action: sourceAbstain}
+func (s *injectAllSource) resolve(_ *corev1.Pod) sourceResult {
+	if !s.enabled || s.plan == nil || s.remote.configured() || s.static.configured() {
+		return sourceResult{action: sourcePass}
 	}
-	return sourceResult{action: sourceInject, target: s.target}
+	return sourceResult{action: sourceInject, plan: s.plan}
 }
 
-type annotationTargetSource struct {
-	containerRegistry  string
-	defaultLibVersions []libInfo
-	mutateUnlabelled   bool
+type annotationSource struct {
+	containerRegistry string
+	defaultLibraries  []libInfo
+	mutateUnlabelled  bool
 }
 
-func (s *annotationTargetSource) resolve(pod *corev1.Pod) sourceResult {
+func (s *annotationSource) resolve(pod *corev1.Pod) sourceResult {
 	enabled, exists := getEnabledLabel(pod)
 	if exists && !enabled {
 		return sourceResult{action: sourceDeny}
 	}
 	if !exists && !s.mutateUnlabelled {
-		return sourceResult{action: sourceAbstain}
+		return sourceResult{action: sourcePass}
 	}
 
 	if libraries := extractLibrariesFromAnnotations(pod, s.containerRegistry); len(libraries) > 0 {
-		return sourceResult{action: sourceInject, target: &targetInternal{
-			libVersions: libraries,
-			envVars:     extractTracerConfigsFromAnnotations(pod),
+		return sourceResult{action: sourceInject, plan: &injectionPlan{
+			libraries:     libraries,
+			tracerEnvVars: extractTracerConfigsFromAnnotations(pod),
 		}}
 	}
 
 	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
-		return sourceResult{action: sourceInject, target: &targetInternal{
-			libVersions: s.defaultLibVersions,
-			envVars:     extractTracerConfigsFromAnnotations(pod),
+		return sourceResult{action: sourceInject, plan: &injectionPlan{
+			libraries:     s.defaultLibraries,
+			tracerEnvVars: extractTracerConfigsFromAnnotations(pod),
 		}}
 	}
 
-	return sourceResult{action: sourceAbstain}
+	return sourceResult{action: sourcePass}
 }
 
-type ddiTargetSource struct {
-	provider           DDITargetProvider
-	containerRegistry  string
-	defaultLibVersions []libInfo
+type ddiSource struct {
+	provider          DDITargetProvider
+	containerRegistry string
+	defaultLibraries  []libInfo
 }
 
-func (s *ddiTargetSource) resolve(pod *corev1.Pod) sourceResult {
+func (s *ddiSource) resolve(pod *corev1.Pod) sourceResult {
 	if s.provider == nil {
-		return sourceResult{action: sourceAbstain}
+		return sourceResult{action: sourcePass}
 	}
 
 	ref := metav1.GetControllerOf(pod)
 	if ref == nil {
-		return sourceResult{action: sourceAbstain}
+		return sourceResult{action: sourcePass}
 	}
 	rootKind, rootName := kubernetes.ResolvePodRootOwner(ref.Kind, ref.Name, pod.Labels)
 	workload := ssi.DDICRTarget{Kind: rootKind, Namespace: pod.Namespace, Name: rootName}
-	config, ok := s.provider.GetTarget(workload)
+	ddiConfig, ok := s.provider.GetTarget(workload)
 	if !ok {
-		return sourceResult{action: sourceAbstain}
+		return sourceResult{action: sourcePass}
 	}
-	if !config.Enabled {
+	if !ddiConfig.Enabled {
 		return sourceResult{action: sourceDeny}
 	}
 
-	return sourceResult{action: sourceInject, target: s.targetFromConfig(workload, config)}
+	return sourceResult{action: sourceInject, plan: s.planFromDDI(workload, ddiConfig)}
 }
 
-func (s *ddiTargetSource) targetFromConfig(workload ssi.DDICRTarget, config ssi.DDIAPMConfig) *targetInternal {
-	libVersions := s.defaultLibVersions
-	usesDefaultLibs := true
-	if len(config.TracerVersions) > 0 {
-		pinned := getPinnedLibraries(config.TracerVersions, s.containerRegistry, true)
-		libVersions = pinned.libs
-		usesDefaultLibs = pinned.areSetToDefaults
+func (s *ddiSource) planFromDDI(workload ssi.DDICRTarget, ddiConfig ssi.DDIAPMConfig) *injectionPlan {
+	libraries := s.defaultLibraries
+	languageDetectionEligible := true
+	if len(ddiConfig.TracerVersions) > 0 {
+		pinned := getPinnedLibraries(ddiConfig.TracerVersions, s.containerRegistry, true)
+		libraries = pinned.libs
+		languageDetectionEligible = pinned.areSetToDefaults
 	}
 
-	name := fmt.Sprintf("datadoginstrumentation:%s", config.CR)
+	name := fmt.Sprintf("datadoginstrumentation:%s", ddiConfig.CR)
 	payload := struct {
 		Name           string            `json:"name"`
 		Workload       ssi.DDICRTarget   `json:"workload"`
@@ -269,41 +259,41 @@ func (s *ddiTargetSource) targetFromConfig(workload ssi.DDICRTarget, config ssi.
 	}{
 		Name:           name,
 		Workload:       workload,
-		TracerVersions: config.TracerVersions,
-		TracerConfigs:  config.TracerConfigs,
+		TracerVersions: ddiConfig.TracerVersions,
+		TracerConfigs:  ddiConfig.TracerConfigs,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		log.Warnf("error marshalling DDI target %q: %v", name, err)
 	}
 
-	return &targetInternal{
-		name:            name,
-		libVersions:     libVersions,
-		envVars:         config.TracerConfigs,
-		json:            string(data),
-		usesDefaultLibs: usesDefaultLibs,
+	return &injectionPlan{
+		name:                      name,
+		libraries:                 libraries,
+		tracerEnvVars:             ddiConfig.TracerConfigs,
+		appliedMetadataJSON:       string(data),
+		languageDetectionEligible: languageDetectionEligible,
 	}
 }
 
-func newPolicySet(config *Config, targets []Target, defaultLibVersions []libInfo, wmeta workloadmeta.Component) (policySet, error) {
+func newStaticPolicySource(config *Config, targets []Target, defaultLibraries []libInfo, wmeta workloadmeta.Component) (*policySource, error) {
 	// Configuration targets are first-wins. Reverse so the last-TRUE-wins matcher
 	// preserves that order. RC is already last-wins on the wire and is not reversed.
 	targets = slices.Clone(targets)
 	slices.Reverse(targets)
 
-	internalTargets, err := buildInternalTargets(config, targets, defaultLibVersions)
+	plans, err := buildInjectionPlans(config, targets, defaultLibraries)
 	if err != nil {
-		return policySet{}, err
+		return nil, err
 	}
-	return policySet{
-		targets: internalTargets,
+	return &policySource{
+		plans:   plans,
 		matcher: newPolicyMatcher(policiesFromTargets(targets), wmeta),
 	}, nil
 }
 
-func buildInternalTargets(config *Config, targets []Target, defaultLibVersions []libInfo) ([]targetInternal, error) {
-	internalTargets := make([]targetInternal, len(targets))
+func buildInjectionPlans(config *Config, targets []Target, defaultLibraries []libInfo) ([]injectionPlan, error) {
+	plans := make([]injectionPlan, len(targets))
 	for i, t := range targets {
 		if t.PodSelector != nil {
 			if _, err := t.PodSelector.AsLabelSelector(); err != nil {
@@ -316,71 +306,70 @@ func buildInternalTargets(config *Config, targets []Target, defaultLibVersions [
 			}
 		}
 
-		var libVersions []libInfo
-		usesDefaultLibs := false
+		var libraries []libInfo
+		languageDetectionEligible := false
 		if len(t.TracerVersions) == 0 {
-			libVersions = defaultLibVersions
-			usesDefaultLibs = true
+			libraries = defaultLibraries
+			languageDetectionEligible = true
 		} else {
 			pinnedLibraries := getPinnedLibraries(t.TracerVersions, config.containerRegistry, true)
-			usesDefaultLibs = pinnedLibraries.areSetToDefaults
-			libVersions = pinnedLibraries.libs
+			languageDetectionEligible = pinnedLibraries.areSetToDefaults
+			libraries = pinnedLibraries.libs
 		}
 
-		envVars := make([]corev1.EnvVar, len(t.TracerConfigs))
+		tracerEnvVars := make([]corev1.EnvVar, len(t.TracerConfigs))
 		for j, tc := range t.TracerConfigs {
 			if !hasAllowedTracerConfigPrefix(tc.Name) {
 				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
-			envVars[j] = tc.AsEnvVar()
+			tracerEnvVars[j] = tc.AsEnvVar()
 		}
 
-		internalTargets[i] = targetInternal{
-			name:            t.Name,
-			libVersions:     libVersions,
-			envVars:         envVars,
-			json:            createJSON(t),
-			usesDefaultLibs: usesDefaultLibs,
+		plans[i] = injectionPlan{
+			name:                      t.Name,
+			libraries:                 libraries,
+			tracerEnvVars:             tracerEnvVars,
+			appliedMetadataJSON:       createTargetJSON(t),
+			languageDetectionEligible: languageDetectionEligible,
 		}
 	}
 
-	return internalTargets, nil
+	return plans, nil
 }
 
-func buildInternalTargetsFromPolicies(config *Config, ps []policies.Policy, defaultLibVersions []libInfo) ([]targetInternal, error) {
-	internalTargets := make([]targetInternal, len(ps))
+func buildInjectionPlansFromPolicies(config *Config, ps []policies.Policy, defaultLibraries []libInfo) ([]injectionPlan, error) {
+	plans := make([]injectionPlan, len(ps))
 	for i, p := range ps {
-		var libVersions []libInfo
-		usesDefaultLibs := false
+		var libraries []libInfo
+		languageDetectionEligible := false
 		if len(p.Outcome.TracerVersions) == 0 {
-			libVersions = defaultLibVersions
-			usesDefaultLibs = true
+			libraries = defaultLibraries
+			languageDetectionEligible = true
 		} else {
 			pinnedLibraries := getPinnedLibraries(p.Outcome.TracerVersions, config.containerRegistry, true)
-			usesDefaultLibs = pinnedLibraries.areSetToDefaults
-			libVersions = pinnedLibraries.libs
+			languageDetectionEligible = pinnedLibraries.areSetToDefaults
+			libraries = pinnedLibraries.libs
 		}
 
-		envVars := make([]corev1.EnvVar, len(p.Outcome.TracerConfigs))
+		tracerEnvVars := make([]corev1.EnvVar, len(p.Outcome.TracerConfigs))
 		for j, tc := range p.Outcome.TracerConfigs {
 			if !hasAllowedTracerConfigPrefix(tc.Name) {
 				return nil, fmt.Errorf("tracer config %q does not start with DD_ or OTEL_", tc.Name)
 			}
-			envVars[j] = corev1.EnvVar{Name: tc.Name, Value: tc.Value}
+			tracerEnvVars[j] = corev1.EnvVar{Name: tc.Name, Value: tc.Value}
 		}
 
-		internalTargets[i] = targetInternal{
-			name:            p.Name,
-			libVersions:     libVersions,
-			envVars:         envVars,
-			json:            createPolicyJSON(p),
-			usesDefaultLibs: usesDefaultLibs,
-			fromPolicy:      true,
-			blocked:         !p.Outcome.Inject,
+		plans[i] = injectionPlan{
+			name:                      p.Name,
+			libraries:                 libraries,
+			tracerEnvVars:             tracerEnvVars,
+			appliedMetadataJSON:       createPolicyJSON(p),
+			languageDetectionEligible: languageDetectionEligible,
+			blocked:                   !p.Outcome.Inject,
 		}
 	}
 
-	return internalTargets, nil
+	return plans, nil
 }
 
 func createDefaultTarget(namespaces []string, pinnedLibVersions map[string]string) Target {
@@ -394,7 +383,7 @@ func createDefaultTarget(namespaces []string, pinnedLibVersions map[string]strin
 	return target
 }
 
-func createJSON(t Target) string {
+func createTargetJSON(t Target) string {
 	data, err := json.Marshal(t)
 	if err != nil {
 		log.Errorf("error marshalling target %q: %v", t.Name, err)
@@ -457,15 +446,15 @@ func extractTracerConfigsFromAnnotations(pod *corev1.Pod) []corev1.EnvVar {
 		return nil
 	}
 
-	envVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
+	tracerEnvVars := make([]corev1.EnvVar, 0, len(tracerConfigs))
 	for _, tc := range tracerConfigs {
 		if !hasAllowedTracerConfigPrefix(tc.Name) {
 			log.Errorf("tracer config %q from %q annotation does not start with DD_ or OTEL_, skipping", tc.Name, annotation.TracerConfigs)
 			continue
 		}
-		envVars = append(envVars, tc.AsEnvVar())
+		tracerEnvVars = append(tracerEnvVars, tc.AsEnvVar())
 	}
-	return envVars
+	return tracerEnvVars
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
