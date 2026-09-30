@@ -1,0 +1,4 @@
+---
+security:
+  - |
+    Update ``golang.org/x/crypto`` to v0.56.0.
