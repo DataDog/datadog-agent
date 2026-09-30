@@ -33,6 +33,7 @@ credentials:
     privProtocol: AES
     privKey: test-priv-key
     context_name: test-context
+    context_engine_id: test-engine-id
 `
 
 // newTestConfig returns a configuration whose confd_path holds the given
@@ -64,15 +65,16 @@ func TestLoadIndexesTheCredentialsByID(t *testing.T) {
 	}, creds["id-v2c"])
 
 	assert.Equal(t, credential{
-		ID:           "id-v3",
-		Name:         "v3-full",
-		SNMPVersion:  "3",
-		User:         "test-user",
-		AuthProtocol: "SHA",
-		AuthKey:      "test-auth-key",
-		PrivProtocol: "AES",
-		PrivKey:      "test-priv-key",
-		ContextName:  "test-context",
+		ID:              "id-v3",
+		Name:            "v3-full",
+		SNMPVersion:     "3",
+		User:            "test-user",
+		AuthProtocol:    "SHA",
+		AuthKey:         "test-auth-key",
+		PrivProtocol:    "AES",
+		PrivKey:         "test-priv-key",
+		ContextName:     "test-context",
+		ContextEngineID: "test-engine-id",
 	}, creds["id-v3"])
 }
 
@@ -218,6 +220,21 @@ func TestValidate(t *testing.T) {
 		{
 			name: "v3 with both protocols",
 			cred: credential{Name: "c", SNMPVersion: "3", User: "test-user", AuthProtocol: "SHA", PrivProtocol: "AES"},
+		},
+		{
+			name:    "v1 with no community string",
+			cred:    credential{Name: "c", SNMPVersion: "1"},
+			wantErr: `has no community_string`,
+		},
+		{
+			name:    "v2c with no community string",
+			cred:    credential{Name: "c", SNMPVersion: "2c"},
+			wantErr: `has no community_string`,
+		},
+		{
+			name:    "v3 with no user",
+			cred:    credential{Name: "c", SNMPVersion: "3"},
+			wantErr: `has no user`,
 		},
 		{
 			name:    "an empty version",
