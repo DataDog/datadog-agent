@@ -730,8 +730,13 @@ func (s *configMacOSSuite) TestExperimentIntegrationLoadedMacOS() {
 func (s *configMacOSSuite) TestSystemProbeConfigMacOS() {
 	s.requireResting()
 
+	// network_config.enabled is used rather than runtime_security_config.enabled because it maps
+	// to NetworkTracerModule, which has a real factory on macOS (network_tracer_darwin.go).
+	// EventMonitorModule (what runtime_security_config.enabled maps to) has no darwin factory —
+	// only eventmonitor_linux.go and eventmonitor_windows.go exist — so enabling it makes
+	// system-probe exit immediately with "no module could be loaded".
 	s.startConfigExperimentRC(nextID("cfg-sysprobe"), []backend.FileOperation{
-		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"runtime_security_config": {"enabled": true}}`)},
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config": {"enabled": true}}`)},
 	}, nil)
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
