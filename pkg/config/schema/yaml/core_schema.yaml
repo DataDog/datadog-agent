@@ -9043,6 +9043,18 @@ properties:
             - datadoghq.com
             items:
               type: string
+          max_compressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_uncompressed_payload_size:
+            node_type: setting
+            type: integer
+            default: 0
+          max_points_per_payload:
+            node_type: setting
+            type: integer
+            default: 0
   serializer_max_payload_size:
     node_type: setting
     type: integer
