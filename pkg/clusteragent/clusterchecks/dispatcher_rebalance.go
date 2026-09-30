@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
@@ -257,9 +258,10 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	return result
 }
 
-// useUtilizationRebalance picks the rebalance algorithm; compat declarations force the utilization one (the only compat-aware).
+// useUtilizationRebalance reports whether the utilization algorithm is used:
+// configured, or forced by runner groups (the busyness algorithm isn't group-aware).
 func (d *dispatcher) useUtilizationRebalance() bool {
-	return pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") || d.anyCompatDeclared()
+	return pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") || len(d.checkGroup) > 0
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster
@@ -392,40 +394,34 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 
 	currentConfigsDistribution := d.currentDistribution()
 
-	// Partition configs into cohorts (by declaration of their eligible runners).
-	// Rebalance each cohort independently within its own runners
+	// Partition configs into cohorts by runner group (the group claiming the
+	// check, "" for general workers), and rebalance each cohort within its
+	// own runners.
 	cohorts := make(map[string]*cohort)
 	d.store.RLock()
-	// Cohort depends on the check name
-	cohortByCheck := make(map[string]*cohort)
 	for digest, config := range currentConfigsDistribution.Configs {
-		c, seen := cohortByCheck[config.CheckName]
-		if !seen {
-			if eligible := d.eligibleNodes(config.CheckName); len(eligible) > 0 {
-				key := d.cohortKey(eligible)
-				if c = cohorts[key]; c == nil {
-					c = &cohort{key: key, runners: eligible, configs: make(map[string]*ConfigStatus)}
-					cohorts[key] = c
-				}
-			}
-			cohortByCheck[config.CheckName] = c
+		group := d.checkGroup[config.CheckName]
+		c, ok := cohorts[group]
+		if !ok {
+			c = &cohort{group: group, runners: d.groupNodes(group), configs: make(map[string]*ConfigStatus)}
+			cohorts[group] = c
 		}
-		if c != nil { // nil: no eligible runner, unreachable in practice
-			c.configs[digest] = config
-		}
+		c.configs[digest] = config
 	}
 	d.store.RUnlock()
 
 	var allMoves []types.RebalanceResponse
-	for _, key := range slices.Sorted(maps.Keys(cohorts)) {
-		allMoves = append(allMoves, d.rebalanceCohort(force, currentConfigsDistribution, cohorts[key])...)
+	for _, group := range slices.Sorted(maps.Keys(cohorts)) {
+		if c := cohorts[group]; len(c.runners) > 0 { // no live runner: nothing to rebalance onto
+			allMoves = append(allMoves, d.rebalanceCohort(force, currentConfigsDistribution, c)...)
+		}
 	}
 	return allMoves
 }
 
-// cohort is a set of configs sharing the same eligible runners.
+// cohort is the set of configs of one runner group, and the group's runners.
 type cohort struct {
-	key     string
+	group   string // "" for general workers
 	runners []string
 	configs map[string]*ConfigStatus
 }
@@ -478,7 +474,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	if force {
 		prefix = "Forced cohort rebalance: moved"
 	}
-	log.Infof("%s %d of %d checks in cohort %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cohort.key, len(proposedCohort.Runners), currentStdDev, proposedStdDev)
+	log.Infof("%s %d of %d checks in runner group %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cmp.Or(cohort.group, "general"), len(proposedCohort.Runners), currentStdDev, proposedStdDev)
 	setPredictedUtilization(proposedCohort)
 	return moves
 }

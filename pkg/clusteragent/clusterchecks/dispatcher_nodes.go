@@ -8,11 +8,10 @@
 package clusterchecks
 
 import (
+	"cmp"
 	"fmt"
 	"math/rand"
-	"slices"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -52,7 +51,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 		warmingUp = true
 	}
 	node := d.store.getOrCreateNodeStore(nodeName, clientIP)
-	d.updateCheckCompatibility(nodeName, node, status.CheckCompatibility)
+	d.updateGroup(nodeName, node, status.Group)
 	d.store.Unlock()
 
 	node.Lock()
@@ -111,66 +110,46 @@ func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyN
 	return node, len(d.store.nodes) > 0
 }
 
-// updateCheckCompatibility records the worker's declared compatibility
-// Note: NodeAgents reuse nodeName, so updating particularly important if new exclusion needed.
-func (d *dispatcher) updateCheckCompatibility(nodeName string, node *nodeStore, compat *types.CheckCompatibility) {
-	signature := declarationSignature(compat)
-	if signature == node.signature {
+// updateGroup records the worker's runner group on every status report, in
+// case a worker restarts under the same name in another group. Configs the
+// new group can't run go back to the dangling configs, to be re-dispatched.
+// The store must be locked.
+func (d *dispatcher) updateGroup(nodeName string, node *nodeStore, group string) {
+	if group == node.group {
 		return
 	}
-	log.Infof("Node %s check compatibility changed: %s -> %s", nodeName, node.signature, signature)
-	node.checkCompat = compat
-	node.signature = signature
+	if _, known := d.runnerGroups[group]; group != "" && !known {
+		log.Warnf("Node %s declares unknown cluster checks runner group %q: it won't receive any cluster check", nodeName, group)
+	} else {
+		log.Infof("Node %s is in cluster checks runner group %q", nodeName, cmp.Or(group, "general"))
+	}
+	node.group = group
 
 	node.Lock()
 	defer node.Unlock()
 	for digest, config := range node.digestToConfig {
-		if !compat.Accepts(config.Name) {
-			log.Infof("Node %s no longer accepts %s:%s, will re-dispatch it", nodeName, config.Name, digest)
+		if !d.accepts(node, config.Name) {
+			log.Infof("Node %s can no longer run %s:%s, will re-dispatch it", nodeName, config.Name, digest)
 			node.removeConfig(digest)
 			d.moveToDangling(nodeName, digest, config)
 		}
 	}
 }
 
-// declarationSignature returns the canonical form of a worker's compat
-// declaration, following Accepts' precedence (include first, then exclude)
-func declarationSignature(compat *types.CheckCompatibility) string {
-	switch {
-	case compat == nil:
-		return "unrestricted"
-	case len(compat.Include) > 0:
-		return "include=" + canonicalList(compat.Include)
-	case len(compat.Exclude) > 0:
-		return "exclude=" + canonicalList(compat.Exclude)
-	default:
-		return "unrestricted"
-	}
+// accepts reports whether a worker may run a check: a check claimed by a
+// runner group only runs in that group, any other check only on general
+// workers (no group). A worker in a group the Cluster Agent doesn't know runs
+// nothing.
+func (d *dispatcher) accepts(node *nodeStore, checkName string) bool {
+	return node.group == d.checkGroup[checkName]
 }
 
-func canonicalList(checks []string) string {
-	return strings.Join(slices.Compact(slices.Sorted(slices.Values(checks))), ",")
-}
-
-// cohortKey returns the sorted, distinct signatures of the given nodes. The
-// eligible nodes of a check are whole groups of same-signature workers, so
-// this key identifies the eligible set exactly, while staying bounded by the
-// number of declarations and stable across pod restarts. The store must be
-// read-locked.
-func (d *dispatcher) cohortKey(nodes []string) string {
-	signatures := make([]string, 0, len(nodes))
-	for _, name := range nodes {
-		signatures = append(signatures, d.store.nodes[name].signature)
-	}
-	slices.Sort(signatures)
-	return strings.Join(slices.Compact(signatures), " | ")
-}
-
-// eligibleNodes returns the sorted nodes accepting a check. The store must be read-locked.
-func (d *dispatcher) eligibleNodes(checkName string) []string {
+// groupNodes returns the sorted nodes of a runner group ("" for general
+// workers). The store must be read-locked.
+func (d *dispatcher) groupNodes(group string) []string {
 	var nodes []string
 	for name, node := range d.store.nodes {
-		if node.checkCompat.Accepts(checkName) {
+		if node.group == group {
 			nodes = append(nodes, name)
 		}
 	}
@@ -180,7 +159,7 @@ func (d *dispatcher) eligibleNodes(checkName string) []string {
 
 // getRandomNode must be called with the store read-locked.
 func (d *dispatcher) getRandomNode(checkName string) string {
-	nodes := d.eligibleNodes(checkName)
+	nodes := d.groupNodes(d.checkGroup[checkName])
 	if len(nodes) == 0 {
 		return ""
 	}
@@ -194,7 +173,7 @@ func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
 	minNumChecks := 0
 
 	for name, store := range d.store.nodes {
-		if !store.checkCompat.Accepts(checkName) {
+		if !d.accepts(store, checkName) {
 			continue
 		}
 		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
@@ -204,19 +183,6 @@ func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
 	}
 
 	return selectedNode
-}
-
-// anyCompatDeclared returns whether any live worker declared a compatibility; false = legacy behavior.
-func (d *dispatcher) anyCompatDeclared() bool {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
-	for _, node := range d.store.nodes {
-		if node.checkCompat != nil {
-			return true
-		}
-	}
-	return false
 }
 
 // expireNodes iterates over nodes and removes the ones that have not
@@ -288,8 +254,7 @@ func (d *dispatcher) updateRunnersStats() {
 		updateStatsDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
 	}()
 
-	// Worker counts feed the utilization algorithm, also when compat forces it.
-	// Computed before locking the store: it takes the store read lock itself.
+	// Worker counts feed the utilization algorithm, also when runner groups force it.
 	fetchWorkers := d.useUtilizationRebalance()
 
 	d.store.Lock()

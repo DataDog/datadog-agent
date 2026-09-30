@@ -8,8 +8,6 @@
 package types
 
 import (
-	"slices"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
 
@@ -32,31 +30,13 @@ const (
 	NodeTypeNodeAgent NodeType = 2
 )
 
-// CheckCompatibility declares which check names a worker accepts as cluster checks (nil = unrestricted).
-type CheckCompatibility struct {
-	Include []string `json:"include,omitempty"`
-	Exclude []string `json:"exclude,omitempty"`
-}
-
-// Accepts reports whether a worker with this compatibility may run the given
-// check (nil = unrestricted). The include list takes precedence: when set, the
-// exclude list is ignored.
-func (c *CheckCompatibility) Accepts(checkName string) bool {
-	switch {
-	case c == nil:
-		return true
-	case len(c.Include) > 0:
-		return slices.Contains(c.Include, checkName)
-	default:
-		return !slices.Contains(c.Exclude, checkName)
-	}
-}
-
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
-	LastChange         int64               `json:"last_change"`
-	NodeType           NodeType            `json:"node_type,omitempty"`
-	CheckCompatibility *CheckCompatibility `json:"check_compatibility,omitempty"`
+	LastChange int64    `json:"last_change"`
+	NodeType   NodeType `json:"node_type,omitempty"`
+	// Group is the worker's experimental cluster checks runner group. Empty
+	// means a general worker, running the checks no group claims.
+	Group string `json:"group,omitempty"`
 }
 
 // StatusResponse holds the DCA response for a status report

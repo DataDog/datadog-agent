@@ -136,7 +136,6 @@ dd_agent_go_test(
     name = "providers_test",
     srcs = [
         "cloudfoundry_test.go",
-        "clusterchecks_test.go",
         "config_reader_test.go",
         "consul_test.go",
         "container_test.go",

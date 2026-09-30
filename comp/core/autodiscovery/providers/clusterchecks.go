@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -43,9 +42,9 @@ type ClusterChecksConfigProvider struct {
 	identifier       string
 	flushedConfigs   bool
 	nodeType         types.NodeType
-	// checkCompat is this worker's advertised check compatibility, from the
-	// experimental.clc_runner_checks_* keys. nil means unrestricted.
-	checkCompat *types.CheckCompatibility
+	// group is this worker's experimental cluster checks runner group
+	// (experimental.clc_runner_group); empty for a general worker.
+	group string
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -83,10 +82,9 @@ func NewClusterChecksConfigProvider(providerConfig *constants.ConfigurationProvi
 		c.nodeType = types.NodeTypeNodeAgent
 	}
 
-	// Check compatibility declarations, advertised to the Cluster Agent.
-	c.checkCompat = checkCompatibilityFromConfig(pkgconfigsetup.Datadog())
-	if c.checkCompat != nil {
-		log.Infof("Advertising cluster check compatibility: include=%v exclude=%v", c.checkCompat.Include, c.checkCompat.Exclude)
+	c.group = pkgconfigsetup.Datadog().GetString("experimental.clc_runner_group")
+	if c.group != "" {
+		log.Infof("Advertising cluster checks runner group %q", c.group)
 	}
 
 	if providerConfig.GraceTimeSeconds > 0 {
@@ -127,24 +125,6 @@ func (c *ClusterChecksConfigProvider) withinDegradedModePeriod() bool {
 	return withinDegradedModePeriod(c.heartbeat.Load(), c.degradedDuration)
 }
 
-// checkCompatibilityFromConfig derives the advertised compat
-func checkCompatibilityFromConfig(config pkgconfigmodel.Reader) *types.CheckCompatibility {
-	include := config.GetStringSlice("experimental.clc_runner_checks_include")
-	exclude := config.GetStringSlice("experimental.clc_runner_checks_exclude")
-
-	switch {
-	case len(include) > 0:
-		if len(exclude) > 0 {
-			log.Errorf("Both experimental.clc_runner_checks_include and experimental.clc_runner_checks_exclude are set: using the include list %v and ignoring the exclude list %v", include, exclude)
-		}
-		return &types.CheckCompatibility{Include: include}
-	case len(exclude) > 0:
-		return &types.CheckCompatibility{Exclude: exclude}
-	default:
-		return nil
-	}
-}
-
 // IsUpToDate queries the cluster-agent to update its status and
 // query if new configurations are available
 func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
@@ -156,9 +136,9 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 	}
 
 	status := types.NodeStatus{
-		LastChange:         c.lastChange,
-		NodeType:           c.nodeType,
-		CheckCompatibility: c.checkCompat,
+		LastChange: c.lastChange,
+		NodeType:   c.nodeType,
+		Group:      c.group,
 	}
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
@@ -256,9 +236,9 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 	}
 
 	status := types.NodeStatus{
-		LastChange:         types.ExtraHeartbeatLastChangeValue,
-		NodeType:           c.nodeType,
-		CheckCompatibility: c.checkCompat,
+		LastChange: types.ExtraHeartbeatLastChangeValue,
+		NodeType:   c.nodeType,
+		Group:      c.group,
 	}
 
 	_, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
