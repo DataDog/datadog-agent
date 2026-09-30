@@ -26,13 +26,17 @@ type PathtestMetadata struct {
 
 // Pathtest details of information necessary to run a traceroute
 type Pathtest struct {
-	Hostname           string
-	Port               uint16
-	Protocol           payload.Protocol
-	SourceContainerID  string
-	Namespace          string
-	Origin             payload.PathOrigin
-	TestConfigID       string
+	Hostname          string
+	Port              uint16
+	Protocol          payload.Protocol
+	SourceContainerID string
+	Namespace         string
+	Origin            payload.PathOrigin
+	TestConfigID      string
+	// CorrelationKey is the identity shared with the CNM connection that caused
+	// this test to be scheduled. Empty when the Agent could not resolve its own
+	// hostname.
+	CorrelationKey     string
 	TestConfigName     string
 	TestConfigSource   payload.TestConfigSource
 	DynamicTestProfile payload.DynamicTestProfile

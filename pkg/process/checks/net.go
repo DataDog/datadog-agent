@@ -219,7 +219,19 @@ func (c *ConnectionsCheck) Cleanup() {
 }
 
 func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
-	c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+	sourceHostname := ""
+	if c.hostInfo != nil {
+		sourceHostname = c.hostInfo.HostName
+	}
+
+	// Results come back one per *yielded* connection, and the loop below skips
+	// any connection whose addresses will not parse. Tracking the yielded ones
+	// here keeps results aligned with the connections they describe; indexing
+	// into conns.Conns instead would attach keys to the wrong destinations, and
+	// every value would still look well-formed.
+	scheduled := make([]*model.Connection, 0, len(conns.Conns))
+
+	networkPaths := c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
 		for _, conn := range conns.Conns {
 			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
 			if err != nil {
@@ -243,6 +255,7 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 				Source:            src,
 				Dest:              dest,
 				TranslatedDest:    transDest,
+				SourceHostname:    sourceHostname,
 				SourceContainerID: conn.Laddr.GetContainerId(),
 				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
 				Type:              conn.Type,
@@ -256,8 +269,19 @@ func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
 			if !yield(npc) {
 				return
 			}
+			scheduled = append(scheduled, conn)
 		}
 	})
+
+	for i, networkPath := range networkPaths {
+		if i >= len(scheduled) {
+			break
+		}
+		scheduled[i].NetworkPath = &model.NetworkPath{HasTest: networkPath.HasTest}
+		if networkPath.HasTest {
+			scheduled[i].NetworkPath.CorrelationKey = networkPath.CorrelationKey
+		}
+	}
 }
 
 func getDNSNameForIP(conns *model.Connections, ip string) string {
