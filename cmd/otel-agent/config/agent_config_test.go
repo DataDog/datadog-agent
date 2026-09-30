@@ -442,6 +442,32 @@ func (suite *ConfigTestSuite) TestSiteWithOnlyWhitespace() {
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
 	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
 }
+
+// TestWhitespaceSiteFallsBackToDDSite verifies that a whitespace-only api.site in
+// the OTel exporter config is treated as absent and DD_SITE is used as the fallback,
+// rather than jumping straight to the hardcoded datadoghq.com default.
+func (suite *ConfigTestSuite) TestWhitespaceSiteFallsBackToDDSite() {
+	t := suite.T()
+	t.Setenv("DD_SITE", "datadoghq.eu")
+	// config_site_whitespace.yaml has api.site: "   " (whitespace only)
+	fileName := "testdata/config_site_whitespace.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.eu", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.eu", c.Get("dd_url"))
+}
+
+func (suite *ConfigTestSuite) TestEmptyDDSiteFallback() {
+	t := suite.T()
+	// When DD_SITE is empty and no api.site in OTel config, fall back to datadoghq.com
+	t.Setenv("DD_SITE", "")
+	fileName := "testdata/config_no_api_block.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err)
+	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://api.datadoghq.com", c.Get("dd_url"))
+}
+
 func (suite *ConfigTestSuite) TestNilDatadogExporter() {
 	t := suite.T()
 	fileName := "testdata/config_nil_datadog_exporter.yaml"

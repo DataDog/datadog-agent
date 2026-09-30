@@ -19,6 +19,7 @@ import (
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -215,7 +216,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 	pkgconfig.Set("api_key", string(ddc.API.Key), pkgconfigmodel.SourceFile)
-	pkgconfig.Set("site", strings.TrimSpace(ddc.API.Site), pkgconfigmodel.SourceFile)
+	pkgconfig.Set("site", ddc.API.Site, pkgconfigmodel.SourceFile)
 
 	pkgconfig.Set("dd_url", ddc.Metrics.Endpoint, pkgconfigmodel.SourceFile)
 	if ddc.ClientConfig.TLS.InsecureSkipVerify {
@@ -500,12 +501,15 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	// Validate that site is configured in pkgconfig
 	site := strings.TrimSpace(pkgconfig.GetString("site"))
 	isSiteEmpty := site == ""
+	if site == "" {
+		site = constants.DefaultSite
+	}
+
 	if ddcfg == nil {
 		if !isSiteEmpty {
 			return map[string]any{"api": map[string]any{"site": site}}, nil
-		} else {
-			return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
 		}
+		return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -516,10 +520,10 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 		if !isSiteEmpty {
 			ddcfgMap["api"] = map[string]any{"site": site}
 			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
-		} else {
-			ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
-			return ddcfgMap, nil
 		}
+		ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
+		return ddcfgMap, nil
+
 	}
 	apicfgMap, ok := apicfg.(map[string]any)
 	if !ok {
