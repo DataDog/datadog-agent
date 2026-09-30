@@ -221,13 +221,7 @@ type LineRange [2]uint32
 // out-of-range values (negatives to 0, values above math.MaxUint32 to
 // math.MaxUint32).
 func clampDwarfLine(v int64) uint32 {
-	if v < 0 {
-		return 0
-	}
-	if v > math.MaxUint32 {
-		return math.MaxUint32
-	}
-	return uint32(v)
+	return uint32(min(max(v, 0), math.MaxUint32))
 }
 
 const mainPackageName = "main"
