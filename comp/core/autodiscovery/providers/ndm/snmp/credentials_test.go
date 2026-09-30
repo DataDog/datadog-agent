@@ -36,8 +36,8 @@ credentials:
     context_engine_id: test-engine-id
 `
 
-// newTestConfig returns a configuration whose confd_path holds the given
-// credential files, keyed by their name under snmp.d/credentials.
+// newTestConfig returns a configuration whose confd_path holds the given files
+// under snmp.d/credentials, keyed by their name.
 func newTestConfig(t *testing.T, files map[string]string) model.BuildableConfig {
 	t.Helper()
 	cfg := configmock.New(t)
@@ -51,7 +51,7 @@ func newTestConfig(t *testing.T, files map[string]string) model.BuildableConfig 
 }
 
 func TestLoadIndexesTheCredentialsByID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": credentialsYAML}))
+	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: credentialsYAML}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
@@ -79,34 +79,31 @@ func TestLoadIndexesTheCredentialsByID(t *testing.T) {
 }
 
 func TestLoadDoesNotIndexOnTheCredentialName(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": credentialsYAML}))
+	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: credentialsYAML}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
 	assert.NotContains(t, creds, "v2c-public")
 }
 
-func TestLoadReadsEveryFileOfTheDirectory(t *testing.T) {
+func TestLoadReadsOnlyTheCredentialFile(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{
-		"a.yaml": "credentials:\n  - id: id-a\n    name: from-a\n    snmp_version: \"2c\"\n",
-		"b.yaml": "credentials:\n  - id: id-b\n    name: from-b\n    snmp_version: \"2c\"\n",
+		credentialsFilename: "credentials:\n  - id: id-kept\n    name: kept\n    snmp_version: \"2c\"\n    community_string: public\n",
+		"customer.yaml":     "credentials:\n  - id: id-customer\n    name: customer\n    snmp_version: \"2c\"\n    community_string: public\n",
+		"customer.json":     `{"credentials":[{"id":"id-json","name":"json"}]}`,
 	}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"id-a", "id-b"}, idsOf(creds))
+	assert.Equal(t, []string{"id-kept"}, idsOf(creds), "a file the customer drops in the directory must not be consumed")
 }
 
-func TestLoadIgnoresAFileThatIsNotYAML(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{
-		"kept.yaml":    "credentials:\n  - id: id-kept\n    name: kept\n    snmp_version: \"2c\"\n",
-		"ignored.yml":  "credentials:\n  - id: id-ignored-yml\n    name: ignored-yml\n    snmp_version: \"2c\"\n",
-		"ignored.json": `{"credentials":[{"id":"id-ignored-json","name":"ignored-json"}]}`,
-	}))
+func TestLoadOfAnAbsentFileIsEmptyAndNotAnError(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, map[string]string{"customer.yaml": "credentials: []\n"}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"id-kept"}, idsOf(creds))
+	assert.Empty(t, creds)
 }
 
 func TestLoadOfAnAbsentDirectoryIsEmptyAndNotAnError(t *testing.T) {
@@ -118,7 +115,7 @@ func TestLoadOfAnAbsentDirectoryIsEmptyAndNotAnError(t *testing.T) {
 }
 
 func TestLoadSkipsAnEntryWithNoID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": `
+	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: `
 credentials:
   - name: no-id
     snmp_version: "2c"
@@ -135,7 +132,7 @@ credentials:
 }
 
 func TestLoadKeepsTheFirstOfTwoEntriesSharingAnID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": `
+	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: `
 credentials:
   - id: id-dup
     name: dup-first
@@ -153,7 +150,7 @@ credentials:
 }
 
 func TestLoadKeepsTwoEntriesSharingANameButNotAnID(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": `
+	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: `
 credentials:
   - id: id-one
     name: same-name
@@ -170,21 +167,18 @@ credentials:
 	assert.Equal(t, []string{"id-one", "id-two"}, idsOf(creds))
 }
 
-func TestLoadKeepsTheOtherFilesWhenOneCannotBeParsed(t *testing.T) {
-	store := newCredentialStore(newTestConfig(t, map[string]string{
-		"a-broken.yaml": "credentials: [\n",
-		"b-good.yaml":   "credentials:\n  - id: id-kept\n    name: kept\n    snmp_version: \"2c\"\n",
-	}))
+func TestLoadOfAFileThatCannotBeParsedIsAnErrorThatNamesIt(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, map[string]string{credentialsFilename: "credentials: [\n"}))
 
 	creds, err := store.load()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "a-broken.yaml")
-	assert.Equal(t, []string{"id-kept"}, idsOf(creds))
+	assert.Contains(t, err.Error(), credentialsFilename)
+	assert.Empty(t, creds)
 }
 
 func TestLoadErrorNamesNoFileContent(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{
-		"broken.yaml": "credentials:\n  - id: id-c\n    community_string: [s3cret-community\n",
+		credentialsFilename: "credentials:\n  - id: id-c\n    community_string: [s3cret-community\n",
 	}))
 
 	_, err := store.load()
@@ -193,14 +187,14 @@ func TestLoadErrorNamesNoFileContent(t *testing.T) {
 }
 
 func TestLoadRereadsTheFilesEveryTime(t *testing.T) {
-	cfg := newTestConfig(t, map[string]string{"creds.yaml": credentialsYAML})
+	cfg := newTestConfig(t, map[string]string{credentialsFilename: credentialsYAML})
 	store := newCredentialStore(cfg)
 
 	first, err := store.load()
 	require.NoError(t, err)
 	assert.Equal(t, "public", first["id-v2c"].CommunityString)
 
-	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, "creds.yaml")
+	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, credentialsFilename)
 	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - id: id-v2c\n    name: v2c-public\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
 
 	second, err := store.load()

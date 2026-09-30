@@ -7,6 +7,7 @@ package snmp
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,7 +40,7 @@ credentials:
 
 func newTestHandler(t *testing.T, credentials string) *Handler {
 	t.Helper()
-	return NewHandler(newTestConfig(t, map[string]string{"creds.yaml": credentials}), logmock.New(t))
+	return NewHandler(newTestConfig(t, map[string]string{credentialsFilename: credentials}), logmock.New(t))
 }
 
 const twoInstanceDocument = `{
@@ -208,7 +209,7 @@ func TestRenderErrorIsStableAcrossCalls(t *testing.T) {
 }
 
 func TestRenderPicksUpACredentialValueThatChangedInPlace(t *testing.T) {
-	cfg := newTestConfig(t, map[string]string{"creds.yaml": `
+	cfg := newTestConfig(t, map[string]string{credentialsFilename: `
 credentials:
   - id: id-abc
     name: cred-abc
@@ -222,7 +223,7 @@ credentials:
 	require.NoError(t, err)
 	assert.Contains(t, string(first[0].Instances[0]), "community_string: public")
 
-	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, "creds.yaml")
+	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, credentialsFilename)
 	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
 
 	second, err := h.Render("path-a", doc)
@@ -230,17 +231,20 @@ credentials:
 	assert.Contains(t, string(second[0].Instances[0]), "community_string: rotated")
 }
 
-func TestRenderSchedulesTheCredentialsOfTheFilesThatLoaded(t *testing.T) {
+func TestRenderIgnoresACredentialFileTheCustomerDroppedInTheDirectory(t *testing.T) {
 	h := NewHandler(newTestConfig(t, map[string]string{
-		"a-broken.yaml": "credentials: [\n",
-		"b-good.yaml":   "credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: public\n",
+		credentialsFilename: "credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: public\n",
+		"customer.yaml":     "credentials:\n  - id: id-customer\n    name: customer\n    snmp_version: \"2c\"\n    community_string: public\n",
 	}), logmock.New(t))
+	doc := `{"instances":[{"ip_address":"10.0.0.1","cred":{"id":"%s","name":"whatever"}}]}`
 
-	configs, err := h.Render("path-a", json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred":{"id":"id-abc","name":"cred-abc"}}]}`))
-
+	configs, err := h.Render("path-a", json.RawMessage(fmt.Sprintf(doc, "id-abc")))
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	assert.Contains(t, string(configs[0].Instances[0]), "community_string: public")
+
+	_, err = h.Render("path-a", json.RawMessage(fmt.Sprintf(doc, "id-customer")))
+	assert.Error(t, err, "a credential from a file the customer dropped in must not resolve")
 }
 
 func TestHandlerSatisfiesTheHandlerInterface(t *testing.T) {

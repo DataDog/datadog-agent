@@ -18,11 +18,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
-// credentialsDir is where Fleet Automation writes the credential files,
-// relative to confd_path.
-const credentialsDir = "snmp.d/credentials"
+// credentialsDir and credentialsFilename locate the credential file Fleet
+// Automation writes, relative to confd_path. The file sits in a subdirectory
+// because the file config provider collects every yaml directly under snmp.d
+// as a check config.
+const (
+	credentialsDir      = "snmp.d/credentials"
+	credentialsFilename = "snmp_credentials.yaml"
+)
 
-// credential is one entry of a credential file. The yaml names match
+// credential is one entry of the credential file. The yaml names match
 // pkg/snmp.Authentication. ID is the join key an RC instance references, Name
 // is a human label.
 type credential struct {
@@ -39,13 +44,13 @@ type credential struct {
 	ContextEngineID string `yaml:"context_engine_id"`
 }
 
-// credentialsDocument is one credential file.
+// credentialsDocument is the credential file.
 type credentialsDocument struct {
 	Credentials []credential `yaml:"credentials"`
 }
 
-// credentialStore reads the credential files Fleet Automation writes under
-// conf.d/snmp.d/credentials.
+// credentialStore reads the credential file Fleet Automation writes to
+// conf.d/snmp.d/credentials/snmp_credentials.yaml.
 type credentialStore struct {
 	cfg model.Reader
 }
@@ -54,47 +59,35 @@ func newCredentialStore(cfg model.Reader) *credentialStore {
 	return &credentialStore{cfg: cfg}
 }
 
-// dir returns where the credential files are expected.
-func (s *credentialStore) dir() string {
-	return filepath.Join(s.cfg.GetString("confd_path"), credentialsDir)
+// path returns where the credential file is expected.
+func (s *credentialStore) path() string {
+	return filepath.Join(s.cfg.GetString("confd_path"), credentialsDir, credentialsFilename)
 }
 
-// load returns the credentials indexed by id, re-reading the files on every
-// call. An absent directory is an empty set. A file that cannot be read or
-// parsed is skipped and named in the returned error, the others still load. An
-// entry with no id is skipped and the first of two entries sharing an id wins.
+// load returns the credentials indexed by id, re-reading the file on every
+// call. An absent file is an empty set. An entry with no id is skipped and the
+// first of two entries sharing an id wins.
 func (s *credentialStore) load() (map[string]credential, error) {
-	dir := s.dir()
-
-	paths, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
+	doc, err := readCredentialsFile(s.path())
 	if err != nil {
-		return nil, fmt.Errorf("failed to list %s: %w", dir, err)
+		return nil, err
 	}
 
-	creds := make(map[string]credential, len(paths))
-	var failures []error
-
-	for _, path := range paths {
-		doc, err := readCredentialsFile(path)
-		if err != nil {
-			failures = append(failures, err)
+	creds := make(map[string]credential, len(doc.Credentials))
+	for _, e := range doc.Credentials {
+		if e.ID == "" {
 			continue
 		}
-		for _, e := range doc.Credentials {
-			if e.ID == "" {
-				continue
-			}
-			if _, seen := creds[e.ID]; seen {
-				continue
-			}
-			creds[e.ID] = e
+		if _, seen := creds[e.ID]; seen {
+			continue
 		}
+		creds[e.ID] = e
 	}
 
-	return creds, errors.Join(failures...)
+	return creds, nil
 }
 
-// readCredentialsFile parses one credential file. No file content ever reaches
+// readCredentialsFile parses the credential file. No file content ever reaches
 // the returned error.
 func readCredentialsFile(path string) (credentialsDocument, error) {
 	body, err := os.ReadFile(path)
