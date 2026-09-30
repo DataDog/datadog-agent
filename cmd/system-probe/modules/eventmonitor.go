@@ -132,8 +132,10 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		}
 	}
 
+	// the YARA scanner is an optional add-on: failing to set it up (e.g. missing or unsafe rules)
+	// must not take down the event monitor and the other consumers, CWS included
 	if err := createYaraExecConsumer(evm); err != nil {
-		return nil, fmt.Errorf("cannot create yara exec consumer: %w", err)
+		log.Errorf("yara exec scanner disabled: %v", err)
 	}
 
 	gpucfg := gpuconfig.New()
