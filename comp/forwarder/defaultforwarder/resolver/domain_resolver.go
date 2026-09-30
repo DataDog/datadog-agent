@@ -73,6 +73,9 @@ type domainResolver struct {
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
+	// reconcileMu makes each read-config-then-apply atomic. The OnUpdate callback and the startup
+	// reconcile below can run concurrently, and a stale snapshot must not overwrite a newer one.
+	// The resolver's key data itself is guarded by domainResolver.mu.
 	var reconcileMu sync.Mutex
 	reconcileAdditionalEndpoints := func(setting string) {
 		reconcileMu.Lock()
@@ -150,20 +153,15 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
 	endpoints, ok := additionalEndpoints[resolver.GetConfigName()]
 	if !ok {
-		// Only the infra setting's keys match configName exactly (and only it gets delegated auth
-		// write-back); other forwarders strip the URL path, so a miss there isn't a removal.
+		// Only the infra setting's resolvers are keyed by the raw config URL (it's also the only
+		// resolver-backed setting with delegated auth write-back). Other forwarders normalize to
+		// scheme://host, so a miss there isn't a removal.
 		if setting != "additional_endpoints" {
 			log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetConfigName())
 			return
 		}
-		oldKeys := resolver.GetAPIKeys()
-		resolver.UpdateAPIKeys(setting, nil)
-		removed := missing(oldKeys, resolver.GetAPIKeys())
-		if health := resolver.GetForwarderHealth(); health != nil {
-			health.UpdateAPIKeys(resolver.GetConfigName(), removed, nil)
-		}
-		log.Errorf("the domain in additional_endpoints changed at runtime for '%s'; keys from '%s' were removed", resolver.GetConfigName(), setting)
-		return
+		// The domain was removed: fall through with no keys to drop this setting's keys.
+		log.Errorf("the domain in additional_endpoints changed at runtime for '%s'; removing keys from '%s'", resolver.GetConfigName(), setting)
 	}
 
 	oldKeys := resolver.GetAPIKeys()
