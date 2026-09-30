@@ -11,7 +11,7 @@ package autoinstrumentation
 // target a pod resolves to for every supported selector shape, configuration
 // first-wins (targets reversed at construction so the last-TRUE-wins matcher
 // preserves config order), and static vs remote-config source precedence. It
-// exercises matching through NewTargetMutator + TargetMutator.getSSITarget.
+// exercises matching through NewTargetMutator + TargetMutator.getSSIPlan.
 
 import (
 	"testing"
@@ -75,7 +75,7 @@ func runMatchCases(t *testing.T, yamlCfg string, cases []matchCase, namespaces .
 			m := newMatchMutator(t, yamlCfg, wmeta)
 			pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: tc.ns, Labels: tc.podLabels}}
 			got := ""
-			if target := m.getSSITarget(pod); target != nil {
+			if target := m.getSSIPlan(pod); target != nil {
 				got = target.name
 			}
 			require.Equal(t, tc.want, got)
@@ -176,18 +176,18 @@ apm_config:
 	}
 
 	type want struct {
-		name       string
-		fromPolicy bool
+		name             string
+		fromRemoteConfig bool
 	}
 	nothing := want{}
 	helm := func(name string) want { return want{name: name} }
-	rc := func(name string) want { return want{name: name, fromPolicy: true} }
+	rc := func(name string) want { return want{name: name, fromRemoteConfig: true} }
 
 	assertMatch := func(t *testing.T, m *TargetMutator, ns string, labels map[string]string, w want) {
 		t.Helper()
-		name, fromPolicy := matchedTarget(t, m, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Labels: labels}})
+		name, fromRemoteConfig := matchedTarget(t, m, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Labels: labels}})
 		require.Equal(t, w.name, name)
-		require.Equal(t, w.fromPolicy, fromPolicy)
+		require.Equal(t, w.fromRemoteConfig, fromRemoteConfig)
 	}
 
 	t.Run("ssi off / no RC / nothing", func(t *testing.T) {

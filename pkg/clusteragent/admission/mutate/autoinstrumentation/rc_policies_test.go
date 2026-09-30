@@ -59,11 +59,11 @@ func podLabelPolicy(name, key, val string, inject bool, versions map[string]stri
 // whether it came from a remote-config policy. A blocked target injects nothing.
 func matchedTarget(t *testing.T, m *TargetMutator, pod *corev1.Pod) (string, bool) {
 	t.Helper()
-	target := m.getSSITarget(pod)
-	if target == nil || target.blocked {
+	resolved := m.getTarget(pod)
+	if resolved == nil {
 		return "", false
 	}
-	return target.name, target.fromPolicy
+	return resolved.plan.name, resolved.selectedBy == injectionSourceRemoteConfig
 }
 
 // TestRemotePolicies_AppliedOnEmptyBaseline verifies that remote policies match
@@ -73,7 +73,7 @@ func TestRemotePolicies_AppliedOnEmptyBaseline(t *testing.T) {
 	m := newMatchMutator(t, rcDisabledCfg, wmeta)
 
 	// No remote policies yet: nothing matches.
-	require.Nil(t, m.getSSITarget(rcPod("ns", map[string]string{"app": "db"})))
+	require.Nil(t, m.getSSIPlan(rcPod("ns", map[string]string{"app": "db"})))
 
 	require.NoError(t, m.SetRemotePolicies([]policies.Policy{
 		podLabelPolicy("remote-java", "app", "db", true, map[string]string{"java": "default"}),
@@ -83,7 +83,7 @@ func TestRemotePolicies_AppliedOnEmptyBaseline(t *testing.T) {
 	require.Equal(t, "remote-java", name)
 	require.True(t, fromPolicy)
 
-	require.Nil(t, m.getSSITarget(rcPod("ns", map[string]string{"app": "other"})))
+	require.Nil(t, m.getSSIPlan(rcPod("ns", map[string]string{"app": "other"})))
 }
 
 // TestRemotePolicies_OverrideStaticMatch verifies last-TRUE-wins across planes:
@@ -188,7 +188,7 @@ func TestOnRemoteConfigUpdate_ParsesAndApplies(t *testing.T) {
 
 	// An empty update clears remote policies (SSI off → nothing).
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{}, apply)
-	require.Nil(t, m.getSSITarget(rcPod("ns", map[string]string{"app": "db-user"})))
+	require.Nil(t, m.getSSIPlan(rcPod("ns", map[string]string{"app": "db-user"})))
 }
 
 func TestOnRemoteConfigUpdate_OrdersPolicyIDsByNumericPrefix(t *testing.T) {
@@ -230,18 +230,18 @@ func TestOnRemoteConfigUpdate_OrdersPolicyIDsByNumericPrefix(t *testing.T) {
 		"datadog/2/APM_POLICIES/2.kubernetes.allow/config": {Config: []byte(allow)},
 	}, func(string, state.ApplyStatus) {})
 
-	remote := m.remoteSource.policies.Load()
+	remote := m.remoteSource.current.Load()
 	require.NotNil(t, remote)
-	require.Len(t, remote.policies.matcher.policies, 2)
+	require.Len(t, remote.matcher.policies, 2)
 	// Numeric prefix sorts 2.kubernetes.allow before 10.kubernetes.deny.
-	require.Equal(t, "allow", remote.policies.matcher.policies[0].Name)
-	require.Equal(t, "deny", remote.policies.matcher.policies[1].Name)
+	require.Equal(t, "allow", remote.matcher.policies[0].Name)
+	require.Equal(t, "deny", remote.matcher.policies[1].Name)
 
 	// Last-TRUE-wins: deny is after allow, both match app=db.
 	resolved := m.resolveTarget(rcPod("ns", map[string]string{"app": "db"}))
 	require.NotNil(t, resolved)
-	require.Equal(t, "deny", resolved.target.name)
-	require.True(t, resolved.target.blocked)
+	require.Equal(t, "deny", resolved.plan.name)
+	require.True(t, resolved.plan.blocked)
 }
 
 // TestRemotePolicies_BlockedPodIsAnnotated verifies that a pod denied by a
@@ -389,7 +389,7 @@ func TestOnRemoteConfigUpdate_KeepsOnlyKubernetesPolicyIDs(t *testing.T) {
 	m.onRemoteConfigUpdate(map[string]state.RawConfig{
 		"datadog/2/APM_POLICIES/1.linux/config": {Config: []byte(linux)},
 	}, func(string, state.ApplyStatus) {})
-	require.Nil(t, m.getSSITarget(rcPod("ns", map[string]string{"app": "db"})))
+	require.Nil(t, m.getSSIPlan(rcPod("ns", map[string]string{"app": "db"})))
 }
 
 // TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline verifies that one malformed

@@ -84,11 +84,11 @@ func TestHasAllowedTracerConfigPrefix(t *testing.T) {
 	require.False(t, hasAllowedTracerConfigPrefix(""))
 }
 
-func TestBuildInternalTargetsTracerConfigPrefix(t *testing.T) {
+func TestBuildInjectionPlansTracerConfigPrefix(t *testing.T) {
 	config := &Config{staticConfig: staticConfig{containerRegistry: "registry"}}
 
 	t.Run("DD_ and OTEL_ prefixed tracer configs are accepted", func(t *testing.T) {
-		targets, err := buildInternalTargets(config, []Target{
+		plans, err := buildInjectionPlans(config, []Target{
 			{
 				Name: "otel-mode",
 				TracerConfigs: []TracerConfig{
@@ -98,15 +98,15 @@ func TestBuildInternalTargetsTracerConfigPrefix(t *testing.T) {
 			},
 		}, nil)
 		require.NoError(t, err)
-		require.Len(t, targets, 1)
+		require.Len(t, plans, 1)
 		require.Equal(t, []corev1.EnvVar{
 			{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
 			{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
-		}, targets[0].envVars)
+		}, plans[0].tracerEnvVars)
 	})
 
 	t.Run("tracer config without an allowed prefix is rejected", func(t *testing.T) {
-		_, err := buildInternalTargets(config, []Target{
+		_, err := buildInjectionPlans(config, []Target{
 			{
 				Name:          "bad-target",
 				TracerConfigs: []TracerConfig{{Name: "GENERIC_VAR", Value: "true"}},
@@ -506,7 +506,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 	tests := map[string]struct {
 		configPath string
 		in         *corev1.Pod
-		expected   *targetInternal
+		expected   *injectionPlan
 	}{
 		"a pod with no annotations gets no values": {
 			configPath: "testdata/filter_limited.yaml",
@@ -530,8 +530,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -565,11 +565,11 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
-				envVars: []corev1.EnvVar{
+				tracerEnvVars: []corev1.EnvVar{
 					{Name: "DD_PROFILING_ENABLED", Value: "true"},
 					{Name: "DD_DATA_JOBS_ENABLED", Value: "true"},
 				},
@@ -589,8 +589,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				envVars: []corev1.EnvVar{
+			expected: &injectionPlan{
+				tracerEnvVars: []corev1.EnvVar{
 					{Name: "DD_PROFILING_ENABLED", Value: "true"},
 				},
 			},
@@ -609,11 +609,11 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
-				envVars: []corev1.EnvVar{
+				tracerEnvVars: []corev1.EnvVar{
 					{Name: "DD_PROFILING_ENABLED", Value: "true"},
 				},
 			},
@@ -632,11 +632,11 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
-				envVars: []corev1.EnvVar{
+				tracerEnvVars: []corev1.EnvVar{
 					{Name: "OTEL_TRACES_EXPORTER", Value: "otlp"},
 					{Name: "DD_TRACE_OTEL_ENABLED", Value: "true"},
 				},
@@ -656,8 +656,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 					},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -689,16 +689,16 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 
 			// Validate the output.
 			if test.expected == nil {
-				require.Nil(t, actual.target)
+				require.Nil(t, actual.plan)
 			} else {
 				require.NotNil(t, actual)
-				require.NotNil(t, actual.target)
+				require.NotNil(t, actual.plan)
 				// Some cases (e.g. inject-all) populate libVersions with the default
 				// libraries, which we don't assert on here; only check when set.
-				if test.expected.libVersions != nil {
-					require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+				if test.expected.libraries != nil {
+					require.Equal(t, test.expected.libraries, actual.plan.libraries)
 				}
-				require.Equal(t, test.expected.envVars, actual.target.envVars)
+				require.Equal(t, test.expected.tracerEnvVars, actual.plan.tracerEnvVars)
 			}
 		})
 	}
@@ -709,7 +709,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 		pod                *corev1.Pod
 		workload           ssi.DDICRTarget
 		entry              ssi.DDIAPMConfig
-		expected           *targetInternal
+		expected           *injectionPlan
 		continueResolution bool
 	}{
 		"deployment owned pod gets CRD target": {
@@ -720,9 +720,9 @@ func TestGetTargetFromCRD(t *testing.T) {
 			}.Create(),
 			workload: ssi.DDICRTarget{Kind: "Deployment", Namespace: "application", Name: "web"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, true, map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}}),
-			expected: &targetInternal{
-				libVersions: []libInfo{defaultLibInfoWithVersion(python, "v4")},
-				envVars:     []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+			expected: &injectionPlan{
+				libraries:     []libInfo{defaultLibInfoWithVersion(python, "v4")},
+				tracerEnvVars: []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
 			},
 		},
 		"rollout owned pod gets CRD target": {
@@ -736,9 +736,9 @@ func TestGetTargetFromCRD(t *testing.T) {
 			}.Create(),
 			workload: ssi.DDICRTarget{Kind: "Rollout", Namespace: "application", Name: "web-rollout"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-rollout"}, true, map[string]string{"python": "v4"}, []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}}),
-			expected: &targetInternal{
-				libVersions: []libInfo{defaultLibInfoWithVersion(python, "v4")},
-				envVars:     []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
+			expected: &injectionPlan{
+				libraries:     []libInfo{defaultLibInfoWithVersion(python, "v4")},
+				tracerEnvVars: []corev1.EnvVar{{Name: "DD_SERVICE", Value: "web"}},
 			},
 		},
 		"statefulset owned pod gets CRD target": {
@@ -749,8 +749,8 @@ func TestGetTargetFromCRD(t *testing.T) {
 			}.Create(),
 			workload: ssi.DDICRTarget{Kind: "StatefulSet", Namespace: "application", Name: "db"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-db"}, true, map[string]string{"java": "v1"}, nil),
-			expected: &targetInternal{
-				libVersions: []libInfo{defaultLibInfoWithVersion(java, "v1")},
+			expected: &injectionPlan{
+				libraries: []libInfo{defaultLibInfoWithVersion(java, "v1")},
 			},
 		},
 		"job owned pod gets CRD target": {
@@ -761,8 +761,8 @@ func TestGetTargetFromCRD(t *testing.T) {
 			}.Create(),
 			workload: ssi.DDICRTarget{Kind: "Job", Namespace: "application", Name: "batch-job"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-job"}, true, map[string]string{"dotnet": "v3"}, nil),
-			expected: &targetInternal{
-				libVersions: []libInfo{defaultLibInfoWithVersion(dotnet, "v3")},
+			expected: &injectionPlan{
+				libraries: []libInfo{defaultLibInfoWithVersion(dotnet, "v3")},
 			},
 		},
 		"cronjob owned job pod gets CRD target": {
@@ -773,8 +773,8 @@ func TestGetTargetFromCRD(t *testing.T) {
 			}.Create(),
 			workload: ssi.DDICRTarget{Kind: "CronJob", Namespace: "application", Name: "nightly"},
 			entry:    ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-cron"}, true, map[string]string{"ruby": "v2"}, nil),
-			expected: &targetInternal{
-				libVersions: []libInfo{defaultLibInfoWithVersion(ruby, "v2")},
+			expected: &injectionPlan{
+				libraries: []libInfo{defaultLibInfoWithVersion(ruby, "v2")},
 			},
 		},
 		"cronjob owned pod does not match generated job target": {
@@ -819,20 +819,19 @@ func TestGetTargetFromCRD(t *testing.T) {
 
 			actual := mutator.ddiSource.resolve(test.pod)
 			if test.continueResolution {
-				require.Equal(t, sourceAbstain, actual.action)
-				require.Nil(t, actual.target)
+				require.Equal(t, sourcePass, actual.action)
+				require.Nil(t, actual.plan)
 				return
 			}
-			require.NotEqual(t, sourceAbstain, actual.action)
+			require.NotEqual(t, sourcePass, actual.action)
 			if test.expected == nil {
-				require.Nil(t, actual.target)
+				require.Nil(t, actual.plan)
 				return
 			}
 
-			require.NotNil(t, actual.target)
-			require.Equal(t, test.expected.libVersions, actual.target.libVersions)
-			require.ElementsMatch(t, test.expected.envVars, actual.target.envVars)
-			require.False(t, actual.target.fromPolicy)
+			require.NotNil(t, actual.plan)
+			require.Equal(t, test.expected.libraries, actual.plan.libraries)
+			require.ElementsMatch(t, test.expected.tracerEnvVars, actual.plan.tracerEnvVars)
 		})
 	}
 }
@@ -878,7 +877,7 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 	}.Create()
 	resolved := mutator.getTarget(pod)
 	require.NotNil(t, resolved)
-	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.target.libVersions, "DDI should win over remote config")
+	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.plan.libraries, "DDI should win over remote config")
 
 	store[workload] = ddiTarget(types.NamespacedName{Namespace: "application", Name: "ddi-web"}, false, nil, nil)
 	require.Nil(t, mutator.getTarget(pod), "CRD opt-out should block static and remote config fallback")
@@ -887,7 +886,7 @@ func TestGetTargetPrecedenceWithCRD(t *testing.T) {
 	mutator.ClearRemotePolicies()
 	resolved = mutator.getTarget(pod)
 	require.NotNil(t, resolved)
-	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.target.libVersions)
+	require.Equal(t, []libInfo{defaultLibInfoWithVersion(python, "v4")}, resolved.plan.libraries)
 }
 
 func TestGetTargetLibraries(t *testing.T) {
@@ -897,7 +896,7 @@ func TestGetTargetLibraries(t *testing.T) {
 		configPath string
 		in         *corev1.Pod
 		namespaces []workloadmeta.KubernetesMetadata
-		expected   *targetInternal
+		expected   *injectionPlan
 	}{
 		"a rule without selectors applies as a default": {
 			configPath: "testdata/filter.yaml",
@@ -912,8 +911,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("foo", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
@@ -946,8 +945,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("billing-service", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -965,8 +964,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 				},
 			},
@@ -1000,8 +999,8 @@ func TestGetTargetLibraries(t *testing.T) {
 					"env":     "prod",
 				}),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(dotnet, "v1"),
 				},
 			},
@@ -1034,8 +1033,8 @@ func TestGetTargetLibraries(t *testing.T) {
 					Labels:    map[string]string{},
 				},
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(js, "v5"),
 				},
 			},
@@ -1053,8 +1052,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
@@ -1077,8 +1076,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("kube-system", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 				},
 			},
@@ -1093,8 +1092,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(python, "v3"),
 				},
 			},
@@ -1109,8 +1108,8 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", nil),
 			},
-			expected: &targetInternal{
-				libVersions: []libInfo{
+			expected: &injectionPlan{
+				libraries: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v6"),
 					defaultLibInfoWithVersion(python, "v4"),
@@ -1148,14 +1147,14 @@ func TestGetTargetLibraries(t *testing.T) {
 			require.NoError(t, err)
 
 			// Filter the pod.
-			actual := f.getSSITarget(test.in)
+			actual := f.getSSIPlan(test.in)
 
 			// Validate the output.
 			if test.expected == nil {
 				require.Nil(t, actual)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.libVersions)
+				require.Equal(t, test.expected.libraries, actual.libraries)
 			}
 		})
 	}
