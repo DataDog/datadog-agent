@@ -81,6 +81,9 @@ const (
 	// regardless of the configured or requested mode. For "auto" mode, this reflects the resolved mode.
 	// Example value: csi
 	EffectiveInjectionMode = "internal.apm.datadoghq.com/effective-injection-mode"
+	// AutoInjectionModeReason is set with the reason why the "auto" mode picked the effective injection mode.
+	// Example value: the cluster runs OpenShift
+	AutoInjectionModeReason = "internal.apm.datadoghq.com/auto-injection-mode-reason"
 	// CSIDriverStatus is set with the observed state of the Datadog CSI driver at
 	// injection time. It is set whenever the CSIDriverWatcher exists, which is the
 	// case when auto instrumentation is enabled. See the CSIDriverStatus* constants below.

@@ -129,6 +129,9 @@ func TestInjectAPMLibraries_Annotations_InitContainer(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "init_container", mode)
 
+	_, ok = annotation.Get(pod, annotation.AutoInjectionModeReason)
+	assert.False(t, ok, "the reason is only set in auto mode")
+
 	status, ok := annotation.Get(pod, annotation.InjectionStatus)
 	require.True(t, ok)
 	assert.Equal(t, annotation.InjectionStatusInjected, status)
@@ -179,6 +182,10 @@ func TestInjectAPMLibraries_Annotations_Auto_CSI(t *testing.T) {
 	mode, ok := annotation.Get(pod, annotation.EffectiveInjectionMode)
 	require.True(t, ok)
 	assert.Equal(t, "csi (auto)", mode)
+
+	reason, ok := annotation.Get(pod, annotation.AutoInjectionModeReason)
+	require.True(t, ok)
+	assert.Equal(t, "all CSI requirements are met", reason)
 }
 
 // TestInjectAPMLibraries_Annotations_Auto_InitContainer verifies that auto mode
@@ -197,6 +204,10 @@ func TestInjectAPMLibraries_Annotations_Auto_InitContainer(t *testing.T) {
 	mode, ok := annotation.Get(pod, annotation.EffectiveInjectionMode)
 	require.True(t, ok)
 	assert.Equal(t, "init_container (auto)", mode)
+
+	reason, ok := annotation.Get(pod, annotation.AutoInjectionModeReason)
+	require.True(t, ok)
+	assert.Equal(t, "the CSI driver is not installed or APM is not enabled", reason)
 }
 
 // TestInjectAPMLibraries_Annotations_Skipped verifies that when injection is

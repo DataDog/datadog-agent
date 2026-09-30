@@ -9,12 +9,12 @@ package libraryinjection
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
 
 	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -79,6 +79,7 @@ var minCSILibraryVersions = map[string]libCompat{
 //   - InitContainerProvider otherwise.
 type AutoProvider struct {
 	realProvider LibraryInjectionProvider
+	reason       string
 }
 
 // NewAutoProvider creates a new AutoProvider for the given config.
@@ -88,48 +89,44 @@ type AutoProvider struct {
 // via a single atomic load, so the hot path stays cheap regardless of how
 // often the CSI driver state changes.
 func NewAutoProvider(cfg LibraryInjectionConfig) *AutoProvider {
+	provider, reason := pickAutoProvider(cfg)
+	log.Debugf("library injection auto provider: using %s: %s", provider.GetName(), reason)
 	return &AutoProvider{
-		realProvider: pickAutoProvider(cfg),
+		realProvider: provider,
+		reason:       reason,
 	}
 }
 
 // pickAutoProvider returns the concrete provider that AutoProvider will
-// delegate to. It is split out from NewAutoProvider for testability.
+// delegate to, and the reason for the choice.
 //
 // A nil CSIDriverWatcher always selects the init-container provider.
-func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
+func pickAutoProvider(cfg LibraryInjectionConfig) (LibraryInjectionProvider, string) {
 	if cfg.CSIDriverWatcher == nil || !cfg.CSIDriverWatcher.IsAPMEnabled() {
-		log.Debugf("library injection auto provider: Datadog CSI driver %q is unavailable for APM injection, using InitContainerProvider", csiDriverName)
-		return NewInitContainerProvider(cfg)
+		return NewInitContainerProvider(cfg), "the CSI driver is not installed or APM is not enabled"
 	}
 	if cfg.IsOpenShift {
 		// Pods injected through the CSI driver need extra privileges on OpenShift.
-		log.Debugf("library injection auto provider: cluster runs OpenShift, using InitContainerProvider")
-		return NewInitContainerProvider(cfg)
+		return NewInitContainerProvider(cfg), "the cluster runs OpenShift"
 	}
-	if !isCSISupported(cfg.KubeServerVersion) {
+	kubeVersion, ok := normalizeKubeSemver(cfg.KubeServerVersion)
+	if !ok {
+		return NewInitContainerProvider(cfg), "the Kubernetes version is unknown"
+	}
+	if semver.Compare(semver.MajorMinor(kubeVersion), minCSIKubeVersion) < 0 {
 		// Kubelet 1.19 and older create the CSI target path as a directory, so the
 		// CSI driver cannot bind-mount the preload file there.
-		log.Debugf("library injection auto provider: Kubernetes version %v is unknown or older than %s, using InitContainerProvider", cfg.KubeServerVersion, minCSIKubeVersion)
-		return NewInitContainerProvider(cfg)
+		return NewInitContainerProvider(cfg), fmt.Sprintf("Kubernetes %s is older than %s", kubeVersion, minCSIKubeVersion)
 	}
 	if registry, found := firstUnsupportedCSIRegistry(cfg); found {
-		log.Debugf("library injection auto provider: registry %q requires workload image pull credentials, using InitContainerProvider", registry)
-		return NewInitContainerProvider(cfg)
+		return NewInitContainerProvider(cfg), fmt.Sprintf("registry %s is not a Datadog public registry", registry)
 	}
 	for _, library := range cfg.Libraries {
 		if !isCSICompatibleLibrary(library) {
-			log.Debugf("library injection auto provider: %s library version %q predates CSI support, using InitContainerProvider", library.Language, libraryVersion(library))
-			return NewInitContainerProvider(cfg)
+			return NewInitContainerProvider(cfg), fmt.Sprintf("%s library version %s predates CSI support", library.Language, libraryVersion(library))
 		}
 	}
-	log.Debugf("library injection auto provider: Datadog CSI driver %q is registered with APM enabled, using CSIProvider", csiDriverName)
-	return NewCSIProvider(cfg)
-}
-
-func isCSISupported(serverVersion *version.Info) bool {
-	sv, ok := normalizeKubeSemver(serverVersion)
-	return ok && semver.Compare(semver.MajorMinor(sv), minCSIKubeVersion) >= 0
+	return NewCSIProvider(cfg), "all CSI requirements are met"
 }
 
 func firstUnsupportedCSIRegistry(cfg LibraryInjectionConfig) (string, bool) {
@@ -180,6 +177,11 @@ func isCSICompatibleLibrary(library LibraryConfig) bool {
 // suffixed with " (auto)" to indicate that the mode was automatically selected.
 func (p *AutoProvider) GetName() string {
 	return p.realProvider.GetName() + " (auto)"
+}
+
+// Reason explains why the auto mode picked the concrete provider.
+func (p *AutoProvider) Reason() string {
+	return p.reason
 }
 
 // InjectInjector mutates the pod to add the APM injector.

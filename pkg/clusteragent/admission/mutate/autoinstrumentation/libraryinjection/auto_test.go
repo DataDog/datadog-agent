@@ -262,6 +262,48 @@ func TestAutoProvider_LibraryVersion(t *testing.T) {
 	}
 }
 
+func TestAutoProvider_Reason(t *testing.T) {
+	csiConfig := func() libraryinjection.LibraryInjectionConfig {
+		return libraryinjection.LibraryInjectionConfig{
+			Injector:          injectorConfig(),
+			CSIAutoRegistries: defaultCSIAutoRegistries,
+			CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+			KubeServerVersion: csiKubeVersion,
+		}
+	}
+	tests := []struct {
+		name       string
+		update     func(*libraryinjection.LibraryInjectionConfig)
+		wantReason string
+	}{
+		{"csi", func(*libraryinjection.LibraryInjectionConfig) {}, "all CSI requirements are met"},
+		{"no csi driver", func(cfg *libraryinjection.LibraryInjectionConfig) { cfg.CSIDriverWatcher = nil }, "the CSI driver is not installed or APM is not enabled"},
+		{"openshift", func(cfg *libraryinjection.LibraryInjectionConfig) { cfg.IsOpenShift = true }, "the cluster runs OpenShift"},
+		{"unknown kubernetes version", func(cfg *libraryinjection.LibraryInjectionConfig) { cfg.KubeServerVersion = nil }, "the Kubernetes version is unknown"},
+		{"unparsable kubernetes version", func(cfg *libraryinjection.LibraryInjectionConfig) { cfg.KubeServerVersion = &version.Info{} }, "the Kubernetes version is unknown"},
+		{"old kubernetes version", func(cfg *libraryinjection.LibraryInjectionConfig) {
+			cfg.KubeServerVersion = &version.Info{GitVersion: "v1.19.16"}
+		}, "Kubernetes v1.19.16 is older than v1.20"},
+		{"unsupported registry", func(cfg *libraryinjection.LibraryInjectionConfig) {
+			cfg.Injector.Package.Registry = "registry.example.com/datadog"
+		}, "registry registry.example.com/datadog is not a Datadog public registry"},
+		{"old library version", func(cfg *libraryinjection.LibraryInjectionConfig) {
+			cfg.Libraries = []libraryinjection.LibraryConfig{{
+				Language: "python",
+				Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-python-init:v2.10.4", ""),
+			}}
+		}, "python library version v2.10.4 predates CSI support"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := csiConfig()
+			tt.update(&cfg)
+			require.Equal(t, tt.wantReason, libraryinjection.NewAutoProvider(cfg).Reason())
+		})
+	}
+}
+
 func TestAutoProvider_KubernetesVersion(t *testing.T) {
 	tests := []struct {
 		name          string

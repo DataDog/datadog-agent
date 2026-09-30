@@ -13,7 +13,9 @@ upgrade:
     - The tracer images are compatible with the CSI driver (released in
       August 2024 or later).
 
-    Otherwise, it still uses init containers. To keep init containers, set
+    Otherwise, it still uses init containers. The
+    ``internal.apm.datadoghq.com/auto-injection-mode-reason`` pod annotation
+    explains the choice. To keep init containers, set
     ``datadog.apm.instrumentation.injectionMode`` (Helm) or
     ``features.apm.instrumentation.injectionMode`` (Operator) to
     ``init_container``.
