@@ -10,6 +10,7 @@ package http
 import (
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -57,7 +58,10 @@ type HttpDriverInterface struct {
 	readMux     sync.Mutex
 	DataChannel chan []WinHttpTransaction
 	eventLoopWG sync.WaitGroup
-	closed      bool
+	// closing is set once shutdown starts, before DataChannel is closed.
+	// Readers must not send after seeing it. It is atomic rather than
+	// readMux-guarded so that it can be set while a drain holds readMux.
+	closing atomic.Bool
 	// configuration entries
 	maxTransactions       uint64
 	notificationThreshold uint64
@@ -126,14 +130,16 @@ func (di *HttpDriverInterface) setupHTTPHandle(dh driver.Handle) error {
 func (di *HttpDriverInterface) ReadAllPendingTransactions() {
 	di.readMux.Lock()
 	defer di.readMux.Unlock()
-	if di.closed {
-		// DataChannel is closed, or about to be: sending would panic. This is
-		// reachable because GetHTTPStats reads pending transactions on behalf
-		// of a client, concurrently with the monitor shutting down.
-		return
-	}
 	count := int(0)
 	for {
+		// Checked every batch, not just on entry: DataChannel is closed, or
+		// about to be, so sending would panic. Giving up mid-drain also keeps
+		// this from outlasting shutdown, since the loop only ends on its own
+		// once the driver runs dry, which sustained traffic can postpone
+		// indefinitely.
+		if di.closing.Load() {
+			return
+		}
 		txns, err := di.readPendingTransactions()
 		if err != nil {
 			log.Warnf("Error reading http transaction buffer: %v", err)
@@ -158,7 +164,7 @@ func (di *HttpDriverInterface) StartReadingBuffers() {
 
 		for {
 			_, _ = windows.WaitForSingleObject(di.driverEventHandle, windows.INFINITE)
-			if di.isClosed() {
+			if di.closing.Load() {
 				break
 			}
 			di.ReadAllPendingTransactions()
@@ -166,10 +172,12 @@ func (di *HttpDriverInterface) StartReadingBuffers() {
 	}()
 }
 
-func (di *HttpDriverInterface) isClosed() bool {
-	di.readMux.Lock()
-	defer di.readMux.Unlock()
-	return di.closed
+// PrepareStop stops readers from producing on DataChannel without tearing
+// anything down, so that work already in flight finishes promptly. Close calls
+// it, and shutdown calls it earlier to bound a collection it has to wait for.
+// It is safe to call repeatedly.
+func (di *HttpDriverInterface) PrepareStop() {
+	di.closing.Store(true)
 }
 
 // func (di *httpDriverInterface) flushPendingTransactions() ([]driver.HttpTransactionType, error) {
@@ -205,12 +213,8 @@ func (di *HttpDriverInterface) readPendingTransactions() ([]WinHttpTransaction, 
 
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (di *HttpDriverInterface) Close() error {
-	// Taking readMux makes any reader that is already sending on DataChannel
-	// finish first, and stops later readers from sending at all, so the close
-	// below cannot race with a send.
-	di.readMux.Lock()
-	di.closed = true
-	di.readMux.Unlock()
+	di.PrepareStop()
+	di.awaitQuietReaders()
 
 	windows.SetEvent(di.driverEventHandle)
 	di.eventLoopWG.Wait()
@@ -218,4 +222,14 @@ func (di *HttpDriverInterface) Close() error {
 	close(di.DataChannel)
 
 	return nil
+}
+
+// awaitQuietReaders returns once no reader sits between its closing check and
+// its send, which is the only window in which closing DataChannel could race
+// with a send. A reader in that window is at most one batch from releasing
+// readMux, because it re-checks closing before reading the next one.
+func (di *HttpDriverInterface) awaitQuietReaders() {
+	di.readMux.Lock()
+	defer di.readMux.Unlock()
+	log.Debugf("http driver interface: no reader is sending, safe to tear down")
 }
