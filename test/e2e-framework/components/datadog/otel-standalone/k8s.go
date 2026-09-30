@@ -335,6 +335,16 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 			},
+			&corev1.EnvVarArgs{
+				// Scopes the nodefilter workloadmeta collector's API-server pod
+				// watch to this node (spec.nodeName field selector).
+				Name: pulumi.String("DD_KUBERNETES_KUBELET_NODENAME"),
+				ValueFrom: &corev1.EnvVarSourceArgs{
+					FieldRef: &corev1.ObjectFieldSelectorArgs{
+						FieldPath: pulumi.String("spec.nodeName"),
+					},
+				},
+			},
 		)
 		if !acfg.skipDefaultHostname {
 			// Provide an explicit hostname so standalone mode does not have to

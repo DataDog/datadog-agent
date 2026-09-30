@@ -4,8 +4,9 @@
 // Copyright 2024-present Datadog, Inc.
 
 // Package catalog is the workloadmeta collector catalog for the otel-agent.
-// It includes collectors for Kubernetes (kubelet) and container runtimes so that
-// the local tagger can enrich OTel spans/metrics/logs with K8s entity tags.
+// It includes collectors for Kubernetes (nodefilter, or kubelet as an
+// opt-out) and container runtimes so that the local tagger can enrich OTel
+// spans/metrics/logs with K8s entity tags.
 package catalog
 
 import (
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nodefilter"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 )
 
@@ -29,6 +31,7 @@ func GetCatalog() fx.Option {
 		ecs.GetFxOptions(),
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
+		nodefilter.GetFxOptions(),
 		podman.GetFxOptions(),
 	}
 

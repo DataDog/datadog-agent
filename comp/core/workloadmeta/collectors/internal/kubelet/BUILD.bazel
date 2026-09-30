@@ -18,6 +18,7 @@ go_library(
         "//pkg/config/helper",
         "//pkg/errors",
         "//pkg/util/containers",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/kubelet",
         "@org_uber_go_fx//:fx",
     ],

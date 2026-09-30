@@ -49,6 +49,7 @@ ALL_TAGS = set([
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
+    "nodefilter",  # used for the nodefilter workloadmeta collector (node-scoped API-server pod watch)
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",
@@ -270,7 +271,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = set(["netgo", "osusergo"])
 
-OTEL_AGENT_TAGS = set(["otlp", "zlib", "zstd", "kubelet"])
+OTEL_AGENT_TAGS = set(["otlp", "zlib", "zstd", "kubelet", "nodefilter"])
 
 LOADER_TAGS = set()
 

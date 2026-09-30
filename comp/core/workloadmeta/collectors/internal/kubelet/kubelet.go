@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -46,6 +47,13 @@ type collector struct {
 	collectEphemeralContainers bool
 	pullInterval               time.Duration
 
+	// standalone and useKubelet mirror the nodefilter collector's own fields:
+	// they let otel-agent running in DDOT standalone mode default to
+	// nodefilter instead of kubelet, with useKubelet as the opt-out back to
+	// this collector.
+	standalone bool
+	useKubelet bool
+
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
 	lastSeenContainerIDs map[string]time.Time
@@ -63,6 +71,8 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			catalog:                    workloadmeta.NodeAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 			pullInterval:               time.Duration(deps.Config.GetInt("kubelet_collector_pull_interval")) * time.Second,
+			standalone:                 deps.Config.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent,
+			useKubelet:                 deps.Config.GetBool("otelcollector.standalone.use_kubelet_collector"),
 		},
 	}, nil
 }
@@ -83,6 +93,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 	if c.isCLCRunner {
 		return errors.NewDisabled(componentName, "Agent is a Cluster Checks Runner and has no reachable local Kubelet")
+	}
+
+	if c.standalone && !c.useKubelet {
+		return errors.NewDisabled(componentName, "Agent is running otel-agent in DDOT standalone mode, which defaults to the nodefilter collector")
 	}
 
 	c.store = store
