@@ -1092,10 +1092,10 @@ def get_preset_contexts(required_tests):
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
         ("CI_PIPELINE_SOURCE", ["push", "api"]),  # ["trigger", "pipeline", "schedule"]
         ("DEPLOY_AGENT", ["true"]),
-        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_MACOS_BUILD", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["on"]),
-        ("RUN_UNIT_TESTS", ["on"]),
+        ("RUN_KMT_TESTS", ["true"]),
+        ("RUN_UNIT_TESTS", ["true"]),
     ]
     release_contexts = [
         ("BUCKET_BRANCH", ["stable"]),
@@ -1103,20 +1103,20 @@ def get_preset_contexts(required_tests):
         ("CI_COMMIT_TAG", ["3.2.1", "1.2.3-rc.4"]),
         ("CI_PIPELINE_SOURCE", ["schedule"]),
         ("DEPLOY_AGENT", ["true"]),
-        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_MACOS_BUILD", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["on"]),
-        ("RUN_UNIT_TESTS", ["on"]),
+        ("RUN_KMT_TESTS", ["true"]),
+        ("RUN_UNIT_TESTS", ["true"]),
     ]
     mq_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
         ("CI_COMMIT_BRANCH", ["mq-working-branch-main"]),
         ("CI_PIPELINE_SOURCE", ["api"]),
         ("DEPLOY_AGENT", ["false"]),
-        ("RUN_ALL_BUILDS", ["false"]),
+        ("RUN_MACOS_BUILD", ["false"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["off"]),
-        ("RUN_UNIT_TESTS", ["off"]),
+        ("RUN_KMT_TESTS", ["false"]),
+        ("RUN_UNIT_TESTS", ["false"]),
     ]
     conductor_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
@@ -1130,10 +1130,10 @@ def get_preset_contexts(required_tests):
         ("CI_PIPELINE_SOURCE", ["push", "api"]),
         ("DEPLOY_AGENT", ["false"]),
         ("DEPLOY_INSTALLER", ["true"]),
-        ("RUN_ALL_BUILDS", ["true"]),
+        ("RUN_MACOS_BUILD", ["true"]),
         ("RUN_E2E_TESTS", ["auto"]),
-        ("RUN_KMT_TESTS", ["on"]),
-        ("RUN_UNIT_TESTS", ["on"]),
+        ("RUN_KMT_TESTS", ["true"]),
+        ("RUN_UNIT_TESTS", ["true"]),
     ]
     integrations_core_contexts = [
         ("BUCKET_BRANCH", ["dev"]),
@@ -1141,7 +1141,7 @@ def get_preset_contexts(required_tests):
         ("CI_PIPELINE_SOURCE", ["pipeline"]),  # ["trigger", "pipeline", "schedule"]
         ("INTEGRATIONS_CORE_VERSION", ["foo/bar"]),
         ("RUN_KITCHEN_TESTS", ["false"]),
-        ("RUN_E2E_TESTS", ["off"]),
+        ("RUN_E2E_TESTS", ["false"]),
     ]
     all_contexts = []
     for test in required_test_list:

@@ -86,7 +86,8 @@
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
-    E2E_SKIP_WINDOWS: $SKIP_WINDOWS
+    # Direct passthrough of the pipeline-level RUN_WINDOWS variable to the e2e framework.
+    E2E_RUN_WINDOWS: $RUN_WINDOWS
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
     E2E_LOGS_PROCESSING_TEST_DEPTH: 1
     FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
@@ -103,7 +104,7 @@
     - export IS_DEV_BRANCH="$(dda inv -- -e pipeline.is-dev-branch)"
     - DYNAMIC_TESTS_BREAKGLASS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DYNAMIC_TESTS_BREAKGLASS value) || exit $?; export DYNAMIC_TESTS_BREAKGLASS
     - |
-      if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ]; then
+      if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "true" ]; then
         export DYNAMIC_TESTS_FLAG=""
       fi
     # E2E_IMAGE_PULL_PASSWORD is a comma-separated list of passwords for the different registries

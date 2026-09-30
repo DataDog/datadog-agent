@@ -1,7 +1,7 @@
 ---
 # Condition mixins for simplification of rules, needed in the include rules so must be defined first
 .if_run_all_e2e_tests: &if_run_all_e2e_tests
-  if: $RUN_E2E_TESTS == "on"
+  if: $RUN_E2E_TESTS == "true"
 
 .if_triggered_pipeline: &if_triggered_pipeline
   if: $CI_PIPELINE_SOURCE == "trigger" || $CI_PIPELINE_SOURCE == "pipeline"
@@ -18,8 +18,12 @@
 .if_mergequeue: &if_mergequeue
   if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
+# The pipeline type can be forced with a single variable, PIPELINE_TYPE ("light", "full" or
+# "full_deploy"); the workflow rules expand it into the individual RUN_*/DEPLOY_* variables below.
+# An explicit "light" is only honored on dev branches (not on main, release branches or tags),
+# otherwise required jobs would be pruned and the pipeline would be broken.
 .if_light_pipeline: &if_light_pipeline
-  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/ || ($GIT_BASE_BRANCH != null && $GIT_BASE_BRANCH != "main" && $GIT_BASE_BRANCH !~ /^[67]\.[0-9]+\.x$/)
+  if: ($CI_COMMIT_BRANCH =~ /^mq-working-branch-/ || ($GIT_BASE_BRANCH != null && $GIT_BASE_BRANCH != "main" && $GIT_BASE_BRANCH !~ /^[67]\.[0-9]+\.x$/) || ($PIPELINE_TYPE == "light" && $CI_COMMIT_BRANCH != null && $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/)) && $PIPELINE_TYPE != "full" && $PIPELINE_TYPE != "full_deploy"
 
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
@@ -145,10 +149,10 @@ include:
   - local: .gitlab/.post/**.yml
   # AIX jobs
   - local: .gitlab/aix/**.yml
-  # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
+  # Windows jobs - set RUN_WINDOWS=off to exclude all Windows-related jobs (legacy SKIP_WINDOWS=true is also accepted)
   - local: .gitlab/windows/**.yml
     rules:
-      - if: $SKIP_WINDOWS == "true"
+      - if: $RUN_WINDOWS == "false" || $SKIP_WINDOWS == "true"
         when: never
       - <<: *if_main_branch
       - <<: *if_release_branch
@@ -156,7 +160,7 @@ include:
       - <<: *if_light_pipeline
       - <<: *if_deploy
       - <<: *if_run_all_e2e_tests
-      # - !reference [.except_skip_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
+      # - !reference [.except_run_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
           paths: *windows_path
           compare_to: main
@@ -339,9 +343,9 @@ variables:
   CLANG_BUILD_VERSION: "v60409452-ee70de70"
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-05b3973acf5422348"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
-  RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
-  RUN_KMT_TESTS: "auto" # Should be "auto" or "on". "on" forces all Kernel Matrix Testing jobs to run.
-  RUN_UNIT_TESTS: "auto" # Should be "auto", "on", "off" it will change the trigger condition for unit tests on branch != main
+  RUN_E2E_TESTS: "auto" # Should be "false", "auto" or "true" it will change the trigger condition for new-e2e tests on branch != main
+  RUN_KMT_TESTS: "auto" # Should be "false", "auto" or "true". "true" forces all Kernel Matrix Testing jobs to run, "false" disables them entirely.
+  RUN_UNIT_TESTS: "auto" # Should be "auto", "true", "false" it will change the trigger condition for unit tests on branch != main
   # skip known flaky tests by default
   GO_TEST_SKIP_FLAKE: "true"
 
@@ -404,7 +408,7 @@ variables:
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
 
-  SKIP_WINDOWS: "false"
+  RUN_WINDOWS: "true"
 
 #
 # Condition mixins for simplification of rules
@@ -431,27 +435,22 @@ variables:
 # CI_PIPELINE_SOURCE can be set to "trigger" or "pipeline" depending on how the trigger was done.
 # See https://docs.gitlab.com/ee/ci/triggers/index.html#configure-cicd-jobs-to-run-in-triggered-pipelines.
 
-# Rule to trigger all builds conditionally.
-# By default:
-# - on main and deploy pipelines, all builds are run
-# - on branch pipelines, only a subset of build jobs are run (the ARM and MacOS jobs are not run).
-# RUN_ALL_BUILDS can be set to true to force all build jobs to be run on a branch pipeline.
-# RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
-# on main and deploy pipelines depend on jobs that are only run if we run all builds).
-.if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true" || $DDR_WORKFLOW_ID != null
-
-.if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true" && $DDR_WORKFLOW_ID == null
+# Rule to build the macOS dmg.
+# By default, the dmg is only built on main and deploy pipelines (and when omnibus changes are
+# made). All the other builds (linux x86_64/arm64, docker images, windows MSI) run on every
+# non-light pipeline, so they don't need a variable.
+# RUN_MACOS_BUILD can be set to "true" to force the dmg build on a branch pipeline.
+.if_run_macos_build: &if_run_macos_build
+  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_MACOS_BUILD == "true" || $DDR_WORKFLOW_ID != null
 
 # Rule to trigger test setup, run, and cleanup.
 # By default:
 # - on main and deploy pipelines, installer tests are run
 # - on branch pipelines, installer tests are run on a subset of the OSes we test
-# RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
-# RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
+# RUN_E2E_TESTS can be set to "true" to force all the installer tests to be run on a branch pipeline.
+# RUN_E2E_TESTS can be set to "false" to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "true" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "false"
 
 # When RUN_E2E_TESTS is set to "auto". We do not enforce a behavior for the tests.
 # The behavior of each test will be defined by its rules.
@@ -461,17 +460,20 @@ variables:
   if: $RUN_E2E_TESTS == "auto"
 
 .if_disable_e2e_tests: &if_disable_e2e_tests
-  if: $RUN_E2E_TESTS == "off"
+  if: $RUN_E2E_TESTS == "false"
 
-# Enable forcing all KMT tests to run
+# Enable forcing all KMT tests to run, or disabling them entirely
 .if_run_all_kmt_tests: &if_run_all_kmt_tests
-  if: $RUN_KMT_TESTS == 'on'
+  if: $RUN_KMT_TESTS == 'true'
+
+.if_disable_kmt_tests: &if_disable_kmt_tests
+  if: $RUN_KMT_TESTS == "false"
 
 .if_disable_unit_tests: &if_disable_unit_tests
-  if: $RUN_UNIT_TESTS == "off"
+  if: $RUN_UNIT_TESTS == "false"
 
 .if_run_all_unit_tests: &if_run_all_unit_tests
-  if: $RUN_UNIT_TESTS == "on"
+  if: $RUN_UNIT_TESTS == "true"
 
 # Schedule on main branch come from conductor, pipeline source is `pipeline`, we use the conductor env variable for identification
 .if_scheduled_main: &if_scheduled_main
@@ -548,6 +550,28 @@ workflow:
         WINDOWS_SIGNING_CONFIG: "s3://windows-code-signing-certificates/certs/beta/config.json"
         BAZEL_CACHE_POLICY_SUFFIX: "-push"
         GO_TEST_SKIP_FLAKE: "false"
+    # Single-knob pipeline selection: PIPELINE_TYPE is expanded here into the individual
+    # RUN_*/DEPLOY_* variables, which remain the knobs consumed by job rules.
+    # - "light": the restricted merge-gate job set (see .if_light_pipeline)
+    # - "full": full test & build matrix on any branch (main-like, but jobs that are
+    #   hard-gated on the main branch itself still don't run)
+    # - "full_deploy": full matrix + deploy pipeline (uploads artifacts to the staging
+    #   repositories, target selected by BUCKET_BRANCH)
+    - if: $PIPELINE_TYPE == "full_deploy"
+      variables:
+        DEPLOY_AGENT: "true"
+        RUN_MACOS_BUILD: "true"
+        RUN_E2E_TESTS: "true"
+        RUN_KMT_TESTS: "true"
+        RUN_UNIT_TESTS: "true"
+        RUN_WINDOWS: "true"
+    - if: $PIPELINE_TYPE == "full"
+      variables:
+        RUN_MACOS_BUILD: "true"
+        RUN_E2E_TESTS: "true"
+        RUN_KMT_TESTS: "true"
+        RUN_UNIT_TESTS: "true"
+        RUN_WINDOWS: "true"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
@@ -566,39 +590,39 @@ workflow:
           - deps/agent_data_plane/agent_data_plane.MODULE.bazel
         compare_to: $COMPARE_TO_BRANCH
       variables:
-        RUN_ALL_BUILDS: "true"
-        RUN_E2E_TESTS: "on"
-        RUN_KMT_TESTS: "on"
-        RUN_UNIT_TESTS: "on"
-        SKIP_WINDOWS: "false"
+        RUN_MACOS_BUILD: "true"
+        RUN_E2E_TESTS: "true"
+        RUN_KMT_TESTS: "true"
+        RUN_UNIT_TESTS: "true"
+        RUN_WINDOWS: "true"
     - changes:
         paths: *windows_path
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        RUN_WINDOWS: "true"
     - changes:
         paths: *windows_path_2
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        RUN_WINDOWS: "true"
     - changes:
         paths: *windows_path_3
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        RUN_WINDOWS: "true"
     - changes:
         paths: *windows_path_4
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        RUN_WINDOWS: "true"
     - changes:
         paths: *bazel_paths
         compare_to: main
       variables:
-        SKIP_WINDOWS: "false"
+        RUN_WINDOWS: "true"
     - if: $CI_COMMIT_TAG == null
       variables:
-        SKIP_WINDOWS: "true"
+        RUN_WINDOWS: "false"
 
 #
 # List of rule blocks used in the pipeline
@@ -697,12 +721,16 @@ workflow:
   - <<: *if_deploy
     when: never
 
-.except_skip_windows:
-  - if: $SKIP_WINDOWS == "true"
+.except_run_windows:
+  # Currently unused (see https://gitlab.com/gitlab-org/gitlab/-/issues/434157), kept in sync with the include rule above.
+  - if: $RUN_WINDOWS == "false"
     when: never
 
+# Makes the e2e deploy stage jobs manual when no tests are run (and this is not a deploy
+# pipeline). Note the use of != instead of == "false": $DEPLOY_AGENT must not be set at all
+# (unset/null) or set to a non-"true" value for the jobs to be downgraded to manual.
 .except_no_tests_no_deploy:
-  - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
+  - if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "false"
     when: manual
     allow_failure: true
 
@@ -790,9 +818,9 @@ workflow:
     when: manual
     allow_failure: true
 
-.on_all_builds:
+.on_macos_build:
   - !reference [.except_light_pipeline]
-  - <<: *if_run_all_builds
+  - <<: *if_run_macos_build
   - <<: *on_build_changes
 
 .on_all_install_script_tests:
@@ -904,7 +932,12 @@ workflow:
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
 
+.except_disable_kmt_tests:
+  - <<: *if_disable_kmt_tests
+    when: never
+
 .on_security_agent_changes_or_manual:
+  - !reference [.except_disable_kmt_tests]
   - <<: *if_main_branch
     allow_failure: true
   - !reference [.except_light_pipeline]
@@ -967,6 +1000,7 @@ workflow:
   - tasks/kernel_matrix_testing/*
 
 .on_system_probe_or_e2e_changes_or_manual:
+  - !reference [.except_disable_kmt_tests]
   - <<: *if_main_branch
   - !reference [.except_light_pipeline]
   - <<: *if_run_all_kmt_tests

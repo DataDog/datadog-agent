@@ -61,25 +61,25 @@ const platformGroupEnvVar = "E2E_FLEET_PLATFORM_GROUP"
 // fleet e2e jobs across multiple parallel CI jobs. When it is unset, all
 // platforms are returned.
 //
-// Windows platforms are always excluded when the E2E_SKIP_WINDOWS parameter is
-// set to "true".
+// Windows platforms are always excluded when the E2E_RUN_WINDOWS parameter is
+// set to "false" (or when the legacy E2E_SKIP_WINDOWS parameter is set to "true").
 func Platforms() []e2eos.Descriptor {
-	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
+	windowsEnabled, err := runner.GetProfile().ParamStore().WindowsEnabled()
 	if err != nil {
-		panic(fmt.Sprintf("failed to get %s parameter %v\n", parameters.SkipWindows, err))
+		panic(fmt.Sprintf("failed to get %s parameter %v\n", parameters.RunWindows, err))
 	}
 
 	switch strings.ToLower(os.Getenv(platformGroupEnvVar)) {
 	case "linux":
 		return LinuxPlatforms
 	case "windows":
-		if skipWindows {
+		if !windowsEnabled {
 			return nil
 		}
 		return WindowsPlatforms
 	}
 
-	if skipWindows {
+	if !windowsEnabled {
 		return LinuxPlatforms
 	}
 	return AllPlatforms

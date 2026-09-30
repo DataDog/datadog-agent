@@ -3,8 +3,8 @@ variables:
   BUCKET_BRANCH: 'dev'
   CI_COMMIT_BRANCH: 'mq-working-branch-main'
   CI_PIPELINE_SOURCE: 'pipeline'
-  DEPLOY_AGENT: 'false'
-  RUN_ALL_BUILDS: 'false'
+  DEPLOY_AGENT: "false"
+  RUN_MACOS_BUILD: 'false'
   RUN_E2E_TESTS: 'auto'
-  RUN_KMT_TESTS: 'off'
-  RUN_UNIT_TESTS: 'off'
+  RUN_KMT_TESTS: 'false'
+  RUN_UNIT_TESTS: 'false'

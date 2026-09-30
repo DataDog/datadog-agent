@@ -62,9 +62,9 @@ func TestECSSuite(t *testing.T) {
 		scenecs.WithTestingWorkload(),
 	}
 
-	skipWindows, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipWindows, false)
-	require.NoError(t, err, "failed to get %s parameter", parameters.SkipWindows)
-	if !skipWindows {
+	windowsEnabled, err := runner.GetProfile().ParamStore().WindowsEnabled()
+	require.NoError(t, err, "failed to get %s parameter", parameters.RunWindows)
+	if windowsEnabled {
 		// WithWindowsNodeGroup is the dedicated ECS option to opt-in to Windows
 		// infrastructure and workloads (Windows EC2 nodes + Windows Fargate apps).
 		ecsOptions = append(ecsOptions, scenecs.WithWindowsNodeGroup())
@@ -283,7 +283,7 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^ecs_container_name:redis$`,
 				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-redis-ec2$`,
 				`^ecs_launch_type:ec2$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
 				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr\.io/datadog/redis$`,
