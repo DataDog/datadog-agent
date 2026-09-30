@@ -73,12 +73,12 @@ class TestCodegenPayloadData(unittest.TestCase):
         )
         self.assertIn("anomalydetection_recorder", tags)
 
-    def test_recorder_test_tag_sets_extend_base(self):
-        for build in ("test", "lint", "unit-tests"):
+    def test_recorder_test_tag_sets_extend_agent(self):
+        expected = build_tags.AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(build_tags.UNIT_TEST_EXCLUDED_TAGS)
+        for build in ("lint", "unit-tests"):
             with self.subTest(build=build):
-                base = build_tags.build_tags[AgentFlavor.base][build]
                 recorder = build_tags.build_tags[AgentFlavor.recorder][build]
-                self.assertEqual(recorder, base | {"anomalydetection_recorder"})
+                self.assertEqual(recorder, expected)
 
     def test_fips_includes_goexperiment_systemcrypto(self):
         self.assertIn("goexperiment.systemcrypto", _payload()["flavor_specific_tags"]["fips"])

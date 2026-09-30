@@ -154,15 +154,14 @@ build_tags = {
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
-}
-
-# Keep non-Agent binaries identical to the base flavor.
-build_tags[AgentFlavor.recorder] = {
-    **build_tags[AgentFlavor.base],
-    "agent": AGENT_RECORDER_TAGS,
-    "test": build_tags[AgentFlavor.base]["test"].union({"anomalydetection_recorder"}),
-    "lint": build_tags[AgentFlavor.base]["lint"].union({"anomalydetection_recorder"}),
-    "unit-tests": build_tags[AgentFlavor.base]["unit-tests"].union({"anomalydetection_recorder"}),
+    AgentFlavor.recorder: {
+        "agent": AGENT_RECORDER_TAGS,
+        "trace-agent": TRACE_AGENT_TAGS,
+        "process-agent": PROCESS_AGENT_TAGS,
+        "privateactionrunner": PRIVATEACTIONRUNNER_TAGS,
+        "lint": AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": AGENT_RECORDER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+    },
 }
 
 
