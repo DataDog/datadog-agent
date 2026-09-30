@@ -12,7 +12,7 @@ import (
 
 // CommandResult records a command that was run and the resulting output.
 type CommandResult struct {
-	CommandStr string `json:"command"`
+	CommandStr string `json:"command_str"`
 	Output     string `json:"output"`
 	Error      string `json:"error,omitempty"`
 }
