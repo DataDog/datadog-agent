@@ -28,7 +28,12 @@ go_library(
 
 dd_agent_go_test(
     name = "parquet_test",
-    srcs = ["parquet_format_test.go"],
+    srcs = [
+        "parquet_format_test.go",
+        "parquet_writer_collision_test.go",
+        "parquet_writer_lifecycle_test.go",
+        "parquet_writer_retention_test.go",
+    ],
     embed = [":parquet"],
     gotags_sets = [["anomalydetection_recorder"]],
     include_default = False,

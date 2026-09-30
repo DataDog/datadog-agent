@@ -8,6 +8,7 @@
 package parquet
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ type batchBuilder interface {
 // parquetWriter shares flushing and retention across metric and log writers.
 type parquetWriter struct {
 	outputDir         string
-	filePrefix        string // used for naming: <filePrefix>-<timestamp>Z.parquet
+	filePrefix        string // <filePrefix>-<timestamp>Z[_<sequence>].parquet
 	schema            *arrow.Schema
 	writerProps       *parquet.WriterProperties
 	builder           batchBuilder
@@ -39,26 +40,42 @@ type parquetWriter struct {
 	retentionDuration time.Duration // 0 means no cleanup
 	stopCh            chan struct{}
 	closed            bool
+	closeErr          error
 	mu                sync.Mutex
+	workers           sync.WaitGroup
+	now               func() time.Time
 }
 
 // start launches the background flush and cleanup goroutines.
 func (b *parquetWriter) start() {
+	b.workers.Add(1)
 	go b.flushLoop()
 	if b.retentionDuration > 0 {
+		b.workers.Add(1)
 		go b.cleanupLoop()
 	}
 }
 
 // writeRecord writes a nonempty batch while b.mu is held.
 func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
-	timestamp := time.Now().UTC().Format("20060102-150405")
-	filename := fmt.Sprintf("%s-%sZ.parquet", b.filePrefix, timestamp)
-	filePath := filepath.Join(b.outputDir, filename)
-
-	file, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("creating parquet file %s: %w", filePath, err)
+	baseName := fmt.Sprintf("%s-%sZ", b.filePrefix, b.now().UTC().Format("20060102-150405"))
+	var file *os.File
+	var filePath string
+	for sequence := 0; ; sequence++ {
+		filename := baseName + ".parquet"
+		if sequence > 0 {
+			filename = fmt.Sprintf("%s_%09d.parquet", baseName, sequence)
+		}
+		filePath = filepath.Join(b.outputDir, filename)
+		var err error
+		file, err = os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o666)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("creating parquet file %s: %w", filePath, err)
+		}
+		break
 	}
 
 	// WithStoreSchema embeds the Arrow schema into Parquet metadata,
@@ -106,13 +123,13 @@ func (b *parquetWriter) flush() {
 }
 
 func (b *parquetWriter) flushLoop() {
+	defer b.workers.Done()
 	ticker := time.NewTicker(b.flushInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-b.stopCh:
-			b.flush()
 			return
 		case <-ticker.C:
 			b.flush()
@@ -121,6 +138,7 @@ func (b *parquetWriter) flushLoop() {
 }
 
 func (b *parquetWriter) cleanupLoop() {
+	defer b.workers.Done()
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
 
@@ -135,18 +153,20 @@ func (b *parquetWriter) cleanupLoop() {
 }
 
 func (b *parquetWriter) cleanup() {
+	if b.retentionDuration <= 0 {
+		return
+	}
 	entries, err := os.ReadDir(b.outputDir)
 	if err != nil {
 		logging.Warnf("Failed to read parquet output directory for cleanup: %v", err)
 		return
 	}
 
-	cutoff := time.Now().Add(-b.retentionDuration)
-	prefix := b.filePrefix + "-"
+	cutoff := b.now().Add(-b.retentionDuration)
 	removed := 0
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasPrefix(entry.Name(), prefix) || !strings.HasSuffix(entry.Name(), ".parquet") {
+		if entry.IsDir() || !b.matchesFile(entry.Name()) {
 			continue
 		}
 
@@ -172,26 +192,55 @@ func (b *parquetWriter) cleanup() {
 	}
 }
 
-// Close flushes remaining data and signals background goroutines to stop.
+func (b *parquetWriter) matchesFile(name string) bool {
+	stem, ok := strings.CutPrefix(name, b.filePrefix+"-")
+	if !ok {
+		return false
+	}
+	stem, ok = strings.CutSuffix(stem, ".parquet")
+	if !ok {
+		return false
+	}
+	timestamp, sequence, hasSequence := strings.Cut(stem, "_")
+	if _, err := time.Parse("20060102-150405Z", timestamp); err != nil {
+		return false
+	}
+	if !hasSequence {
+		return true
+	}
+	if len(sequence) != 9 {
+		return false
+	}
+	for _, digit := range sequence {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// Close flushes remaining data and joins background goroutines.
 func (b *parquetWriter) Close() error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	if b.closed {
-		return nil
+		err := b.closeErr
+		b.mu.Unlock()
+		b.workers.Wait()
+		return err
 	}
 	b.closed = true
-
 	close(b.stopCh)
 
 	record := b.builder.build()
-	if record == nil {
-		return nil
+	if record != nil {
+		b.closeErr = b.writeRecord(record)
+		record.Release()
 	}
-	defer record.Release()
-
-	if err := b.writeRecord(record); err != nil {
-		return fmt.Errorf("final flush: %w", err)
+	if b.closeErr != nil {
+		b.closeErr = fmt.Errorf("final flush: %w", b.closeErr)
 	}
-	return nil
+	err := b.closeErr
+	b.mu.Unlock()
+	b.workers.Wait()
+	return err
 }

@@ -68,6 +68,7 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 			flushInterval:     flushInterval,
 			retentionDuration: retentionDuration,
 			stopCh:            make(chan struct{}),
+			now:               time.Now,
 		},
 		typedBuilder: builder,
 	}

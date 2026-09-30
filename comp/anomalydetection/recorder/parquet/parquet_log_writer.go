@@ -66,6 +66,7 @@ func newLogParquetWriter(outputDir string, flushInterval, retentionDuration time
 			flushInterval:     flushInterval,
 			retentionDuration: retentionDuration,
 			stopCh:            make(chan struct{}),
+			now:               time.Now,
 		},
 		typedBuilder: builder,
 	}
