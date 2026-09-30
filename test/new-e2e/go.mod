@@ -26,8 +26,8 @@ require (
 	github.com/DataDog/rshell v0.0.29
 	github.com/aws/aws-sdk-go-v2 v1.47.0
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.98.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.99.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.2
 	github.com/cenkalti/backoff/v7 v7.0.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
@@ -40,7 +40,7 @@ require (
 	github.com/hairyhenderson/go-codeowners v0.7.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/kr/pretty v0.3.1
-	github.com/pulumi/pulumi-aws/sdk/v7 v7.47.0
+	github.com/pulumi/pulumi-aws/sdk/v7 v7.48.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.9.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
 	github.com/pulumi/pulumi/sdk/v3 v3.264.0
@@ -128,9 +128,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.3 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.332.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.65.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.99.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.336.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.66.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.100.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.3 // indirect
