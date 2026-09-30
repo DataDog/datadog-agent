@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
@@ -243,4 +244,63 @@ func TestRemoteAPIRequestWaitsForCatalog(t *testing.T) {
 
 	callback.AssertNotCalled(t, "handleRemoteAPIRequest", mock.Anything)
 	callback.AssertNotCalled(t, "applyStateCallback", mock.Anything, mock.Anything)
+}
+
+// TestRemoteAPIRequestConfigExperimentDoesNotWaitForCatalog pins that the catalog gate is scoped
+// to the methods that resolve a package against the catalog. Config experiments read
+// INSTALLER_CONFIG, so they must run even when the backend has never assigned a catalog.
+func TestRemoteAPIRequestConfigExperimentDoesNotWaitForCatalog(t *testing.T) {
+	for _, method := range []string{methodStartConfigExperiment, methodStopConfigExperiment, methodPromoteConfigExperiment} {
+		t.Run(method, func(t *testing.T) {
+			request := remoteAPIRequest{
+				ID:     "test",
+				Method: method,
+				Params: json.RawMessage(`{"version":"abcd-efghi-jklm"}`),
+			}
+			requestJSON, err := json.Marshal(request)
+			require.NoError(t, err)
+
+			callback := &callbackMock{}
+			handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, func() bool { return false })
+			callback.On("handleRemoteAPIRequest", request).Return(nil)
+			callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Return()
+
+			handler(map[string]state.RawConfig{
+				"test": {Config: requestJSON},
+			}, callback.applyStateCallback)
+
+			callback.AssertExpectations(t)
+		})
+	}
+}
+
+// TestRemoteAPIRequestDeferredUntilCatalog pins that a task deferred for lack of a catalog is
+// not marked as executed, so it runs once a catalog has been applied and it is redelivered.
+func TestRemoteAPIRequestDeferredUntilCatalog(t *testing.T) {
+	installRequest := remoteAPIRequest{
+		ID:     "install",
+		Method: methodInstallPackage,
+		Params: json.RawMessage(`{"version":"7.32.0"}`),
+	}
+	installRequestJSON, err := json.Marshal(installRequest)
+	require.NoError(t, err)
+
+	var catalogReady bool
+	callback := &callbackMock{}
+	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, func() bool { return catalogReady })
+
+	for _, cfg := range []state.RawConfig{{Config: testRemoteAPIRequestJSON}, {Config: installRequestJSON}} {
+		handler(map[string]state.RawConfig{"test": cfg}, callback.applyStateCallback)
+	}
+	callback.AssertNotCalled(t, "handleRemoteAPIRequest", mock.Anything)
+	callback.AssertNotCalled(t, "applyStateCallback", mock.Anything, mock.Anything)
+
+	catalogReady = true
+	callback.On("handleRemoteAPIRequest", testRemoteAPIRequest).Return(nil).Once()
+	callback.On("applyStateCallback", "test", state.ApplyStatus{State: state.ApplyStateAcknowledged}).Return().Once()
+	handler(map[string]state.RawConfig{
+		"test": {Config: testRemoteAPIRequestJSON},
+	}, callback.applyStateCallback)
+
+	callback.AssertExpectations(t)
 }
