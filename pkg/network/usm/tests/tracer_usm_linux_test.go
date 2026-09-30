@@ -138,9 +138,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	// WithFentry: this suite builds a connection tracer, so the fentry pass
-	// actually exercises fentry code (unlike the pkg/network/usm monitor tests).
-	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModesWithFentry(), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModesForConnectionTracer(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }

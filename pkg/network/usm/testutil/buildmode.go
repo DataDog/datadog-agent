@@ -20,7 +20,7 @@ import (
 // Does not include ebpftest.Fentry because callers of this helper live in
 // pkg/network/usm and exercise a USM monitor without constructing a connection tracer.
 //
-// Tests that do build a connection tracer want SupportedBuildModesWithFentry.
+// Tests that do build a connection tracer want SupportedBuildModesForConnectionTracer.
 func SupportedBuildModes() []ebpftest.BuildMode {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	if !prebuilt.IsDeprecated() || os.Getenv("TEST_PREBUILT_OVERRIDE") == "true" {
@@ -30,9 +30,10 @@ func SupportedBuildModes() []ebpftest.BuildMode {
 	return modes
 }
 
-// SupportedBuildModesWithFentry returns SupportedBuildModes plus ebpftest.Fentry
-// when the host is eligible for it. Only for tests that construct a connection tracer.
-func SupportedBuildModesWithFentry() []ebpftest.BuildMode {
+// SupportedBuildModesForConnectionTracer returns the build modes that tests
+// constructing a connection tracer should exercise: SupportedBuildModes, plus
+// ebpftest.Fentry when the host is eligible for it.
+func SupportedBuildModesForConnectionTracer() []ebpftest.BuildMode {
 	modes := SupportedBuildModes()
 	if slices.Contains(ebpftest.SupportedBuildModes(), ebpftest.Fentry) {
 		modes = append(modes, ebpftest.Fentry)
