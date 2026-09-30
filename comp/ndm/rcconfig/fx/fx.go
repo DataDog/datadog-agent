@@ -7,17 +7,20 @@
 package fx
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/fx"
 
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm"
+	ndmdisco "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/discovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/handler"
 	ndmsnmp "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/ndm/snmp"
 	providertypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	ndmdiscovery "github.com/DataDog/datadog-agent/comp/ndmdiscovery/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -26,8 +29,10 @@ import (
 
 const enabledConfigKey = "network_devices.remote_config.enabled"
 
-func newProvider(cfg config.Component, logComp log.Component, ad autodiscovery.Component) (rctypes.ListenerProvider, error) {
-	return newListener(cfg, logComp, ad)
+// newProvider depends on the discovery component so its lifecycle hook is
+// registered, and therefore runs, before the first Update.
+func newProvider(lc fx.Lifecycle, cfg config.Component, logComp log.Component, ad autodiscovery.Component, disco ndmdiscovery.Component) (rctypes.ListenerProvider, error) {
+	return newListener(lc, cfg, logComp, ad, disco)
 }
 
 // configProviderAdder is the one autodiscovery method this package needs.
@@ -35,7 +40,7 @@ type configProviderAdder interface {
 	AddConfigProvider(providertypes.ConfigProvider, bool, time.Duration)
 }
 
-func newListener(cfg config.Component, logComp log.Component, ad configProviderAdder) (rctypes.ListenerProvider, error) {
+func newListener(lc fx.Lifecycle, cfg config.Component, logComp log.Component, ad configProviderAdder, disco ndmdiscovery.Component) (rctypes.ListenerProvider, error) {
 	var listener rctypes.ListenerProvider
 	if !configutils.IsRemoteConfigEnabled(cfg) || !cfg.GetBool(enabledConfigKey) {
 		// A zero ListenerProvider subscribes to nothing.
@@ -44,6 +49,7 @@ func newListener(cfg config.Component, logComp log.Component, ad configProviderA
 
 	provider, err := ndm.NewProvider(logComp, []handler.Handler{
 		ndmsnmp.NewHandler(cfg, logComp),
+		ndmdisco.NewHandler(disco, logComp),
 	})
 	if err != nil {
 		return listener, err
@@ -51,6 +57,16 @@ func newListener(cfg config.Component, logComp log.Component, ad configProviderA
 
 	// false, 0: the provider streams its changes rather than being polled.
 	ad.AddConfigProvider(provider, false, 0)
+
+	// On start, so the features the document drives are already running.
+	if path := cfg.GetString(devConfigKey); path != "" {
+		lc.Append(fx.Hook{OnStart: func(context.Context) error {
+			if err := applyDevConfig(path, provider, logComp); err != nil {
+				logComp.Errorf("ndm: %v", err)
+			}
+			return nil
+		}})
+	}
 
 	listener.ListenerProvider = rctypes.RCListener{
 		data.ProductNDMConfig: provider.Update,

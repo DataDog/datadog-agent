@@ -497,6 +497,65 @@ properties:
         comment: |-
           Enable the Remote-Configuration-driven NDM component, which
           subscribes to the NDM_CONFIG Remote Configuration product.
+      dev_config_file:
+        node_type: setting
+        type: string
+        default: ""
+        comment: |-
+          Development only. Path to a JSON file holding one NDM Remote
+          Configuration document. The Agent applies it at startup as if
+          Remote Configuration had delivered it, so the NDM features can be
+          exercised before the backend emits the product. Empty disables it.
+  discovery:
+    node_type: section
+    type: object
+    comment: |-
+      Network Devices Autodiscovery. The network_devices.autodiscovery.*
+      prefix belongs to the legacy snmp_listener, so this feature uses
+      network_devices.discovery.*.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Enable the autodiscovery component.
+      workers:
+        node_type: setting
+        type: integer
+        default: 10
+        comment: Total concurrent probes shared across every active range.
+      default_interval_sec:
+        node_type: setting
+        type: integer
+        default: 3600
+        comment: Sweep interval used when a range does not set one.
+      max_range_addresses:
+        node_type: setting
+        type: integer
+        default: 65536
+        comment: |-
+          Largest range the Agent accepts. A range with more addresses than
+          this is rejected instead of sweeping for weeks.
+      default_namespace:
+        node_type: setting
+        type: string
+        default: default
+        comment: Namespace used when a range does not set one.
+  connectivity_check:
+    node_type: section
+    type: object
+    comment: |-
+      Interactive connectivity check, driven by the Private Action Runner
+      through the Agent IPC endpoint.
+    properties:
+      workers:
+        node_type: setting
+        type: integer
+        default: 25
+        comment: |-
+          Total concurrent probes shared across every in-flight check. The
+          budget is separate from network_devices.discovery.workers because
+          an interactive check must not wait behind a sweep.
   snmp_traps:
     node_type: section
     type: object
