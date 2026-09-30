@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -37,19 +39,37 @@ func nsInode(t *testing.T, path string) uint32 {
 	return uint32(stat.Ino)
 }
 
-// ownNamespaceIDs returns the namespace IDs of the test process, which the syscall tester inherits
-func ownNamespaceIDs(t *testing.T) model.NamespaceIDs {
+// ownNamespaceIDs returns the namespace IDs of the test process, which the syscall tester inherits,
+// or 0 for those the probe didn't resolve the offsets of. Offsets are requested from the kernel
+// version upstream introduced them in, so a backported namespace type (timens on RHEL 8) reports 0.
+func ownNamespaceIDs(t *testing.T, test *testModule) model.NamespaceIDs {
 	t.Helper()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("namespace IDs are only reported by the eBPF probe")
+	}
+	constants := p.GetConstantFetcherStatus()
+
+	resolved := func(path string, offsets ...string) uint32 {
+		for _, offset := range offsets {
+			if !constants.IsPresent(offset) {
+				return 0
+			}
+		}
+		return nsInode(t, path)
+	}
+
+	nsproxy := constantfetch.OffsetNameTaskStructNsproxy
 	return model.NamespaceIDs{
-		MntNS:    nsInode(t, "/proc/self/ns/mnt"),
-		NetNS:    nsInode(t, "/proc/self/ns/net"),
-		PIDNS:    nsInode(t, "/proc/self/ns/pid_for_children"),
-		UserNS:   nsInode(t, "/proc/self/ns/user"),
-		UTSNS:    nsInode(t, "/proc/self/ns/uts"),
-		IPCNS:    nsInode(t, "/proc/self/ns/ipc"),
-		CgroupNS: nsInode(t, "/proc/self/ns/cgroup"),
-		TimeNS:   nsInode(t, "/proc/self/ns/time"),
+		MntNS:    resolved("/proc/self/ns/mnt", nsproxy, constantfetch.OffsetNameMntNamespaceNs),
+		NetNS:    resolved("/proc/self/ns/net", nsproxy),
+		PIDNS:    resolved("/proc/self/ns/pid_for_children", nsproxy, constantfetch.OffsetNamePidNamespaceNs),
+		UserNS:   resolved("/proc/self/ns/user", constantfetch.OffsetNameUserNamespaceNs),
+		UTSNS:    resolved("/proc/self/ns/uts", nsproxy, constantfetch.OffsetNameUtsNamespaceNs),
+		IPCNS:    resolved("/proc/self/ns/ipc", nsproxy, constantfetch.OffsetNameIpcNamespaceNs),
+		CgroupNS: resolved("/proc/self/ns/cgroup", nsproxy, constantfetch.OffsetNameCgroupNamespaceNs),
+		TimeNS:   resolved("/proc/self/ns/time", nsproxy, constantfetch.OffsetNameTimeNamespaceNs),
 	}
 }
 
@@ -81,7 +101,7 @@ func TestSetNS(t *testing.T) {
 	}
 
 	t.Run("join-own-netns", func(t *testing.T) {
-		own := ownNamespaceIDs(t)
+		own := ownNamespaceIDs(t, test)
 
 		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "net")
@@ -98,7 +118,7 @@ func TestSetNS(t *testing.T) {
 	})
 
 	t.Run("join-own-mntns", func(t *testing.T) {
-		own := ownNamespaceIDs(t)
+		own := ownNamespaceIDs(t, test)
 
 		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "mnt")
@@ -119,7 +139,7 @@ func TestSetNS(t *testing.T) {
 	// of the flag would be a one-character evasion. The type the kernel installed is reported
 	// instead, so the very same test_setns_netns rule has to match here too.
 	t.Run("infer-nstype-from-fd", func(t *testing.T) {
-		own := ownNamespaceIDs(t)
+		own := ownNamespaceIDs(t, test)
 
 		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "any")
@@ -139,7 +159,10 @@ func TestSetNS(t *testing.T) {
 	// file descriptor it kept open: the IDs before the syscall must carry the transient unshared
 	// netns and the IDs after it the original one, with every other namespace left untouched
 	t.Run("netns-roundtrip", func(t *testing.T) {
-		own := ownNamespaceIDs(t)
+		own := ownNamespaceIDs(t, test)
+		if own.NetNS == 0 {
+			t.Skip("the network namespace ID isn't resolved on this kernel")
+		}
 
 		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "setns", "netns-roundtrip")
