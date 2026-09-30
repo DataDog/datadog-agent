@@ -295,7 +295,8 @@ func (p *EBPFProbe) selectSyscallTaskStorageMode() {
 		return
 	}
 
-	p.useSyscallTaskStorage = true
+	// temporarily forced off: always use the non task storage maps
+	p.useSyscallTaskStorage = false
 }
 
 // initCgroup2MountPath initiatlizses p.cgroup2MountPath

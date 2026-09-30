@@ -1,7 +1,11 @@
 {
 	"filters": {
 		"*": {
-			"exclude": false
+			"exclude": false,
+			"run-only": [
+				"TestOTelSpan",
+				"TestProcessContext"
+			]
 		}
 	}
 }
