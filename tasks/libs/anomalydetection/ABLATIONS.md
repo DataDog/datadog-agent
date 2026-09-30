@@ -69,7 +69,7 @@ old study before starting unrelated runs that could overlap it.
 
 ## Command line
 
-Requires DDA 0.39.0 or newer for the `anomalydetection` dependency group.
+Requires DDA 0.39.1 or newer for the `anomalydetection` dependency group.
 With `testbench.json` downloaded from the ablation job's artifacts:
 
 ```sh

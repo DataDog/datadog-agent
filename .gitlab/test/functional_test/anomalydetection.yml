@@ -13,7 +13,7 @@ observer-ablation-driver-tests:
           - .gitlab/test/functional_test/anomalydetection.yml
         compare_to: $COMPARE_TO_BRANCH
   script:
-    - pip install 'dda==0.39.0'
+    - pip install 'git+https://github.com/DataDog/datadog-agent-dev.git@v0.39.1'
     - dda self dep sync -f legacy-tasks -f anomalydetection
     - dda inv --feat anomalydetection invoke-unit-tests.run --directory=tasks/unit_tests --tests=anomalydetection_ablation,anomalydetection_ddeval,anomalydetection_eval
 
@@ -64,7 +64,7 @@ observer-ablation-ddeval:
       chmod +x "$identity_client"
       mkdir -p "$(dirname "$AWS_SHARED_CREDENTIALS_FILE")"
       "$identity_client" assume-role
-    - pip install 'dda==0.39.0'
+    - pip install 'git+https://github.com/DataDog/datadog-agent-dev.git@v0.39.1'
     - dda self dep sync -f legacy-tasks -f anomalydetection
     - dda inv --feat anomalydetection anomalydetection.ablation-ci
   artifacts:
