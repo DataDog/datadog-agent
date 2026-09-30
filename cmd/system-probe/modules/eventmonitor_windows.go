@@ -25,3 +25,7 @@ var EventMonitor = &module.Factory{
 func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor, _ *netconfig.Config) error {
 	return nil
 }
+
+func createYaraExecConsumer(_ *eventmonitor.EventMonitor) error {
+	return nil
+}

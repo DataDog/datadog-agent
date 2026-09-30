@@ -10,6 +10,7 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/yara"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
@@ -54,5 +55,25 @@ func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netcon
 	}
 	monitor.InitializeEventConsumer(consumer)
 	log.Info("USM process monitoring consumer initialized")
+	return nil
+}
+
+// createYaraExecConsumer registers the YARA exec scanner consumer when it is enabled. Until the
+// file reading and scanning stages are wired in, every ExecFile is only logged.
+func createYaraExecConsumer(evm *eventmonitor.EventMonitor) error {
+	cfg := yara.NewConfig()
+	if !cfg.Enabled {
+		return nil
+	}
+
+	stats := &yara.Stats{}
+	handler := func(f yara.ExecFile) {
+		log.Debugf("yara exec: pid=%d path=%s mount_id=%d inode=%d ctime=%d filesystem=%s is_script=%t container_id=%s cgroup_id=%s",
+			f.PID, f.Path, f.MountID, f.Inode, f.CTime, f.Filesystem, f.IsScript, f.ContainerID, f.CGroupID)
+	}
+	if _, err := yara.NewExecConsumer(evm, cfg, stats, handler); err != nil {
+		return err
+	}
+	log.Info("event monitoring yara exec consumer initialized")
 	return nil
 }
