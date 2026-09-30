@@ -51,7 +51,6 @@ dd_agent_go_test(
     embed = [":nodefilter"],
     gotags_sets = [["nodefilter"]],
     include_default = False,
-    tags = ["manual"],
     deps = [
         "//comp/core",
         "//comp/core/config",
