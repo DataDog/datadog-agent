@@ -108,15 +108,10 @@ static int __attribute__((always_inline)) sys_setns_ret(void *ctx, int retval) {
         return 0;
     }
 
-    // keep the denied attempts, they are as interesting as the successful ones
     if (IS_UNHANDLED_ERROR(retval)) {
         return 0;
     }
 
-    // report the types the kernel installed rather than what the caller asked for: the two only
-    // differ when the caller passed 0, since a non-zero nstype has to match the namespace the file
-    // descriptor refers to or the syscall fails with EINVAL. Fall back to the requested value if
-    // no install callback was seen, which is all we know in that case.
     u32 nstype = syscall->setns.effective_nstype;
     if (nstype == 0) {
         nstype = (u32)syscall->setns.nstype;
@@ -162,11 +157,6 @@ TAIL_CALL_TRACEPOINT_FNC(handle_sys_setns_exit, struct tracepoint_raw_syscalls_s
     return sys_setns_ret(args, args->ret);
 }
 
-// The proc_ns_operations install callbacks are only reached from the setns syscall, and the
-// function that fired identifies the namespace type without reading any kernel struct. They run
-// before commit_nsset, so the syscall cache is still live. The flag is recorded even when the
-// callback goes on to fail, so a denied join still reports which namespace type was attempted.
-// A pidfd target installs several namespaces in one call, hence the accumulating OR.
 static int __attribute__((always_inline)) handle_ns_install(u32 nstype) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_SETNS);
     if (!syscall) {
