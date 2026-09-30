@@ -41,9 +41,12 @@ dda env dev run --id follow-pr-attach-7C2C42F6 -- ddgl attach --detail=normal --
 ## Step 1: Determine the target
 
 1. Determine the ref to follow - either the user passed it in explicitly, or use the current branch (`git branch --show-current`).
-2. Check if there is an open PR using `gh pr status` (ex: `gh pr status --json number,labels -q=.currentBranch` if it's the current branch)
+2. Check if there is an open PR using `gh pr status` (ex: `gh pr view <ref> --json number,labels -q=.currentBranch`)
 
 > If the user provided a direct pipeline ID, skip to [Step 3](#step-3-resolve-the-autonomy-policy).
+
+> If gh fails to auth, the PR might be on the other org (`DataDog / ddoghq`). Switch using `gh auth switch`.
+> If you cannot manage to get gh auth working, do not bother the user unless you are blocked, and proceed to [Step 3](#step-3-resolve-the-autonomy-policy).
 
 ## Step 2: Attach the label to the PR
 
@@ -51,6 +54,7 @@ If there is a PR associated to the pipeline you are meant to follow, make sure t
 ```bash
 gh pr edit <number from previous step> --add-label "follow-pr"
 ```
+> If you cannot manage to get gh auth working, do not bother the user unless you are blocked, and proceed to [Step 3](#step-3-resolve-the-autonomy-policy).
 
 ## Step 3: Resolve the autonomy policy
 
@@ -168,7 +172,7 @@ Once `main` is clean, tell the user it's time to rebase onto `main` and re-run.
 
 Read `/handle-pr-ci-failure`'s result block:
 
-- **`Outcome: pushed`:** record its `Failure signatures` and increment the cycle count — [Step 7](#step-7-follow-up-on-failures) needs both for the repeat/budget checks on the *next* pipeline. Go back to [Step 3](#step-3-start-monitoring) to watch the replacement pipeline at the `Pushed SHA` regardless of whether the budget is now exhausted; you still need to confirm this fix actually worked before you can stop. Return here through Step 7 once it finishes.
+- **`Outcome: pushed`:** record its `Failure signatures` and increment the cycle count — [Step 7](#step-7-follow-up-on-failures) needs both for the repeat/budget checks on the *next* pipeline. Go back to [Step 4](#step-4-start-monitoring) to watch the replacement pipeline at the `Pushed SHA` regardless of whether the budget is now exhausted; you still need to confirm this fix actually worked before you can stop. Return here through Step 7 once it finishes.
 - **`Outcome: committed-not-pushed`:** report the local commit and the remaining complex root cause(s) blocking a push using the [final report](#final-report) template, then stop and let the user decide.
 - **`Outcome: needs-user` or `blocked`:** report the evidence and the specific question `/handle-pr-ci-failure` asked for using the [final report](#final-report) template, then stop.
 
