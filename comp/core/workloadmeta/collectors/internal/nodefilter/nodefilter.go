@@ -74,18 +74,23 @@ type collector struct {
 	// the OTel Helm chart and Operator already populate via the Kubernetes
 	// downward API (fieldRef: spec.nodeName) for exactly this purpose.
 	nodeFromEnvVar string
+
+	// includeEphemeralContainers mirrors the kubelet collector's own
+	// include_ephemeral_containers config key.
+	includeEphemeralContainers bool
 }
 
 // NewCollector returns a nodefilter CollectorProvider that instantiates its collector
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:             collectorID,
-			catalog:        workloadmeta.NodeAgent,
-			config:         deps.Config,
-			standalone:     deps.Config.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent,
-			useKubelet:     deps.Config.GetBool("otelcollector.standalone.use_kubelet_collector"),
-			nodeFromEnvVar: deps.Config.GetString("otelcollector.standalone.node_from_env_var"),
+			id:                         collectorID,
+			catalog:                    workloadmeta.NodeAgent,
+			config:                     deps.Config,
+			standalone:                 deps.Config.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent,
+			useKubelet:                 deps.Config.GetBool("otelcollector.standalone.use_kubelet_collector"),
+			nodeFromEnvVar:             deps.Config.GetString("otelcollector.standalone.node_from_env_var"),
+			includeEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 		},
 	}, nil
 }
@@ -127,7 +132,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		},
 	}
 
-	podReflector := cache.NewNamedReflector(componentName, podListerWatcher, &corev1.Pod{}, newPodStore(store), noResync)
+	podReflector := cache.NewNamedReflector(componentName, podListerWatcher, &corev1.Pod{}, newPodStore(store, c.includeEphemeralContainers), noResync)
 
 	go podReflector.RunWithContext(ctx)
 

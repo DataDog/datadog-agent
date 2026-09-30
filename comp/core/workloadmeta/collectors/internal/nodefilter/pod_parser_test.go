@@ -114,7 +114,7 @@ func TestParsePod(t *testing.T) {
 		},
 	}
 
-	events := parsePod(pod)
+	events := parsePod(pod, false)
 
 	entities := make(map[workloadmeta.Kind][]workloadmeta.Entity)
 	for _, event := range events {
@@ -232,7 +232,7 @@ func TestParsePod_SkipsContainerWithoutID(t *testing.T) {
 		},
 	}
 
-	events := parsePod(pod)
+	events := parsePod(pod, false)
 
 	for _, event := range events {
 		assert.NotEqual(t, workloadmeta.KindContainer, event.Entity.GetID().Kind)
@@ -249,12 +249,71 @@ func TestParsePod_DeletionTimestamp(t *testing.T) {
 		},
 	}
 
-	events := parsePod(pod)
+	events := parsePod(pod, false)
 
 	require.Len(t, events, 1)
 	podEntity := events[0].Entity.(*workloadmeta.KubernetesPod)
 	require.NotNil(t, podEntity.DeletionTimestamp)
 	assert.Equal(t, deletionTime.Time, *podEntity.DeletionTimestamp)
+}
+
+// TestParsePod_EphemeralContainers verifies that ephemeral containers are
+// only parsed into events and into KubernetesPod.EphemeralContainers when
+// collectEphemeralContainers is set, mirroring the kubelet collector's own
+// include_ephemeral_containers gate.
+func TestParsePod_EphemeralContainers(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", UID: types.UID("pod-uid")},
+		Spec: corev1.PodSpec{
+			EphemeralContainers: []corev1.EphemeralContainer{
+				{
+					EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+						Name:  "debugger",
+						Image: "busybox:1.36",
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			EphemeralContainerStatuses: []corev1.ContainerStatus{
+				{
+					Name:        "debugger",
+					Image:       "busybox:1.36",
+					ImageID:     "5dbe7e1b6b9c",
+					ContainerID: "docker://debugger-containerID",
+					State:       corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+				},
+			},
+		},
+	}
+
+	t.Run("disabled", func(t *testing.T) {
+		events := parsePod(pod, false)
+
+		podEntity := events[len(events)-1].Entity.(*workloadmeta.KubernetesPod)
+		assert.Empty(t, podEntity.EphemeralContainers)
+		for _, event := range events {
+			assert.NotEqual(t, "debugger-containerID", event.Entity.GetID().ID)
+		}
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		events := parsePod(pod, true)
+
+		podEntity := events[len(events)-1].Entity.(*workloadmeta.KubernetesPod)
+		require.Len(t, podEntity.EphemeralContainers, 1)
+		assert.Equal(t, "debugger-containerID", podEntity.EphemeralContainers[0].ID)
+
+		var found bool
+		for _, event := range events {
+			if event.Entity.GetID().ID == "debugger-containerID" {
+				found = true
+				container := event.Entity.(*workloadmeta.Container)
+				assert.Equal(t, "debugger", container.Name)
+			}
+		}
+		assert.True(t, found, "expected a Container event for the ephemeral container")
+	})
 }
 
 func TestExtractResizePolicy(t *testing.T) {

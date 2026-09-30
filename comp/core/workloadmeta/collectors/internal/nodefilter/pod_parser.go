@@ -29,10 +29,12 @@ import (
 const dockerImageIDPrefix = "docker-pullable://"
 
 // parsePod builds the workloadmeta events for a single pod: one
-// KubernetesPod entity, plus one Container entity per (init) container that
-// the runtime has already created. Only the fields consumed by the tagger
-// (comp/core/tagger/collectors/workloadmeta_extract.go) are populated.
-func parsePod(pod *corev1.Pod) []workloadmeta.CollectorEvent {
+// KubernetesPod entity, plus one Container entity per (init/ephemeral)
+// container that the runtime has already created. Only the fields consumed
+// by the tagger (comp/core/tagger/collectors/workloadmeta_extract.go) are
+// populated. Ephemeral containers are only parsed when collectEphemeralContainers
+// is set, mirroring the kubelet collector's own include_ephemeral_containers gate.
+func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
 	podID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesPod,
 		ID:   string(pod.UID),
@@ -44,6 +46,17 @@ func parsePod(pod *corev1.Pod) []workloadmeta.CollectorEvent {
 	events := make([]workloadmeta.CollectorEvent, 0, len(initContainerEvents)+len(containerEvents)+1)
 	events = append(events, initContainerEvents...)
 	events = append(events, containerEvents...)
+
+	var ephemeralContainers []workloadmeta.OrchestratorContainer
+	if collectEphemeralContainers {
+		var ephemeralContainerEvents []workloadmeta.CollectorEvent
+		ephemeralContainers, ephemeralContainerEvents = parsePodContainers(
+			ephemeralContainerSpecs(pod.Spec.EphemeralContainers),
+			pod.Status.EphemeralContainerStatuses,
+			&podID,
+		)
+		events = append(events, ephemeralContainerEvents...)
+	}
 
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, o := range pod.OwnerReferences {
@@ -101,6 +114,7 @@ func parsePod(pod *corev1.Pod) []workloadmeta.CollectorEvent {
 		PersistentVolumeClaimNames: pvcNames,
 		InitContainers:             initContainers,
 		Containers:                 podContainers,
+		EphemeralContainers:        ephemeralContainers,
 		Ready:                      ready,
 		Phase:                      string(pod.Status.Phase),
 		IP:                         pod.Status.PodIP,
@@ -232,6 +246,18 @@ func parsePodContainers(
 	}
 
 	return podContainers, events
+}
+
+// ephemeralContainerSpecs converts ephemeral container specs to the plain
+// corev1.Container shape parsePodContainers expects. EphemeralContainerCommon
+// is a field-for-field copy of Container meant for exactly this conversion
+// (see corev1's own var _ = Container(EphemeralContainerCommon{}) assertion).
+func ephemeralContainerSpecs(ephemeralContainers []corev1.EphemeralContainer) []corev1.Container {
+	specs := make([]corev1.Container, 0, len(ephemeralContainers))
+	for _, ec := range ephemeralContainers {
+		specs = append(specs, corev1.Container(ec.EphemeralContainerCommon))
+	}
+	return specs
 }
 
 func findContainerSpec(name string, specs []corev1.Container) *corev1.Container {

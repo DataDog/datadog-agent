@@ -24,16 +24,18 @@ import (
 // entity IDs it derived per pod UID to be able to unset all of them once the
 // pod itself is deleted or disappears from a Replace.
 type podStore struct {
-	wlmetaStore workloadmeta.Component
+	wlmetaStore                workloadmeta.Component
+	collectEphemeralContainers bool
 
 	mu   sync.Mutex
 	seen map[types.UID][]workloadmeta.EntityID
 }
 
-func newPodStore(wlmetaStore workloadmeta.Component) *podStore {
+func newPodStore(wlmetaStore workloadmeta.Component, collectEphemeralContainers bool) *podStore {
 	return &podStore{
-		wlmetaStore: wlmetaStore,
-		seen:        make(map[types.UID][]workloadmeta.EntityID),
+		wlmetaStore:                wlmetaStore,
+		collectEphemeralContainers: collectEphemeralContainers,
+		seen:                       make(map[types.UID][]workloadmeta.EntityID),
 	}
 }
 
@@ -45,7 +47,7 @@ func (s *podStore) Add(obj interface{}) error {
 		return fmt.Errorf("nodefilter pod store: unsupported object type %T", obj)
 	}
 
-	events := parsePod(pod)
+	events := parsePod(pod, s.collectEphemeralContainers)
 	entityIDs := entityIDsFromEvents(events)
 
 	s.mu.Lock()
@@ -99,7 +101,7 @@ func (s *podStore) Replace(list []interface{}, _ string) error {
 			return fmt.Errorf("nodefilter pod store: unsupported object type %T", obj)
 		}
 
-		podEvents := parsePod(pod)
+		podEvents := parsePod(pod, s.collectEphemeralContainers)
 		seenNow[pod.UID] = entityIDsFromEvents(podEvents)
 		events = append(events, podEvents...)
 	}

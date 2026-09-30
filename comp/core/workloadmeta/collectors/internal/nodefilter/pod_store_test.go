@@ -52,7 +52,7 @@ func podWithContainer(name string, uid types.UID, containerID string) *corev1.Po
 // container, and that Delete unsets both again.
 func TestPodStore_AddDelete(t *testing.T) {
 	wlm := mockedWorkloadmeta(t)
-	store := newPodStore(wlm)
+	store := newPodStore(wlm, false)
 
 	pod := podWithContainer("test-pod", "pod-uid", "container-id")
 
@@ -82,7 +82,7 @@ func TestPodStore_AddDelete(t *testing.T) {
 // unsets the old container entity rather than leaking it.
 func TestPodStore_UpdateContainerRestart(t *testing.T) {
 	wlm := mockedWorkloadmeta(t)
-	store := newPodStore(wlm)
+	store := newPodStore(wlm, false)
 
 	pod := podWithContainer("test-pod", "pod-uid", "old-container-id")
 	require.NoError(t, store.Add(pod))
@@ -111,7 +111,7 @@ func TestPodStore_UpdateContainerRestart(t *testing.T) {
 // fields in place.
 func TestPodStore_Update(t *testing.T) {
 	wlm := mockedWorkloadmeta(t)
-	store := newPodStore(wlm)
+	store := newPodStore(wlm, false)
 
 	pod := podWithContainer("test-pod", "pod-uid", "container-id")
 	pod.Labels = map[string]string{"a": "b"}
@@ -136,7 +136,7 @@ func TestPodStore_Update(t *testing.T) {
 // containers) that dropped out of the list, while keeping/adding the rest.
 func TestPodStore_Replace(t *testing.T) {
 	wlm := mockedWorkloadmeta(t)
-	store := newPodStore(wlm)
+	store := newPodStore(wlm, false)
 
 	pod1 := podWithContainer("pod1", "uid1", "container1")
 	pod2 := podWithContainer("pod2", "uid2", "container2")
@@ -167,7 +167,7 @@ func TestPodStore_Replace(t *testing.T) {
 // containers under a new ID between two Replace calls).
 func TestPodStore_ReplaceContainerRestart(t *testing.T) {
 	wlm := mockedWorkloadmeta(t)
-	store := newPodStore(wlm)
+	store := newPodStore(wlm, false)
 
 	pod := podWithContainer("test-pod", "pod-uid", "old-container-id")
 	require.NoError(t, store.Replace([]interface{}{pod}, ""))
