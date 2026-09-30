@@ -50,8 +50,8 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 	if rc.client == nil {
 		return
 	}
-	// catalogApplied tracks whether a catalog has ever been applied, so that task execution
-	// (which resolves packages against the catalog) can wait for one without delaying the
+	// catalogApplied tracks whether a catalog has ever been applied, so that tasks which
+	// resolve packages against the catalog can wait for one without delaying the
 	// UPDATER_TASK subscription itself. Reporting that subscription to the backend is what
 	// Fleet Automation checks to know the installer is remote-config-active, and it must not
 	// depend on the backend ever actually having assigned a catalog to this client.
@@ -198,6 +198,12 @@ const (
 	methodPromoteConfigExperiment = "promote_experiment_config"
 )
 
+// requiresCatalog reports whether a task method resolves its package against the catalog.
+// Config experiments read INSTALLER_CONFIG instead and must not wait for a catalog.
+func requiresCatalog(method string) bool {
+	return method == methodInstallPackage || method == methodStartExperiment
+}
+
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
 	Package       string          `json:"package_name"`
@@ -238,12 +244,6 @@ type handleRemoteAPIRequest func(request remoteAPIRequest) error
 func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-		if catalogReady != nil && !catalogReady() {
-			// No catalog has been applied yet, so a task couldn't resolve its package
-			// against it. Leave these configs unacknowledged: remote-config redelivers
-			// them on a later update once a catalog exists.
-			return
-		}
 		requests := map[string]remoteAPIRequest{}
 		for id, requestConfig := range requestConfigs {
 			var request remoteAPIRequest
@@ -258,6 +258,13 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool)
 		for configID, request := range requests {
 			if _, ok := executedRequests[request.ID]; ok {
 				log.Debugf("request %s already executed", request.ID)
+				continue
+			}
+			if requiresCatalog(request.Method) && catalogReady != nil && !catalogReady() {
+				// No catalog has been applied yet, so this task couldn't resolve its package
+				// against it. Leave it unacknowledged: remote-config redelivers it on a later
+				// update once a catalog exists.
+				log.Debugf("request %s (%s) deferred until a catalog has been applied", request.ID, request.Method)
 				continue
 			}
 			executedRequests[request.ID] = struct{}{}
