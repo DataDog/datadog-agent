@@ -188,18 +188,11 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 // Given a window each in turn, the workload could restart during the service half and the test
 // would still pass, which is exactly what this rules out: a workload run twice, or not at all.
 //
-// Two states fail at once rather than waiting out the deadline, since neither can be undone by
-// polling longer. A PID other than wantPID means the process the assertion is about is gone,
-// and the rest of the polling would only describe its replacement. A legacy service in any
-// state but Stopped, StartPending in particular, means the SCM is already bringing up a second
-// copy of a workload dd-procmgr supervises.
-//
-// Everything else resets the hold and keeps polling, so a host that has not settled yet can
-// still make the deadline.
-//
-// Polled directly rather than through EventuallyWithT because that runs its condition on
-// another goroutine, where require and t.Fatal are not valid: FailNow there stops the worker,
-// and the tick still reports no failure, so the assertion passes.
+// A restart, or a legacy service in any state but Stopped, resets the hold like any other
+// mismatch, so the run keeps polling to the deadline and reports what it last saw. Neither can
+// be undone by waiting, but aborting the moment one appears would mean either a sleep-driven
+// loop of our own or FailNow from the condition, which runs on another goroutine where it only
+// stops the worker and leaves the tick reporting success.
 func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, cli, name, wantPID, legacyService string, timeout time.Duration) {
 	t.Helper()
 	require.NotEmpty(t, wantPID, "wantPID must be set (capture it with waitProcmgrRunning)")
@@ -210,48 +203,40 @@ func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, c
 	)
 
 	var heldSince time.Time
-	last := "neither dd-procmgr describe nor Get-Service returned"
-	for deadline := time.Now().Add(timeout); time.Now().Before(deadline); time.Sleep(3 * time.Second) {
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		describe, err := host.Execute(procmgrCmd(cli, "describe "+name))
-		if err != nil {
+		if !assert.NoError(ct, err, "dd-procmgr describe %s", name) {
 			heldSince = time.Time{}
-			last = fmt.Sprintf("describe %s failed: %v", name, err)
-			continue
-		}
-		state, pid := fieldValue(describe, "State"), fieldValue(describe, "PID")
-		if pid != "" && pid != "-" && pid != wantPID {
-			require.FailNowf(t, "supervised process restarted",
-				"process %s should still be the auto-spawned PID %s: %s", name, wantPID, describe)
-		}
-
-		status, err := host.Execute(serviceQuery)
-		if err != nil {
-			heldSince = time.Time{}
-			last = fmt.Sprintf("Get-Service %s failed: %v", legacyService, err)
-			continue
-		}
-		serviceState := strings.TrimSpace(status)
-		if serviceState != "Stopped" && serviceState != "Absent" {
-			require.FailNowf(t, "legacy SCM service came up",
-				"%s must stay down while dd-procmgr supervises %s, Get-Service returned %q",
-				legacyService, name, serviceState)
-		}
-
-		last = fmt.Sprintf("%s is %s as PID %q and %s is %s", name, state, pid, legacyService, serviceState)
-		if state != "Running" || pid != wantPID {
-			heldSince = time.Time{}
-			continue
-		}
-		if heldSince.IsZero() {
-			heldSince = time.Now()
-		}
-		if time.Since(heldSince) >= procmgrHoldFor {
 			return
 		}
-	}
-	require.FailNowf(t, "workload was never supervised only by dd-procmgr",
-		"%s did not stay Running as PID %s with %s down for %s within %s, last seen: %s",
-		name, wantPID, legacyService, procmgrHoldFor, timeout, last)
+		status, err := host.Execute(serviceQuery)
+		if !assert.NoError(ct, err, "Get-Service %s", legacyService) {
+			heldSince = time.Time{}
+			return
+		}
+
+		state, pid := fieldValue(describe, "State"), fieldValue(describe, "PID")
+		serviceState := strings.TrimSpace(status)
+		runningAsWantPID := assert.Equal(ct, "Running", state, "process %s: %s", name, describe) &&
+			assert.Equal(ct, wantPID, pid,
+				"process %s should still be the auto-spawned PID: %s", name, describe)
+		legacyDown := assert.Contains(ct, []string{"Stopped", "Absent"}, serviceState,
+			"%s must stay down while dd-procmgr supervises %s", legacyService, name)
+		if !runningAsWantPID || !legacyDown {
+			heldSince = time.Time{}
+			return
+		}
+
+		now := time.Now()
+		if heldSince.IsZero() {
+			heldSince = now
+		}
+		// A tick that records no failure is an immediate success, so the hold has to be an
+		// assertion rather than a silent early return.
+		assert.GreaterOrEqual(ct, now.Sub(heldSince), procmgrHoldFor,
+			"%s has held PID %s with %s down for %s, needs %s",
+			name, wantPID, legacyService, now.Sub(heldSince).Round(time.Second), procmgrHoldFor)
+	}, timeout, 3*time.Second)
 }
 
 func ensureWindowsDirPS(dir string) string {
