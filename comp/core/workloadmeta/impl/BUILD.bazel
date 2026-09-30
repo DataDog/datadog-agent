@@ -57,6 +57,7 @@ dd_agent_go_test(
         "//pkg/config/mock",
         "//pkg/errors",
         "//pkg/languagedetection/languagemodels",
+        "//pkg/util/retry",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/runtime/schema",
