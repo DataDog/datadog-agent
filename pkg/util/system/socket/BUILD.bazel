@@ -34,7 +34,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     deps = select({
         "@rules_go//go/platform:aix": [

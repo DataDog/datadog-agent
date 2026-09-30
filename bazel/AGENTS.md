@@ -356,7 +356,7 @@ This only applies when the canonical set and the constraint can coexist. A const
 contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
 test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
 `kubeapiserver` and `kubelet` share the canonical set
-`cel clusterchecks kubeapiserver kubelet orchestrator` — and the result then fails the constraint's
+`cel clusterchecks kubeapiserver kubelet` — and the result then fails the constraint's
 own `!kubelet`.
 
 Combinations built this way can be long, and target names are budgeted against the Windows runfiles

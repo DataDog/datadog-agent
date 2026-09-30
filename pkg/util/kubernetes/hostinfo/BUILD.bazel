@@ -49,14 +49,12 @@ dd_agent_go_test(
             "docker",
             "kubeapiserver",
             "kubelet",
-            "orchestrator",
         ],
         [
             "cel",
             "clusterchecks",
             "kubeapiserver",
             "kubelet",
-            "orchestrator",
         ],
         [
             "cel",
