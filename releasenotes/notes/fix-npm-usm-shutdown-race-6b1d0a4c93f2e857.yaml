@@ -18,3 +18,7 @@ fixes:
     stopping when Universal Service Monitoring is enabled. Shutting down the
     driver interface could leave the ETW reader blocked, so the service stop
     never completed and the service was killed once its stop timeout expired.
+  - |
+    On Windows, ``system-probe`` no longer waits for the HTTP transaction
+    buffer to run dry before stopping. On a host with sustained HTTP traffic
+    that could hold up the service stop for as long as requests kept arriving.

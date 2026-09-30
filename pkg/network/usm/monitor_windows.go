@@ -23,6 +23,7 @@ import (
 type Monitor interface {
 	Start()
 	GetHTTPStats() map[protocols.ProtocolType]interface{}
+	PrepareStop()
 	Stop() error
 }
 
@@ -162,6 +163,12 @@ func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
 	ret[protocols.HTTP] = stats
 
 	return ret
+}
+
+// PrepareStop makes GetHTTPStats return promptly from then on, so that a
+// caller blocked in it does not hold up shutdown. Stop still has to be called.
+func (m *WindowsMonitor) PrepareStop() {
+	m.di.PrepareStop()
 }
 
 // Stop HTTP monitoring
