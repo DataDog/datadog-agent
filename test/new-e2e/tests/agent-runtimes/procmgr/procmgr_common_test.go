@@ -75,21 +75,33 @@ func (s *baseProcmgrSuite) requireCLI() {
 	}
 }
 
+// stopShouldTakeLessThan bounds a dd-procmgr stop of a test fixture. Well under
+// the 90s default stop_timeout, so a stop that falls back to waiting the timeout
+// out is a failure here rather than a slow pass.
+const stopShouldTakeLessThan = 20 * time.Second
+
 // retryCLIAction runs a mutating dd-procmgr command until it succeeds.
 //
 // A single attempt is not a fair test of the daemon: the CLI opens a fresh
 // connection per invocation, so one transport fault fails the command outright
 // and, with MustExecute, the whole test with it. alreadyDone is the daemon's
 // refusal when a retry finds the work done, which is a success here.
-func (s *baseProcmgrSuite) retryCLIAction(action, procName, alreadyDone string) {
+//
+// Returns how long the attempt that settled it took, so a caller can hold the
+// daemon to a duration as well as an outcome.
+func (s *baseProcmgrSuite) retryCLIAction(action, procName, alreadyDone string) time.Duration {
 	s.T().Helper()
+	var elapsed time.Duration
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		start := time.Now()
 		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd(action + " " + procName))
+		elapsed = time.Since(start)
 		if err == nil || strings.Contains(err.Error(), alreadyDone) {
 			return
 		}
 		assert.NoError(ct, err, "%s %s: %s", action, procName, out)
 	}, 60*time.Second, 2*time.Second)
+	return elapsed
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +178,15 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
 	}, 30*time.Second, 2*time.Second)
 
-	s.retryCLIAction("stop", procName, "is not running")
+	// Held to a duration, not just an outcome. This fixture takes the shipped
+	// 90s stop_timeout, and a stop that cannot deliver its signal used to wait
+	// the whole of it out before force-killing, which is the regression this
+	// test has to be able to see. Nothing here needs more than a couple of
+	// seconds to go down.
+	stopTook := s.retryCLIAction("stop", procName, "is not running")
+	assert.Less(s.T(), stopTook, stopShouldTakeLessThan,
+		"stop took %s: the daemon is waiting out a stop_timeout it has nothing to wait for", stopTook)
+
 	s.retryCLIAction("start", procName, "is already running")
 
 	var pidBeforeKill uint64

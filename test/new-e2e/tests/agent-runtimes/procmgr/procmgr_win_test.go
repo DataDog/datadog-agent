@@ -49,10 +49,6 @@ env:
   PATH: C:\Windows\System32;C:\Windows
 auto_start: true
 restart: always
-# A managed child has no console of its own, so CTRL_BREAK never reaches it and
-# every stop here ends in a force-kill. Pinned well under the 90s default so a
-# stop cannot outlast the polls the tests wrap around it.
-stop_timeout: 10
 description: E2E test process
 `
 
