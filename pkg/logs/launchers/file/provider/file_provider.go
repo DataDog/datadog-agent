@@ -221,6 +221,13 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 				files, err := p.filesMatchingSource(source)
 				wildcardFileCounter.setTotal(source, len(files))
 				if err != nil {
+					// Same treatment as the non-wildcard branches above: without this the files of a
+					// wildcard source that stops matching are dropped without a trace, in the log and
+					// on the status page alike.
+					source.Status().Error(err)
+					if shouldLogErrors {
+						log.Warnf("Could not collect files: %v", err)
+					}
 					continue
 				}
 				wildcardFiles = append(wildcardFiles, files...)

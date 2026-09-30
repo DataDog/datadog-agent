@@ -74,7 +74,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 	timeout := s.Config.GetDuration("server_timeout") * time.Second
 
 	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout))
+	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection, ipchttp.WithTimeout(timeout), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return map[string]interface{}{
 			"port":  port,

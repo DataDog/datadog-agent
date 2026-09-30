@@ -8,13 +8,18 @@ package enrollment
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -33,6 +38,7 @@ type Result struct {
 	Hostname      string
 	RunnerName    string
 	OrchClusterID string
+	APIKeyHash    string
 }
 
 type AgentIdentifier struct {
@@ -45,6 +51,13 @@ type PersistedIdentity struct {
 	URN           string `json:"urn"`
 	Hostname      string `json:"hostname,omitempty"`
 	OrchClusterID string `json:"orch_cluster_id,omitempty"`
+	// Hashed rather than stored raw, to avoid persisting a second live credential.
+	APIKeyHash string `json:"api_key_hash,omitempty"`
+}
+
+func HashAPIKey(apiKey string) string {
+	sum := sha256.Sum256([]byte(apiKey))
+	return hex.EncodeToString(sum[:])
 }
 
 // GetAgentIdentifier returns the identifier for the current agent.
@@ -65,14 +78,18 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 	return agentIdentifier, nil
 }
 
-// ShouldReenroll checks whether the persisted identity needs refreshing.
-// Re-enrollment is only supported for the node agent.
-func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity) bool {
+// Re-enrollment is only supported for the node agent: the cluster agent's identity is
+// shared across replicas via a K8s secret, so re-enrolling from one replica could race with others.
+func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity, currentAPIKey string) bool {
 	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
 		return false
 	}
 	if identity.Hostname != "" && identity.Hostname != agentIdentifier.Hostname {
 		log.Infof("Saved identity hostname does not match current hostname, re-enrolling")
+		return true
+	}
+	if identity.APIKeyHash != "" && identity.APIKeyHash != HashAPIKey(currentAPIKey) {
+		log.Infof("Configured api_key does not match the one used for the saved identity, re-enrolling")
 		return true
 	}
 	return false
@@ -100,8 +117,7 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -135,7 +151,15 @@ func SelfEnroll(
 		Hostname:      enrollmentHostname,
 		RunnerName:    runnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
+		APIKeyHash:    HashAPIKey(apiKey),
 	}, nil
+}
+
+func enrollmentBaseURL(cfg configModel.Reader, ddSite string) string {
+	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
+		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/")
+	}
+	return "https://api." + ddSite
 }
 
 // Enroll performs self-enrollment using config and an agent identifier.
@@ -185,8 +209,7 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(cfg, ddBaseURL, extraHeaders)
+	publicClient := opms.NewPublicClient(cfg, enrollmentBaseURL(cfg, ddSite), extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -218,5 +241,6 @@ func SelfEnrollApiKeyOnly(
 		Hostname:      enrollmentHostname,
 		RunnerName:    runnerName,
 		OrchClusterID: agentIdentifier.OrchClusterID,
+		APIKeyHash:    HashAPIKey(apiKey),
 	}, nil
 }

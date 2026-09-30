@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixed repeated config warnings when ``infrastructure_mode`` is set to
+    ``cloud_cost_only``. The Agent no longer looks up the non-existent
+    ``integration.cloud_cost_only.allowed`` key. Check tagging via
+    ``integration.cloud_cost_only.tagged`` is unchanged.

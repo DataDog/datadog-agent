@@ -41,6 +41,7 @@ dd_agent_go_test(
             "testdata/invalid_credentials.log",
             "testdata/missing_password_for_dc.log",
             "testdata/service_marked_for_deletion.log",
+            "testdata/untrusted_config_root.log",
             "testdata/wixfailwhendeferred.log",
         ],
         "//conditions:default": [],
@@ -48,6 +49,7 @@ dd_agent_go_test(
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/paths",
             "@com_github_cenkalti_backoff_v7//:backoff",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",

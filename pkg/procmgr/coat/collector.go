@@ -29,6 +29,14 @@ func NewCollector() *Collector {
 	return NewCollectorWithClient(installRoot, newDefaultClient())
 }
 
+// NewCLICollector creates a collector using the dd-procmgr CLI instead of dialing gRPC directly,
+// so binaries that only need this collector (e.g. datadog-installer) don't link
+// google.golang.org/grpc or the generated procmgr protobuf stubs.
+func NewCLICollector() *Collector {
+	installRoot := agentInstallRoot()
+	return NewCollectorWithClient(installRoot, newCLIClient(installRoot))
+}
+
 // NewCollectorWithClient creates a collector with a custom install root and procmgr client.
 func NewCollectorWithClient(installRoot string, client Client) *Collector {
 	return &Collector{
@@ -110,6 +118,7 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 	status := ServiceSnapshot{
 		ID:             service.ID,
 		ManagementMode: ManagementModeNone,
+		ProcmgrState:   ProcessStateUnknown,
 	}
 
 	for _, marker := range installMarkerPaths(c.installRoot, service) {
@@ -127,6 +136,10 @@ func (c *Collector) collectService(ctx context.Context, service MigratableServic
 	}
 
 	if process, ok := processes[service.ProcmgrProcessName]; ok {
+		// Install marker may be missing for layouts the marker paths don't cover
+		// (e.g. Windows DDOT installed outside the checked roots); procmgr
+		// supervision is as strong an install signal as systemd/SCM below.
+		status.Installed = true
 		status.ProcmgrState = process.State
 		status.ManagementMode = ManagementModeProcmgr
 		return status

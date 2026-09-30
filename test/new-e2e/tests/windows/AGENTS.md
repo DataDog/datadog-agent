@@ -122,11 +122,14 @@ Claude Code, the `/run-windows-e2e` skill drives the whole flow interactively.
 
 ## CI configuration
 
-CI jobs for these tests live in two files under `.gitlab/windows/test/`:
+CI jobs for these tests are split by ownership under `.gitlab/windows/test/e2e/`:
 
-**`e2e/windows.yml`** — general Windows e2e jobs (service tests, certificate,
-FIPS compliance, system probe, etc.). Jobs use `EXTRA_PARAMS: --run TestFoo`
-to select a specific test function or suite.
+- **`windows_agent.yml`**: Agent configuration, runtimes, and subcommands
+- **`windows_observability.yml`**: NPM, network path, pipelines, CWS, process,
+  and USM tests
+- **`windows_products.yml`**: service, certificate, FIPS compliance, system
+  probe, and security agent tests
+- **`windows_templates.yml`**: shared Windows E2E templates
 
 **`e2e_install_packages/windows.yml`** — MSI install/upgrade/domain jobs.
 Because each test function provisions its own VM, these jobs use a

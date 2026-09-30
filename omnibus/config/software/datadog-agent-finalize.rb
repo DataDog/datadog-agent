@@ -93,12 +93,14 @@ build do
             mkdir "/var/log/datadog"
 
             # Move the built-in shared-library checks into the package's checks.d,
-            # strip them to reduce size, then re-assert owner-only (0500) perms.
+            # strip them to reduce size, then re-assert root/root-group-only (0550)
+            # perms. Group-readable so init containers can copy them on OpenShift,
+            # where containers run with a random UID in the root group.
             Dir.glob("#{install_dir}/etc/datadog-agent/checks.d/libdatadog-agent-*.so").each do |lib|
               dest = "#{output_config_dir}/etc/datadog-agent/checks.d/#{File.basename(lib)}"
               move lib, dest, :force => true
               command "strip --strip-unneeded #{dest}"
-              command "chmod 0500 #{dest}"
+              command "chmod 0550 #{dest}"
             end
 
             # Process manager config directory (read-only, under install dir)
@@ -175,26 +177,15 @@ build do
 
             # Edit rpath from a true path to relative path for each binary if install_dir contains /opt/datadog-packages
             if install_dir.include?("/opt/datadog-packages")
+              # FIPS installer children run with different real/effective IDs and need an absolute library path.
+              # Keep this version's libraries; promotion deletes /opt/datadog-agent.
+              installer_bin = "#{install_dir}/embedded/bin/installer"
+              preserve_installer_rpath = fips_mode? && File.exist?(installer_bin)
+              rpath_args = preserve_installer_rpath ? " --preserve-rpath #{installer_bin}" : ""
               # The healthcheck will fail as the rpath doesn't contain install_dir
-              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}", cwd: Dir.pwd
-
-              # The FIPS daemon has CapabilityBoundingSet=all in its systemd unit. This causes
-              # the kernel to set AT_SECURE when it exec's the installer.layer bootstrap binary,
-              # which makes the dynamic linker drop all $ORIGIN-based RPATH entries. Since
-              # rpath-edit above just converted every RPATH to $ORIGIN-relative, the binary
-              # would fall through to the system libcrypto (wrong version) and panic.
-              #
-              # Fix: add an absolute RPATH entry after rpath-edit. Absolute entries are always
-              # honoured under AT_SECURE. /opt/datadog-agent/embedded/lib is version-independent:
-              # it is the deb install path on deb hosts and a symlink to the current stable OCI
-              # tree on OCI-managed hosts.
-              if fips_mode?
-                installer_bin = "#{install_dir}/embedded/bin/installer"
-                if File.exist?(installer_bin)
-                  embedded_lib = "/opt/datadog-agent/embedded/lib"
-                  command "patchelf --add-rpath #{embedded_lib} #{installer_bin}"
-                  command "patchelf --print-rpath #{installer_bin} | grep -qF '#{embedded_lib}' || (echo 'ERROR: patchelf --add-rpath did not add #{embedded_lib} to #{installer_bin}' && exit 1)"
-                end
+              command "inv omnibus.rpath-edit #{install_dir} #{install_dir}#{rpath_args}", cwd: Dir.pwd
+              if preserve_installer_rpath
+                command "test \"$(patchelf --print-rpath #{installer_bin})\" = '#{install_dir}/embedded/lib'"
               end
             end
         end

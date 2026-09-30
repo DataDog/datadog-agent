@@ -1,7 +1,4 @@
 ---
-include:
-  - .gitlab/.pre/common/container_publish_job_templates.yml
-
 .dev_a7-windows-common:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
@@ -128,7 +125,7 @@ qa_agent:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.except_disable_e2e_tests]
     - when: on_success
   needs:
@@ -144,7 +141,7 @@ qa_agent_fips:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.except_disable_e2e_tests]
     - when: on_success
   needs:
@@ -160,7 +157,7 @@ qa_agent_jmx:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.except_disable_e2e_tests]
     - when: on_success
   needs:
@@ -176,7 +173,7 @@ qa_agent_fips_jmx:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.except_disable_e2e_tests]
     - when: on_success
   needs:

@@ -23,10 +23,10 @@ import (
 
 const (
 	// logsIntakeURLTemplate is the template for building the logs intake URL for each site.
-	logsIntakeURLTemplate = "https://http-intake.logs.%s/api/v2/logs"
+	logsIntakeURLTemplate = config.DebuggerLogsEndpointPrefix + "%s" + config.DebuggerLogsEndpointPath
 
 	// debuggerIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
-	debuggerIntakeURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
+	debuggerIntakeURLTemplate = config.DebuggerIntakeEndpointPrefix + "%s" + config.DebuggerIntakeEndpointPath
 
 	// ddTagsQueryStringMaxLen is the maximum number of characters we send as ddtags in the intake query string.
 	// This limit is not imposed by the event platform intake, it's a safeguard we've added to guarantee an upper
@@ -113,23 +113,24 @@ func newDebuggerProxy(conf *config.AgentConfig, transport http.RoundTripper, hos
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	return &httputil.ReverseProxy{
-		Director:  getDirector(hostTags, cidProvider, conf.ContainerTags),
+		Rewrite:   getRewrite(hostTags, cidProvider, conf.ContainerTags),
 		ErrorLog:  stdlog.New(logger, "debugger.Proxy: ", 0),
 		Transport: transport,
 	}
 }
 
-func getDirector(hostTags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*http.Request) {
-	return func(req *http.Request) {
-		req.Header.Set("DD-REQUEST-ID", uuid.New().String())
-		req.Header.Set("DD-EVP-ORIGIN", "agent-debugger")
-		q := req.URL.Query()
-		containerID := cidProvider.GetContainerID(req.Context(), req.Header)
+func getRewrite(hostTags string, cidProvider IDProvider, containerTags func(string) ([]string, error)) func(*httputil.ProxyRequest) {
+	return func(req *httputil.ProxyRequest) {
+		req.SetXForwarded()
+		req.Out.Header.Set("DD-REQUEST-ID", uuid.New().String())
+		req.Out.Header.Set("DD-EVP-ORIGIN", "agent-debugger")
+		q := req.Out.URL.Query()
+		containerID := cidProvider.GetContainerID(req.In.Context(), req.In.Header)
 		tags := hostTags
 		if ctags := getContainerTags(containerTags, containerID); ctags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, ctags)
 		}
-		if htags := req.Header.Get("X-Datadog-Additional-Tags"); htags != "" {
+		if htags := req.In.Header.Get("X-Datadog-Additional-Tags"); htags != "" {
 			tags = fmt.Sprintf("%s,%s", tags, htags)
 		}
 		if qtags := q.Get("ddtags"); qtags != "" {
@@ -137,12 +138,12 @@ func getDirector(hostTags string, cidProvider IDProvider, containerTags func(str
 		}
 		maxLen := len(tags)
 		if maxLen > ddTagsQueryStringMaxLen {
-			log.Warnf("Truncating tags in upload to %s. Got %d, max is %d.", req.URL.Path, maxLen, ddTagsQueryStringMaxLen)
+			log.Warnf("Truncating tags in upload to %s. Got %d, max is %d.", req.Out.URL.Path, maxLen, ddTagsQueryStringMaxLen)
 			maxLen = ddTagsQueryStringMaxLen
 		}
 		tags = tags[0:maxLen]
 		q.Set("ddtags", tags)
 		log.Debugf("Setting query value ddtags=%s for debugger proxy", tags)
-		req.URL.RawQuery = q.Encode()
+		req.Out.URL.RawQuery = q.Encode()
 	}
 }

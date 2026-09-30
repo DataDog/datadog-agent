@@ -1,0 +1,79 @@
+# Sample allowlist for the Datadog Agent "powershell" check (admin-owned policy).
+#
+# To use it, open an elevated PowerShell session and copy this file:
+#
+#   $allowlist = "$env:ProgramData\Datadog\protected\powershell_allowlist.yaml"
+#   Copy-Item "$allowlist.example" $allowlist
+#
+# Edit the copied file to permit only the read-only Get-* cmdlets your
+# environment needs. After editing, set its owner to the built-in Administrators
+# group. The numeric SID works on localized Windows installations:
+#
+#   icacls $allowlist /setowner "*S-1-5-32-544"
+#
+# Run the ownership command after editing because some editors replace the file
+# when saving, which can reset its owner to the individual user. You can verify
+# the resulting owner with:
+#
+#   (Get-Acl $allowlist).Owner
+#
+# The powershell check reads ONLY `powershell_allowlist.yaml` (never this
+# .example file), so no cmdlet is permitted until you create it.
+#
+# This directory (C:\ProgramData\Datadog\protected) is writable only by
+# Administrators and SYSTEM. The allowlist must be owned by Administrators or
+# SYSTEM, or the check refuses to load it and collects nothing (fail closed).
+#
+# Format:
+#   version: 1                    # required; only version 1 is supported
+#   allowed_cmdlets:              # required; at least one entry
+#     <Get-Cmdlet>:               # key: a read-only Get-* cmdlet name (Get-<Noun>)
+#       module: <ModuleName>      # required; the cmdlet must resolve to this module
+#                                 # at runtime (rejects a shadowing function). Use "*"
+#                                 # to skip. Must match (Get-Command <cmdlet>).ModuleName.
+#       parameters:               # optional; the parameters an instance may pass
+#         <ParameterName>:
+#           required: <bool>      # optional (default false)
+#           allowed_values: [...] # exact-match whitelist of values
+#           pattern: '<regex>'    # Go RE2 regex; value must match. Matched against
+#                                 # the WHOLE value (auto-anchored, no need for ^...$)
+#
+# Every declared parameter MUST set either allowed_values or pattern: a value
+# constraint is mandatory, and a parameter with neither is rejected at load time
+# (fail closed). `allowed_values` takes precedence over `pattern` when both are set.
+#
+# Values are compared as STRINGS. A boolean or numeric instance value must be
+# listed in its string form - allowed_values: ['false'], not [false] - or it will
+# never match. See Get-SmbShare below.
+#
+# Patterns are Go (RE2) regexes and are CASE-SENSITIVE: 'dnscache' will not accept
+# "Dnscache" - write '(?i)dnscache' or a character class. RE2 has no lookaround and
+# no backreferences: '(?=...)' and '\1' are rejected when the allowlist loads.
+#
+# Cmdlet keys, parameter names and allowed_values are matched case-sensitively too,
+# so they must be spelled exactly as the instance spells them, and a cmdlet key must
+# be a capitalised Get-<Noun>.
+#
+# PowerShell itself resolves cmdlet and parameter names case-insensitively, so two
+# entries differing only in case (Get-Service and Get-service) would be two policies
+# for one cmdlet. That is rejected at load time; declare only one. Two allowed_values
+# differing only in case are fine, since values are compared case-sensitively.
+
+version: 1
+allowed_cmdlets:
+  Get-Service:
+    module: Microsoft.PowerShell.Management
+    parameters:
+      Name: { required: false, pattern: '[A-Za-z0-9 _.*-]+' }
+  Get-Certificate:
+    module: PKI
+    parameters:
+      Template: { required: false, allowed_values: [WebServer, CodeSigning] }
+  Get-SmbShare:
+    module: SmbShare
+    parameters:
+      # Quoted 'false': the instance passes a YAML boolean, checked as a string.
+      Special: { required: false, allowed_values: ['false'] }
+      # ErrorAction is a common parameter; allowlist it to let the cmdlet skip
+      # individual failing shares instead of aborting the whole run.
+      ErrorAction: { required: false, allowed_values: [SilentlyContinue] }

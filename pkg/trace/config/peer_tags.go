@@ -33,14 +33,14 @@ var peerTagConcepts = []semantics.Concept{
 }
 
 // PeerTagsCache is a snapshot of the peer-tag attribute key set together with
-// the semantic registry content hash it was derived from. Callers that need
+// the semantic registry fingerprint it was derived from. Callers that need
 // to avoid recomputing on every read (e.g. the Concentrator's hot path)
-// should hold a *PeerTagsCache and compare its ContentHash against
-// semantics.DefaultRegistry().ContentHash() to decide when to rebuild via
+// should hold a *PeerTagsCache and compare its Fingerprint against
+// semantics.DefaultRegistry().Fingerprint() to decide when to rebuild via
 // AgentConfig.PeerTagsCache.
 type PeerTagsCache struct {
-	// ContentHash is the registry content hash that Keys was derived from.
-	ContentHash string
+	// Fingerprint is the registry identity that Keys was derived from.
+	Fingerprint string
 	// Keys is the sorted, deduped peer-tag attribute key set, or nil if
 	// PeerTagsAggregation is disabled on the AgentConfig.
 	Keys []string
@@ -48,11 +48,11 @@ type PeerTagsCache struct {
 
 // PeerTagsCache builds and returns a fresh PeerTagsCache snapshot from the
 // live semantic registry combined with the operator-configured PeerTags.
-// The returned ContentHash is the registry's ContentHash() at the time of the call.
+// The returned Fingerprint is the registry's Fingerprint() at the time of the call.
 // Returns a snapshot with nil Keys when PeerTagsAggregation is disabled.
 func (c *AgentConfig) PeerTagsCache() *PeerTagsCache {
 	r := semantics.DefaultRegistry()
-	cache := &PeerTagsCache{ContentHash: r.ContentHash()}
+	cache := &PeerTagsCache{Fingerprint: r.Fingerprint()}
 	if !c.PeerTagsAggregation {
 		return cache
 	}

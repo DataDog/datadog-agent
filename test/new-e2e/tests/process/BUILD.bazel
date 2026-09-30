@@ -50,11 +50,13 @@ dd_agent_go_test(
         "fargate_test.go",
         "k8s_test.go",
         "linux_test.go",
+        "testing_test.go",
         "windows_test.go",
     ],
     data = ["config/helm-template.tmpl"],
     embed = [":process"],
     embedsrcs = ["config/helm-template.tmpl"],
+    tags = ["manual"],
     deps = [
         "//pkg/util/testutil/flake",
         "//test/e2e-framework/common/config",

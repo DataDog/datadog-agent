@@ -6,12 +6,16 @@
 package collector
 
 import (
+	"bufio"
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestIsCheckAllowed(t *testing.T) {
@@ -99,6 +103,15 @@ func TestIsCheckAllowed(t *testing.T) {
 			wantResult: true,
 		},
 		{
+			name:      "cloud_cost_only mode allows checks without an allowlist",
+			checkName: "postgres",
+			setupCfg: func(cfg pkgconfigmodel.Config) {
+				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+			},
+			wantResult: true,
+		},
+		{
 			name:      "excluded takes precedence over allowed",
 			checkName: "disk",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
@@ -120,4 +133,36 @@ func TestIsCheckAllowed(t *testing.T) {
 			assert.Equal(t, tt.wantResult, result)
 		})
 	}
+}
+
+func TestIsCheckAllowedCloudCostOnlyNoUnknownKeyWarning(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
+	cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+	t.Cleanup(func() { log.SetupLogger(log.Default(), "info") })
+
+	assert.True(t, IsCheckAllowed("postgres", cfg))
+
+	logger.Close()
+	require.NoError(t, w.Flush())
+	assert.NotContains(t, b.String(), "integration.cloud_cost_only.allowed")
+
+	// Re-open capture and prove the missing key still warns if looked up directly.
+	b.Reset()
+	w.Reset(&b)
+	logger, err = log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, "warn")
+
+	_ = cfg.GetStringSlice("integration.cloud_cost_only.allowed")
+
+	logger.Close()
+	require.NoError(t, w.Flush())
+	assert.Contains(t, b.String(), "integration.cloud_cost_only.allowed")
 }

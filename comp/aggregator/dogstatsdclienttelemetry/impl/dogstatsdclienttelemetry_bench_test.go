@@ -38,7 +38,7 @@ func BenchmarkComponentFinalDogStatsDSerieObserver_1MFinalSeries(b *testing.B) {
 	} {
 		b.Run(benchmark.name, func(b *testing.B) {
 			telemetry := telemetrymock.New(b)
-			provides := NewComponent(Requires{Telemetry: telemetry})
+			provides := NewComponent(Requires{Telemetry: telemetry, DropDetector: &recordingDropDetector{}})
 			series := make([]*metrics.Serie, finalDogStatsDClientTelemetrySeriesPerOperation)
 			for i := range series {
 				series[i] = &metrics.Serie{
@@ -59,6 +59,11 @@ func BenchmarkComponentFinalDogStatsDSerieObserver_1MFinalSeries(b *testing.B) {
 			b.StopTimer()
 
 			countMetrics, err := telemetry.GetCountMetric("dogstatsd_client", "bytes_sent")
+			if benchmark.expected == 0 {
+				require.Error(b, err)
+				b.ReportMetric(float64(finalDogStatsDClientTelemetrySeriesPerOperation), "final-series/op")
+				return
+			}
 			require.NoError(b, err)
 			require.Len(b, countMetrics, 1)
 			require.Equal(b, benchmark.expected*float64(b.N), countMetrics[0].Value())

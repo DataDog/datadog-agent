@@ -13,17 +13,11 @@ import (
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// jobNameLabel is the canonical label kube-controller-manager stamps onto Pods
-// owned by a Job (Kubernetes 1.27+). It lets us correlate Pods we observe
-// against the JobRecord that OnRollback registered.
-const jobNameLabel = "batch.kubernetes.io/job-name"
 
 const (
 	// ActionTTL is how long action timestamps are considered valid.
@@ -33,27 +27,6 @@ const (
 	// CleanupInterval is how often expired records are purged.
 	CleanupInterval = 30 * time.Second
 )
-
-// ActionRecord stores information about a processed action.
-type ActionRecord struct {
-	Key             ActionKey
-	Status          string
-	Message         string
-	ExecutedAt      int64
-	ReceivedAt      int64
-	ActionCreatedAt int64
-	ClaimedAt       int64
-}
-
-// ActionStoreInterface defines the store methods used by ActionProcessor.
-// type ActionStoreInterface interface {
-// 	// Claim tries to claim an action for execution. Returns false if already claimed.
-// 	Claim(key ActionKey) bool
-// 	// MarkExecuted updates the record for a previously claimed action.
-// 	MarkExecuted(key ActionKey, status, message string, executedAt, receivedAt, actionCreatedAt int64)
-// 	// GetRecord retrieves the execution record for an action.
-// 	GetRecord(key ActionKey) (ActionRecord, bool)
-// }
 
 // JobPhase summarises a tracked Job's high-level state.
 type JobPhase string
@@ -79,50 +52,52 @@ type JobRecord struct {
 	Succeeded   int32
 	Failed      int32
 	Message     string
-	CreatedAt   int64 // unix seconds, time we started tracking
-	UpdatedAt   int64 // unix seconds, last watch event time
-	CompletedAt int64 // unix seconds, 0 until succeeded/failed
+	CreatedAt   int64     // unix seconds, time we started tracking
+	UpdatedAt   int64     // unix seconds, last watch event time
+	CompletedAt int64     // unix seconds, 0 until succeeded/failed
+	ReportedTs  time.Time // When final status report was sent to EVP
+
+	// Action metadata copied from RollbackInputs at TrackJob time and carried
+	// forward, unchanged, through every UpdateJob rebuild (same treatment as
+	// CreatedAt) — needed to report completion back to EVP against the
+	// originating task once the Job reaches a terminal state.
+	ActionID         string
+	OrgID            int64
+	Release          string
+	ReleaseNamespace string
 }
 
-// PodRecord captures the latest observed state of a Pod owned by a tracked Job.
-// Phase reuses corev1.PodPhase directly ("Pending"/"Running"/"Succeeded"/
-// "Failed"/"Unknown") so consumers can compare with k8s constants without a
-// translation layer.
-type PodRecord struct {
-	UID         types.UID
-	Namespace   string
-	Name        string
-	JobName     string // value of batch.kubernetes.io/job-name
-	Phase       corev1.PodPhase
-	Reason      string // e.g. "Error", "OOMKilled", "CrashLoopBackOff"
-	Message     string
-	ExitCode    int32  // exit code of the helm container (0 if none seen)
-	Logs        string // populated lazily when the pod fails
-	CreatedAt   int64
-	UpdatedAt   int64
-	CompletedAt int64
+func (r *JobRecord) phaseIsTerminal() bool {
+	return r.Phase == JobPhaseFailed || r.Phase == JobPhaseSucceeded
+}
+
+func (r *JobRecord) reported() bool {
+	return !r.ReportedTs.IsZero()
+}
+
+func (r *JobRecord) markReported() {
+	// update only if not set before.
+	if r.ReportedTs.IsZero() {
+		r.ReportedTs = time.Now()
+	}
 }
 
 // ActionStore tracks processed actions in-memory to prevent duplicate execution.
 type ActionStore struct {
-	executed map[string]ActionRecord
-	jobs     map[types.UID]JobRecord
-	pods     map[types.UID]PodRecord
-	// mu guards above mentioned
-	mu     sync.RWMutex
-	stopCh chan struct{}
+	// mu guards jobs
+	mu       sync.RWMutex
+	jobs     map[types.UID]*JobRecord
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 // NewActionStore creates a new ActionStore and starts the background cleanup goroutine.
 func NewActionStore() *ActionStore {
 	s := &ActionStore{
-		executed: make(map[string]ActionRecord),
-		jobs:     make(map[types.UID]JobRecord),
-		pods:     make(map[types.UID]PodRecord),
+		jobs: make(map[types.UID]*JobRecord),
 	}
 
-	log.Debugf("[HelmActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
-		ActionTTL, RecordRetentionTTL, CleanupInterval)
+	log.Debugf("[HelmActions] Action store initialized (retention=%v, cleanup=%v)", RecordRetentionTTL, CleanupInterval)
 	return s
 }
 
@@ -131,7 +106,7 @@ func NewActionStore() *ActionStore {
 // union rather than an interface because JobRecord and PodRecord otherwise
 // share no methods — the shared shape is purely structural.
 type trackedLifecycle interface {
-	JobRecord | PodRecord
+	JobRecord
 }
 
 // upsertTracked centralises the lock/lookup/write shell used by both
@@ -148,60 +123,82 @@ type trackedLifecycle interface {
 // caller knows which transition matters to its watcher.
 func upsertTracked[T trackedLifecycle](
 	s *ActionStore,
-	m map[types.UID]T,
+	m map[types.UID]*T,
 	uid types.UID,
-	build func(prev T, now int64) (T, bool),
-) (T, bool) {
+	build func(prev *T, now int64) *T,
+) *T {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	prev := m[uid]
+	if prev == nil {
+		prev = new(T)
+	}
 	now := time.Now().Unix()
-	rec, transitioned := build(prev, now)
+	rec := build(prev, now)
 	m[uid] = rec
-	return rec, transitioned
+	return rec
 }
 
 // TrackJob registers a Job for status tracking. Idempotent: a second call with
 // the same UID is a no-op (the watcher will own subsequent updates).
-func (s *ActionStore) TrackJob(job *batchv1.Job, _ *helmactions.RollbackInputs) {
+func (s *ActionStore) TrackJob(job *batchv1.Job, in *helmactions.RollbackInputs, meta helmactions.TaskMeta) {
 	if job == nil || job.UID == "" {
 		return
 	}
+
+	now := time.Now().Unix()
+	rec := &JobRecord{
+		UID:              job.UID,
+		Namespace:        job.Namespace,
+		Name:             job.Name,
+		Phase:            JobPhasePending,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		ActionID:         meta.ActionID,
+		OrgID:            meta.OrgID,
+		Release:          in.Release,
+		ReleaseNamespace: in.ReleaseNamespace,
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.jobs[job.UID]; exists {
-		return
+	if old, exists := s.jobs[job.UID]; exists {
+		log.Debugf("[HelmActions] Tracking Job that already exists: %s", job.UID)
+		// If job is already there it means tracking loop added it earlier than this call.
+		// Update all fields except time related
+		rec.CreatedAt = old.CreatedAt
+		rec.UpdatedAt = old.UpdatedAt
 	}
-	now := time.Now().Unix()
-	s.jobs[job.UID] = JobRecord{
-		UID:       job.UID,
-		Namespace: job.Namespace,
-		Name:      job.Name,
-		Phase:     JobPhasePending,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-	log.Debugf("[HelmActions] Tracking Job %s/%s (uid=%s)", job.Namespace, job.Name, job.UID)
+
+	s.jobs[job.UID] = rec
+	log.Debugf("[HelmActions] Tracking Job %s/%s (uid=%s, actionID=%s)", job.Namespace, job.Name, job.UID, meta.ActionID)
 }
 
 // UpdateJob applies the latest observed state of a Job to the store. Called by
 // the Job watcher on ADDED/MODIFIED events. Returns the resulting record and
 // whether it represents a transition into a terminal phase (succeeded/failed).
-func (s *ActionStore) UpdateJob(job *batchv1.Job) (JobRecord, bool) {
-	return upsertTracked(s, s.jobs, job.UID, func(prev JobRecord, now int64) (JobRecord, bool) {
+func (s *ActionStore) UpdateJob(job *batchv1.Job) *JobRecord {
+	return upsertTracked(s, s.jobs, job.UID, func(prev *JobRecord, now int64) *JobRecord {
+		actionID := jobActionID(job, prev.ActionID)
+
 		phase, msg := classifyJob(job)
-		rec := JobRecord{
-			UID:         job.UID,
-			Namespace:   job.Namespace,
-			Name:        job.Name,
-			Phase:       phase,
-			Active:      job.Status.Active,
-			Succeeded:   job.Status.Succeeded,
-			Failed:      job.Status.Failed,
-			Message:     msg,
-			CreatedAt:   prev.CreatedAt,
-			UpdatedAt:   now,
-			CompletedAt: prev.CompletedAt,
+		rec := &JobRecord{
+			UID:              job.UID,
+			Namespace:        job.Namespace,
+			Name:             job.Name,
+			Phase:            phase,
+			Active:           job.Status.Active,
+			Succeeded:        job.Status.Succeeded,
+			Failed:           job.Status.Failed,
+			Message:          msg,
+			CreatedAt:        prev.CreatedAt,
+			UpdatedAt:        now,
+			CompletedAt:      prev.CompletedAt,
+			ReportedTs:       prev.ReportedTs,
+			ActionID:         actionID,
+			OrgID:            prev.OrgID,
+			Release:          prev.Release,
+			ReleaseNamespace: prev.ReleaseNamespace,
 		}
 		if prev.CreatedAt == 0 {
 			// Watcher saw the Job before OnRollback ran (relisted on reconnect).
@@ -210,9 +207,21 @@ func (s *ActionStore) UpdateJob(job *batchv1.Job) (JobRecord, bool) {
 		if rec.CompletedAt == 0 && (phase == JobPhaseSucceeded || phase == JobPhaseFailed) {
 			rec.CompletedAt = now
 		}
-		terminal := rec.CompletedAt > 0 && prev.CompletedAt == 0
-		return rec, terminal
+		return rec
 	})
+}
+
+// jobActionID determines actionID for current job usign following logic:
+// in normal conditions DCA runs for a long time and prevID is always present when job is not manually created.
+// prevID can be "" on DCA restart in which case functions inspects job annotation for actionID.
+func jobActionID(job *batchv1.Job, prevID string) string {
+	if prevID != "" {
+		return prevID
+	}
+	if job.Annotations == nil {
+		return ""
+	}
+	return job.Annotations[helmactions.AnnotationActionID]
 }
 
 // RemoveJob drops a tracked Job. Called on watcher DELETED events.
@@ -220,106 +229,6 @@ func (s *ActionStore) RemoveJob(uid types.UID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.jobs, uid)
-}
-
-// UpdatePod applies the latest observed state of a Pod. Returns the resulting
-// record and whether this update is the transition into the Failed phase — the
-// caller uses that signal to trigger log capture.
-func (s *ActionStore) UpdatePod(pod *corev1.Pod) (PodRecord, bool) {
-	return upsertTracked(s, s.pods, pod.UID, func(prev PodRecord, now int64) (PodRecord, bool) {
-		phase, reason, message, exitCode := classifyPod(pod)
-		rec := PodRecord{
-			UID:         pod.UID,
-			Namespace:   pod.Namespace,
-			Name:        pod.Name,
-			JobName:     pod.Labels[jobNameLabel],
-			Phase:       phase,
-			Reason:      reason,
-			Message:     message,
-			ExitCode:    exitCode,
-			Logs:        prev.Logs, // preserve any logs already attached
-			CreatedAt:   prev.CreatedAt,
-			UpdatedAt:   now,
-			CompletedAt: prev.CompletedAt,
-		}
-		if prev.CreatedAt == 0 {
-			rec.CreatedAt = now
-		}
-		if rec.CompletedAt == 0 && (phase == corev1.PodSucceeded || phase == corev1.PodFailed) {
-			rec.CompletedAt = now
-		}
-		// "Just failed" — the caller uses this edge to fetch logs exactly once.
-		justFailed := phase == corev1.PodFailed && prev.Phase != corev1.PodFailed
-		return rec, justFailed
-	})
-}
-
-// RemovePod drops a tracked Pod. Called on watcher DELETED events.
-func (s *ActionStore) RemovePod(uid types.UID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.pods, uid)
-}
-
-// GetPodsForJob returns the tracked Pods whose batch.kubernetes.io/job-name
-// label matches the given Job name.
-func (s *ActionStore) GetPodsForJob(jobName string) []PodRecord {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []PodRecord
-	for _, p := range s.pods {
-		if p.JobName == jobName {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-// AttachPodLogs stores the captured tail of a Pod's logs on its record. Safe to
-// call when the Pod has already been removed — the update is dropped.
-func (s *ActionStore) AttachPodLogs(uid types.UID, logs string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	rec, ok := s.pods[uid]
-	if !ok {
-		return
-	}
-	rec.Logs = logs
-	rec.UpdatedAt = time.Now().Unix()
-	s.pods[uid] = rec
-}
-
-// classifyPod extracts reason/message/exit code from a Pod's status. The exit
-// code is taken from the "helm" container; if it has not terminated yet,
-// exitCode is 0. The phase is passed through unchanged from pod.Status.Phase.
-func classifyPod(pod *corev1.Pod) (corev1.PodPhase, string, string, int32) {
-	var (
-		reason   = pod.Status.Reason
-		message  = pod.Status.Message
-		exitCode int32
-	)
-	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.Name != helmContainerName {
-			continue
-		}
-		if t := cs.State.Terminated; t != nil {
-			exitCode = t.ExitCode
-			if reason == "" {
-				reason = t.Reason
-			}
-			if message == "" {
-				message = t.Message
-			}
-		} else if w := cs.State.Waiting; w != nil {
-			if reason == "" {
-				reason = w.Reason
-			}
-			if message == "" {
-				message = w.Message
-			}
-		}
-	}
-	return pod.Status.Phase, reason, message, exitCode
 }
 
 // classifyJob derives a high-level phase + summary message from a Job's Status
@@ -364,20 +273,6 @@ func (s *ActionStore) cleanup() {
 	defer s.mu.Unlock()
 
 	cutoff := time.Now().Add(-RecordRetentionTTL).Unix()
-	removed := 0
-	for k, r := range s.executed {
-		ts := r.ActionCreatedAt
-		if ts == 0 {
-			ts = r.ExecutedAt
-		}
-		if (ts > 0 && ts < cutoff) || (r.ClaimedAt > 0 && r.ClaimedAt < cutoff) {
-			delete(s.executed, k)
-			removed++
-		}
-	}
-	if removed > 0 {
-		log.Debugf("[HelmActions] Cleaned up %d expired action records (remaining: %d)", removed, len(s.executed))
-	}
 
 	removedJobs := 0
 	for uid, j := range s.jobs {
@@ -392,17 +287,6 @@ func (s *ActionStore) cleanup() {
 	if removedJobs > 0 {
 		log.Debugf("[HelmActions] Cleaned up %d completed Job records (remaining: %d)", removedJobs, len(s.jobs))
 	}
-
-	removedPods := 0
-	for uid, p := range s.pods {
-		if p.CompletedAt > 0 && p.CompletedAt < cutoff {
-			delete(s.pods, uid)
-			removedPods++
-		}
-	}
-	if removedPods > 0 {
-		log.Debugf("[HelmActions] Cleaned up %d completed Pod records (remaining: %d)", removedPods, len(s.pods))
-	}
 }
 
 func (s *ActionStore) RunCleanup(ctx context.Context) {
@@ -412,6 +296,7 @@ func (s *ActionStore) RunCleanup(ctx context.Context) {
 
 // Stop shuts down the cleanup goroutine.
 func (s *ActionStore) StopCleanup() {
-	close(s.stopCh)
-	s.stopCh = nil
+	s.stopOnce.Do(func() {
+		close(s.stopCh)
+	})
 }

@@ -1,0 +1,7 @@
+# This file has moved.
+#
+# Example Agent configuration files are now split by OS and by binary, and
+# live under pkg/config/example/. For example, the main Agent's Linux
+# configuration example is at pkg/config/example/datadog-agent_linux.yaml.example.
+#
+# See https://github.com/DataDog/datadog-agent/tree/main/pkg/config/example

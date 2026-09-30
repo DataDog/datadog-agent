@@ -133,6 +133,7 @@ type Tailer struct {
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
+	baseFileOpener  opener.FileOpener
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -208,7 +209,8 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fingerprinter:                opts.Fingerprinter,
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
-		fileOpener:                   opts.FileOpener,
+		fileOpener:                   opener.ForSource(opts.FileOpener, opts.File.Source),
+		baseFileOpener:               opts.FileOpener,
 	}
 
 	if fileRotated {
@@ -249,7 +251,7 @@ func (t *Tailer) NewRotatedTailer(
 		Fingerprint:     fingerprint,
 		Fingerprinter:   fingerprinter,
 		Registry:        registry,
-		FileOpener:      t.fileOpener,
+		FileOpener:      t.baseFileOpener,
 	}
 
 	return NewTailer(options)
@@ -308,6 +310,9 @@ func (t *Tailer) Stop() {
 func (t *Tailer) StopAfterFileRotation() {
 	t.didFileRotate.Store(true)
 	bytesReadAtRotationTime := t.bytesRead.Get()
+	// Resolved before the goroutine, which sleeps for closeTimeout first, to keep
+	// the source lock off that path.
+	missedSource, missedService := missedBytesIdentity(t.file.Source.Config())
 	go func() {
 		time.Sleep(t.closeTimeout)
 		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
@@ -324,6 +329,7 @@ func (t *Tailer) StopAfterFileRotation() {
 					if remainingBytes > 0 {
 						metrics.BytesMissed.Add(remainingBytes)
 						metrics.TlmBytesMissed.Add(float64(remainingBytes))
+						metrics.RecordMissedBytes(missedSource, missedService, remainingBytes)
 						log.Warnf("After rotation close timeout (%s), there were %d bytes remaining unread for file %q. These unread logs are now lost. Consider increasing DD_LOGS_CONFIG_CLOSE_TIMEOUT", t.closeTimeout, remainingBytes, t.file.Path)
 					}
 				}
@@ -396,7 +402,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 	for output := range t.decoder.OutputChan() {
-		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
+		offset := t.decodedOffset.Load() + int64(output.RawDataLenForCheckpoint())
 		// Track post-framer log line sizes
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
 		identifier := t.Identifier()

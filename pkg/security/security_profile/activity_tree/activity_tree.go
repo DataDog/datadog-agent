@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
@@ -35,6 +36,7 @@ const (
 	eventTypeReason NodeDroppedReason = iota
 	invalidRootNodeReason
 	bindFamilyReason
+	connectFamilyReason
 	brokenEventReason
 
 	minNodeDroppedReason   = eventTypeReason
@@ -50,6 +52,8 @@ func (reason NodeDroppedReason) String() string {
 		return "invalid_root_node"
 	case bindFamilyReason:
 		return "bind_family"
+	case connectFamilyReason:
+		return "connect_family"
 	case brokenEventReason:
 		return "broken_event"
 	default:
@@ -67,6 +71,8 @@ func (reason NodeDroppedReason) Tag() string {
 		return "reason:invalid_root_node"
 	case bindFamilyReason:
 		return "reason:bind_family"
+	case connectFamilyReason:
+		return "reason:connect_family"
 	case brokenEventReason:
 		return "reason:broken_event"
 	default:
@@ -81,6 +87,8 @@ var (
 	ErrNotValidRootNode = errors.New("root node not valid")
 	// ErrInvalidBindFamily is returned when a bind event uses an unsupported address family
 	ErrInvalidBindFamily = errors.New("invalid bind address family")
+	// ErrInvalidConnectFamily is returned when a connect event uses an unsupported address family
+	ErrInvalidConnectFamily = errors.New("invalid connect address family")
 	// ErrIMDSMissingCredentials is returned when an IMDS response event has no access key ID
 	ErrIMDSMissingCredentials = errors.New("IMDS response without credentials")
 	// ErrIMDSMissingURL is returned when an IMDS request event has no URL
@@ -329,6 +337,10 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		at.Stats.DNSNodes += int64(len(node.DNSNames))
 		at.Stats.SocketNodes += int64(len(node.Sockets))
 
+		for _, sock := range node.Sockets {
+			at.Stats.ConnectNodes += int64(len(sock.Connect))
+		}
+
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
 		}
@@ -365,19 +377,6 @@ func (at *ActivityTree) Debug(w io.Writer) {
 	}
 }
 
-// ScrubProcessArgsEnvs scrubs and retains process args and envs
-func (at *ActivityTree) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	// iterate through all the process nodes
-	openList := make([]*ProcessNode, len(at.ProcessNodes))
-	copy(openList, at.ProcessNodes)
-
-	for len(openList) != 0 {
-		current := openList[len(openList)-1]
-		current.scrubAndReleaseArgsEnvs(resolver)
-		openList = append(openList[:len(openList)-1], current.Children...)
-	}
-}
-
 // DifferentiateArgs enables the args differentiation feature
 func (at *ActivityTree) DifferentiateArgs() {
 	at.differentiateArgs = true
@@ -404,6 +403,7 @@ func IsExpectedFilterError(err error) bool {
 		errors.As(err, &pathResolutionNotCriticalErr) ||
 		errors.Is(err, ErrNotValidRootNode) ||
 		errors.Is(err, ErrInvalidBindFamily) ||
+		errors.Is(err, ErrInvalidConnectFamily) ||
 		errors.Is(err, ErrIMDSMissingCredentials) ||
 		errors.Is(err, ErrIMDSMissingURL)
 }
@@ -463,6 +463,14 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Inc()
 			}
 			return false, fmt.Errorf("%w: %s", ErrInvalidBindFamily, model.AddressFamily(event.Bind.AddrFamily))
+		}
+	case model.ConnectEventType:
+		// ignore non IPv4 / IPv6 connect events for now
+		if event.Connect.AddrFamily != unix.AF_INET && event.Connect.AddrFamily != unix.AF_INET6 {
+			if !dryRun {
+				at.Stats.counts[model.ConnectEventType].droppedCount[connectFamilyReason].Inc()
+			}
+			return false, fmt.Errorf("%w: %s", ErrInvalidConnectFamily, model.AddressFamily(event.Connect.AddrFamily))
 		}
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
@@ -551,6 +559,9 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertIMDSEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
 	case model.BindEventType:
 		newEntry, eventNodeBase := node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
+		return newEntry, node, eventNodeBase, nil
+	case model.ConnectEventType:
+		newEntry, eventNodeBase := node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
 		return newEntry, node, eventNodeBase, nil
 	case model.SyscallsEventType:
 		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), node, nil, nil
@@ -986,10 +997,11 @@ func (at *ActivityTree) FindMatchingRootNodes(arg0 string) []*ProcessNode {
 	return res
 }
 
-// Snapshot uses procfs to snapshot the nodes of the tree
-func (at *ActivityTree) Snapshot(newEvent func() *model.Event) {
+// Snapshot uses procfs to snapshot the nodes of the tree. The container ID is a
+// workload-level property shared by every node, threaded in from the owning profile.
+func (at *ActivityTree) Snapshot(newEvent func() *model.Event, containerID containerutils.ContainerID) {
 	for _, pn := range at.ProcessNodes {
-		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer)
+		pn.snapshot(at.validator, at.Stats, newEvent, at.pathsReducer, containerID)
 	}
 }
 

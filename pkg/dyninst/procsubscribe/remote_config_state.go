@@ -10,6 +10,7 @@ package procsubscribe
 import (
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -37,6 +38,16 @@ type runtimeEntry struct {
 	runtimeID    string
 	probesByPath map[string]ir.ProbeDefinition
 	symdbEnabled bool
+	// startTime is when the process started, or the zero time if it is unknown.
+	startTime time.Time
+	// language is the language the tracer in the process reported.
+	language string
+	// discoveryAttempts is the number of scans that looked at the process
+	// before discovering it.
+	discoveryAttempts uint32
+	// trackRequested records that a TRACK request has been sent for this
+	// process, so that reconnects do not report its discovery again.
+	trackRequested bool
 }
 
 func makeSubscriberState() subscriberState {
@@ -61,6 +72,7 @@ func (s *subscriberState) onStreamEstablished(effects effects) {
 func (s *subscriberState) onScanUpdate(
 	added []procscan.DiscoveredProcess,
 	removed []procscan.ProcessID,
+	now time.Time,
 	effects effects,
 ) {
 	if log.ShouldLog(log.TraceLvl) {
@@ -109,14 +121,18 @@ func (s *subscriberState) onScanUpdate(
 		if _, ok := s.tracked[runtimeID]; !ok {
 			s.tracked[runtimeID] = &runtimeEntry{
 				Info: process.Info{
-					ProcessID:   pid,
-					Executable:  proc.Executable,
-					Service:     proc.TracerMetadata.ServiceName,
-					Environment: proc.TracerMetadata.ServiceEnv,
-					Version:     proc.TracerMetadata.ServiceVersion,
+					ProcessID:    pid,
+					Executable:   proc.Executable,
+					Service:      proc.TracerMetadata.ServiceName,
+					Environment:  proc.TracerMetadata.ServiceEnv,
+					Version:      proc.TracerMetadata.ServiceVersion,
+					DiscoveredAt: now,
 				},
-				runtimeID:    runtimeID,
-				probesByPath: make(map[string]ir.ProbeDefinition),
+				runtimeID:         runtimeID,
+				probesByPath:      make(map[string]ir.ProbeDefinition),
+				startTime:         proc.StartTime,
+				language:          proc.TracerMetadata.TracerLanguage,
+				discoveryAttempts: proc.Attempts,
 			}
 			log.Tracef(
 				"process subscriber: discovered new runtime %s (pid=%d)",

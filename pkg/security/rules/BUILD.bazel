@@ -53,6 +53,7 @@ dd_agent_go_test(
         "//pkg/security/config",
         "//pkg/security/metrics",
         "//pkg/security/probe",
+        "//pkg/security/probe/config",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/model",
         "//pkg/security/secl/rules",

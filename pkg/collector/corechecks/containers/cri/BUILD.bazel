@@ -28,7 +28,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/pointer",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
         "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
     ],
 )

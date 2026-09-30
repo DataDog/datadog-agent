@@ -128,20 +128,61 @@ func WithMsi(target string) MsiexecOption {
 	}
 }
 
-// WithMsiFromPackagePath finds an MSI from the packages folder
-func WithMsiFromPackagePath(target, product string) MsiexecOption {
+// AgentMSIName returns the MSI filename for an Agent package version.
+func AgentMSIName(version string, fipsMode bool) string {
+	prefix := "datadog-agent"
+	if fipsMode {
+		prefix = "datadog-fips-agent"
+	}
+	return fmt.Sprintf("%s-%s-x86_64.msi", prefix, version)
+}
+
+// AgentProductName returns the Agent's Windows Installer product name.
+func AgentProductName(fipsMode bool) string {
+	if fipsMode {
+		return "Datadog FIPS Agent"
+	}
+	return "Datadog Agent"
+}
+
+// FindAgentMSI finds exactly one Agent MSI of the requested flavor.
+func FindAgentMSI(dir string, fipsMode bool) (string, error) {
+	msis, err := filepath.Glob(filepath.Join(dir, AgentMSIName("*", fipsMode)))
+	if err != nil {
+		return "", err
+	}
+	// Older installers saved the FIPS rollback MSI as datadog-agent-*.msi.
+	if fipsMode && len(msis) == 0 {
+		msis, err = filepath.Glob(filepath.Join(dir, AgentMSIName("*", false)))
+		if err != nil {
+			return "", err
+		}
+	}
+	if len(msis) > 1 {
+		return "", errors.New("too many MSIs in package")
+	}
+	if len(msis) == 0 {
+		return "", errors.New("no MSIs in package")
+	}
+	product, err := readMSIProductName(msis[0])
+	if err != nil {
+		return "", fmt.Errorf("read MSI product: %w", err)
+	}
+	if product != AgentProductName(fipsMode) {
+		return "", fmt.Errorf("unexpected MSI product %q, expected %q", product, AgentProductName(fipsMode))
+	}
+	return msis[0], nil
+}
+
+// WithMsiFromPackagePath finds the Agent MSI from the packages folder.
+func WithMsiFromPackagePath(target, product string, fipsMode bool) MsiexecOption {
 	return func(a *msiexecArgs) error {
 		updaterPath := filepath.Join(paths.PackagesPath, product, target)
-		msis, err := filepath.Glob(filepath.Join(updaterPath, product+"-*-1-x86_64.msi"))
+		msiPath, err := FindAgentMSI(updaterPath, fipsMode)
 		if err != nil {
 			return err
 		}
-		if len(msis) > 1 {
-			return errors.New("too many MSIs in package")
-		} else if len(msis) == 0 {
-			return errors.New("no MSIs in package")
-		}
-		a.target = msis[0]
+		a.target = msiPath
 		return nil
 	}
 }
@@ -355,6 +396,15 @@ func (m *Msiexec) processLogFile(logFile fs.File) ([]byte, error) {
 			//   Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
 			//   MSI (s) (54:EC) [12:25:53:886]: Product: Datadog Agent -- Error 1923. Service 'Datadog Agent' (datadogagent) could not be installed. Verify that you have sufficient privileges to install system services.
 			return FindAllIndexWithContext(regexp.MustCompile("Verify that you have sufficient privileges to install system services"), bytes, 2, 1)
+		},
+		func(bytes []byte) []TextRange {
+			// The first pattern is the owner check, in both the MSI (EnsureSecureConfigRoot) and the
+			// Go installer (paths.IsDirSecure), the second is the directory not being readable.
+			// Typically looks like this:
+			//   CA: 12:24:00: EnsureSecureConfigRoot. C:\ProgramData\Datadog has unexpected owner WIN-HOST\someuser (S-1-5-21-1-2-3-1001), it must be owned by Administrators or SYSTEM. The installer will not use a directory that a user without administrator rights may have created. Remove it, or make Administrators its owner by running takeown.exe /A /F "C:\ProgramData\Datadog" after reviewing its contents, then retry.
+			return FindAllIndexWithContext(
+				regexp.MustCompile("has unexpected owner|to verify its owner"),
+				bytes, 2, 2)
 		})
 }
 

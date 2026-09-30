@@ -622,16 +622,14 @@ EOF`, macosAPMSentinelService))
 			return
 		}
 
+		// The convert-traces feature is enabled by default, so the agent
+		// serializes tracer payloads in the v1 string-indexed idx format
+		// (AgentPayload.IdxTracerPayloads) and leaves the legacy
+		// TracerPayloads field empty.
 		var found bool
 		for _, payload := range payloads {
-			for _, tracerPayload := range payload.TracerPayloads {
-				for _, chunk := range tracerPayload.Chunks {
-					for _, span := range chunk.Spans {
-						if span.Service == macosAPMSentinelService {
-							found = true
-						}
-					}
-				}
+			if client.IdxPayloadHasService(payload, macosAPMSentinelService) {
+				found = true
 			}
 		}
 		assert.True(c, found, "%s trace should be collected in trace payloads", macosAPMSentinelService)
@@ -757,9 +755,14 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 	macosTestClient.MustExecuteOn(m.T(), "chmod +x "+remoteScriptPath)
 	macosTestClient.MustExecuteOn(m.T(), remoteScriptPath)
 
+	// `launchctl bootout` returns as soon as it has requested the unload; launchd removes the
+	// job from its job table asynchronously, so a `launchctl print` run immediately afterwards
+	// can still report the service as registered. Poll instead of asserting on the first try.
 	for _, service := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe", "com.datadoghq.data-plane"} {
-		_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
-		assert.Error(m.T(), err, "service %s should no longer be registered with launchd", service)
+		m.EventuallyWithT(func(c *assert.CollectT) {
+			_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
+			assert.Error(c, err, "service %s should no longer be registered with launchd", service)
+		}, 10*time.Second, 500*time.Millisecond)
 	}
 
 	removedPaths := []string{

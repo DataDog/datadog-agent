@@ -14,13 +14,28 @@ BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent-cloudfoundry")
 
 
 @task
-def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False, development=True, skip_assets=False):
+def build(
+    ctx,
+    rebuild=False,
+    build_include=None,
+    build_exclude=None,
+    race=False,
+    development=True,
+    skip_assets=False,
+    enable_bazel=False,
+):
     """
     Build Cluster Agent for Cloud Foundry
 
      Example invokation:
         dda inv cluster-agent-cloudfoundry.build
     """
+    if enable_bazel:
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+
     build_common(
         ctx,
         BIN_PATH,
@@ -34,6 +49,7 @@ def build(ctx, rebuild=False, build_include=None, build_exclude=None, race=False
         race,
         development,
         skip_assets,
+        enable_bazel=enable_bazel,
     )
 
 

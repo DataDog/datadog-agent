@@ -27,12 +27,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/file"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/otelattrs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sign"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx"
@@ -47,24 +50,27 @@ import (
 
 // EBPFResolvers holds the list of the event attribute resolvers
 type EBPFResolvers struct {
-	manager              *manager.Manager
-	MountResolver        mount.ResolverInterface
-	TimeResolver         *ktime.Resolver
-	UserGroupResolver    *usergroup.Resolver
-	TagsResolver         *tags.LinuxResolver
-	DentryResolver       *dentry.Resolver
-	ProcessResolver      *process.EBPFResolver
-	NamespaceResolver    *netns.Resolver
-	CGroupResolver       *cgroup.Resolver
-	TCResolver           *tc.Resolver
-	PathResolver         path.ResolverInterface
-	SBOMResolver         *sbom.Resolver
-	HashResolver         *hash.Resolver
-	UserSessionsResolver *usersessions.Resolver
-	SyscallCtxResolver   *syscallctx.Resolver
-	DNSResolver          *dns.Resolver
-	FileMetadataResolver *file.Resolver
-	SignatureResolver    *sign.Resolver
+	manager                 *manager.Manager
+	MountResolver           mount.ResolverInterface
+	TimeResolver            *ktime.Resolver
+	UserGroupResolver       *usergroup.Resolver
+	TagsResolver            *tags.LinuxResolver
+	DentryResolver          *dentry.Resolver
+	ProcessResolver         *process.EBPFResolver
+	NamespaceResolver       *netns.Resolver
+	CGroupResolver          *cgroup.Resolver
+	TCResolver              *tc.Resolver
+	PathResolver            path.ResolverInterface
+	SBOMResolver            *sbom.Resolver
+	SecurityContextResolver securitycontext.Resolver
+	HashResolver            *hash.Resolver
+	UserSessionsResolver    *usersessions.Resolver
+	SyscallCtxResolver      *syscallctx.Resolver
+	GoLabelsCtxResolver     *golabelsctx.Resolver
+	OTelAttrsResolver       *otelattrs.Resolver
+	DNSResolver             *dns.Resolver
+	FileMetadataResolver    *file.Resolver
+	SignatureResolver       *sign.Resolver
 
 	SnapshotUsingListmount bool
 }
@@ -199,25 +205,28 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	resolvers := &EBPFResolvers{
-		manager:                manager,
-		MountResolver:          mountResolver,
-		TimeResolver:           timeResolver,
-		UserGroupResolver:      userGroupResolver,
-		TagsResolver:           tagsResolver,
-		DentryResolver:         dentryResolver,
-		NamespaceResolver:      namespaceResolver,
-		CGroupResolver:         cgroupsResolver,
-		TCResolver:             tcResolver,
-		ProcessResolver:        processResolver,
-		PathResolver:           pathResolver,
-		SBOMResolver:           sbomResolver,
-		HashResolver:           hashResolver,
-		UserSessionsResolver:   userSessionsResolver,
-		SyscallCtxResolver:     syscallctx.NewResolver(),
-		DNSResolver:            dnsResolver,
-		FileMetadataResolver:   fileMetadataResolver,
-		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
-		SignatureResolver:      sign.NewSignatureResolver(),
+		manager:                 manager,
+		MountResolver:           mountResolver,
+		TimeResolver:            timeResolver,
+		UserGroupResolver:       userGroupResolver,
+		TagsResolver:            tagsResolver,
+		DentryResolver:          dentryResolver,
+		NamespaceResolver:       namespaceResolver,
+		CGroupResolver:          cgroupsResolver,
+		TCResolver:              tcResolver,
+		ProcessResolver:         processResolver,
+		PathResolver:            pathResolver,
+		SBOMResolver:            sbomResolver,
+		SecurityContextResolver: securitycontext.NewWorkloadmetaResolver(opts.WorkloadMeta),
+		HashResolver:            hashResolver,
+		UserSessionsResolver:    userSessionsResolver,
+		SyscallCtxResolver:      syscallctx.NewResolver(),
+		GoLabelsCtxResolver:     golabelsctx.NewResolver(),
+		OTelAttrsResolver:       otelattrs.NewResolver(),
+		DNSResolver:             dnsResolver,
+		FileMetadataResolver:    fileMetadataResolver,
+		SnapshotUsingListmount:  config.Probe.SnapshotUsingListmount,
+		SignatureResolver:       sign.NewSignatureResolver(),
 	}
 
 	return resolvers, nil
@@ -238,6 +247,14 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 	}
 
 	if err := r.SyscallCtxResolver.Start(r.manager); err != nil {
+		return err
+	}
+
+	if err := r.GoLabelsCtxResolver.Start(r.manager); err != nil {
+		return err
+	}
+
+	if err := r.OTelAttrsResolver.Start(r.manager); err != nil {
 		return err
 	}
 
@@ -314,14 +331,23 @@ func (r *EBPFResolvers) snapshot() error {
 	// Sync the namespace cache
 	r.NamespaceResolver.SyncCache()
 
+	// One snapshot for the whole walk: it reuses the buffers and the interned
+	// mapped-object paths of each process for the next, and is released with
+	// the walk.
+	otelProcCtx := r.ProcessResolver.NewOTelProcessContextSnapshot()
+
 	for _, proc := range processes {
 		// Sync the process cache
 		r.ProcessResolver.SyncCache(proc)
 		// If the process is running a Datadog tracer, populate the user-space
-		// tracer metadata — this otherwise only gets populated by the runtime
-		// tracer_memfd_seal event, which has already fired and been missed for
-		// processes that started before the agent.
+		// metadata and the kernel-side go_labels_procs map: the runtime
+		// tracer_memfd_seal event that normally does it has already fired and
+		// been missed for processes that started before the agent.
 		r.ProcessResolver.SnapshotTracer(uint32(proc.Pid))
+		// Likewise for the thread-context readers, which hang off the OTel
+		// process context a process publishes rather than off its tracer
+		// metadata, and whose publication was missed the same way.
+		otelProcCtx.Resolve(uint32(proc.Pid))
 	}
 
 	return nil

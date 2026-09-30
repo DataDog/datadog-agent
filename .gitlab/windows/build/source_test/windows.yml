@@ -2,7 +2,7 @@
 .tests_windows_base:
   stage: source_test
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
@@ -49,7 +49,6 @@
       -e TEST_WASHER=true
       -e GO_TEST_SKIP_FLAKE
       -e AGENT_API_KEY_ORG2
-      -e CODECOV
       -e S3_PERMANENT_ARTIFACTS_URI
       -e COVERAGE_CACHE_FLAG
       -e FLAKY_PATTERNS_CONFIG="\mnt\flaky-patterns-runtime.yaml"
@@ -74,6 +73,7 @@
 tests_windows-x64:
   extends: .tests_windows_base
   #parallel: 10
+  timeout: 1h 20m
   variables:
     ARCH: "x64"
 
@@ -146,7 +146,7 @@ tests_windows-x64:
 tests_windows_sysprobe_x64:
   extends: .tests_windows_sysprobe
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     ARCH: "x64"
@@ -154,7 +154,7 @@ tests_windows_sysprobe_x64:
 tests_windows_secagent_x64:
   extends: .tests_windows_secagent
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   variables:
     ARCH: "x64"

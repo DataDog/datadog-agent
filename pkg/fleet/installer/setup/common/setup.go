@@ -191,9 +191,19 @@ func (s *Setup) Run() (err error) {
 			return err
 		}
 	}
+	// Evaluate compatibility only after refreshing the SSI installer copy. The
+	// existing copy may be newer than the Agent being installed and would make a
+	// stale tmpfs preload entry appear compatible until it is overwritten here.
+	apmInjectorReinstall, err := s.prepareAPMInjectorReinstall(ctx, packages)
+	if err != nil {
+		return fmt.Errorf("failed to prepare APM injector reinstallation: %w", err)
+	}
 	for _, p := range packages {
+		if p.name == DatadogAPMInjectPackage {
+			p.forceInstall = apmInjectorReinstall
+		}
 		url := oci.PackageURL(s.Env, p.name, p.version)
-		err = s.installPackage(p.name, url)
+		err = s.installPackage(p, url)
 		if err != nil {
 			return fmt.Errorf("failed to install package %s: %w", url, err)
 		}
@@ -204,15 +214,72 @@ func (s *Setup) Run() (err error) {
 	if !s.NoConfig && runtime.GOOS == "windows" && len(freshConfigs) > 0 {
 		s.backfillConfigTemplates(freshConfigs)
 	}
-	err = s.restartServices(ctx, packages)
-	if err != nil {
-		return fmt.Errorf("failed to restart services: %w", err)
+	if installOnlyEnabled() {
+		s.Out.WriteString("Skipping service restart as requested by DD_INSTALL_ONLY\n")
+	} else {
+		err = s.restartServices(ctx, packages)
+		if err != nil {
+			return fmt.Errorf("failed to restart services: %w", err)
+		}
 	}
 	if s.DelayedAgentRestartConfig.Scheduled {
 		ScheduleDelayedAgentRestart(s, s.DelayedAgentRestartConfig.Delay, s.DelayedAgentRestartConfig.LogFile)
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
+}
+
+// prepareAPMInjectorReinstall reports whether an already-installed injector
+// must have its post-install hook replayed. This decision is made before the
+// normal Agent Install: once that call returns, the stable link no longer tells
+// us whether the requested Agent was already current.
+func (s *Setup) prepareAPMInjectorReinstall(ctx context.Context, packages []packageWithVersion) (bool, error) {
+	var requestedAgent packageWithVersion
+	installingAgent := false
+	installingInjector := false
+	for _, pkg := range packages {
+		switch pkg.name {
+		case DatadogAgentPackage:
+			requestedAgent = pkg
+			installingAgent = true
+		case DatadogAPMInjectPackage:
+			installingInjector = true
+		}
+	}
+	if !installingInjector {
+		return false, nil
+	}
+
+	installed, err := s.installer.IsInstalled(ctx, DatadogAPMInjectPackage)
+	if err != nil {
+		return false, fmt.Errorf("could not determine whether %s is installed: %w", DatadogAPMInjectPackage, err)
+	}
+	if !installed {
+		return false, nil
+	}
+	if !installingAgent {
+		// The public Agent install script installs its DEB/RPM first and then
+		// invokes the standalone APM SSI setup flavor. That flavor does not
+		// request an Agent OCI package, so detect the stale old-installer/tmpfs
+		// combination from the injector state itself.
+		return detectAPMInjectorReinstall(), nil
+	}
+
+	agentState, err := s.installer.State(ctx, DatadogAgentPackage)
+	if err != nil {
+		return false, fmt.Errorf("could not determine the installed %s version: %w", DatadogAgentPackage, err)
+	}
+	return !samePackageVersion(requestedAgent.version, agentState.Stable), nil
+}
+
+var detectAPMInjectorReinstall = apmInjectorRequiresReinstall
+
+// samePackageVersion tolerates the Debian revision suffix used by setup package
+// requests but not by OCI repository links. All other tag content remains part
+// of the comparison so distinct prerelease and pipeline builds are not folded
+// together.
+func samePackageVersion(requested, installed string) bool {
+	return strings.TrimSuffix(requested, "-1") == strings.TrimSuffix(installed, "-1")
 }
 
 // configTemplates maps config files to their .example template counterparts.
@@ -258,14 +325,14 @@ func fileExists(path string) bool {
 }
 
 // installPackage mimicks the telemetry of calling the install package command
-func (s *Setup) installPackage(name string, url string) (err error) {
+func (s *Setup) installPackage(pkg packageWithVersion, url string) (err error) {
 	span, ctx := telemetry.StartSpanFromContext(s.Ctx, "install")
 	defer func() { span.Finish(err) }()
 	span.SetTag("url", url)
 	span.SetTopLevel()
 
-	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
-	if runtime.GOOS == "windows" && name == DatadogAgentPackage {
+	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", pkg.name))
+	if pkg.forceInstall || runtime.GOOS == "windows" && pkg.name == DatadogAgentPackage {
 		// TODO(WINA-2018): Add support for skipping the installation of the core Agent if it is already installed
 		err = s.installer.ForceInstall(ctx, url, nil)
 	} else {
@@ -274,7 +341,7 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	if err != nil {
 		return err
 	}
-	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", name))
+	s.Out.WriteString(fmt.Sprintf("Successfully installed %s\n", pkg.name))
 	return nil
 }
 
@@ -308,4 +375,15 @@ func ScheduleDelayedAgentRestart(s *Setup, delay time.Duration, logFile string) 
 	if err := cmd.Start(); err != nil {
 		s.Out.WriteString(fmt.Sprintf("Failed to schedule restart: %v\n", err))
 	}
+}
+
+// installOnlyEnabled reports whether the operator requested the executable
+// setup flow to leave Agent services stopped after installation.
+func installOnlyEnabled() bool {
+	if runtime.GOOS != "windows" {
+		// only supported on Windows right now
+		return false
+	}
+	value := os.Getenv("DD_INSTALL_ONLY")
+	return value == "1" || strings.EqualFold(value, "true")
 }

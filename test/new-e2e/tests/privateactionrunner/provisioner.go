@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -26,10 +27,9 @@ import (
 )
 
 const (
-	// minHelmChartVersion is the earliest Datadog chart release that includes PAR sidecar support
-	// (helm-charts PR #2517). Drop this override once the e2e framework's global HelmVersion
-	// default is bumped to at least this value.
-	minHelmChartVersion = "3.197.2"
+	// minHelmChartVersion is the earliest Datadog chart release that configures both the
+	// Core Agent and PAR sidecar for split mode (helm-charts PRs #2904 and #2918).
+	minHelmChartVersion = "3.245.1"
 
 	systemServiceOverlap        = "par-e2e.service"
 	systemServiceBackendOnly    = "par-e2e-backend-only.service"
@@ -38,9 +38,10 @@ const (
 )
 
 // parHelmValuesTemplate configures the agent with PAR enabled.
-// Fakeintake URL wiring (DD_DD_URL, DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION) is handled
-// automatically by the e2e framework's configureFakeintake when fakeintake is present.
-// %s parameters: clusterName, runnerURN, privateKeyB64, systemServiceOperatorPolicy
+// Fakeintake URL wiring (DD_DD_URL) is handled automatically by the e2e framework's
+// configureFakeintake when fakeintake is present. See SetupPARTaskSigning for the
+// signing identity dequeued tasks need to pass verification.
+// Parameters: clusterName, splitEnabled, runnerURN, privateKeyB64, systemServiceOperatorPolicy
 const parHelmValuesTemplate = `
 datadog:
   kubelet:
@@ -48,12 +49,16 @@ datadog:
   clusterName: "%s"
   privateActionRunner:
     enabled: true
+    splitEnabled: %t
     selfEnroll: false
     urn: "%s"
     privateKey: "%s"
 agents:
   useHostNetwork: true
   containers:
+    agent:
+      envDict:
+        DD_PRIVATE_ACTION_RUNNER_URN: "urn:dd:apps:on-prem-runner:us1:42:core-only-runner"
     privateActionRunner:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
@@ -66,7 +71,7 @@ agents:
 // parK8sProvisioner provisions a Kind-on-EC2 cluster with:
 //   - fakeintake deployed as ECS Fargate (HTTP, no load balancer) — PAR polls its OPMS endpoints
 //   - Datadog Agent with PAR enabled (custom image via --agent-image CLI flag)
-func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner {
+func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provisioners.Provisioner {
 	p := provisioners.NewTypedPulumiProvisioner[environments.Kubernetes]("par-k8s",
 		func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 			name := "kind"
@@ -87,7 +92,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 2. Provision EC2 VM
-			host, err := ec2.NewVM(awsEnv, name)
+			host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.UbuntuKindDefault))
 			if err != nil {
 				return fmt.Errorf("ec2.NewVM: %w", err)
 			}
@@ -119,13 +124,14 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 4. Plant allowed and operator-blocked test data on the Kind node.
-			_, err = host.OS.Runner().Command(
+			plantTestData, err := host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
 					Create: pulumi.Sprintf(
 						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "mkdir -p /var/log/par-e2e-allowed /var/log/par-e2e-blocked && echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-allowed/testdata.txt && echo 'PAR_E2E_BLOCKED_VALUE=operator_path_must_block' > /var/log/par-e2e-blocked/testdata.txt"`,
 						kindCluster.ClusterName,
 					),
+					Triggers: pulumi.Array{kindCluster.KubeConfig},
 				},
 				utils.PulumiDependsOn(kindCluster),
 			)
@@ -134,13 +140,14 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 			}
 
 			// 5. Deploy Datadog agent via Helm with PAR enabled.
-			// DD_DD_URL and DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION for the PAR container are
-			// injected automatically by the e2e framework's configureFakeintake.
+			// DD_DD_URL for the PAR container is injected automatically by the e2e
+			// framework's configureFakeintake.
 			agent, err := helm.NewKubernetesAgent(&awsEnv, name, kubeProvider,
 				kubernetesagentparams.WithFakeintake(fi),
 				kubernetesagentparams.WithHelmValues(fmt.Sprintf(
 					parHelmValuesTemplate,
 					ctx.Stack(),
+					splitEnabled,
 					runnerURN,
 					privateKeyB64,
 					systemServiceOperatorPolicy,
@@ -148,6 +155,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
+				kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(plantTestData)),
 			)
 			if err != nil {
 				return fmt.Errorf("helm.NewKubernetesAgent: %w", err)

@@ -497,15 +497,15 @@ def build_repackaged_agent(ctx, log_level="info"):
     if architecture == "amd64":
         env.update(
             {
-                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
-                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CC": "x86_64-linux-gnu-gcc",
+                "DD_CXX": "x86_64-linux-gnu-g++",
             }
         )
     elif architecture == "arm64":
         env.update(
             {
-                "DD_CC": "aarch64-unknown-linux-gnu-gcc",
-                "DD_CXX": "aarch64-unknown-linux-gnu-g++",
+                "DD_CC": "aarch64-linux-gnu-gcc",
+                "DD_CXX": "aarch64-linux-gnu-g++",
             }
         )
 
@@ -620,11 +620,11 @@ def docker_build(
 
     # Map architecture to cross-compiler triplet
     if arch == 'arm64':
-        cc = 'aarch64-unknown-linux-gnu-gcc'
-        cxx = 'aarch64-unknown-linux-gnu-g++'
+        cc = 'aarch64-linux-gnu-gcc'
+        cxx = 'aarch64-linux-gnu-g++'
     elif arch == 'amd64':
-        cc = 'x86_64-unknown-linux-gnu-gcc'
-        cxx = 'x86_64-unknown-linux-gnu-g++'
+        cc = 'x86_64-linux-gnu-gcc'
+        cxx = 'x86_64-linux-gnu-g++'
     else:
         raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
 
@@ -859,16 +859,19 @@ def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, fi
 
 
 @task
-def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux", search_root=None):
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux", search_root=None, preserve_rpath=None):
     # Collect mime types for all files inside the Agent installation, or inside
     # search_root when callers want to scope the files to patch while keeping
     # install_path as the absolute path prefix to replace.
+    # Leave the named binary's library path unchanged.
     search_root = search_root or install_path
     files = ctx.run(rf"find {search_root} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
     for line in files.splitlines():
         if not line:
             continue
         file, file_type = line.split(":")
+        if file == preserve_rpath:
+            continue
         file_type = file_type.strip()
 
         modified = False

@@ -294,6 +294,118 @@ func TestDecoderWithSinglelineKubernetes(t *testing.T) {
 	assert.Equal(t, "", output.ParsingExtra.Timestamp)
 }
 
+func decodeLinesForTest(t *testing.T, parser parsers.Parser, lines []string, outputCount int) []*message.Message {
+	t.Helper()
+
+	d := InitializeDecoderForTest(sources.NewLogSource("", &config.LogsConfig{}), parser)
+	d.Start()
+
+	inputDone := make(chan struct{})
+	go func() {
+		defer close(inputDone)
+		for _, line := range lines {
+			d.InputChan() <- NewInput([]byte(line))
+		}
+	}()
+
+	outputs := make([]*message.Message, 0, outputCount)
+	for range outputCount {
+		outputs = append(outputs, <-d.OutputChan())
+	}
+	<-inputDone
+
+	d.Stop()
+	for output := range d.OutputChan() {
+		t.Fatalf("unexpected decoder output after stop: %q", output.GetContent())
+	}
+
+	return outputs
+}
+
+func TestDecoderWithInterleavedPartialStreams(t *testing.T) {
+	tests := []struct {
+		name            string
+		parser          parsers.Parser
+		lines           []string
+		expectedContent []string
+		expectedStatus  []string
+		expectedTime    []string
+	}{
+		{
+			name:   "CRI stderr partial interrupted by stdout",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+				"2024-01-01T00:00:00.000000001Z stdout F stdout full\n",
+				"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+			},
+			expectedContent: []string{"stdout full", "stderr part 1stderr part 2"},
+			expectedStatus:  []string{message.StatusInfo, message.StatusError},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+		{
+			name:   "CRI stdout partial interrupted by stderr",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stdout P stdout part 1\n",
+				"2024-01-01T00:00:00.000000001Z stderr F stderr full\n",
+				"2024-01-01T00:00:00.000000002Z stdout F stdout part 2\n",
+			},
+			expectedContent: []string{"stderr full", "stdout part 1stdout part 2"},
+			expectedStatus:  []string{message.StatusError, message.StatusInfo},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+		{
+			name:   "both CRI streams partial",
+			parser: kubernetes.New(),
+			lines: []string{
+				"2024-01-01T00:00:00.000000000Z stderr P stderr part 1\n",
+				"2024-01-01T00:00:00.000000001Z stdout P stdout part 1\n",
+				"2024-01-01T00:00:00.000000002Z stderr F stderr part 2\n",
+				"2024-01-01T00:00:00.000000003Z stdout F stdout part 2\n",
+			},
+			expectedContent: []string{"stderr part 1stderr part 2", "stdout part 1stdout part 2"},
+			expectedStatus:  []string{message.StatusError, message.StatusInfo},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000002Z", "2024-01-01T00:00:00.000000003Z"},
+		},
+		{
+			name:   "Docker JSON stderr partial interrupted by stdout",
+			parser: dockerfile.New(),
+			lines: []string{
+				`{"log":"stderr part 1","stream":"stderr","time":"2024-01-01T00:00:00.000000000Z"}` + "\n",
+				`{"log":"stdout full\n","stream":"stdout","time":"2024-01-01T00:00:00.000000001Z"}` + "\n",
+				`{"log":"stderr part 2\n","stream":"stderr","time":"2024-01-01T00:00:00.000000002Z"}` + "\n",
+			},
+			expectedContent: []string{"stdout full", "stderr part 1stderr part 2"},
+			expectedStatus:  []string{message.StatusInfo, message.StatusError},
+			expectedTime:    []string{"2024-01-01T00:00:00.000000001Z", "2024-01-01T00:00:00.000000002Z"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			outputs := decodeLinesForTest(t, test.parser, test.lines, len(test.expectedContent))
+			for i := range outputs {
+				require.Equal(t, test.expectedContent[i], string(outputs[i].GetContent()))
+				require.Equal(t, test.expectedStatus[i], outputs[i].Status)
+				require.Equal(t, test.expectedTime[i], outputs[i].ParsingExtra.Timestamp)
+			}
+
+			// The first completed stream is physically preceded by a record that
+			// remains buffered, so it must not advance the file checkpoint. Once
+			// the other stream completes, the checkpoint can cover every input
+			// record. A crash between those outputs therefore causes duplication,
+			// never a skipped partial message.
+			require.Zero(t, outputs[0].RawDataLenForCheckpoint())
+			totalRawDataLen := 0
+			for _, line := range test.lines {
+				totalRawDataLen += len(line)
+			}
+			require.Equal(t, totalRawDataLen, outputs[len(outputs)-1].RawDataLenForCheckpoint())
+		})
+	}
+}
+
 func TestDecoderWithMultilineKubernetes(t *testing.T) {
 	var output *message.Message
 	var line []byte

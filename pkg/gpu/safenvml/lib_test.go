@@ -15,8 +15,6 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
-	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
@@ -78,7 +76,7 @@ func TestPopulateCapabilities(t *testing.T) {
 			// Create a mock with the available symbols for this test
 			availableSymbols := tc.setupSymbols()
 			// Create mock with all symbols available
-			mockNvml := testutil.GetBasicNvmlMockWithOptions(
+			mockNvml := testutil.NewMockNVML(
 				testutil.WithSymbolsMock(availableSymbols),
 			)
 			WithPartialMockNVML(t, mockNvml, availableSymbols)
@@ -170,11 +168,7 @@ func TestInitFailure(t *testing.T) {
 	var safenvml safeNvml
 
 	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
-		return &nvmlmock.Interface{
-			InitFunc: func() nvml.Return {
-				return nvml.ERROR_UNKNOWN
-			},
-		}
+		return testutil.NewMockNVML(testutil.WithInitReturn(nvml.ERROR_UNKNOWN))
 	}
 
 	// First init should fail
@@ -188,18 +182,10 @@ func TestPopulateCapabilitiesFailure(t *testing.T) {
 	var safenvml safeNvml
 
 	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
-		return &nvmlmock.Interface{
-			InitFunc: func() nvml.Return {
-				return nvml.ERROR_UNKNOWN
-			},
-			ExtensionsFunc: func() nvml.ExtendedInterface {
-				return &nvmlmock.ExtendedInterface{
-					LookupSymbolFunc: func(_ string) error {
-						return errors.New("symbol not found")
-					},
-				}
-			},
-		}
+		return testutil.NewMockNVML(
+			testutil.WithInitReturn(nvml.ERROR_UNKNOWN),
+			testutil.WithSymbolsMock(nil),
+		)
 	}
 
 	// Lookup returns error on all symbols, so populateCapabilities should fail and therefore
@@ -215,22 +201,16 @@ func TestInitMultipleTimes(t *testing.T) {
 	// Mock the nvml library to return SUCCESS on the first init and ERROR_UNKNOWN on the second, to
 	// ensure that the library is initialized only once.
 	mockNewFunc := func(_ ...nvml.LibraryOption) nvml.Interface {
-		return &nvmlmock.Interface{
-			InitFunc: func() nvml.Return {
+		return testutil.NewMockNVML(
+			testutil.WithInitCallback(func() nvml.Return {
 				numInit++
 				if numInit == 1 {
 					return nvml.SUCCESS
 				}
 				return nvml.ERROR_UNKNOWN
-			},
-			ExtensionsFunc: func() nvml.ExtendedInterface {
-				return &nvmlmock.ExtendedInterface{
-					LookupSymbolFunc: func(_ string) error {
-						return nil
-					},
-				}
-			},
-		}
+			}),
+			testutil.WithSymbolsMock(allSymbols),
+		)
 	}
 
 	require.NoError(t, safenvml.ensureInitWithOpts(mockNewFunc))
@@ -248,15 +228,15 @@ func TestInitMultiplePaths(t *testing.T) {
 
 	nvmlNewWithPath := func(path string) nvml.Interface {
 		configuredLibPath = path
-		return &nvmlmock.Interface{
-			InitFunc: func() nvml.Return {
+		return testutil.NewMockNVML(
+			testutil.WithInitCallback(func() nvml.Return {
 				retcode, ok := libpathToRetcode[path]
 				if !ok {
 					return nvml.ERROR_LIBRARY_NOT_FOUND
 				}
 				return retcode
-			},
-		}
+			}),
+		)
 	}
 
 	testCases := []struct {

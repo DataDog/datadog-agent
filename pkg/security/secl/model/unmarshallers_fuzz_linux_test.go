@@ -237,6 +237,11 @@ func FuzzDNSEvent_UnmarshalBinary(f *testing.F) {
 	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &DNSEvent{} }, 10)
 }
 
+func FuzzIMDSEvent_UnmarshalBinary(f *testing.F) {
+	// 4 bytes of credential source plus the shortest payload the parser looks at
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &IMDSEvent{} }, 14)
+}
+
 func FuzzNetDevice_UnmarshalBinary(f *testing.F) {
 	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &NetDevice{} }, 32)
 }
@@ -302,7 +307,7 @@ func FuzzSetrlimitEvent_UnmarshalBinary(f *testing.F) {
 }
 
 func FuzzCapabilitiesEvent_UnmarshalBinary(f *testing.F) {
-	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &CapabilitiesEvent{} }, 16)
+	fuzzUnmarshaller(f, func() BinaryUnmarshaler { return &CapabilitiesEvent{} }, 40)
 }
 
 func FuzzPrCtlEvent_UnmarshalBinary(f *testing.F) {

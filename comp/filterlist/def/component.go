@@ -11,13 +11,13 @@ package filterlist
 
 // team: agent-metric-pipelines
 
-import utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+import "github.com/DataDog/datadog-agent/pkg/util/metricname"
 
 // Component is the component type
 type Component interface {
-	OnUpdateMetricFilterList(func(utilstrings.Matcher, utilstrings.Matcher))
+	OnUpdateMetricFilterList(func(metricname.Matcher, metricname.Matcher))
 	OnUpdateTagFilterList(func(TagMatcher))
-	GetMetricFilterList() utilstrings.Matcher
-	GetHistoFilterList() utilstrings.Matcher
+	GetMetricFilterList() metricname.Matcher
+	GetHistoFilterList() metricname.Matcher
 	GetTagFilterList() TagMatcher
 }

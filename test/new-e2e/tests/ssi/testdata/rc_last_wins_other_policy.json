@@ -1,0 +1,48 @@
+{
+  "policies": [
+    {
+      "description": "allow SSI in namespace other",
+      "id": {"hi": 10, "lo": 4},
+      "version": 1,
+      "rules": {
+        "node_type": "EvaluatorNode",
+        "node": {
+          "description": "namespace name other",
+          "eval_type": "StrEvaluator",
+          "eval": {
+            "id": "NAMESPACE_NAME",
+            "cmp": "CMP_EXACT",
+            "value": "other"
+          }
+        }
+      },
+      "actions": [
+        {"action": "INJECT_ALLOW"},
+        {
+          "action": "ENABLE_SDK",
+          "values": ["python=default"]
+        }
+      ]
+    },
+    {
+      "description": "deny SSI in namespace other (last TRUE wins)",
+      "id": {"hi": 10, "lo": 5},
+      "version": 1,
+      "rules": {
+        "node_type": "EvaluatorNode",
+        "node": {
+          "description": "namespace name other",
+          "eval_type": "StrEvaluator",
+          "eval": {
+            "id": "NAMESPACE_NAME",
+            "cmp": "CMP_EXACT",
+            "value": "other"
+          }
+        }
+      },
+      "actions": [
+        {"action": "INJECT_DENY"}
+      ]
+    }
+  ]
+}

@@ -128,13 +128,12 @@ func (f *extendedNodeFactory) ExpectedType() interface{} {
 // ListWatch returns a ListerWatcher for v1.Node
 func (f *extendedNodeFactory) ListWatch(customResourceClient interface{}, _ string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
-	ctx := context.Background()
 	return &cache.ListWatch{
-		ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
+		ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 			opts.FieldSelector = fieldSelector
 			return client.CoreV1().Nodes().List(ctx, opts)
 		},
-		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
+		WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 			opts.FieldSelector = fieldSelector
 			return client.CoreV1().Nodes().Watch(ctx, opts)
 		},

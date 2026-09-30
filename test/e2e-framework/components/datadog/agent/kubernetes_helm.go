@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	HelmVersion = "3.225.1"
+	HelmVersion = "3.245.0"
 
 	// legacyBaseName is the base name every single-Agent installation used before
 	// per-installation resource names existed. Child resources keep their historical
@@ -318,6 +318,7 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 			InstallName: windowsInstallName,
 			Namespace:   args.Namespace,
 			ValuesYAML:  windowsValuesYAML,
+			Version:     pulumi.String(chartVersion),
 		}, windowsOpts...)
 		if err != nil {
 			return nil, err
@@ -884,6 +885,19 @@ func BuildOpenShiftHelmValues() HelmValues {
 				},
 			},
 		},
+		"clusterChecksRunner": pulumi.Map{
+			"enabled": pulumi.Bool(true),
+			"resources": pulumi.StringMapMap{
+				"limits": pulumi.StringMap{
+					"cpu":    pulumi.String("300m"),
+					"memory": pulumi.String("400Mi"),
+				},
+				"requests": pulumi.StringMap{
+					"cpu":    pulumi.String("150m"),
+					"memory": pulumi.String("300Mi"),
+				},
+			},
+		},
 	}
 }
 
@@ -942,8 +956,8 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 		"clusterChecksRunner": pulumi.Map{
 			"enabled": pulumi.Bool(false),
 		},
-		// CRDs are owned by the Linux release. Disable the four CRDs that
-		// datadog/datadog enables by default in its datadog-crds dependency
+		// CRDs are owned by the Linux release. Disable the CRDs that
+		// datadog/datadog enables by default in its datadog-crds dependencies
 		// (see charts/datadog/values.yaml in DataDog/helm-charts). The
 		// datadog-crds subchart renders CRDs via templates/ with Helm
 		// ownership annotations, so if the Windows release tries to create
@@ -953,7 +967,14 @@ func buildWindowsHelmValues(baseName string, agentImagePath, agentImageTag, _, _
 				"datadogMetrics":                      pulumi.Bool(false),
 				"datadogPodAutoscalers":               pulumi.Bool(false),
 				"datadogPodAutoscalerClusterProfiles": pulumi.Bool(false),
-				"datadogInstrumentations":             pulumi.Bool(false),
+			},
+		},
+		// DatadogInstrumentation is installed through a separate aliased
+		// datadog-crds dependency. The Linux release owns this cluster-scoped
+		// CRD, so the Windows release must not render it.
+		"datadog-instrumentation-crd": pulumi.Map{
+			"crds": pulumi.Map{
+				"datadogInstrumentations": pulumi.Bool(false),
 			},
 		},
 	}
@@ -1152,8 +1173,6 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 
 	// Configure the Private Action Runner sidecar to route OPMS calls through fakeintake.
 	// This is a no-op when PAR is not deployed — the Helm chart ignores unknown container configs.
-	// DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION bypasses signed-envelope validation so PAR can talk
-	// to fakeintake over plain HTTP instead of the real OPMS backend.
 	if agents, ok := values["agents"].(pulumi.Map); ok {
 		containers, ok := agents["containers"].(pulumi.Map)
 		if !ok {
@@ -1171,7 +1190,7 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 			par["envDict"] = parEnvDict
 		}
 		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fi.URL)
-		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
+		parEnvDict["DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS"] = pulumi.String("true")
 	}
 
 	return nil

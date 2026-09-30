@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -71,8 +71,11 @@ type Profile struct {
 
 	Header   ActivityDumpHeader
 	Metadata mtdt.Metadata
-	selector cgroupModel.WorkloadSelector
-	tags     []string
+	// SecurityContexts holds the declared SecurityContexts observed for this
+	// image, keyed by workload-template slot.
+	SecurityContexts map[securitycontext.Key]*securitycontext.SecurityContext
+	selector         cgroupModel.WorkloadSelector
+	tags             []string
 
 	versionContexts map[string]*VersionContext
 
@@ -99,6 +102,20 @@ func (p *Profile) IsEnabled() bool {
 	defer p.Unlock()
 
 	return p.isEnabled
+}
+
+// SaveSecurityContext stores sc under key. Zero-value keys and nil values
+// are dropped. Last write wins per key.
+func (p *Profile) SaveSecurityContext(key securitycontext.Key, sc *securitycontext.SecurityContext) {
+	if sc == nil || key.IsZero() {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	if p.SecurityContexts == nil {
+		p.SecurityContexts = make(map[securitycontext.Key]*securitycontext.SecurityContext, 1)
+	}
+	p.SecurityContexts[key] = sc
 }
 
 // Disable disables the profile and drops its activity tree to free the memory it held.
@@ -376,20 +393,12 @@ func (p *Profile) GetTags() []string {
 	return tags
 }
 
-// ScrubProcessArgsEnvs scrubs the process arguments and environment variables
-func (p *Profile) ScrubProcessArgsEnvs(resolver *process.EBPFResolver) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.ActivityTree.ScrubProcessArgsEnvs(resolver)
-}
-
 // Snapshot collects procfs data for all the processes in the activity tree
 func (p *Profile) Snapshot(newEvent func() *model.Event) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.ActivityTree.Snapshot(newEvent)
+	p.ActivityTree.Snapshot(newEvent, p.Metadata.ContainerID)
 }
 
 // GetWorkloadSelector returns the workload selector

@@ -298,7 +298,7 @@ func TestTransaction403DropsWhenNoSecrets(t *testing.T) {
 }
 
 // pointCountTelemetryRecorder is a minimal PointCountTelemetry that records
-// every call so tests can assert on point.sent / point.dropped accounting.
+// every call so tests can assert on point.ssent / points.dropped accounting.
 type pointCountTelemetryRecorder struct {
 	sent    int
 	dropped int
@@ -328,25 +328,25 @@ func TestProcessPointCountTelemetry(t *testing.T) {
 		wantDropped     int
 	}{
 		{
-			name:       "2xx credits point.sent",
+			name:       "2xx credits points.sent",
 			status:     http.StatusOK,
 			pointCount: 17,
 			wantSent:   17,
 		},
 		{
-			name:        "400 drop credits point.dropped",
+			name:        "400 drop credits points.dropped",
 			status:      http.StatusBadRequest,
 			pointCount:  9,
 			wantDropped: 9,
 		},
 		{
-			name:        "413 drop credits point.dropped",
+			name:        "413 drop credits points.dropped",
 			status:      http.StatusRequestEntityTooLarge,
 			pointCount:  4,
 			wantDropped: 4,
 		},
 		{
-			name:            "403 with failed key refresh credits point.dropped",
+			name:            "403 with failed key refresh credits points.dropped",
 			status:          http.StatusForbidden,
 			pointCount:      3,
 			setRefreshHook:  true,
@@ -392,8 +392,8 @@ func TestProcessPointCountTelemetry(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			assert.Equal(t, tc.wantSent, rec.sent, "point.sent")
-			assert.Equal(t, tc.wantDropped, rec.dropped, "point.dropped")
+			assert.Equal(t, tc.wantSent, rec.sent, "points.sent")
+			assert.Equal(t, tc.wantDropped, rec.dropped, "points.dropped")
 		})
 	}
 }

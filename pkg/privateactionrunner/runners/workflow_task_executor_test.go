@@ -11,12 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
@@ -43,6 +46,23 @@ type fakeCredentialResolver struct {
 	gotConn    *privateactionspb.ConnectionInfo
 }
 
+type fakeBundle struct {
+	action types.Action
+}
+
+func (b *fakeBundle) GetAction(string) types.Action {
+	return b.action
+}
+
+type recordingAction struct {
+	called bool
+}
+
+func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.PrivateCredentials) (interface{}, error) {
+	a.called = true
+	return "executed", nil
+}
+
 func (f *fakeCredentialResolver) ResolveConnectionInfoToCredential(_ context.Context, conn *privateactionspb.ConnectionInfo, _ *uuid.UUID) (*privateconnection.PrivateCredentials, error) {
 	f.gotConn = conn
 	return f.credential, f.err
@@ -52,6 +72,8 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	dequeuedTask := newWorkflowTask("wrapper-task", "wrapper-bundle", "wrapper-action", "job-id")
 	dequeuedTask.Data.Attributes.TraceId = 123
 	dequeuedTask.Data.Attributes.SpanId = 456
+	envelope := &privateactionspb.RemoteConfigSignatureEnvelope{Data: []byte("signed")}
+	dequeuedTask.Data.Attributes.SignedEnvelope = envelope
 
 	connectionInfo := &privateactionspb.ConnectionInfo{RunnerId: "runner-id"}
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
@@ -81,6 +103,7 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	assert.Equal(t, "job-id", got.Task.Data.Attributes.JobId)
 	assert.Equal(t, uint64(123), got.Task.Data.Attributes.TraceId)
 	assert.Equal(t, uint64(456), got.Task.Data.Attributes.SpanId)
+	assert.Same(t, envelope, got.Task.Data.Attributes.SignedEnvelope)
 }
 
 func TestWorkflowTaskExecutorPrepareTaskReturnsOriginalTaskWhenVerificationFails(t *testing.T) {
@@ -121,6 +144,35 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 	assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
 	assert.Equal(t, uint64(123), failureTask.Data.Attributes.TraceId)
 	assert.Equal(t, uint64(456), failureTask.Data.Attributes.SpanId)
+}
+
+func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
+	const (
+		bundleID   = "com.datadoghq.authoredscripts"
+		actionName = "echo"
+	)
+	action := &recordingAction{}
+	executor := &WorkflowTaskExecutor{
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+			bundleID: &fakeBundle{action: action},
+		}},
+		config: &config.Config{
+			ActionsAllowlist: map[string]sets.Set[string]{},
+			MetricsClient:    &statsd.NoOpClient{},
+		},
+	}
+	task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
+	prepared := &PreparedWorkflowTask{Task: task}
+
+	_, err := executor.RunTask(context.Background(), prepared)
+	require.ErrorContains(t, err, "not allowlisted")
+	assert.False(t, action.called)
+
+	executor.config.ActionsAllowlist[bundleID] = sets.New(actionName)
+	output, err := executor.RunTask(context.Background(), prepared)
+	require.NoError(t, err)
+	assert.Equal(t, "executed", output)
+	assert.True(t, action.called)
 }
 
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {

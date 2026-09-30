@@ -33,8 +33,6 @@ struct credentials_t {
 
 struct pid_cache_t {
     u64 cookie;
-    u32 ppid;
-    u32 padding;
     u64 fork_timestamp;
     u64 exit_timestamp;
     u64 user_session_id;
@@ -75,12 +73,6 @@ union selinux_write_payload_t {
         u16 disable_value;
         u16 enforce_value;
     } status;
-};
-
-struct span_tls_t {
-    u64 format;
-    u64 max_threads;
-    void *base;
 };
 
 #endif

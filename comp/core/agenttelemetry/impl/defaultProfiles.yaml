@@ -36,9 +36,21 @@ profiles:
       - name: dogstatsd.udp_packets_bytes
       - name: dogstatsd.uds_packets_bytes
       - name: dogstatsd_client.bytes_sent
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped_queue
+        preserve_tags:
+          - client
+          - client_transport
       - name: dogstatsd_client.bytes_dropped_writer
+        preserve_tags:
+          - client
+          - client_transport
       - name: logs.bytes_missed
       - name: logs.bytes_sent
         aggregate_total: true
@@ -74,10 +86,10 @@ profiles:
       - name: logs.auto_multi_line_default_would_combine
       - name: logs.auto_multi_line_default_would_truncate
       - name: logs_destination.destination_workers
-      - name: point.sent
+      - name: points.sent
         preserve_tags:
           - domain
-      - name: point.dropped
+      - name: points.dropped
         preserve_tags:
           - domain
       - name: transactions.input_count
@@ -441,6 +453,11 @@ profiles:
         preserve_tags:
           - owner_kind
           - status
+      - name: instrumentation_controller.resources
+      - name: instrumentation_controller.reconciliations
+        preserve_tags:
+          - section
+          - status
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind
@@ -561,11 +578,18 @@ profiles:
       - name: data_plane.preflight_mode_result
         preserve_tags:
           - result
-      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/capture.go` for the fixed set
-      # of values that we except to have for the `finding` tag.
+      # See `TestFindingsAreAllowlisted` in `comp/dataplane/preflightmode/impl/report_test.go` for the fixed set
+      # of values that we expect to have for the `finding` tag.
+      #
+      # `source_file` and `source_line` are the Agent Data Plane source location that logged the problem, and are
+      # only populated for the `errors_in_log` and `warnings_in_log` findings; every other finding carries them
+      # empty. They are bounded on the producing side: the values come from ADP's `file!()`/`line!()` rather than
+      # from any log message, and the number of distinct locations reported per finding is capped.
       - name: data_plane.preflight_mode_finding
         preserve_tags:
           - finding
+          - source_file
+          - source_line
       - name: data_plane.preflight_mode_duration_seconds
   schedule:
     # Preflight mode runs once at startup, for at least minPreflightModeDuration (90s, see
