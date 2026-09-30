@@ -21,15 +21,18 @@ import (
 
 const twoCredentialsYAML = `
 credentials:
-  - name: cred-abc
+  - id: id-abc
+    name: cred-abc
     snmp_version: "2c"
     community_string: public
-  - name: cred-v3
+  - id: id-v3
+    name: cred-v3
     snmp_version: "3"
     user: test-user
     authProtocol: SHA
     authKey: test-auth-key
-  - name: cred-bad-version
+  - id: id-bad-version
+    name: cred-bad-version
     snmp_version: "9"
     community_string: public
 `
@@ -40,10 +43,10 @@ func newTestHandler(t *testing.T, credentials string) *Handler {
 }
 
 const twoInstanceDocument = `{
-	"init_config": {"loader": "core", "ping": {"enabled": true}},
+	"init_config": {"namespace": "prod", "ping": {"enabled": true}},
 	"instances": [
-		{"ip_address": "10.0.0.1", "cred_name": "cred-abc"},
-		{"ip_address": "10.0.0.2", "cred_name": "cred-v3"}
+		{"ip_address": "10.0.0.1", "cred": {"id": "id-abc", "name": "cred-abc"}},
+		{"ip_address": "10.0.0.2", "cred": {"id": "id-v3", "name": "cred-v3"}}
 	]
 }`
 
@@ -63,13 +66,40 @@ func TestRenderEmitsOneConfigPerDevice(t *testing.T) {
 		assert.Equal(t, "snmp", c.Name)
 		assert.Equal(t, "ndm-remote-config:snmp", c.Source)
 		require.Len(t, c.Instances, 1)
-		assert.YAMLEq(t, "loader: core\nping:\n  enabled: true\n", string(c.InitConfig))
+		assert.YAMLEq(t, "namespace: prod\nping:\n  enabled: true\n", string(c.InitConfig))
 	}
 
 	assert.Contains(t, string(configs[0].Instances[0]), "ip_address: 10.0.0.1")
 	assert.Contains(t, string(configs[0].Instances[0]), "community_string: public")
 	assert.Contains(t, string(configs[1].Instances[0]), "ip_address: 10.0.0.2")
 	assert.Contains(t, string(configs[1].Instances[0]), "user: test-user")
+}
+
+func TestRenderCarriesThePerInstanceSettingsToTheCheck(t *testing.T) {
+	h := newTestHandler(t, twoCredentialsYAML)
+
+	configs, err := h.Render("path-a", json.RawMessage(`{
+		"init_config": {"oid_batch_size": 20, "collect_topology": false},
+		"instances": [{
+			"ip_address": "10.0.0.1",
+			"cred": {"id": "id-abc", "name": "cred-abc"},
+			"port": 1161,
+			"timeout_sec": 5,
+			"profile": "cisco-nexus",
+			"tags": ["site:paris"],
+			"interface_configs": [{"match_field": "name", "match_value": "eth0", "in_speed": 25}]
+		}]
+	}`))
+
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	assert.YAMLEq(t, "oid_batch_size: 20\ncollect_topology: false\n", string(configs[0].InitConfig))
+	instance := string(configs[0].Instances[0])
+	assert.Contains(t, instance, "port: 1161")
+	assert.Contains(t, instance, "timeout: 5")
+	assert.Contains(t, instance, "profile: cisco-nexus")
+	assert.Contains(t, instance, "site:paris")
+	assert.Contains(t, instance, "match_value: eth0")
 }
 
 func TestRenderKeepsTheDocumentOrder(t *testing.T) {
@@ -110,10 +140,10 @@ func TestRenderSchedulesTheResolvableInstancesAndNamesTheRest(t *testing.T) {
 	configs, err := h.Render("path-a", json.RawMessage(`{
 		"init_config": {},
 		"instances": [
-			{"ip_address": "10.0.0.1", "cred_name": "cred-abc"},
-			{"ip_address": "10.0.0.2", "cred_name": "cred-missing"},
-			{"ip_address": "10.0.0.3", "cred_name": "cred-bad-version"},
-			{"ip_address": "", "cred_name": "cred-abc"}
+			{"ip_address": "10.0.0.1", "cred": {"id": "id-abc", "name": "cred-abc"}},
+			{"ip_address": "10.0.0.2", "cred": {"id": "id-missing", "name": "cred-missing"}},
+			{"ip_address": "10.0.0.3", "cred": {"id": "id-bad-version", "name": "cred-bad-version"}},
+			{"ip_address": "", "cred": {"id": "id-abc", "name": "cred-abc"}}
 		]
 	}`))
 
@@ -127,15 +157,37 @@ func TestRenderSchedulesTheResolvableInstancesAndNamesTheRest(t *testing.T) {
 	assert.Contains(t, err.Error(), "10.0.0.3")
 }
 
+func TestRenderNamesAMissingCredentialByIDAndName(t *testing.T) {
+	h := newTestHandler(t, twoCredentialsYAML)
+
+	_, err := h.Render("path-a", json.RawMessage(`{"instances":[
+		{"ip_address":"10.0.0.1","cred":{"id":"id-missing","name":"cred-missing"}}
+	]}`))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"cred-missing" (id-missing)`)
+}
+
+func TestRenderResolvesOnTheCredentialIDNotItsName(t *testing.T) {
+	h := newTestHandler(t, twoCredentialsYAML)
+
+	_, err := h.Render("path-a", json.RawMessage(`{"instances":[
+		{"ip_address":"10.0.0.1","cred":{"id":"cred-abc","name":"cred-abc"}}
+	]}`))
+
+	require.Error(t, err, "the name must not resolve a credential whose id is id-abc")
+}
+
 func TestRenderErrorNamesNoCredentialValue(t *testing.T) {
 	h := newTestHandler(t, `
 credentials:
-  - name: cred-bad
+  - id: id-bad
+    name: cred-bad
     snmp_version: "9"
     community_string: s3cret-community
 `)
 
-	_, err := h.Render("path-a", json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred_name":"cred-bad"}]}`))
+	_, err := h.Render("path-a", json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred":{"id":"id-bad","name":"cred-bad"}}]}`))
 
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "s3cret-community")
@@ -144,8 +196,8 @@ credentials:
 func TestRenderErrorIsStableAcrossCalls(t *testing.T) {
 	h := newTestHandler(t, twoCredentialsYAML)
 	doc := json.RawMessage(`{"instances":[
-		{"ip_address":"10.0.0.9","cred_name":"z-missing"},
-		{"ip_address":"10.0.0.8","cred_name":"a-missing"}
+		{"ip_address":"10.0.0.9","cred":{"id":"id-z-missing","name":"z-missing"}},
+		{"ip_address":"10.0.0.8","cred":{"id":"id-a-missing","name":"a-missing"}}
 	]}`)
 
 	_, first := h.Render("path-a", doc)
@@ -158,19 +210,20 @@ func TestRenderErrorIsStableAcrossCalls(t *testing.T) {
 func TestRenderPicksUpACredentialValueThatChangedInPlace(t *testing.T) {
 	cfg := newTestConfig(t, map[string]string{"creds.yaml": `
 credentials:
-  - name: cred-abc
+  - id: id-abc
+    name: cred-abc
     snmp_version: "2c"
     community_string: public
 `})
 	h := NewHandler(cfg, logmock.New(t))
-	doc := json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred_name":"cred-abc"}]}`)
+	doc := json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred":{"id":"id-abc","name":"cred-abc"}}]}`)
 
 	first, err := h.Render("path-a", doc)
 	require.NoError(t, err)
 	assert.Contains(t, string(first[0].Instances[0]), "community_string: public")
 
 	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, "creds.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - name: cred-abc\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
 
 	second, err := h.Render("path-a", doc)
 	require.NoError(t, err)
@@ -180,10 +233,10 @@ credentials:
 func TestRenderSchedulesTheCredentialsOfTheFilesThatLoaded(t *testing.T) {
 	h := NewHandler(newTestConfig(t, map[string]string{
 		"a-broken.yaml": "credentials: [\n",
-		"b-good.yaml":   "credentials:\n  - name: cred-abc\n    snmp_version: \"2c\"\n    community_string: public\n",
+		"b-good.yaml":   "credentials:\n  - id: id-abc\n    name: cred-abc\n    snmp_version: \"2c\"\n    community_string: public\n",
 	}), logmock.New(t))
 
-	configs, err := h.Render("path-a", json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred_name":"cred-abc"}]}`))
+	configs, err := h.Render("path-a", json.RawMessage(`{"instances":[{"ip_address":"10.0.0.1","cred":{"id":"id-abc","name":"cred-abc"}}]}`))
 
 	require.NoError(t, err)
 	require.Len(t, configs, 1)

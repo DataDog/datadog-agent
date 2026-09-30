@@ -25,10 +25,10 @@ import (
 // backendDocument is the payload the backend writes: one document per Agent.
 const backendDocument = `{
 	"snmp": {
-		"init_config": {"loader": "core", "ping": {"enabled": true}},
+		"init_config": {"namespace": "prod", "ping": {"enabled": true}},
 		"instances": [
-			{"ip_address": "10.0.0.1", "cred_name": "cred-abc"},
-			{"ip_address": "10.0.0.2", "cred_name": "cred-abc"}
+			{"ip_address": "10.0.0.1", "cred": {"id": "id-abc", "name": "cred-abc"}},
+			{"ip_address": "10.0.0.2", "cred": {"id": "id-abc", "name": "cred-abc"}}
 		]
 	}
 }`
@@ -43,7 +43,8 @@ func newTestConfig(t *testing.T) model.BuildableConfig {
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "creds.yaml"), []byte(`
 credentials:
-  - name: cred-abc
+  - id: id-abc
+    name: cred-abc
     snmp_version: "2c"
     community_string: public
 `), 0o600))
@@ -73,7 +74,7 @@ func TestABackendDocumentBecomesSchedulableSNMPChecks(t *testing.T) {
 	for _, c := range changes[0].Schedule {
 		assert.Equal(t, "snmp", c.Name)
 		assert.Equal(t, "ndm-remote-config:snmp", c.Source)
-		assert.YAMLEq(t, "loader: core\nping:\n  enabled: true\n", string(c.InitConfig))
+		assert.YAMLEq(t, "namespace: prod\nping:\n  enabled: true\n", string(c.InitConfig))
 		require.Len(t, c.Instances, 1)
 		assert.Contains(t, string(c.Instances[0]), "community_string: public")
 	}
@@ -97,8 +98,8 @@ func TestADocumentWithAMissingCredentialSchedulesTheRestAndReportsAnError(t *tes
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
-		{"ip_address":"10.0.0.1","cred_name":"cred-abc"},
-		{"ip_address":"10.0.0.2","cred_name":"cred-not-delivered-yet"}
+		{"ip_address":"10.0.0.1","cred":{"id":"id-abc","name":"cred-abc"}},
+		{"ip_address":"10.0.0.2","cred":{"id":"id-not-delivered-yet","name":"cred-not-delivered-yet"}}
 	]}}`)}, rec.callback)
 
 	changes := drain(t, ch)
@@ -167,8 +168,8 @@ func TestADocumentWhoseInstancesAreAllUnresolvableSchedulesNothingAndErrors(t *t
 	const path = "datadog/2/NDM_CONFIG/ndm-1/config"
 
 	p.Update(map[string]state.RawConfig{path: rawConfig(`{"snmp":{"instances":[
-		{"ip_address":"10.0.0.1","cred_name":"cred-unknown-1"},
-		{"ip_address":"10.0.0.2","cred_name":"cred-unknown-2"}
+		{"ip_address":"10.0.0.1","cred":{"id":"id-unknown-1","name":"cred-unknown-1"}},
+		{"ip_address":"10.0.0.2","cred":{"id":"id-unknown-2","name":"cred-unknown-2"}}
 	]}}`)}, rec.callback)
 
 	changes := drain(t, ch)

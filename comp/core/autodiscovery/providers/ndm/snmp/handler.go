@@ -71,7 +71,7 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 			continue
 		}
 
-		instanceData, err := renderInstance(instance.IPAddress, cred)
+		instanceData, err := renderInstance(instance, cred)
 		if err != nil {
 			skipped = append(skipped, err.Error())
 			h.log.Warnf("ndm: skipping an snmp instance of config %s: %v", path, err)
@@ -96,14 +96,23 @@ func (h *Handler) Render(path string, raw json.RawMessage) ([]integration.Config
 // scheduled. The reason never names a credential value.
 func resolve(instance documentInstance, creds map[string]credential) (credential, string) {
 	if instance.IPAddress == "" {
-		return credential{}, fmt.Sprintf("an instance referencing credential %q has no ip_address", instance.CredName)
+		return credential{}, fmt.Sprintf("an instance referencing credential %s has no ip_address", describe(instance.Cred))
 	}
-	cred, found := creds[instance.CredName]
+	cred, found := creds[instance.Cred.ID]
 	if !found {
-		return credential{}, fmt.Sprintf("%s references credential %q, which is not available on this Agent", instance.IPAddress, instance.CredName)
+		return credential{}, fmt.Sprintf("%s references credential %s, which is not available on this Agent", instance.IPAddress, describe(instance.Cred))
 	}
 	if err := validate(cred); err != nil {
 		return credential{}, fmt.Sprintf("%s cannot be scheduled: %s", instance.IPAddress, err.Error())
 	}
 	return cred, ""
+}
+
+// describe renders a credential reference for a log line or an error. Both the
+// id and the name are labels, never a credential value.
+func describe(ref credentialRef) string {
+	if ref.Name == "" {
+		return fmt.Sprintf("%q", ref.ID)
+	}
+	return fmt.Sprintf("%q (%s)", ref.Name, ref.ID)
 }

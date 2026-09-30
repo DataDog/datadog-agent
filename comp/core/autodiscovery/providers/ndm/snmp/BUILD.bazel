@@ -16,7 +16,9 @@ go_library(
         "//comp/core/log/def",
         "//pkg/collector/corechecks/snmp",
         "//pkg/config/model",
+        "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/snmpintegration",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )
@@ -34,6 +36,8 @@ dd_agent_go_test(
         "//comp/core/log/mock",
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/snmp/snmpintegration",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

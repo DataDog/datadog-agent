@@ -23,8 +23,10 @@ import (
 const credentialsDir = "snmp.d/credentials"
 
 // credential is one entry of a credential file. The yaml names match
-// pkg/snmp.Authentication.
+// pkg/snmp.Authentication. ID is the join key an RC instance references, Name
+// is a human label.
 type credential struct {
+	ID              string `yaml:"id"`
 	Name            string `yaml:"name"`
 	SNMPVersion     string `yaml:"snmp_version"`
 	CommunityString string `yaml:"community_string"`
@@ -57,11 +59,10 @@ func (s *credentialStore) dir() string {
 	return filepath.Join(s.cfg.GetString("confd_path"), credentialsDir)
 }
 
-// load returns the credentials indexed by name, re-reading the files on every
+// load returns the credentials indexed by id, re-reading the files on every
 // call. An absent directory is an empty set. A file that cannot be read or
 // parsed is skipped and named in the returned error, the others still load. An
-// entry with no name is skipped and the first of two entries sharing a name
-// wins.
+// entry with no id is skipped and the first of two entries sharing an id wins.
 func (s *credentialStore) load() (map[string]credential, error) {
 	dir := s.dir()
 
@@ -80,13 +81,13 @@ func (s *credentialStore) load() (map[string]credential, error) {
 			continue
 		}
 		for _, e := range doc.Credentials {
-			if e.Name == "" {
+			if e.ID == "" {
 				continue
 			}
-			if _, seen := creds[e.Name]; seen {
+			if _, seen := creds[e.ID]; seen {
 				continue
 			}
-			creds[e.Name] = e
+			creds[e.ID] = e
 		}
 	}
 
