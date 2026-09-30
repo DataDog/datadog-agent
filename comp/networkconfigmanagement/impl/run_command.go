@@ -10,14 +10,18 @@ import (
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
-// RunCommand sends an arbitrary command to a device over its established
-// connection (e.g. SSH) and returns the device's response as a CommandResult.
-func (n *networkDeviceConfigImpl) RunCommand(ctx context.Context, deviceID string, command string) (*types.CommandResult, types.TypedError) {
+// RunCommand sends a command to a device over one of its connections (e.g. SSH
+// credentials) and returns the response as a CommandResult.
+func (n *networkDeviceConfigImpl) RunCommand(ctx context.Context, deviceID string, command string, credentialSet ncmconfig.CredentialSet) (*types.CommandResult, types.TypedError) {
+	if credentialSet == ncmconfig.CredentialSetRollback {
+		return nil, types.WrapErrorf(types.ErrCannotConnect, "invalid credential set specified: %q", credentialSet)
+	}
 	var log log.Component = NewLogWrapper(n.log, fmt.Sprintf("ncm[%s]: ", deviceID))
-	log.Infof("Run command requested: Device %q: %q", deviceID, command)
+	log.Infof("Run command requested for Device %q using credential set %s", deviceID, credentialSet)
 	ctx = WithLogger(ctx, log)
 
 	dc, err := n.devices.GetAndLock(ctx, deviceID)
@@ -26,7 +30,7 @@ func (n *networkDeviceConfigImpl) RunCommand(ctx context.Context, deviceID strin
 	}
 	defer dc.UnlockOrLog(log)
 
-	conn, cerr := n.connectAndEnsureProfile(ctx, dc)
+	conn, cerr := n.connectAndEnsureProfile(ctx, dc, credentialSet)
 	if cerr != nil {
 		return nil, cerr
 	}
