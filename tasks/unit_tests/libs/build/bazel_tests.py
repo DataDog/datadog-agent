@@ -84,15 +84,6 @@ class TestBazel(unittest.TestCase):
             ),
         )
 
-    @patch("tasks.libs.build.bazel._run_command")
-    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
-    @patch.dict(os.environ, {"AGENT_FLAVOR": "recorder", "INSTALL_DIR": "/opt"})
-    def test_recorder_uses_base_package_assets(self, _, run_command):
-        run_command.return_value = subprocess.CompletedProcess("/bzlx run //:go", 0, "", "")
-        with patch("tasks.libs.build.bazel.sys.platform", "linux"):
-            bazel("run", "//:go")
-        self.assertIn("--//packages/agent:flavor=base", run_command.call_args.args[0])
-
 
 class TestSplitLabel(unittest.TestCase):
     def test_no_repo(self):

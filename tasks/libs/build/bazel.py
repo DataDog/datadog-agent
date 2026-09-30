@@ -292,9 +292,7 @@ def _insert_omnibazel_flags(args: tuple[str, ...]) -> tuple[str, ...]:
     """
     flags = []
     if agent_flavor := os.environ.get("AGENT_FLAVOR"):
-        # Recorder uses the base package assets; only its Agent Go build tags differ.
-        bazel_flavor = "base" if agent_flavor == "recorder" else agent_flavor
-        flags.append(f"--//packages/agent:flavor={bazel_flavor}")
+        flags.append(f"--//packages/agent:flavor={agent_flavor}")
     if install_dir := os.environ.get("INSTALL_DIR"):
         # In macos, omnibus install_dir is the build location, which is different from the expected install location
         if sys.platform == "darwin":
