@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,10 +52,58 @@ func TestProcessNodeStatusStoresCheckCompatibility(t *testing.T) {
 	require.True(t, found)
 	assert.Nil(t, agent.checkCompat)
 
-	// Compat is fixed at registration: a later, different declaration is ignored.
+	// A later, different declaration from the same worker name replaces it.
 	registerWorker(t, dispatcher, "runner1", "10.0.0.1", types.NodeTypeCLCRunner,
 		&types.CheckCompatibility{Include: []string{"http_check"}})
-	assert.Equal(t, []string{"kubernetes_state_core", "orchestrator"}, runner.checkCompat.Include)
+	assert.Equal(t, []string{"http_check"}, runner.checkCompat.Include)
+	assert.Equal(t, "include=http_check", runner.signature)
+}
+
+// TestDeclarationChangeRedispatchesRefusedConfigs covers a node agent
+// restarting under the same name (DaemonSet rollout) with a new exclude list:
+// configs it now refuses are unassigned and re-dispatched elsewhere, the
+// others stay put.
+func TestDeclarationChangeRedispatchesRefusedConfigs(t *testing.T) {
+	dispatcher := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	registerWorker(t, dispatcher, "agent1", "10.0.0.1", types.NodeTypeNodeAgent, &types.CheckCompatibility{Exclude: []string{"orchestrator"}})
+	registerWorker(t, dispatcher, "kube-runner", "10.0.0.2", types.NodeTypeCLCRunner, kubeCompat())
+
+	ksm := generateIntegration("kubernetes_state_core")
+	http := generateIntegration("http_check")
+	dispatcher.addConfig(ksm, "agent1")
+	dispatcher.addConfig(http, "agent1")
+
+	// The restarted node agent now also excludes kubernetes_state_core.
+	agent, _ := dispatcher.store.getNodeStore("agent1")
+	lastChange := agent.lastConfigChange
+	registerWorker(t, dispatcher, "agent1", "10.0.0.1", types.NodeTypeNodeAgent, &types.CheckCompatibility{Exclude: []string{"kubernetes_state_core", "orchestrator"}})
+	requireNotLocked(t, dispatcher.store)
+
+	dispatcher.store.RLock()
+	assert.NotContains(t, dispatcher.store.digestToNode, ksm.Digest())
+	assert.Contains(t, dispatcher.store.danglingConfigs, ksm.Digest())
+	assert.Equal(t, "agent1", dispatcher.store.digestToNode[http.Digest()])
+	dispatcher.store.RUnlock()
+	agent.RLock()
+	assert.NotContains(t, agent.digestToConfig, ksm.Digest())
+	assert.Contains(t, agent.digestToConfig, http.Digest())
+	// The node agent is told to re-poll, so it stops running the refused check.
+	assert.Greater(t, agent.lastConfigChange, lastChange)
+	agent.RUnlock()
+
+	// The dangling config lands on the only worker that accepts it.
+	danglingConfigs := dispatcher.retrieveDangling()
+	require.Len(t, danglingConfigs, 1)
+	assert.True(t, dispatcher.add(danglingConfigs[0]))
+	dispatcher.store.RLock()
+	assert.Equal(t, "kube-runner", dispatcher.store.digestToNode[ksm.Digest()])
+	dispatcher.store.RUnlock()
+
+	// Re-sending the same declaration is a no-op.
+	lastChange = agent.lastConfigChange
+	registerWorker(t, dispatcher, "agent1", "10.0.0.1", types.NodeTypeNodeAgent, &types.CheckCompatibility{Exclude: []string{"orchestrator", "kubernetes_state_core"}})
+	assert.Equal(t, lastChange, agent.lastConfigChange)
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestEligibleNodes(t *testing.T) {
@@ -130,21 +179,42 @@ func TestAddWithNoEligibleWorkerDangles(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-func TestCohortKey(t *testing.T) {
+func TestDeclarationSignature(t *testing.T) {
 	tests := []struct {
 		name   string
 		compat *types.CheckCompatibility
 		want   string
 	}{
-		{"nil is general", nil, "general"},
-		{"exclude-only is general", &types.CheckCompatibility{Exclude: []string{"kubernetes_state_core"}}, "general"},
-		{"include sorted joined", &types.CheckCompatibility{Include: []string{"orchestrator", "kubernetes_state_core"}}, "kubernetes_state_core,orchestrator"},
+		{"nil is unrestricted", nil, "unrestricted"},
+		{"empty lists are unrestricted", &types.CheckCompatibility{Include: []string{}, Exclude: []string{}}, "unrestricted"},
+		{"include only", &types.CheckCompatibility{Include: []string{"orchestrator", "kubernetes_state_core"}}, "include=kubernetes_state_core,orchestrator"},
+		{"exclude only", &types.CheckCompatibility{Exclude: []string{"foo"}}, "exclude=foo"},
+		{"include wins over exclude", &types.CheckCompatibility{Include: []string{"a"}, Exclude: []string{"c"}}, "include=a"},
+		{"sorted and deduplicated", &types.CheckCompatibility{Exclude: []string{"d", "c", "c"}}, "exclude=c,d"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, cohortKey(tt.compat))
+			assert.Equal(t, tt.want, declarationSignature(tt.compat))
 		})
 	}
+}
+
+func TestCohortKey(t *testing.T) {
+	dispatcher := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	kube := &types.CheckCompatibility{Include: []string{"kube_check"}}
+	general := &types.CheckCompatibility{Exclude: []string{"kube_check"}}
+	registerWorker(t, dispatcher, "kube-1", "10.0.0.1", types.NodeTypeCLCRunner, kube)
+	registerWorker(t, dispatcher, "kube-2", "10.0.0.2", types.NodeTypeCLCRunner, kube)
+	registerWorker(t, dispatcher, "general-1", "10.0.0.3", types.NodeTypeCLCRunner, general)
+	registerWorker(t, dispatcher, "legacy", "10.0.0.4", types.NodeTypeNodeAgent, nil)
+
+	dispatcher.store.RLock()
+	defer dispatcher.store.RUnlock()
+	// Same-declaration workers collapse to one signature, whatever the pod names.
+	assert.Equal(t, "include=kube_check", dispatcher.cohortKey([]string{"kube-1", "kube-2"}))
+	assert.Equal(t, dispatcher.cohortKey([]string{"kube-1"}), dispatcher.cohortKey([]string{"kube-2"}))
+	// Distinct declarations are all kept, sorted.
+	assert.Equal(t, "exclude=kube_check | unrestricted", dispatcher.cohortKey([]string{"legacy", "general-1"}))
 }
 
 func TestUseUtilizationRebalance(t *testing.T) {
@@ -166,96 +236,80 @@ func TestUseUtilizationRebalance(t *testing.T) {
 	requireNotLocked(t, dispatcher.store)
 }
 
-// TestRebalanceUsingUtilizationRespectsEligibility verifies that the
-// utilization rebalance only moves configs onto eligible runners: a claimed
-// check lands on its group even when currently misplaced, an unclaimed check
-// moves off a group whose include does not claim it, and a check with no
-// eligible worker at all is left where it is.
-func TestRebalanceUsingUtilizationRespectsEligibility(t *testing.T) {
+// rebalanceWorker is a CLC runner registered by newRebalanceDispatcher, with
+// the cluster checks it currently runs (check ID -> check name).
+type rebalanceWorker struct {
+	name   string
+	compat *types.CheckCompatibility
+	checks map[string]string
+}
+
+// newRebalanceDispatcher returns a dispatcher ready for the utilization
+// rebalance, with each worker registered and its checks placed on it. Every
+// check costs 3s per 15s interval, so a runner holding two is the busiest.
+func newRebalanceDispatcher(t *testing.T, workers ...rebalanceWorker) *dispatcher {
+	t.Helper()
 	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	configmock.New(t).SetInTest("cluster_checks.rebalance_with_utilization", true)
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
 
-	mockClient := &rebalanceTestClcRunnerClient{
-		testStats: make(map[string]types.CLCRunnersStats),
-	}
-	testDispatcher.clcRunnersClient = mockClient
-	testDispatcher.advancedDispatching.Store(true)
-	testDispatcher.store.active = true
+	d := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	mockClient := &rebalanceTestClcRunnerClient{testStats: make(map[string]types.CLCRunnersStats)}
+	d.clcRunnersClient = mockClient
+	d.advancedDispatching.Store(true)
+	d.store.active = true
 
-	registerWorker(t, testDispatcher, "group1", "10.0.0.1", types.NodeTypeCLCRunner,
-		&types.CheckCompatibility{Include: []string{"kube_check"}})
-	registerWorker(t, testDispatcher, "group2", "10.0.0.2", types.NodeTypeCLCRunner,
-		&types.CheckCompatibility{Include: []string{"kube_check"}})
-	registerWorker(t, testDispatcher, "general1", "10.0.0.3", types.NodeTypeCLCRunner,
-		&types.CheckCompatibility{Exclude: []string{"kube_check"}})
-	registerWorker(t, testDispatcher, "general2", "10.0.0.4", types.NodeTypeCLCRunner,
-		&types.CheckCompatibility{Exclude: []string{"kube_check"}})
-	for _, name := range []string{"group1", "group2", "general1", "general2"} {
-		testDispatcher.store.Lock()
-		testDispatcher.store.nodes[name].workers = constants.DefaultNumWorkers
-		testDispatcher.store.Unlock()
-	}
+	for i, w := range workers {
+		ip := fmt.Sprintf("10.0.0.%d", i+1)
+		registerWorker(t, d, w.name, ip, types.NodeTypeCLCRunner, w.compat)
 
-	// Reachable state: kube checks all on group1 (overloaded), http checks all
-	// on general1 (overloaded), group2 and general2 idle. The rebalance must
-	// spread each family only among its eligible runners.
-	group1Stats := types.CLCRunnersStats{
-		"kube_a": {AverageExecutionTime: 3000, IsClusterCheck: true},
-		"kube_b": {AverageExecutionTime: 3000, IsClusterCheck: true},
+		stats := types.CLCRunnersStats{}
+		d.store.Lock()
+		for id, checkName := range w.checks {
+			stats[id] = types.CLCRunnerStats{AverageExecutionTime: 3000, IsClusterCheck: true}
+			digest := "digest-" + id
+			d.store.idToDigest[checkid.ID(id)] = digest
+			d.store.digestToConfig[digest] = integration.Config{Name: checkName}
+			d.store.digestToNode[digest] = w.name
+		}
+		d.store.nodes[w.name].workers = constants.DefaultNumWorkers
+		d.store.nodes[w.name].clcRunnerStats = stats
+		d.store.Unlock()
+		mockClient.testStats[ip] = stats
 	}
-	general1Stats := types.CLCRunnersStats{
-		"http_a": {AverageExecutionTime: 3000, IsClusterCheck: true},
-		"http_b": {AverageExecutionTime: 3000, IsClusterCheck: true},
-	}
-	emptyStats := types.CLCRunnersStats{}
-	testDispatcher.store.Lock()
-	testDispatcher.store.nodes["group1"].clcRunnerStats = group1Stats
-	testDispatcher.store.nodes["group2"].clcRunnerStats = emptyStats
-	testDispatcher.store.nodes["general1"].clcRunnerStats = general1Stats
-	testDispatcher.store.nodes["general2"].clcRunnerStats = emptyStats
-	testDispatcher.store.idToDigest = map[checkid.ID]string{
-		"kube_a": "digest-kube-a",
-		"kube_b": "digest-kube-b",
-		"http_a": "digest-http-a",
-		"http_b": "digest-http-b",
-	}
-	testDispatcher.store.digestToConfig = map[string]integration.Config{
-		"digest-kube-a": {Name: "kube_check"},
-		"digest-kube-b": {Name: "kube_check"},
-		"digest-http-a": {Name: "http_check"},
-		"digest-http-b": {Name: "http_check"},
-	}
-	testDispatcher.store.digestToNode = map[string]string{
-		"digest-kube-a": "group1",
-		"digest-kube-b": "group1",
-		"digest-http-a": "general1",
-		"digest-http-b": "general1",
-	}
-	testDispatcher.store.Unlock()
-	mockClient.testStats["10.0.0.1"] = group1Stats
-	mockClient.testStats["10.0.0.2"] = emptyStats
-	mockClient.testStats["10.0.0.3"] = general1Stats
-	mockClient.testStats["10.0.0.4"] = emptyStats
+	return d
+}
 
-	checksMoved := testDispatcher.rebalanceUsingUtilization(false)
-	requireNotLocked(t, testDispatcher.store)
+// placement returns the current node of each digest.
+func placement(d *dispatcher) map[string]string {
+	d.store.RLock()
+	defer d.store.RUnlock()
+	return maps.Clone(d.store.digestToNode)
+}
 
-	testDispatcher.store.RLock()
-	kubeA := testDispatcher.store.digestToNode["digest-kube-a"]
-	kubeB := testDispatcher.store.digestToNode["digest-kube-b"]
-	httpA := testDispatcher.store.digestToNode["digest-http-a"]
-	httpB := testDispatcher.store.digestToNode["digest-http-b"]
-	testDispatcher.store.RUnlock()
+// TestRebalanceUsingUtilizationRespectsEligibility verifies that the
+// utilization rebalance spreads each check family only among its eligible
+// runners.
+func TestRebalanceUsingUtilizationRespectsEligibility(t *testing.T) {
+	// kube checks all on group1 and http checks all on general1 (both
+	// overloaded), group2 and general2 idle.
+	kubeGroup := &types.CheckCompatibility{Include: []string{"kube_check"}}
+	general := &types.CheckCompatibility{Exclude: []string{"kube_check"}}
+	d := newRebalanceDispatcher(t,
+		rebalanceWorker{"group1", kubeGroup, map[string]string{"kube_a": "kube_check", "kube_b": "kube_check"}},
+		rebalanceWorker{"group2", kubeGroup, nil},
+		rebalanceWorker{"general1", general, map[string]string{"http_a": "http_check", "http_b": "http_check"}},
+		rebalanceWorker{"general2", general, nil},
+	)
 
-	// Every kube check stays on the group runners, every http check on the
-	// general runners, whatever the rebalance decided to move.
-	for _, target := range []string{kubeA, kubeB} {
-		assert.Contains(t, []string{"group1", "group2"}, target)
+	checksMoved := d.rebalanceUsingUtilization(false)
+	requireNotLocked(t, d.store)
+
+	nodes := placement(d)
+	for _, digest := range []string{"digest-kube_a", "digest-kube_b"} {
+		assert.Contains(t, []string{"group1", "group2"}, nodes[digest])
 	}
-	for _, target := range []string{httpA, httpB} {
-		assert.Contains(t, []string{"general1", "general2"}, target)
+	for _, digest := range []string{"digest-http_a", "digest-http_b"} {
+		assert.Contains(t, []string{"general1", "general2"}, nodes[digest])
 	}
 
 	moved := map[string]bool{}
@@ -263,6 +317,33 @@ func TestRebalanceUsingUtilizationRespectsEligibility(t *testing.T) {
 		moved[m.Digest] = true
 	}
 	// The overloaded runners were relieved: at least one move per family.
-	assert.True(t, moved["digest-kube-a"] || moved["digest-kube-b"])
-	assert.True(t, moved["digest-http-a"] || moved["digest-http-b"])
+	assert.True(t, moved["digest-kube_a"] || moved["digest-kube_b"])
+	assert.True(t, moved["digest-http_a"] || moved["digest-http_b"])
+}
+
+// TestRebalanceCohortsKeyedByEligibleSet is the regression test for workers
+// whose declarations look alike (both exclude-only, so both labeled
+// "general") but accept different checks: each check must only ever be
+// placed on a runner that accepts it.
+func TestRebalanceCohortsKeyedByEligibleSet(t *testing.T) {
+	// a refuses foo, b refuses bar. foo can only run on b, bar only on a,
+	// http on both. b is overloaded, a is idle.
+	d := newRebalanceDispatcher(t,
+		rebalanceWorker{"a", &types.CheckCompatibility{Exclude: []string{"foo"}}, map[string]string{"bar_a": "bar"}},
+		rebalanceWorker{"b", &types.CheckCompatibility{Exclude: []string{"bar"}}, map[string]string{
+			"foo_a": "foo", "foo_b": "foo", "http_a": "http_check", "http_b": "http_check",
+		}},
+	)
+
+	// Map iteration picks the cohort's first config at random: repeat so a
+	// regression would fail reliably rather than intermittently.
+	for range 20 {
+		d.rebalanceUsingUtilization(true)
+		requireNotLocked(t, d.store)
+
+		nodes := placement(d)
+		assert.Equal(t, "b", nodes["digest-foo_a"])
+		assert.Equal(t, "b", nodes["digest-foo_b"])
+		assert.Equal(t, "a", nodes["digest-bar_a"])
+	}
 }

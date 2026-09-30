@@ -53,11 +53,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 		warmingUp = true
 	}
 	node := d.store.getOrCreateNodeStore(nodeName, clientIP)
-	// Compat is fixed at registration; later values are ignored.
-	if node.checkCompat == nil {
-		node.checkCompat = status.CheckCompatibility
-		node.cohortKey = cohortKey(status.CheckCompatibility)
-	}
+	d.updateCheckCompatibility(nodeName, node, status.CheckCompatibility)
 	d.store.Unlock()
 
 	node.Lock()
@@ -116,12 +112,59 @@ func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyN
 	return node, len(d.store.nodes) > 0
 }
 
-// cohortKey returns the worker's cohort key: the sorted joined include list, or "general" when nothing is included.
-func cohortKey(compat *types.CheckCompatibility) string {
-	if compat == nil || len(compat.Include) == 0 {
-		return "general"
+// updateCheckCompatibility records the worker's declared compatibility
+// Note: NodeAgents reuse nodeName, so updating particularly important if new exclusion needed.
+func (d *dispatcher) updateCheckCompatibility(nodeName string, node *nodeStore, compat *types.CheckCompatibility) {
+	signature := declarationSignature(compat)
+	if signature == node.signature {
+		return
 	}
-	return strings.Join(slices.Sorted(slices.Values(compat.Include)), ",")
+	log.Infof("Node %s check compatibility changed: %s -> %s", nodeName, node.signature, signature)
+	node.checkCompat = compat
+	node.signature = signature
+
+	node.Lock()
+	defer node.Unlock()
+	for digest, config := range node.digestToConfig {
+		if !compat.Accepts(config.Name) {
+			log.Infof("Node %s no longer accepts %s:%s, will re-dispatch it", nodeName, config.Name, digest)
+			node.removeConfig(digest)
+			d.moveToDangling(nodeName, digest, config)
+		}
+	}
+}
+
+// declarationSignature returns the canonical form of a worker's compat
+// declaration, following Accepts' precedence (include first, then exclude)
+func declarationSignature(compat *types.CheckCompatibility) string {
+	switch {
+	case compat == nil:
+		return "unrestricted"
+	case len(compat.Include) > 0:
+		return "include=" + canonicalList(compat.Include)
+	case len(compat.Exclude) > 0:
+		return "exclude=" + canonicalList(compat.Exclude)
+	default:
+		return "unrestricted"
+	}
+}
+
+func canonicalList(checks []string) string {
+	return strings.Join(slices.Compact(slices.Sorted(slices.Values(checks))), ",")
+}
+
+// cohortKey returns the sorted, distinct signatures of the given nodes. The
+// eligible nodes of a check are whole groups of same-signature workers, so
+// this key identifies the eligible set exactly, while staying bounded by the
+// number of declarations and stable across pod restarts. The store must be
+// read-locked.
+func (d *dispatcher) cohortKey(nodes []string) string {
+	signatures := make([]string, 0, len(nodes))
+	for _, name := range nodes {
+		signatures = append(signatures, d.store.nodes[name].signature)
+	}
+	slices.Sort(signatures)
+	return strings.Join(slices.Compact(signatures), " | ")
 }
 
 // eligibleNodes returns the sorted nodes accepting a check. The store must be read-locked.
@@ -196,19 +239,7 @@ func (d *dispatcher) expireNodes() {
 				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.heartbeat)
 			}
 			for digest, config := range node.digestToConfig {
-				delete(d.store.digestToNode, digest)
-				log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
-				d.store.danglingConfigs[digest] = createDanglingConfig(config)
-				danglingConfigs.Inc(le.JoinLeaderValue)
-
-				// TODO: Use partial label matching when it becomes available:
-				// Replace the loop by a single function call (delete by node name).
-				// Requires https://github.com/prometheus/client_golang/pull/1013
-				for k, v := range d.store.idToDigest {
-					if v == digest {
-						configsInfo.Delete(name, config.Name, string(k), le.JoinLeaderValue)
-					}
-				}
+				d.moveToDangling(name, digest, config)
 			}
 			delete(d.store.nodes, name)
 
@@ -223,6 +254,25 @@ func (d *dispatcher) expireNodes() {
 
 	if initialNodeCount != 0 && len(d.store.nodes) == 0 {
 		log.Warn("No nodes reporting, cluster checks will not run")
+	}
+}
+
+// moveToDangling unassigns a config dispatched to nodeName and stores it as a
+// dangling config, to be re-dispatched. It doesn't touch the node's own
+// config map. The store must be locked.
+func (d *dispatcher) moveToDangling(nodeName, digest string, config integration.Config) {
+	delete(d.store.digestToNode, digest)
+	log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
+	d.store.danglingConfigs[digest] = createDanglingConfig(config)
+	danglingConfigs.Inc(le.JoinLeaderValue)
+
+	// TODO: Use partial label matching when it becomes available:
+	// Replace the loop by a single function call (delete by node name).
+	// Requires https://github.com/prometheus/client_golang/pull/1013
+	for k, v := range d.store.idToDigest {
+		if v == digest {
+			configsInfo.Delete(nodeName, config.Name, string(k), le.JoinLeaderValue)
+		}
 	}
 }
 

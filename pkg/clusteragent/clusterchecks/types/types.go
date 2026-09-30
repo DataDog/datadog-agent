@@ -38,19 +38,24 @@ type CheckCompatibility struct {
 	Exclude []string `json:"exclude,omitempty"`
 }
 
-// Accepts reports whether a worker with this compatibility may run the given check (nil = unrestricted).
+// Accepts reports whether a worker with this compatibility may run the given
+// check (nil = unrestricted). The include list takes precedence: when set, the
+// exclude list is ignored.
 func (c *CheckCompatibility) Accepts(checkName string) bool {
-	if c == nil {
+	switch {
+	case c == nil:
 		return true
+	case len(c.Include) > 0:
+		return slices.Contains(c.Include, checkName)
+	default:
+		return !slices.Contains(c.Exclude, checkName)
 	}
-	return (len(c.Include) == 0 || slices.Contains(c.Include, checkName)) && !slices.Contains(c.Exclude, checkName)
 }
 
 // NodeStatus holds the status report from the node-agent
 type NodeStatus struct {
-	LastChange int64    `json:"last_change"`
-	NodeType   NodeType `json:"node_type,omitempty"`
-	// CheckCompatibility restricts the checks dispatched to this worker; fixed at worker registration.
+	LastChange         int64               `json:"last_change"`
+	NodeType           NodeType            `json:"node_type,omitempty"`
 	CheckCompatibility *CheckCompatibility `json:"check_compatibility,omitempty"`
 }
 

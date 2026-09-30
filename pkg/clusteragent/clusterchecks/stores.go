@@ -125,7 +125,7 @@ type nodeStore struct {
 	workers          int
 	nodetype         types.NodeType
 	checkCompat      *types.CheckCompatibility
-	cohortKey        string
+	signature        string
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {
@@ -135,6 +135,7 @@ func newNodeStore(name, clientIP string) *nodeStore {
 		digestToConfig: make(map[string]integration.Config),
 		clcRunnerStats: types.CLCRunnersStats{},
 		busyness:       defaultBusynessValue,
+		signature:      declarationSignature(nil),
 	}
 }
 

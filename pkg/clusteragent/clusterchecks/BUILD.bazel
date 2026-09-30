@@ -68,6 +68,7 @@ dd_agent_go_test(
     srcs = [
         "checks_distribution_test.go",
         "common_test.go",
+        "dispatcher_compat_bench_test.go",
         "dispatcher_compat_test.go",
         "dispatcher_dynamic_test.go",
         "dispatcher_isolate_test.go",
@@ -102,6 +103,7 @@ dd_agent_go_test(
         "//pkg/config/setup/constants",
         "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
         "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
         "//pkg/util/testutil",
         "//pkg/version",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/mocktracer",

@@ -399,20 +399,27 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 
 	currentConfigsDistribution := d.currentDistribution()
 
-	// Partition configs into cohorts by the group key of their eligible
-	// runners, and rebalance each cohort independently within its own runners
+	// Partition configs into cohorts (by declaration of their eligible runners).
+	// Rebalance each cohort independently within its own runners
 	cohorts := make(map[string]*cohort)
 	d.store.RLock()
+	// Cohort depends on the check name
+	cohortByCheck := make(map[string]*cohort)
 	for digest, config := range currentConfigsDistribution.Configs {
-		eligible := d.eligibleNodes(config.CheckName)
-		if len(eligible) == 0 {
-			continue // unreachable in practice: a running config is eligible on its own runner
+		c, seen := cohortByCheck[config.CheckName]
+		if !seen {
+			if eligible := d.eligibleNodes(config.CheckName); len(eligible) > 0 {
+				key := d.cohortKey(eligible)
+				if c = cohorts[key]; c == nil {
+					c = &cohort{key: key, runners: eligible, configs: make(map[string]*ConfigStatus)}
+					cohorts[key] = c
+				}
+			}
+			cohortByCheck[config.CheckName] = c
 		}
-		key := d.store.nodes[eligible[0]].cohortKey
-		if _, ok := cohorts[key]; !ok {
-			cohorts[key] = &cohort{key: key, runners: eligible, configs: make(map[string]*ConfigStatus)}
+		if c != nil { // nil: no eligible runner, unreachable in practice
+			c.configs[digest] = config
 		}
-		cohorts[key].configs[digest] = config
 	}
 	d.store.RUnlock()
 
@@ -423,7 +430,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	return allMoves
 }
 
-// cohort is a set of configs sharing the runners.
+// cohort is a set of configs sharing the same eligible runners.
 type cohort struct {
 	key     string
 	runners []string
@@ -478,7 +485,7 @@ func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, co
 	if force {
 		prefix = "Forced cohort rebalance: moved"
 	}
-	log.Infof("%s %d of %d checks in cohort [%q] on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cohort.key, len(proposedCohort.Runners), currentStdDev, proposedStdDev)
+	log.Infof("%s %d of %d checks in cohort %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cohort.key, len(proposedCohort.Runners), currentStdDev, proposedStdDev)
 	setPredictedUtilization(proposedCohort)
 	return moves
 }

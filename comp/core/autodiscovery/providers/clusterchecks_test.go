@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -18,26 +18,20 @@ func TestCheckCompatibilityFromConfig(t *testing.T) {
 	tests := []struct {
 		name             string
 		include, exclude []string
+		want             *types.CheckCompatibility
 	}{
-		{"nothing set is unrestricted", nil, nil},
-		{"include and exclude", []string{"kubernetes_state_core", "orchestrator"}, []string{"http_check"}},
-		{"exclude only", nil, []string{"kafka_consumer"}},
-		{"include only", []string{"kubernetes_state_core"}, nil},
+		{"nothing set is unrestricted", nil, nil, nil},
+		{"include only", []string{"kubernetes_state_core"}, nil, &types.CheckCompatibility{Include: []string{"kubernetes_state_core"}}},
+		{"exclude only", nil, []string{"kafka_consumer"}, &types.CheckCompatibility{Exclude: []string{"kafka_consumer"}}},
+		{"both set: include wins, exclude dropped", []string{"kubernetes_state_core", "orchestrator"}, []string{"http_check"},
+			&types.CheckCompatibility{Include: []string{"kubernetes_state_core", "orchestrator"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetInTest("experimental.clc_runner_checks_include", append([]string{}, tt.include...))
 			cfg.SetInTest("experimental.clc_runner_checks_exclude", append([]string{}, tt.exclude...))
-
-			compat := checkCompatibilityFromConfig(cfg)
-			if len(tt.include) == 0 && len(tt.exclude) == 0 {
-				assert.Nil(t, compat)
-				return
-			}
-			require.NotNil(t, compat)
-			assert.ElementsMatch(t, tt.include, compat.Include)
-			assert.ElementsMatch(t, tt.exclude, compat.Exclude)
+			assert.Equal(t, tt.want, checkCompatibilityFromConfig(cfg))
 		})
 	}
 }

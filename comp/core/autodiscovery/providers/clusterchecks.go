@@ -127,18 +127,21 @@ func (c *ClusterChecksConfigProvider) withinDegradedModePeriod() bool {
 	return withinDegradedModePeriod(c.heartbeat.Load(), c.degradedDuration)
 }
 
-// checkCompatibilityFromConfig derives the advertised compat from the experimental.clc_runner_checks_* keys (DD_EXPERIMENTAL_* env, space-separated). Both empty means unrestricted (nil).
+// checkCompatibilityFromConfig derives the advertised compat
 func checkCompatibilityFromConfig(config pkgconfigmodel.Reader) *types.CheckCompatibility {
 	include := config.GetStringSlice("experimental.clc_runner_checks_include")
 	exclude := config.GetStringSlice("experimental.clc_runner_checks_exclude")
 
-	if len(include) == 0 && len(exclude) == 0 {
+	switch {
+	case len(include) > 0:
+		if len(exclude) > 0 {
+			log.Errorf("Both experimental.clc_runner_checks_include and experimental.clc_runner_checks_exclude are set: using the include list %v and ignoring the exclude list %v", include, exclude)
+		}
+		return &types.CheckCompatibility{Include: include}
+	case len(exclude) > 0:
+		return &types.CheckCompatibility{Exclude: exclude}
+	default:
 		return nil
-	}
-
-	return &types.CheckCompatibility{
-		Include: include,
-		Exclude: exclude,
 	}
 }
 

@@ -81,7 +81,8 @@ func TestCheckCompatibilityAccepts(t *testing.T) {
 		{"not included", &CheckCompatibility{Include: []string{"a"}}, "b", false},
 		{"excluded", &CheckCompatibility{Exclude: []string{"a"}}, "a", false},
 		{"not excluded", &CheckCompatibility{Exclude: []string{"a"}}, "b", true},
-		{"exclude wins over include", &CheckCompatibility{Include: []string{"a"}, Exclude: []string{"a"}}, "a", false},
+		{"include wins over exclude", &CheckCompatibility{Include: []string{"a"}, Exclude: []string{"a"}}, "a", true},
+		{"exclude ignored when include is set", &CheckCompatibility{Include: []string{"a"}, Exclude: []string{"b"}}, "b", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
