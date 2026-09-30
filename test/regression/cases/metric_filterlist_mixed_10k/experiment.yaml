@@ -1,7 +1,8 @@
 # Mixed metric_filterlist scaling experiment.
-# 5,000 exact entries + 1,250 metric_filterlist_prefix entries, each with 8 exceptions.
+# 5,000 exact entries + 1,250 legacy star-prefix entries + 1,250
+# metric_filterlist_prefix entries, each with 8 exceptions.
 # Measures the exception-bearing Matcher.rules path under 20 MiB/s of traffic.
-# Baseline Agents ignore metric_filterlist_prefix, so results are feature-off vs feature-on.
+# Legacy star-prefix entries keep comparison images filtering the same prefix-hit stream.
 # Generated from smp-playground's metric_filterlist_scaling harness; see README.md.
 
 optimization_goal: memory
