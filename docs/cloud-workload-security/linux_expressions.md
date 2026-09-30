@@ -1942,10 +1942,24 @@ A thread joined an existing namespace
 
 | Property | Definition |
 | -------- | ------------- |
-| [`setns.mntns`](#setns-mntns-doc) | MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
-| [`setns.netns`](#setns-netns-doc) | NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved |
+| [`setns.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
 | [`setns.nstype`](#setns-nstype-doc) | Namespace types the thread joined. Resolved from the file descriptor when the caller passed 0, so it stays usable in rules whatever the caller requested. Reported even when the join was denied. 0 if it couldn't be determined |
+| [`setns.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6 |
+| [`setns.previous.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
 | [`setns.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setns.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6 |
+| [`setns.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
 
 ### Event `setrlimit`
 
@@ -3082,6 +3096,15 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `*.cgroupns` {#common-namespaceids-cgroupns-doc}
+Type: int
+
+Definition: Cgroup namespace ID, 0 if it couldn't be resolved
+
+`*.cgroupns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.change_time` {#common-filefields-change_time-doc}
 Type: int
 
@@ -3388,6 +3411,15 @@ Definition: IP address
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
+### `*.ipcns` {#common-namespaceids-ipcns-doc}
+Type: int
+
+Definition: IPC namespace ID, 0 if it couldn't be resolved
+
+`*.ipcns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.is_exec` {#common-process-is_exec-doc}
 Type: bool
 
@@ -3493,6 +3525,15 @@ Definition: Length of the corresponding element
 `accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.aws_security_credentials` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.aws_security_credentials` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.aws_security_credentials` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.aws_security_credentials` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.aws_security_credentials` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.aws_security_credentials` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
+### `*.mntns` {#common-namespaceids-mntns-doc}
+Type: int
+
+Definition: Mount namespace ID, 0 if it couldn't be resolved
+
+`*.mntns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.mntns` {#common-pidcontext-mntns-doc}
 Type: int
 
@@ -3567,6 +3608,15 @@ exec.file.name == "apt"
 {{< /code-block >}}
 
 Matches the execution of any file named apt.
+
+### `*.netns` {#common-namespaceids-netns-doc}
+Type: int
+
+Definition: Network namespace ID, 0 if it couldn't be resolved
+
+`*.netns` has 2 possible prefixes:
+`setns` `setns.previous`
+
 
 ### `*.netns` {#common-networkdevicecontext-netns-doc}
 Type: int
@@ -3703,6 +3753,15 @@ Definition: Process ID of the process (also called thread group ID)
 
 `*.pid` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.pidns` {#common-namespaceids-pidns-doc}
+Type: int
+
+Definition: ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved
+
+`*.pidns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.pod_uid` {#common-containercontext-pod_uid-doc}
@@ -3858,6 +3917,15 @@ Definition: Thread ID of the thread
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.timens` {#common-namespaceids-timens-doc}
+Type: int
+
+Definition: Time namespace ID, 0 if it couldn't be resolved or on kernels older than 5.6
+
+`*.timens` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.tty_name` {#common-process-tty_name-doc}
 Type: string
 
@@ -3931,6 +3999,24 @@ Definition: User of the file's owner
 
 `*.user` has 46 possible prefixes:
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.userns` {#common-namespaceids-userns-doc}
+Type: int
+
+Definition: User namespace ID, 0 if it couldn't be resolved
+
+`*.userns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
+### `*.utsns` {#common-namespaceids-utsns-doc}
+Type: int
+
+Definition: UTS namespace ID, 0 if it couldn't be resolved
+
+`*.utsns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.version` {#common-cgroupcontext-version-doc}
@@ -4882,20 +4968,6 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
-
-
-
-### `setns.mntns` {#setns-mntns-doc}
-Type: int
-
-Definition: MNTNS ID of the thread once the syscall returned, 0 if it couldn't be resolved
-
-
-
-### `setns.netns` {#setns-netns-doc}
-Type: int
-
-Definition: NetNS ID of the thread once the syscall returned, 0 if it couldn't be resolved
 
 
 
