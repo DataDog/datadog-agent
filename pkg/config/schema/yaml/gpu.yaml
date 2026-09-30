@@ -212,13 +212,15 @@ properties:
       ddTraceVersions:
         node_type: setting
         type: object
-        default: {}
+        default:
+          c: '0'
         additionalProperties:
           type: string
         env_parser: json
         visibility: public
         description: |-
           Map of tracer language to the tracer version to inject, for example c: "0.24.0".
+          Defaults to the latest major version 0 of the C tracer.
         example: |2-
 
             c: "0.24.0"

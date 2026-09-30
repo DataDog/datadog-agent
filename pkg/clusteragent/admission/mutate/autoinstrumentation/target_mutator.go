@@ -74,11 +74,11 @@ type TargetMutator struct {
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
 	ddiTargets                    DDITargetProvider
-	ssiEnabled                    bool
 
 	// staticPolicies is local targeting: explicit targets, or enabledNamespaces
-	// as a namespace target (Helm, Operator, or datadog.yaml). Empty when SSI
-	// is off or when SSI is on with no targeting.
+	// as a namespace target (Helm, Operator, or datadog.yaml), plus the GPU
+	// target when gpu.tracing is enabled. Empty when SSI is off or when SSI is
+	// on with no targeting, unless the GPU target is set.
 	staticPolicies policySet
 	// injectAll is the SSI-on fallback when there is no static targeting and no RC.
 	injectAll *targetInternal
@@ -110,6 +110,22 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		}
 	}
 
+	// SSI on and no static targeting: prepare inject-all. Applied only when RC is also absent. It is decided before
+	// adding the GPU target so that enabling GPU tracing does not turn inject-all off.
+	var injectAll *targetInternal
+	if ssiEnabled && len(targets) == 0 {
+		fallback, err := buildInternalTargets(config, []Target{createDefaultTarget(nil, config.Instrumentation.LibVersions)}, defaultLibVersions)
+		if err != nil {
+			return nil, err
+		}
+		injectAll = &fallback[0]
+	}
+
+	// The GPU target comes first so that GPU workloads get the GPU tracer config even when a user target matches them.
+	if config.gpuTarget != nil {
+		targets = append([]Target{*config.gpuTarget}, targets...)
+	}
+
 	staticPolicies, err := newPolicySet(config, targets, defaultLibVersions, wmeta)
 	if err != nil {
 		return nil, err
@@ -123,16 +139,8 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
 		ddiTargets:                    ddiTargets,
-		ssiEnabled:                    ssiEnabled,
 		staticPolicies:                staticPolicies,
-	}
-	// SSI on and no static targeting: prepare inject-all. Applied only when RC is also absent.
-	if ssiEnabled && len(targets) == 0 {
-		fallback, err := buildInternalTargets(config, []Target{createDefaultTarget(nil, config.Instrumentation.LibVersions)}, defaultLibVersions)
-		if err != nil {
-			return nil, err
-		}
-		m.injectAll = &fallback[0]
+		injectAll:                     injectAll,
 	}
 
 	core := newMutatorCore(config, wmeta, imageResolver, csiDriverWatcher)
@@ -591,14 +599,10 @@ func (m *TargetMutator) getMatchingTarget(pod *corev1.Pod) *targetInternal {
 	if static != nil {
 		return static
 	}
-	if m.ssiEnabled && !hasTargets(&m.staticPolicies) && remotePolicies == nil {
+	if m.injectAll != nil && remotePolicies == nil {
 		return m.injectAll
 	}
 	return nil
-}
-
-func hasTargets(set *policySet) bool {
-	return set != nil && len(set.targets) > 0
 }
 
 // applyMatch returns the target of the last matching policy in a set, or nil.

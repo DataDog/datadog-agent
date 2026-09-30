@@ -42,7 +42,7 @@ func TestNewJobsConfig(t *testing.T) {
 
 	got := New()
 
-	assert.Equal(t, NewJobsConfig(), got.JobsConfig)
+	assert.Equal(t, NewJobsConfig(cfg), got.JobsConfig)
 	assert.Equal(t, IdentifierConfig{Key: "_RAY_SUBMISSION_ID", Type: IdentifierTypeEnv}, got.JobsConfig.Run)
 	assert.Equal(t, IdentifierConfig{Key: "example/job-group-annotation", Type: IdentifierTypeAnnotation}, got.JobsConfig.Group)
 }
@@ -69,7 +69,7 @@ gpu:
 
 	got := New()
 
-	assert.Equal(t, newTracingConfig(cfg), got.TracingConfig)
+	assert.Equal(t, NewTracingConfig(cfg), got.TracingConfig)
 	assert.Equal(t, TracingConfig{
 		Enabled:        true,
 		TracerVersions: map[string]string{"c": "0.24.0"},
@@ -79,19 +79,30 @@ gpu:
 func TestNewTracingConfigFromEnv(t *testing.T) {
 	t.Setenv("DD_GPU_TRACING_ENABLED", "true")
 	t.Setenv("DD_GPU_TRACING_DDTRACEVERSIONS", `{"c":"0.24.0"}`)
-	configmock.New(t)
+	cfg := configmock.New(t)
 
-	got := NewTracingConfig()
+	got := NewTracingConfig(cfg)
 
 	assert.True(t, got.Enabled)
 	assert.Equal(t, map[string]string{"c": "0.24.0"}, got.TracerVersions)
 }
 
 func TestNewTracingConfigDefaults(t *testing.T) {
-	configmock.New(t)
+	cfg := configmock.New(t)
 
-	got := NewTracingConfig()
+	got := NewTracingConfig(cfg)
 
 	assert.False(t, got.Enabled)
-	assert.Empty(t, got.TracerVersions)
+	assert.Equal(t, map[string]string{"c": "0"}, got.TracerVersions)
+}
+
+func TestNewTracingConfigTracerVersionsReplaceDefault(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+gpu:
+  tracing:
+    ddTraceVersions:
+      python: "3"
+`)
+
+	assert.Equal(t, map[string]string{"python": "3"}, NewTracingConfig(cfg).TracerVersions)
 }
