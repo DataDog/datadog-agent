@@ -56,17 +56,17 @@ metric_filterlist_prefix:
 	)
 }
 
-func (s *metricFilterListPrefixSuite) sendStatsdGauge(name string, value int) {
+func (s *metricFilterListPrefixSuite) sendStatsdGauge(c *assert.CollectT, name string, value int) {
 	cmd := fmt.Sprintf(`bash -c 'echo -n "%s:%d|g" > /dev/udp/127.0.0.1/8125'`, name, value)
-	s.Env().RemoteHost.MustExecute(cmd)
+	s.Env().RemoteHost.MustExecuteOn(c, cmd)
 }
 
 func (s *metricFilterListPrefixSuite) TestMetricFilterListPrefixBlocksMatchingMetrics() {
 	// Keep traffic flowing until the pipeline flushes.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		s.sendStatsdGauge(prefixListUnrelatedMetric, 1)
-		s.sendStatsdGauge(prefixListExceptedMetric, 1)
-		s.sendStatsdGauge(prefixListBlockedMetric, 1)
+		s.sendStatsdGauge(c, prefixListUnrelatedMetric, 1)
+		s.sendStatsdGauge(c, prefixListExceptedMetric, 1)
+		s.sendStatsdGauge(c, prefixListBlockedMetric, 1)
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(prefixListUnrelatedMetric)
 		assert.NoError(c, err)
