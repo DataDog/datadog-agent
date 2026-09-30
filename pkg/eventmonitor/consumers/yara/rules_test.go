@@ -10,8 +10,10 @@ package yara
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,7 +35,170 @@ func writeRuleFiles(t *testing.T, dir string, files map[string]string) {
 	}
 }
 
+// trustCurrentUser makes the rule loader accept files owned by the test's uid, since tests can't
+// create root-owned files when they don't run as root
+func trustCurrentUser(t *testing.T) {
+	t.Helper()
+	setTrustedRuleOwner(t, uint32(os.Getuid()))
+}
+
+func setTrustedRuleOwner(t *testing.T, uid uint32) {
+	t.Helper()
+	previous := trustedRuleOwnerUID
+	trustedRuleOwnerUID = uid
+	t.Cleanup(func() { trustedRuleOwnerUID = previous })
+}
+
+// fakeFileInfo is an os.FileInfo with a chosen owner and mode
+type fakeFileInfo struct {
+	os.FileInfo
+	mode os.FileMode
+	uid  uint32
+}
+
+func (f fakeFileInfo) Mode() os.FileMode { return f.mode }
+func (f fakeFileInfo) Sys() any          { return &syscall.Stat_t{Uid: f.uid} }
+
+func TestCheckRulePermissions(t *testing.T) {
+	assert.Equal(t, uint32(0), trustedRuleOwnerUID, "only root is trusted by default")
+
+	for name, tc := range map[string]struct {
+		info os.FileInfo
+		safe bool
+	}{
+		"root 0644":            {info: fakeFileInfo{mode: 0o644}, safe: true},
+		"root 0600":            {info: fakeFileInfo{mode: 0o600}, safe: true},
+		"root dir 0755":        {info: fakeFileInfo{mode: os.ModeDir | 0o755}, safe: true},
+		"root group writable":  {info: fakeFileInfo{mode: 0o664}},
+		"root world writable":  {info: fakeFileInfo{mode: 0o646}},
+		"root dir 0777":        {info: fakeFileInfo{mode: os.ModeDir | 0o777}},
+		"sticky world dir":     {info: fakeFileInfo{mode: os.ModeDir | os.ModeSticky | 0o777}},
+		"non-root owner 0644":  {info: fakeFileInfo{mode: 0o644, uid: 1000}},
+		"dd-agent owner 0600":  {info: fakeFileInfo{mode: 0o600, uid: 998}},
+		"no owner information": {info: fakeFileInfo{mode: 0o644, uid: 0}.withoutSys()},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := checkRulePermissions("/etc/datadog-agent/yara.d/r.yar", tc.info)
+			if tc.safe {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, ErrUnsafeRules)
+			}
+		})
+	}
+}
+
+// withoutSys returns a FileInfo whose Sys() is nil
+func (f fakeFileInfo) withoutSys() os.FileInfo { return noSysFileInfo{f} }
+
+type noSysFileInfo struct{ fakeFileInfo }
+
+func (noSysFileInfo) Sys() any { return nil }
+
+func TestLoadRuleSourcesOwner(t *testing.T) {
+	dir := t.TempDir()
+	writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
+
+	// files owned by another uid than the trusted one are refused
+	setTrustedRuleOwner(t, uint32(os.Getuid())+1)
+	_, _, err := LoadRuleSources(dir)
+	require.ErrorIs(t, err, ErrUnsafeRules)
+	assert.Contains(t, err.Error(), dir)
+
+	// with the default trusted uid, root: files created by the test are only accepted when it
+	// runs as root
+	setTrustedRuleOwner(t, 0)
+	_, _, err = LoadRuleSources(dir)
+	if os.Geteuid() == 0 {
+		assert.NoError(t, err)
+	} else {
+		assert.ErrorIs(t, err, ErrUnsafeRules)
+	}
+}
+
+func TestLoadRuleSourcesWritable(t *testing.T) {
+	trustCurrentUser(t)
+
+	t.Run("writable dir", func(t *testing.T) {
+		for _, mode := range []os.FileMode{0o775, 0o757, 0o777} {
+			dir := t.TempDir()
+			writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
+			require.NoError(t, os.Chmod(dir, mode))
+			_, _, err := LoadRuleSources(dir)
+			assert.ErrorIs(t, err, ErrUnsafeRules, mode.String())
+		}
+	})
+
+	t.Run("writable file", func(t *testing.T) {
+		for _, mode := range []os.FileMode{0o664, 0o646, 0o666} {
+			dir := t.TempDir()
+			writeRuleFiles(t, dir, map[string]string{"a.yar": testRule, "b.yar": testRule})
+			path := filepath.Join(dir, "b.yar")
+			require.NoError(t, os.Chmod(path, mode))
+			_, _, err := LoadRuleSources(dir)
+			require.ErrorIs(t, err, ErrUnsafeRules, mode.String())
+			assert.Contains(t, err.Error(), path)
+		}
+	})
+
+	t.Run("symlink to a writable file", func(t *testing.T) {
+		dir := t.TempDir()
+		elsewhere := t.TempDir()
+		writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
+		writeRuleFiles(t, elsewhere, map[string]string{"target.yar": testRule})
+		require.NoError(t, os.Chmod(filepath.Join(elsewhere, "target.yar"), 0o666))
+		require.NoError(t, os.Symlink(filepath.Join(elsewhere, "target.yar"), filepath.Join(dir, "link.yar")))
+		_, _, err := LoadRuleSources(dir)
+		assert.ErrorIs(t, err, ErrUnsafeRules)
+	})
+
+	t.Run("writable non-rule files are ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		writeRuleFiles(t, dir, map[string]string{"a.yar": testRule, "notes.txt": "x"})
+		require.NoError(t, os.Chmod(filepath.Join(dir, "notes.txt"), 0o666))
+		_, _, err := LoadRuleSources(dir)
+		assert.NoError(t, err)
+	})
+
+	t.Run("not a directory", func(t *testing.T) {
+		dir := t.TempDir()
+		writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
+		_, _, err := LoadRuleSources(filepath.Join(dir, "a.yar"))
+		assert.Error(t, err)
+	})
+}
+
+type closingScanner struct {
+	*MarkerScanner
+	closed bool
+}
+
+func (s *closingScanner) Close() error {
+	s.closed = true
+	return nil
+}
+
+func TestLoadScannerClose(t *testing.T) {
+	trustCurrentUser(t)
+	dir := t.TempDir()
+	writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
+
+	inner := &closingScanner{MarkerScanner: NewMarkerScanner("m", "r")}
+	scanner, _, err := LoadScanner(dir, func([]RuleSource) (Scanner, error) { return inner, nil })
+	require.NoError(t, err)
+	closer, ok := scanner.(io.Closer)
+	require.True(t, ok)
+	require.NoError(t, closer.Close())
+	assert.True(t, inner.closed, "Close is forwarded to the engine's scanner")
+
+	// a scanner without Close
+	scanner, _, err = LoadScanner(dir, StandInCompiler)
+	require.NoError(t, err)
+	assert.NoError(t, scanner.(io.Closer).Close())
+}
+
 func TestLoadRuleSources(t *testing.T) {
+	trustCurrentUser(t)
 	dir := t.TempDir()
 	writeRuleFiles(t, dir, map[string]string{
 		"b.yara":      "rule b { strings: $a = \"B\" condition: $a }",
@@ -60,6 +225,7 @@ func TestLoadRuleSources(t *testing.T) {
 }
 
 func TestLoadRuleSourcesErrors(t *testing.T) {
+	trustCurrentUser(t)
 	_, _, err := LoadRuleSources("")
 	assert.ErrorIs(t, err, ErrRulesDirUnset)
 
@@ -107,6 +273,7 @@ func TestRulesVersion(t *testing.T) {
 }
 
 func TestRulesVersionFromDisk(t *testing.T) {
+	trustCurrentUser(t)
 	dir := t.TempDir()
 	writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
 	_, v1, err := LoadRuleSources(dir)
@@ -122,6 +289,7 @@ func TestRulesVersionFromDisk(t *testing.T) {
 }
 
 func TestLoadScanner(t *testing.T) {
+	trustCurrentUser(t)
 	dir := t.TempDir()
 	writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
 
@@ -140,6 +308,7 @@ func TestLoadScanner(t *testing.T) {
 }
 
 func TestLoadScannerErrors(t *testing.T) {
+	trustCurrentUser(t)
 	dir := t.TempDir()
 	writeRuleFiles(t, dir, map[string]string{"a.yar": testRule})
 

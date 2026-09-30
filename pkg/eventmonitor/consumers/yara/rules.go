@@ -14,11 +14,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 var (
@@ -26,6 +28,9 @@ var (
 	ErrRulesDirUnset = errors.New("yara: rules_dir is not set")
 	// ErrNoRules is returned when the rules directory holds no rule file
 	ErrNoRules = errors.New("yara: no rule file found")
+	// ErrUnsafeRules is returned when the rules directory or a rule file is not owned by root,
+	// or is group or world writable
+	ErrUnsafeRules = errors.New("yara: refusing to load rules: unsafe ownership or permissions")
 )
 
 // ruleFileExtensions are the file extensions loaded from the rules directory
@@ -43,14 +48,59 @@ type RuleSource struct {
 // replaces it with a hash of the sources.
 type Compiler func(sources []RuleSource) (Scanner, error)
 
+// trustedRuleOwnerUID is the only owner allowed for the rules directory and the rule files. Rules
+// are code run against every executed binary, as root: whoever can write them controls the
+// scanner. It is a variable only so that tests, which can't create root-owned files, can trust
+// their own uid.
+var trustedRuleOwnerUID uint32
+
+// checkRulePermissions returns an ErrUnsafeRules error when path, described by info, is not
+// owned by trustedRuleOwnerUID or is group or world writable.
+//
+// Only the rules directory and the rule files are checked, not their parent directories: a
+// writable parent would let its owner swap the whole directory. For the PoC, rules_dir is
+// expected under /etc/datadog-agent, which the agent packages keep root-owned.
+func checkRulePermissions(path string, info os.FileInfo) error {
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("%w: %s: no owner information", ErrUnsafeRules, path)
+	}
+	if st.Uid != trustedRuleOwnerUID {
+		return fmt.Errorf("%w: %s is owned by uid %d, it must be owned by uid %d (root)", ErrUnsafeRules, path, st.Uid, trustedRuleOwnerUID)
+	}
+	if info.Mode().Perm()&0o022 != 0 {
+		return fmt.Errorf("%w: %s is group or world writable (mode %s)", ErrUnsafeRules, path, info.Mode().Perm())
+	}
+	return nil
+}
+
 // LoadRuleSources reads every rule file (*.yar, *.yara) directly in dir, sorted by name, and
 // returns them with their version. Subdirectories are not read.
+//
+// dir and every rule file must be owned by root and not be group or world writable, or no rule
+// is loaded (ErrUnsafeRules). Symlinks are followed, and the permissions of their target are
+// checked. Each file is checked on the opened descriptor, so the checked file is the read one.
 func LoadRuleSources(dir string) ([]RuleSource, string, error) {
 	if dir == "" {
 		return nil, "", ErrRulesDirUnset
 	}
 
-	entries, err := os.ReadDir(dir)
+	d, err := os.Open(dir)
+	if err != nil {
+		return nil, "", fmt.Errorf("yara: failed to open rules directory: %w", err)
+	}
+	defer d.Close()
+	dirInfo, err := d.Stat()
+	if err != nil {
+		return nil, "", fmt.Errorf("yara: failed to stat rules directory: %w", err)
+	}
+	if !dirInfo.IsDir() {
+		return nil, "", fmt.Errorf("yara: rules directory %s is not a directory", dir)
+	}
+	if err := checkRulePermissions(dir, dirInfo); err != nil {
+		return nil, "", err
+	}
+	entries, err := d.ReadDir(-1)
 	if err != nil {
 		return nil, "", fmt.Errorf("yara: failed to list rules directory: %w", err)
 	}
@@ -60,20 +110,13 @@ func LoadRuleSources(dir string) ([]RuleSource, string, error) {
 		if !isRuleFileName(entry.Name()) {
 			continue
 		}
-		path := filepath.Join(dir, entry.Name())
-		// Stat, not the entry type, so that symlinks to rule files are followed
-		info, err := os.Stat(path)
+		data, ok, err := readRuleFile(filepath.Join(dir, entry.Name()))
 		if err != nil {
-			return nil, "", fmt.Errorf("yara: failed to stat rule file %s: %w", path, err)
+			return nil, "", err
 		}
-		if !info.Mode().IsRegular() {
-			continue
+		if ok {
+			sources = append(sources, RuleSource{Name: entry.Name(), Data: data})
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil, "", fmt.Errorf("yara: failed to read rule file %s: %w", path, err)
-		}
-		sources = append(sources, RuleSource{Name: entry.Name(), Data: data})
 	}
 	if len(sources) == 0 {
 		return nil, "", fmt.Errorf("%w in %s", ErrNoRules, dir)
@@ -81,6 +124,33 @@ func LoadRuleSources(dir string) ([]RuleSource, string, error) {
 
 	sort.Slice(sources, func(i, j int) bool { return sources[i].Name < sources[j].Name })
 	return sources, RulesVersion(sources), nil
+}
+
+// readRuleFile reads a rule file. It returns false, and no error, for an entry that is not a
+// regular file (e.g. a directory named *.yar), which is skipped.
+func readRuleFile(path string) ([]byte, bool, error) {
+	// symlinks are followed. O_NONBLOCK so that a FIFO named *.yar doesn't block the open.
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, false, fmt.Errorf("yara: failed to open rule file %s: %w", path, err)
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return nil, false, fmt.Errorf("yara: failed to stat rule file %s: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, false, nil
+	}
+	if err := checkRulePermissions(path, info); err != nil {
+		return nil, false, err
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil, false, fmt.Errorf("yara: failed to read rule file %s: %w", path, err)
+	}
+	return data, true, nil
 }
 
 // RulesVersion returns a stable hash of the rule sources, over their names and contents. It
@@ -146,6 +216,16 @@ type versionedScanner struct {
 // RulesVersion implements Scanner
 func (s *versionedScanner) RulesVersion() string {
 	return s.version
+}
+
+// Close implements io.Closer. A Scanner holding native resources (e.g. compiled libyara rules)
+// can implement io.Closer to free them; Close forwards to it, and is a no-op otherwise. It must
+// only be called once no Scan is running.
+func (s *versionedScanner) Close() error {
+	if c, ok := s.Scanner.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
 }
 
 // STAND-IN, NOT A YARA ENGINE. StandInCompiler is a Compiler for tests and the cgo-free dry
