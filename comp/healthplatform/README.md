@@ -124,10 +124,11 @@ affected-count is a backend follow-up, not handled by the agent today. Document 
 | `admisconfig` (annotation) | set by caller | `Autodiscovery Annotation Misconfiguration` | `autodiscovery_annotation_misconfiguration` | `"<subtype> Misconfiguration on '<entityName>'"` | hostname-free (already collapses) |
 | `admisconfig` (template) | set by caller | `Autodiscovery Template Resolution Error` | `autodiscovery_template_resolution_error` | `"Autodiscovery Template Resolution Error on '<entityName>'"` | hostname-free (already collapses) |
 | `invalidconfig` | `invalid-config:<digest>` | `Invalid Config` | `invalid_config` | `"Datadog Agent Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
-| `invalidsysprobeconfig` | `invalid-system-probe-config:<digest>` | `Invalid System-Probe Config` | `invalid_system-probe_config` | `"Datadog System-Probe Configuration Has <N> Schema Violation(s) in <filename>"` | `IssueDiscriminator` (cluster-collapsible) |
+| `invalidsysprobeconfig` | `invalid-system-probe-config:<digest>` | `Invalid System-Probe Config` | `invalid_system-probe_config` | `"Found <N> configuration error(s) in <filename>"` (or `"Found <N> error(s) in the system-probe configuration"` when no filename is known) | `IssueDiscriminator` (cluster-collapsible) |
 | `rofspermissions` | `rofs-permissions` | `Read-Only Filesystem Error` | `read-only_filesystem_error` | `"Agent cannot write to: <directories>"` | per-host (host-local failure) |
 | `admissionprobe` | `admission-controller-connectivity-failure` | `Admission Controller Unreachable` | `admission_controller_unreachable` | `"Admission Controller Unreachable"` | singleton |
-| `dockerpermissions` | `docker-socket-permissions:<digest>` | `Docker Socket Permission` | `docker_socket_permission` | `"Docker socket permission denied at '<socketPaths>'"` | per host + unreachable-socket set |
+| `docker` | `docker-socket-permissions:<digest>` | `Docker Socket Permission` | `docker_socket_permission` | `"Docker socket permission denied at '<socketPaths>'"` | per host + affected-socket set |
+| `docker` | `docker-socket-unavailable:<digest>` | `Docker Socket Unavailable` | `docker_socket_unavailable` | `"Docker socket unavailable at '<socketPaths>'"` | per host + affected-socket set |
 | `missedbytes` | `log-data-lost-after-rotation:<digest>` | `Log Data Lost After Rotation` | `log_data_lost_after_rotation` | `"Lost <bytes> of logs from <N> sources in the last 24 hours"`, or `"from source <name>"` when one source and service account for all of it | per-host (host-local failure) |
 
 ## Adding a new issue module

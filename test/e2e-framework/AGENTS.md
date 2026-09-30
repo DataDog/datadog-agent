@@ -81,8 +81,8 @@ Packer-built AMIs with Docker, the AWS CLI, `jq`, `ansible` and friends prebaked
 so a test never installs them at runtime. They are already the Linux defaults
 (`UbuntuDefault = Ubuntu2204E2E`), so passing no OS at all is also correct.
 Descriptors resolve through `resources/aws/platforms.json` via `aws.GetAMI`. See
-`docs/public/how-to/test/e2e/custom-amis.md` and
-`docs/public/how-to/test/e2e/dependencies.md`.
+`doc/how-to/test/e2e/custom-amis.md` and
+`doc/how-to/test/e2e/dependencies.md`.
 
 ### Kubernetes resource ownership
 
@@ -113,6 +113,11 @@ Key helpers on BaseSuite:
 - `s.EventuallyWithT(fn, timeout, interval)` — retry assertions until they pass;
   use `require` (not `assert`) inside the callback so failures short-circuit the
   current retry iteration instead of accumulating silently
+- `s.Env().WaitForAgentReady(ctx, options...)` — for Kubernetes environments,
+  wait for selected Node Agent, Cluster Agent, Cluster Checks Runner, or auxiliary
+  DaemonSet pods to be ready without duplicating a `Test00UpAndRunning` loop. Call
+  it from `SetupSuite` when readiness is a prerequisite for every test; use
+  `WithAgentReadinessStableFor` when asynchronous Agent subsystems need warm-up time.
 
 ## Agent configuration
 

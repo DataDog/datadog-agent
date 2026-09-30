@@ -94,6 +94,7 @@ type pdhCounter struct {
 
 	initError     error
 	initFailCount int
+	optional      bool
 }
 
 // pdhEnglishCounter implements AddToQuery for both single and multi instance english counters
@@ -145,6 +146,10 @@ func (counter *pdhCounter) SetInitError(err error) error {
 	}
 	counter.initError = err
 	return counter.initError
+}
+
+func (counter *pdhCounter) isOptional() bool {
+	return counter.optional
 }
 
 func (counter *pdhCounter) Remove() error {
@@ -220,6 +225,17 @@ func (query *PdhQuery) AddEnglishSingleInstanceCounter(objectName string, counte
 	return query.AddEnglishCounterInstance(objectName, counterName, "")
 }
 
+// AddOptionalEnglishSingleInstanceCounter returns a single-instance counter
+// whose initialization failures are logged at debug level. Use this for
+// counters exposed by only some versions of a performance provider.
+func (query *PdhQuery) AddOptionalEnglishSingleInstanceCounter(objectName string, counterName string) PdhSingleInstanceCounter {
+	var p PdhEnglishSingleInstanceCounter
+	p.Initialize(objectName, counterName, "")
+	p.optional = true
+	query.AddCounter(&p)
+	return &p
+}
+
 // AddEnglishMultiInstanceCounter returns a PdhMultiInstanceCounter that will fetch values for all instances of a counter.
 // This uses a '*' wildcard to collect values for all instances of a counter.
 // Instances/values can be filtered manually once returned from GetAllValues() or with verifyfn (see CounterInstanceVerify)
@@ -230,6 +246,18 @@ func (query *PdhQuery) AddEnglishMultiInstanceCounter(objectName string, counter
 	// Use the * wildcard to collect all instances
 	p.Initialize(objectName, counterName, "*")
 	p.verifyfn = verifyfn
+	query.AddCounter(&p)
+	return &p
+}
+
+// AddOptionalEnglishMultiInstanceCounter returns a multi-instance counter
+// whose initialization failures are logged at debug level. Use this for
+// counters exposed by only some versions of a performance provider.
+func (query *PdhQuery) AddOptionalEnglishMultiInstanceCounter(objectName string, counterName string, verifyfn CounterInstanceVerify) PdhMultiInstanceCounter {
+	var p PdhEnglishMultiInstanceCounter
+	p.Initialize(objectName, counterName, "*")
+	p.verifyfn = verifyfn
+	p.optional = true
 	query.AddCounter(&p)
 	return &p
 }
@@ -255,7 +283,11 @@ func (query *PdhQuery) CollectQueryData() error {
 			if err == nil {
 				addedNewCounter = true
 			} else {
-				log.Warnf("Failed to add counter to query: %v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
+				if optional, ok := counter.(interface{ isOptional() bool }); ok && optional.isOptional() {
+					log.Debugf("Optional performance counter is unavailable: %v", err)
+				} else {
+					log.Warnf("Failed to add counter to query: %v. This error indicates that the Windows performance counter database may need to be rebuilt.", err)
+				}
 			}
 		}
 	}

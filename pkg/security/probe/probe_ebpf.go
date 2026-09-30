@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net"
 	"net/netip"
@@ -466,6 +467,16 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
 	}
 
+	// without these capable and netlink_capable hooks, the initial/host user ns capabilities fields stay empty
+	// which reads like a process that uses no capability in this user namespace rather than missing data, so better warn about this
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
+			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
+		} else if len(missing) > 0 {
+			seclog.Warnf("Capabilities monitoring cannot report which capabilities were used in the initial user namespace on this kernel: %v not available", slices.Sorted(maps.Keys(missing)))
+		}
+	}
+
 	return nil
 }
 
@@ -643,7 +654,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.opts.FilterStore)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -1623,13 +1634,42 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 	p.DispatchEvent(event, true)
 
-	if eventType == model.ExitEventType {
-		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
-	}
+	// applyPostDispatchProcessUpdates runs after the event has been dispatched,
+	// so a rule is evaluated against the process state that preceded the event.
+	p.applyPostDispatchProcessUpdates(event)
 
 	// flush pending actions
 	p.processKiller.FlushPendingReports()
 	p.fileHasher.FlushPendingReports()
+}
+
+func (p *EBPFProbe) applyPostDispatchProcessUpdates(event *model.Event) {
+	switch event.GetEventType() {
+	case model.SetuidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
+		}
+	case model.SetgidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
+		}
+	case model.CapsetEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
+		}
+	case model.LoginUIDWriteEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error == nil {
+			p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
+		}
+	case model.IMDSEventType:
+		p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
+	case model.ExitEventType:
+		p.Resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, event.ResolveEventTime())
+	}
 }
 
 // handleRegularEvent performs the standard unmarshaling process common to all events.
@@ -1793,7 +1833,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.SetUID, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1803,7 +1842,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.SetGID, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1813,7 +1851,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.Capset, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateCapset(event.PIDContext.Pid, event)
 	case model.LoginUIDWriteEventType:
 		if event.Error != nil {
 			break
@@ -1822,7 +1859,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.LoginUIDWrite, eventType, offset, dataLen, data) {
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateLoginUID(event.PIDContext.Pid, event)
 	case model.SELinuxEventType:
 		if !p.regularUnmarshalEvent(&event.SELinux, eventType, offset, dataLen, data) {
 			return false
@@ -1975,7 +2011,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 			return false
 		}
-		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
 	case model.RawPacketFilterEventType:
 		if !p.regularUnmarshalEvent(&event.RawPacket, eventType, offset, dataLen, data) {
 			return false
@@ -2081,6 +2116,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
+		event.ProcessCacheEntry.CapsAttemptedHostUserNS |= event.CapabilitiesUsage.AttemptedHostUserNS
+		event.ProcessCacheEntry.CapsUsedHostUserNS |= event.CapabilitiesUsage.UsedHostUserNS
 	case model.PrCtlEventType:
 		if !p.regularUnmarshalEvent(&event.PrCtl, eventType, offset, dataLen, data) {
 			return false
@@ -3634,6 +3671,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		return nil, err
 	}
 
+	// without these offsets, capability checks made under overridden or foreign credentials pass for the task's own
+	if p.config.Probe.CapabilitiesMonitoringEnabled && (!p.constantOffsets.IsPresent(constantfetch.OffsetNameTaskStructCred) || !p.constantOffsets.IsPresent(constantfetch.OffsetNameTaskStructRealCred)) {
+		seclog.Warnf("The capabilities monitoring feature of CWS requires the task_struct cred and real_cred offsets, setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		p.config.Probe.CapabilitiesMonitoringEnabled = false
+	}
+
 	resolversOpts := resolvers.Opts{
 		PathResolutionEnabled:    probe.Opts.PathResolutionEnabled,
 		EnvVarsResolutionEnabled: probe.Opts.EnvsVarResolutionEnabled,
@@ -4153,7 +4196,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
-				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
+				seclog.Infof("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
 		case action.Def.Kill != nil:
