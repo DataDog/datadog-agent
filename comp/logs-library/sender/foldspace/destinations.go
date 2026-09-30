@@ -173,9 +173,18 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	// epoch, so its cost is re-sending every live string and its bound is what the
 	// intake enforces; connection_reset_interval answers none of that, and its
 	// zero value means "never" where a zero lifetime here means "rotate on every
-	// open". Nothing in the logs endpoint configures this, so use the lifetime the
-	// library chose for itself.
+	// open". Keep the library's default unless an explicit positive duration is
+	// configured (for example, to scale epochs in an accelerated replay).
 	streamLifetime := defaultStreamLifetime
+	const lifetimeKey = "logs_config.foldspace.stream_lifetime"
+	if cfg.IsConfigured(lifetimeKey) {
+		var err error
+		streamLifetime, err = time.ParseDuration(strings.TrimSpace(cfg.GetString(lifetimeKey)))
+		if err != nil || streamLifetime <= 0 {
+			return nil, errors.New(lifetimeKey + " must be a positive duration with units (e.g. 15m or 90s)")
+		}
+	}
+	log.Infof("foldspace stream lifetime: %s (%d ns)", streamLifetime, streamLifetime.Nanoseconds())
 
 	return &DestinationConfig{
 		Senders: senders,
