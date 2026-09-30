@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "macos",
+    srcs = ["scripts.go"],
+    embedsrcs = ["uninstall_mac_os.sh"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/macos",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "macos_test",
+    srcs = ["scripts_test.go"],
+    embed = [":macos"],
+)
