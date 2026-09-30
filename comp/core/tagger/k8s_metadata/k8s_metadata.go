@@ -39,8 +39,6 @@ func InitMetadataAsTags(metadataAsTags map[string]string) (map[string]string, ma
 	return metadataAsTags, globMap
 }
 
-var ustTags = map[string]struct{}{tags.Env: {}, tags.Service: {}, tags.Version: {}}
-
 // AddMetadataAsTags converts name and value into tags based on the metadata as tags configuration and patterns
 func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glob map[string]glob.Glob, tagList *taglist.TagList) {
 	n := strings.ToLower(name)
@@ -54,10 +52,10 @@ func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glo
 		}
 		tagTmplList := splitTags(tmplStr)
 		for _, tmpl := range tagTmplList {
-			tagName := resolveTag(tmpl, name)
-			if _, isUSTTag := ustTags[tagName]; isUSTTag {
+			switch tagName := resolveTag(tmpl, name); tagName {
+			case tags.Env, tags.Service, tags.Version:
 				tagList.AddStandard(tagName, value)
-			} else {
+			default:
 				tagList.AddAuto(tagName, value)
 			}
 		}
