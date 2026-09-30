@@ -90,12 +90,6 @@ bazel:test:linux-arm64:
   variables:
     COVERAGE_FILE: coverage-bazel-*.out
 
-bazel:coverage:macos-amd64:
-  extends: [.bazel:runner:macos-amd64, .bazel:coverage:macos]
-
-bazel:coverage:macos-arm64:
-  extends: [.bazel:runner:macos-arm64, .bazel:coverage:macos]
-
 .bazel:test:macos:
   extends: [.bazel:test:reporting, .bazel:test]
   script:
