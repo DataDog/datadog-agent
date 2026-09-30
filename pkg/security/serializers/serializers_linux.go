@@ -298,6 +298,10 @@ type ProcessSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// CapsUsed lists the capabilities that this process effectively made use of
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -593,6 +597,8 @@ type SecurityProfileContextSerializer struct {
 	EventInProfile bool `json:"event_in_profile"`
 	// State of the event type in this profile
 	EventTypeState string `json:"event_type_state"`
+	// True if the profile had already been persisted to the backend when this event was emitted
+	ProfileAlreadySent bool `json:"profile_already_sent"`
 }
 
 // SyscallSerializer serializes a syscall
@@ -885,12 +891,18 @@ type CapabilitiesEventSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// Capabilities that the process successfully used since it started running
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 }
 
 func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
 	return &CapabilitiesEventSerializer{
-		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
-		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttempted:           model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:                model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttemptedHostUserNS: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(e, ce)).StringArray(),
+		CapsUsedHostUserNS:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(e, ce)).StringArray(),
 	}
 }
 
@@ -1027,6 +1039,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Source:          model.ProcessSourceToString(ps.Source),
 			CapsAttempted:   model.KernelCapability(ps.CapsAttempted).StringArray(),
 			CapsUsed:        model.KernelCapability(ps.CapsUsed).StringArray(),
+
+			CapsAttemptedHostUserNS: model.KernelCapability(ps.CapsAttemptedHostUserNS).StringArray(),
+			CapsUsedHostUserNS:      model.KernelCapability(ps.CapsUsedHostUserNS).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -1078,9 +1093,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Tracer = tracer
 		}
 
-		if len(ps.ContainerContext.ContainerID) != 0 {
+		if ps.ContainerContext.ContainerID != "" || ps.ContainerContext.PodUID != "" {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				PodUID:    ps.ContainerContext.PodUID,
 				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
@@ -1571,11 +1587,12 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:           e.Name,
-		Version:        e.Version,
-		Tags:           tags,
-		EventInProfile: event.IsInProfile(),
-		EventTypeState: e.EventTypeState.String(),
+		Name:               e.Name,
+		Version:            e.Version,
+		Tags:               tags,
+		EventInProfile:     event.IsInProfile(),
+		EventTypeState:     e.EventTypeState.String(),
+		ProfileAlreadySent: e.ProfileAlreadySent,
 	}
 }
 
@@ -1695,9 +1712,10 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
-	if !event.ProcessContext.ContainerContext.IsNull() {
+	if event.ProcessContext.ContainerContext.ContainerID != "" || event.ProcessContext.ContainerContext.PodUID != "" {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			PodUID:    event.ProcessContext.ContainerContext.PodUID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),

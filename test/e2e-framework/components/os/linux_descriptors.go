@@ -15,6 +15,9 @@ var (
 	Ubuntu2204E2E = NewDescriptor(Ubuntu, "22-04-e2e")
 	Ubuntu2404E2E = NewDescriptor(Ubuntu, "24-04-e2e")
 
+	UbuntuKindDefault = Ubuntu2404KindE2E
+	Ubuntu2404KindE2E = NewDescriptor(Ubuntu, "24-04-e2e-kind")
+
 	DebianDefault = Debian12
 	Debian11      = NewDescriptor(Debian, "11")
 	Debian12      = NewDescriptor(Debian, "12")
@@ -27,10 +30,12 @@ var (
 	AmazonLinuxECS2023    = NewDescriptor(AmazonLinuxECS, "2023")
 	AmazonLinuxECS2       = NewDescriptor(AmazonLinuxECS, "2")
 
-	RedHatDefault = RedHat9
-	RedHat8       = NewDescriptor(RedHat, "8")
-	RedHat9       = NewDescriptor(RedHat, "9")
-	RedHat10      = NewDescriptor(RedHat, "10")
+	RedHatDefault     = RedHat9
+	RedHat8           = NewDescriptor(RedHat, "8")
+	RedHat9           = NewDescriptor(RedHat, "9")
+	RedHat9Fapolicyd  = NewDescriptor(RedHat, "9-fapolicyd")
+	RedHat9SELinuxNPM = NewDescriptor(RedHat, "9-selinux-npm")
+	RedHat10          = NewDescriptor(RedHat, "10")
 
 	SuseDefault = Suse15
 	Suse15      = NewDescriptor(Suse, "15-4")
@@ -38,9 +43,11 @@ var (
 	CentOSDefault = CentOS7
 	CentOS7       = NewDescriptor(CentOS, "79")
 
-	// AlmaLinux 9. The AMI is resolved by search (resolveAlmaLinuxAMI), so the
-	// descriptor carries no version; provision it with WithLatestAMI.
-	AlmaLinux9 = NewDescriptor(AlmaLinux, "")
+	AlmaLinuxDefault = AlmaLinux9
+	// AlmaLinux 9. Pinned to a single Datadog-built AMI (published from
+	// ami-builder's alma-linux 9-e2e image) in platforms.json, rather than
+	// resolved by live search against AlmaLinux's own publisher account.
+	AlmaLinux9 = NewDescriptor(AlmaLinux, "9")
 )
 
 var LinuxDescriptorsDefault = map[Flavor]Descriptor{
@@ -51,4 +58,5 @@ var LinuxDescriptorsDefault = map[Flavor]Descriptor{
 	RedHat:         RedHatDefault,
 	Suse:           SuseDefault,
 	CentOS:         CentOSDefault,
+	AlmaLinux:      AlmaLinuxDefault,
 }
