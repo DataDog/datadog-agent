@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -35,6 +34,7 @@ type SenderSpec struct {
 	Class    SenderClass
 	APIKey   func() string
 	UseTLS   bool
+	IsMRF    bool
 	Endpoint config.Endpoint
 }
 
@@ -48,7 +48,6 @@ type DestinationConfig struct {
 	ShutdownTimeout   time.Duration
 	StateRequestBytes int
 	DualShip          bool
-	SkippedMRF        int
 	// BatchWait bounds how long a partial batch is held. The core seals on record
 	// count and content size; without a time bound a partial batch waits for
 	// enough further records to seal it, however long that takes.
@@ -71,7 +70,9 @@ func (e ErrWindowing) Error() string {
 //
 // Input is Endpoints.Endpoints in order: main first, then additional_endpoints
 // (and OPW dual-ship extras, which that builder already prepends). MRF entries
-// are omitted. foldspace.dd_url overrides only the main host.
+// become ordinary senders with IsMRF set; the driver's route bitset, not this
+// builder, decides whether a given record reaches them. foldspace.dd_url
+// overrides only the main host.
 func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoints) (*DestinationConfig, error) {
 	if endpoints == nil || len(endpoints.Endpoints) == 0 {
 		return nil, errors.New("foldspace requires at least one HTTP endpoint")
@@ -101,13 +102,7 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 	mainOverride := strings.TrimSpace(cfg.GetString("logs_config.foldspace.dd_url"))
 
 	var senders []SenderSpec
-	var skippedMRF int
 	for i, ep := range endpoints.Endpoints {
-		if ep.IsMRF {
-			skippedMRF++
-			log.Infof("foldspace omits MRF endpoint %s:%d", ep.Host, ep.Port)
-			continue
-		}
 		host := ep.Host
 		port := ep.Port
 		if i == 0 && mainOverride != "" {
@@ -128,11 +123,12 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 			Class:    class,
 			APIKey:   func() string { return endpoint.GetAPIKey() },
 			UseTLS:   endpoint.UseSSL(),
+			IsMRF:    ep.IsMRF,
 			Endpoint: endpoint,
 		})
 	}
 	if len(senders) == 0 {
-		return nil, errors.New("foldspace requires at least one non-MRF endpoint")
+		return nil, errors.New("foldspace requires at least one endpoint")
 	}
 	if len(senders)*pipelineDepth > maxInflight {
 		return nil, ErrWindowing{Senders: len(senders), PipelineDepth: pipelineDepth, MaxInflight: maxInflight}
@@ -184,7 +180,6 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 			MaxInflightPayloads:    maxInflight,
 			BatchCapacity:          batchCapacity,
 			MaxPayloadBytes:        maxPayload,
-			CoalesceThresholdBytes: maxPayload,
 			Compression:            compression,
 			ZstdLevel:              zstdLevel,
 			ReconnectBackoffBase:   time.Duration(cfg.GetFloat64("logs_config.sender_backoff_base") * float64(time.Second)),
@@ -200,7 +195,6 @@ func BuildDestinationConfig(cfg pkgconfigmodel.Reader, endpoints *config.Endpoin
 		ShutdownTimeout:   shutdown,
 		StateRequestBytes: stateBytes,
 		DualShip:          cfg.GetBool("logs_config.foldspace.dual_ship"),
-		SkippedMRF:        skippedMRF,
 		BatchWait:         batchWait,
 	}, nil
 }
