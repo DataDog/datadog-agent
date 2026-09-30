@@ -325,6 +325,7 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	gpuReadiness *gpu.Readiness,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -390,6 +391,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		gpuReadiness,
 	); err != nil {
 		return err
 	}
@@ -508,10 +510,12 @@ func getSharedFxOption() fx.Option {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
 		// Register GPU readiness before lifecycle hooks start the health probe server.
-		fx.Invoke(func(cfg config.Component) {
+		// OneShot resolves the run arguments during Fx construction.
+		fx.Provide(func(cfg config.Component) *gpu.Readiness {
 			if cfg.GetBool("gpu.enabled") {
-				gpu.InitReadiness()
+				return gpu.NewReadiness()
 			}
+			return nil
 		}),
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -642,6 +646,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	gpuReadiness *gpu.Readiness,
 ) error {
 	var err error
 
@@ -727,7 +732,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp, gpuReadiness)
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
 	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
 	ac.AddScheduler("check", checkScheduler, true)

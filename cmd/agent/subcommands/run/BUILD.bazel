@@ -317,6 +317,7 @@ dd_agent_go_test(
         "//cmd/agent/command",
         "//comp/core",
         "//comp/core/pid/impl",
+        "//pkg/collector/corechecks/gpu",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//require",
     ] + select({
