@@ -202,6 +202,22 @@ func TestOnUpdateConfigRemovesDomainAfterResolution(t *testing.T) {
 	assert.False(t, resolver.IsUsable())
 }
 
+func TestUpdateAdditionalEndpointsKeepsKeysOnMissOutsideInfraSetting(t *testing.T) {
+	const setting = "process_config.additional_endpoints"
+	// Process-style resolvers strip the path, so a trailing slash in config never matches.
+	resolver, err := NewSingleDomainResolver("https://process.datadoghq.eu", []utils.APIKeys{
+		utils.NewAPIKeys(setting, "process-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest(setting, map[string][]string{"https://process.datadoghq.eu/": {"rotated-key"}})
+	updateAdditionalEndpoints(resolver, setting, config, logmock.New(t))
+
+	assertKeys(t, []string{"process-key"}, resolver)
+	assert.True(t, resolver.IsUsable())
+}
+
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
 		utils.NewAPIKeys("api_key", "key1"),

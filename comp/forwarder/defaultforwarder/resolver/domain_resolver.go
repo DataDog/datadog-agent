@@ -150,6 +150,12 @@ func updateAdditionalEndpoints(resolver DomainResolver, setting string, config c
 	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
 	endpoints, ok := additionalEndpoints[resolver.GetConfigName()]
 	if !ok {
+		// Only the infra setting's keys match configName exactly (and only it gets delegated auth
+		// write-back); other forwarders strip the URL path, so a miss there isn't a removal.
+		if setting != "additional_endpoints" {
+			log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetConfigName())
+			return
+		}
 		oldKeys := resolver.GetAPIKeys()
 		resolver.UpdateAPIKeys(setting, nil)
 		removed := missing(oldKeys, resolver.GetAPIKeys())
