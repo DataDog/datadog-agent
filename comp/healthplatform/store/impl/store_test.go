@@ -130,6 +130,51 @@ func newTestStore(t *testing.T) *healthPlatformImpl {
 	}
 }
 
+func TestSelectPersistenceMode(t *testing.T) {
+	tests := []struct {
+		name                        string
+		isKubernetes                bool
+		persistOnKubernetes         bool
+		persistRemotelyOnKubernetes bool
+		want                        persistenceMode
+	}{
+		{
+			name: "non-Kubernetes uses disk",
+			want: persistenceModeDisk,
+		},
+		{
+			name:         "Kubernetes persistence disabled",
+			isKubernetes: true,
+			want:         persistenceModeDisabled,
+		},
+		{
+			name:                "Kubernetes local persistence",
+			isKubernetes:        true,
+			persistOnKubernetes: true,
+			want:                persistenceModeDisk,
+		},
+		{
+			name:                        "Kubernetes remote persistence",
+			isKubernetes:                true,
+			persistRemotelyOnKubernetes: true,
+			want:                        persistenceModeRemote,
+		},
+		{
+			name:                        "Kubernetes remote persistence takes precedence",
+			isKubernetes:                true,
+			persistOnKubernetes:         true,
+			persistRemotelyOnKubernetes: true,
+			want:                        persistenceModeRemote,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, selectPersistenceMode(test.isKubernetes, test.persistOnKubernetes, test.persistRemotelyOnKubernetes))
+		})
+	}
+}
+
 func TestStartFailsOpenWhenPersistenceLoadFails(t *testing.T) {
 	h := newTestStore(t)
 	persistence := &memPersistence{loadErr: assert.AnError}

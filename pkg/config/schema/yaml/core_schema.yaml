@@ -7709,6 +7709,10 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      persist_remotely_on_kubernetes:
+        node_type: setting
+        type: boolean
+        default: false
   heroku_dyno:
     node_type: setting
     type: boolean

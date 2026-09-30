@@ -60,7 +60,7 @@ Persistence depends on the process and environment:
 
 - Non-Kubernetes Agents use the local `issues.json` file.
 - Kubernetes Agents with `health_platform.persist_on_kubernetes: true` also use that file, which requires a durable `run_path` volume.
-- The long-running Kubernetes node Agent and Cluster Agent load recent open issue IDs from `https://api.<site>` when `api_key` is configured. Node Agent requests use the DaemonSet UID with `agent_type=node`; Cluster Agent requests use the cluster UUID with `agent_type=cluster`. The response's org ID is used to match locally detected issue IDs to the backend snapshot. Standard Agent proxy settings apply, but the metrics-intake `dd_url` override does not. This implementation is load-only; the existing Health Platform egress remains the write path.
+- The long-running Kubernetes node Agent and Cluster Agent load recent open issue IDs from `https://api.<site>` when `health_platform.persist_remotely_on_kubernetes: true` and `api_key` is configured. Node Agent requests use the DaemonSet UID with `agent_type=node`; Cluster Agent requests use the cluster UUID with `agent_type=cluster`. The response's org ID is used to match locally detected issue IDs to the backend snapshot. Standard Agent proxy settings apply, but the metrics-intake `dd_url` override does not. This implementation is load-only; the existing Health Platform egress remains the write path. If local and remote Kubernetes persistence are both enabled, remote persistence takes precedence.
 - Otherwise on Kubernetes, Cluster Check Runners, one-shot Agent commands, Agents without an API key, Agents using the local FIPS proxy, and Agents with TLS certificate verification disabled use no-op persistence.
 
 ## Cluster-wide issue collapse (`deployment_id`)

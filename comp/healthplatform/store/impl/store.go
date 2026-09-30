@@ -110,6 +110,27 @@ type telemetryMetrics struct {
 	issuesCounter telemetry.Counter
 }
 
+type persistenceMode uint8
+
+const (
+	persistenceModeDisk persistenceMode = iota
+	persistenceModeDisabled
+	persistenceModeRemote
+)
+
+func selectPersistenceMode(isKubernetes, persistOnKubernetes, persistRemotelyOnKubernetes bool) persistenceMode {
+	if !isKubernetes {
+		return persistenceModeDisk
+	}
+	if persistRemotelyOnKubernetes {
+		return persistenceModeRemote
+	}
+	if persistOnKubernetes {
+		return persistenceModeDisk
+	}
+	return persistenceModeDisabled
+}
+
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
 type IssueState = healthplatform.IssueState
 
@@ -272,16 +293,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 	selfIdent := selfident.New(reqs.Workloadmeta)
 	isKubernetes := configenv.IsKubernetes()
 	persistOnKubernetes := reqs.Config.GetBool("health_platform.persist_on_kubernetes")
+	persistRemotelyOnKubernetes := reqs.Config.GetBool("health_platform.persist_remotely_on_kubernetes")
 	var persistence issuesPersistence
 	var remoteLoader *remoteIssueLoader
-	if isKubernetes && !persistOnKubernetes {
-		reqs.Log.Info("Running on Kubernetes: local health platform persistence disabled (set health_platform.persist_on_kubernetes: true to enable)")
+	switch selectPersistenceMode(isKubernetes, persistOnKubernetes, persistRemotelyOnKubernetes) {
+	case persistenceModeRemote:
+		if persistOnKubernetes {
+			reqs.Log.Warn("Both health_platform.persist_on_kubernetes and health_platform.persist_remotely_on_kubernetes are enabled; remote persistence takes precedence")
+		}
+		reqs.Log.Info("Running on Kubernetes: remote health platform persistence enabled")
 		persistence = &noopPersistence{}
 		remoteLoader = newRemoteIssueLoaderIfEnabled(reqs, agentFlavor, selfIdent)
-	} else {
+	case persistenceModeDisk:
 		runPath := reqs.Config.GetString("run_path")
 		persistencePath := filepath.Join(runPath, "health-platform", "issues.json")
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
+	case persistenceModeDisabled:
+		reqs.Log.Info("Running on Kubernetes: health platform persistence disabled")
+		persistence = &noopPersistence{}
 	}
 
 	// Initialize the health platform implementation
