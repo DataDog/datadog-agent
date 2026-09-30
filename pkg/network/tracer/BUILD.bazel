@@ -108,6 +108,7 @@ go_library(
             "//pkg/process/util",
             "//pkg/util/log",
             "@com_github_datadog_datadog_go_v5//statsd",
+            "@org_go4_intern//:intern",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/def",
