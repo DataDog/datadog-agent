@@ -17,6 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -144,20 +146,20 @@ func TestRefuseThenRetry(t *testing.T) {
 	require.Equal(t, OpenStream, effects[0].Kind)
 	core.HandleStreamOpened(0, effects[0].Stream)
 
-	admission, _ := core.PushLog(Record{Body: []byte("first")}, 1, 1)
+	admission, _ := core.PushLog(Record{Body: []byte("first")}, 1, 1, AllSenders(1))
 	require.Equal(t, Accepted, admission)
 	effects = core.PollSender(0)
 	require.Equal(t, SendBatch, effects[0].Kind)
 	batchID := effects[0].BatchID
 	effects[0].Batch.Release()
 
-	admission, _ = core.PushLog(Record{Body: []byte("second")}, 2, 2)
+	admission, _ = core.PushLog(Record{Body: []byte("second")}, 2, 2, AllSenders(1))
 	require.Equal(t, Refused, admission)
 
 	core.HandleAck(0, effects[0].Stream, batchID, AckOK)
 	require.Equal(t, PayloadDurable, core.PollNotifications()[0].Kind)
 
-	admission, progress = core.PushLog(Record{Body: []byte("second")}, 3, 2)
+	admission, progress = core.PushLog(Record{Body: []byte("second")}, 3, 2, AllSenders(1))
 	require.Equal(t, Accepted, admission)
 	require.Contains(t, progress.Wake, SenderID(0))
 }
@@ -194,7 +196,7 @@ func TestStaleStreamIDDiscarded(t *testing.T) {
 	live := effects[0].Stream
 	core.HandleStreamOpened(0, live)
 
-	_, progress = core.PushLog(Record{Body: []byte("x")}, 1, 7)
+	_, progress = core.PushLog(Record{Body: []byte("x")}, 1, 7, AllSenders(1))
 	require.Contains(t, progress.Wake, SenderID(0))
 	effects = core.PollSender(0)
 	require.Equal(t, SendBatch, effects[0].Kind)
@@ -274,7 +276,7 @@ func TestOnePayloadWakesEverySender(t *testing.T) {
 		require.Equal(t, OpenStream, effects[0].Kind)
 		core.HandleStreamOpened(SenderID(i), effects[0].Stream)
 	}
-	_, progress := core.PushLog(Record{Body: []byte("fan")}, 1, 1)
+	_, progress := core.PushLog(Record{Body: []byte("fan")}, 1, 1, AllSenders(2))
 	assert.ElementsMatch(t, []SenderID{0, 1}, progress.Wake)
 }
 
@@ -288,7 +290,7 @@ func TestReliableAckResolvesUnreliableDropDoesNot(t *testing.T) {
 		streams[i] = effects[0].Stream
 		core.HandleStreamOpened(SenderID(i), streams[i])
 	}
-	_, _ = core.PushLog(Record{Body: []byte("shared")}, 1, 9)
+	_, _ = core.PushLog(Record{Body: []byte("shared")}, 1, 9, AllSenders(2))
 	var reliableBatch uint32
 	for i := 0; i < 2; i++ {
 		effects := core.PollSender(SenderID(i))
@@ -302,8 +304,8 @@ func TestReliableAckResolvesUnreliableDropDoesNot(t *testing.T) {
 	core.Drop(1, streams[1], false)
 	notes := core.PollNotifications()
 	require.Len(t, notes, 1)
-	assert.Equal(t, PayloadDropped, notes[0].Kind)
-	assert.False(t, notes[0].Abandoned)
+	assert.Equal(t, DroppedStats, notes[0].Kind)
+	assert.Equal(t, uint64(1), notes[0].Records)
 	assert.Empty(t, core.PollNotifications())
 
 	core.HandleAck(0, streams[0], reliableBatch, AckOK)
@@ -521,4 +523,68 @@ func TestStopDeliversEverythingAccepted(t *testing.T) {
 	d.Stop()
 
 	assert.Len(t, transport.Sent(0), payloads, "Stop must not discard accepted records")
+}
+
+// MRF routing follows destination_sender.go's canSend() gate for the primary
+// HTTP path: an MRF sender is reached only when the record is itself
+// MRF-allowed and multi_region_failover.enabled/failover_logs are both true.
+// Sender 1 is the MRF sender in every case below; sender 0 is not.
+func TestMRFRoutingGatedByFailover(t *testing.T) {
+	newMRFDriver := func(t *testing.T, cfg pkgconfigmodel.Reader) (*FakeTransport, *Driver) {
+		t.Helper()
+		core := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable, Reliable}})
+		transport := NewFakeTransport(2)
+		d := NewDriver(DriverOptions{
+			Core:            core,
+			Transport:       transport,
+			Sink:            newChannelSink(),
+			PipelineMonitor: metrics.NewNoopPipelineMonitor("test"),
+			ShutdownTimeout: 2 * time.Second,
+			Config:          cfg,
+			MRFRoute:        Route(0).WithSender(1),
+		})
+		d.Start()
+		t.Cleanup(d.Stop)
+		return transport, d
+	}
+
+	t.Run("reaches the MRF sender once failover is active and the record allows it", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("multi_region_failover.enabled", true)
+		cfg.SetInTest("multi_region_failover.failover_logs", true)
+		transport, d := newMRFDriver(t, cfg)
+
+		msg := testMessage("mrf")
+		msg.ParsingExtra.IsMRFAllow = true
+		d.Offer(msg)
+
+		require.Eventually(t, func() bool { return len(transport.Sent(1)) == 1 }, time.Second, 10*time.Millisecond,
+			"an MRF-allowed record must reach the MRF sender once failover is active")
+	})
+
+	t.Run("does not reach the MRF sender while failover is inactive", func(t *testing.T) {
+		cfg := configmock.New(t)
+		transport, d := newMRFDriver(t, cfg)
+
+		msg := testMessage("mrf")
+		msg.ParsingExtra.IsMRFAllow = true
+		d.Offer(msg)
+
+		require.Eventually(t, func() bool { return len(transport.Sent(0)) == 1 }, time.Second, 10*time.Millisecond,
+			"the non-MRF sender must still receive the record")
+		assert.Empty(t, transport.Sent(1), "the MRF sender must not receive a record while failover is inactive")
+	})
+
+	t.Run("does not reach the MRF sender when the record disallows it", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetInTest("multi_region_failover.enabled", true)
+		cfg.SetInTest("multi_region_failover.failover_logs", true)
+		transport, d := newMRFDriver(t, cfg)
+
+		d.Offer(testMessage("not-mrf-allowed"))
+
+		require.Eventually(t, func() bool { return len(transport.Sent(0)) == 1 }, time.Second, 10*time.Millisecond,
+			"the non-MRF sender must still receive the record")
+		assert.Empty(t, transport.Sent(1), "the MRF sender must not receive a record the message did not mark MRF-allowed")
+	})
 }

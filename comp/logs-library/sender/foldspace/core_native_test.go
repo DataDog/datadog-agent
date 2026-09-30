@@ -23,7 +23,8 @@ import (
 // with their separate frees, and the copy out of a batch lease.
 //
 // The config must be complete, because the library validates it and refuses a
-// zero reconnect backoff.
+// zero reconnect backoff, and requires snapshot_batch_id below
+// first_payload_batch_id (the zero value for both is not below itself).
 func TestNativeCoreRoundTrip(t *testing.T) {
 	core, err := NewNativeCore(Config{
 		Endpoints:              []Endpoint{{Address: "127.0.0.1:1", Class: Reliable}},
@@ -33,6 +34,7 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 		ReconnectBackoffBase:   time.Second,
 		ReconnectBackoffFactor: 2,
 		ReconnectBackoffCap:    30 * time.Second,
+		FirstPayloadBatchID:    1,
 	})
 	require.NoError(t, err)
 	t.Cleanup(core.Close)
@@ -53,7 +55,7 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 		Hostname:        "host",
 		Tags:            []string{"a:1", "b:2"},
 		ProcessingTags:  []string{"c:3"},
-	}, uint64(time.Now().UnixNano()), 42)
+	}, uint64(time.Now().UnixNano()), 42, AllSenders(1))
 	require.Equal(t, Accepted, admission)
 	t.Logf("push: wake=%v hasCapacity=%v notifications=%v", progress.Wake, progress.HasCapacity, progress.NotificationsReady)
 
@@ -68,32 +70,54 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 	require.Equal(t, OpenStream, opening[0].Kind)
 	stream := opening[0].Stream
 
-	// Reporting the stream open is what releases the sealed batch.
+	// Reporting the stream open is what releases the sealed batch. A payload
+	// that references rule state (tags, in this record) can be preceded by a
+	// reserved snapshot batch carrying those definitions, so more than one
+	// SendBatch effect can appear here. Acks on this library are matched
+	// positionally against the outstanding FIFO rather than by batch_id value
+	// (a payload needing no rule definitions can even leave that snapshot
+	// batch trailing a numerically later payload batch), so every batch this
+	// stream sent must be acked in the order PollSender returned it, not
+	// filtered down to "the" payload batch.
 	core.HandleStreamOpened(0, stream)
 	sending := core.PollSender(0)
 	require.NotEmpty(t, sending, "an open stream should release the sealed batch")
 
-	var sent *Effect
+	var ack Progress
+	sawSendBatch := false
 	for i := range sending {
-		t.Logf("effect kind=%v sender=%d stream=%d batch=%d",
-			sending[i].Kind, sending[i].Sender, sending[i].Stream, sending[i].BatchID)
-		if sending[i].Kind == SendBatch {
-			sent = &sending[i]
+		e := sending[i]
+		t.Logf("effect kind=%v sender=%d stream=%d batch=%d", e.Kind, e.Sender, e.Stream, e.BatchID)
+		if e.Kind != SendBatch {
+			continue
 		}
+		sawSendBatch = true
+		require.NotEmpty(t, e.Batch.Bytes(), "a sealed batch carries bytes")
+		t.Logf("batch %d carries %d bytes", e.BatchID, len(e.Batch.Bytes()))
+		e.Batch.Release()
+		ack = core.HandleAck(0, stream, e.BatchID, AckOK)
 	}
-	require.NotNil(t, sent, "the sealed batch should be offered for sending")
-	require.NotEmpty(t, sent.Batch.Bytes(), "a sealed batch carries bytes")
-	t.Logf("batch %d carries %d bytes", sent.BatchID, len(sent.Batch.Bytes()))
-	sent.Batch.Release()
+	require.True(t, sawSendBatch, "the sealed batch should be offered for sending")
 
-	// Acknowledging it makes the record durable, which is reported as a
-	// notification naming the metadata id offered above.
-	ack := core.HandleAck(0, stream, sent.BatchID, AckOK)
+	// Acknowledging every batch in order is what makes the record durable,
+	// reported as a notification naming the metadata id offered above. A
+	// telemetry notification for the reserved snapshot batch's own send can
+	// share the poll with it, so the durable resolution is found by kind
+	// rather than assumed to be the first entry.
 	require.True(t, ack.NotificationsReady, "a durable payload should be announced")
 	notifications := core.PollNotifications()
 	require.NotEmpty(t, notifications)
-	require.Equal(t, PayloadDurable, notifications[0].Kind)
-	require.Equal(t, []uint64{42}, notifications[0].MetadataIDs)
+	var durable *Notification
+	for i := range notifications {
+		t.Logf("notification kind=%v sender=%d hasSender=%v records=%d bytes=%d ids=%v",
+			notifications[i].Kind, notifications[i].Sender, notifications[i].HasSender,
+			notifications[i].Records, notifications[i].Bytes, notifications[i].MetadataIDs)
+		if notifications[i].Kind == PayloadDurable {
+			durable = &notifications[i]
+		}
+	}
+	require.NotNil(t, durable, "a durable payload should be announced")
+	require.Equal(t, []uint64{42}, durable.MetadataIDs)
 
 	// Clock advance is the difference between readings, so it only becomes
 	// non-zero once a second, later timestamp has been offered.

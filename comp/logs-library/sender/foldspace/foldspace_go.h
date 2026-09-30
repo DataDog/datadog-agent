@@ -24,7 +24,7 @@
 extern "C" {
 #endif
 
-#define FOLDSPACE_ABI_VERSION 1
+#define FOLDSPACE_ABI_VERSION 4
 
 /* Status codes. The whole invocation error surface, and none of it carries a
  * value, which is why these are codes rather than error objects. */
@@ -32,15 +32,21 @@ enum foldspace_status {
   FOLDSPACE_OK = 0,
   FOLDSPACE_ERR_NULL_POINTER = 1,
   FOLDSPACE_ERR_INVALID_SENDER = 2,
+  FOLDSPACE_ERR_UNKNOWN_ENCODING = 3,
   FOLDSPACE_ERR_NO_SENDERS = 10,
-  FOLDSPACE_ERR_SENDER_CLASS_COUNT_MISMATCH = 11,
-  FOLDSPACE_ERR_NO_RELIABLE_SENDERS = 12,
-  FOLDSPACE_ERR_BATCH_CAPACITY_ZERO = 13,
-  FOLDSPACE_ERR_MAX_INFLIGHT_PAYLOADS_ZERO = 14,
-  FOLDSPACE_ERR_MAX_PAYLOAD_BYTES_ZERO = 15,
-  FOLDSPACE_ERR_RECONNECT_BACKOFF_BASE_ZERO = 16,
-  FOLDSPACE_ERR_RECONNECT_BACKOFF_FACTOR_ZERO = 17,
-  FOLDSPACE_ERR_RECONNECT_BACKOFF_CAP_BELOW_BASE = 18
+  FOLDSPACE_ERR_NO_RELIABLE_SENDERS = 11,
+  FOLDSPACE_ERR_BATCH_CAPACITY_ZERO = 12,
+  FOLDSPACE_ERR_MAX_INFLIGHT_PAYLOADS_ZERO = 13,
+  FOLDSPACE_ERR_MAX_PAYLOAD_BYTES_ZERO = 14,
+  FOLDSPACE_ERR_RECONNECT_BACKOFF_BASE_ZERO = 15,
+  FOLDSPACE_ERR_RECONNECT_BACKOFF_FACTOR_ZERO = 16,
+  FOLDSPACE_ERR_RECONNECT_BACKOFF_CAP_BELOW_BASE = 17,
+  FOLDSPACE_ERR_TOO_MANY_SENDERS = 18,
+  FOLDSPACE_ERR_MAX_OPEN_BUFFERS_ZERO = 19,
+  FOLDSPACE_ERR_MAX_OPEN_BYTES_ZERO = 20,
+  FOLDSPACE_ERR_MAX_OPEN_BYTES_BELOW_ONE_BUFFER = 21,
+  FOLDSPACE_ERR_SNAPSHOT_BATCH_ID_NOT_RESERVED = 22,
+  FOLDSPACE_ERR_FIRST_PAYLOAD_BATCH_ID_AT_CEILING = 23
 };
 
 /* Delivery class of one sender, passed as an ordered array at construction.
@@ -56,10 +62,13 @@ enum foldspace_sender_class {
   FOLDSPACE_SENDER_RELIABLE = 2
 };
 
-/* Encoding applied to every batch body. */
+/* Encoding applied to every batch body. Zero is the library's default rather
+ * than a named encoding, so a zeroed config cannot silently pick one the
+ * library would not have picked. A value outside this set is rejected. */
 enum foldspace_encoding {
-  FOLDSPACE_ENCODING_IDENTITY = 0,
-  FOLDSPACE_ENCODING_ZSTD = 1
+  FOLDSPACE_ENCODING_DEFAULT = 0,
+  FOLDSPACE_ENCODING_IDENTITY = 1,
+  FOLDSPACE_ENCODING_ZSTD = 2
 };
 
 /* What the library did with an offered record, or with a flush. */
@@ -67,7 +76,10 @@ enum foldspace_admission {
   FOLDSPACE_ADMISSION_ACCEPTED = 1,
   FOLDSPACE_ADMISSION_REFUSED = 2,
   FOLDSPACE_ADMISSION_TOO_LARGE = 3,
-  FOLDSPACE_ADMISSION_SHUTTING_DOWN = 4
+  FOLDSPACE_ADMISSION_SHUTTING_DOWN = 4,
+  FOLDSPACE_ADMISSION_EMPTY = 5,
+  FOLDSPACE_ADMISSION_UNROUTABLE = 6,
+  FOLDSPACE_ADMISSION_UNROUTED = 7
 };
 
 /* Wire status of an acknowledged batch. The protocol's values, repeated here
@@ -100,9 +112,13 @@ enum foldspace_core_error_kind {
   FOLDSPACE_CORE_ERROR_STREAM_FAILED = 4
 };
 
+/* Two families. A resolution names records and ends their life; telemetry
+ * counts and names a sender, and moves no cursor. */
 enum foldspace_notification_kind {
   FOLDSPACE_NOTIFICATION_PAYLOAD_DURABLE = 1,
-  FOLDSPACE_NOTIFICATION_PAYLOAD_DROPPED = 2
+  FOLDSPACE_NOTIFICATION_PAYLOAD_ABANDONED = 2,
+  FOLDSPACE_NOTIFICATION_SENT_STATS = 3,
+  FOLDSPACE_NOTIFICATION_DROPPED_STATS = 4
 };
 
 /* A borrowed byte string. A null ptr means absent, which is distinct from
@@ -131,12 +147,13 @@ typedef struct {
 /* Core configuration. Endpoint addresses, credentials, TLS, flow control,
  * connect bounds, and window depth are the caller's and appear nowhere. */
 typedef struct {
-  uint64_t senders;
   uint64_t max_inflight_payloads;
   uint64_t batch_capacity;
   uint64_t max_payload_bytes;
-  uint64_t coalesce_threshold_bytes;
+  /* One of enum foldspace_encoding. */
   int content_encoding;
+  /* Applies when content_encoding is zstd; zero asks zstd for its own
+   * default level. */
   int zstd_level;
   uint64_t reconnect_backoff_base_nanos;
   uint32_t reconnect_backoff_factor;
@@ -181,6 +198,35 @@ typedef struct {
   uint8_t notifications_ready;
 } foldspace_progress;
 
+/* What the library's buffer pool and rule store have been doing. An eviction
+ * seals a buffer early rather than full, which raises no error and refuses no
+ * record, so
+ * these are the only account of a client whose routes displace each other.
+ * The eviction counters split by policy because the remedies differ: byte
+ * evictions mean max_open_bytes is too small for the workload's records, mask
+ * evictions mean more routes are live than the pool holds.
+ *
+ * The rule counters account for the rules the library holds and what it has
+ * told each destination. store_entries is how many rules the store holds,
+ * counting patterns and dictionary entries together rather than either alone.
+ * sent_entries sums across destinations, so it is bounded by store_entries
+ * times the endpoint count; neither climbs without the live rule count
+ * climbing. retired_entries that never falls is a reference never given back,
+ * and derive_fallbacks counts widens sent whole because the destination could
+ * not resolve the base they diff against. */
+typedef struct {
+  uint64_t byte_evictions;
+  uint64_t mask_evictions;
+  uint64_t rule_seals;
+  uint64_t open_buffers;
+  uint64_t open_bytes;
+  uint64_t oldest_open_buffer_idle_pushes;
+  uint64_t store_entries;
+  uint64_t retired_entries;
+  uint64_t sent_entries;
+  uint64_t derive_fallbacks;
+} foldspace_core_stats;
+
 /* A protocol error reported against one sender. Which fields are meaningful
  * follows from kind; message points into the effect and dies with it. */
 typedef struct {
@@ -202,12 +248,21 @@ typedef struct foldspace_notification foldspace_notification;
 uint32_t foldspace_abi_version(void);
 const char *foldspace_error_message(int code);
 
-/* classes names every sender's class in order, or is NULL to make every sender
- * a member of one reliable set. */
+/* Writes the library's defaults, so a binding can change one field and pass
+ * the rest back without restating values that would drift. */
+int foldspace_default_config(foldspace_config *out);
+
+/* classes names every sender's class in order, and classes_len is how many
+ * senders there are. Both are required. */
 int foldspace_client_new(const foldspace_config *config, const uint8_t *classes,
                          size_t classes_len, foldspace_client **out);
 void foldspace_client_free(foldspace_client *client);
 int foldspace_sender_count(const foldspace_client *client, uint64_t *out);
+
+/* The token to stamp on dd-content-encoding. The caller sets the header but
+ * the library owns the encoding, so reading it back is the only way to learn
+ * what a config asking for the default resolved to. Static; do not free. */
+int foldspace_content_encoding(const foldspace_client *client, const char **out);
 
 /* Requests one stream per sender. Without it no sender ever dials. */
 int foldspace_start(foldspace_client *client, foldspace_progress *progress);
@@ -215,10 +270,19 @@ int foldspace_has_capacity(const foldspace_client *client, uint8_t *out);
 
 /* now_nanos is a reading from any monotonic source whose origin is fixed for
  * the life of the client; only differences between readings are interpreted.
- * metadata_id is opaque to the library and comes back in notifications. */
+ * metadata_id is opaque to the library and comes back in notifications.
+ *
+ * route is a bitset over sender indices naming the endpoints this record is
+ * bound for. A bit at or above the sender count is a disagreement between the
+ * caller's routing policy and its endpoint configuration, and the record is
+ * refused as unroutable. There is no value meaning "all of them": that can
+ * only mean "however many are configured", which is the caller's knowledge. */
 int foldspace_push_log(foldspace_client *client, const foldspace_log_record *record,
-                       uint64_t now_nanos, uint64_t metadata_id, int *admission,
-                       foldspace_progress *progress);
+                       uint64_t now_nanos, uint64_t metadata_id, uint64_t route,
+                       int *admission, foldspace_progress *progress);
+
+/* Writes what the buffer pool has been doing. */
+int foldspace_stats(const foldspace_client *client, foldspace_core_stats *out);
 int foldspace_flush(foldspace_client *client, int *admission, foldspace_progress *progress);
 
 int foldspace_begin_shutdown(foldspace_client *client, int *admission,
@@ -272,15 +336,15 @@ void foldspace_notifications_free(foldspace_notifications *notifications);
 void foldspace_notification_free(foldspace_notification *notification);
 
 int foldspace_notification_kind(const foldspace_notification *notification);
-uint8_t foldspace_notification_abandoned(const foldspace_notification *notification);
-/* Returns 1 and writes out when a sender is named, 0 otherwise. */
+/* Returns 1 and writes out for telemetry, 0 for a resolution. */
 uint8_t foldspace_notification_sender(const foldspace_notification *notification, uint64_t *out);
-/* Valid until the notification is freed. */
+/* Zero for a resolution, which names its records instead of counting them. */
+uint64_t foldspace_notification_records(const foldspace_notification *notification);
+uint64_t foldspace_notification_bytes(const foldspace_notification *notification);
+/* Valid until the notification is freed. Telemetry names none, writing 0. */
 const uint64_t *foldspace_notification_metadata_ids(const foldspace_notification *notification,
                                                     size_t *len);
 
-int foldspace_changelog_byte_size(const foldspace_client *client, uint64_t *out);
-int foldspace_changelog_entry_count(const foldspace_client *client, uint64_t *out);
 /* Zero advancement across a window in which records were admitted is a caller
  * passing one cached timestamp forever, which freezes eviction and rotation. */
 int foldspace_take_clock_advance_nanos(foldspace_client *client, uint64_t *out);

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,6 +35,13 @@ type DriverOptions struct {
 	// DualShip, when true, means the primary destination owns the auditor sink,
 	// so this driver must not release metadata to it.
 	DualShip bool
+	// Config reads multi_region_failover.enabled/failover_logs, mirroring
+	// destination_sender.go's canSend() gate for the primary HTTP path. Nil
+	// disables MRF routing regardless of MRFRoute.
+	Config pkgconfigmodel.Reader
+	// MRFRoute names the senders built from MRF endpoints. Zero means none:
+	// every sender is routed unconditionally and mrfEnabled is never consulted.
+	MRFRoute Route
 }
 
 // Driver consumes processor output, drives a Core, and fans payloads out
@@ -51,6 +59,9 @@ type Driver struct {
 	shutdownTimeout time.Duration
 	batchWait       time.Duration
 	dualShip        bool
+	cfg             pkgconfigmodel.Reader
+	mrfRoute        Route
+	nonMRFRoute     Route
 
 	pending    *pendingTable
 	nextID     atomic.Uint64
@@ -134,6 +145,9 @@ func NewDriver(opts DriverOptions) *Driver {
 		shutdownTimeout: opts.ShutdownTimeout,
 		batchWait:       opts.BatchWait,
 		dualShip:        opts.DualShip,
+		cfg:             opts.Config,
+		mrfRoute:        opts.MRFRoute,
+		nonMRFRoute:     AllSenders(n) &^ opts.MRFRoute,
 		pending:         newPendingTable(),
 		startNanos:      time.Now().UnixNano(),
 		wake:            wake,
@@ -231,6 +245,56 @@ func (d *Driver) Stop() {
 	<-d.stopped
 }
 
+// DriverGroup presents a set of Drivers as the single sender.PipelineComponent
+// the pipeline provider starts and stops.
+//
+// Each pipeline owns one Driver, and each Driver one Core, because a Core admits
+// a single ingest caller at a time: stateful encoding parallelizes only by
+// running parallel cores. The drivers share a pipeline monitor so the provider
+// still reports one set of component snapshots.
+type DriverGroup struct {
+	drivers []*Driver
+	monitor metrics.PipelineMonitor
+}
+
+var _ sender.PipelineComponent = (*DriverGroup)(nil)
+
+// NewDriverGroup returns a group over drivers, which must be non-empty and must
+// share a pipeline monitor.
+func NewDriverGroup(drivers []*Driver) *DriverGroup {
+	return &DriverGroup{drivers: drivers, monitor: drivers[0].PipelineMonitor()}
+}
+
+// Drivers returns the drivers in the group, indexed by pipeline.
+func (g *DriverGroup) Drivers() []*Driver { return g.drivers }
+
+// In is unused: foldspace consumes *message.Message, not *message.Payload.
+func (g *DriverGroup) In() chan *message.Payload { return nil }
+
+// PipelineMonitor returns the monitor shared by every driver in the group.
+func (g *DriverGroup) PipelineMonitor() metrics.PipelineMonitor { return g.monitor }
+
+// Start starts every driver.
+func (g *DriverGroup) Start() {
+	for _, d := range g.drivers {
+		d.Start()
+	}
+}
+
+// Stop stops the drivers concurrently, so draining N of them costs one shutdown
+// timeout rather than N.
+func (g *DriverGroup) Stop() {
+	var wg sync.WaitGroup
+	for _, d := range g.drivers {
+		wg.Add(1)
+		go func(d *Driver) {
+			defer wg.Done()
+			d.Stop()
+		}(d)
+	}
+	wg.Wait()
+}
+
 func (d *Driver) ingestLoop() {
 	defer close(d.ingestDone)
 	defer d.wg.Done()
@@ -274,7 +338,11 @@ func (d *Driver) offer(item ingestItem) {
 			d.pending.store(id, item.meta)
 		}
 		now := uint64(time.Now().UnixNano() - d.startNanos)
-		admission, progress := d.core.PushLog(item.record, now, id)
+		route := d.nonMRFRoute
+		if d.mrfRoute != 0 && item.record.MRFAllowed && d.mrfEnabled() {
+			route |= d.mrfRoute
+		}
+		admission, progress := d.core.PushLog(item.record, now, id, route)
 		d.dispatch(progress)
 		switch admission {
 		case Accepted:
@@ -296,6 +364,14 @@ func (d *Driver) offer(item ingestItem) {
 			return
 		}
 	}
+}
+
+// mrfEnabled reports whether MRF failover is currently active, mirroring
+// destination_sender.go's canSend() gate for the primary HTTP path.
+func (d *Driver) mrfEnabled() bool {
+	return d.cfg != nil &&
+		d.cfg.GetBool("multi_region_failover.enabled") &&
+		d.cfg.GetBool("multi_region_failover.failover_logs")
 }
 
 func (d *Driver) ackTooLarge(id uint64) {
@@ -483,14 +559,10 @@ func (d *Driver) handleNotification(n Notification) {
 	switch n.Kind {
 	case PayloadDurable:
 		d.releaseToSink(n.MetadataIDs)
-	case PayloadDropped:
-		if n.Abandoned {
-			d.dropPending(n.MetadataIDs)
-			return
-		}
-		for range n.MetadataIDs {
-			metrics.TlmFoldspaceDropped.Inc()
-		}
+	case PayloadAbandoned:
+		d.dropPending(n.MetadataIDs)
+	case DroppedStats:
+		metrics.TlmFoldspaceDropped.Add(float64(n.Records))
 	}
 }
 

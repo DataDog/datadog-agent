@@ -18,6 +18,7 @@ package foldspace
 import "C"
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"time"
@@ -57,18 +58,17 @@ func NewNativeCore(cfg Config) (Core, error) {
 	if got, want := uint32(C.foldspace_abi_version()), uint32(C.FOLDSPACE_ABI_VERSION); got != want {
 		return nil, fmt.Errorf("foldspace: the linked library implements ABI %d and this package was built against %d", got, want)
 	}
+	assertEncodingNumbering()
 	if len(cfg.Endpoints) == 0 {
-		return nil, fmt.Errorf("foldspace: at least one endpoint is required")
+		return nil, errors.New("foldspace: at least one endpoint is required")
 	}
 
 	// Eviction of the dictionary and pattern tables is left disabled: Config
 	// exposes no bounds for them, and a zeroed foldspace_eviction is ignored.
 	native := C.foldspace_config{
-		senders:                      C.uint64_t(len(cfg.Endpoints)),
 		max_inflight_payloads:        C.uint64_t(cfg.MaxInflightPayloads),
 		batch_capacity:               C.uint64_t(cfg.BatchCapacity),
 		max_payload_bytes:            C.uint64_t(cfg.MaxPayloadBytes),
-		coalesce_threshold_bytes:     C.uint64_t(cfg.CoalesceThresholdBytes),
 		content_encoding:             C.int(cfg.Compression),
 		zstd_level:                   C.int(cfg.ZstdLevel),
 		reconnect_backoff_base_nanos: C.uint64_t(cfg.ReconnectBackoffBase),
@@ -112,7 +112,7 @@ func (c *nativeCore) HasCapacity() bool {
 	return out != 0
 }
 
-func (c *nativeCore) PushLog(record Record, nowNanos uint64, metadataID uint64) (Admission, Progress) {
+func (c *nativeCore) PushLog(record Record, nowNanos uint64, metadataID uint64, route Route) (Admission, Progress) {
 	var pinner runtime.Pinner
 	defer pinner.Unpin()
 
@@ -130,7 +130,7 @@ func (c *nativeCore) PushLog(record Record, nowNanos uint64, metadataID uint64) 
 
 	p := c.progress(&pinner)
 	var admission C.int
-	must(C.foldspace_push_log(c.client, &native, C.uint64_t(nowNanos), C.uint64_t(metadataID), &admission, &p.native))
+	must(C.foldspace_push_log(c.client, &native, C.uint64_t(nowNanos), C.uint64_t(metadataID), C.uint64_t(route), &admission, &p.native))
 	return Admission(admission), p.result()
 }
 
@@ -316,15 +316,15 @@ func effectFrom(native *C.foldspace_effect) Effect {
 		C.foldspace_lease_free(lease)
 	}
 	if out.Kind == ReportError {
-		var native_err C.foldspace_core_error
-		must(C.foldspace_effect_error(native, &native_err))
+		var nativeErr C.foldspace_core_error
+		must(C.foldspace_effect_error(native, &nativeErr))
 		out.Err = &CoreError{
-			Kind:            CoreErrorKind(native_err.kind),
-			ExpectedBatchID: uint32(native_err.expected_batch_id),
-			ActualBatchID:   uint32(native_err.actual_batch_id),
-			BatchID:         uint32(native_err.batch_id),
-			BatchStatus:     int32(native_err.batch_status),
-			Message:         goString(native_err.message),
+			Kind:            CoreErrorKind(nativeErr.kind),
+			ExpectedBatchID: uint32(nativeErr.expected_batch_id),
+			ActualBatchID:   uint32(nativeErr.actual_batch_id),
+			BatchID:         uint32(nativeErr.batch_id),
+			BatchStatus:     int32(nativeErr.batch_status),
+			Message:         goString(nativeErr.message),
 		}
 	}
 	return out
@@ -340,8 +340,9 @@ func leaseBytes(lease *C.foldspace_lease) []byte {
 
 func notificationFrom(native *C.foldspace_notification) Notification {
 	out := Notification{
-		Kind:      NotificationKind(C.foldspace_notification_kind(native)),
-		Abandoned: C.foldspace_notification_abandoned(native) != 0,
+		Kind:    NotificationKind(C.foldspace_notification_kind(native)),
+		Records: uint64(C.foldspace_notification_records(native)),
+		Bytes:   uint64(C.foldspace_notification_bytes(native)),
 	}
 	var sender C.uint64_t
 	if C.foldspace_notification_sender(native, &sender) != 0 {
@@ -394,6 +395,25 @@ func goString(s C.foldspace_str) string {
 		return ""
 	}
 	return C.GoStringN((*C.char)(unsafe.Pointer(s.ptr)), C.int(s.len))
+}
+
+// assertEncodingNumbering panics if types.go's Compression or NotificationKind
+// constants have drifted from the linked header's own numbering. types.go
+// cannot import "C" and stay buildable without the foldspace tag, so its
+// constants are plain ints kept in sync by hand; this is what turns a drifted
+// value into a refusal rather than corruption, the same role the ABI version
+// check plays for the struct layout as a whole.
+func assertEncodingNumbering() {
+	if Compression(C.FOLDSPACE_ENCODING_DEFAULT) != Default ||
+		Compression(C.FOLDSPACE_ENCODING_IDENTITY) != Identity ||
+		Compression(C.FOLDSPACE_ENCODING_ZSTD) != Zstd {
+		panic("foldspace: Compression constants in types.go do not match foldspace_go.h")
+	}
+	if NotificationKind(C.FOLDSPACE_NOTIFICATION_PAYLOAD_DURABLE) != PayloadDurable ||
+		NotificationKind(C.FOLDSPACE_NOTIFICATION_PAYLOAD_ABANDONED) != PayloadAbandoned ||
+		NotificationKind(C.FOLDSPACE_NOTIFICATION_DROPPED_STATS) != DroppedStats {
+		panic("foldspace: NotificationKind constants in types.go do not match foldspace_go.h")
+	}
 }
 
 // --- status -----------------------------------------------------------------
