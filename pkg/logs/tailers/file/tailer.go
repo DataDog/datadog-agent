@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -170,6 +171,13 @@ func NewTailer(opts *TailerOptions) *Tailer {
 
 	forwardContext, stopForward := context.WithCancel(context.Background())
 	closeTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.close_timeout") * time.Second
+	// On an unreliable mount (CIFS/SMB, e.g. Azure Files) a rotated file may keep
+	// draining through its already-open descriptor while a fresh open of the path
+	// fails with a stale file handle. Give that drain its own, typically longer,
+	// budget so those trailing bytes are not dropped at the shorter close_timeout.
+	if drain := config.UnreliableMountDrainTimeout(pkgconfigsetup.Datadog()); drain > 0 {
+		closeTimeout = drain
+	}
 	windowsOpenFileTimeout := pkgconfigsetup.Datadog().GetDuration("logs_config.windows_open_file_timeout") * time.Second
 
 	bytesRead := status.NewCountInfo("Bytes Read")
@@ -475,6 +483,11 @@ func (t *Tailer) ReplaceSource(newSource *sources.LogSource) {
 // Source gets the source (currently only used for testing)
 func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
+}
+
+// File returns the tailer's own file, whose Source can differ from a freshly scanned one.
+func (t *Tailer) File() *File {
+	return t.file
 }
 
 // GetID returns the tailer's unique identifier
