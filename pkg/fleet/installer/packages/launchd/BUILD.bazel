@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "jobset.go",
         "launchd.go",
+        "supervisor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd",
     visibility = ["//visibility:public"],
@@ -14,11 +15,13 @@ go_library(
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
+            "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],
     }),
@@ -29,6 +32,7 @@ dd_agent_go_test(
     srcs = [
         "jobset_test.go",
         "launchd_test.go",
+        "supervisor_test.go",
     ],
     embed = [":launchd"],
     deps = select({
