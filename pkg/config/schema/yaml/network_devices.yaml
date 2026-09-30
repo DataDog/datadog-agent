@@ -495,9 +495,8 @@ properties:
         type: boolean
         default: false
         comment: |-
-          Enable the Remote-Configuration-driven NDM component. Off by
-          default while the Remote Configuration product is still the
-          MANAGED_DEPLOYMENTS_DEBUG placeholder.
+          Enable the Remote-Configuration-driven NDM component, which
+          subscribes to the NDM_CONFIG Remote Configuration product.
   snmp_traps:
     node_type: section
     type: object

@@ -215,14 +215,15 @@ func TestRenderInstanceForV3(t *testing.T) {
 	got, err := renderInstance(
 		documentInstance{IPAddress: "10.0.0.2"},
 		credential{
-			Name:         "v3-full",
-			SNMPVersion:  "3",
-			User:         "test-user",
-			AuthProtocol: "SHA",
-			AuthKey:      "test-auth-key",
-			PrivProtocol: "AES",
-			PrivKey:      "test-priv-key",
-			ContextName:  "test-context",
+			Name:            "v3-full",
+			SNMPVersion:     "3",
+			User:            "test-user",
+			AuthProtocol:    "SHA",
+			AuthKey:         "test-auth-key",
+			PrivProtocol:    "AES",
+			PrivKey:         "test-priv-key",
+			ContextName:     "test-context",
+			ContextEngineID: "test-engine-id",
 		},
 	)
 	require.NoError(t, err)
@@ -236,6 +237,7 @@ authKey: test-auth-key
 privProtocol: AES
 privKey: test-priv-key
 context_name: test-context
+context_engine_id: test-engine-id
 `, string(got))
 	assert.NotContains(t, string(got), "community_string")
 }
