@@ -259,6 +259,12 @@ static __attribute__((always_inline)) u64 is_security_profile_v2_enabled() {
     return enabled;
 };
 
+static __attribute__((always_inline)) u64 is_event_sampling_syscalls_enabled() {
+    u64 enabled;
+    LOAD_CONSTANT("event_sampling_syscalls_enabled", enabled);
+    return enabled;
+};
+
 static __attribute__((always_inline)) u64 get_capabilities_monitoring_period() {
     u64 capabilities_monitoring_period = 5000000000; // 5 seconds in nanoseconds
     LOAD_CONSTANT("capabilities_monitoring_period", capabilities_monitoring_period);
