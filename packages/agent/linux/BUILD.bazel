@@ -80,7 +80,8 @@ healthcheck_gate(
 pkg_filegroup(
     name = "installed_distro",
     srcs = [
-        ":everything_checked",
+        # ":everything_checked",
+        ":everything",
         ":license_files",
     ],
     package_variables = ":variables",

@@ -63,7 +63,7 @@ def _dd_strip_symbols_impl(ctx):
     executable = stripped if was_executable else None
 
     return [
-        DefaultInfo(files = depset([original, stripped]), executable = executable, runfiles = runfiles, data_runfiles = data_runfiles, default_runfiles = default_runfiles),
+        DefaultInfo(files = depset([original]), executable = executable, runfiles = runfiles, data_runfiles = data_runfiles, default_runfiles = default_runfiles),
         DdStripInfo(
             original = original.owner,
             original_file = original,

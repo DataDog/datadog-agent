@@ -143,7 +143,8 @@ def dd_agent_go_binary(
 
     # TODO: investigate using go_cross_binary(compilation_mode = "dbg") as
     # an alternate way of preventing stripping.
-    unstripped_go_binary(
+# unstripped_go_binary(
+    go_binary(
         name = unstripped_name,
         gc_linkopts = (gc_linkopts or []) + run_path_linkopts,
         x_defs = all_x_defs,
