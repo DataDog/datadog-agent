@@ -7,7 +7,6 @@
 package ecs
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
@@ -102,15 +101,5 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 		return scenecs.RunWithEnv(ctx, awsEnv, env, runParams)
 	}, params.extraConfigParams)
 
-	provisioner.SetDiagnoseFunc(ecsDiagnoseFunc)
-
 	return provisioner
-}
-
-func ecsDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
-	dumpResult, err := DumpECSClusterState(ctx, stackName)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("Dumping ECS cluster state:\n%s", dumpResult), nil
 }
