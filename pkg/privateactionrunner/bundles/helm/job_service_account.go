@@ -19,24 +19,13 @@ import (
 
 const (
 	// fullnameLabel is the standard Helm chart label ("datadog.pod-template-labels")
-	// carrying the release's resolved fullname. The chart sets it to the same
-	// value used to name every release-scoped resource, and — unlike the
-	// cluster agent's own ServiceAccount name — it isn't affected by a custom
-	// clusterAgent.rbac.serviceAccountName override, so it's a reliable way to
-	// recover the fullname from a live cluster without any chart-side changes.
+	// carrying the release's resolved fullname.
 	fullnameLabel = "app.kubernetes.io/name"
 	// jobServiceAccountSuffix is the fixed suffix the chart appends to the
-	// release fullname for the helm-actions Job's ServiceAccount (see
-	// cluster-agent-helm-actions-rbac.yaml in the helm-charts repo); it is not
-	// configurable, so it's safe to hardcode here.
+	// release fullname for the helm-actions Job's ServiceAccount
 	jobServiceAccountSuffix = "-helm-actions"
 )
 
-// jobServiceAccountName derives the name of the ServiceAccount the rollback
-// Job must run as: "<fullname>-helm-actions". The release fullname isn't
-// otherwise recoverable in Go (it depends on Helm's name/fullnameOverride
-// logic), so it's read off the cluster agent's own pod, which the chart always
-// labels with its resolved fullname.
 func jobServiceAccountName(ctx context.Context, client kubernetes.Interface, ownNamespace string) (string, error) {
 	podName, err := common.GetSelfPodName()
 	if err != nil {
