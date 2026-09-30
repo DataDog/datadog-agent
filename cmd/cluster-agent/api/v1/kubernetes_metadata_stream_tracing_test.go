@@ -10,14 +10,18 @@ package v1
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
 	"github.com/stretchr/testify/assert"
@@ -60,6 +64,90 @@ func newTestWmetaAndStore(t *testing.T) (workloadmetamock.Mock, *controllers.Met
 	))
 	store := controllers.GetGlobalMetaBundleStore()
 	return wmetaMock, store
+}
+
+func TestStreamKubeMetadata_ReplayAndResync(t *testing.T) {
+	for _, overflow := range []bool{false, true} {
+		t.Run(strconv.FormatBool(overflow), func(t *testing.T) {
+			store := controllers.GetGlobalMetaBundleStore()
+			srv := NewKubeMetadataStreamServer(store, nil)
+			srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("old", workloadmeta.EventTypeSet)})
+			nodeName := t.Name()
+			cacheKey := agentcache.BuildAgentKey(apiserver.MetadataMapperCachePrefix, nodeName)
+			t.Cleanup(func() { agentcache.Cache.Delete(cacheKey) })
+			bundle := apiserver.NewMetadataMapperBundle()
+			bundle.Services.Set("ns1", "pod1", "svc1")
+			agentcache.Cache.Set(cacheKey, bundle, time.Minute)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			updateCount := 2
+			expectedSends := 1 + 1 + updateCount // initial state, deletion, updates
+			if overflow {
+				updateCount = metadataHistorySize
+				expectedSends = 2 // initial state, resync
+			}
+			var sent []*pb.KubeMetadataStreamResponse
+			stream := &mockStream{ctx: ctx}
+			stream.sendFunc = func(resp *pb.KubeMetadataStreamResponse) error {
+				sent = append(sent, resp)
+				if len(sent) == 1 {
+					// Updates arrive while the initial state is in flight; all
+					// notifications coalesce into a single wakeup.
+					srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("old", workloadmeta.EventTypeUnset)})
+					for i := range updateCount {
+						events := testNamespaceSetEvents()
+						events[0].Entity.(*workloadmeta.KubernetesMetadata).Labels = map[string]string{"revision": strconv.Itoa(i)}
+						srv.processWmetaEvents(events)
+					}
+					newBundle := apiserver.NewMetadataMapperBundle()
+					newBundle.Services.Set("ns1", "pod1", "svc2")
+					agentcache.Cache.Set(cacheKey, newBundle, time.Minute)
+				} else if len(sent) == expectedSends {
+					cancel()
+				}
+				return nil
+			}
+			require.NoError(t, srv.StreamKubeMetadata(&pb.KubeMetadataStreamRequest{NodeName: nodeName}, stream))
+			require.Len(t, sent, expectedSends)
+			assert.True(t, sent[0].IsFullState)
+			require.Len(t, sent[0].KueueWorkloads, 1)
+			assert.Equal(t, "old", sent[0].KueueWorkloads[0].Uid)
+			last := sent[len(sent)-1]
+			require.Len(t, last.NamespaceMetadata, 1)
+			assert.Equal(t, strconv.Itoa(updateCount-1), last.NamespaceMetadata[0].Labels["revision"])
+			if overflow {
+				assert.True(t, last.IsFullState)
+				assert.Empty(t, last.KueueWorkloads, "resync removes the deleted workload")
+				require.Len(t, last.Mappings, 1)
+				assert.Equal(t, []string{"svc2"}, last.Mappings[0].ServiceNames, "resync includes current node mappings")
+			} else {
+				for _, resp := range sent[1:] {
+					assert.False(t, resp.IsFullState)
+				}
+				require.Len(t, sent[1].KueueWorkloads, 1)
+				assert.Equal(t, pb.KubeMetadataEventType_UNSET, sent[1].KueueWorkloads[0].Type)
+			}
+			assert.Empty(t, srv.namespaceSubscribers)
+		})
+	}
+}
+
+func TestStreamKubeMetadata_UpdateSendError(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(controllers.GetGlobalMetaBundleStore(), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	sendErr := errors.New("update send failed")
+	stream := &mockStream{ctx: ctx}
+	stream.sendFunc = func(resp *pb.KubeMetadataStreamResponse) error {
+		if resp.IsFullState {
+			srv.processWmetaEvents(testNamespaceSetEvents())
+			return nil
+		}
+		return sendErr
+	}
+	assert.ErrorIs(t, srv.StreamKubeMetadata(&pb.KubeMetadataStreamRequest{NodeName: t.Name()}, stream), sendErr)
+	assert.Empty(t, srv.namespaceSubscribers)
 }
 
 func TestStreamKubeMetadata_InitialFullStateSendSpan(t *testing.T) {

@@ -66,6 +66,7 @@ dd_agent_go_test(
         "//pkg/clusteragent/api",
         "//pkg/config/mock",
         "//pkg/proto/pbgo/core",
+        "//pkg/util/cache",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/controllers",

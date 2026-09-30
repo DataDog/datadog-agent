@@ -9,10 +9,14 @@ package v1
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -851,6 +855,187 @@ func TestFullStateResponse(t *testing.T) {
 	}
 
 	assert.True(t, proto.Equal(expected, resp))
+}
+
+func TestMetadataUpdatesSince(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	ch := srv.subscribeToNamespaceEvents("node1")
+	events := append(testNamespaceSetEvents(), testKueueWorkloadEvent("first", workloadmeta.EventTypeSet))
+	srv.processWmetaEvents(events)
+	assertNotified(t, "node1", ch)
+
+	initial, version := srv.buildMetadataSnapshotWithVersion()
+	assert.Equal(t, uint64(1), version)
+	assert.Equal(t, "first", initial.kueueWorkloads["ns1/job"].uid)
+	updates, version, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok)
+	require.Len(t, updates, 1)
+	assert.Equal(t, uint64(1), version)
+	assert.False(t, updates[0].IsFullState)
+	assert.Len(t, updates[0].NamespaceMetadata, 1)
+	require.Len(t, updates[0].KueueWorkloads, 1)
+	first := updates[0]
+
+	// Identical state neither advances the journal nor wakes subscribers.
+	srv.processWmetaEvents(events)
+	updates, version, ok = srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	assert.Empty(t, updates)
+	assert.Equal(t, uint64(1), version)
+	assertNotNotified(t, "node1", ch)
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("second", workloadmeta.EventTypeSet)})
+	fastUpdates, fastVersion, ok := srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	require.Len(t, fastUpdates, 1)
+	assert.Equal(t, uint64(2), fastVersion)
+
+	// A slow client coalesces notifications, but must still see the deletion
+	// followed by recreation. A fast client's cursor is independent.
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("second", workloadmeta.EventTypeUnset)})
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("third", workloadmeta.EventTypeSet)})
+	slowUpdates, slowVersion, ok := srv.metadataUpdatesSince(version)
+	require.True(t, ok)
+	require.Len(t, slowUpdates, 3)
+	assert.Equal(t, uint64(4), slowVersion)
+	assert.Same(t, fastUpdates[0], slowUpdates[0], "clients share the same precomputed response")
+	assert.Equal(t, "second", slowUpdates[0].KueueWorkloads[0].Uid)
+	assert.Equal(t, pb.KubeMetadataEventType_UNSET, slowUpdates[1].KueueWorkloads[0].Type)
+	assert.Equal(t, "third", slowUpdates[2].KueueWorkloads[0].Uid)
+	assert.Equal(t, "first", first.KueueWorkloads[0].Uid, "published responses remain immutable")
+
+	fastUpdates, fastVersion, ok = srv.metadataUpdatesSince(fastVersion)
+	require.True(t, ok)
+	require.Len(t, fastUpdates, 2)
+	assert.Equal(t, slowVersion, fastVersion)
+	assert.Same(t, slowUpdates[1], fastUpdates[0])
+	assert.Same(t, slowUpdates[2], fastUpdates[1])
+}
+
+func TestMetadataUpdatesSinceHistoryOverflow(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	for i := 1; i <= metadataHistorySize; i++ {
+		srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent(strconv.Itoa(i), workloadmeta.EventTypeSet)})
+	}
+	updates, version, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok, "the oldest retained cursor is still valid")
+	require.Len(t, updates, metadataHistorySize)
+	assert.Equal(t, uint64(metadataHistorySize), version)
+	first := updates[0]
+
+	for i := 0; i < metadataHistorySize; i++ {
+		srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent(strconv.Itoa(metadataHistorySize+i+1), workloadmeta.EventTypeSet)})
+		_, _, ok = srv.metadataUpdatesSince(uint64(i))
+		assert.False(t, ok, "an overwritten cursor must request a full state")
+		updates, version, ok = srv.metadataUpdatesSince(uint64(i + 1))
+		require.True(t, ok)
+		require.Len(t, updates, metadataHistorySize)
+		assert.Equal(t, strconv.Itoa(i+2), updates[0].KueueWorkloads[0].Uid)
+		assert.Equal(t, strconv.Itoa(metadataHistorySize+i+1), updates[len(updates)-1].KueueWorkloads[0].Uid)
+	}
+	assert.Equal(t, "1", first.KueueWorkloads[0].Uid, "overwriting history cannot mutate in-flight responses")
+
+	snapshot, snapshotVersion := srv.buildMetadataSnapshotWithVersion()
+	assert.Equal(t, version, snapshotVersion)
+	assert.Equal(t, strconv.Itoa(2*metadataHistorySize), snapshot.kueueWorkloads["ns1/job"].uid)
+	updates, _, ok = srv.metadataUpdatesSince(snapshotVersion)
+	assert.True(t, ok)
+	assert.Empty(t, updates)
+}
+
+func TestMetadataUpdatesConcurrentReaders(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("initial", workloadmeta.EventTypeSet)})
+	initial, _, ok := srv.metadataUpdatesSince(0)
+	require.True(t, ok)
+	require.Len(t, initial, 1)
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			var version uint64
+			for range 2 * metadataHistorySize {
+				// Concurrent sends can marshal the same published response,
+				// even after its slot in the journal has been overwritten.
+				_, err := proto.Marshal(initial[0])
+				assert.NoError(t, err)
+				updates, currentVersion, ok := srv.metadataUpdatesSince(version)
+				if !ok {
+					_, version = srv.buildMetadataSnapshotWithVersion()
+					continue
+				}
+				for _, update := range updates {
+					_, err := proto.Marshal(update)
+					assert.NoError(t, err)
+				}
+				version = currentVersion
+			}
+		})
+	}
+	for i := range 2 * metadataHistorySize {
+		srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent(strconv.Itoa(i), workloadmeta.EventTypeSet)})
+	}
+	wg.Wait()
+}
+
+func BenchmarkMetadataStreamFanout(b *testing.B) {
+	for _, streams := range []int{1, 10, 100} {
+		for _, shared := range []bool{false, true} {
+			b.Run(fmt.Sprintf("streams=%d/shared=%t", streams, shared), func(b *testing.B) {
+				srv := NewKubeMetadataStreamServer(nil, nil)
+				for i := range 1000 {
+					srv.metadata.kueueWorkloads[strconv.Itoa(i)] = kueueWorkloadEntry{
+						name:        strconv.Itoa(i),
+						labels:      map[string]string{"team": "example", "service": "worker"},
+						annotations: map[string]string{"description": "unchanged workload"},
+					}
+				}
+				previous := make([]metadataSnapshot, streams)
+				for i := range streams {
+					srv.subscribeToNamespaceEvents(strconv.Itoa(i))
+					if !shared {
+						previous[i] = srv.buildMetadataSnapshot()
+					}
+				}
+				var version uint64
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					event := testKueueWorkloadEvent(strconv.Itoa(i), workloadmeta.EventTypeSet)
+					if shared {
+						srv.processWmetaEvents([]workloadmeta.Event{event})
+						for range streams {
+							_, _, _ = srv.metadataUpdatesSince(version)
+						}
+						version++
+					} else {
+						// The former path copied and compared the entire state per stream.
+						srv.metadata.processKueueWorkloadEvent(event.Type, event.Entity.(*workloadmeta.KubernetesKueueWorkload))
+						srv.notifyNamespaceSubscribers()
+						for client := range streams {
+							current := srv.buildMetadataSnapshot()
+							_ = computeMetadataDiff(previous[client], current).response(false)
+							previous[client] = current
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func testKueueWorkloadEvent(uid string, eventType workloadmeta.EventType) workloadmeta.Event {
+	return workloadmeta.Event{
+		Type: eventType,
+		Entity: &workloadmeta.KubernetesKueueWorkload{
+			EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "ns1/job"},
+			EntityMeta: workloadmeta.EntityMeta{
+				Namespace: "ns1",
+				Name:      "job",
+				UID:       uid,
+				Labels:    map[string]string{"team": "example"},
+			},
+		},
+	}
 }
 
 func testNamespaceSetEvents() []workloadmeta.Event {
