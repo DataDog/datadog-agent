@@ -46,10 +46,17 @@ func (s *podStore) Add(obj interface{}) error {
 	}
 
 	events := parsePod(pod)
+	entityIDs := entityIDsFromEvents(events)
 
 	s.mu.Lock()
-	s.seen[pod.UID] = entityIDsFromEvents(events)
+	previousEntityIDs := s.seen[pod.UID]
+	s.seen[pod.UID] = entityIDs
 	s.mu.Unlock()
+
+	// A container that disappeared between two updates of the same pod (the
+	// runtime recreated it under a new ID, e.g. on restart) never goes
+	// through Delete, since the pod itself never disappears: unset it here.
+	events = append(events, unsetEventsForEntityIDs(removedEntityIDs(previousEntityIDs, entityIDs))...)
 
 	s.wlmetaStore.Notify(events)
 
@@ -102,11 +109,15 @@ func (s *podStore) Replace(list []interface{}, _ string) error {
 	s.seen = seenNow
 	s.mu.Unlock()
 
-	for uid, entityIDs := range seenBefore {
-		if _, ok := seenNow[uid]; ok {
+	for uid, previousEntityIDs := range seenBefore {
+		currentEntityIDs, stillPresent := seenNow[uid]
+		if !stillPresent {
+			events = append(events, unsetEventsForEntityIDs(previousEntityIDs)...)
 			continue
 		}
-		events = append(events, unsetEventsForEntityIDs(entityIDs)...)
+		// The pod itself survived the replace, but one of its containers may
+		// not have (e.g. restarted under a new ID): unset those too.
+		events = append(events, unsetEventsForEntityIDs(removedEntityIDs(previousEntityIDs, currentEntityIDs))...)
 	}
 
 	s.wlmetaStore.Notify(events)
@@ -126,6 +137,28 @@ func entityIDsFromEvents(events []workloadmeta.CollectorEvent) []workloadmeta.En
 		entityIDs = append(entityIDs, event.Entity.GetID())
 	}
 	return entityIDs
+}
+
+// removedEntityIDs returns the entity IDs present in previous but absent from
+// current, e.g. a container an updated pod no longer reports because the
+// runtime recreated it under a new ID.
+func removedEntityIDs(previous, current []workloadmeta.EntityID) []workloadmeta.EntityID {
+	if len(previous) == 0 {
+		return nil
+	}
+
+	currentSet := make(map[workloadmeta.EntityID]struct{}, len(current))
+	for _, entityID := range current {
+		currentSet[entityID] = struct{}{}
+	}
+
+	var removed []workloadmeta.EntityID
+	for _, entityID := range previous {
+		if _, ok := currentSet[entityID]; !ok {
+			removed = append(removed, entityID)
+		}
+	}
+	return removed
 }
 
 func unsetEventsForEntityIDs(entityIDs []workloadmeta.EntityID) []workloadmeta.CollectorEvent {

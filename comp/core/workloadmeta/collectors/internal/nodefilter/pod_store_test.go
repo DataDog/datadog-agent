@@ -77,6 +77,36 @@ func TestPodStore_AddDelete(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestPodStore_UpdateContainerRestart verifies that, when a container within
+// a pod is replaced by the runtime under a new ID (e.g. on restart), Update
+// unsets the old container entity rather than leaking it.
+func TestPodStore_UpdateContainerRestart(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	store := newPodStore(wlm)
+
+	pod := podWithContainer("test-pod", "pod-uid", "old-container-id")
+	require.NoError(t, store.Add(pod))
+
+	require.Eventually(t, func() bool {
+		_, err := wlm.GetContainer("old-container-id")
+		return err == nil
+	}, eventuallyTimeout, eventuallyInterval)
+
+	restarted := podWithContainer("test-pod", "pod-uid", "new-container-id")
+	require.NoError(t, store.Update(restarted))
+
+	require.Eventually(t, func() bool {
+		_, err := wlm.GetContainer("new-container-id")
+		return err == nil
+	}, eventuallyTimeout, eventuallyInterval)
+
+	_, err := wlm.GetContainer("old-container-id")
+	require.Error(t, err)
+
+	_, err = wlm.GetKubernetesPod("pod-uid")
+	require.NoError(t, err)
+}
+
 // TestPodStore_Update verifies that Update (== Add) refreshes the pod's
 // fields in place.
 func TestPodStore_Update(t *testing.T) {
@@ -128,5 +158,36 @@ func TestPodStore_Replace(t *testing.T) {
 	_, err := wlm.GetContainer("container1")
 	require.Error(t, err)
 	_, err = wlm.GetContainer("container2")
+	require.NoError(t, err)
+}
+
+// TestPodStore_ReplaceContainerRestart verifies that Replace unsets a
+// container that dropped out even for a pod that itself is present in both
+// the previous and the new list (e.g. the runtime restarted one of its
+// containers under a new ID between two Replace calls).
+func TestPodStore_ReplaceContainerRestart(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	store := newPodStore(wlm)
+
+	pod := podWithContainer("test-pod", "pod-uid", "old-container-id")
+	require.NoError(t, store.Replace([]interface{}{pod}, ""))
+
+	require.Eventually(t, func() bool {
+		_, err := wlm.GetContainer("old-container-id")
+		return err == nil
+	}, eventuallyTimeout, eventuallyInterval)
+
+	restarted := podWithContainer("test-pod", "pod-uid", "new-container-id")
+	require.NoError(t, store.Replace([]interface{}{restarted}, ""))
+
+	require.Eventually(t, func() bool {
+		_, err := wlm.GetContainer("new-container-id")
+		return err == nil
+	}, eventuallyTimeout, eventuallyInterval)
+
+	_, err := wlm.GetContainer("old-container-id")
+	require.Error(t, err)
+
+	_, err = wlm.GetKubernetesPod("pod-uid")
 	require.NoError(t, err)
 }
