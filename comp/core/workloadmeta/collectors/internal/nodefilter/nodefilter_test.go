@@ -8,6 +8,7 @@
 package nodefilter
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"sync"
@@ -15,8 +16,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
@@ -26,6 +29,8 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 // TestLocalNodeName verifies that this collector only applies to otel-agent
@@ -184,7 +189,8 @@ func TestStart(t *testing.T) {
 }
 
 // TestStart_ClientError verifies that failing to build the API client fails
-// Start without disabling the collector.
+// Start with an error workloadmeta retries, rather than one that drops the
+// collector for good.
 func TestStart_ClientError(t *testing.T) {
 	c := &collector{
 		id:      collectorID,
@@ -197,5 +203,65 @@ func TestStart_ClientError(t *testing.T) {
 
 	err := c.Start(context.Background(), nil)
 	require.Error(t, err)
-	assert.False(t, pkgerrors.IsDisabled(err))
+	assert.True(t, retry.IsErrWillRetry(err))
+}
+
+// syncBuffer is a bytes.Buffer safe to log to from the reflector's goroutine
+// while the test reads it.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// TestStart_Forbidden verifies that the API server refusing to list pods, as
+// it does when the agent lacks RBAC for them, is logged to the agent's own log
+// with a hint, since Start itself has already succeeded by then.
+func TestStart_Forbidden(t *testing.T) {
+	// The workloadmeta mock sets up its own global logger, so capture logs
+	// only once it has.
+	wlm := mockedWorkloadmeta(t)
+
+	var output syncBuffer
+	logger, err := log.LoggerFromWriterWithMinLevel(&output, log.WarnLvl)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		log.SetupLogger(log.Default(), log.InfoStr)
+		logger.Close()
+	})
+	log.SetupLogger(logger, log.WarnStr)
+
+	client := fake.NewClientset()
+	client.PrependReactor("list", "pods", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", errors.New("RBAC: access denied"))
+	})
+
+	c := &collector{
+		id:      collectorID,
+		catalog: workloadmeta.NodeAgent,
+		config:  standaloneConfig(t),
+		newClient: func(config.Component) (kubernetes.Interface, error) {
+			return client, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	require.NoError(t, c.Start(ctx, wlm))
+
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		logger.Flush()
+		assert.Contains(ct, output.String(), "grant the agent's service account list and watch on pods")
+	}, eventuallyTimeout, eventuallyInterval)
 }

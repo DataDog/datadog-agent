@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,6 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -144,7 +147,15 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	client, err := c.newClient(c.config)
 	if err != nil {
-		return fmt.Errorf("cannot create Kubernetes API client: %w", err)
+		// The kubelet collector has already stepped aside for this one, so
+		// leave it in workloadmeta's candidate set rather than dropping it for
+		// good. This must be a *retry.Error: workloadmeta gates on
+		// retry.IsErrWillRetry, which type-asserts rather than unwrapping.
+		return &retry.Error{
+			LogicError:    fmt.Errorf("cannot create Kubernetes API client: %w", err),
+			RessourceName: componentName,
+			RetryStatus:   retry.FailWillRetry,
+		}
 	}
 
 	fieldSelector := fields.OneTermEqualSelector("spec.nodeName", nodeName).String()
@@ -152,11 +163,13 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	podListWatch := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			options.FieldSelector = fieldSelector
-			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
+			pods, err := client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
+			return pods, warnIfForbidden(err)
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			options.FieldSelector = fieldSelector
-			return client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
+			watcher, err := client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
+			return watcher, warnIfForbidden(err)
 		},
 	}
 
@@ -170,6 +183,18 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	go podReflector.RunWithContext(ctx)
 
 	return nil
+}
+
+// warnIfForbidden logs err, and passes it through, when it shows the agent
+// lacks RBAC to list or watch pods. The reflector keeps retrying such errors
+// in the background, long after Start has succeeded, and only reports them
+// through klog, so this is otherwise the one failure that neither fails the
+// collector nor shows up in the agent's log.
+func warnIfForbidden(err error) error {
+	if apierrors.IsForbidden(err) {
+		log.Warnf("%s cannot list or watch pods on the local node: grant the agent's service account list and watch on pods, or set otelcollector.standalone.use_kubelet_collector to true: %s", componentName, err)
+	}
+	return err
 }
 
 // newAPIClient builds a Kubernetes clientset, following the same
