@@ -2941,7 +2941,8 @@ func (s *TracerSuite) TestTLSClassification() {
 		name: "Stale-TLS-Entry",
 		postTracerSetup: func(t *testing.T) (uint16, uint16) {
 			scenario := uint16(tls.VersionTLS12)
-			srv := usmtestutil.NewTLSServerWithSpecificVersion("localhost:0", func(conn net.Conn) {
+			// IPv4 explicitly: localhost can resolve to ::1, and setConnectionProtocol seeds an IPv4 tuple.
+			srv := usmtestutil.NewTLSServerWithSpecificVersion("127.0.0.1:0", func(conn net.Conn) {
 				defer conn.Close()
 				tracertestutil.SetTestDeadline(conn)
 				_, _ = io.Copy(conn, conn)
@@ -3067,6 +3068,9 @@ func setConnectionProtocol(t *testing.T, tr *Tracer, conn net.Conn, stack netebp
 
 	local := conn.LocalAddr().(*net.TCPAddr)
 	remote := conn.RemoteAddr().(*net.TCPAddr)
+	// An IPv4 key on an IPv6 conn would never be looked up, silently turning the caller's test into a no-op.
+	require.NotNil(t, local.IP.To4(), "setConnectionProtocol only supports IPv4 connections, got %v", local)
+	require.NotNil(t, remote.IP.To4(), "setConnectionProtocol only supports IPv4 connections, got %v", remote)
 	localLow, localHigh := util.ToLowHigh(util.AddressFromNetIP(local.IP))
 	remoteLow, remoteHigh := util.ToLowHigh(util.AddressFromNetIP(remote.IP))
 	value := netebpf.ProtocolStackWrapper{Updated: 1, Stack: stack}
