@@ -137,6 +137,14 @@ func skipUnlessHostPath(t *testing.T, host *components.RemoteHost, path, reason 
 // accepts it, so a restart blip is not treated as steady state.
 const waitProcmgrStableFor = 5 * time.Second
 
+// procmgrPIDHoldFor is how long requireProcmgrRunningPID must see wantPID stay Running.
+// The five second setup window only rejects a restart blip. This one is several times
+// the five second sleep system-probe takes before exiting when no module is enabled, so
+// that exit cannot satisfy the check, and it matches the window AssertProcmgrProcessRunning
+// uses. timeout on the helper is only the deadline for the hold: EventuallyWithT returns
+// on the first clean poll, so the hold has to be its own assertion.
+const procmgrPIDHoldFor = 20 * time.Second
+
 // waitProcmgrRunning polls dd-procmgr describe until name is Running with the same real PID
 // for waitProcmgrStableFor, so a brief Running blip during a restart is not accepted.
 func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) string {
@@ -172,19 +180,42 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 	return pid
 }
 
-// requireProcmgrRunningPID polls until name is Running with wantPID, proving the same OS
-// process is still supervised.
+// requireProcmgrRunningPID polls until name has been Running as wantPID for procmgrPIDHoldFor.
+//
+// A different PID fails the test immediately. That is a restart, and polling for the rest
+// of timeout would only describe the replacement. A describe error or a non-Running state
+// resets the hold and keeps polling, so a process that is not up yet can still meet the
+// deadline. timeout is that deadline, not the length of the hold.
 func requireProcmgrRunningPID(t *testing.T, host *components.RemoteHost, cli, name, wantPID string, timeout time.Duration) {
 	t.Helper()
 	require.NotEmpty(t, wantPID, "wantPID must be set (capture it with waitProcmgrRunning)")
+	var heldSince time.Time
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
 		if !assert.NoError(ct, err) {
+			heldSince = time.Time{}
 			return
 		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"), "process %s: %s", name, out)
-		assert.Equal(ct, wantPID, fieldValue(out, "PID"),
-			"process %s should still be PID %s (same process that auto-spawned): %s", name, wantPID, out)
+		state := fieldValue(out, "State")
+		pid := fieldValue(out, "PID")
+		if pid != "" && pid != "-" && pid != wantPID {
+			t.Fatalf("process %s restarted: wanted the auto-spawned PID %s, describe returned %s", name, wantPID, out)
+		}
+		if !assert.Equal(ct, "Running", state, "process %s: %s", name, out) ||
+			!assert.Equal(ct, wantPID, pid,
+				"process %s should still be PID %s (same process that auto-spawned): %s", name, wantPID, out) {
+			heldSince = time.Time{}
+			return
+		}
+		now := time.Now()
+		if heldSince.IsZero() {
+			heldSince = now
+		}
+		// EventuallyWithT treats a tick with no recorded failures as an immediate success, so
+		// the hold has to be an assertion rather than a silent early return.
+		assert.GreaterOrEqual(ct, now.Sub(heldSince), procmgrPIDHoldFor,
+			"process %s PID %s has not stayed Running for %s yet (seen for %s)",
+			name, wantPID, procmgrPIDHoldFor, now.Sub(heldSince).Round(time.Second))
 	}, timeout, 3*time.Second)
 }
 

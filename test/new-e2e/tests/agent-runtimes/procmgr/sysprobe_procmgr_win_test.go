@@ -41,7 +41,8 @@ type sysprobeProcmgrWindowsSuite struct {
 
 	cli string
 	// autoSpawnPID is the system-probe PID dd-procmgr reported after the install, before any
-	// test could act on the process. The cutover test requires this same PID still be Running.
+	// test could act on the process. Later tests require this same PID still be the one
+	// supervised, held for procmgrPIDHoldFor rather than checked once.
 	autoSpawnPID string
 }
 
@@ -82,8 +83,10 @@ func (s *sysprobeProcmgrWindowsSuite) SetupSuite() {
 //
 // The PID is what makes this stronger than asserting the process is Running. system-probe is
 // restart: on-failure with restart_sec 2, so a crash loop spends most of its time Running with
-// a different PID each time. Requiring the PID SetupSuite recorded rules that out along with a
-// failed auto-start that something else later repaired.
+// a different PID each time. requireProcmgrRunningPID holds the PID SetupSuite recorded for
+// procmgrPIDHoldFor instead of accepting the first poll that still shows it. A restart during
+// that hold fails the test, and so does a failed auto-start that something else later repaired.
+// The two minute argument is the deadline for that hold, not the hold itself.
 func (s *sysprobeProcmgrWindowsSuite) TestSystemProbeCutoverSupervisedByProcmgrAndLegacySCMStopped() {
 	host := s.Env().RemoteHost
 	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
@@ -124,7 +127,8 @@ func (s *sysprobeProcmgrWindowsSuite) TestSystemProbePrivilegedSpawnRunsAsLocalS
 	out, err := host.Execute(procmgrCmd(s.cli, "describe "+sysprobeProcessName))
 	require.NoError(s.T(), err)
 	pid := fieldValue(out, "PID")
-	require.NotEmpty(s.T(), pid, "PID should be present for a Running process: %s", out)
+	require.Equal(s.T(), s.autoSpawnPID, pid,
+		"%s should still be the auto-spawned PID, describe returned %s", sysprobeProcessName, out)
 
 	// Resolved by PID rather than by image name so the answer is about the process dd-procmgr
 	// reports supervising, not some other system-probe.exe that happens to be on the host.
