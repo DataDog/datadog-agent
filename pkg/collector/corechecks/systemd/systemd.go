@@ -453,11 +453,7 @@ func computeUptime(activeState string, activeEnterTimestampMicroSec uint64, unit
 	if activeState != unitActiveState {
 		return 0
 	}
-	uptime := unitNow - int64(activeEnterTimestampMicroSec)/1000000
-	if uptime < 0 {
-		return 0
-	}
-	return uptime
+	return max(unitNow-int64(activeEnterTimestampMicroSec)/1000000, 0)
 }
 
 func getPropertyUint64(properties map[string]interface{}, propertyName string) (uint64, error) {
