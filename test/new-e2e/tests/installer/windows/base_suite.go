@@ -691,13 +691,18 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
 
-	// Arrange
-	agentVersion := s.CurrentAgentVersion().Version()
-
 	// xperf covers the full experiment window: from daemon restart through installer
 	// service startup, capturing the SCM service start sequence on failure.
 	s.startxperf()
 	defer s.collectxperf()
+	s.mustStartExperimentCurrentVersion()
+}
+
+// mustStartExperimentCurrentVersion runs the experiment checks without managing
+// xperf, so callers can choose when to merge the trace.
+func (s *BaseSuite) mustStartExperimentCurrentVersion() {
+	s.T().Helper()
+	agentVersion := s.CurrentAgentVersion().Version()
 
 	// Act
 	s.WaitForDaemonToStop(func() {
