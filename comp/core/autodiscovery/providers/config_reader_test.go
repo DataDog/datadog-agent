@@ -255,8 +255,8 @@ func TestReadConfigFilesErrorClearing(t *testing.T) {
 	mockConfig := configmock.New(t)
 
 	readConfigFilesErrorClearingTest := func(t *testing.T, numWorkers int) {
-		ResetReader([]string{"testdata/errorclearing"})
 		mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
+		ResetReader([]string{"testdata/errorclearing"})
 
 		configs, errs, err := ReadConfigFiles(GetAll)
 		require.Nil(t, err)
@@ -285,11 +285,42 @@ func TestReadConfigFilesErrorClearing(t *testing.T) {
 		require.NotContains(t, errs, "siblingcleared")
 	}
 
-	// 64 is more than the number of entries in testdata, so it also covers the worker count cap
-	for _, numWorkers := range []int{1, 2, 4, 8, 64} {
+	// 8 is more than the number of entries in testdata/errorclearing, so it also covers the worker count cap
+	for _, numWorkers := range []int{1, 2, 4, 8} {
 		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			// read several times since a scheduling-dependent ordering bug wouldn't show up on every run
 			for range 5 {
 				readConfigFilesErrorClearingTest(t, numWorkers)
+			}
+		})
+	}
+}
+
+func TestReadConfigFilesConcurrentMatchesSequential(t *testing.T) {
+	mockConfig := configmock.New(t)
+
+	// read the files with one worker
+	mockConfig.SetInTest("autoconf_config_files_num_workers", 1)
+	ResetReader([]string{"testdata"})
+	expectedConfigs, expectedErrors, err := ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+	expectedFormats := ReadConfigFormats()
+	require.NotEmpty(t, expectedConfigs)
+	require.NotEmpty(t, expectedErrors)
+
+	// 64 is more than the number of entries in testdata, so it also covers the worker count cap
+	for _, numWorkers := range []int{2, 8, 64} {
+		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
+			mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
+			// read several times since a scheduling-dependent ordering bug wouldn't show up on every run
+			for range 5 {
+				ResetReader([]string{"testdata"})
+				configs, errors, err := ReadConfigFiles(GetAll)
+				require.Nil(t, err)
+				// Assert outputs match the ouputs we got with one worker
+				require.Equal(t, expectedConfigs, configs)
+				require.Equal(t, expectedErrors, errors)
+				require.Equal(t, expectedFormats, ReadConfigFormats())
 			}
 		})
 	}
@@ -304,50 +335,40 @@ instances:
   # No configuration is needed for this check.
   - foo: bar`
 
-	readConfigFilesCacheTest := func(t *testing.T, numWorkers int) {
-		mockConfig := configmock.New(t)
-		mockConfig.SetInTest("autoconf_config_files_num_workers", numWorkers)
+	tempDir := t.TempDir()
+	testFilePath := path.Join(tempDir, "foo.yaml")
+	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
 
-		tempDir := t.TempDir()
-		testFilePath := path.Join(tempDir, "foo.yaml")
-		assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+	// Init reader with default config, cache is activated with 5mins TTL
+	ResetReader([]string{tempDir})
 
-		// Init reader with default config, cache is activated with 5mins TTL
-		ResetReader([]string{tempDir})
+	// Remove file, Sleep 2s, cache should give us same result
+	assert.NoError(t, os.Remove(testFilePath))
+	time.Sleep(2 * time.Second)
+	configs, errors, err := ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(configs))
+	require.Equal(t, 0, len(errors))
 
-		// Remove file, Sleep 2s, cache should give us same result
-		assert.NoError(t, os.Remove(testFilePath))
-		time.Sleep(2 * time.Second)
-		configs, errors, err := ReadConfigFiles(GetAll)
-		require.Nil(t, err)
-		require.Equal(t, 1, len(configs))
-		require.Equal(t, 0, len(errors))
+	// Change config
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("autoconf_config_files_poll", true)
+	mockConfig.SetInTest("autoconf_config_files_poll_interval", 2)
 
-		// Change config
-		mockConfig.SetInTest("autoconf_config_files_poll", true)
-		mockConfig.SetInTest("autoconf_config_files_poll_interval", 2)
+	// Write file + reset reader (trigger a read on all files)
+	assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+	ResetReader([]string{tempDir})
+	// Verify that we do have the file (hitting the cache)
+	configs, errors, err = ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(configs))
+	require.Equal(t, 0, len(errors))
 
-		// Write file + reset reader (trigger a read on all files)
-		assert.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
-		ResetReader([]string{tempDir})
-		// Verify that we do have the file (hitting the cache)
-		configs, errors, err = ReadConfigFiles(GetAll)
-		require.Nil(t, err)
-		require.Equal(t, 1, len(configs))
-		require.Equal(t, 0, len(errors))
-
-		// Remove file, Sleep 2s, we should read again and have nothing
-		assert.NoError(t, os.Remove(testFilePath))
-		time.Sleep(2 * time.Second)
-		configs, errors, err = ReadConfigFiles(GetAll)
-		require.Nil(t, err)
-		require.Equal(t, 0, len(configs))
-		require.Equal(t, 0, len(errors))
-	}
-
-	for _, numWorkers := range []int{1, 2, 4, 8, 64} {
-		t.Run(fmt.Sprintf("workers=%d", numWorkers), func(t *testing.T) {
-			readConfigFilesCacheTest(t, numWorkers)
-		})
-	}
+	// Remove file, Sleep 2s, we should read again and have nothing
+	assert.NoError(t, os.Remove(testFilePath))
+	time.Sleep(2 * time.Second)
+	configs, errors, err = ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+	require.Equal(t, 0, len(configs))
+	require.Equal(t, 0, len(errors))
 }
