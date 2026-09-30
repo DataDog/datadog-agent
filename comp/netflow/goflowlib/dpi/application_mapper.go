@@ -10,40 +10,31 @@ import (
 	"sync"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
-)
 
-const (
-	ipfixFieldApplicationDescription uint16 = 94
-	ipfixFieldApplicationID          uint16 = 95
-	ipfixFieldApplicationName        uint16 = 96
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
-
-type Application struct {
-	name        string
-	description string
-}
 
 type ApplicationMapper struct {
 	mu   sync.RWMutex
-	apps map[string]map[uint64]Application // exporterIP -> applicationId -> Application
+	apps map[string]map[uint64]common.DPIApplication // exporterIP -> applicationId -> application
 }
 
 func NewApplicationMapper() *ApplicationMapper {
-	return &ApplicationMapper{apps: make(map[string]map[uint64]Application)}
+	return &ApplicationMapper{apps: make(map[string]map[uint64]common.DPIApplication)}
 }
 
-func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte) (Application, bool) {
+func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte) (common.DPIApplication, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	apps, ok := m.apps[exporterIP]
 	if !ok {
-		return Application{}, false
+		return common.DPIApplication{}, false
 	}
 
 	id, ok := applicationIDToUint64(rawAppID)
 	if !ok {
-		return Application{}, false
+		return common.DPIApplication{}, false
 	}
 
 	app, found := apps[id]
@@ -51,64 +42,99 @@ func (m *ApplicationMapper) lookupApplication(exporterIP string, rawAppID []byte
 }
 
 func (m *ApplicationMapper) addToCache(exporterIP string, optionsDataFlowSet []netflow.OptionsDataFlowSet) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	for _, dataFlowSet := range optionsDataFlowSet {
 		for _, record := range dataFlowSet.Records {
-			if id, app, ok := extractApplication(record); ok {
-				m.set(exporterIP, id, app)
-			}
+			m.addRecord(exporterIP, record)
 		}
 	}
 }
 
-// gets an Application from IPFIX Options Data Record applicationId (95) from the scope fields,
-// applicationName (96) & applicationDescription (94) from the option fields
-func extractApplication(record netflow.OptionsDataRecord) (uint64, Application, bool) {
-	app := Application{}
-
-	id, haveID := findField(record.ScopesValues, ipfixFieldApplicationID)
-	if !haveID {
-		return 0, app, false
-	}
-
-	name, haveName := findField(record.OptionsValues, ipfixFieldApplicationName)
-	if haveName {
-		// strip the trailing null padding exporters use for fixed-width string fields
-		app = Application{name: string(bytes.Trim(name, "\x00"))}
-	} else {
-		return 0, app, false
-	}
-
-	description, haveDescription := findField(record.OptionsValues, ipfixFieldApplicationDescription)
-	if haveDescription {
-		// trim null padding
-		app.description = string(bytes.Trim(description, "\x00"))
-	}
-
-	key, ok := applicationIDToUint64(id)
+func (m *ApplicationMapper) addRecord(exporterIP string, record netflow.OptionsDataRecord) {
+	rawID, ok := findField(record.ScopesValues, ianaField(ipfixFieldApplicationID))
 	if !ok {
-		return 0, app, false
+		return
 	}
-	return key, app, true
+	id, ok := applicationIDToUint64(rawID)
+	if !ok {
+		return
+	}
+
+	apps := m.apps[exporterIP]
+	app, known := apps[id]
+	if name := stringField(record.OptionsValues, ianaField(ipfixFieldApplicationName)); name != "" {
+		if name != app.ApplicationName {
+			// the id now maps to a different application, so drop the old name, description and metadata
+			app = common.DPIApplication{ID: id, ApplicationName: name}
+		}
+		app.ApplicationDescription = stringField(record.OptionsValues, ianaField(ipfixFieldApplicationDescription))
+		known = true
+	}
+	if !known {
+		// never cache metadata for an id without a name
+		return
+	}
+	// only replace metadata when the record has some, so name-only records keep it
+	if metadata := extractMetadata(record.OptionsValues); metadata != (common.DPIApplicationMetadata{}) {
+		app.DPIApplicationMetadata = metadata
+	}
+
+	if apps == nil {
+		apps = make(map[uint64]common.DPIApplication)
+		m.apps[exporterIP] = apps
+	}
+	apps[id] = app
 }
 
-// returns the raw bytes of the given field type
-func findField(fields []netflow.DataField, fieldType uint16) ([]byte, bool) {
+// extractMetadata reads the attributes of Cisco NBAR's `option application-attributes` records
+func extractMetadata(fields []netflow.DataField) common.DPIApplicationMetadata {
+	return common.DPIApplicationMetadata{
+		Category:            stringField(fields, ciscoField(ciscoFieldApplicationCategory)),
+		SubCategory:         stringField(fields, ciscoField(ciscoFieldApplicationSubCategory)),
+		ApplicationGroup:    stringField(fields, ciscoField(ciscoFieldApplicationGroup)),
+		P2PTechnology:       stringField(fields, ianaField(ipfixFieldP2PTechnology)),
+		TunnelTechnology:    stringField(fields, ianaField(ipfixFieldTunnelTechnology)),
+		EncryptedTechnology: stringField(fields, ianaField(ipfixFieldEncryptedTechnology)),
+		TrafficClass:        stringField(fields, ciscoField(ciscoFieldApplicationTrafficClass)),
+		BusinessRelevance:   stringField(fields, ciscoField(ciscoFieldApplicationBusinessRelevance)),
+		ApplicationSet:      stringField(fields, ciscoField(ciscoFieldApplicationSet)),
+		ApplicationFamily:   stringField(fields, ciscoField(ciscoFieldApplicationFamily)),
+	}
+}
+
+// fieldKey identifies an IPFIX field by its number and enterprise number (pen 0 for IANA fields)
+type fieldKey struct {
+	pen       uint32
+	fieldType uint16
+}
+
+func ianaField(fieldType uint16) fieldKey {
+	return fieldKey{fieldType: fieldType}
+}
+
+func ciscoField(fieldType uint16) fieldKey {
+	return fieldKey{pen: ciscoPEN, fieldType: fieldType}
+}
+
+func stringField(fields []netflow.DataField, key fieldKey) string {
+	v, _ := findField(fields, key)
+	// remove null and space padding of fixed-width fields
+	return string(bytes.Trim(v, "\x00 "))
+}
+
+func findField(fields []netflow.DataField, key fieldKey) ([]byte, bool) {
 	for _, f := range fields {
-		if v, ok := f.Value.([]byte); f.Type == fieldType && ok {
-			// found the requested type with a well-formed value
+		if v, ok := f.Value.([]byte); ok && matchesField(f, key) {
 			return v, true
 		}
 	}
 	return nil, false
 }
 
-func (m *ApplicationMapper) set(exporterIP string, id uint64, app Application) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	apps, ok := m.apps[exporterIP]
-	if !ok {
-		apps = make(map[uint64]Application)
-		m.apps[exporterIP] = apps
-	}
-	apps[id] = app
+// check if this is the field identified by key, comparing both field number and enterprise number
+func matchesField(f netflow.DataField, key fieldKey) bool {
+	// ignore the enterprise bit (0x8000), which goflow2 strips from data template fields but not options templates
+	return f.PenProvided == (key.pen != 0) && f.Pen == key.pen && f.Type&^0x8000 == key.fieldType
 }

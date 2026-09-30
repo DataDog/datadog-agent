@@ -5,6 +5,7 @@ go_library(
     name = "dpi",
     srcs = [
         "application_mapper.go",
+        "constants.go",
         "dpi.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/goflowlib/dpi",

@@ -18,3 +18,6 @@ features:
               ...
               enable_dpi: true
 
+    Application names and descriptions are read from the ``option application-table`` records sent by the exporter. 
+    When the exporter also sends ``option application-attributes`` records, flows are enriched with the application category, 
+    sub-category, group, traffic class, business relevance, set, family, and P2P, tunnel and encrypted technology.

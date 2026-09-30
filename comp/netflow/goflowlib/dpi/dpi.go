@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
-func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mapper *ApplicationMapper) []common.DPIFields {
+func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mapper *ApplicationMapper) []common.DPIApplication {
 	if mapper == nil {
 		return nil
 	}
@@ -27,28 +27,14 @@ func ProcessMessageApplicationNames(msgDec interface{}, exporterIP string, mappe
 	dataFlowSet, _, _, optionsDataFlowSet := producer.SplitIPFIXSets(ipfixPacket)
 	mapper.addToCache(exporterIP, optionsDataFlowSet)
 
-	var flowsFields []common.DPIFields
+	var flowsFields []common.DPIApplication
 	for _, fs := range dataFlowSet {
 		for _, record := range fs.Records {
-			var fields common.DPIFields
-			for _, df := range record.Values {
-				if df.Type != ipfixFieldApplicationID {
-					continue
-				}
-				v, ok := df.Value.([]byte)
-				if !ok {
-					continue
-				}
-				if app, found := mapper.lookupApplication(exporterIP, v); found {
-					id, _ := applicationIDToUint64(v)
-					fields = common.DPIFields{
-						ID:                     id,
-						ApplicationName:        app.name,
-						ApplicationDescription: app.description,
-					}
-				}
+			var app common.DPIApplication
+			if rawID, ok := findField(record.Values, ianaField(ipfixFieldApplicationID)); ok {
+				app, _ = mapper.lookupApplication(exporterIP, rawID)
 			}
-			flowsFields = append(flowsFields, fields)
+			flowsFields = append(flowsFields, app)
 		}
 	}
 	return flowsFields

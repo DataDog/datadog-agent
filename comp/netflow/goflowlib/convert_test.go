@@ -132,7 +132,7 @@ func TestConvertFlowWithAdditionalFields(t *testing.T) {
 			IpTos:          3,
 			NextHop:        []byte{10, 10, 10, 30},
 		},
-		DPI: common.DPIFields{
+		DPI: common.DPIApplication{
 			ID:                     443,
 			ApplicationName:        "snmp",
 			ApplicationDescription: "Simple Network Messaging Protocol",
@@ -168,7 +168,7 @@ func TestConvertFlowWithAdditionalFields(t *testing.T) {
 		OutputInterface: 20,
 		Tos:             3,
 		NextHop:         []byte{10, 10, 10, 30},
-		DPI: common.DPIFields{
+		DPI: common.DPIApplication{
 			ID:                     443,
 			ApplicationName:        "snmp",
 			ApplicationDescription: "Simple Network Messaging Protocol",

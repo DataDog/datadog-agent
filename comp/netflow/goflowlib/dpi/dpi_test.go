@@ -21,7 +21,7 @@ func TestProcessMessageApplicationNames_IPFIX(t *testing.T) {
 		FlowSets: []interface{}{
 			netflow.OptionsDataFlowSet{
 				FlowSetHeader: netflow.FlowSetHeader{Id: 257, Length: 20},
-				Records:       []netflow.OptionsDataRecord{httpOptionsRecord(100)},
+				Records:       []netflow.OptionsDataRecord{httpOptionsRecord(100), attributesOptionsRecord(100)},
 			},
 		},
 	}
@@ -45,8 +45,8 @@ func TestProcessMessageApplicationNames_IPFIX(t *testing.T) {
 
 	app, ok := mapper.lookupApplication("10.0.0.1", appIDtoBytes(100))
 	assert.True(t, ok, "application-name caching must not require any fieldsConfig")
-	assert.Equal(t, "HTTP", app.name)
-	assert.Equal(t, "Hypertext Transfer Protocol", app.description)
+	assert.Equal(t, "HTTP", app.ApplicationName)
+	assert.Equal(t, "Hypertext Transfer Protocol", app.ApplicationDescription)
 
 	dataPacket := netflow.IPFIXPacket{
 		Version: 10,
@@ -61,8 +61,8 @@ func TestProcessMessageApplicationNames_IPFIX(t *testing.T) {
 		},
 	}
 	fields = ProcessMessageApplicationNames(dataPacket, "10.0.0.1", mapper)
-	assert.Equal(t, []common.DPIFields{
-		{ID: 100, ApplicationName: "HTTP", ApplicationDescription: "Hypertext Transfer Protocol"},
+	assert.Equal(t, []common.DPIApplication{
+		{ID: 100, ApplicationName: "HTTP", ApplicationDescription: "Hypertext Transfer Protocol", DPIApplicationMetadata: browsingMetadata},
 		{},
 	}, fields, "one entry per flow record, in order, resolving known application ids and leaving unknown ones empty")
 }
@@ -109,7 +109,7 @@ func TestProcessMessageApplicationNames_enterpriseSpecificIDs(t *testing.T) {
 	ProcessMessageApplicationNames(optionsPacket, "10.0.0.1", mapper)
 
 	fields := ProcessMessageApplicationNames(dataPacket, "10.0.0.1", mapper)
-	assert.Equal(t, []common.DPIFields{
+	assert.Equal(t, []common.DPIApplication{
 		{ID: binary.BigEndian.Uint64(ciscoID), ApplicationName: "nbar:webex"},
 		{ID: binary.BigEndian.Uint64(otherID), ApplicationName: "other:app"},
 	}, fields, "ids sharing their low 32 bits but differing in their enterprise number must resolve to distinct names and distinct reported ids")

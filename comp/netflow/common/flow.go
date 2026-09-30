@@ -74,16 +74,32 @@ type Flow struct {
 	NextHop []byte // FLOW KEY
 
 	// DPI Application enrichment
-	DPI DPIFields
+	DPI DPIApplication
 
 	// Configured fields
 	AdditionalFields AdditionalFields
 }
 
-type DPIFields struct {
+// DPIApplication is the application an exporter identified for a flow
+type DPIApplication struct {
 	ID                     uint64
 	ApplicationName        string
 	ApplicationDescription string
+	DPIApplicationMetadata
+}
+
+// DPIApplicationMetadata holds optional application attributes, e.g. from NBAR's `option application-attributes`
+type DPIApplicationMetadata struct {
+	Category            string
+	SubCategory         string
+	ApplicationGroup    string
+	P2PTechnology       string
+	TunnelTechnology    string
+	EncryptedTechnology string
+	TrafficClass        string
+	BusinessRelevance   string
+	ApplicationSet      string
+	ApplicationFamily   string
 }
 
 // AdditionalFields holds additional fields collected
@@ -92,7 +108,7 @@ type AdditionalFields = map[string]any
 // FlowMessageWithAdditionalFields contains a goflow flowmessage and additional fields
 type FlowMessageWithAdditionalFields struct {
 	*flowmessage.FlowMessage
-	DPI              DPIFields
+	DPI              DPIApplication
 	AdditionalFields AdditionalFields
 }
 

@@ -47,6 +47,16 @@ type DPI struct {
 	ApplicationID          uint64 `json:"application_id,omitempty"`
 	ApplicationName        string `json:"application_name,omitempty"`
 	ApplicationDescription string `json:"application_description,omitempty"`
+	Category               string `json:"category,omitempty"`
+	SubCategory            string `json:"sub_category,omitempty"`
+	ApplicationGroup       string `json:"application_group,omitempty"`
+	P2PTechnology          string `json:"p2p_technology,omitempty"`
+	TunnelTechnology       string `json:"tunnel_technology,omitempty"`
+	EncryptedTechnology    string `json:"encrypted_technology,omitempty"`
+	TrafficClass           string `json:"traffic_class,omitempty"`
+	BusinessRelevance      string `json:"business_relevance,omitempty"`
+	ApplicationSet         string `json:"application_set,omitempty"`
+	ApplicationFamily      string `json:"application_family,omitempty"`
 }
 
 // AdditionalFields contains additional configured fields
