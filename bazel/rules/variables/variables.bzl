@@ -9,6 +9,7 @@ read its DdBuildTimeInfo provider.
 """
 
 load("@agent_volatile//:env_vars.bzl", "env_vars")
+load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@dd_release_json//:release_json.bzl", "release_json")
 load("//tasks:agent_payload_version.bzl", "AGENT_PAYLOAD_VERSION")
@@ -81,7 +82,7 @@ def compute_version_variables():
 
     Returns:
       dict with keys: build_version, agent_version, agent_version_url_safe,
-      base_branch, milestone, agent_payload_version.
+      base_branch, milestone, agent_payload_version, commit, full_commit.
     """
 
     # The environment variable is PACKAGE_VERSION but the omnibus scripts use
@@ -99,6 +100,10 @@ def compute_version_variables():
         agent_version_url_safe = release_json.get("current_milestone") + "-localbuild"
     agent_version = _url_safe_to_standard(agent_version_url_safe)
 
+    # CI_COMMIT_SHA is set in every CI job, but only package builds set
+    # PACKAGE_VERSION: stamping it elsewhere would relink binaries on each commit.
+    full_commit = (env_vars.CI_COMMIT_SHA or "") if env_vars.PACKAGE_VERSION else ""
+
     return {
         "build_version": build_version,
         "agent_version": agent_version,
@@ -106,6 +111,9 @@ def compute_version_variables():
         "base_branch": release_json.get("base_branch"),
         "milestone": release_json.get("current_milestone"),
         "agent_payload_version": AGENT_PAYLOAD_VERSION,
+        # Length `git rev-parse --short` currently yields here, as invoke uses.
+        "commit": full_commit[:11],
+        "full_commit": full_commit,
     }
 
 def _variables_impl(ctx):
@@ -117,6 +125,13 @@ def _variables_impl(ctx):
         install_dir = ctx.attr._install_dir[BuildSettingInfo].value
     values["install_dir"] = install_dir
 
+    # Mirrors get_version_ldflags() in tasks/libs/common/utils.py: versioned
+    # installs such as /opt/datadog-packages/datadog-agent/<version> report it.
+    agent_package_version = paths.basename(install_dir)
+    if agent_package_version == "datadog-agent":
+        agent_package_version = env_vars.PACKAGE_VERSION or values["agent_version"]
+    values["agent_package_version"] = agent_package_version
+
     output_config_dir = DEFAULT_OUTPUT_CONFIG_DIR
     if ctx.attr._output_config_dir and BuildSettingInfo in ctx.attr._output_config_dir:
         output_config_dir = ctx.attr._output_config_dir[BuildSettingInfo].value.rstrip("/")
@@ -126,7 +141,12 @@ def _variables_impl(ctx):
     # There are use cases for either. For now, we are relative to the output base.
     values["etc_dir"] = output_config_dir + "/etc/datadog-agent"
 
-    return [DdBuildTimeInfo(values = values)]
+    return [
+        DdBuildTimeInfo(values = values),
+        platform_common.TemplateVariableInfo({
+            "AGENT_PACKAGE_VERSION": agent_package_version,
+        }),
+    ]
 
 variables = rule(
     implementation = _variables_impl,
@@ -143,6 +163,11 @@ Values provided:
   agent_version: The agent version in standard SemVer form.
   agent_version_url_safe: The agent version in URL-safe form.
   agent_payload_version: The agent payload version.
+  agent_package_version: pkg/version.AgentPackageVersion; the install_dir
+    basename for versioned installs, PACKAGE_VERSION otherwise. Also provided
+    as the $(AGENT_PACKAGE_VERSION) make variable.
+  commit, full_commit: CI_COMMIT_SHA (short and full) in package builds, empty
+    otherwise.
 """,
     attrs = {
         "_install_dir": attr.label(default = "//:install_dir"),

@@ -22,9 +22,10 @@ ELF RPATH strategy ("-r" gc_linkopts), selected via //:linux_and_release and @pl
 The Go run directory (pkg/util/defaultpaths.runPath) is not set here: it is
 binary-specific, so callers that need it pass their own x_defs.
 
-The Commit symbol is intentionally omitted: it requires git information that
-must come from a future repository rule (bazel/repo/git_info.bzl) and should
-only be set when Bazel is invoked with the --stamp flag.
+Commit and FullCommit come from CI_COMMIT_SHA in package builds only (see
+compute_version_variables); elsewhere the //pkg/version placeholders remain.
+AgentPackageVersion and, on Linux, defaultpaths.defaultInstallPath follow
+//:install_dir, as invoke's --install-path does.
 """
 
 load("@rules_go//go:def.bzl", "go_binary")
@@ -41,6 +42,7 @@ load(
 
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
+_DEFAULTPATHS_PKG = _REPO + "/pkg/util/defaultpaths"
 
 _RUN_PATH_RELEASE = "/opt/datadog-packages/run"
 _RUN_PATH_DEV = "dev/lib"
@@ -76,11 +78,6 @@ def dd_agent_go_binary(
       x_defs: Additional x_defs. The values undergo variable expansion.
       **kwargs: arguments to be forwarded to go_binary.
     """
-    # TODO: When --stamp support is in place, also inject:
-    #   _VERSION_PKG + ".Commit": "{STABLE_GIT_COMMIT}",
-    # The value must come from a stamp file produced by a git_info repository
-    # rule (planned: bazel/repo/git_info.bzl).
-
     common = compute_version_variables()
     if agent_version:
         agent_version_url_safe = standard_to_url_safe(agent_version)
@@ -93,11 +90,16 @@ def dd_agent_go_binary(
     subs["agent_version_url_safe"] = agent_version_url_safe
 
     all_x_defs = {
+        _VERSION_PKG + ".AgentPackageVersion": "$(AGENT_PACKAGE_VERSION)",
         _VERSION_PKG + ".AgentPayloadVersion": common["agent_payload_version"],
         _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
     }
+    if common["full_commit"]:
+        all_x_defs[_VERSION_PKG + ".Commit"] = common["commit"]
+        all_x_defs[_VERSION_PKG + ".FullCommit"] = common["full_commit"]
     all_x_defs.update({k: v.format(**subs) for k, v in (x_defs or {}).items()})
+    linux_x_defs = {_DEFAULTPATHS_PKG + ".defaultInstallPath": "$(INSTALL_DIR)"} | all_x_defs
 
     # cgo must be enabled on Windows to link the .syso resource file produced
     # by win_resource().  Callers that need additional conditions (e.g. FIPS)
@@ -143,7 +145,14 @@ def dd_agent_go_binary(
     go_binary(
         name = name,
         gc_linkopts = (gc_linkopts or []) + run_path_linkopts + strip_linkopts,
-        x_defs = all_x_defs,
+        toolchains = kwargs.pop("toolchains", []) + [
+            "//:install_dir",
+            "//bazel/rules/variables",
+        ],
+        x_defs = select({
+            "@platforms//os:linux": linux_x_defs,
+            "//conditions:default": all_x_defs,
+        }),
         **kwargs
     )
 
