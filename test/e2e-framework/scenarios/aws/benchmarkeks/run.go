@@ -273,7 +273,15 @@ func Run(ctx *pulumi.Context) error {
 						"datadogMetrics":                      param.deployCRDs,
 						"datadogPodAutoscalers":               param.deployCRDs,
 						"datadogPodAutoscalerClusterProfiles": param.deployCRDs,
-						"datadogInstrumentations":             param.deployCRDs,
+					},
+				},
+				// The DatadogInstrumentation CRD is rendered by a second alias of the
+				// datadog-crds subchart (enabled by datadog.instrumentationCrd.enabled).
+				// It must not also be enabled under datadog-crds above, or the release
+				// renders it twice and fails with an "already exists" error.
+				"datadog-instrumentation-crd": map[string]any{
+					"crds": map[string]any{
+						"datadogInstrumentations": param.deployCRDs,
 					},
 				},
 			})),
