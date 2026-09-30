@@ -89,7 +89,7 @@ GAZELLE_EXTRA_TAGS = set([
 # Tags in ALL_TAGS that we deliberately keep out of Gazelle's set, typically
 # because they require cgo/native deps that Gazelle's static analysis can't
 # resolve cleanly.
-GAZELLE_OMIT_TAGS = set(["pcap", "remove_all_sd"])
+GAZELLE_OMIT_TAGS = set(["remove_all_sd"])
 
 # Build tags Gazelle considers when analysing tag-gated .go files. Loaded by the
 # root BUILD.bazel as the `build_tags` attribute of //:gazelle, so it must be a

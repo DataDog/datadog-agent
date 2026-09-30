@@ -1,17 +1,13 @@
 load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
-# The `pcap`-tagged files are intentionally omitted: the default Bazel build does
-# not enable the `pcap` build tag.
-# gazelle:exclude bpf_filter_validator_pcap.go
-# gazelle:exclude bpf_filter_validator_test.go
-
 go_library(
     name = "rules",
     srcs = [
         "actions.go",
         "approvers.go",
         "bpf_filter_validator.go",
+        "bpf_filter_validator_pcap.go",
         "bpf_filter_validator_stub.go",
         "bucket.go",
         "capabilities.go",
@@ -51,7 +47,23 @@ go_library(
         "@com_github_spf13_cast//:cast",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_uber_go_atomic//:atomic",
-    ],
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cloudflare_cbpfc//:cbpfc",
+            "@com_github_google_gopacket//layers",
+            "@com_github_google_gopacket//pcap",
+            "@org_golang_x_net//bpf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_cilium_ebpf//asm",
+            "@com_github_cloudflare_cbpfc//:cbpfc",
+            "@com_github_google_gopacket//layers",
+            "@com_github_google_gopacket//pcap",
+            "@org_golang_x_net//bpf",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # Expose all .go sources so //pkg/security/generators/schemas/policy can read
@@ -69,6 +81,7 @@ dd_agent_go_test(
     name = "rules_test",
     srcs = [
         "approvers_test.go",
+        "bpf_filter_validator_test.go",
         "bucket_test.go",
         "eval_test.go",
         "fim_test.go",
