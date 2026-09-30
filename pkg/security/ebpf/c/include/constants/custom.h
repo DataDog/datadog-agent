@@ -252,12 +252,6 @@ static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
     return anomaly;
 };
 
-static __attribute__((always_inline)) u64 is_event_sampling_syscalls_enabled() {
-    u64 enabled;
-    LOAD_CONSTANT("event_sampling_syscalls_enabled", enabled);
-    return enabled;
-};
-
 static __attribute__((always_inline)) u64 is_security_profile_v2_enabled() {
     u64 enabled;
     LOAD_CONSTANT("security_profile_v2_enabled", enabled);
