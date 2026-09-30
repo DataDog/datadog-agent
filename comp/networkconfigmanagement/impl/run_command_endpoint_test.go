@@ -40,9 +40,9 @@ func TestRunCommandEndpointHandler_Success(t *testing.T) {
 	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
 
 	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
-		DeviceID: device.DeviceID(),
-		Command:  "show version",
-		Mode:     "readonly",
+		DeviceID:      device.DeviceID(),
+		Command:       "show version",
+		CredentialSet: "readonly",
 	})
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -53,16 +53,16 @@ func TestRunCommandEndpointHandler_Success(t *testing.T) {
 	}
 }
 
-func TestRunCommandEndpointHandler_RollbackModeRejected(t *testing.T) {
+func TestRunCommandEndpointHandler_RollbackCredentialSetRejected(t *testing.T) {
 	comp, reqs := createTestComponent(t)
 	device := createTestDevice()
 	require.NoError(t, comp.RegisterDevice(device))
 	reqs.connFactory.conn.OutputMap["show version"] = ok(versionOutput)
 
 	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
-		DeviceID: device.DeviceID(),
-		Command:  "show version",
-		Mode:     "rollback",
+		DeviceID:      device.DeviceID(),
+		Command:       "show version",
+		CredentialSet: "rollback",
 	})
 
 	assert.Equal(t, http.StatusOK, w.Code)
@@ -75,13 +75,31 @@ func TestRunCommandEndpointHandler_UnknownDevice(t *testing.T) {
 	comp, _ := createTestComponent(t)
 
 	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
-		DeviceID: "default:10.0.0.99",
-		Command:  "show version",
+		DeviceID:      "default:10.0.0.99",
+		Command:       "show version",
+		CredentialSet: "readonly",
 	})
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Nil(t, resp.CommandResult)
 	assert.Equal(t, string(types.ErrNoSuchDevice), resp.ErrorCode)
+	assert.NotEmpty(t, resp.ErrorMsg)
+}
+
+func TestRunCommandEndpointHandler_UnknownCredentialSet(t *testing.T) {
+	comp, _ := createTestComponent(t)
+	device := createTestDevice()
+	require.NoError(t, comp.RegisterDevice(device))
+
+	w, resp := doRunCommandRequest(t, comp, RunCommandRequest{
+		DeviceID:      device.DeviceID(),
+		Command:       "show version",
+		CredentialSet: "superuser",
+	})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, resp.CommandResult)
+	assert.Equal(t, string(types.ErrCannotConnect), resp.ErrorCode)
 	assert.NotEmpty(t, resp.ErrorMsg)
 }
 

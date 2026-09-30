@@ -58,13 +58,13 @@ func (f *fakeIPCClient) NewIPCEndpoint(_ string) (ipc.Endpoint, error) {
 	return nil, errors.New("not implemented")
 }
 
-func makeRunCommandTask(deviceID, command, mode string) *types.Task {
+func makeRunCommandTask(deviceID, command, credentialSet string) *types.Task {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{
 		Inputs: map[string]any{
-			"deviceID": deviceID,
-			"command":  command,
-			"mode":     mode,
+			"deviceID":      deviceID,
+			"command":       command,
+			"credentialSet": credentialSet,
 		},
 	}
 	return task

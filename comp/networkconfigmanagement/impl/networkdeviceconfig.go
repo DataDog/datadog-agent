@@ -29,7 +29,7 @@ import (
 // connFn is a function that gets a connection to a device; it is an argument
 // instead of a baked-in method so that A) it is easier to test, and B) it will
 // be easy to swap out for non-ssh connections if we ever need to.
-type connFn = func(device *ncmconfig.DeviceInstance, mode string) (ncmremote.Connection, error)
+type connFn = func(device *ncmconfig.DeviceInstance, credentialSet ncmconfig.CredentialSet) (ncmremote.Connection, error)
 
 func newNetworkDeviceConfigImpl(
 	log log.Component,
@@ -133,7 +133,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 		return fmt.Errorf("no matching NCM profile for device %s", deviceID)
 	}
 
-	conn, connErr := n.connectAndEnsureProfile(ctx, dc, "rollback")
+	conn, connErr := n.connectAndEnsureProfile(ctx, dc, ncmconfig.CredentialSetRollback)
 	if connErr != nil {
 		sender.SendNCMCheckFailure(connErr.Type())
 		return connErr
@@ -220,9 +220,9 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 }
 
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
-func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext, mode string) (ncmremote.Connection, types.TypedError) {
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext, credentialSet ncmconfig.CredentialSet) (ncmremote.Connection, types.TypedError) {
 	log := LoggerFromContext(ctx)
-	conn, err := n.connect(dc.device, mode)
+	conn, err := n.connect(dc.device, credentialSet)
 	if err != nil {
 		log.Errorf("unable to connect to device: %s", err)
 		return nil, types.WrapErrorf(types.ErrCannotConnect, "unable to connect to %s: %w", dc.device.DeviceID(), err)

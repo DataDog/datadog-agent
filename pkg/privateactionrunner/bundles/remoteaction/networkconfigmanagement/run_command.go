@@ -47,8 +47,8 @@ type RunCommandInputs struct {
 	DeviceID string `json:"deviceID"`
 	// Command is the command string to send to the device.
 	Command string `json:"command"`
-	// Mode selects which credential set to use when connecting to the device.
-	Mode string `json:"mode"`
+	// CredentialSet selects which credential set to use when connecting to the device.
+	CredentialSet string `json:"credentialSet"`
 }
 
 // RunCommandOutputs is the output of a runCommand action.
@@ -79,9 +79,9 @@ func (h *RunCommandHandler) Run(
 	}
 
 	body, err := json.Marshal(map[string]string{
-		"device_id": inputs.DeviceID,
-		"command":   inputs.Command,
-		"mode":      inputs.Mode,
+		"device_id":      inputs.DeviceID,
+		"command":        inputs.Command,
+		"credential_set": inputs.CredentialSet,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("runCommand: failed to marshal request: %w", err)

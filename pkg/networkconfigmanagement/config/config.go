@@ -91,17 +91,39 @@ type DeviceInstance struct {
 	ActionCreds  ActionCredentials `yaml:"action_credentials"`
 }
 
+// CredentialSet identifies which set of credentials to use when connecting to a device.
+type CredentialSet string
+
+const (
+	// CredentialSetRollback selects the credentials used for config rollback.
+	CredentialSetRollback CredentialSet = "rollback"
+	// CredentialSetReadOnly selects the read-only action-runner credentials.
+	CredentialSetReadOnly CredentialSet = "readonly"
+	// CredentialSetAdmin selects the admin action-runner credentials.
+	CredentialSetAdmin CredentialSet = "admin"
+)
+
+// ParseCredentialSet validates a raw string (e.g. from an API request) and converts it to a CredentialSet.
+func ParseCredentialSet(s string) (CredentialSet, error) {
+	switch cs := CredentialSet(s); cs {
+	case CredentialSetRollback, CredentialSetReadOnly, CredentialSetAdmin:
+		return cs, nil
+	default:
+		return "", fmt.Errorf("unrecognized credential set: %q", s)
+	}
+}
+
 // GetCredentials gets a specific credential set.
-func (di *DeviceInstance) GetCredentials(mode string) (*AuthCredentials, error) {
-	switch mode {
-	case "rollback":
+func (di *DeviceInstance) GetCredentials(credentialSet CredentialSet) (*AuthCredentials, error) {
+	switch credentialSet {
+	case CredentialSetRollback:
 		return &di.RollbackAuth, nil
-	case "readonly":
+	case CredentialSetReadOnly:
 		return di.ActionCreds.ReadOnly, nil
-	case "admin":
+	case CredentialSetAdmin:
 		return di.ActionCreds.Admin, nil
 	}
-	return nil, fmt.Errorf("unrecognized mode: %q", mode)
+	return nil, fmt.Errorf("unrecognized credential set: %q", credentialSet)
 }
 
 // DeviceID returns the formatted ID for this DeviceInstance.

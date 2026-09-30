@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
@@ -48,7 +49,7 @@ func (n *networkDeviceConfigImpl) RollbackConfig(ctx context.Context, deviceID s
 		return nil, types.WrapErrorf(types.ErrWrongHash, "hash mismatch for config %q", configVersion)
 	}
 
-	conn, rberr := n.connectAndEnsureProfile(ctx, dc, "rollback")
+	conn, rberr := n.connectAndEnsureProfile(ctx, dc, ncmconfig.CredentialSetRollback)
 	if rberr != nil {
 		return nil, rberr
 	}

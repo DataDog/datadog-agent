@@ -276,20 +276,20 @@ func TestDeviceInstance_GetCredentials(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		mode     string
-		expected *AuthCredentials
-		wantErr  bool
+		name          string
+		credentialSet CredentialSet
+		expected      *AuthCredentials
+		wantErr       bool
 	}{
-		{name: "rollback", mode: "rollback", expected: &rollbackAuth},
-		{name: "readonly", mode: "readonly", expected: readOnlyAuth},
-		{name: "admin", mode: "admin", expected: adminAuth},
-		{name: "unrecognized mode", mode: "superuser", wantErr: true},
-		{name: "empty mode", mode: "", wantErr: true},
+		{name: "rollback", credentialSet: CredentialSetRollback, expected: &rollbackAuth},
+		{name: "readonly", credentialSet: CredentialSetReadOnly, expected: readOnlyAuth},
+		{name: "admin", credentialSet: CredentialSetAdmin, expected: adminAuth},
+		{name: "unrecognized credential set", credentialSet: CredentialSet("superuser"), wantErr: true},
+		{name: "empty credential set", credentialSet: CredentialSet(""), wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			creds, err := device.GetCredentials(tt.mode)
+			creds, err := device.GetCredentials(tt.credentialSet)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -303,13 +303,39 @@ func TestDeviceInstance_GetCredentials(t *testing.T) {
 func TestDeviceInstance_GetCredentials_UnsetActionCreds(t *testing.T) {
 	device := DeviceInstance{RollbackAuth: AuthCredentials{Username: "rollback-user"}}
 
-	creds, err := device.GetCredentials("readonly")
+	creds, err := device.GetCredentials(CredentialSetReadOnly)
 	require.NoError(t, err)
 	assert.Nil(t, creds)
 
-	creds, err = device.GetCredentials("admin")
+	creds, err = device.GetCredentials(CredentialSetAdmin)
 	require.NoError(t, err)
 	assert.Nil(t, creds)
+}
+
+func TestParseCredentialSet(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    CredentialSet
+		wantErr bool
+	}{
+		{name: "rollback", input: "rollback", want: CredentialSetRollback},
+		{name: "readonly", input: "readonly", want: CredentialSetReadOnly},
+		{name: "admin", input: "admin", want: CredentialSetAdmin},
+		{name: "invalid", input: "superuser", wantErr: true},
+		{name: "empty", input: "", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseCredentialSet(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestInitConfig_InventoryReportMaxInterval_ApplyDefaults(t *testing.T) {

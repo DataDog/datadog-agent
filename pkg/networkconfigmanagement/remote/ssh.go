@@ -69,13 +69,13 @@ func NewSSHConnector(ipAddress string, auth *ncmconfig.AuthCredentials) (Connect
 	}, nil
 }
 
-func ConnectOverSSH(device *ncmconfig.DeviceInstance, mode string) (Connection, error) {
-	auth, err := device.GetCredentials(mode)
+func ConnectOverSSH(device *ncmconfig.DeviceInstance, credentialSet ncmconfig.CredentialSet) (Connection, error) {
+	auth, err := device.GetCredentials(credentialSet)
 	if err != nil {
 		return nil, err
 	}
 	if auth == nil {
-		return nil, fmt.Errorf("no credentials available for mode %q", mode)
+		return nil, fmt.Errorf("no credentials available for credential set %q", credentialSet)
 	}
 	c, err := NewSSHConnector(device.IPAddress, auth)
 	if err != nil {
