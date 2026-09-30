@@ -5438,8 +5438,8 @@ properties:
               when a writer backend is registered.
           flush_interval:
             node_type: setting
-            type: integer
-            default: 60
+            type: string
+            default: 60s
           output_dir:
             node_type: setting
             type: string

@@ -22,13 +22,19 @@ func writerConfig(cfg config.Component) (recorder.WriterConfig, error) {
 		return recorder.WriterConfig{}, fmt.Errorf("anomaly_detection.recording.output_dir not set")
 	}
 
-	flushSeconds := int64(cfg.GetInt("anomaly_detection.recording.flush_interval"))
-	if flushSeconds < 0 || flushSeconds > (1<<63-1)/int64(time.Second) {
-		return recorder.WriterConfig{}, fmt.Errorf("anomaly_detection.recording.flush_interval must be a nonnegative number of seconds within time.Duration range: %d", flushSeconds)
-	}
-	flushInterval := time.Duration(flushSeconds) * time.Second
-	if flushSeconds == 0 {
-		flushInterval = 60 * time.Second
+	flushValue := strings.TrimSpace(cfg.GetString("anomaly_detection.recording.flush_interval"))
+	flushInterval := 60 * time.Second
+	if flushValue != "" {
+		parsed, err := time.ParseDuration(flushValue)
+		if err != nil {
+			return recorder.WriterConfig{}, fmt.Errorf("anomaly_detection.recording.flush_interval must be a valid duration: %w", err)
+		}
+		if parsed < 0 {
+			return recorder.WriterConfig{}, fmt.Errorf("anomaly_detection.recording.flush_interval must be nonnegative: %s", flushValue)
+		}
+		if parsed > 0 {
+			flushInterval = parsed
+		}
 	}
 
 	retention := cfg.GetDuration("anomaly_detection.recording.retention")
