@@ -11,6 +11,7 @@ load("@bazel_skylib//rules:run_binary.bzl", "run_binary")
 load("@dd_release_json//:release_json.bzl", "release_json")
 load("@gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//bazel/rules/go_shim:defs.bzl", "go_shim")
 load("//compliance/rules:purl.bzl", "purl_for_generic")
@@ -49,6 +50,17 @@ exports_files(glob(
 ))
 
 exports_files(["go.mod"])
+
+# Puts datadog-agent.map among the inputs of the Go link action, for binaries
+# passing "-Wl,--version-script=datadog-agent.map" through -extldflags.
+# rules_go drops cdeps linkopts when the binary itself has no cgo sources, so
+# the flag cannot live here.
+cc_library(
+    name = "datadog_agent_map",
+    additional_linker_inputs = ["datadog-agent.map"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+)
 
 # TODO(ABLD-519): remove below `gazelle:exclude` directives
 # rc_tester_v1 imports gopkg.in/DataDog/dd-trace-go.v1, which is not part of the
