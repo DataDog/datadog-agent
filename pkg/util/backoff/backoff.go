@@ -91,9 +91,5 @@ func (e *ExpBackoffPolicy) IncError(numErrors int) int {
 
 // DecError decrements the error counter down to zero at RecoveryInterval rate
 func (e *ExpBackoffPolicy) DecError(numErrors int) int {
-	numErrors -= e.RecoveryInterval
-	if numErrors < 0 {
-		return 0
-	}
-	return numErrors
+	return max(numErrors-e.RecoveryInterval, 0)
 }
