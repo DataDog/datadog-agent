@@ -40,13 +40,12 @@ const (
 // Resolved tombstones are pushed by the store through resolvedCh and held in
 // the resolved map until they are successfully sent.
 type egress struct {
-	log              log.Component
-	interval         time.Duration
-	hostname         string
-	hostnameProvider hostnameinterface.Component
-	agentFlavor      string
-	store            storedef.Component
-	forwarder        forwarderdef.Component
+	log         log.Component
+	interval    time.Duration
+	hostname    string
+	agentFlavor string
+	store       storedef.Component
+	forwarder   forwarderdef.Component
 
 	resolvedCh chan *healthplatform.Issue       // transit: store → run()
 	resolved   map[string]*healthplatform.Issue // dedup store for tombstones; owned by run()
@@ -91,17 +90,16 @@ func NewComponent(reqs Requires) egressdef.Component {
 	}
 
 	e := &egress{
-		log:              reqs.Log,
-		interval:         interval,
-		hostname:         hostname,
-		hostnameProvider: reqs.Hostname,
-		agentFlavor:      flavor.GetFlavor(),
-		store:            reqs.Store,
-		forwarder:        reqs.Forwarder,
-		resolvedCh:       make(chan *healthplatform.Issue, resolvedChBuf),
-		resolved:         make(map[string]*healthplatform.Issue),
-		stopCh:           make(chan struct{}),
-		doneCh:           make(chan struct{}),
+		log:         reqs.Log,
+		interval:    interval,
+		hostname:    hostname,
+		agentFlavor: flavor.GetFlavor(),
+		store:       reqs.Store,
+		forwarder:   reqs.Forwarder,
+		resolvedCh:  make(chan *healthplatform.Issue, resolvedChBuf),
+		resolved:    make(map[string]*healthplatform.Issue),
+		stopCh:      make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 
 	// Register before OnStart so persisted state can pre-populate resolvedCh.
@@ -170,7 +168,6 @@ func (e *egress) tick() {
 
 	ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 	defer cancel()
-	e.resolveHostname(ctx)
 
 	now := time.Now()
 	e.statusMu.Lock()
@@ -218,18 +215,6 @@ func (e *egress) Status() egressdef.SendStatus {
 		BytesSentTotal:  e.bytesSentTotal,
 		SendErrorsTotal: e.sendErrorsTotal,
 	}
-}
-
-func (e *egress) resolveHostname(ctx context.Context) {
-	if e.hostname != "" || e.hostnameProvider == nil {
-		return
-	}
-	hostname, err := e.hostnameProvider.Get(ctx)
-	if err != nil {
-		e.log.Warn("Health platform egress: failed to get hostname: " + err.Error())
-		return
-	}
-	e.hostname = strings.TrimSpace(hostname)
 }
 
 func (e *egress) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
