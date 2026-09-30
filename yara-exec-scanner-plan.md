@@ -293,13 +293,13 @@ Sizes are relative: S ≈ a few days, M ≈ 1–2 weeks, L ≈ several weeks (mo
 
 Wave 1 branches B, C, D, F are merged and green on `yara/merge-trial`. To do while wiring consumer → `FileReader` → `Pool` → `StructuredReporter` / `Metrics`:
 
-- [ ] **Isolate init failures:** `createYaraExecConsumer` currently returns its error from `createEventMonitorModule`, which would take down the whole event monitor (CWS included). Log and continue instead.
-- [ ] **Check the opened file is the executed one:** on the path fallbacks (`ProcRootFilePath`, other container PIDs), compare the `fstat` inode (and ctime) with the event's `Identity`; on mismatch, don't scan it under the event's identity and don't mark the identity.
-- [ ] **Root-owned rules only:** the rule loader refuses `rules_dir` and rule files that aren't root-owned or are group/world-writable.
-- [ ] Wire `FileReaderOpts.ContainerPIDs` to the cgroup resolver.
-- [ ] Pin down `Stats.Matches` semantics (rule matches vs scans with ≥ 1 match).
-- [ ] Consider an optional `Close()` on `Scanner`, so the real engine can free compiled rules.
-- [ ] `Filesystem` is empty for script entries, so the FUSE/NFS bypass doesn't apply to scripts; resolve it or accept it for the PoC.
+- [x] **Isolate init failures:** `createYaraExecConsumer` currently returns its error from `createEventMonitorModule`, which would take down the whole event monitor (CWS included). Log and continue instead.
+- [x] **Check the opened file is the executed one:** on the path fallbacks (`ProcRootFilePath`, other container PIDs), compare the `fstat` inode (and ctime) with the event's `Identity`; on mismatch, don't scan it under the event's identity and don't mark the identity.
+- [x] **Root-owned rules only:** the rule loader refuses `rules_dir` and rule files that aren't root-owned or are group/world-writable.
+- [x] Wire `FileReaderOpts.ContainerPIDs` to the cgroup resolver.
+- [x] Pin down `Stats.Matches` semantics (rule matches vs scans with ≥ 1 match).
+- [x] Consider an optional `Close()` on `Scanner`, so the real engine can free compiled rules.
+- [x] `Filesystem` is empty for script entries, so the FUSE/NFS bypass doesn't apply to scripts; resolve it or accept it for the PoC.
 
 ## 8. Config (proposed)
 
