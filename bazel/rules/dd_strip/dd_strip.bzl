@@ -1,6 +1,6 @@
-"""dd_strip_debug: split a binary/library into stripped + debug-only outputs.
+"""dd_strip_symbols: split a binary/library into stripped + debug-only outputs.
 
-dd_strip_debug wraps any single label that produces one default output file (a go_binary,
+dd_strip_symbols wraps any single label that produces one default output file (a go_binary,
 cc_binary, cc_shared_library, or rust_binary) to provide 3 potential outputs.
 - the original target (forwarding DefaultInfo files from the target)
 - a stripped version of the taget
@@ -16,8 +16,8 @@ load(":dd_strip_info.bzl", "DdStripInfo")
 
 _STRIPPER_TOOLCHAIN_TYPE = "//bazel/toolchains/dd_strip:dd_strip_toolchain_type"
 
-def _dd_strip_debug_impl(ctx):
-    original = ctx.file.src
+def _dd_strip_symbols_impl(ctx):
+    original = ctx.file.input
 
     toolchain = ctx.toolchains[_STRIPPER_TOOLCHAIN_TYPE]
     if toolchain == None:
@@ -28,11 +28,15 @@ def _dd_strip_debug_impl(ctx):
             DefaultInfo(files = depset([original])),
         ]
 
-    stripped = ctx.actions.declare_file(ctx.label.name + ".stripped")
+    stripped_name = ctx.attr.stripped_file_name or (ctx.label.name + ".stripped")
+    stripped_name = ctx.attr.stripped_file_name or ctx.label.name
+    stripped = ctx.actions.declare_file(stripped_name)
     if toolchain.debug_is_directory:
-        debug = ctx.actions.declare_directory(ctx.label.name + ".debug")
+        debug_name = ctx.attr.debug_file_name or (ctx.label.name + ".dSYM")
+        debug = ctx.actions.declare_directory(debug_name)
     else:
-        debug = ctx.actions.declare_file(ctx.label.name + ".debug")
+        debug_name = ctx.attr.debug_file_name or (ctx.label.name + ".dbg")
+        debug = ctx.actions.declare_file(debug_name)
 
     args = ctx.actions.args()
     args.add(original.path)
@@ -49,7 +53,7 @@ def _dd_strip_debug_impl(ctx):
     )
 
     # Preserve the executable-ness from the original object.
-    default_info = ctx.attr.src[DefaultInfo]
+    default_info = ctx.attr.input[DefaultInfo]
     was_executable = bool(hasattr(default_info, "files_to_run") and getattr(default_info.files_to_run, "executable", False))
     executable = stripped if was_executable else None
 
@@ -65,10 +69,10 @@ def _dd_strip_debug_impl(ctx):
     ]
 
 dd_strip_symbols = rule(
-    implementation = _dd_strip_debug_impl,
+    implementation = _dd_strip_symbols_impl,
     doc = """Wraps a single-output binary/library target, exposing:
 
-    - DefaultInfo: The strippped version of src.
+    - DefaultInfo: The strippped version of input.
     - DdStripInfo: Provider of the original, stripped, and debug outputs.
     - OutputGroupInfo(stripped = [...]): the stripped file
     - OutputGroupInfo(debug = [...]): the debug-only file/dSYM directory.
@@ -79,11 +83,16 @@ dd_strip_symbols = rule(
     for various properties.
     """,
     attrs = {
-        "src": attr.label(
+        # The name "input" instead of the typical "src" or "target", is used for
+        # alignment with collect_dependencies, which only walks a small set of
+        # attributes.
+        "input": attr.label(
             doc = "Label producing a single default output file to strip (a binary or shared library).",
             mandatory = True,
             allow_single_file = True,
         ),
+        "debug_file_name": attr.string(doc = "name for stripped file. Defaults to name+'.dbg'"),
+        "stripped_file_name": attr.string(doc = "name for stripped file. Defaults to name+'.stripped'"),
     },
     toolchains = [config_common.toolchain_type(_STRIPPER_TOOLCHAIN_TYPE, mandatory = False)],
 )
