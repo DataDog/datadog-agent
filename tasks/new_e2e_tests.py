@@ -359,6 +359,13 @@ GO_TEST_MIN_TIMEOUT_SECONDS = 60
 # Fallback go test timeout when no GitLab CI timeout is available (local runs).
 DEFAULT_GO_TEST_TIMEOUT = "4h"
 
+# Teardown budget default, mirroring the e2e framework's E2E_TEARDOWN_BUDGET default.
+DEFAULT_TEARDOWN_BUDGET_SECONDS = 5 * 60
+
+# Minimum useful time (go test timeout minus the teardown budget) for another
+# retry attempt to be worth starting.
+MIN_RETRY_ATTEMPT_SECONDS = 10 * 60
+
 
 def _format_go_duration(seconds: int) -> str:
     """Format an integer number of seconds as a Go duration literal (e.g. "1h55m0s")."""
@@ -367,6 +374,27 @@ def _format_go_duration(seconds: int) -> str:
     hours, remainder = divmod(seconds, 3600)
     minutes, secs = divmod(remainder, 60)
     return f"{hours}h{minutes}m{secs}s"
+
+
+_GO_DURATION_RE = re.compile(r"(\d+(?:\.\d+)?)(ms|us|µs|ns|h|m|s)")
+_GO_DURATION_UNIT_SECONDS = {"h": 3600.0, "m": 60.0, "s": 1.0, "ms": 0.001, "us": 1e-06, "µs": 1e-06, "ns": 1e-09}
+
+
+def _parse_go_duration_seconds(value: str) -> int | None:
+    """Parse a Go duration string (e.g. "1h30m", "90s") into whole seconds.
+
+    Returns None when the value is empty, carries a sign, or contains anything
+    other than number/unit pairs.
+    """
+    total = 0.0
+    pos = 0
+    while pos < len(value):
+        match = _GO_DURATION_RE.match(value, pos)
+        if match is None:
+            return None
+        total += float(match.group(1)) * _GO_DURATION_UNIT_SECONDS[match.group(2)]
+        pos = match.end()
+    return int(total) if pos else None
 
 
 def _ci_job_elapsed_seconds(now: datetime.datetime | None = None) -> int | None:
@@ -437,6 +465,69 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         f"buffer={GO_TEST_CI_TIMEOUT_BUFFER_SECONDS}s): {go_timeout}"
     )
     return go_timeout
+
+
+def _teardown_budget_seconds() -> int:
+    """Resolve the E2E_TEARDOWN_BUDGET runner parameter in seconds.
+
+    Mirrors the e2e framework: the default when unset, and the default plus a
+    warning when the value is not a positive duration.
+    """
+    value = os.environ.get("E2E_TEARDOWN_BUDGET", "")
+    seconds = _parse_go_duration_seconds(value) if value else None
+    if seconds is None or seconds <= 0:
+        if value:
+            print(
+                f"WARNING: E2E_TEARDOWN_BUDGET={value!r} is not a valid positive duration, "
+                f"using the default {_format_go_duration(DEFAULT_TEARDOWN_BUDGET_SECONDS)}"
+            )
+        return DEFAULT_TEARDOWN_BUDGET_SECONDS
+    return seconds
+
+
+def _has_time_for_retry(go_test_timeout: str, teardown_budget_seconds: int) -> bool:
+    """Whether the go test timeout leaves enough useful time for another retry attempt.
+
+    The suites stop testing at (deadline - teardown budget) to leave room for their
+    deadline teardown, so that much of the timeout is not usable by an attempt. An
+    unparseable timeout (odd explicit --timeout value) keeps the retry behavior.
+    """
+    timeout_seconds = _parse_go_duration_seconds(go_test_timeout)
+    if timeout_seconds is None:
+        return True
+    return timeout_seconds - teardown_budget_seconds >= MIN_RETRY_ATTEMPT_SECONDS
+
+
+def _plan_next_attempt(
+    failing: set[tuple[str, str]],
+    known_flaky: set[tuple[str, str]],
+    remaining_tries: int,
+    has_time: bool = True,
+) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
+    """Plan the next retry attempt from the tests that failed on the current one.
+
+    Args:
+        failing: leaf tests that failed on the current attempt.
+        known_flaky: tests flagged flaky by the washer; only those that also
+            failed are affected by the plan.
+        remaining_tries: retry attempts left after the current attempt.
+        has_time: whether the remaining job budget leaves enough useful time
+            for another attempt; when False, all failures are scheduled for
+            teardown instead of being retried.
+
+    Returns:
+        (to_retry, to_teardown): the failed tests to rerun on the next attempt,
+        and the failed tests whose stacks were kept by E2E_SKIP_DELETE_ON_FAILURE
+        and must be torn down by the E2E_TEARDOWN_ONLY pass. Both are empty on
+        the final attempt, whose failures destroy their own stacks.
+    """
+    if remaining_tries <= 0:
+        return set(), set()
+    if not has_time:
+        return set(), set(failing)
+    known_flaky_failures = failing & known_flaky
+    to_retry = failing - known_flaky_failures
+    return to_retry, known_flaky_failures
 
 
 @task(
@@ -788,24 +879,32 @@ def run(
                 (package, test_name) for package, tests in washer.get_failing_tests().items() for test_name in tests
             )
 
-            # Note: `get_flaky_failures` can return some unexpected things due to its logic for detecting failing tests by looking at its eventual children.
-            # By using an `intersection` we ensure that we only get tests that have actually failed.
-            known_flaky_failures = failed_tests.intersection(
-                {(package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests}
+            # `get_flaky_failures` can return tests that did not fail (it infers failing parents from
+            # their children); `_plan_next_attempt` only keeps the ones that actually failed.
+            known_flaky = {
+                (package, test_name) for package, tests in washer.get_flaky_failures().items() for test_name in tests
+            }
+
+            # Recompute the timeout now that this attempt has consumed job budget; a
+            # retry needs MIN_RETRY_ATTEMPT_SECONDS of useful time left to be worth it.
+            go_test_timeout = _compute_go_test_timeout(timeout)
+            has_time = _has_time_for_retry(go_test_timeout, _teardown_budget_seconds())
+
+            to_retry, attempt_teardown = _plan_next_attempt(
+                failed_tests, known_flaky, remaining_tries, has_time=has_time
             )
 
-            # Retry any failed tests that are not known to be flaky
-            to_retry = failed_tests - known_flaky_failures
-
-            if known_flaky_failures:
-                print(
-                    color_message(
-                        f"{len(known_flaky_failures)} tests failed but are known flaky. They will not be retried !",
-                        "yellow",
+            if attempt_teardown:
+                if has_time:
+                    message = f"{len(attempt_teardown)} tests failed but are known flaky. They will not be retried !"
+                else:
+                    message = (
+                        f"Less than {MIN_RETRY_ATTEMPT_SECONDS // 60} minutes of useful test time left before the job deadline: "
+                        f"tearing down {len(attempt_teardown)} failed tests instead of retrying them."
                     )
-                )
-                # Schedule teardown for all known flaky failures, so that they are not left hanging after the retry loop
-                to_teardown.update(known_flaky_failures)
+                print(color_message(message, "yellow"))
+                # Schedule teardown for the affected tests, so that they are not left hanging after the retry loop
+                to_teardown.update(attempt_teardown)
 
             if to_retry:
                 failed_tests_printout = '\n- '.join(f'{package} {test_name}' for package, test_name in sorted(to_retry))
@@ -835,6 +934,9 @@ def run(
                 "yellow",
             )
         )
+        # The last attempt consumed job budget since args["timeout"] was set; give the
+        # teardown pass its own full remaining budget.
+        args["timeout"] = _compute_go_test_timeout(timeout)
         affected_packages = {
             os.path.relpath(package, "github.com/DataDog/datadog-agent/test/new-e2e/") for package, _ in to_teardown
         }
