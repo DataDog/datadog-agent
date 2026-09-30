@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/gpu"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -40,8 +41,8 @@ func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.C
 		ID:   string(pod.UID),
 	}
 
-	initContainers, initContainerEvents := parsePodContainers(pod.Spec.InitContainers, pod.Status.InitContainerStatuses, &podID)
-	podContainers, containerEvents := parsePodContainers(pod.Spec.Containers, pod.Status.ContainerStatuses, &podID)
+	initContainers, initContainerEvents := parsePodContainers(pod.Spec.InitContainers, pod.Status.InitContainerStatuses, pod.Namespace, &podID)
+	podContainers, containerEvents := parsePodContainers(pod.Spec.Containers, pod.Status.ContainerStatuses, pod.Namespace, &podID)
 
 	events := make([]workloadmeta.CollectorEvent, 0, len(initContainerEvents)+len(containerEvents)+1)
 	events = append(events, initContainerEvents...)
@@ -53,6 +54,7 @@ func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.C
 		ephemeralContainers, ephemeralContainerEvents = parsePodContainers(
 			ephemeralContainerSpecs(pod.Spec.EphemeralContainers),
 			pod.Status.EphemeralContainerStatuses,
+			pod.Namespace,
 			&podID,
 		)
 		events = append(events, ephemeralContainerEvents...)
@@ -149,10 +151,13 @@ func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.C
 // entity plus the corresponding Container entity events, matching container
 // statuses (from the pod's status, which carries the real container ID) with
 // their container spec (from the pod's spec, which carries env vars and
-// resource requirements).
+// resource requirements). Each Container entity carries its pod's namespace
+// as the io.kubernetes.pod.namespace label, like the kubelet collector's and
+// the container runtimes' own.
 func parsePodContainers(
 	containerSpecs []corev1.Container,
 	containerStatuses []corev1.ContainerStatus,
+	namespace string,
 	parent *workloadmeta.EntityID,
 ) ([]workloadmeta.OrchestratorContainer, []workloadmeta.CollectorEvent) {
 	podContainers := make([]workloadmeta.OrchestratorContainer, 0, len(containerStatuses))
@@ -242,6 +247,9 @@ func parsePodContainers(
 				},
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: status.Name,
+					Labels: map[string]string{
+						kubernetes.CriContainerNamespaceLabel: namespace,
+					},
 				},
 				Image:        image,
 				EnvVars:      env,

@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestParsePod(t *testing.T) {
@@ -169,6 +170,7 @@ func TestParsePod(t *testing.T) {
 	}
 	require.NotNil(t, container)
 	assert.Equal(t, "nginx-container", container.Name)
+	assert.Equal(t, map[string]string{kubernetes.CriContainerNamespaceLabel: "test-namespace"}, container.Labels)
 	assert.Equal(t, workloadmeta.ContainerRuntime("docker"), container.Runtime)
 	assert.Equal(t, map[string]string{"DD_ENV": "prod"}, container.EnvVars)
 	assert.True(t, container.State.Running)
@@ -201,7 +203,7 @@ func TestParsePodContainers_PrefersSpecImage(t *testing.T) {
 		},
 	}
 
-	podContainers, events := parsePodContainers(specs, statuses, nil)
+	podContainers, events := parsePodContainers(specs, statuses, "default", nil)
 
 	wantImage := workloadmeta.ContainerImage{
 		ID:        "5dbe7e1b6b9c",
@@ -235,7 +237,7 @@ func TestParsePodContainers_UnparsableSpecImage(t *testing.T) {
 		},
 	}
 
-	podContainers, events := parsePodContainers(specs, statuses, nil)
+	podContainers, events := parsePodContainers(specs, statuses, "default", nil)
 
 	wantImage := workloadmeta.ContainerImage{
 		ID:        "5dbe7e1b6b9c",
