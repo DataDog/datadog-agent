@@ -20,10 +20,12 @@ import (
 
 const credentialsYAML = `
 credentials:
-  - name: v2c-public
+  - id: id-v2c
+    name: v2c-public
     snmp_version: "2c"
     community_string: public
-  - name: v3-full
+  - id: id-v3
+    name: v3-full
     snmp_version: "3"
     user: test-user
     authProtocol: SHA
@@ -47,7 +49,7 @@ func newTestConfig(t *testing.T, files map[string]string) model.BuildableConfig 
 	return cfg
 }
 
-func TestLoadIndexesTheCredentialsByName(t *testing.T) {
+func TestLoadIndexesTheCredentialsByID(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": credentialsYAML}))
 
 	creds, err := store.load()
@@ -55,12 +57,14 @@ func TestLoadIndexesTheCredentialsByName(t *testing.T) {
 	require.Len(t, creds, 2)
 
 	assert.Equal(t, credential{
+		ID:              "id-v2c",
 		Name:            "v2c-public",
 		SNMPVersion:     "2c",
 		CommunityString: "public",
-	}, creds["v2c-public"])
+	}, creds["id-v2c"])
 
 	assert.Equal(t, credential{
+		ID:           "id-v3",
 		Name:         "v3-full",
 		SNMPVersion:  "3",
 		User:         "test-user",
@@ -69,30 +73,38 @@ func TestLoadIndexesTheCredentialsByName(t *testing.T) {
 		PrivProtocol: "AES",
 		PrivKey:      "test-priv-key",
 		ContextName:  "test-context",
-	}, creds["v3-full"])
+	}, creds["id-v3"])
+}
+
+func TestLoadDoesNotIndexOnTheCredentialName(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": credentialsYAML}))
+
+	creds, err := store.load()
+	require.NoError(t, err)
+	assert.NotContains(t, creds, "v2c-public")
 }
 
 func TestLoadReadsEveryFileOfTheDirectory(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{
-		"a.yaml": "credentials:\n  - name: from-a\n    snmp_version: \"2c\"\n",
-		"b.yaml": "credentials:\n  - name: from-b\n    snmp_version: \"2c\"\n",
+		"a.yaml": "credentials:\n  - id: id-a\n    name: from-a\n    snmp_version: \"2c\"\n",
+		"b.yaml": "credentials:\n  - id: id-b\n    name: from-b\n    snmp_version: \"2c\"\n",
 	}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"from-a", "from-b"}, namesOf(creds))
+	assert.Equal(t, []string{"id-a", "id-b"}, idsOf(creds))
 }
 
 func TestLoadIgnoresAFileThatIsNotYAML(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{
-		"kept.yaml":    "credentials:\n  - name: kept\n    snmp_version: \"2c\"\n",
-		"ignored.yml":  "credentials:\n  - name: ignored-yml\n    snmp_version: \"2c\"\n",
-		"ignored.json": `{"credentials":[{"name":"ignored-json"}]}`,
+		"kept.yaml":    "credentials:\n  - id: id-kept\n    name: kept\n    snmp_version: \"2c\"\n",
+		"ignored.yml":  "credentials:\n  - id: id-ignored-yml\n    name: ignored-yml\n    snmp_version: \"2c\"\n",
+		"ignored.json": `{"credentials":[{"id":"id-ignored-json","name":"ignored-json"}]}`,
 	}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"kept"}, namesOf(creds))
+	assert.Equal(t, []string{"id-kept"}, idsOf(creds))
 }
 
 func TestLoadOfAnAbsentDirectoryIsEmptyAndNotAnError(t *testing.T) {
@@ -103,52 +115,74 @@ func TestLoadOfAnAbsentDirectoryIsEmptyAndNotAnError(t *testing.T) {
 	assert.Empty(t, creds)
 }
 
-func TestLoadSkipsAnEntryWithNoName(t *testing.T) {
+func TestLoadSkipsAnEntryWithNoID(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": `
 credentials:
-  - snmp_version: "2c"
+  - name: no-id
+    snmp_version: "2c"
     community_string: public
-  - name: kept
+  - id: id-kept
+    name: kept
     snmp_version: "2c"
     community_string: public
 `}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"kept"}, namesOf(creds))
+	assert.Equal(t, []string{"id-kept"}, idsOf(creds))
 }
 
-func TestLoadKeepsTheFirstOfTwoEntriesSharingAName(t *testing.T) {
+func TestLoadKeepsTheFirstOfTwoEntriesSharingAnID(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": `
 credentials:
-  - name: dup
+  - id: id-dup
+    name: dup-first
     snmp_version: "2c"
     community_string: first
-  - name: dup
+  - id: id-dup
+    name: dup-second
     snmp_version: "2c"
     community_string: second
 `}))
 
 	creds, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, "first", creds["dup"].CommunityString)
+	assert.Equal(t, "first", creds["id-dup"].CommunityString)
+}
+
+func TestLoadKeepsTwoEntriesSharingANameButNotAnID(t *testing.T) {
+	store := newCredentialStore(newTestConfig(t, map[string]string{"creds.yaml": `
+credentials:
+  - id: id-one
+    name: same-name
+    snmp_version: "2c"
+    community_string: public
+  - id: id-two
+    name: same-name
+    snmp_version: "2c"
+    community_string: public
+`}))
+
+	creds, err := store.load()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"id-one", "id-two"}, idsOf(creds))
 }
 
 func TestLoadKeepsTheOtherFilesWhenOneCannotBeParsed(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{
 		"a-broken.yaml": "credentials: [\n",
-		"b-good.yaml":   "credentials:\n  - name: kept\n    snmp_version: \"2c\"\n",
+		"b-good.yaml":   "credentials:\n  - id: id-kept\n    name: kept\n    snmp_version: \"2c\"\n",
 	}))
 
 	creds, err := store.load()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "a-broken.yaml")
-	assert.Equal(t, []string{"kept"}, namesOf(creds))
+	assert.Equal(t, []string{"id-kept"}, idsOf(creds))
 }
 
 func TestLoadErrorNamesNoFileContent(t *testing.T) {
 	store := newCredentialStore(newTestConfig(t, map[string]string{
-		"broken.yaml": "credentials:\n  - name: c\n    community_string: [s3cret-community\n",
+		"broken.yaml": "credentials:\n  - id: id-c\n    community_string: [s3cret-community\n",
 	}))
 
 	_, err := store.load()
@@ -162,14 +196,14 @@ func TestLoadRereadsTheFilesEveryTime(t *testing.T) {
 
 	first, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, "public", first["v2c-public"].CommunityString)
+	assert.Equal(t, "public", first["id-v2c"].CommunityString)
 
 	path := filepath.Join(cfg.GetString("confd_path"), credentialsDir, "creds.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - name: v2c-public\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("credentials:\n  - id: id-v2c\n    name: v2c-public\n    snmp_version: \"2c\"\n    community_string: rotated\n"), 0o600))
 
 	second, err := store.load()
 	require.NoError(t, err)
-	assert.Equal(t, "rotated", second["v2c-public"].CommunityString)
+	assert.Equal(t, "rotated", second["id-v2c"].CommunityString)
 }
 
 func TestValidate(t *testing.T) {
@@ -235,12 +269,12 @@ func TestValidateNeverNamesACredentialValue(t *testing.T) {
 	assert.NotContains(t, err.Error(), "s3cret-priv")
 }
 
-// namesOf returns a credential map's names, sorted.
-func namesOf(creds map[string]credential) []string {
-	names := make([]string, 0, len(creds))
-	for name := range creds {
-		names = append(names, name)
+// idsOf returns a credential map's ids, sorted.
+func idsOf(creds map[string]credential) []string {
+	ids := make([]string, 0, len(creds))
+	for id := range creds {
+		ids = append(ids, id)
 	}
-	sort.Strings(names)
-	return names
+	sort.Strings(ids)
+	return ids
 }
