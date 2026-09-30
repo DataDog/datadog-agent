@@ -1,0 +1,17 @@
+---
+features:
+  - |
+    Logs Agent: Added ``logs_config.profile``, a curated set of pre-tuned
+    performance profiles (``high-concurrency``, ``high-throughput``,
+    ``max-throughput``, ``low-latency``, ``low-resource``, and
+    ``high-compression``) that bundle the underlying ``logs_config`` performance
+    settings (pipeline count, batching, channel sizes, and compression) so
+    operators can tune the Logs Agent for a given workload shape without
+    setting each option individually. Individual ``logs_config`` settings set
+    explicitly (via the config file, environment variables, or remote config)
+    take precedence over the profile, so a profile can serve as a starting
+    point that is further customized. Profiles are off by default, in which
+    case the Agent keeps its standard default settings. The companion
+    ``logs_config.profile_version`` option pins an immutable profile version so
+    that upgrading the Agent never changes a host's effective settings; an
+    unset version resolves to version 1.
