@@ -66,21 +66,6 @@ type collector struct {
 	catalog workloadmeta.AgentType
 	config  config.Component
 
-	// standalone and useKubelet are computed once at construction time and
-	// govern this collector's mutual exclusivity with the kubelet collector:
-	// nodefilter only applies to otel-agent running in DDOT standalone mode,
-	// and only when that mode hasn't opted back out to kubelet.
-	standalone bool
-	useKubelet bool
-
-	// nodeFromEnvVar names the environment variable this collector reads the
-	// local node's name from, mirroring the k8sattributesprocessor's own
-	// "node_from_env_var" filter config (config.go, FilterConfig) rather than
-	// hardcoding a single env var name. Defaults to K8S_NODE_NAME, the name
-	// the OTel Helm chart and Operator already populate via the Kubernetes
-	// downward API (fieldRef: spec.nodeName) for exactly this purpose.
-	nodeFromEnvVar string
-
 	// includeEphemeralContainers mirrors the kubelet collector's own
 	// include_ephemeral_containers config key.
 	includeEphemeralContainers bool
@@ -93,9 +78,6 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			id:                         collectorID,
 			catalog:                    workloadmeta.NodeAgent,
 			config:                     deps.Config,
-			standalone:                 deps.Config.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent,
-			useKubelet:                 deps.Config.GetBool("otelcollector.standalone.use_kubelet_collector"),
-			nodeFromEnvVar:             deps.Config.GetString("otelcollector.standalone.node_from_env_var"),
 			includeEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 		},
 	}, nil
@@ -106,18 +88,53 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
-func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	if !c.standalone || c.useKubelet {
-		return errors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode without the kubelet collector opt-out")
+// Enabled reports whether the nodefilter collector applies to cfg. The kubelet
+// collector only steps aside for nodefilter when this holds, so that a
+// standalone otel-agent nodefilter can't run in (e.g. one whose deployment
+// lacks the node-name env var) keeps collecting pods through kubelet instead
+// of through nothing. Only config and environment are checked: a nodefilter
+// that then fails against the API server (e.g. on missing pods list/watch
+// RBAC) doesn't hand back to kubelet.
+func Enabled(cfg config.Component) bool {
+	_, err := localNodeName(cfg)
+	return err == nil
+}
+
+// localNodeName returns the name of the node whose pods this collector
+// watches, or a disabled error when the collector doesn't apply: it only
+// applies to otel-agent running on Kubernetes in DDOT standalone mode, when
+// that mode hasn't opted back out to the kubelet collector.
+//
+// The node name is read from the environment variable named by
+// otelcollector.standalone.node_from_env_var, mirroring the
+// k8sattributesprocessor's own "node_from_env_var" filter config (config.go,
+// FilterConfig) rather than hardcoding a single env var name. It defaults to
+// K8S_NODE_NAME, the name the OTel Helm chart and Operator already populate
+// via the Kubernetes downward API (fieldRef: spec.nodeName) for exactly this
+// purpose.
+func localNodeName(cfg config.Component) (string, error) {
+	standalone := cfg.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent
+	if !standalone || cfg.GetBool("otelcollector.standalone.use_kubelet_collector") {
+		return "", errors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode without the kubelet collector opt-out")
 	}
 
 	if !env.IsFeaturePresent(env.Kubernetes) {
-		return errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
+		return "", errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
-	nodeName := os.Getenv(c.nodeFromEnvVar)
+	nodeFromEnvVar := cfg.GetString("otelcollector.standalone.node_from_env_var")
+	nodeName := os.Getenv(nodeFromEnvVar)
 	if nodeName == "" {
-		return errors.NewDisabled(componentName, fmt.Sprintf("environment variable %q (otelcollector.standalone.node_from_env_var) is not set", c.nodeFromEnvVar))
+		return "", errors.NewDisabled(componentName, fmt.Sprintf("environment variable %q (otelcollector.standalone.node_from_env_var) is not set", nodeFromEnvVar))
+	}
+
+	return nodeName, nil
+}
+
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	nodeName, err := localNodeName(c.config)
+	if err != nil {
+		return err
 	}
 
 	client, err := newAPIClient(c.config)

@@ -10,9 +10,19 @@
 // file is used when the nodefilter build tag is disabled.
 package nodefilter
 
-import "go.uber.org/fx"
+import (
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+)
 
 // GetFxOptions returns the FX framework options for the collector
 func GetFxOptions() fx.Option {
 	return nil
+}
+
+// Enabled reports whether the nodefilter collector applies, which it never
+// does when it isn't built in.
+func Enabled(_ config.Component) bool {
+	return false
 }

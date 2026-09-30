@@ -58,6 +58,7 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/mock",
         "//pkg/config/env",
         "//pkg/errors",
+        "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes",
         "@com_github_stretchr_testify//assert",

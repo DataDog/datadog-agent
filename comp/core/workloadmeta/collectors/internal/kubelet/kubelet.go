@@ -15,13 +15,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/nodefilter"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -47,12 +47,11 @@ type collector struct {
 	collectEphemeralContainers bool
 	pullInterval               time.Duration
 
-	// standalone and useKubelet mirror the nodefilter collector's own fields:
-	// they let otel-agent running in DDOT standalone mode default to
-	// nodefilter instead of kubelet, with useKubelet as the opt-out back to
-	// this collector.
-	standalone bool
-	useKubelet bool
+	// nodefilterEnabled reports whether the nodefilter collector applies,
+	// in which case this collector steps aside for it: otel-agent running in
+	// DDOT standalone mode defaults to nodefilter, but falls back to this
+	// collector when nodefilter can't run.
+	nodefilterEnabled func() bool
 
 	kubeUtil             kubelet.KubeUtilInterface
 	lastSeenPodUIDs      map[string]time.Time
@@ -71,8 +70,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			catalog:                    workloadmeta.NodeAgent,
 			collectEphemeralContainers: deps.Config.GetBool("include_ephemeral_containers"),
 			pullInterval:               time.Duration(deps.Config.GetInt("kubelet_collector_pull_interval")) * time.Second,
-			standalone:                 deps.Config.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent,
-			useKubelet:                 deps.Config.GetBool("otelcollector.standalone.use_kubelet_collector"),
+			nodefilterEnabled:          func() bool { return nodefilter.Enabled(deps.Config) },
 		},
 	}, nil
 }
@@ -95,8 +93,8 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return errors.NewDisabled(componentName, "Agent is a Cluster Checks Runner and has no reachable local Kubelet")
 	}
 
-	if c.standalone && !c.useKubelet {
-		return errors.NewDisabled(componentName, "Agent is running otel-agent in DDOT standalone mode, which defaults to the nodefilter collector")
+	if c.nodefilterEnabled() {
+		return errors.NewDisabled(componentName, "Agent is running otel-agent in DDOT standalone mode, where the nodefilter collector applies")
 	}
 
 	c.store = store

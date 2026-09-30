@@ -59,48 +59,22 @@ func TestDisabledCLCRunner(t *testing.T) {
 	assert.True(t, pkgerrors.IsDisabled(err))
 }
 
-// TestDisabledStandalone verifies that, in DDOT standalone mode, this
-// collector defers to the nodefilter collector unless useKubelet opts back
-// out — and that outside standalone mode it always starts (the flag is
-// otel-agent-standalone-only), mirroring nodefilter's own mutual-exclusivity
-// test.
-func TestDisabledStandalone(t *testing.T) {
+// TestDisabledNodefilter verifies that this collector steps aside for the
+// nodefilter collector whenever nodefilter applies (otel-agent running in
+// DDOT standalone mode, without the kubelet collector opt-out, and able to
+// resolve its node name).
+func TestDisabledNodefilter(t *testing.T) {
 	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
 
-	tests := []struct {
-		name       string
-		standalone bool
-		useKubelet bool
-		disabled   bool
-	}{
-		{name: "not standalone, kubelet not opted out", standalone: false, useKubelet: false, disabled: false},
-		{name: "not standalone, kubelet opted out is a no-op", standalone: false, useKubelet: true, disabled: false},
-		{name: "standalone, defaults to nodefilter", standalone: true, useKubelet: false, disabled: true},
-		{name: "standalone, opted back out to kubelet", standalone: true, useKubelet: true, disabled: false},
+	c := &collector{
+		id:                collectorID,
+		catalog:           workloadmeta.NodeAgent,
+		nodefilterEnabled: func() bool { return true },
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &collector{
-				id:         collectorID,
-				catalog:    workloadmeta.NodeAgent,
-				standalone: tt.standalone,
-				useKubelet: tt.useKubelet,
-			}
-
-			err := c.Start(context.Background(), nil)
-			if tt.disabled {
-				require.Error(t, err)
-				assert.True(t, pkgerrors.IsDisabled(err))
-			} else {
-				// Starting for real requires a reachable kubelet; only assert
-				// that the standalone/useKubelet check itself didn't disable it.
-				if err != nil {
-					assert.False(t, pkgerrors.IsDisabled(err))
-				}
-			}
-		})
-	}
+	err := c.Start(context.Background(), nil)
+	require.Error(t, err)
+	assert.True(t, pkgerrors.IsDisabled(err))
 }
 
 func TestPodParser(t *testing.T) {

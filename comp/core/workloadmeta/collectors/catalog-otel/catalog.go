@@ -5,8 +5,9 @@
 
 // Package catalog is the workloadmeta collector catalog for the otel-agent.
 // It includes collectors for Kubernetes (nodefilter, or kubelet as an
-// opt-out) and container runtimes so that the local tagger can enrich OTel
-// spans/metrics/logs with K8s entity tags.
+// opt-out and as a fallback when nodefilter can't run) and container
+// runtimes so that the local tagger can enrich OTel spans/metrics/logs with
+// K8s entity tags.
 package catalog
 
 import (

@@ -8,119 +8,104 @@
 package nodefilter
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
-// TestDisabledStandalone verifies that this collector only applies to
-// otel-agent running in DDOT standalone mode, and defers to the kubelet
-// collector when that mode has opted back out via useKubelet — mirroring
-// the kubelet collector's own mutual-exclusivity test.
-func TestDisabledStandalone(t *testing.T) {
+// TestLocalNodeName verifies that this collector only applies to otel-agent
+// running on Kubernetes in DDOT standalone mode, without the kubelet
+// collector opt-out, and with its node-name env var set, and that Enabled
+// (which the kubelet collector steps aside on) agrees.
+func TestLocalNodeName(t *testing.T) {
 	tests := []struct {
 		name       string
+		flavor     string
 		standalone bool
 		useKubelet bool
-		disabled   bool
+		kubernetes bool
+		nodeName   string
+		// wantNodeName is empty when the collector must be disabled.
+		wantNodeName string
 	}{
-		{name: "not standalone, kubelet not opted out", standalone: false, useKubelet: false, disabled: true},
-		{name: "not standalone, kubelet opted out is a no-op", standalone: false, useKubelet: true, disabled: true},
-		{name: "standalone, defaults to nodefilter", standalone: true, useKubelet: false, disabled: false},
-		{name: "standalone, opted back out to kubelet", standalone: true, useKubelet: true, disabled: true},
+		{
+			name:   "standalone otel-agent, defaults to nodefilter",
+			flavor: flavor.OTelAgent, standalone: true, kubernetes: true, nodeName: "test-node",
+			wantNodeName: "test-node",
+		},
+		{
+			name:   "not standalone",
+			flavor: flavor.OTelAgent, standalone: false, kubernetes: true, nodeName: "test-node",
+		},
+		{
+			name:   "not otel-agent",
+			flavor: flavor.DefaultAgent, standalone: true, kubernetes: true, nodeName: "test-node",
+		},
+		{
+			name:   "opted back out to kubelet",
+			flavor: flavor.OTelAgent, standalone: true, useKubelet: true, kubernetes: true, nodeName: "test-node",
+		},
+		{
+			name:   "not on Kubernetes",
+			flavor: flavor.OTelAgent, standalone: true, kubernetes: false, nodeName: "test-node",
+		},
+		{
+			name:   "node name env var not set",
+			flavor: flavor.OTelAgent, standalone: true, kubernetes: true, nodeName: "",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Get past the Kubernetes-feature and node-name guards for every
-			// case, so a non-"disabled" error below can only come from the
-			// mutual-exclusivity check having let the collector through.
-			pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
-			t.Setenv("K8S_NODE_NAME", "test-node")
-			cfg := config.NewMock(t)
-
-			c := &collector{
-				id:             collectorID,
-				catalog:        workloadmeta.NodeAgent,
-				config:         cfg,
-				standalone:     tt.standalone,
-				useKubelet:     tt.useKubelet,
-				nodeFromEnvVar: "K8S_NODE_NAME",
-			}
-
-			err := c.Start(context.Background(), nil)
-			require.Error(t, err)
-			if tt.disabled {
-				assert.True(t, pkgerrors.IsDisabled(err))
+			flavor.SetTestFlavor(t, tt.flavor)
+			if tt.kubernetes {
+				pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
 			} else {
-				// Mutual exclusivity let it through; it now fails building a
-				// real Kubernetes API client, which is not a "disabled" error.
-				assert.False(t, pkgerrors.IsDisabled(err))
+				pkgconfigenv.SetFeatures(t)
+			}
+			// K8S_NODE_NAME is the otelcollector.standalone.node_from_env_var
+			// default.
+			t.Setenv("K8S_NODE_NAME", tt.nodeName)
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				"otel_standalone": tt.standalone,
+				"otelcollector.standalone.use_kubelet_collector": tt.useKubelet,
+			})
+
+			nodeName, err := localNodeName(cfg)
+			if tt.wantNodeName == "" {
+				require.Error(t, err)
+				assert.True(t, pkgerrors.IsDisabled(err))
+				assert.False(t, Enabled(cfg))
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantNodeName, nodeName)
+				assert.True(t, Enabled(cfg))
 			}
 		})
 	}
 }
 
-// TestDisabledNoNodeName verifies that the collector refuses to start when
-// its configured node-name environment variable isn't set, since the
-// node-scoped field selector has nothing to filter on.
-func TestDisabledNoNodeName(t *testing.T) {
+// TestLocalNodeName_CustomEnvVar verifies that the node name is read from
+// whichever environment variable otelcollector.standalone.node_from_env_var
+// names, mirroring k8sattributesprocessor's configurable node_from_env_var
+// filter rather than hardcoding a single env var.
+func TestLocalNodeName_CustomEnvVar(t *testing.T) {
+	flavor.SetTestFlavor(t, flavor.OTelAgent)
 	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
-	cfg := config.NewMock(t)
-
-	c := &collector{
-		id:             collectorID,
-		catalog:        workloadmeta.NodeAgent,
-		config:         cfg,
-		standalone:     true,
-		useKubelet:     false,
-		nodeFromEnvVar: "K8S_NODE_NAME",
-	}
-
-	err := c.Start(context.Background(), nil)
-	require.Error(t, err)
-	assert.True(t, pkgerrors.IsDisabled(err))
-}
-
-// TestNodeFromEnvVar_CustomName verifies that the collector reads the node
-// name from whichever environment variable nodeFromEnvVar names, mirroring
-// k8sattributesprocessor's configurable node_from_env_var filter rather than
-// hardcoding a single env var.
-func TestNodeFromEnvVar_CustomName(t *testing.T) {
-	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+	t.Setenv("K8S_NODE_NAME", "")
 	t.Setenv("MY_CUSTOM_NODE_NAME_VAR", "test-node")
-	cfg := config.NewMock(t)
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"otel_standalone": true,
+		"otelcollector.standalone.node_from_env_var": "MY_CUSTOM_NODE_NAME_VAR",
+	})
 
-	c := &collector{
-		id:             collectorID,
-		catalog:        workloadmeta.NodeAgent,
-		config:         cfg,
-		standalone:     true,
-		useKubelet:     false,
-		nodeFromEnvVar: "MY_CUSTOM_NODE_NAME_VAR",
-	}
-
-	err := c.Start(context.Background(), nil)
-	require.Error(t, err)
-	// Node name resolved successfully; it now fails building a real
-	// Kubernetes API client, which is not a "disabled" error.
-	assert.False(t, pkgerrors.IsDisabled(err))
-}
-
-// TestNewCollector_NodeFromEnvVarDefault verifies that NewCollector caches
-// nodeFromEnvVar from the otelcollector.standalone.node_from_env_var config
-// key, whose DD agent schema default is K8S_NODE_NAME.
-func TestNewCollector_NodeFromEnvVarDefault(t *testing.T) {
-	cfg := config.NewMock(t)
-	provider, err := NewCollector(dependencies{Config: cfg})
+	nodeName, err := localNodeName(cfg)
 	require.NoError(t, err)
-	c := provider.Collector.(*collector)
-	assert.Equal(t, "K8S_NODE_NAME", c.nodeFromEnvVar)
+	assert.Equal(t, "test-node", nodeName)
 }
