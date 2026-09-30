@@ -1115,10 +1115,22 @@ func deepCopySetgidEvent(fieldToCopy SetgidEvent) SetgidEvent {
 }
 func deepCopySetNSEvent(fieldToCopy SetNSEvent) SetNSEvent {
 	copied := SetNSEvent{}
-	copied.MntNS = fieldToCopy.MntNS
 	copied.NSType = fieldToCopy.NSType
-	copied.NetNS = fieldToCopy.NetNS
+	copied.NamespaceIDs = deepCopyNamespaceIDs(fieldToCopy.NamespaceIDs)
+	copied.Previous = deepCopyNamespaceIDs(fieldToCopy.Previous)
 	copied.SyscallEvent = deepCopySyscallEvent(fieldToCopy.SyscallEvent)
+	return copied
+}
+func deepCopyNamespaceIDs(fieldToCopy NamespaceIDs) NamespaceIDs {
+	copied := NamespaceIDs{}
+	copied.CgroupNS = fieldToCopy.CgroupNS
+	copied.IPCNS = fieldToCopy.IPCNS
+	copied.MntNS = fieldToCopy.MntNS
+	copied.NetNS = fieldToCopy.NetNS
+	copied.PIDNS = fieldToCopy.PIDNS
+	copied.TimeNS = fieldToCopy.TimeNS
+	copied.UTSNS = fieldToCopy.UTSNS
+	copied.UserNS = fieldToCopy.UserNS
 	return copied
 }
 func deepCopySetSockOptEvent(fieldToCopy SetSockOptEvent) SetSockOptEvent {

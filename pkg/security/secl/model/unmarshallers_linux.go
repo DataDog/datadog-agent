@@ -1675,15 +1675,41 @@ func (e *SetNSEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 12 {
+	if len(data)-read < 4 {
+		return 0, ErrNotEnoughData
+	}
+	e.NSType = int(int32(binary.NativeEndian.Uint32(data[read : read+4])))
+	read += 4
+
+	n, err := e.Previous.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	read += n
+
+	n, err = e.NamespaceIDs.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	return read + n, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (n *NamespaceIDs) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 32 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.NSType = int(int32(binary.NativeEndian.Uint32(data[read : read+4])))
-	e.MntNS = binary.NativeEndian.Uint32(data[read+4 : read+8])
-	e.NetNS = binary.NativeEndian.Uint32(data[read+8 : read+12])
+	n.MntNS = binary.NativeEndian.Uint32(data[0:4])
+	n.NetNS = binary.NativeEndian.Uint32(data[4:8])
+	n.PIDNS = binary.NativeEndian.Uint32(data[8:12])
+	n.UserNS = binary.NativeEndian.Uint32(data[12:16])
+	n.UTSNS = binary.NativeEndian.Uint32(data[16:20])
+	n.IPCNS = binary.NativeEndian.Uint32(data[20:24])
+	n.CgroupNS = binary.NativeEndian.Uint32(data[24:28])
+	n.TimeNS = binary.NativeEndian.Uint32(data[28:32])
 
-	return read + 12, nil
+	return 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
