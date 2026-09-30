@@ -1966,8 +1966,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 		}
 
-		// remember who sent the request, so that the response can be attributed to it
-		if event.Error == nil && event.IsActivityDumpSample() && p.dnsRequests != nil {
+		// remember who sent the request, so that the response can be attributed to it. Security
+		// profiles only cover containers.
+		if event.Error == nil && !event.ProcessContext.Process.ContainerContext.IsNull() && p.dnsRequests != nil {
 			p.dnsRequests.recordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
 		}
 
