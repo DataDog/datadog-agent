@@ -70,6 +70,13 @@ func (d *StandInDeduper) ReleaseHash(sum [32]byte) {
 	delete(d.hashes, sum)
 }
 
+// Sizes implements Deduper
+func (d *StandInDeduper) Sizes() (int, int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.identities), len(d.hashes)
+}
+
 // MarkerScanner is a Scanner that reports a match when the data contains Marker
 type MarkerScanner struct {
 	Marker []byte
@@ -152,4 +159,9 @@ func (p *InlineScanPool) Submit(job ScanJob) bool {
 	}
 	p.Reporter.Report(job.File, job.Sum, matches, err)
 	return true
+}
+
+// QueueDepth implements ScanPool. Jobs never wait, so it is always 0.
+func (p *InlineScanPool) QueueDepth() int {
+	return 0
 }

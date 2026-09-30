@@ -129,3 +129,18 @@ func TestInlineScanPool(t *testing.T) {
 		assert.True(t, d.ClaimHash(sum), "a failed scan must release the hash so a later exec retries")
 	})
 }
+
+func TestStats(t *testing.T) {
+	var s Stats
+	s.IncReadError(ReadErrorPermission)
+	s.IncReadError(ReadErrorReason(42))
+	assert.EqualValues(t, 1, s.ReadErrors[ReadErrorPermission].Load())
+	assert.EqualValues(t, 1, s.ReadErrors[ReadErrorOther].Load(), "unknown reasons count as other")
+	assert.Equal(t, "permission", ReadErrorPermission.String())
+
+	s.ScanDone(time.Second) // no hook set: must not panic
+	var observed time.Duration
+	s.ObserveScanDuration = func(d time.Duration) { observed = d }
+	s.ScanDone(time.Second)
+	assert.Equal(t, time.Second, observed)
+}

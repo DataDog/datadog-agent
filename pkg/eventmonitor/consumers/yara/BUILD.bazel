@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "doc.go",
         "standin.go",
+        "stats.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/yara",
