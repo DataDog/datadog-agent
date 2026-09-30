@@ -40,7 +40,7 @@ func TestNewMaterializer(t *testing.T) {
 	t.Run("variant includes platform and flavor", func(t *testing.T) {
 		materializer, err := NewMaterializer(&installerenv.Env{FIPSMode: true}, http.DefaultClient)
 		require.NoError(t, err)
-		assert.Equal(t, strings.Join([]string{"datadog-package-v2", runtime.GOOS, runtime.GOARCH, "fips"}, "-"), materializer.MaterializationID())
+		assert.Equal(t, strings.Join([]string{materializationLayoutVersion, runtime.GOOS, runtime.GOARCH, "fips"}, "-"), materializer.MaterializationID())
 	})
 }
 
@@ -60,8 +60,11 @@ func TestMaterializerMaterialize(t *testing.T) {
 	}, destination)
 
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(destination, "executable.sh"))
+	artifact := authoredscripts.LocalArtifact{Directory: destination}
+	_, err = os.Stat(filepath.Join(artifact.ScriptDirectory(), "executable.sh"))
 	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(destination, "executable.sh"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestMaterializerMaterializeWithExtension(t *testing.T) {
@@ -80,10 +83,13 @@ func TestMaterializerMaterializeWithExtension(t *testing.T) {
 	}, destination)
 
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(destination, "executable.sh"))
+	artifact := authoredscripts.LocalArtifact{Directory: destination}
+	_, err = os.Stat(filepath.Join(artifact.ScriptDirectory(), "executable.sh"))
 	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(destination, "extension.sh"))
+	_, err = os.Stat(filepath.Join(artifact.DependencyDirectory("simple-extension"), "extension.sh"))
 	require.NoError(t, err)
+	_, err = os.Stat(filepath.Join(artifact.ScriptDirectory(), "extension.sh"))
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestMaterializerRejectsPackageMetadataBeforeExtraction(t *testing.T) {

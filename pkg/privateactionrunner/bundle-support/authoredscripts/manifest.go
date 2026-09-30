@@ -111,8 +111,11 @@ func validateManifest(manifest *Manifest) error {
 		return err
 	}
 	for _, dependency := range manifest.Dependencies {
-		if dependency.Name == "" || dependency.Version == "" {
-			return errors.New("authored-script manifest dependencies require a name and version")
+		if err := ValidateDependencyName(dependency.Name); err != nil {
+			return fmt.Errorf("invalid authored-script manifest dependency: %w", err)
+		}
+		if dependency.Version == "" {
+			return fmt.Errorf("authored-script manifest dependency %q requires a version", dependency.Name)
 		}
 	}
 	return nil

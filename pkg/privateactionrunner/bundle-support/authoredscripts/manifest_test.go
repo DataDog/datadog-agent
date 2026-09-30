@@ -197,7 +197,18 @@ func TestValidateManifest(t *testing.T) {
 				Command:       validCommand,
 				Dependencies:  []Dependency{{Name: "jq"}},
 			},
-			expectError: "dependencies require a name and version",
+			expectError: "requires a version",
+		},
+		{
+			name: "dependency name contains path components",
+			manifest: &Manifest{
+				SchemaVersion: manifestSchemaVersion,
+				Version:       "0.0.1",
+				FQN:           "com.datadoghq.authoredscripts.echo",
+				Command:       validCommand,
+				Dependencies:  []Dependency{{Name: "../jq", Version: "1.7.1"}},
+			},
+			expectError: "dependency name",
 		},
 		{
 			name: "valid manifest",
