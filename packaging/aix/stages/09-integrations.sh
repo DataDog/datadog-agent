@@ -85,22 +85,11 @@ fi
 # so integrations-core is the single source of truth for AIX support instead
 # of a hardcoded list here.
 #
-# Dependency versions come from integrations-core's agent_requirements.in — the
-# same pinned input file the Linux/macOS/Windows lockfile flow (resolve-build-deps)
-# compiles into the per-platform .deps/resolved/*.txt wheel sets. AIX has no
-# such lockfile (no prebuilt AIX wheels exist), so instead of compiling one we
-# install the AIX-relevant subset of agent_requirements.in directly: the union
-# of every AIX-tagged check's [deps] extra, looked up in agent_requirements.in
-# for the canonical pin. Native deps Stage 06 already built and installed
-# (pymqi, lxml, psutil, cryptography) are seen as satisfied and not rebuilt;
-# only missing pure-Python deps (e.g. http_check's pysocks/requests-ntlm) are
-# fetched from PyPI.
-#
-# Native C-extension deps that Stage 06 did NOT build (e.g. pyodbc when
-# unixODBC headers are absent) are filtered out so the dep install does not
-# fail on a source build that cannot succeed. The check still installs; it
-# surfaces a clear ImportError at runtime if the missing extension is needed,
-# matching the graceful-degradation behavior for the IBM checks.
+# Dependency versions come from agent_requirements.in — the same pins the
+# other platforms compile into their lockfiles. The subset is computed by
+# lib/aix-deps-subset.py, which also skips native deps Stage 06 did not build
+# (e.g. pyodbc without unixODBC headers) so the install doesn't fail on a
+# source build that cannot succeed.
 #
 # --constraint pins all transitive deps to the exact versions frozen by Stage 08.
 # --find-links allows pip to locate native AIX wheels (pydantic-core, cryptography)
@@ -133,10 +122,7 @@ fi
 
 log "Discovered Python checks tagged Supported OS::AIX: $PYTHON_CHECKS"
 
-# Build the AIX dependency subset from agent_requirements.in: the union of the
-# [deps] extras of every AIX-tagged check, pinned to agent_requirements.in's
-# versions. This is the same set the other platforms resolve into their lockfiles;
-# we install it directly because AIX has no prebuilt wheel set.
+# Compute the AIX dependency subset (see lib/aix-deps-subset.py for details).
 AIX_DEPS="$BUILD_DIR/.09-aix-deps.tmp"
 AGENT_REQ="$INTEGRATIONS_CORE/agent_requirements.in"
 if [ ! -f "$AGENT_REQ" ]; then
@@ -156,9 +142,8 @@ $PIP install \
 rm -f "$AIX_DEPS"
 log "AIX dependency subset installed"
 
-# Install each check's own code. Its [deps] extra deps are already installed
-# above, so a plain 'pip install <check_dir>' suffices and will not rebuild
-# native extensions.
+# Check code only; its [deps] extra is already installed above, so this does
+# not rebuild native extensions.
 for check in $PYTHON_CHECKS; do
     CHECK_DIR="$INTEGRATIONS_CORE/$check"
     log "Installing check: $check"
