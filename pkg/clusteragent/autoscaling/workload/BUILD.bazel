@@ -21,7 +21,6 @@ go_library(
         "scaler.go",
         "scaler_fake.go",
         "telemetry.go",
-        "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload",
     visibility = ["//visibility:public"],

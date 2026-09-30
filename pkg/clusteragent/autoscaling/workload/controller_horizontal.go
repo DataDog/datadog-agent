@@ -372,10 +372,10 @@ func applyScaleUpPolicy(
 	minExpireIn := time.Hour // We don't support more than 1 hour of events
 	if strategy == datadoghqcommon.DatadogPodAutoscalerMinChangeStrategySelect {
 		maxReplicasFromRules = math.MaxInt32
-		selectStrategyFunc = min
+		selectStrategyFunc = func(a, b int32) int32 { return min(a, b) }
 	} else {
 		maxReplicasFromRules = math.MinInt32
-		selectStrategyFunc = max
+		selectStrategyFunc = func(a, b int32) int32 { return max(a, b) }
 	}
 
 	for _, rule := range policy.Rules {
@@ -437,10 +437,10 @@ func applyScaleDownPolicy(
 	var selectPolicyFn func(int32, int32) int32
 	if strategy == datadoghqcommon.DatadogPodAutoscalerMinChangeStrategySelect {
 		minReplicasFromRules = math.MinInt32
-		selectPolicyFn = max // For scaling down, the lowest change ('min' policy) produces a maximum value
+		selectPolicyFn = func(a, b int32) int32 { return max(a, b) } // For scaling down, the lowest change ('min' policy) produces a maximum value
 	} else {
 		minReplicasFromRules = math.MaxInt32
-		selectPolicyFn = min
+		selectPolicyFn = func(a, b int32) int32 { return min(a, b) }
 	}
 
 	for _, rule := range policy.Rules {
