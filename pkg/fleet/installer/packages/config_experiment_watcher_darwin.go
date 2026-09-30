@@ -14,13 +14,25 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // deadlineTickInterval is how often watchExperiment polls the deadline file while waiting on
 // the exit observer, per the RFC's deadline-tick design.
 const deadlineTickInterval = 30 * time.Second
+
+// startupPollInterval and startupPollTimeout bound how long watchExperiment waits for a job that
+// Kickstart was already told to start, but that launchd has not yet reported a pid for, before
+// treating it as failed to launch. This process is spawned detached, after Start() has already
+// returned, so a healthy job can legitimately still be forking when this runs; the bound exists
+// only to distinguish that from a job that will never come up.
+const (
+	startupPollInterval = 100 * time.Millisecond
+	startupPollTimeout  = 5 * time.Second
+)
 
 // watchExperiment runs in a detached process, launched by postStartConfigExperimentDatadogAgent
 // after a configuration experiment has started successfully. It supervises the experiment job
@@ -36,15 +48,24 @@ func watchExperiment(ctx context.Context) error {
 	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
 	jobs := agentJobSet()
 
-	pids, err := jobs.Pids(ctx, launchd.Experiment)
+	pids, exited, err := resolveExperimentPids(ctx, jobs)
 	if err != nil {
 		return fmt.Errorf("watcher: could not resolve experiment pids: %w", err)
 	}
+	if exited != nil {
+		// launchd itself recorded this job's exit -- a durable fact, not a timing guess --
+		// before the watcher ever got a chance to arm an observer on it. As real a crash as
+		// one caught mid-watch: revert immediately rather than silently leaving an
+		// unsupervised, already-dead experiment in place.
+		reason := fmt.Sprintf("experiment job %s exited before the watcher could observe it (status %d)", exited.Label, exited.LastExitStatus)
+		_, err := revertExperimentIfStillPending(ctx, deadline, reason)
+		return err
+	}
 	if len(pids) == 0 {
-		// Every job in the set had already exited by the time the watcher could resolve
-		// pids -- as real a crash as one caught mid-watch. Revert immediately rather than
-		// silently leaving an unsupervised, already-dead experiment in place.
-		_, err := revertExperimentIfStillPending(ctx, deadline, "experiment exited before the watcher could observe it")
+		// Every job in the set failed to come up at all within the startup grace period,
+		// and none of them recorded an exit either -- Kickstart was accepted but nothing
+		// ever ran. Treat that as a failed launch, same as a crash.
+		_, err := revertExperimentIfStillPending(ctx, deadline, "experiment never started")
 		return err
 	}
 
@@ -109,6 +130,55 @@ func watchExperiment(ctx context.Context) error {
 	}
 }
 
+// resolveExperimentPids waits for every job in the set to either report a running pid or a
+// recorded exit, bounded by startupPollTimeout. Kickstart was already issued for every job
+// before this process was even spawned -- this runs detached, launched only after Start() has
+// returned -- so a healthy job should acquire a pid almost immediately; the bound only covers
+// the gap between that request and this process actually getting to check.
+//
+// A job that launchd itself recorded as an abnormal exit stops the wait immediately and is
+// returned in exited, regardless of its siblings' state: that is a durable fact recorded by
+// launchd, not something more waiting would resolve. A job recorded as having exited cleanly
+// (LastExitStatus zero) is not: agentJobSet swaps its three jobs as one unit, and a job whose
+// feature is off exits that way the instant it is kickstarted, same as the stable set -- exactly
+// the case exitedCleanly exists to tolerate later in watchExperiment, and this pre-check must
+// tolerate it too, or every experiment with one disabled feature reverts itself on startup before
+// the caller ever gets a chance to observe it running. Unlike exitedCleanly's wait(2) status word,
+// LastExitStatus is launchd's own simple signed code, so a direct zero check is what it takes to
+// tell the two apart here.
+func resolveExperimentPids(ctx context.Context, jobs launchd.JobSet) (pids []int, exited *launchd.JobStatus, err error) {
+	giveUp := time.Now().Add(startupPollTimeout)
+	for {
+		statuses, err := jobs.Statuses(ctx, launchd.Experiment)
+		if err != nil {
+			return nil, nil, err
+		}
+		pids = pids[:0]
+		pending := false
+		for i, status := range statuses {
+			if status.PID != 0 {
+				pids = append(pids, status.PID)
+				continue
+			}
+			if status.HasExited && status.LastExitStatus != 0 {
+				return nil, &statuses[i], nil
+			}
+			if status.HasExited {
+				continue
+			}
+			pending = true
+		}
+		if !pending || time.Now().After(giveUp) {
+			return pids, nil, nil
+		}
+		select {
+		case <-ctx.Done():
+			return pids, nil, nil
+		case <-time.After(startupPollInterval):
+		}
+	}
+}
+
 // exitedCleanly reports whether a wait(2) status word (as delivered by NOTE_EXITSTATUS) describes
 // a normal, voluntary exit(0). agentJobSet swaps agent, sysprobe and data-plane as one unit, and a
 // job whose feature is off exits this way the instant it is kickstarted -- that is expected
@@ -126,6 +196,15 @@ func exitedCleanly(status int) bool {
 // revertExperimentIfStillPending reverts to the stable job set unless the deadline file has
 // already been cleared by a deliberate stop or promote, in which case that path owns the
 // outcome and this call is a no-op. Reports whether it reverted.
+//
+// A deliberate stop or promote, driven by the daemon, also discards or promotes the experiment
+// configuration directory itself (RemoveConfigExperiment's i.config.RemoveExperiment, called
+// after the package's own Stop hook). This path runs detached from the daemon and has no access
+// to its installer/db state, but the directory swap it still owes is a plain filesystem
+// operation -- restoring the experiment link to resting -- so it is done directly here with the
+// same config.Directories the daemon itself uses. Left undone, the host would be left with the
+// job set back on stable but /etc-exp still a real, non-resting directory, and the daemon's
+// periodic state refresh would keep reporting the reverted experiment as still deployed.
 func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadline, reason string) (bool, error) {
 	present, err := deadline.Present()
 	if err != nil {
@@ -137,6 +216,10 @@ func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadli
 	log.Warnf("watcher: reverting configuration experiment: %s", reason)
 	if err := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); err != nil {
 		return false, fmt.Errorf("watcher: could not revert experiment: %w", err)
+	}
+	dirs := config.Directories{StablePath: paths.AgentConfigDir, ExperimentPath: paths.AgentConfigDirExp}
+	if err := dirs.RemoveExperiment(context.WithoutCancel(ctx)); err != nil {
+		return false, fmt.Errorf("watcher: could not discard the experiment configuration directory: %w", err)
 	}
 	return true, nil
 }
