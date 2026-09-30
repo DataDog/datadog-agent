@@ -56,3 +56,7 @@ properties:
   tagger_server_port:
     description: TaggerServerPort is the port the tagger server binds to. 0 auto-assigns.
     type: integer
+  use_kubelet_collector:
+    description: UseKubeletCollector opts standalone otel-agent back out of the nodefilter workloadmeta collector (a node-scoped K8s API-server pod watch) and back onto the kubelet collector for K8s tag enrichment. Pointer so that nil ("not set") is distinguishable from an explicit false, leaving the DD agent default (nodefilter, i.e. false) intact when the field is absent.
+    x-pointer: true
+    type: boolean

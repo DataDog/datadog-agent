@@ -771,6 +771,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 }
 
 // TestDogtelExtensionConfig_PartialConfig verifies that only the dogtelextension
@@ -786,6 +787,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 	// Fields not set in dogtelextension must not override DD agent defaults.
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 }
 
 // TestDogtelExtensionConfig_MetadataDisabled verifies that setting
@@ -889,6 +891,7 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter()
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 
 	providers := c.Get("metadata_providers")
 	require.NotNil(t, providers)
@@ -937,6 +940,7 @@ func TestGetDogtelExtensionConfig_EmptyDogtelSection(t *testing.T) {
 	assert.Equal(t, "", extcfg.Hostname)
 	assert.Nil(t, extcfg.KubeletTLSVerify)
 	assert.Nil(t, extcfg.EnableMetadataCollection)
+	assert.Nil(t, extcfg.UseKubeletCollector)
 	assert.Equal(t, 0, extcfg.MetadataInterval)
 }
 
@@ -975,6 +979,25 @@ func TestGetDogtelExtensionConfig_KubeletTLSVerify(t *testing.T) {
 	require.NotNil(t, extcfg)
 	require.NotNil(t, extcfg.KubeletTLSVerify)
 	assert.False(t, *extcfg.KubeletTLSVerify)
+}
+
+// TestGetDogtelExtensionConfig_UseKubeletCollector verifies that
+// use_kubelet_collector can be explicitly set to true (distinguishable from
+// the unset/nil state, which defaults to the nodefilter collector).
+func TestGetDogtelExtensionConfig_UseKubeletCollector(t *testing.T) {
+	trueVal := true
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel": map[string]any{
+				"use_kubelet_collector": trueVal,
+			},
+		},
+	})
+	extcfg, err := getDogtelExtensionConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, extcfg)
+	require.NotNil(t, extcfg.UseKubeletCollector)
+	assert.True(t, *extcfg.UseKubeletCollector)
 }
 
 // TestGetDogtelExtensionConfig_InvalidExtensions verifies that a malformed

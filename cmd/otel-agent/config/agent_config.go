@@ -304,6 +304,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			if extcfg.KubernetesHTTPSKubeletPort > 0 {
 				pkgconfig.Set("kubernetes_https_kubelet_port", extcfg.KubernetesHTTPSKubeletPort, pkgconfigmodel.SourceFile)
 			}
+			if extcfg.UseKubeletCollector != nil {
+				pkgconfig.Set("otelcollector.standalone.use_kubelet_collector", *extcfg.UseKubeletCollector, pkgconfigmodel.SourceFile)
+			}
 		}
 
 		// Resolve ENC[] secrets after dogtelextension config is applied so that

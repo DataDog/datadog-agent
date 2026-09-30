@@ -89,6 +89,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 	assert.Nil(t, cfg.KubeletTLSVerify)
 	assert.Equal(t, 0, cfg.KubernetesHTTPKubeletPort)
 	assert.Equal(t, 0, cfg.KubernetesHTTPSKubeletPort)
+	assert.Nil(t, cfg.UseKubeletCollector)
 }
 
 func TestConfigValidate_StandaloneFields_Valid(t *testing.T) {
@@ -103,6 +104,7 @@ func TestConfigValidate_StandaloneFields_Valid(t *testing.T) {
 	cfg.KubeletTLSVerify = &falseVal
 	cfg.KubernetesHTTPKubeletPort = 10255
 	cfg.KubernetesHTTPSKubeletPort = 10250
+	cfg.UseKubeletCollector = &falseVal
 	require.NoError(t, cfg.Validate())
 }
 
@@ -118,4 +120,18 @@ func TestConfigValidate_KubeletTLSVerify_ExplicitFalse(t *testing.T) {
 	cfg.KubeletTLSVerify = &falseVal
 	require.NoError(t, cfg.Validate())
 	assert.False(t, *cfg.KubeletTLSVerify)
+}
+
+func TestConfigValidate_UseKubeletCollector_NilIsValid(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.UseKubeletCollector = nil
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfigValidate_UseKubeletCollector_ExplicitTrue(t *testing.T) {
+	trueVal := true
+	cfg := createDefaultConfig().(*Config)
+	cfg.UseKubeletCollector = &trueVal
+	require.NoError(t, cfg.Validate())
+	assert.True(t, *cfg.UseKubeletCollector)
 }
