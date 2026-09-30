@@ -52,13 +52,18 @@ def _dd_strip_symbols_impl(ctx):
         toolchain = _STRIPPER_TOOLCHAIN_TYPE,
     )
 
-    # Preserve the executable-ness from the original object.
+    # Build a clone of the orignal DefaultInfo.  We can not simply return
+    # the original because executable must also be built by this rule.
     default_info = ctx.attr.input[DefaultInfo]
+    runfiles = getattr(default_info, "runfiles", None)
+    data_runfiles = getattr(default_info, "data_runfiles", None)
+    default_runfiles = getattr(default_info, "default_runfiles", None)
+    # Preserve the executable-ness from the original object.
     was_executable = bool(hasattr(default_info, "files_to_run") and getattr(default_info.files_to_run, "executable", False))
     executable = stripped if was_executable else None
 
     return [
-        DefaultInfo(files = depset([stripped]), executable = executable),
+        DefaultInfo(files = depset([original, stripped]), executable = executable, runfiles = runfiles, data_runfiles = data_runfiles, default_runfiles = default_runfiles),
         DdStripInfo(
             original = original.owner,
             original_file = original,
