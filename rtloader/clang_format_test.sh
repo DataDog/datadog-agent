@@ -14,8 +14,12 @@ cd "$TESTDATA_DIR"
   done
 ) >"$OUT"
 cat "$OUT"
+/bin/rm "$FTMP"
 ERR_COUNT=$(wc -l <$OUT)
 if [[ "$ERR_COUNT" -gt 0 ]] ; then
+  echo "To format the rtloader sources use:"
+  /bin/sed -n -e 's@FAIL: @clang-format --style=file -i rtloader/@p' $OUT
+  /bin/rm "$OUT"
   exit 1
 fi
-/bin/rm "$OUT" "$FTMP"
+/bin/rm "$OUT"
