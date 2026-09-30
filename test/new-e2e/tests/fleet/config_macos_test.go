@@ -858,3 +858,47 @@ func (s *configMacOSSuite) TestConfigExperimentJobDefinitionsMatchInstalledMacOS
 	after := s.readFile(plistPath)
 	require.Equal(s.T(), before, after, "the stable job definition must not drift across a config-experiment cycle")
 }
+
+// --- Set 13: watcher crash-revert regression (macOS-specific) ----------------------------------
+
+// TestWatcherRevertsOnSysprobeCrashMacOS regression-tests the detached watcher added in
+// config_experiment_watcher_darwin.go: it supervises every job in a deployed configuration
+// experiment and reverts to stable the moment any of them exits abnormally, with no explicit
+// stop/promote task ever sent. A SIGKILL'd job reports as Signaled rather than a clean Exited/
+// ExitStatus==0, so exitedCleanly treats it as a crash and the watcher's own exit observer -- not
+// this test -- drives the revert.
+func (s *configMacOSSuite) TestWatcherRevertsOnSysprobeCrashMacOS() {
+	s.requireResting()
+
+	s.startConfigExperimentRC(nextID("cfg-watcher-crash"), []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config": {"enabled": true}}`)},
+	}, nil)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		loaded := s.launchdLabelsLoaded("com.datadoghq.sysprobe-exp")
+		assert.True(c, loaded["com.datadoghq.sysprobe-exp"], "sysprobe experiment job should be loaded")
+	}, 60*time.Second, 5*time.Second)
+
+	_, err := s.Env().RemoteHost.Execute("sudo launchctl kill SIGKILL system/com.datadoghq.sysprobe-exp")
+	require.NoError(s.T(), err, "sending SIGKILL to the experiment sysprobe job should succeed")
+
+	// No s.stopConfigExperimentRC() call here: the revert below must come from the watcher's own
+	// exit observer noticing the abnormal exit, not from an explicit task this test sends.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.etcExpResting(), "etc-exp should be a symlink again once the watcher reverts")
+		assert.Empty(c, s.packageState(s.readStatus()).ExperimentConfigVersion,
+			"experiment_config_version should be cleared once the watcher reverts")
+	}, 90*time.Second, 5*time.Second)
+
+	loadedStable := s.launchdLabelsLoaded("com.datadoghq.sysprobe")
+	assert.True(s.T(), loadedStable["com.datadoghq.sysprobe"], "sysprobe stable job should be loaded again after the watcher's revert")
+
+	// Best-effort: the watcher's own log line corroborates *why* it reverted, but the daemon-state
+	// assertions above already establish *that* it did, so this is a soft check.
+	if out, err := s.Env().RemoteHost.Execute(
+		"sudo grep -c 'watcher: reverting configuration experiment' /opt/datadog-agent/logs/updater.log || true"); err == nil {
+		s.T().Logf("watcher revert log line occurrences in updater.log: %s", strings.TrimSpace(out))
+	} else {
+		s.T().Logf("could not read updater.log for the watcher's revert log line: %v", err)
+	}
+}
