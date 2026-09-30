@@ -1870,12 +1870,14 @@ var metadataMetrics = []string{
 	"kube_verticalpodautoscaler_labels",
 }
 
-func TestMetadataMetricsRegex(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+func TestShouldDropForMetadata(t *testing.T) {
 	for _, m := range metadataMetrics {
-		assert.True(t, check.metadataMetricsRegex.MatchString(m))
+		assert.True(t, shouldDropForMetadata(m), "expected %s to be dropped", m)
 	}
+
+	assert.False(t, shouldDropForMetadata("kube_pod_status_phase"))
+	assert.False(t, shouldDropForMetadata("kube_customresource_info"))
+	assert.False(t, shouldDropForMetadata("kube_customresource_labels"))
 }
 
 func TestResourceNameFromMetric(t *testing.T) {
@@ -2571,4 +2573,52 @@ func TestDRACollectorsUseTheNegotiatedTaintRuleVersion(t *testing.T) {
 			assert.Equal(t, tt.expected, draCollectors(all, tt.apiVersion, tt.taintVersion))
 		})
 	}
+}
+
+func TestApiResourceAvailable(t *testing.T) {
+	resources := []*apiv1.APIResourceList{
+		{
+			GroupVersion: "autoscaling/v2",
+			APIResources: []apiv1.APIResource{
+				{Kind: "HorizontalPodAutoscaler"},
+			},
+		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []apiv1.APIResource{
+				{Kind: "Deployment"},
+			},
+		},
+	}
+
+	assert.True(t, apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler"))
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2beta2", "HorizontalPodAutoscaler"),
+		"a different group/version for the same kind must not match")
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2", "Deployment"),
+		"a different kind under the same group/version must not match")
+	assert.False(t, apiResourceAvailable(nil, "autoscaling/v2", "HorizontalPodAutoscaler"))
+}
+
+// TestDiscoverCustomResources_ExtendedHPACollector pins that the extended HPA
+// factory and its collector key are registered together when autoscaling/v2 is
+// served: BuildStores only builds stores for keys listed in collectors.
+func TestDiscoverCustomResources_ExtendedHPACollector(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+	resources := []*apiv1.APIResourceList{{
+		GroupVersion: "autoscaling/v2",
+		APIResources: []apiv1.APIResource{{Name: "horizontalpodautoscalers", Kind: "HorizontalPodAutoscaler", Namespaced: true}},
+	}}
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, resources)
+
+	assert.Contains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
+	var found bool
+	for _, f := range cr.factories {
+		found = found || f.Name() == "horizontalpodautoscalers_extended"
+	}
+	assert.True(t, found)
+
+	cr = k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, nil)
+	assert.NotContains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
 }

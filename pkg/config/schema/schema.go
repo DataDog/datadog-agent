@@ -159,6 +159,15 @@ func ValidateSystemProbeConfig(config interface{}) ([]string, error) {
 	return validateData(sch, config)
 }
 
+// ValidateSystemProbeConfigDetailed returns structured system-probe schema violations.
+func ValidateSystemProbeConfigDetailed(config interface{}) ([]Violation, error) {
+	sch, err := sysprobeSchemaGetter()
+	if err != nil {
+		return nil, err
+	}
+	return validateDataDetailed(sch, config)
+}
+
 // GetCoreSchema returns the raw bytes of the embedded core agent configuration schema.
 func GetCoreSchema() ([]byte, error) { return getSchema("core_schema") }
 

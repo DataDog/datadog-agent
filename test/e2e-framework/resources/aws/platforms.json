@@ -62,11 +62,13 @@
     },
     "redhat": {
         "x86_64": {
-            "8": "ami-031eff1ae75bb87e4",
+            "8": "ami-0fbdded980e0521d5",
             "86": "ami-031eff1ae75bb87e4",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-0d424760e95da7d14",
-            "10": "ami-07b1b74df74f960a5"
+            "9": "ami-05c74561bdbc47d40",
+            "9-fapolicyd": "ami-01f0a4c82982b7042",
+            "9-selinux-npm": "ami-0bc45d2baad82a17f",
+            "10": "ami-0adac54b92c530a04"
         }
     },
     "suse": {
@@ -89,9 +91,10 @@
             "18-04": "ami-016df41acf36b4cc7",
             "20-04": "ami-08b7b6b1a33c2c5c4",
             "22-04": "ami-0c75be60114191340",
-            "22-04-e2e": "ami-0c75be60114191340",
+            "22-04-e2e": "ami-02c30d29c56aabc9f",
             "24-04": "ami-0b958b92f3311629a",
-            "24-04-e2e": "ami-0b958b92f3311629a"
+            "24-04-e2e": "ami-0b958b92f3311629a",
+            "24-04-e2e-kind": "ami-00fb0108a23f0e93b"
         }
     },
     "windows-server": {

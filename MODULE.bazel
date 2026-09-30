@@ -76,13 +76,13 @@ bazel_dep(name = "apple_support", version = "2.9.1")  # provides --platforms=@ap
 bazel_dep(name = "bazel_features", version = "1.51.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
-bazel_dep(name = "gawk", version = "5.4.0.bcr.1")
+bazel_dep(name = "gawk", version = "5.4.0.bcr.2")
 bazel_dep(name = "gazelle", version = "0.54.0")
 bazel_dep(name = "gcc_toolchain", version = "0.12.1")
 bazel_dep(name = "libarchive", version = "3.8.1.bcr.3")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "protobuf", version = "35.1")
-bazel_dep(name = "re.bzl", version = "0.3.1")
+bazel_dep(name = "re.bzl", version = "0.4.1")
 bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_flex", version = "0.4.1")
 bazel_dep(name = "rules_go", version = "0.63.0")
@@ -94,7 +94,7 @@ bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.74.0")
 bazel_dep(name = "rules_rust_prost", version = "0.74.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
-bazel_dep(name = "toml.bzl", version = "0.4.1")
+bazel_dep(name = "toml.bzl", version = "0.5.0")
 bazel_dep(name = "toolchains_llvm", version = "1.8.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
 bazel_dep(name = "with_cfg.bzl", version = "1.0.0")
@@ -199,24 +199,26 @@ http_archive(
     name = "com_github_bazelbuild_buildtools",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
-        "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
-        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400
-        "//bazel/patches:buildifier-runner-bash-template.patch",  # bazelbuild/buildtools#1454
+        "//bazel/patches:buildifier-build.patch",  # bazel-contrib/buildtools#1398
+        "//bazel/patches:buildifier-internal-factory.patch",  # bazel-contrib/buildtools#1399
+        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazel-contrib/buildtools#1399, #1400
     ],
-    sha256 = "f3b800e9f6ca60bdef3709440f393348f7c18a29f30814288a7326285c80aab9",
-    strip_prefix = "buildtools-8.5.1",
+    sha256 = "fa0b905032d49a621679e7318875736e451895a1417d992fbbebd27f82b83c38",
+    strip_prefix = "buildtools-10.1.0",
     type = "tar.gz",
     urls = [
-        "https://codeload.github.com/bazelbuild/buildtools/tar.gz/refs/tags/v8.5.1",
-        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
+        "https://codeload.github.com/bazel-contrib/buildtools/tar.gz/refs/tags/v10.1.0",
+        "https://github.com/bazel-contrib/buildtools/archive/refs/tags/v10.1.0.tar.gz",
     ],
 )
 
 # Upstream Linux kernel syscall tables, used by
-# //pkg/security/utils:utils_syscall_table to (re)generate
-# pkg/security/utils/syscalls.go. Bumping the kernel version requires updating
-# the URLs and sha256 of both files together.
+# //pkg/security/utils:utils_syscall_table and
+# //pkg/security/secl/model:syscall_table to regenerate
+# pkg/security/utils/syscalls.go and
+# pkg/security/secl/model/syscalls_linux_{amd64,arm64}.go.
+# Bumping the kernel version requires updating the URLs and sha256 of both
+# files together.
 http_file(
     name = "linux_v6_13_syscall_64_tbl",
     sha256 = "a25d490b97e98fa2ad7912f229555e1c8f0e5ba70960f508ae4c324b2439aa04",
@@ -571,5 +573,8 @@ include("//deps:go.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/agent_integrations:integrations.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//bazel/tools/wine:wine.MODULE.bazel")
 
 use_extension("//bazel/tools:bazelisk_check.bzl", "bazelisk_check")
