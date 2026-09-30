@@ -496,6 +496,14 @@ func TestObfuscateSQLSpanDBAttributes(t *testing.T) {
 			wantMeta:     map[string]string{"sql.query": ""},
 		},
 		{
+			name:         "empty sql.query dropped",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"sql.query": ""},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"sql.query": ""},
+		},
+		{
 			name:         "sql.query equal to resource",
 			spanType:     "sql",
 			resource:     rawQuery,

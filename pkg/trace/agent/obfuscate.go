@@ -44,6 +44,7 @@ const (
 type obfuscateSpan interface {
 	GetAttributeAsString(key string) (string, bool)
 	SetStringAttribute(key string, value string)
+	DeleteAttribute(key string)
 	Type() string
 	Resource() string
 	SetResource(resource string)
@@ -66,6 +67,10 @@ func (o *obfuscateSpanV0) SetStringAttribute(key string, value string) {
 		o.span.Meta = make(map[string]string)
 	}
 	o.span.Meta[key] = value
+}
+
+func (o *obfuscateSpanV0) DeleteAttribute(key string) {
+	delete(o.span.Meta, key)
 }
 
 func (o *obfuscateSpanV0) Type() string {
@@ -142,6 +147,12 @@ func obfuscateSQLAttributes(o *obfuscate.Obfuscator, span obfuscateSpan, dbms, r
 // that fails, so the raw value is never kept.
 func obfuscateSQLAttribute(o *obfuscate.Obfuscator, span obfuscateSpan, key, dbms, rawResource, obfuscatedResource string) {
 	v, ok := span.GetAttributeAsString(key)
+	if ok && v == "" && key == tagSQLQuery {
+		// An empty sql.query carries no query. Drop it so the intake derives
+		// db.statement from the resource, as it did when the agent overwrote it.
+		span.DeleteAttribute(key)
+		return
+	}
 	if !ok || v == "" {
 		return
 	}
