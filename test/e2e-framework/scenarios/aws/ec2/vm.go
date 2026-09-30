@@ -66,7 +66,7 @@ func NewVM(e aws.Environment, name string, params ...VMOption) (*remote.Host, er
 			HostID:                pulumi.String(vmArgs.hostID),
 			VolumeThroughput:      vmArgs.volumeThroughput,
 			WithoutInternetAccess: vmArgs.withoutInternetAccess,
-			StorageSize:        vmArgs.storageSize,
+			StorageSize:           vmArgs.storageSize,
 		}
 
 		// TODO: remove E2E_MACOS_POOL_ENABLED and this bypass path once the pool has
@@ -333,7 +333,7 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	} else if vmArgs.osInfo.Flavor == os.Suse {
 		defaultUserData = os.ZypperDisableUnattendedUpgradesScriptContent
 	}
-	userDataParts := make([]string, 0, 3)
+	userDataParts := make([]string, 0, 4)
 	if vmArgs.userData != "" {
 		userDataParts = append(userDataParts, vmArgs.userData)
 	}
@@ -342,6 +342,9 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	}
 	if vmArgs.osInfo.Family() == os.LinuxFamily {
 		userDataParts = append(userDataParts, os.SSHAllowSFTPRootScriptContent)
+		if e.TrackSSHActivity() {
+			userDataParts = append(userDataParts, os.TrackSSHActivityScriptContent)
+		}
 	}
 	vmArgs.userData = strings.Join(userDataParts, "\n")
 
