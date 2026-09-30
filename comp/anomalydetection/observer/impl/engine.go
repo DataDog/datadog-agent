@@ -479,8 +479,12 @@ func (e *engine) IngestLog(source string, l *logObs) []advanceRequest {
 				continue
 			}
 			res := e.storage.AddWithKeyAndHostComposite(extractor.Name(), m.Name, host, m.Value, timestamp, tags, seriesKey)
-			if m.HasContext && res.Ref >= 0 {
-				e.storage.SetContext(res.Ref, m.Context)
+			if res.Ref >= 0 {
+				if m.ContextProvider != nil {
+					e.storage.SetDeferredContext(res.Ref, m.ContextProvider, m.ContextRef, m.ContextExample)
+				} else if m.HasContext {
+					e.storage.SetContext(res.Ref, m.Context)
+				}
 			}
 		}
 	}
@@ -1124,6 +1128,22 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 	defer e.mu.Unlock()
 
 	validateUniqueExtractorNames(extractors)
+	for _, old := range e.extractors {
+		pattern, ok := old.(*LogPatternExtractor)
+		if !ok {
+			continue
+		}
+		retained := false
+		for _, next := range extractors {
+			if nextPattern, ok := next.(*LogPatternExtractor); ok && nextPattern == pattern {
+				retained = true
+				break
+			}
+		}
+		if !retained {
+			pattern.Reset() // release clusters retained by old series bindings
+		}
+	}
 	e.extractors = extractors
 }
 

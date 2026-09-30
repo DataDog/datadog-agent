@@ -87,6 +87,30 @@ func TestMaterializedLogCountBucketizerKeepsLatestContext(t *testing.T) {
 	assert.Equal(t, "second", context.Example)
 }
 
+func TestMaterializedLogCountBucketizerDefersPatternContext(t *testing.T) {
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
+	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 10})
+	storage := newTimeSeriesStorageWith(StorageConfig{})
+	for i, message := range []string{"GET /users/123 returned 500", "GET /users/456 returned 500"} {
+		metric := extractor.ProcessLog(&mockLogView{content: message, tags: []string{"service:api"}}).Metrics[0]
+		assert.False(t, metric.HasContext)
+		key := testLogStorageKey(extractor.Name(), metric, "", metric.Tags)
+		require.True(t, b.observe(extractor.Name(), metric, "", int64(i+1), metric.Tags, key))
+	}
+	b.flush(storage, 5)
+	metas := storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()})
+	require.Len(t, metas, 1)
+	ctx, ok := storage.GetContext(metas[0].Ref)
+	require.True(t, ok)
+	assert.Equal(t, "GET /users/456 returned 500", ctx.Example)
+	assert.Equal(t, map[string]string{"service": "api"}, ctx.SplitTags)
+	assert.Contains(t, ctx.Pattern, "*")
+	extractor.Reset()
+	_, ok = storage.GetContext(metas[0].Ref)
+	assert.False(t, ok)
+}
+
 func TestMaterializedLogCountBucketizerRetainsSeriesKey(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
 	b := newMaterializedLogCountBucketizer(LogCountBucketConfig{BucketSeconds: 5, IdleTTLSeconds: 0})

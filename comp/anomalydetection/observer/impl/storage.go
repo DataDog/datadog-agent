@@ -176,7 +176,8 @@ type seriesStats struct {
 	// Zero means this series owns its original composite view directly.
 	tagInternFingerprint uint64
 	ref                  observer.SeriesRef      // compact numeric ID assigned on creation
-	context              *observer.MetricContext // optional; set by extractors for anomaly enrichment
+	context              *observer.MetricContext // optional value context for output
+	deferredContext      *deferredLogContext
 	// supportedAggregations is a bit mask. Zero means all aggregations are
 	// supported; materialized log count buckets set only Average because each
 	// stored point is already one aggregated window count.
@@ -195,6 +196,13 @@ type seriesStats struct {
 
 	buckets []pointBucket
 	counts  *bucketCounts
+}
+
+// deferredLogContext is reused by a series while its latest example changes.
+type deferredLogContext struct {
+	provider observer.LogContextProvider
+	ref      observer.LogContextRef
+	example  string
 }
 
 func aggregateMask(agg observer.Aggregate) uint8 {
@@ -986,17 +994,49 @@ func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx observer.Metr
 			stats.context = new(observer.MetricContext)
 		}
 		*stats.context = ctx
+		stats.deferredContext = nil
 	}
 }
 
-// GetContext returns a value snapshot of the series context. The SplitTags map
-// is shared and must remain immutable after being passed to SetContext.
+// SetDeferredContext binds a live cluster to a series without rendering it.
+// The provider and example are replaced on later observations of the series.
+func (s *timeSeriesStorage) SetDeferredContext(ref observer.SeriesRef, provider observer.LogContextProvider, contextRef observer.LogContextRef, example string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		if stats.deferredContext == nil {
+			stats.deferredContext = &deferredLogContext{}
+		}
+		*stats.deferredContext = deferredLogContext{provider: provider, ref: contextRef, example: example}
+		stats.context = nil
+	}
+}
+
+// GetContext resolves a value snapshot of the current context for a series.
+// A cluster-backed series can become unavailable after reset or eviction.
+// Copy the binding under the storage lock, then release it before entering the
+// provider to avoid a storage/provider lock inversion.
+// The SplitTags map in a returned value must remain immutable.
 func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) (observer.MetricContext, bool) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if stats := s.resolveByID(ref); stats != nil && stats.context != nil {
-		return *stats.context, true
+	if stats := s.resolveByID(ref); stats != nil {
+		if stats.deferredContext != nil {
+			binding := *stats.deferredContext
+			s.mu.RUnlock()
+			ctx, ok := binding.provider.ResolveLogContext(binding.ref)
+			if ok {
+				ctx.Example = truncate(binding.example, 160)
+			}
+			return ctx, ok
+		}
+		ctx := stats.context
+		s.mu.RUnlock()
+		if ctx != nil {
+			return *ctx, true
+		}
+		return observer.MetricContext{}, false
 	}
+	s.mu.RUnlock()
 	return observer.MetricContext{}, false
 }
 

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"unsafe"
@@ -18,6 +19,46 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStorageDeferredContextPrecedenceAndEviction(t *testing.T) {
+	s := newTimeSeriesStorage()
+	ref := s.Add("logs", "pattern", 1, 1, nil).Ref
+	s.SetContext(ref, observer.MetricContext{Pattern: "stored"})
+	assert.Nil(t, s.seriesIDStats[ref].deferredContext)
+	ctx, ok := s.GetContext(ref)
+	require.True(t, ok)
+	assert.Equal(t, "stored", ctx.Pattern)
+
+	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
+	extractor.config.MinClusterSizeBeforeEmit = 1
+	metric := extractor.ProcessLog(&mockLogView{content: "GET /users/123 returned 500"}).Metrics[0]
+	s.SetDeferredContext(ref, metric.ContextProvider, metric.ContextRef, metric.ContextExample)
+	assert.Nil(t, s.seriesIDStats[ref].context)
+	binding := s.seriesIDStats[ref].deferredContext
+	require.NotNil(t, binding)
+	ctx, ok = s.GetContext(ref)
+	require.True(t, ok)
+	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
+	s.SetDeferredContext(ref, metric.ContextProvider, metric.ContextRef, "latest")
+	assert.Same(t, binding, s.seriesIDStats[ref].deferredContext)
+	ctx, ok = s.GetContext(ref)
+	require.True(t, ok)
+	assert.Equal(t, "latest", ctx.Example)
+	longExample := strings.Repeat("界", 161)
+	s.SetDeferredContext(ref, metric.ContextProvider, metric.ContextRef, longExample)
+	ctx, ok = s.GetContext(ref)
+	require.True(t, ok)
+	assert.Equal(t, strings.Repeat("界", 160)+"...", ctx.Example)
+
+	s.SetContext(ref, observer.MetricContext{Pattern: "replacement"})
+	assert.Nil(t, s.seriesIDStats[ref].deferredContext)
+	ctx, ok = s.GetContext(ref)
+	require.True(t, ok)
+	assert.Equal(t, "replacement", ctx.Pattern)
+	s.RemoveSeriesByRefs([]observer.SeriesRef{ref})
+	_, ok = s.GetContext(ref)
+	assert.False(t, ok)
+}
 
 // testStorageKeyForIdentity preserves concise test fixtures while production identity is
 // based on the metrics-pipeline context key.

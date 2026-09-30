@@ -94,8 +94,28 @@ type MetricOutput struct {
 	Host  string
 	// Tags is an immutable view retained by the observer storage.
 	Tags       tagset.CompositeTags
-	Context    MetricContext // stored on the series when HasContext is true
+	Context    MetricContext // value context for output materialization
 	HasContext bool
+	// ContextProvider and ContextRef defer presentation context construction until
+	// GetContext. ContextExample is the latest example for this exact series.
+	ContextProvider LogContextProvider
+	ContextRef      LogContextRef
+	ContextExample  string
+}
+
+// LogContextRef identifies a pattern within one provider and group lifetime.
+// Generation prevents a removed group from resolving to a later group with
+// the same hash and reused local cluster ID.
+type LogContextRef struct {
+	Generation uint64
+	GroupHash  uint64
+	ClusterID  int64
+}
+
+// LogContextProvider resolves a live pattern without exposing mutable cluster
+// state. Its SplitTags map must remain immutable after return.
+type LogContextProvider interface {
+	ResolveLogContext(LogContextRef) (MetricContext, bool)
 }
 
 // LogMetricsExtractorOutput is what we obtain when we process a log with a log metrics extractor.
