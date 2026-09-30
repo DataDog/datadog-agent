@@ -38,6 +38,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/def",
         "//pkg/tagset",
+        "//pkg/metrics",
         "//pkg/util/option",
         "@com_github_stretchr_testify//require",
     ],

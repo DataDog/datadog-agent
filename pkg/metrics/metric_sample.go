@@ -14,6 +14,9 @@ import (
 // MetricType is the representation of an aggregator metric type
 type MetricType int
 
+// UnknownType represents a metric whose original type was not recorded.
+const UnknownType MetricType = -1
+
 // metric type constants enumeration
 const (
 	GaugeType MetricType = iota
@@ -42,6 +45,8 @@ var (
 // String returns a string representation of MetricType
 func (m MetricType) String() string {
 	switch m {
+	case UnknownType:
+		return "Unknown"
 	case GaugeType:
 		return "Gauge"
 	case RateType:

@@ -27,3 +27,8 @@ func TestMetricSampleCopy(t *testing.T) {
 	assert.False(t, src == dst)
 	assert.True(t, reflect.DeepEqual(&src, &dst))
 }
+
+func TestUnknownMetricType(t *testing.T) {
+	assert.Equal(t, "Unknown", UnknownType.String())
+	assert.Equal(t, MetricType(0), GaugeType)
+}

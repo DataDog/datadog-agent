@@ -27,6 +27,7 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -695,9 +696,10 @@ func (m *parquetMetricView) GetValue() float64 { return m.value }
 func (m *parquetMetricView) GetTags() tagset.CompositeTags {
 	return tagset.CompositeTagsFromSlice(m.tags)
 }
-func (m *parquetMetricView) GetHost() string         { return m.host }
-func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
-func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
+func (m *parquetMetricView) GetHost() string                   { return m.host }
+func (m *parquetMetricView) GetTimestampUnix() int64           { return m.timestamp }
+func (m *parquetMetricView) GetSampleRate() float64            { return 1.0 }
+func (m *parquetMetricView) GetMetricType() metrics.MetricType { return metrics.UnknownType }
 
 // unboundedStorageCfg returns a StorageConfig for testbench replay:
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full

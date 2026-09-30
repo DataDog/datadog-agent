@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	severityeventsdef "github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -49,6 +50,7 @@ type MetricView interface {
 	// GetTimestampUnix returns the sample timestamp in Unix seconds.
 	GetTimestampUnix() int64
 	GetSampleRate() float64
+	GetMetricType() metrics.MetricType
 }
 
 // LogView provides read-only access to a log message.

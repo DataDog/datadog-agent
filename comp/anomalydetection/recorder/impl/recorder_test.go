@@ -13,6 +13,7 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/require"
 )
@@ -75,14 +76,16 @@ type testMetric struct {
 	value      float64
 	timestamp  int64
 	tags       []string
+	metricType metrics.MetricType
 }
 
-func (m *testMetric) GetName() string               { return m.name }
-func (m *testMetric) GetValue() float64             { return m.value }
-func (m *testMetric) GetTags() tagset.CompositeTags { return tagset.CompositeTagsFromSlice(m.tags) }
-func (m *testMetric) GetHost() string               { return m.host }
-func (m *testMetric) GetTimestampUnix() int64       { return m.timestamp }
-func (m *testMetric) GetSampleRate() float64        { return 1 }
+func (m *testMetric) GetName() string                   { return m.name }
+func (m *testMetric) GetValue() float64                 { return m.value }
+func (m *testMetric) GetTags() tagset.CompositeTags     { return tagset.CompositeTagsFromSlice(m.tags) }
+func (m *testMetric) GetHost() string                   { return m.host }
+func (m *testMetric) GetTimestampUnix() int64           { return m.timestamp }
+func (m *testMetric) GetSampleRate() float64            { return 1 }
+func (m *testMetric) GetMetricType() metrics.MetricType { return m.metricType }
 
 type testLog struct {
 	content, status, hostname string
