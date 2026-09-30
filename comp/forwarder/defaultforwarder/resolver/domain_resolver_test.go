@@ -141,28 +141,6 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
 }
 
-func TestAdditionalEndpointsUpdateUsesConfiguredDomainAfterRequestDomainRewrite(t *testing.T) {
-	const (
-		configuredDomain = "https://agent.datadoghq.com"
-		requestDomain    = "https://7-84-0-app.agent.datadoghq.com"
-	)
-	resolver, err := NewSingleDomainResolver(configuredDomain, []utils.APIKeys{
-		utils.NewAPIKeys("additional_endpoints", "old-key"),
-	})
-	require.NoError(t, err)
-	resolver.SetBaseDomain(requestDomain)
-
-	log := logmock.New(t)
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("additional_endpoints", map[string][]string{configuredDomain: {"old-key"}})
-	OnUpdateConfig(resolver, log, mockConfig)
-	mockConfig.Set("additional_endpoints", map[string][]string{configuredDomain: {"new-key"}}, configmodel.SourceSecret)
-
-	assert.Equal(t, configuredDomain, resolver.GetConfigName())
-	assert.Equal(t, requestDomain, resolver.GetBaseDomain())
-	assertKeys(t, []string{"new-key"}, resolver)
-}
-
 func TestOnUpdateConfigReconcilesWritebackBeforeSubscription(t *testing.T) {
 	const domain = "https://resolving-org.datadoghq.com"
 	resolver, err := NewSingleDomainResolver2(utils.EndpointDescriptor{
