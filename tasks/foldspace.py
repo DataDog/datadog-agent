@@ -10,8 +10,8 @@ from invoke import task
 
 from tasks.libs.common.utils import join_command
 
-# Keep in sync with deps/foldspace/foldspace.MODULE.bazel.
-# DataDog/foldspace PR 78 (ryan.hall/exclusive-reliable-class).
+# DataDog/foldspace PR 78 (ryan.hall/exclusive-reliable-class). Keep in sync
+# with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
 FOLDSPACE_GIT_COMMIT = "30d68b0b982fa70466f74a1c82ce70e9b570da31"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
@@ -65,10 +65,9 @@ def build(ctx, source="", release=False):
     """Build libfoldspace_go from DataDog/foldspace at the pinned commit.
 
     source: local foldspace checkout (or FOLDSPACE_SRC). When omitted, clones
-    https://github.com/DataDog/foldspace.git at the commit recorded in
-    deps/foldspace/foldspace.MODULE.bazel (the same pin Bazel fetches as
-    @foldspace). The resulting library is meant to be passed via CGO_LDFLAGS
-    when compiling the agent with --build-include=foldspace.
+    https://github.com/DataDog/foldspace.git at FOLDSPACE_GIT_COMMIT above.
+    The resulting library is meant to be passed via CGO_LDFLAGS when compiling
+    the agent with --build-include=foldspace.
     """
     src = _foldspace_src(ctx, source)
 
