@@ -794,6 +794,18 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 	assert.Equal(t, "K8S_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 }
 
+// TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig verifies that
+// a dogtelextension config leaving use_kubelet_collector unset doesn't clobber
+// the value set in datadog.yaml.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "testdata/datadog_use_kubelet_collector.yaml", []string{"testdata/config_standalone_partial.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+}
+
 // TestDogtelExtensionConfig_MetadataDisabled verifies that setting
 // enable_metadata_collection: false propagates to the DD agent config.
 func (suite *ConfigTestSuite) TestDogtelExtensionConfig_MetadataDisabled() {

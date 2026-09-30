@@ -304,7 +304,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			if extcfg.KubernetesHTTPSKubeletPort > 0 {
 				pkgconfig.Set("kubernetes_https_kubelet_port", extcfg.KubernetesHTTPSKubeletPort, pkgconfigmodel.SourceFile)
 			}
-			pkgconfig.Set("otelcollector.standalone.use_kubelet_collector", extcfg.UseKubeletCollector, pkgconfigmodel.SourceFile)
+			if extcfg.UseKubeletCollector {
+				pkgconfig.Set("otelcollector.standalone.use_kubelet_collector", true, pkgconfigmodel.SourceFile)
+			}
 			if extcfg.NodeFromEnvVar != "" {
 				pkgconfig.Set("otelcollector.standalone.node_from_env_var", extcfg.NodeFromEnvVar, pkgconfigmodel.SourceFile)
 			}
