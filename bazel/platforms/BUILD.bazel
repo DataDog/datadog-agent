@@ -9,6 +9,19 @@ constraint_value(
     constraint_setting = ":crypto",
 )
 
+# bazel_tools' own default_test_toolchain requires the execution platform to
+# satisfy every constraint of the target platform (use_target_platform_constraints),
+# which no real execution platform does for the artificial :fips constraint.
+# This toolchain overrides that requirement for fips target platforms only, as
+# suggested by the toolchain_type's own no_match_error, without registering
+# any new execution platform (see MODULE.bazel for why that is undesirable).
+toolchain(
+    name = "fips_test_toolchain",
+    target_compatible_with = [":fips"],
+    toolchain = "@bazel_tools//tools/test:empty_toolchain",
+    toolchain_type = "@bazel_tools//tools/test:default_test_toolchain_type",
+)
+
 platform(
     name = "linux_x86_64",
     constraint_values = [

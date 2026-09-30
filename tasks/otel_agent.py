@@ -8,7 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel, fips_platform_flag
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -62,7 +62,10 @@ def build(ctx, byoc=False, flavor=AgentFlavor.base.name, enable_bazel=False):
             raise NotImplementedError("--enable-bazel does not support --byoc.")
         if cross_compiling_windows:
             raise NotImplementedError("--enable-bazel does not support cross compiling.")
-        bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
+        if flavor == AgentFlavor.fips:
+            bazel_args = [fips_platform_flag()]
+        else:
+            bazel_args = [f"--//packages/agent:flavor={flavor.name}"]
         build_binary_with_bazel("//cmd/otel-agent:otel-agent", args=bazel_args, bin_path=bin_path)
     else:
         ldflags, gcflags, env = get_build_flags(ctx)

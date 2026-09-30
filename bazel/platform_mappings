@@ -1,0 +1,6 @@
+# Bazel uses this to guarantee all settings, both platform-based and legacy, are consistently applied throughout the
+# build, including through transitions: https://bazel.build/versions/9.1.0/concepts/platforms#platform-mappings
+
+platforms:
+  //bazel/platforms:linux_x86_64_fips
+    --@rules_go//go/toolchain:sdk_name=msgo

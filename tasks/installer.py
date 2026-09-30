@@ -13,7 +13,7 @@ from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel, fips_platform_flag
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -59,7 +59,7 @@ def build(
         if not no_strip_binary:
             raise NotImplementedError("--enable-bazel does not support --no-strip-binary=False.")
 
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        bazel_args = [fips_platform_flag()] if fips_mode else []
         build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=INSTALLER_BIN)
         return
 

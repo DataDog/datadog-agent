@@ -7,7 +7,7 @@ from invoke.context import Context
 from invoke.tasks import task
 
 from tasks.go import tidy
-from tasks.libs.build.bazel import bazel
+from tasks.libs.build.bazel import bazel, buildozer
 from tasks.libs.ciproviders.gitlab_api import update_gitlab_config
 from tasks.libs.common.color import color_message
 from tasks.libs.common.gomodules import get_default_modules
@@ -37,6 +37,18 @@ GO_VERSION_REFERENCES: list[tuple[str, str, str, bool]] = [
 
 PATTERN_MAJOR_MINOR = r'1\.\d+'
 PATTERN_MAJOR_MINOR_BUGFIX = r'1\.\d+\.\d+'
+
+# ABLD-525: msgo (the Microsoft build of Go, used for the fips agent flavor)
+# tracks the same version as go.work, but its per-platform sha256 pins can't
+# be derived by regex like GO_VERSION_REFERENCES, so it gets its own update
+# step, sourcing checksums from microsoft/go's own release manifest.
+MSGO_MODULE_FILE = "./deps/go.MODULE.bazel"
+MSGO_TARGET = f"{MSGO_MODULE_FILE}:msgo"
+MSGO_PLATFORMS: dict[str, tuple[str, str, str]] = {
+    "linux_amd64": ("linux", "amd64", "tar.gz"),
+    "linux_arm64": ("linux", "arm64", "tar.gz"),
+    "windows_amd64": ("windows", "amd64", "zip"),
+}
 
 
 @task
@@ -90,6 +102,7 @@ def update_go(
                 raise
 
     _update_references(warn, version)
+    _update_msgo(version)
     _bump_fakeintake_version()
     _update_go_mods(warn, version, include_otel_modules)
     bazel("run", "//pkg/template:generate")
@@ -180,6 +193,31 @@ def _update_references(warn: bool, version: str, dry_run: bool = False):
         replace = rf'\g<1>{new_version}\g<2>'
 
         update_file(warn, path, pattern, replace, dry_run=dry_run)
+
+
+def _update_msgo(version: str) -> None:
+    import json
+
+    import requests
+
+    tag = f"v{version}-1"
+    assets_url = f"https://github.com/microsoft/go/releases/download/{tag}/assets.json"
+    response = requests.get(assets_url, timeout=30)
+    if response.status_code == 404:
+        raise exceptions.Exit(f"msgo has no {tag} release yet.")
+    response.raise_for_status()
+
+    checksums = {(a["env"]["GOOS"], a["env"]["GOARCH"]): a["sha256"] for a in response.json()["arches"] if "env" in a}
+
+    sdks = {}
+    for platform, (goos, goarch, ext) in MSGO_PLATFORMS.items():
+        sha256 = checksums.get((goos, goarch))
+        if sha256 is None:
+            raise exceptions.Exit(f"msgo {tag}'s release manifest has no {goos}/{goarch} entry.")
+        sdks[platform] = [f"go{version}-1.{goos}-{goarch}.{ext}", sha256]
+
+    buildozer(f"set sdks:expr {json.dumps(sdks, separators=(',', ':'))}", MSGO_TARGET)
+    buildozer(f'set version "{version}"', MSGO_TARGET)
 
 
 def _update_go_mods(warn: bool, version: str, include_otel_modules: bool, dry_run: bool = False):

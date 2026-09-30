@@ -10,7 +10,7 @@ from invoke import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.build.bazel import build_binary_with_bazel
+from tasks.libs.build.bazel import build_binary_with_bazel, fips_platform_flag
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING, REPO_PATH
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import bin_name, get_build_flags
@@ -46,7 +46,7 @@ def build(
             )
         if race:
             raise NotImplementedError("--enable-bazel does not support --race. Use bazel build directly.")
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
+        bazel_args = [fips_platform_flag()] if fips_mode else []
         build_binary_with_bazel(
             "//cmd/secret-generic-connector:secret-generic-connector", args=bazel_args, bin_path=BIN_PATH
         )
