@@ -6,8 +6,7 @@
 // always ship BTF) we detect it directly: override_creds only swaps current->cred and leaves
 // current->real_cred untouched, so cred != real_cred exactly while an override is in effect
 // (commit_creds sets both, so they are otherwise equal). This requires the task_struct cred/real_cred
-// offsets, which are only resolved through BTF; when they are unavailable the offsets are 0 and this
-// returns false, in which case the override_creds/revert_creds depth counter below is relied upon.
+// offsets, without which capabilities monitoring is disabled from userspace.
 static __attribute__((always_inline)) int is_in_creds_override() {
     u64 cred_offset = get_task_struct_cred_offset();
     u64 real_cred_offset = get_task_struct_real_cred_offset();
@@ -41,8 +40,7 @@ static __attribute__((always_inline)) int is_current_task_cred(void *cred) {
 }
 
 // On kernels < 6.13, override_creds/revert_creds are still out-of-line and hookable. They maintain a
-// per-thread depth counter so that capability checks made under overridden credentials are skipped,
-// which also covers kernels without BTF where is_in_creds_override() cannot resolve the cred offsets.
+// per-thread depth counter so that capability checks made under overridden credentials are skipped.
 HOOK_ENTRY("override_creds")
 int hook_override_creds(ctx_t *ctx) {
     u64 tgid_tid = bpf_get_current_pid_tgid();
