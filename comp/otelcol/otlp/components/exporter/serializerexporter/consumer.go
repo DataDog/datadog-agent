@@ -318,15 +318,20 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 func (c *serializerConsumer) sendAPMStats() error {
 	log.Debugf("Exporting %d APM stats payloads", len(c.apmstats))
 	for _, body := range c.apmstats {
-		resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)
-		if err != nil {
-			return fmt.Errorf("could not flush StatsPayload: %v", err)
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			peek := make([]byte, 1024)
-			n, _ := resp.Body.Read(peek)
-			return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
+		if err := func() error {
+			resp, err := http.Post(c.apmReceiverAddr, "application/msgpack", body)
+			if err != nil {
+				return fmt.Errorf("could not flush StatsPayload: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				peek := make([]byte, 1024)
+				n, _ := resp.Body.Read(peek)
+				return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
+			}
+			return nil
+		}(); err != nil {
+			return err
 		}
 	}
 	return nil
