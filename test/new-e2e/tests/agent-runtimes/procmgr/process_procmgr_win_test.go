@@ -181,13 +181,16 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 
 	// BeforeTest repairs the host for the next test regardless. Failing here still points at
 	// the test that left it broken.
-	s.T().Cleanup(func() {
+	//
+	// t is captured rather than read inside the closure: a cleanup runs after testify has
+	// restored the suite's T to the parent, so s.T() there reports against the parent test
+	// and leaves every subtest green next to a red suite.
+	t := s.T()
+	t.Cleanup(func() {
 		if _, err := host.Execute(psClearServiceEnvironment(processLegacySCMServiceName)); err != nil {
-			s.T().Errorf("failed to clear the %s Environment value: %v", processLegacySCMServiceName, err)
+			t.Errorf("failed to clear the %s Environment value: %v", processLegacySCMServiceName, err)
 		}
-		if _, err := host.Execute(procmgrRespawn(cli, processProcessName)); err != nil {
-			s.T().Errorf("failed to respawn %s: %v", processProcessName, err)
-		}
+		restoreProcmgrRunning(t, host, cli, processProcessName, 2*time.Minute)
 	})
 
 	// Both logs are shared by every test, so only lines added by this respawn count.
@@ -233,8 +236,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 
 	// The merge happens in the spawn path, so the process has to be started again for the
 	// new Environment block to be read.
-	_, err = host.Execute(procmgrRespawn(cli, processProcessName))
-	require.NoError(s.T(), err)
+	respawnProcmgrRunning(t, host, cli, processProcessName, 2*time.Minute)
 
 	// Checked before process-agent's side so a failure says which half broke: dd-procmgr
 	// never merging the block, or the merged block not reaching the child.
@@ -296,24 +298,29 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	// config changed, and auto-starts only ones still in Created. Neither covers a process
 	// that failed to spawn, so the restore has to start it explicitly.
 	//
-	// start reports an error when the process is already running, which is the usual case
-	// for the deferred pass, so that error is logged rather than returned. The Running
-	// assertion below is what actually proves the restore worked.
+	// Only the file write is required to succeed. start reports an error when the process
+	// is already running, which is the usual case for the deferred pass, and a dd-procmgr
+	// RPC can fail at the transport level while the daemon acts on it anyway. Both are
+	// logged rather than returned, and the Running assertion below is what actually proves
+	// the restore worked.
+	t := s.T()
 	restore := func() error {
 		if _, err := host.Execute(psWriteFileBase64(cfgPath, s.installedCfgBase64)); err != nil {
 			return err
 		}
 		if _, err := host.Execute(procmgrCmd(cli, "reload")); err != nil {
-			return err
+			t.Logf("reload after restoring %s reported: %v", cfgPath, err)
 		}
 		if _, err := host.Execute(procmgrCmd(cli, "start "+processProcessName)); err != nil {
-			s.T().Logf("start after restoring %s reported: %v", cfgPath, err)
+			t.Logf("start after restoring %s reported: %v", cfgPath, err)
 		}
 		return nil
 	}
-	s.T().Cleanup(func() {
+	// t is captured rather than read inside the closure, since s.T() in a cleanup is
+	// already the parent suite's T.
+	t.Cleanup(func() {
 		if err := restore(); err != nil {
-			s.T().Errorf("failed to restore %s: %v", cfgPath, err)
+			t.Errorf("failed to restore %s: %v", cfgPath, err)
 		}
 	})
 
@@ -332,8 +339,11 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	// the smallest edit that violates it.
 	_, err = host.Execute(psReplaceInFile(cfgPath, "stdout: inherit", "stdout: C:/Windows/Temp/dd-procmgr-priv-stdout.log"))
 	require.NoError(s.T(), err)
-	_, err = host.Execute(procmgrCmd(cli, "reload"))
-	require.NoError(s.T(), err)
+	// Reported rather than required: what has to hold is that the reload reached the
+	// validator, which the Failed state and the rejection line below prove.
+	if _, err := host.Execute(procmgrCmd(cli, "reload")); err != nil {
+		t.Logf("reload after mutating %s reported: %v", cfgPath, err)
+	}
 
 	// reload first stops the running process, so anything short of Failed may just be that
 	// stop in progress rather than a refused spawn.

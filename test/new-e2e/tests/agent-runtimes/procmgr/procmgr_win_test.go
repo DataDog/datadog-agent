@@ -183,6 +183,39 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 	return pid
 }
 
+// respawnProcmgrRunning stops and starts a process, then waits for it to come back
+// Running.
+//
+// The CLI call itself is not required to succeed. A dd-procmgr RPC can fail at the
+// transport level while the daemon carries the spawn out anyway, and retrying `start`
+// then reports the process as already running. What a caller needs is the end state, so
+// that is what is asserted; the command's own error is only logged, where it shows up in
+// the failure output if the process does not come back.
+func respawnProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
+	t.Helper()
+	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
+		t.Logf("respawn of %s reported: %v", name, err)
+	}
+	_ = waitProcmgrRunning(t, host, cli, name, timeout)
+}
+
+// restoreProcmgrRunning is respawnProcmgrRunning for a cleanup: it reports a process that
+// never comes back without ever calling FailNow, which a cleanup must not do.
+func restoreProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
+	t.Helper()
+	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
+		t.Logf("respawn of %s reported: %v", name, err)
+	}
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		if !assert.NoError(ct, err) {
+			return
+		}
+		assert.Equal(ct, "Running", fieldValue(out, "State"),
+			"%s should be Running again after cleanup: %s", name, out)
+	}, timeout, 3*time.Second)
+}
+
 // requireSupervisedOnlyByProcmgr requires that dd-procmgr is the one thing running name, for
 // procmgrHoldFor: name is Running under dd-procmgr as wantPID, and legacyService, which used to
 // run it, is Stopped or not registered. timeout is the deadline for reaching that hold, not the
