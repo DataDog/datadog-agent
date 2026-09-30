@@ -115,7 +115,7 @@ func TestParsePrint(t *testing.T) {
 		{
 			name: "job that exited non-zero",
 			out:  exitedPrintOutput,
-			want: JobStatus{Label: "com.datadoghq.agent", PID: 0, LastExitStatus: 2, Loaded: true},
+			want: JobStatus{Label: "com.datadoghq.agent", PID: 0, LastExitStatus: 2, HasExited: true, Loaded: true},
 		},
 		{
 			name: "loaded job launchd reports nothing else about",
