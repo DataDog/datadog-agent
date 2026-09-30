@@ -117,16 +117,32 @@ func (s JobSet) Stop(ctx context.Context, variant Variant) error {
 	return nil
 }
 
-// Pids returns the running PID of every job in the set, in the given variant, skipping jobs that
-// are not currently running rather than failing outright: a sibling that has already exited is
-// exactly what a caller watching for that condition needs to observe, not an error.
-func (s JobSet) Pids(ctx context.Context, variant Variant) ([]int, error) {
-	pids := make([]int, 0, len(s.Labels))
+// Statuses returns launchd's current status for every job in the set, in the given variant, in
+// order. Unlike Pids, this keeps a job that is loaded but not running instead of dropping it: a
+// sibling that has already exited carries a recorded LastExitStatus/HasExited that a caller
+// watching for that exact condition needs, not just silence.
+func (s JobSet) Statuses(ctx context.Context, variant Variant) ([]JobStatus, error) {
+	statuses := make([]JobStatus, 0, len(s.Labels))
 	for _, label := range s.Labels {
 		status, err := s.Client.Print(ctx, label+string(variant))
 		if err != nil {
 			return nil, fmt.Errorf("could not get status for %s: %w", label+string(variant), err)
 		}
+		statuses = append(statuses, status)
+	}
+	return statuses, nil
+}
+
+// Pids returns the running PID of every job in the set, in the given variant, skipping jobs that
+// are not currently running rather than failing outright: a sibling that has already exited is
+// exactly what a caller watching for that condition needs to observe, not an error.
+func (s JobSet) Pids(ctx context.Context, variant Variant) ([]int, error) {
+	statuses, err := s.Statuses(ctx, variant)
+	if err != nil {
+		return nil, err
+	}
+	pids := make([]int, 0, len(statuses))
+	for _, status := range statuses {
 		if status.PID != 0 {
 			pids = append(pids, status.PID)
 		}

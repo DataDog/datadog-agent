@@ -116,8 +116,12 @@ type JobStatus struct {
 	// PID is the running process's PID, or 0 when the job is loaded but not running.
 	PID int
 	// LastExitStatus is the exit code launchd last recorded for the job, or 0 when it has
-	// never exited.
+	// never exited. Ambiguous on its own: a job can also exit with code 0. Check HasExited to
+	// tell the two apart.
 	LastExitStatus int
+	// HasExited reports whether launchd has ever recorded an exit for this job, i.e. whether
+	// LastExitStatus is a real recorded code rather than "(never exited)"'s zero value.
+	HasExited bool
 	// Loaded reports whether the job is present in the domain.
 	Loaded bool
 }
@@ -309,6 +313,7 @@ func parsePrint(label string, out string) JobStatus {
 	if m := exitRe.FindStringSubmatch(out); m != nil {
 		if code, err := strconv.Atoi(m[1]); err == nil {
 			status.LastExitStatus = code
+			status.HasExited = true
 		}
 	}
 	return status
