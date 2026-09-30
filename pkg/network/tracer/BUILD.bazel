@@ -219,6 +219,7 @@ dd_agent_go_test(
         "@org_uber_go_mock//gomock",
     ] + select({
         "@rules_go//go/platform:android": [
+            "//comp/core/telemetry/impl",
             "//pkg/config/env",
             "//pkg/config/mock",
             "//pkg/ebpf",
@@ -295,6 +296,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/telemetry/impl",
             "//pkg/config/env",
             "//pkg/config/mock",
             "//pkg/ebpf",
@@ -347,6 +349,7 @@ dd_agent_go_test(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/telemetry/impl",
             "//pkg/config/env",
             "//pkg/ebpf/ebpftest",
             "//pkg/network",

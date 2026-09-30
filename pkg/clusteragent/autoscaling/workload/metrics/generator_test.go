@@ -77,6 +77,117 @@ func TestConditionTags(t *testing.T) {
 	assert.Contains(t, tags, le.IsLeaderLabel+":"+le.JoinLeaderValue)
 }
 
+func TestApplyModeTags(t *testing.T) {
+	internal := model.FakePodAutoscalerInternal{
+		Namespace: "test-ns",
+		Name:      "test-autoscaler",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name: "test-target",
+				Kind: "Deployment",
+			},
+		},
+	}.Build()
+	baseTags := baseAutoscalerTags(&internal)
+
+	// A multi-dimensional DPA must produce a single tag set carrying both dimension values.
+	tags := applyModeTags(baseTags, "apply", []string{dpaDimensionHorizontal, dpaDimensionVertical})
+	assert.Len(t, tags, len(baseTags)+3)
+	assert.Contains(t, tags, "dpa_mode:apply")
+	assert.Equal(t, []string{dpaDimensionHorizontal, dpaDimensionVertical}, tagValues(tags, dpaDimensionTagKey))
+
+	// Single-dimension DPAs keep a single dimension tag, and the base tags are never mutated.
+	horizontalOnly := applyModeTags(baseTags, "preview", []string{dpaDimensionHorizontal})
+	assert.Equal(t, []string{dpaDimensionHorizontal}, tagValues(horizontalOnly, dpaDimensionTagKey))
+	assert.Equal(t, []string{dpaDimensionHorizontal, dpaDimensionVertical}, tagValues(tags, dpaDimensionTagKey))
+	assert.Empty(t, tagValues(baseTags, dpaDimensionTagKey))
+}
+
+func TestControlledResourceTags(t *testing.T) {
+	internal := model.FakePodAutoscalerInternal{
+		Namespace: "test-ns",
+		Name:      "test-autoscaler",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name: "test-target",
+				Kind: "Deployment",
+			},
+		},
+	}.Build()
+	baseTags := baseAutoscalerTags(&internal)
+
+	// Several controlled resources must produce a single tag set carrying every resource value.
+	tags := controlledResourceTags(baseTags, "app", []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory})
+	assert.Len(t, tags, len(baseTags)+3)
+	assert.Contains(t, tags, "kube_container_name:app")
+	assert.Equal(t, []string{"cpu", "memory"}, tagValues(tags, resourceNameTagKey))
+
+	// The wildcard container constraint is reported as "all", and the base tags are never mutated.
+	wildcard := controlledResourceTags(baseTags, "*", []corev1.ResourceName{corev1.ResourceCPU})
+	assert.Contains(t, wildcard, "kube_container_name:"+allContainersTagValue)
+	assert.Equal(t, []string{"cpu"}, tagValues(wildcard, resourceNameTagKey))
+	assert.Equal(t, []string{"cpu", "memory"}, tagValues(tags, resourceNameTagKey))
+	assert.Empty(t, tagValues(baseTags, resourceNameTagKey))
+}
+
+// TestGeneratePodAutoscalerMetricsSingleTimeseriesPerContext asserts end-to-end that a
+// multi-dimensional DPA controlling several resources emits one timeseries per metric context,
+// with the multiple dimensions/resources carried as repeated tag keys on that single point,
+// instead of one point (and therefore one context) per dimension/resource.
+func TestGeneratePodAutoscalerMetricsSingleTimeseriesPerContext(t *testing.T) {
+	internal := model.FakePodAutoscalerInternal{
+		Namespace: "test-ns",
+		Name:      "test-dpa",
+		Spec: &datadoghq.DatadogPodAutoscalerSpec{
+			TargetRef: v2.CrossVersionObjectReference{
+				Name: "test-deployment",
+				Kind: "Deployment",
+			},
+			Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+				Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+					{
+						Name:                "app",
+						ControlledResources: []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory},
+					},
+				},
+			},
+		},
+	}.Build()
+
+	// Both dimensions are enabled: no apply policy disables horizontal or vertical scaling.
+	require.True(t, internal.IsHorizontalScalingEnabled())
+	require.True(t, internal.IsVerticalScalingEnabled())
+
+	metrics := GeneratePodAutoscalerMetrics(&internal)
+
+	applyModeMetrics := metricsByName(metrics, metricPrefix+".apply_mode")
+	require.Len(t, applyModeMetrics, 1, "a multi-dimensional DPA must emit a single apply_mode timeseries")
+	assert.Equal(t, metricsstore.MetricTypeGauge, applyModeMetrics[0].Type)
+	assert.Equal(t, 1.0, applyModeMetrics[0].Value)
+	assert.Contains(t, applyModeMetrics[0].Tags, "dpa_mode:apply")
+	assert.Contains(t, applyModeMetrics[0].Tags, "dpa_dimension:horizontal")
+	assert.Contains(t, applyModeMetrics[0].Tags, "dpa_dimension:vertical")
+	assert.Equal(t, []string{dpaDimensionHorizontal, dpaDimensionVertical}, tagValues(applyModeMetrics[0].Tags, dpaDimensionTagKey))
+
+	controlledResourcesMetrics := metricsByName(metrics, metricPrefix+".vertical_scaling.controlled_resources")
+	require.Len(t, controlledResourcesMetrics, 1, "a container controlling several resources must emit a single timeseries")
+	assert.Equal(t, metricsstore.MetricTypeGauge, controlledResourcesMetrics[0].Type)
+	assert.Equal(t, 1.0, controlledResourcesMetrics[0].Value)
+	assert.Contains(t, controlledResourcesMetrics[0].Tags, "kube_container_name:app")
+	assert.Contains(t, controlledResourcesMetrics[0].Tags, "resource_name:cpu")
+	assert.Contains(t, controlledResourcesMetrics[0].Tags, "resource_name:memory")
+	assert.Equal(t, []string{"cpu", "memory"}, tagValues(controlledResourcesMetrics[0].Tags, resourceNameTagKey))
+
+	// The apply mode tags must not leak into the other metrics sharing the base tags.
+	for _, m := range metrics {
+		if m.Name == metricPrefix+".apply_mode" {
+			continue
+		}
+		assert.Empty(t, tagValues(m.Tags, dpaDimensionTagKey), "%s should not carry a dpa_dimension tag", m.Name)
+		assert.Empty(t, tagValues(m.Tags, dpaModeTagKey), "%s should not carry a dpa_mode tag", m.Name)
+	}
+}
+
 func expectedAdditionalMetricsCount(internal *model.PodAutoscalerInternal) int {
 	return expectedApplyModeMetricsCount(internal) + expectedControlledResourcesMetricsCount(internal)
 }
@@ -85,14 +196,11 @@ func expectedApplyModeMetricsCount(internal *model.PodAutoscalerInternal) int {
 	if internal == nil {
 		return 0
 	}
-	count := 0
-	if internal.IsHorizontalScalingEnabled() {
-		count++
+	// A single apply_mode point is emitted, carrying one dpa_dimension tag per enabled dimension.
+	if internal.IsHorizontalScalingEnabled() || internal.IsVerticalScalingEnabled() {
+		return 1
 	}
-	if internal.IsVerticalScalingEnabled() {
-		count++
-	}
-	return count
+	return 0
 }
 
 func expectedControlledResourcesMetricsCount(internal *model.PodAutoscalerInternal) int {
@@ -105,21 +213,29 @@ func expectedControlledResourcesMetricsCount(internal *model.PodAutoscalerIntern
 		containers = internal.Spec().Constraints.Containers
 	}
 
+	// A single point is emitted per enabled container constraint, carrying one resource_name tag
+	// per controlled resource.
 	count := 0
 	for _, container := range containers {
 		if container.Enabled != nil && !*container.Enabled {
 			continue
 		}
-		seenResources := make(map[corev1.ResourceName]struct{})
-		for _, resource := range controlledResourcesForMetrics(container.ControlledResources) {
-			if _, seen := seenResources[resource]; seen {
-				continue
-			}
-			seenResources[resource] = struct{}{}
-			count++
+		if len(controlledResourcesForMetrics(container.ControlledResources)) == 0 {
+			continue
 		}
+		count++
 	}
 	return count
+}
+
+func metricsByName(metrics metricsstore.StructuredMetrics, name string) metricsstore.StructuredMetrics {
+	var matching metricsstore.StructuredMetrics
+	for _, m := range metrics {
+		if m.Name == name {
+			matching = append(matching, m)
+		}
+	}
+	return matching
 }
 
 func tagValue(tags []string, key string) string {
@@ -132,19 +248,33 @@ func tagValue(tags []string, key string) string {
 	return ""
 }
 
-func assertControlledResourcesMetrics(t *testing.T, metrics metricsstore.StructuredMetrics, expected map[string]float64) {
+func tagValues(tags []string, key string) []string {
+	prefix := key + ":"
+	var values []string
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, prefix) {
+			values = append(values, strings.TrimPrefix(tag, prefix))
+		}
+	}
+	return values
+}
+
+// assertControlledResourcesMetrics asserts that exactly one controlled_resources point is emitted
+// per expected container, each carrying the expected resource_name tag values.
+func assertControlledResourcesMetrics(t *testing.T, metrics metricsstore.StructuredMetrics, expected map[string][]string) {
 	t.Helper()
 
-	actual := map[string]float64{}
+	actual := map[string][]string{}
 	for _, m := range metrics {
 		if m.Name != metricPrefix+".vertical_scaling.controlled_resources" {
 			continue
 		}
 		assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
+		assert.Equal(t, 1.0, m.Value)
 		assert.Empty(t, tagValue(m.Tags, dpaDimensionTagKey))
 		container := tagValue(m.Tags, "kube_container_name")
-		resourceName := tagValue(m.Tags, resourceNameTagKey)
-		actual[container+"/"+resourceName] = m.Value
+		require.NotContains(t, actual, container, "expected a single controlled_resources timeseries per container")
+		actual[container] = tagValues(m.Tags, resourceNameTagKey)
 	}
 
 	assert.Equal(t, expected, actual)
@@ -653,7 +783,7 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 		},
 		{
-			name: "apply mode defaults to apply for enabled dimensions",
+			name: "apply mode emits a single timeseries tagged with every enabled dimension",
 			setupFunc: func() *model.PodAutoscalerInternal {
 				internal := model.FakePodAutoscalerInternal{
 					Namespace: "test-ns",
@@ -668,20 +798,15 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 			expectedCount: 13, // baseline only; apply_mode count is added by expectedAdditionalMetricsCount
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
-				dimensions := map[string]bool{}
-				for _, m := range metrics {
-					if m.Name != metricPrefix+".apply_mode" {
-						continue
-					}
-					assert.Equal(t, metricsstore.MetricTypeGauge, m.Type)
-					assert.Equal(t, 1.0, m.Value)
-					assert.Contains(t, m.Tags, "dpa_mode:apply")
-					dimensions[tagValue(m.Tags, "dpa_dimension")] = true
-				}
-				assert.Equal(t, map[string]bool{
-					"horizontal": true,
-					"vertical":   true,
-				}, dimensions)
+				applyModeMetrics := metricsByName(metrics, metricPrefix+".apply_mode")
+				// A multi-dimensional DPA must stay a single timeseries carrying both dimensions,
+				// not one context per dimension.
+				require.Len(t, applyModeMetrics, 1)
+				assert.Equal(t, metricsstore.MetricTypeGauge, applyModeMetrics[0].Type)
+				assert.Equal(t, 1.0, applyModeMetrics[0].Value)
+				assert.Contains(t, applyModeMetrics[0].Tags, "dpa_mode:apply")
+				assert.Contains(t, applyModeMetrics[0].Tags, "dpa_dimension:horizontal")
+				assert.Contains(t, applyModeMetrics[0].Tags, "dpa_dimension:vertical")
 			},
 		},
 		{
@@ -700,9 +825,8 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 			expectedCount: 13, // baseline only; controlled_resources count is added by expectedAdditionalMetricsCount
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
-				assertControlledResourcesMetrics(t, metrics, map[string]float64{
-					"all/cpu":    1.0,
-					"all/memory": 1.0,
+				assertControlledResourcesMetrics(t, metrics, map[string][]string{
+					"all": {"cpu", "memory"},
 				})
 			},
 		},
@@ -723,9 +847,8 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 			expectedCount: 13, // baseline only; controlled_resources count is added by expectedAdditionalMetricsCount
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
-				assertControlledResourcesMetrics(t, metrics, map[string]float64{
-					"all/cpu":    1.0,
-					"all/memory": 1.0,
+				assertControlledResourcesMetrics(t, metrics, map[string][]string{
+					"all": {"cpu", "memory"},
 				})
 			},
 		},
@@ -751,16 +874,73 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 			expectedCount: 13, // baseline only; apply_mode count is added by expectedAdditionalMetricsCount
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
-				var applyModeMetrics []metricsstore.StructuredMetric
-				for _, m := range metrics {
-					if m.Name == metricPrefix+".apply_mode" {
-						applyModeMetrics = append(applyModeMetrics, m)
-					}
-				}
+				applyModeMetrics := metricsByName(metrics, metricPrefix+".apply_mode")
 				require.Len(t, applyModeMetrics, 1)
 				assert.Equal(t, 1.0, applyModeMetrics[0].Value)
 				assert.Contains(t, applyModeMetrics[0].Tags, "dpa_mode:preview")
 				assert.Contains(t, applyModeMetrics[0].Tags, "dpa_dimension:horizontal")
+				assert.NotContains(t, applyModeMetrics[0].Tags, "dpa_dimension:vertical")
+			},
+		},
+		{
+			name: "apply mode omits disabled horizontal dimension",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+							ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+								Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+							},
+							ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+								Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 13, // baseline only; apply_mode count is added by expectedAdditionalMetricsCount
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				applyModeMetrics := metricsByName(metrics, metricPrefix+".apply_mode")
+				require.Len(t, applyModeMetrics, 1)
+				assert.Contains(t, applyModeMetrics[0].Tags, "dpa_mode:apply")
+				assert.Contains(t, applyModeMetrics[0].Tags, "dpa_dimension:vertical")
+				assert.NotContains(t, applyModeMetrics[0].Tags, "dpa_dimension:horizontal")
+			},
+		},
+		{
+			name: "apply mode not emitted when both dimensions are disabled",
+			setupFunc: func() *model.PodAutoscalerInternal {
+				internal := model.FakePodAutoscalerInternal{
+					Namespace: "test-ns",
+					Name:      "test-dpa",
+					Spec: &datadoghq.DatadogPodAutoscalerSpec{
+						TargetRef: v2.CrossVersionObjectReference{
+							Name: "test-deployment",
+						},
+						ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+							ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+								Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+							},
+							ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+								Strategy: pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect),
+							},
+							Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+								Strategy: datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy,
+							},
+						},
+					},
+				}.Build()
+				return &internal
+			},
+			expectedCount: 13, // baseline only; apply_mode count is added by expectedAdditionalMetricsCount
+			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
+				assert.Empty(t, metricsByName(metrics, metricPrefix+".apply_mode"))
 			},
 		},
 		{
@@ -927,10 +1107,9 @@ func TestGeneratePodAutoscalerMetrics(t *testing.T) {
 			},
 			expectedCount: 13, // baseline only; controlled_resources count is added by expectedAdditionalMetricsCount
 			validateMetric: func(t *testing.T, metrics metricsstore.StructuredMetrics) {
-				assertControlledResourcesMetrics(t, metrics, map[string]float64{
-					"app/cpu":    1.0,
-					"all/cpu":    1.0,
-					"all/memory": 1.0,
+				assertControlledResourcesMetrics(t, metrics, map[string][]string{
+					"app": {"cpu"},
+					"all": {"cpu", "memory"},
 				})
 			},
 		},

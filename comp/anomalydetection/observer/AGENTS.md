@@ -11,7 +11,12 @@ on it:
 Handle → Storage → Detect → Correlate → Report
 ```
 
-Data enters through lightweight **Handles** (non-blocking, copy-on-send).
+Data enters through lightweight **Handles** (non-blocking scalar snapshot on
+send). Metric handles reject name/source/host-only processing rules before
+enqueueing, retain immutable resolved-tag views, and defer tag-dependent
+filtering, muting, and context-key generation when needed to the dispatch
+goroutine; log handles still copy caller-owned content and tags before
+enqueueing.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
@@ -56,12 +61,20 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
-| Detector | `rrcf` | on |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | off |
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+`anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
+patterns across all tag groups (default 3,000). This includes patterns below
+the metric emission threshold. Non-positive values use the default. Capacity
+eviction removes the least recently seen existing pattern and sends its metric
+name through engine cleanup. The internal per-group and tag-group safeguards
+still apply. This setting does not limit `log_metrics_extractor` outputs; the
+shared storage series budget remains separate.
+
 
 The `anomaly_scorer` correlator has a **dedicated config namespace** under `anomaly_detection.anomaly_scorer.*` (not `detectors.*`) with an `output` sub-section controlling logs and correlation events:
 
@@ -120,7 +133,11 @@ writing. Detectors can pick any aggregation without re-ingesting data.
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to a buffered channel. If the channel is full,
-observations are silently dropped. Analysis never back-pressures data ingestion.
+observations are dropped and counted in Observer telemetry. Analysis never
+back-pressures data ingestion.
+The agent-internal log tap likewise uses a bounded non-blocking handoff before
+performing processing rules, rate limiting, allocation, and `ObserveLog` work,
+so it does not run those operations under the global Agent logger lock.
 
 ### Metric ingestion gate
 
@@ -128,6 +145,23 @@ When `anomaly_detection.metrics.enabled=false`, handles wrap with
 `metricDropHandle` so external metrics are dropped at the edge. `ObserveLog`
 still passes through; log-derived virtual metrics produced inside the engine
 are unaffected.
+
+### Tag ownership and host identity
+
+Metrics-pipeline tags enter the observer as immutable `tagset.CompositeTags`.
+Core observer paths (ingestion, filtering, storage, detectors, and
+correlators) retain and iterate that view; they must not flatten, sort, or
+copy it. Materialize a `[]string` only at an external serialization boundary
+such as a JSON, event, Parquet, or testbench DTO.
+
+Storage uses a bounded, reference-counted composite-tag interner on new-series
+insertion only. It fingerprints tags as unordered, duplicate-insensitive sets
+and collision-checks views without flattening them. Existing-series writes must
+not hash or inspect tags; eviction releases the interner reference.
+
+Raw `LogView.Tags()` remains a `[]string` because the upstream log can be
+reused. Copy it once at raw-log ingestion; all derived metric paths should then
+use a composite view.
 
 ### Correlator-owned deduplication (`correlationEmitter`)
 
@@ -158,6 +192,11 @@ The scorer uses a different path (`EpisodeStarted` / `EpisodeEnded` events) and 
 not embed a `correlationEmitter`.
 
 ### Detector-output deduplication vs replay history
+
+Every detector output must set `Anomaly.SourceRef` to its storage series and
+aggregate, including anomalies from log-derived metrics. The engine discards
+outputs without a reference. Display names are not deduplication identities.
+The standalone scorer can also accept inputs without storage references.
 
 The engine deduplicates detector outputs across advances before feeding them to
 correlators. Live mode keeps only a fixed-size dedup cache;
@@ -208,6 +247,10 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 ```bash
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
+
+# The testbench reporter requires its own build tag, passed through extra args
+# because it is not part of the Agent's selectable build-tag set.
+dda inv test --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.

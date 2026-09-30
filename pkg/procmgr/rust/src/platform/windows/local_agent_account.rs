@@ -14,7 +14,14 @@ use windows_sys::Win32::Security::{
 
 use super::agent_service_sid::lookup_installed_user_sid;
 #[cfg(not(test))]
+use super::agent_service_sid::{DATADOG_AGENT_SERVICE, service_runs_as_agent_user};
+#[cfg(not(test))]
+use super::installer_lsa_password::read_installer_agent_password;
+#[cfg(not(test))]
 use super::local_account::is_local_account;
+use super::secure_utf16::SecureUtf16String;
+#[cfg(not(test))]
+use super::service_account::is_managed_service_account;
 use super::sid::create_well_known_sid;
 use super::token_identity::current_process_sid_matches;
 #[cfg(not(test))]
@@ -55,12 +62,16 @@ pub(crate) enum AgentAccount {
         logon_domain: String,
         user: String,
     },
-    #[allow(dead_code)]
     PasswordLogon {
         registry_domain: String,
         logon_domain: String,
         user: String,
-        password: String,
+        password: SecureUtf16String,
+    },
+    ManagedServiceAccountLogon {
+        registry_domain: String,
+        logon_domain: String,
+        user: String,
     },
 }
 
@@ -92,6 +103,16 @@ impl std::fmt::Debug for AgentAccount {
                 .field("user", user)
                 .field("password", &"****")
                 .finish(),
+            Self::ManagedServiceAccountLogon {
+                registry_domain,
+                logon_domain,
+                user,
+            } => f
+                .debug_struct("ManagedServiceAccountLogon")
+                .field("registry_domain", registry_domain)
+                .field("logon_domain", logon_domain)
+                .field("user", user)
+                .finish(),
         }
     }
 }
@@ -111,6 +132,9 @@ impl AgentAccount {
                     .with_context(|| format!("compare supervisor token to {}", self.display_name()))
             }
             AgentAccount::PasswordLogon {
+                logon_domain, user, ..
+            }
+            | AgentAccount::ManagedServiceAccountLogon {
                 logon_domain, user, ..
             } => {
                 let sid = lookup_installed_user_sid(logon_domain, user)
@@ -132,6 +156,11 @@ impl AgentAccount {
                 registry_domain,
                 user,
                 ..
+            }
+            | AgentAccount::ManagedServiceAccountLogon {
+                registry_domain,
+                user,
+                ..
             } => AccountName::new(registry_domain, user).display(),
             _ => self.logon_account_name().display(),
         }
@@ -146,6 +175,9 @@ impl AgentAccount {
                 logon_domain, user, ..
             }
             | AgentAccount::PasswordLogon {
+                logon_domain, user, ..
+            }
+            | AgentAccount::ManagedServiceAccountLogon {
                 logon_domain, user, ..
             } => AccountName::new(logon_domain, user),
         }
@@ -224,14 +256,58 @@ fn resolve_local_agent_account(domain: String, user: String, sid: &[u8]) -> Resu
 
     let is_local =
         is_local_account(sid).with_context(|| format!("classify local account for {display}"))?;
-    if !is_local {
-        bail!("domain agent account {display} is not supported");
-    }
 
-    bail!(
-        "agent user password is not available for local account {display}; \
-         run dd-procmgrd as the installed agent account"
+    let scm_service_matches_agent = match service_runs_as_agent_user(
+        DATADOG_AGENT_SERVICE,
+        &domain,
+        &user,
+    ) {
+        Ok(matches) => matches,
+        Err(error) => {
+            info!(
+                "could not compare datadogagent service account to installed agent user {display}: {error:#}"
+            );
+            false
+        }
+    };
+    let installer_password =
+        read_installer_agent_password().context("read installer agent password from LSA")?;
+    let installer_password_present = installer_password
+        .as_ref()
+        .is_some_and(|password| !password.is_empty());
+    let managed_service_account = is_managed_service_account(&domain, &user);
+    info!(
+        "agent account inputs for {display}: service_account_matches={scm_service_matches_agent}, installer_password_present={installer_password_present}, managed_service_account={managed_service_account}"
     );
+
+    let spawn_logon = crate::spawn::resolve_agent_spawn_logon(
+        &domain,
+        &user,
+        is_local,
+        installer_password_present,
+        managed_service_account,
+    )?;
+
+    match spawn_logon {
+        crate::spawn::AgentSpawnLogon::InstallerPassword(logon) => {
+            let Some(password) = installer_password.filter(|password| !password.is_empty()) else {
+                bail!("internal error: installer password missing after password-logon policy");
+            };
+            Ok(AgentAccount::PasswordLogon {
+                registry_domain: logon.registry_domain,
+                logon_domain: logon.logon_domain,
+                user: logon.user,
+                password,
+            })
+        }
+        crate::spawn::AgentSpawnLogon::ManagedServiceAccount(logon) => {
+            Ok(AgentAccount::ManagedServiceAccountLogon {
+                registry_domain: logon.registry_domain,
+                logon_domain: logon.logon_domain,
+                user: logon.user,
+            })
+        }
+    }
 }
 
 #[cfg(not(test))]
@@ -355,10 +431,19 @@ mod tests {
                 registry_domain: "WIN-HOST".to_string(),
                 logon_domain: String::new(),
                 user: "ddagentuser".to_string(),
-                password: "secret".to_string(),
+                password: SecureUtf16String::from_utf8("secret"),
             }
             .display_name(),
             r"WIN-HOST\ddagentuser",
+        );
+        assert_eq!(
+            AgentAccount::ManagedServiceAccountLogon {
+                registry_domain: "CORP".to_string(),
+                logon_domain: "CORP".to_string(),
+                user: "ddgmsa$".to_string(),
+            }
+            .display_name(),
+            r"CORP\ddgmsa$",
         );
     }
 

@@ -15,7 +15,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://github.com/openssl/openssl/releases/download/openssl-{version}/openssl-{version}.tar.gz",
+        download_url = "https://www.openssl.org/source/openssl-{version}.tar.gz",
         package = "openssl",
         version = "3.1.2",
     ),

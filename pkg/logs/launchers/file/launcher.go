@@ -524,6 +524,13 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	}
 }
 
+func (s *Launcher) positionFileOpener(file *tailer.File) opener.FileOpener {
+	if file == nil {
+		return s.fileOpener
+	}
+	return opener.ForSource(s.fileOpener, file.Source)
+}
+
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise.
 func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, fingerprint *types.Fingerprint) bool {
@@ -539,7 +546,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, s.fileOpener)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, s.positionFileOpener(file))
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
@@ -608,7 +615,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
 
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, s.fileOpener)
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter, s.positionFileOpener(file))
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}

@@ -49,8 +49,11 @@
     TEAM: injection-platform
     E2E_INIT_ONLY: "true"
     SHOULD_RUN_IN_FLAKES_FINDER: "false"
-    KUBERNETES_MEMORY_REQUEST: 24Gi
-    KUBERNETES_MEMORY_LIMIT: 24Gi
+    # Run early by design and never wait for go_e2e_test_binaries, so `go test` always
+    # compiles the suite in-job. At 24Gi the build container sat pinned at its memory
+    # limit for the whole run; sized to match go_e2e_test_binaries.
+    KUBERNETES_MEMORY_REQUEST: 72Gi
+    KUBERNETES_MEMORY_LIMIT: 72Gi
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 
