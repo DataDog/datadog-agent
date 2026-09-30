@@ -8,6 +8,7 @@ go_library(
         "consumer.go",
         "dedupe.go",
         "doc.go",
+        "engine_standin.go",
         "fileaccess.go",
         "metrics.go",
         "pool.go",
