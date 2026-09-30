@@ -60,6 +60,20 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
   fips_args = fips_mode? ? "--fips-mode" : ""
+  # DD_FOLDSPACE_BUILD links the native foldspace log sender. Only linux carries
+  # a vendored library (comp/logs-library/sender/foldspace/nativelib), so the
+  # flag is a no-op everywhere else: no vendored library, no CI job sets it.
+  #
+  # --build-include replaces the default tag set rather than adding to it, so
+  # passing "foldspace" alone would drop docker, kubelet, jmx and everything
+  # else agent.build normally includes. Read the real default list and add
+  # foldspace to it instead of overriding it.
+  foldspace_build_args = ""
+  if linux_target? && !ENV['DD_FOLDSPACE_BUILD'].to_s.empty?
+    default_tags = `dda inv -- -e print-default-build-tags --build=agent --flavor=#{flavor_arg}`.strip
+    raise "failed to compute default build tags for the foldspace build" unless $?.success?
+    foldspace_build_args = "--build-include=#{default_tags},foldspace"
+  end
   # include embedded path (mostly for `pkg-config` binary)
   #
   # with_embedded_path prepends the embedded path to the PATH from the global environment
@@ -102,7 +116,17 @@ build do
   else
     command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg} #{foldspace_build_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+  end
+
+  unless foldspace_build_args.empty?
+    # The linker resolved libfoldspace_go.so from the vendored path at build
+    # time; it is copied here to where env['CGO_LDFLAGS']'s rpath, set above,
+    # expects to find it at runtime.
+    foldspace_arch = (ENV['PACKAGE_ARCH'] == 'arm64') ? 'linux_arm64' : 'linux_amd64'
+    foldspace_lib = "#{project_dir}/comp/logs-library/sender/foldspace/nativelib/#{foldspace_arch}/libfoldspace_go.so"
+    raise "no vendored libfoldspace_go.so for #{foldspace_arch}" unless File.exist?(foldspace_lib)
+    copy foldspace_lib, "#{install_dir}/embedded/lib/"
   end
 
   command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
