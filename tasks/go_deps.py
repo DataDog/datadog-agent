@@ -1,8 +1,8 @@
 import datetime
 import json
 import os
+import shlex
 import shutil
-import subprocess
 import sys
 import tempfile
 from collections.abc import Iterable
@@ -119,7 +119,7 @@ print(json.dumps([get_default_build_tags(build=b, flavor=AgentFlavor[f], platfor
 """
 
 
-def _checkout_build_tags() -> dict[tuple[str, str, str], list[str]]:
+def _checkout_build_tags(ctx: Context) -> dict[tuple[str, str, str], list[str]]:
     """Default build tags of every BINARIES target, keyed by (build, flavor name, platform).
 
     tasks.build_tags is already imported from the revision the task started on, so the
@@ -132,11 +132,9 @@ def _checkout_build_tags() -> dict[tuple[str, str, str], list[str]]:
             for combo in details["platforms"]
         }
     )
-    res = subprocess.run(
-        [sys.executable, "-c", _CHECKOUT_BUILD_TAGS_SCRIPT, json.dumps(targets)],
-        stdout=subprocess.PIPE,
-        text=True,
-        check=True,
+    res = ctx.run(
+        f"{shlex.quote(sys.executable)} -c {shlex.quote(_CHECKOUT_BUILD_TAGS_SCRIPT)} {shlex.quote(json.dumps(targets))}",
+        hide=True,
     )
     return dict(zip(targets, json.loads(res.stdout.splitlines()[-1]), strict=True))
 
@@ -187,7 +185,7 @@ def diff(
             for branch_name, branch_ref in branches.items():
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
-                checkout_tags = _checkout_build_tags()
+                checkout_tags = _checkout_build_tags(ctx)
 
                 # Run all go list commands in parallel for this branch
                 promises = []
