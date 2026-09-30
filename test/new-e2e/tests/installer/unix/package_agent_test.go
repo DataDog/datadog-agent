@@ -428,21 +428,10 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// We use libnss-extrausers which reads from /var/lib/extrausers
 	// This works through nsswitch.conf without needing environment variables
 
-	// Install libnss-extrausers
-	if s.host.GetPkgManager() == "apt" {
-		s.host.Run("sudo apt-get update && sudo apt-get install -y libnss-extrausers")
-	} else if s.host.GetPkgManager() == "yum" {
-		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
-	} else if s.host.GetPkgManager() == "zypper" {
-		_, err := s.Env().RemoteHost.Execute("sudo zypper install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
+	// libnss-extrausers is only available on apt systems
+	if s.host.GetPkgManager() != "apt" {
+		s.T().Skip("libnss-extrausers not available on this system")
+		return
 	}
 
 	// Create the extrausers directory structure
