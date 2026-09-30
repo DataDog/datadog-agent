@@ -9,7 +9,11 @@ package workloadmetaimpl
 
 import (
 	"context"
+	stderrors "errors"
+	"fmt"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
 const (
@@ -2331,4 +2336,188 @@ func TestStartSignalsInitializedWhenNoCollectorApplicable(t *testing.T) {
 	w.pull(ctx)
 	w.updateCollectorStatus(wmdef.CollectorsInitialized)
 	require.True(t, w.IsInitialized())
+}
+
+// fakeCollector is a workloadmeta collector whose Start behavior is fully
+// controlled by the test via the start func, so tests can simulate slow,
+// blocking, failing, or succeeding collectors without relying on real
+// network/socket probes.
+type fakeCollector struct {
+	id    string
+	start func(context.Context) error
+}
+
+func (c *fakeCollector) Start(ctx context.Context, _ wmdef.Component) error { return c.start(ctx) }
+
+func (c *fakeCollector) Pull(context.Context) error { return nil }
+
+func (c *fakeCollector) GetID() string { return c.id }
+
+func (c *fakeCollector) GetTargetCatalog() wmdef.AgentType { return wmdef.NodeAgent }
+
+// TestStartCandidatesRunsCollectorsConcurrently is a regression test for
+// startCandidates dispatching every candidate's Start() one at a time: each
+// collector here only returns once every one of them has entered Start(), so
+// the test deadlocks (and times out) if collectors are started sequentially
+// instead of concurrently.
+func TestStartCandidatesRunsCollectorsConcurrently(t *testing.T) {
+	const n = 5
+
+	var startedCount atomic.Int32
+	allStarted := make(chan struct{})
+
+	collectors := make([]wmdef.Collector, 0, n)
+	for i := 0; i < n; i++ {
+		collectors = append(collectors, &fakeCollector{
+			id: fmt.Sprintf("collector-%d", i),
+			start: func(ctx context.Context) error {
+				if startedCount.Add(1) == n {
+					close(allStarted)
+				}
+				select {
+				case <-allStarted:
+					return nil
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			},
+		})
+	}
+
+	w := newWorkloadmetaWithCollectors(t, collectors...)
+	w.firstCollectorReady = make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan bool, 1)
+	go func() { done <- w.startCandidates(ctx) }()
+
+	select {
+	case allDone := <-done:
+		assert.True(t, allDone, "not all candidates were processed")
+	case <-time.After(1 * time.Second):
+		t.Fatal("startCandidates did not return; collectors likely started sequentially and deadlocked waiting for each other")
+	}
+
+	assert.Empty(t, w.candidates)
+	assert.Len(t, w.collectors, n)
+}
+
+// TestStartCandidatesClosesFirstCollectorReadyAsSoonAsFasterCollectorSucceeds
+// is a regression test for the head-of-line-blocking bug where
+// firstCollectorReady was only closed after every candidate's Start() call
+// had returned. It asserts a fast collector's success unblocks
+// firstCollectorReady while a slower sibling candidate is still running.
+func TestStartCandidatesClosesFirstCollectorReadyAsSoonAsFasterCollectorSucceeds(t *testing.T) {
+	slowStarted := make(chan struct{})
+	slowUnblockCh := make(chan struct{})
+	unblockSlow := sync.OnceFunc(func() { close(slowUnblockCh) })
+	defer unblockSlow() // avoid leaking the slow collector's goroutine if an assertion fails early
+
+	slow := &fakeCollector{
+		id: "slow",
+		start: func(ctx context.Context) error {
+			close(slowStarted)
+			select {
+			case <-slowUnblockCh:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+	fast := &fakeCollector{
+		id:    "fast",
+		start: func(context.Context) error { return nil },
+	}
+
+	w := newWorkloadmetaWithCollectors(t, slow, fast)
+	w.firstCollectorReady = make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan bool, 1)
+	go func() { done <- w.startCandidates(ctx) }()
+
+	select {
+	case <-slowStarted:
+	case <-time.After(1 * time.Second):
+		t.Fatal("slow collector's Start() was never invoked")
+	}
+
+	select {
+	case <-w.firstCollectorReady:
+		// expected: the fast collector's success closes firstCollectorReady
+		// without waiting for the still-running slow collector.
+	case <-time.After(1 * time.Second):
+		t.Fatal("firstCollectorReady did not close promptly on the fast collector's success; the slow collector is head-of-line blocking it")
+	}
+
+	// The fast collector's bookkeeping must be visible as soon as
+	// firstCollectorReady closes, since the pull goroutine it unblocks
+	// depends on it.
+	w.collectorMut.RLock()
+	_, fastRegistered := w.collectors["fast"]
+	w.collectorMut.RUnlock()
+	assert.True(t, fastRegistered, "fast collector should be registered in w.collectors by the time firstCollectorReady closes")
+
+	select {
+	case <-done:
+		t.Fatal("startCandidates returned before the slow collector finished")
+	default:
+	}
+
+	unblockSlow()
+
+	select {
+	case allDone := <-done:
+		assert.True(t, allDone)
+	case <-time.After(1 * time.Second):
+		t.Fatal("startCandidates did not return after the slow collector finished")
+	}
+
+	assert.Empty(t, w.candidates)
+	assert.Contains(t, w.collectors, "slow")
+	assert.Contains(t, w.collectors, "fast")
+}
+
+// TestStartCandidatesLeavesRetriableFailuresForNextTick verifies that a
+// collector failing with a retriable error stays in w.candidates (so the
+// next startCandidatesWithRetry tick retries it), while sibling collectors
+// that succeed or fail permanently are removed and bookkept correctly, even
+// though all of this now happens concurrently across goroutines.
+func TestStartCandidatesLeavesRetriableFailuresForNextTick(t *testing.T) {
+	retriable := &fakeCollector{
+		id: "retriable",
+		start: func(context.Context) error {
+			return &retry.Error{RetryStatus: retry.FailWillRetry, RessourceName: "retriable", LogicError: stderrors.New("not ready yet")}
+		},
+	}
+	succeeding := &fakeCollector{
+		id:    "succeeding",
+		start: func(context.Context) error { return nil },
+	}
+	disabled := &failingCollector{id: "disabled"}
+
+	w := newWorkloadmetaWithCollectors(t, retriable, succeeding, disabled)
+	w.firstCollectorReady = make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	allProcessed := w.startCandidates(ctx)
+
+	assert.False(t, allProcessed, "retriable candidate should still be pending")
+	assert.Contains(t, w.candidates, "retriable")
+	assert.NotContains(t, w.candidates, "succeeding")
+	assert.NotContains(t, w.candidates, "disabled")
+	assert.Contains(t, w.collectors, "succeeding")
+	assert.NotContains(t, w.collectors, "disabled")
+
+	w.pullsMut.Lock()
+	_, hasPullInfo := w.pulls["succeeding"]
+	w.pullsMut.Unlock()
+	assert.True(t, hasPullInfo)
 }
