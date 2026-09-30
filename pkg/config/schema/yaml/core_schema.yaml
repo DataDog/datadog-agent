@@ -5908,6 +5908,38 @@ properties:
         default: /bin/sh
     tags:
     - full-agent-only:true
+  experimental:
+    node_type: section
+    type: object
+    tags:
+    - full-agent-only:true
+    comment: |-
+      Namespace for experimental configuration options. Anything under this
+      section is subject to change or removal without notice and is not
+      covered by stability guarantees.
+    properties:
+      clc_runner_group:
+        node_type: setting
+        type: string
+        default: ''
+        tags:
+        - full-agent-only:true
+        comment: Experimental. Cluster checks runner group of this agent,
+          advertised to the Cluster Agent in the status POST. It only receives
+          the checks claimed by that group in the Cluster Agent's
+          experimental.clc_runner_groups. When empty, the agent is a general
+          worker and receives the checks no group claims.
+      clc_runner_groups:
+        node_type: setting
+        type: string
+        default: ''
+        tags:
+        - full-agent-only:true
+        comment: 'Experimental. Cluster Agent only. JSON object mapping each cluster
+          checks runner group to the check names it claims, e.g.
+          {"kube": ["kubernetes_state_core", "orchestrator"]}. A claimed check is
+          only dispatched to workers of its group, and stays undispatched while
+          the group has no live worker.'
   cluster_trust_chain:
     node_type: section
     type: object

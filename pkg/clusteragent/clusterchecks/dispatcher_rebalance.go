@@ -8,9 +8,11 @@
 package clusterchecks
 
 import (
-	"encoding/json"
+	"cmp"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"time"
 
@@ -245,7 +247,7 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	defer span.Finish()
 
 	var result []types.RebalanceResponse
-	if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+	if d.useUtilizationRebalance() {
 		result = d.rebalanceUsingUtilization(force)
 		span.SetTag("algorithm", "utilization")
 	} else {
@@ -254,6 +256,12 @@ func (d *dispatcher) rebalance(force bool) []types.RebalanceResponse {
 	}
 	span.SetTag("checks_moved", len(result))
 	return result
+}
+
+// useUtilizationRebalance reports whether the utilization algorithm is used:
+// configured, or forced by runner groups (the busyness algorithm isn't group-aware).
+func (d *dispatcher) useUtilizationRebalance() bool {
+	return pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") || len(d.checkGroup) > 0
 }
 
 // rebalanceUsingBusyness tries to optimize the checks repartition on cluster
@@ -385,61 +393,90 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 	}()
 
 	currentConfigsDistribution := d.currentDistribution()
-	proposedDistribution := newConfigsDistribution(currentConfigsDistribution.runnerWorkers(), pkgconfigsetup.Datadog().GetBool("cluster_checks.stickiness_enabled"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_factor"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_upper_limit"), pkgconfigsetup.Datadog().GetFloat64("cluster_checks.stickiness_lower_limit"))
 
-	// Place configs in proposed: pinned ones stay on their current runner,
+	// Partition configs into cohorts by runner group (the group claiming the
+	// check, "" for general workers), and rebalance each cohort within its
+	// own runners.
+	cohorts := make(map[string]*cohort)
+	d.store.RLock()
 	for digest, config := range currentConfigsDistribution.Configs {
-		if config.Pinned {
-			proposedDistribution.addConfig(digest, config.CheckName, config.WorkersNeeded, config.Runner, true)
+		group := d.checkGroup[config.CheckName]
+		c, ok := cohorts[group]
+		if !ok {
+			c = &cohort{group: group, runners: d.groupNodes(group), configs: make(map[string]*ConfigStatus)}
+			cohorts[group] = c
+		}
+		c.configs[digest] = config
+	}
+	d.store.RUnlock()
+
+	var allMoves []types.RebalanceResponse
+	for _, group := range slices.Sorted(maps.Keys(cohorts)) {
+		if c := cohorts[group]; len(c.runners) > 0 { // no live runner: nothing to rebalance onto
+			allMoves = append(allMoves, d.rebalanceCohort(force, currentConfigsDistribution, c)...)
 		}
 	}
-	// the rest go greedily on the least busy runner (descending workersNeeded).
-	for _, digest := range currentConfigsDistribution.configsSortedByWorkersNeeded() {
-		config := currentConfigsDistribution.Configs[digest]
-		if config.Pinned {
+	return allMoves
+}
+
+// cohort is the set of configs of one runner group, and the group's runners.
+type cohort struct {
+	group   string // "" for general workers
+	runners []string
+	configs map[string]*ConfigStatus
+}
+
+// rebalanceCohort rebalances one cohort's configs within its eligible runners.
+func (d *dispatcher) rebalanceCohort(force bool, current configsDistribution, cohort *cohort) []types.RebalanceResponse {
+	// Runners that joined after the current snapshot wait for the next rebalance.
+	runners := make(map[string]int, len(cohort.runners))
+	for _, r := range cohort.runners {
+		if runnerStatus, found := current.Runners[r]; found {
+			runners[r] = runnerStatus.Workers
+		}
+	}
+
+	config := pkgconfigsetup.Datadog()
+	stickinessEnabled := config.GetBool("cluster_checks.stickiness_enabled")
+	stickinessFactor := config.GetFloat64("cluster_checks.stickiness_factor")
+	stickinessUpperLimit := config.GetFloat64("cluster_checks.stickiness_upper_limit")
+	stickinessLowerLimit := config.GetFloat64("cluster_checks.stickiness_lower_limit")
+	currentCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
+	proposedCohort := newConfigsDistribution(runners, stickinessEnabled, stickinessFactor, stickinessUpperLimit, stickinessLowerLimit)
+
+	// Current: each config on its runner. Proposed: pinned configs stay, the
+	// rest go greedily to the least busy eligible runner.
+	for digest, configInfo := range cohort.configs {
+		currentCohort.addConfig(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, configInfo.Pinned)
+		// Pinned configs are placed first so the greedy pass accounts for their load.
+		if configInfo.Pinned {
+			proposedCohort.addConfig(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, true)
+		}
+	}
+	for _, digest := range currentCohort.configsSortedByWorkersNeeded() {
+		configInfo := currentCohort.Configs[digest]
+		if configInfo.Pinned {
 			continue
 		}
-		proposedDistribution.addToLeastBusy(
-			digest,
-			config.CheckName,
-			config.WorkersNeeded,
-			config.Runner,
-			"",
-			false,
-		)
+		proposedCohort.addToLeastBusy(digest, configInfo.CheckName, configInfo.WorkersNeeded, configInfo.Runner, "", false)
 	}
 
-	// We don't calculate the optimal distribution, so it might be worse than
-	// the current one or not good enough so that it's worth it to schedule and
-	// unschedule checks. When that's the case, return without moving any
-	// checks.
-	currentUtilizationStdDev := currentConfigsDistribution.utilizationStdDev()
-	proposedUtilizationStdDev := proposedDistribution.utilizationStdDev()
-	minPercImprovement := pkgconfigsetup.Datadog().GetInt("cluster_checks.rebalance_min_percentage_improvement")
-
-	if force || rebalanceIsWorthIt(currentConfigsDistribution, proposedDistribution, minPercImprovement) {
-
-		jsonDistribution, _ := json.Marshal(proposedDistribution)
-
-		calculatedMoves := d.applyDistribution(proposedDistribution, currentConfigsDistribution)
-		numOfMoves, numOfConfigs, numOfRunners := len(calculatedMoves), len(proposedDistribution.Configs), len(proposedDistribution.Runners)
-
-		prefixMessage := "Found a better distribution for the cluster checks. "
-		if force {
-			prefixMessage = "Forcing rebalance proposed distribution for the cluster checks. "
-		}
-
-		log.Infof("%s Moving %d checks out of %d configs on %d runners. Utilization stdDev of proposed distribution: %.3f. StdDev of current distribution: %.3f. Proposed distribution: %s",
-			prefixMessage, numOfMoves, numOfConfigs, numOfRunners, proposedUtilizationStdDev, currentUtilizationStdDev, jsonDistribution)
-
-		setPredictedUtilization(proposedDistribution)
-		return calculatedMoves
+	minPercImprovement := config.GetInt("cluster_checks.rebalance_min_percentage_improvement")
+	currentStdDev, proposedStdDev := currentCohort.utilizationStdDev(), proposedCohort.utilizationStdDev()
+	if !force && !rebalanceIsWorthIt(currentCohort, proposedCohort, minPercImprovement) {
+		log.Debugf("Cohort rebalance not worth it (current stddev: %.3f, proposed: %.3f)", currentStdDev, proposedStdDev)
+		setPredictedUtilization(currentCohort)
+		return nil
 	}
 
-	log.Debugf("Didn't find a distribution better enough so that rescheduling checks is worth it (current utilization stddev: %.3f, found utilization stddev: %.3f)",
-		currentUtilizationStdDev, proposedUtilizationStdDev)
-	setPredictedUtilization(currentConfigsDistribution)
-	return nil
+	moves := d.applyDistribution(proposedCohort, currentCohort)
+	prefix := "Cohort rebalance: moved"
+	if force {
+		prefix = "Forced cohort rebalance: moved"
+	}
+	log.Infof("%s %d of %d checks in runner group %q on %d runners (stddev %.3f -> %.3f)", prefix, len(moves), len(proposedCohort.Configs), cmp.Or(cohort.group, "general"), len(proposedCohort.Runners), currentStdDev, proposedStdDev)
+	setPredictedUtilization(proposedCohort)
+	return moves
 }
 
 func (d *dispatcher) currentDistribution() configsDistribution {

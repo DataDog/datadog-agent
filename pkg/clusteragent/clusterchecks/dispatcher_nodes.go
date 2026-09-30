@@ -8,14 +8,15 @@
 package clusterchecks
 
 import (
+	"cmp"
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,6 +51,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 		warmingUp = true
 	}
 	node := d.store.getOrCreateNodeStore(nodeName, clientIP)
+	d.updateGroup(nodeName, node, status.Group)
 	d.store.Unlock()
 
 	node.Lock()
@@ -84,7 +86,7 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 	return false
 }
 
-// getNodeToScheduleCheck returns the node where a new check should be scheduled
+// getNodeToScheduleCheck returns the node where a new check should be scheduled, and whether any node is registered.
 //
 // Advanced dispatching relies on the check stats fetched from the cluster check
 // runners API to distribute the checks. The stats are only updated when the
@@ -96,23 +98,68 @@ func (d *dispatcher) processNodeStatus(nodeName, clientIP string, status types.N
 //
 // On the other hand, when advanced dispatching is not used, we can pick the
 // node with fewer checks. It's because the number of checks is kept up to date.
-func (d *dispatcher) getNodeToScheduleCheck() string {
-	if d.advancedDispatching.Load() {
-		return d.getRandomNode()
-	}
-
-	return d.getNodeWithLessChecks()
-}
-
-func (d *dispatcher) getRandomNode() string {
+func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyNode bool) {
 	d.store.RLock()
 	defer d.store.RUnlock()
 
-	var nodes []string
-	for name := range d.store.nodes {
-		nodes = append(nodes, name)
+	if d.advancedDispatching.Load() {
+		node = d.getRandomNode(checkName)
+	} else {
+		node = d.getNodeWithLessChecks(checkName)
 	}
+	return node, len(d.store.nodes) > 0
+}
 
+// updateGroup records the worker's runner group on every status report, in
+// case a worker restarts under the same name in another group. Configs the
+// new group can't run go back to the dangling configs, to be re-dispatched.
+// The store must be locked.
+func (d *dispatcher) updateGroup(nodeName string, node *nodeStore, group string) {
+	if group == node.group {
+		return
+	}
+	if _, known := d.runnerGroups[group]; group != "" && !known {
+		log.Warnf("Node %s declares unknown cluster checks runner group %q: it won't receive any cluster check", nodeName, group)
+	} else {
+		log.Infof("Node %s is in cluster checks runner group %q", nodeName, cmp.Or(group, "general"))
+	}
+	node.group = group
+
+	node.Lock()
+	defer node.Unlock()
+	for digest, config := range node.digestToConfig {
+		if !d.accepts(node, config.Name) {
+			log.Infof("Node %s can no longer run %s:%s, will re-dispatch it", nodeName, config.Name, digest)
+			node.removeConfig(digest)
+			d.moveToDangling(nodeName, digest, config)
+		}
+	}
+}
+
+// accepts reports whether a worker may run a check: a check claimed by a
+// runner group only runs in that group, any other check only on general
+// workers (no group). A worker in a group the Cluster Agent doesn't know runs
+// nothing.
+func (d *dispatcher) accepts(node *nodeStore, checkName string) bool {
+	return node.group == d.checkGroup[checkName]
+}
+
+// groupNodes returns the sorted nodes of a runner group ("" for general
+// workers). The store must be read-locked.
+func (d *dispatcher) groupNodes(group string) []string {
+	var nodes []string
+	for name, node := range d.store.nodes {
+		if node.group == group {
+			nodes = append(nodes, name)
+		}
+	}
+	sort.Strings(nodes)
+	return nodes
+}
+
+// getRandomNode must be called with the store read-locked.
+func (d *dispatcher) getRandomNode(checkName string) string {
+	nodes := d.groupNodes(d.checkGroup[checkName])
 	if len(nodes) == 0 {
 		return ""
 	}
@@ -120,14 +167,15 @@ func (d *dispatcher) getRandomNode() string {
 	return nodes[rand.Intn(len(nodes))]
 }
 
-func (d *dispatcher) getNodeWithLessChecks() string {
-	d.store.RLock()
-	defer d.store.RUnlock()
-
+// getNodeWithLessChecks must be called with the store read-locked.
+func (d *dispatcher) getNodeWithLessChecks(checkName string) string {
 	var selectedNode string
 	minNumChecks := 0
 
 	for name, store := range d.store.nodes {
+		if !d.accepts(store, checkName) {
+			continue
+		}
 		if selectedNode == "" || len(store.digestToConfig) < minNumChecks {
 			selectedNode = name
 			minNumChecks = len(store.digestToConfig)
@@ -156,19 +204,7 @@ func (d *dispatcher) expireNodes() {
 				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.heartbeat)
 			}
 			for digest, config := range node.digestToConfig {
-				delete(d.store.digestToNode, digest)
-				log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
-				d.store.danglingConfigs[digest] = createDanglingConfig(config)
-				danglingConfigs.Inc(le.JoinLeaderValue)
-
-				// TODO: Use partial label matching when it becomes available:
-				// Replace the loop by a single function call (delete by node name).
-				// Requires https://github.com/prometheus/client_golang/pull/1013
-				for k, v := range d.store.idToDigest {
-					if v == digest {
-						configsInfo.Delete(name, config.Name, string(k), le.JoinLeaderValue)
-					}
-				}
+				d.moveToDangling(name, digest, config)
 			}
 			delete(d.store.nodes, name)
 
@@ -186,6 +222,25 @@ func (d *dispatcher) expireNodes() {
 	}
 }
 
+// moveToDangling unassigns a config dispatched to nodeName and stores it as a
+// dangling config, to be re-dispatched. It doesn't touch the node's own
+// config map. The store must be locked.
+func (d *dispatcher) moveToDangling(nodeName, digest string, config integration.Config) {
+	delete(d.store.digestToNode, digest)
+	log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
+	d.store.danglingConfigs[digest] = createDanglingConfig(config)
+	danglingConfigs.Inc(le.JoinLeaderValue)
+
+	// TODO: Use partial label matching when it becomes available:
+	// Replace the loop by a single function call (delete by node name).
+	// Requires https://github.com/prometheus/client_golang/pull/1013
+	for k, v := range d.store.idToDigest {
+		if v == digest {
+			configsInfo.Delete(nodeName, config.Name, string(k), le.JoinLeaderValue)
+		}
+	}
+}
+
 // updateRunnersStats collects stats from the registred
 // Cluster Level Check runners and updates the stats cache
 func (d *dispatcher) updateRunnersStats() {
@@ -199,6 +254,9 @@ func (d *dispatcher) updateRunnersStats() {
 		updateStatsDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
 	}()
 
+	// Worker counts feed the utilization algorithm, also when runner groups force it.
+	fetchWorkers := d.useUtilizationRebalance()
+
 	d.store.Lock()
 	defer d.store.Unlock()
 	for name, node := range d.store.nodes {
@@ -206,7 +264,7 @@ func (d *dispatcher) updateRunnersStats() {
 		ip := node.clientIP
 		node.RUnlock()
 
-		if pkgconfigsetup.Datadog().GetBool("cluster_checks.rebalance_with_utilization") {
+		if fetchWorkers {
 			workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
 			if err != nil {
 				// This can happen in old versions of the runners that do not expose this information.

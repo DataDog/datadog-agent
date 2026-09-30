@@ -124,6 +124,7 @@ type nodeStore struct {
 	busyness         int
 	workers          int
 	nodetype         types.NodeType
+	group            string // experimental runner group, "" for a general worker
 }
 
 func newNodeStore(name, clientIP string) *nodeStore {

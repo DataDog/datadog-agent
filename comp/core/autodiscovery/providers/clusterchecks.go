@@ -42,6 +42,9 @@ type ClusterChecksConfigProvider struct {
 	identifier       string
 	flushedConfigs   bool
 	nodeType         types.NodeType
+	// group is this worker's experimental cluster checks runner group
+	// (experimental.clc_runner_group); empty for a general worker.
+	group string
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -77,6 +80,11 @@ func NewClusterChecksConfigProvider(providerConfig *constants.ConfigurationProvi
 		c.nodeType = types.NodeTypeCLCRunner
 	} else {
 		c.nodeType = types.NodeTypeNodeAgent
+	}
+
+	c.group = pkgconfigsetup.Datadog().GetString("experimental.clc_runner_group")
+	if c.group != "" {
+		log.Infof("Advertising cluster checks runner group %q", c.group)
 	}
 
 	if providerConfig.GraceTimeSeconds > 0 {
@@ -130,6 +138,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 	status := types.NodeStatus{
 		LastChange: c.lastChange,
 		NodeType:   c.nodeType,
+		Group:      c.group,
 	}
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
@@ -229,6 +238,7 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 	status := types.NodeStatus{
 		LastChange: types.ExtraHeartbeatLastChangeValue,
 		NodeType:   c.nodeType,
+		Group:      c.group,
 	}
 
 	_, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
