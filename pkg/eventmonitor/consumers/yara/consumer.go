@@ -35,6 +35,15 @@ type ExecConsumer struct {
 	stats    *Stats
 	handler  ExecHandler
 	now      func() time.Time
+	// lifecycle, when set, is started and stopped with the consumer: it runs the stages behind
+	// the handler (see Pipeline)
+	lifecycle lifecycle
+}
+
+// lifecycle is started by the consumer's Start, and stopped by its Stop
+type lifecycle interface {
+	Start() error
+	Stop()
 }
 
 // execFiles is what Copy() hands to HandleEvent(). It holds the main binary, and the script file
@@ -56,13 +65,20 @@ func NewExecConsumer(evm *eventmonitor.EventMonitor, cfg *Config, stats *Stats, 
 	if err != nil {
 		return nil, err
 	}
+	if err := c.register(evm); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
 
+// register adds the consumer to the event monitor, as an event handler and as a consumer (for
+// Start and Stop)
+func (c *ExecConsumer) register(evm *eventmonitor.EventMonitor) error {
 	if err := evm.AddEventConsumerHandler(c); err != nil {
-		return nil, fmt.Errorf("cannot add yara event consumer handler: %w", err)
+		return fmt.Errorf("cannot add yara event consumer handler: %w", err)
 	}
 	evm.RegisterEventConsumer(c)
-
-	return c, nil
+	return nil
 }
 
 func newExecConsumer(cfg *Config, stats *Stats, handler ExecHandler) (*ExecConsumer, error) {
@@ -93,14 +109,22 @@ func (c *ExecConsumer) ID() string {
 	return ConsumerID
 }
 
-// Start starts the consumer. The event monitor runs HandleEvent on its own goroutine, so there is
-// nothing to start here.
+// Start starts the consumer. The event monitor runs HandleEvent on its own goroutine; Start only
+// starts the pipeline stages behind the handler, if any.
 func (c *ExecConsumer) Start() error {
+	if c.lifecycle != nil {
+		return c.lifecycle.Start()
+	}
 	return nil
 }
 
-// Stop stops the consumer
+// Stop stops the consumer, and the pipeline stages behind the handler, if any. The event monitor
+// calls it after the probe has stopped, and waited for, the goroutine running HandleEvent: no
+// handler call runs concurrently with it.
 func (c *ExecConsumer) Stop() {
+	if c.lifecycle != nil {
+		c.lifecycle.Stop()
+	}
 }
 
 // --- eventmonitor.EventConsumerHandler interface methods
@@ -137,7 +161,8 @@ func (c *ExecConsumer) Copy(ev *model.Event) any {
 	if p.HasInterpreter() {
 		files.script = newExecFile(p, &p.LinuxBinprm.FileEvent, now)
 		// the process resolver doesn't resolve the script's Filesystem, and doing it here would
-		// require a mount resolver lookup, so it is left empty
+		// require a mount resolver lookup, so it is left empty. As a result the FUSE/NFS identity
+		// cache bypass doesn't apply to scripts; accepted for the PoC (see FileReader.Process).
 		files.script.IsScript = true
 		files.hasScript = true
 	}
