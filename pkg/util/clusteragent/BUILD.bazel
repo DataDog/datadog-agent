@@ -25,6 +25,7 @@ go_library(
         "//pkg/config/utils",
         "//pkg/errors",
         "//pkg/proto/pbgo/process",
+        "//pkg/util/eks",
         "//pkg/util/log",
         "//pkg/util/retry",
         "//pkg/version",

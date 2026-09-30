@@ -32,6 +32,7 @@ dd_agent_go_test(
         "//pkg/clusteragent/clusterchecks/types",
         "//pkg/proto/pbgo/process",
         "//pkg/util/clusteragent",
+        "//pkg/util/eks",
         "//pkg/util/fxutil",
         "//pkg/version",
         "@com_github_stretchr_testify//assert",
