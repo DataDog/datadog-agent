@@ -8,7 +8,6 @@
 ---
 enhancements:
   - |
-    End User Device Monitoring: the host system info payload now includes the
-    macOS ``computer_name`` field (the user-assigned device name from
-    System Settings > Sharing), alongside the existing serial number and
-    other hardware identity fields.
+    The host system info payload now includes the macOS ``computer_name``
+    field (the user-assigned device name from System Settings > Sharing),
+    alongside the existing serial number and other hardware identity fields.
