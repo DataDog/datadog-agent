@@ -400,12 +400,10 @@ mod tests {
         }
 
         // Put this process back so sibling tests keep a usable console.
-        if had_console {
-            if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) } != 0 {
-                for (kind, device) in CONSOLE_STD_HANDLES {
-                    if !std_handle_live(kind) {
-                        rebind_std_handle(kind, device);
-                    }
+        if had_console && unsafe { AttachConsole(ATTACH_PARENT_PROCESS) } != 0 {
+            for (kind, device) in CONSOLE_STD_HANDLES {
+                if !std_handle_live(kind) {
+                    rebind_std_handle(kind, device);
                 }
             }
         }
