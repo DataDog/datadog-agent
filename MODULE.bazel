@@ -550,6 +550,9 @@ include("//deps/openscap:openscap.MODULE.bazel")
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/libyara:libyara.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/security_agent_policies:security_agent_policies.MODULE.bazel")
 
 # buildifier: leave-alone
