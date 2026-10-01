@@ -74,6 +74,7 @@ dd_agent_go_test(
         "//comp/forwarder/eventplatform/impl",
         "//comp/forwarder/eventplatform/mock",
         "//comp/forwarder/eventplatformreceiver/impl",
+        "//comp/ndmtmp/forwarder/def",
         "//comp/ndmtmp/forwarder/mock",
         "//comp/networkpath/npcollector/def",
         "//comp/networkpath/npcollector/impl/common",
