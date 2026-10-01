@@ -208,11 +208,14 @@ fn short_uuid(uuid: &str) -> &str {
     if uuid.len() >= 8 { &uuid[..8] } else { uuid }
 }
 
-/// Same severity-bit test as `platform::is_crash_exit` on Windows. Kept local so
-/// the CLI can classify a retained exit code after the process has restarted and
-/// is no longer in `Crashed`.
+/// Same rule as `platform::is_crash_exit` on Windows: `STATUS_SEVERITY_ERROR`,
+/// plus the terminating codes below that severity (`STATUS_BREAKPOINT`,
+/// `STATUS_SINGLE_STEP`). Repeated here because the CLI binary does not link the
+/// daemon library, and because it must label a retained exit code once the
+/// process has restarted out of `Crashed`. Change both together.
 fn is_windows_crash_exit_code(code: i32) -> bool {
-    (code as u32) >> 30 == 0b11
+    let code = code as u32;
+    code >> 30 == 0b11 || matches!(code, 0x8000_0003 | 0x8000_0004)
 }
 
 /// Classifies from the stored exit, not the current state: `spawn()` keeps the
@@ -714,6 +717,10 @@ mod tests {
         assert_eq!(
             format_last_exit(Some(0xC0000005u32 as i32), None),
             "exception 0xC0000005"
+        );
+        assert_eq!(
+            format_last_exit(Some(0x80000003u32 as i32), None),
+            "exception 0x80000003"
         );
     }
 

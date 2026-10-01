@@ -267,16 +267,29 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 
+/// Terminating exception codes that `STATUS_SEVERITY_ERROR` does not cover.
+/// Both are warning-severity debugger events, but with no debugger attached
+/// they reach the unhandled-exception filter and end the process. An
+/// `int 3` from `__debugbreak()` is the usual source: V8's `CHECK` and Go's
+/// `runtime.abort` both compile to one.
+const TERMINATING_WARNING_STATUS: [u32; 2] = [
+    0x8000_0003, // STATUS_BREAKPOINT
+    0x8000_0004, // STATUS_SINGLE_STEP
+];
+
 /// Whether the process died without returning a value.
 ///
 /// Windows has no signals, so this reads the exit code instead. A process
 /// terminated by an unhandled fatal exception gets the exception code as its
-/// exit code ("Terminating a Process", Win32 docs), and fatal exception codes
-/// are NTSTATUS values with severity `STATUS_SEVERITY_ERROR`, i.e. the top two
-/// bits set: 0xC0000005 (access violation), 0xC00000FD (stack overflow),
-/// 0xC0000374 (heap corruption), 0xC0000409 (stack buffer overrun).
-/// `ExitProcess` codes carry no OS-defined meaning, so they do not collide with
-/// that range in practice.
+/// exit code ("Terminating a Process", Win32 docs). Most such codes are
+/// NTSTATUS values with severity `STATUS_SEVERITY_ERROR`, i.e. the top two bits
+/// set: 0xC0000005 (access violation), 0xC00000FD (stack overflow), 0xC0000374
+/// (heap corruption), 0xC0000409 (stack buffer overrun). `TERMINATING_WARNING_STATUS`
+/// covers the terminating codes below that severity. `ExitProcess` codes carry
+/// no OS-defined meaning, so they do not collide with either range in practice.
+///
+/// The CLI repeats this rule in `is_windows_crash_exit_code` so it can label a
+/// retained exit code after a restart. Change both together.
 ///
 /// Two accepted consequences:
 ///
@@ -290,9 +303,10 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
 /// as crashes even though they are closer to a spawn failure. That is accepted,
 /// and arguably correct: the process image did start.
 pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
-    status
-        .code()
-        .is_some_and(|code| (code as u32) >> 30 == 0b11)
+    status.code().is_some_and(|code| {
+        let code = code as u32;
+        code >> 30 == 0b11 || TERMINATING_WARNING_STATUS.contains(&code)
+    })
 }
 
 #[cfg(test)]
@@ -310,6 +324,8 @@ mod tests {
             0xC00000FD,    // STACK_OVERFLOW
             0xC0000374,    // heap corruption
             0xC0000409,    // stack buffer overrun
+            0x80000003,    // BREAKPOINT, below ERROR severity but still fatal
+            0x80000004,    // SINGLE_STEP, likewise
         ] {
             let status = std::process::ExitStatus::from_raw(code);
             assert!(
