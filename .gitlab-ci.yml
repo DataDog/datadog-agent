@@ -136,18 +136,57 @@
   - Cargo.toml
   - Cargo.lock
 
+# TEMPORARY CI ACCELERATION (branch greg/speedup-ci-light-smp only, see PLAN.md
+# "Temporary/initial CI acceleration"): on that branch the pipeline is trimmed to
+# the SMP regression chain -- x64 agent package build, SMP docker image publish,
+# merge-base check, the SMP child pipeline and its PR comment -- plus the cheap
+# .pre/.post jobs. Unit tests, e2e, KMT, Windows, AIX and every other
+# build/deploy/test group are dropped there. All rules below are scoped to that
+# branch name, so every other pipeline keeps the original behavior. Restore the
+# original unconditional include list before merging.
 include:
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
+  # Files needed only by the trimmed SMP fast pipeline.
+  - local: .gitlab/build/bazel/defs.yml
+    rules: &smp_fast_pipeline_only
+      - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      - when: never
+  - local: .gitlab/build/binary_build/system_probe.yml
+    rules: *smp_fast_pipeline_only
+  - local: .gitlab/build/package_deps_build/package_deps_build.yml
+    rules: *smp_fast_pipeline_only
+  - local: .gitlab/build/package_build/linux.yml
+    rules: *smp_fast_pipeline_only
+  - local: .gitlab/deploy/conditions.yml
+    # Rule/template definitions referenced by .gitlab-ci.yml's own workflow
+    # rules and by the build files above (e.g. .windows_docker_default).
+    rules: *smp_fast_pipeline_only
+  - local: .gitlab/deploy/container_build/common.yml
+    rules: *smp_fast_pipeline_only
+  - local: .gitlab/deploy/container_build/docker_linux.yml
+    rules: *smp_fast_pipeline_only
+  - local: .gitlab/test/functional_test/regression_detector.yml
+    rules: *smp_fast_pipeline_only
+  # Original include groups, dropped on the SMP fast branch.
   - local: .gitlab/build/**.yml
+    rules: &smp_fast_pipeline_skip
+      - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+        when: never
+      - when: on_success
   - local: .gitlab/deploy/**.yml
+    rules: *smp_fast_pipeline_skip
   - local: .gitlab/test/**.yml
+    rules: *smp_fast_pipeline_skip
   - local: .gitlab/.post/**.yml
   # AIX jobs
   - local: .gitlab/aix/**.yml
+    rules: *smp_fast_pipeline_skip
   # Windows jobs - set SKIP_WINDOWS=true to exclude all Windows-related jobs
   - local: .gitlab/windows/**.yml
     rules:
+      - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+        when: never
       - if: $SKIP_WINDOWS == "true"
         when: never
       - <<: *if_main_branch

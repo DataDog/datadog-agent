@@ -1,4 +1,10 @@
 ---
+# TEMPORARY CI ACCELERATION: every rule in this file guarded by
+# `$CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"` disables a non-essential
+# image build on the SMP fast-iteration branch so it does not contend with the
+# SMP chain for `specific:true` runners. Only `docker_build_agent7_full` and
+# `single_machine_performance-full-amd64-a7` remain. Restore before merging
+# (see PLAN.md, "Temporary/initial CI acceleration").
 .docker_build_job_definition:
   stage: container_build
   script:
@@ -159,6 +165,8 @@
 .docker_build_agent7:
   extends: [.docker_build_job_definition, .docker_build_artifact]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - !reference [.except_light_pipeline]
     - when: on_success
   variables:
@@ -170,6 +178,8 @@
 docker_build_agent7:
   extends: [.docker_build_amd64, .docker_build_agent7]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   needs:
     - job: datadog-agent-7-x64
@@ -193,6 +203,10 @@ single_machine_performance-full-amd64-a7:
   extends: .docker_publish_job_definition
   stage: container_build
   rules:
+    # TEMPORARY CI ACCELERATION: force-publish on the fast-iteration branch;
+    # its diff is usually CI-only, which the artifact-changes rule below does
+    # not match.
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
     - !reference [.except_light_pipeline]
     # Always publish SMP images on main (needed for baseline comparisons)
     - !reference [.on_main_or_release_branch]
@@ -209,6 +223,8 @@ single_machine_performance-full-amd64-a7:
 docker_build_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   needs:
     - job: datadog-agent-7-arm64
@@ -238,6 +254,8 @@ docker_build_fips_agent7_arm64:
 docker_build_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   needs:
     - job: datadog-agent-7-x64
@@ -249,6 +267,8 @@ docker_build_agent7_jmx:
 docker_build_agent7_jmx_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   needs:
     - job: datadog-agent-7-arm64
@@ -277,6 +297,8 @@ docker_build_fips_agent7_arm64_jmx:
 .docker_build_base_image:
   extends: .docker_build_job_definition
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   needs: []
   variables:
@@ -300,6 +322,8 @@ docker_build_base_image_arm64:
     - "jq '. + {flags: [\"SECCOMP_FILTER_FLAG_LOG\"]}' cmd/host-profiler/deploy/seccomp-profile.json > $BUILD_CONTEXT/logging-seccomp.json"
     - ls -l $BUILD_CONTEXT/
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
@@ -345,6 +369,8 @@ docker_build_host_profiler_standalone_arm64:
       --transform 's|\.example||' \
       etc/datadog-agent/otel-config.yaml.example
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - !reference [.except_light_pipeline]
     - when: on_success
   variables:
@@ -392,6 +418,13 @@ docker_build_ot_agent_standalone_fips_arm64:
 
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
+  # TEMPORARY CI ACCELERATION: force-run on the fast-iteration branch. The
+  # branch-never rule added to .docker_build_agent7 above would otherwise
+  # disable this essential job; these rules mirror that template's semantics.
+  rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+    - !reference [.except_light_pipeline]
+    - when: on_success
   needs:
     - job: datadog-agent-7-x64
     - job: datadog-otel-agent-x64
@@ -458,6 +491,8 @@ docker_build_agent7_fips_full_arm64:
 .docker_build_cluster_agent:
   extends: .docker_build_job_definition
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - !reference [.except_light_pipeline]
     - when: on_success
   variables:
@@ -477,6 +512,8 @@ docker_build_agent7_fips_full_arm64:
 docker_build_cluster_agent_amd64:
   extends: [.docker_build_amd64, .docker_build_cluster_agent]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   needs:
     - job: cluster_agent-build_amd64
@@ -491,6 +528,8 @@ docker_build_cluster_agent_amd64:
 docker_build_cluster_agent_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   needs:
     - job: cluster_agent-build_arm64
@@ -534,6 +573,8 @@ docker_build_cluster_agent_fips_arm64:
 .docker_build_cws_instrumentation:
   extends: .docker_build_job_definition
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/cws-instrumentation
@@ -561,6 +602,8 @@ docker_build_cws_instrumentation_arm64:
 .docker_build_secret_generic_connector:
   extends: .docker_build_job_definition
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/secret-generic-connector
@@ -609,6 +652,8 @@ docker_build_secret_generic_connector_fips_arm64:
 .docker_build_dogstatsd:
   extends: [.docker_build_job_definition, .docker_build_s3]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/dogstatsd

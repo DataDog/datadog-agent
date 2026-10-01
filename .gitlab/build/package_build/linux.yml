@@ -83,6 +83,8 @@ datadog-agent-7-x64-recorder:
 datadog-agent-7-arm64:
   extends: [.agent_build_common, .agent_build_arm64, .agent_base_flavor]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
 
 datadog-agent-7-arm64-recorder:
@@ -93,12 +95,16 @@ datadog-agent-7-arm64-recorder:
 datadog-agent-7-x64-fips:
   extends: [.agent_build_common, .agent_build_x86, .agent_fips_flavor]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
 
 # build Agent 7 binaries for arm64 with FIPS
 datadog-agent-7-arm64-fips:
   extends: [.agent_build_common, .agent_build_arm64, .agent_fips_flavor]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
 
 # Common to IoT, DDOT and dogstatsd
@@ -133,16 +139,22 @@ datadog-agent-7-arm64-fips:
 iot-agent-x64:
   extends: [.iot-agent-common, .toolchain-common-x64]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
 
 iot-agent-arm64:
   extends: [.iot-agent-common, .toolchain-common-arm64]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
 
 iot-agent-armhf:
   extends: .iot-agent-common
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
   # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
   tags: ["arch:arm64", "specific:true"]
@@ -182,11 +194,15 @@ iot-agent-armhf:
 dogstatsd-x64:
   extends: [.dogstatsd_build_common, .toolchain-common-x64]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
 
 dogstatsd-arm64:
   extends: [.dogstatsd_build_common, .toolchain-common-arm64]
   rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - when: on_success
 
 # ----- DDOT -----
@@ -220,9 +236,26 @@ datadog-otel-agent-x64:
 
 datadog-otel-agent-arm64:
   extends: [.otel_build_common, .toolchain-common-arm64, .agent_base_flavor]
+  # TEMPORARY CI ACCELERATION: mirror .otel_build_common's rules minus this job
+  # on the SMP fast-iteration branch.
+  rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
+    - !reference [.except_light_pipeline]
+    - when: on_success
 
 datadog-otel-agent-x64-fips:
   extends: [.otel_build_common, .toolchain-common-x64, .agent_fips_flavor]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
+    - !reference [.except_light_pipeline]
+    - when: on_success
 
 datadog-otel-agent-arm64-fips:
   extends: [.otel_build_common, .toolchain-common-arm64, .agent_fips_flavor]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
+    - !reference [.except_light_pipeline]
+    - when: on_success
