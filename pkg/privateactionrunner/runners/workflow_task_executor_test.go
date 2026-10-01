@@ -56,10 +56,14 @@ func (b *fakeBundle) GetAction(string) types.Action {
 
 type recordingAction struct {
 	called bool
+	output string
 }
 
 func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.PrivateCredentials) (interface{}, error) {
 	a.called = true
+	if a.output != "" {
+		return a.output, nil
+	}
 	return "executed", nil
 }
 
@@ -169,6 +173,70 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	assert.False(t, action.called)
 
 	executor.config.ActionsAllowlist[bundleID] = sets.New(actionName)
+	output, err := executor.RunTask(context.Background(), prepared)
+	require.NoError(t, err)
+	assert.Equal(t, "executed", output)
+	assert.True(t, action.called)
+}
+
+func TestWorkflowTaskExecutorRoutesMarkerToAuthoredScriptHandler(t *testing.T) {
+	const (
+		productBundleID = "com.datadoghq.helm"
+		actionName      = "pull"
+	)
+	authoredAction := &recordingAction{output: "authored"}
+	nativeAction := &recordingAction{output: "native"}
+	executor := &WorkflowTaskExecutor{
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+			authoredScriptsBundleID: &fakeBundle{action: authoredAction},
+			productBundleID:         &fakeBundle{action: nativeAction},
+		}},
+		config: &config.Config{
+			ActionsAllowlist: map[string]sets.Set[string]{
+				authoredScriptsBundleID: sets.New(actionName),
+			},
+			MetricsClient: &statsd.NoOpClient{},
+		},
+	}
+	task := newWorkflowTask("task-id", productBundleID, actionName, "job-id")
+	task.Data.Attributes.AuthoredScriptExecution = &privateactionspb.AuthoredScriptExecution{}
+	prepared := &PreparedWorkflowTask{Task: task}
+
+	_, err := executor.RunTask(context.Background(), prepared)
+	require.ErrorContains(t, err, "not allowlisted")
+	assert.False(t, authoredAction.called)
+	assert.False(t, nativeAction.called)
+
+	executor.config.ActionsAllowlist = map[string]sets.Set[string]{
+		productBundleID: sets.New(actionName),
+	}
+	output, err := executor.RunTask(context.Background(), prepared)
+	require.NoError(t, err)
+	assert.Equal(t, "authored", output)
+	assert.True(t, authoredAction.called)
+	assert.False(t, nativeAction.called)
+}
+
+func TestWorkflowTaskExecutorRoutesLegacyAuthoredScriptPrefixToRootHandler(t *testing.T) {
+	const (
+		bundleID   = "com.datadoghq.authoredscripts.helm"
+		actionName = "pull"
+	)
+	action := &recordingAction{}
+	executor := &WorkflowTaskExecutor{
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+			authoredScriptsBundleID: &fakeBundle{action: action},
+		}},
+		config: &config.Config{
+			ActionsAllowlist: map[string]sets.Set[string]{
+				bundleID: sets.New(actionName),
+			},
+			MetricsClient: &statsd.NoOpClient{},
+		},
+	}
+	task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
+	prepared := &PreparedWorkflowTask{Task: task}
+
 	output, err := executor.RunTask(context.Background(), prepared)
 	require.NoError(t, err)
 	assert.Equal(t, "executed", output)

@@ -68,7 +68,10 @@ go_library(
 
 dd_agent_go_test(
     name = "bundles_test",
-    srcs = ["registry_test.go"],
+    srcs = [
+        "registry_kubeapiserver_test.go",
+        "registry_test.go",
+    ],
     embed = [":bundles"],
     gotags_sets = [[
         "cel",

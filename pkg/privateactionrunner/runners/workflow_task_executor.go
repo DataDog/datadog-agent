@@ -42,6 +42,8 @@ type WorkflowTaskExecutor struct {
 	resolver     resolver.PrivateCredentialResolver
 }
 
+const authoredScriptsBundleID = "com.datadoghq.authoredscripts"
+
 func NewWorkflowTaskExecutor(
 	configuration *config.Config,
 	rcClient rcclient.Client,
@@ -134,11 +136,13 @@ func (e *WorkflowTaskExecutor) RunTask(
 	task := preparedTask.Task
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
-	bundle := e.registry.GetBundle(bundleName)
+	handlerBundleName := handlerBundle(task, bundleName)
+
+	bundle := e.registry.GetBundle(handlerBundleName)
 	if bundle == nil {
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find bundle for %s", bundleName),
+			fmt.Errorf("could not find bundle for %s", handlerBundleName),
 		)
 	}
 	action := bundle.GetAction(actionName)
@@ -172,4 +176,18 @@ func (e *WorkflowTaskExecutor) RunTask(
 	}
 
 	return output, nil
+}
+
+func handlerBundle(task *types.Task, bundleName string) string {
+	if usesAuthoredScriptHandler(task, bundleName) {
+		return authoredScriptsBundleID
+	}
+	return bundleName
+}
+
+func usesAuthoredScriptHandler(task *types.Task, bundleName string) bool {
+	if task != nil && task.Data.Attributes != nil && task.Data.Attributes.AuthoredScriptExecution != nil {
+		return true
+	}
+	return actions.GetRootBundle(bundleName) == authoredScriptsBundleID
 }

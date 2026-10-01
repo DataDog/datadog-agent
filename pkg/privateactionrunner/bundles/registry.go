@@ -63,8 +63,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
+const authoredScriptsBundleID = "com.datadoghq.authoredscripts"
+
 var rootRoutedBundles = map[string]struct{}{
-	"com.datadoghq.authoredscripts": {},
+	authoredScriptsBundleID: {},
 }
 
 type Registry struct {
@@ -82,7 +84,7 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 
 	return &Registry{
 		Bundles: map[string]types.Bundle{
-			"com.datadoghq.authoredscripts":                      authoredScripts,
+			authoredScriptsBundleID:                              authoredScripts,
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),

@@ -17,10 +17,12 @@ import (
 )
 
 const (
-	testCatalogProduct = "UPDATER_CATALOG_DD"
-	testCatalogFQN     = "com.datadoghq.authoredscripts.helm.addRepo"
-	testCatalogPackage = "com.datadoghq.authoredscripts.helm.addrepo"
-	testCatalogDigest  = "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c"
+	testCatalogProduct   = "UPDATER_CATALOG_DD"
+	testCatalogFQN       = "com.datadoghq.authoredscripts.helm.addRepo"
+	testCatalogPackage   = "com.datadoghq.authoredscripts.helm.addrepo"
+	testProductActionFQN = "com.datadoghq.helm.pull"
+	testProductPackage   = "com.datadoghq.helm.pull"
+	testCatalogDigest    = "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c"
 )
 
 type testCatalogRCClient struct {
@@ -69,10 +71,14 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 	require.NoError(t, err)
 
 	pkg := validRemotePackage()
+	productPkg := validRemotePackage()
+	productPkg.Name = testProductPackage
+	productPkg.URL = "oci://registry.example.test/product-action@sha256:" + testCatalogDigest
 	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{
 		pkg,
+		productPkg,
 		{
-			Name:    "com.datadoghq.other.package",
+			Name:    "org.example.other.package",
 			Version: "1.0.0",
 			SHA256:  testCatalogDigest,
 			URL:     "oci://registry.example.test/other@sha256:" + testCatalogDigest,
@@ -94,6 +100,14 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	want := Descriptor{FQN: testCatalogFQN, Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
 	require.Equal(t, want, descriptor)
+
+	descriptor, err = catalog.Lookup(testProductActionFQN)
+	require.NoError(t, err)
+	want = Descriptor{FQN: testProductActionFQN, Package: productPkg.Name, Version: productPkg.Version, URL: productPkg.URL, SHA256: productPkg.SHA256}
+	require.Equal(t, want, descriptor)
+
+	_, err = catalog.Lookup("org.example.other.package")
+	require.ErrorIs(t, err, ErrPackageNotConfigured)
 	_, err = catalog.Lookup("com.datadoghq.authoredscripts.otherAction")
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 
