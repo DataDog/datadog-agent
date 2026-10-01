@@ -605,10 +605,15 @@ mod tests {
     }
 
     /// A child that ignores the graceful stop, so the stop runs for the whole
-    /// `stop_timeout` rather than returning at once.
+    /// `stop_timeout` rather than returning at once. It creates `ready` once it
+    /// is safe to signal.
     #[cfg(unix)]
-    fn ignores_stop_def(name: &str, stop_timeout_secs: u64) -> ProcessDefinition {
-        let (cmd, args) = test_helpers::trap_term_sleep();
+    fn ignores_stop_def(
+        name: &str,
+        stop_timeout_secs: u64,
+        ready: &std::path::Path,
+    ) -> ProcessDefinition {
+        let (cmd, args) = test_helpers::trap_term_sleep_ready(ready);
         let mut config = test_helpers::make_config(cmd, args);
         config.stop_timeout = Some(stop_timeout_secs);
         ProcessDefinition {
@@ -624,37 +629,49 @@ mod tests {
     ///
     /// Unix-only for want of a portable child, not because the lock scope is
     /// platform-specific: `handle_stop` is the same code everywhere. The test
-    /// needs one that outlives its graceful stop long enough to read around,
-    /// and on Windows a managed child has no console, so the stop cannot be
-    /// delivered and escalates straight to the kill this test must outlast.
+    /// needs one that provably ignores its graceful stop, so the stop outlasts
+    /// the reads taken around it.
     #[cfg(unix)]
     #[tokio::test]
     async fn test_stop_leaves_reads_answerable() -> anyhow::Result<()> {
-        let mgr = ProcessManager::new(loader(vec![ignores_stop_def("svc", 60)]), uuid_gen());
+        use std::time::{Duration, Instant};
+
+        let dir = tempfile::tempdir()?;
+        let ready = dir.path().join("ready");
+        let mgr = ProcessManager::new(
+            loader(vec![ignores_stop_def("svc", 60, &ready)]),
+            uuid_gen(),
+        );
         let (exit_tx, _exit_rx) = mpsc::channel::<ExitEvent>(256);
         mgr.handle_start("svc", &exit_tx).await?;
         let pid = mgr.processes().await[0].pid().expect("spawned pid");
-        // The child only ignores the graceful stop once its handler is in
-        // place. Signaling before that ends the stop at once, and a read taken
-        // after it finished proves nothing.
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        test_helpers::wait_for_file(&ready, Duration::from_secs(10)).await;
 
         let stopping = tokio::spawn({
             let mgr = mgr.clone();
             async move { mgr.handle_stop("svc").await }
         });
-        // Long enough for the stop to have taken the lock and started waiting,
-        // short enough to stay well inside its 60s timeout.
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-        let read = tokio::time::timeout(std::time::Duration::from_secs(5), mgr.processes()).await;
-        let procs = read.map_err(|_| anyhow::anyhow!("a read queued behind an in-flight stop"))?;
-        assert_eq!(
-            procs[0].state(),
-            ProcessState::Stopping,
-            "a read taken mid-stop should say so, not report the child as Running"
-        );
-        drop(procs);
+        // Reads before the stop takes the lock still see Running, so poll for
+        // the state the stop sets. Each read is bounded on its own: under the
+        // old lock scope the first read after the stop started would hang for
+        // the whole 60s timeout.
+        let started = Instant::now();
+        loop {
+            let read = tokio::time::timeout(Duration::from_secs(5), mgr.processes()).await;
+            let procs =
+                read.map_err(|_| anyhow::anyhow!("a read queued behind an in-flight stop"))?;
+            if procs[0].state() == ProcessState::Stopping {
+                break;
+            }
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "a read taken mid-stop should report Stopping, got {}",
+                procs[0].state()
+            );
+            drop(procs);
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
 
         stopping.abort();
         test_helpers::cleanup_process(pid);

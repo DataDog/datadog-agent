@@ -564,8 +564,18 @@ impl ManagedProcess {
     }
 
     pub fn request_stop(&mut self) {
-        if !self.is_running() {
+        if !self.mark_stop_requested() {
             return;
+        }
+        info!("[{}] sending graceful stop (stop requested)", self.name);
+        self.graceful_stop_failed = !self.graceful_stop();
+    }
+
+    /// Record that a stop is under way, without signalling the child. Returns
+    /// false when there is nothing running to stop.
+    fn mark_stop_requested(&mut self) -> bool {
+        if !self.is_running() {
+            return false;
         }
         self.stop_requested = true;
         // The manager lock is free while the child goes down, so this state is
@@ -575,8 +585,7 @@ impl ManagedProcess {
         if matches!(self.state, ProcessState::Running) {
             self.transition_to(ProcessState::Stopping);
         }
-        info!("[{}] sending graceful stop (stop requested)", self.name);
-        self.graceful_stop_failed = !self.graceful_stop();
+        true
     }
 
     /// Ask the child to exit. Returns whether the request reached it.
@@ -1345,20 +1354,15 @@ runtime_success_sec: 5
     /// undelivered.
     #[tokio::test]
     async fn test_undelivered_graceful_stop_skips_the_stop_timeout() {
-        let (cmd, args) = test_helpers::trap_term_sleep();
-        let mut cfg = test_helpers::make_config(cmd, args);
+        let mut cfg = test_helpers::sleep_test_config(60);
         cfg.stop_timeout = Some(30);
         let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
         let mut exit_rx = spawn_ok(&mut proc);
-        // The child only ignores the graceful stop once its handler is in
-        // place. Signaling before that kills it, which would leave nothing to
-        // force-kill and pass the assertion below for the wrong reason.
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-        proc.request_stop();
-        // What a failed `send_graceful_stop` records. Set here rather than
-        // provoked, since making the platform call fail against a live child is
-        // not portable.
+        // An undelivered stop, staged rather than provoked: making the platform
+        // call fail against a live child is not portable. Nothing is sent, so
+        // the child stays up until the force kill whatever it does with signals.
+        assert!(proc.mark_stop_requested());
         proc.graceful_stop_failed = true;
 
         let started = std::time::Instant::now();

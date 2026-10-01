@@ -127,6 +127,37 @@ pub fn trap_term_sleep() -> (&'static str, Vec<String>) {
     )
 }
 
+/// [`trap_term_sleep`] that creates `ready` once SIGTERM is trapped, for tests
+/// that must not signal it before then: until the trap is in place, SIGTERM
+/// kills the shell like any other process.
+#[cfg(unix)]
+pub fn trap_term_sleep_ready(ready: &std::path::Path) -> (&'static str, Vec<String>) {
+    (
+        "/bin/sh",
+        vec![
+            "-c".into(),
+            format!(
+                "trap '' TERM; : > '{}'; while true; do sleep 60; done",
+                ready.display()
+            ),
+        ],
+    )
+}
+
+/// Polls until `path` exists, failing after `deadline`.
+#[cfg(unix)]
+pub async fn wait_for_file(path: &std::path::Path, deadline: std::time::Duration) {
+    let started = std::time::Instant::now();
+    while !path.exists() {
+        assert!(
+            started.elapsed() < deadline,
+            "{} did not appear within {deadline:?}",
+            path.display()
+        );
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
 /// Command that ignores graceful-stop and sleeps forever.
 /// Used to test forced-kill (TerminateProcess) on timeout.
 ///
