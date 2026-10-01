@@ -150,7 +150,7 @@ static void __attribute__((always_inline)) cache_syscall_update_cgroup(void *ctx
     bpf_tail_call_compat(ctx, &cache_syscall_progs, CACHE_SYSCALL_UPDATE_PROC_CACHE_CGROUP_KEY);
 }
 
-struct syscall_cache_t *__attribute__((always_inline)) get_syscall(u64 pid_tgid) {
+static struct syscall_cache_t *__attribute__((always_inline)) get_syscall(u64 pid_tgid) {
 #if USE_SYSCALL_TASK_STORAGE == 1
     u64 use_syscall_task_storage;
     LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
@@ -161,7 +161,7 @@ struct syscall_cache_t *__attribute__((always_inline)) get_syscall(u64 pid_tgid)
     return (struct syscall_cache_t *)bpf_map_lookup_elem(&syscalls, &pid_tgid);
 }
 
-void __attribute__((always_inline)) delete_syscall(u64 pid_tgid) {
+static void __attribute__((always_inline)) delete_syscall(u64 pid_tgid) {
 #if USE_SYSCALL_TASK_STORAGE == 1
     u64 use_syscall_task_storage;
     LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
@@ -173,7 +173,7 @@ void __attribute__((always_inline)) delete_syscall(u64 pid_tgid) {
     bpf_map_delete_elem(&syscalls, &pid_tgid);
 }
 
-struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
+static struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
     struct syscall_cache_t *syscall = get_syscall(pid_tgid);
     if (!syscall) {
         return NULL;
@@ -189,7 +189,7 @@ static struct syscall_cache_t *__attribute__((always_inline)) peek_syscall(u64 t
     return peek_task_syscall(key, type);
 }
 
-struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
+static struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*predicate)(u64 type)) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = get_syscall(pid_tgid);
     if (!syscall) {
@@ -204,7 +204,7 @@ struct syscall_cache_t *__attribute__((always_inline)) peek_syscall_with(int (*p
 // The pop helpers deliberately return nothing: the entry they delete is a map value, and the
 // pointer to it is dangling the moment it is deleted, so peek for the entry and pop it once
 // the last field has been read.
-void __attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type)) {
+static void __attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type)) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     struct syscall_cache_t *syscall = get_syscall(pid_tgid);
     if (!syscall) {
@@ -218,7 +218,7 @@ void __attribute__((always_inline)) pop_syscall_with(int (*predicate)(u64 type))
     }
 }
 
-void __attribute__((always_inline)) pop_task_syscall(u64 pid_tgid, u64 type) {
+static void __attribute__((always_inline)) pop_task_syscall(u64 pid_tgid, u64 type) {
     struct syscall_cache_t *syscall = get_syscall(pid_tgid);
     if (!syscall) {
         return;

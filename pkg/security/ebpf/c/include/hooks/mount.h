@@ -150,7 +150,7 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
     return 0;
 }
 
-int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
+static int __attribute__((always_inline)) sys_unshare_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNSHARE);
     if (!syscall) {
         return 0;
