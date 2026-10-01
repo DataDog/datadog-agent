@@ -19,6 +19,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -217,30 +218,48 @@ type directSender struct {
 	resultsQueue        *api.WeightedQueue
 	checkInterval       time.Duration
 	runCount            uint64
+	collectWG           sync.WaitGroup
 }
 
 func (d *directSender) start() {
 	d.log.Info("direct sender started")
 	d.resolver.start(d.ctx)
 	go d.submitLoop()
+	d.collectWG.Add(1)
 	go func() {
 		ticker := time.NewTicker(d.checkInterval)
 		defer ticker.Stop()
-		for {
-			select {
-			case <-d.ctx.Done():
-				d.resultsQueue.Stop()
-				return
-			case <-ticker.C:
-				d.collect()
-			}
-		}
+		d.collectLoop(ticker.C)
 	}()
 }
 
-// Stop stops the direct sender
+// collectLoop collects connections on every tick until the sender's context is
+// cancelled. It owns the collectWG counter added by start, so Stop can wait for
+// a collection that is already in flight.
+func (d *directSender) collectLoop(tick <-chan time.Time) {
+	defer d.collectWG.Done()
+	defer d.resultsQueue.Stop()
+	for {
+		select {
+		case <-d.ctx.Done():
+			return
+		case <-tick:
+			// A pending tick and a cancelled context can both be ready here, in
+			// which case select picks one at random, so re-check before collecting.
+			if d.ctx.Err() != nil {
+				return
+			}
+			d.collect()
+		}
+	}
+}
+
+// Stop stops the direct sender. It blocks until any in-flight collection has
+// returned: the caller tears the tracer down as soon as Stop returns, and
+// collecting from a half-closed tracer crashes system-probe.
 func (d *directSender) Stop() {
 	d.cancelFunc()
+	d.collectWG.Wait()
 	d.log.Info("direct sender stopped")
 }
 

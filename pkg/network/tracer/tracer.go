@@ -405,6 +405,10 @@ func (t *Tracer) Resume() error {
 	return nil
 }
 
+// PrepareStop does nothing here. Only the Windows tracer has a collection path
+// that shutdown can be left waiting on; see the Windows implementation.
+func (t *Tracer) PrepareStop() {}
+
 // Stop stops the tracer
 func (t *Tracer) Stop() {
 	if t.reverseDNS != nil {
