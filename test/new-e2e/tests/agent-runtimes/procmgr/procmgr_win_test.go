@@ -183,7 +183,7 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 	return pid
 }
 
-// respawnProcmgrRunning stops and starts a process, then waits for it to come back
+// respawnProcmgrRunning stops and starts a process, then waits for the replacement to be
 // Running.
 //
 // The CLI call itself is not required to succeed. A dd-procmgr RPC can fail at the
@@ -191,22 +191,47 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 // then reports the process as already running. What a caller needs is the end state, so
 // that is what is asserted; the command's own error is only logged, where it shows up in
 // the failure output if the process does not come back.
+//
+// Running alone is not that end state: a respawn that fails before the stop lands leaves
+// the old process running, which the child of a config or environment change the caller
+// just made would not reflect. The PID has to move for the spawn path to have run.
 func respawnProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
 	t.Helper()
+	replaced := procmgrPID(t, host, cli, name)
 	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
 		t.Logf("respawn of %s reported: %v", name, err)
 	}
-	_ = waitProcmgrRunning(t, host, cli, name, timeout)
+	pid := waitProcmgrRunning(t, host, cli, name, timeout)
+	// An unreadable PID beforehand leaves replaced empty, which any real PID satisfies.
+	require.NotEqual(t, replaced, pid,
+		"%s is still PID %s, the process the respawn was meant to replace", name, replaced)
 }
 
 // restoreProcmgrRunning is respawnProcmgrRunning for a cleanup: it reports a process that
 // never comes back without ever calling FailNow, which a cleanup must not do.
 func restoreProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
 	t.Helper()
+	replaced := procmgrPID(t, host, cli, name)
 	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
 		t.Logf("respawn of %s reported: %v", name, err)
 	}
-	assertProcmgrRunning(t, host, cli, name, timeout)
+	assertProcmgrReplaced(t, host, cli, name, replaced, timeout)
+}
+
+// procmgrPID reports the PID dd-procmgr has for a process, or "" when there is none to
+// read. Best effort by design: a caller uses it only to tell a respawned process from the
+// one it replaced, and a cleanup must not fail on the way to doing its job.
+func procmgrPID(t *testing.T, host *components.RemoteHost, cli, name string) string {
+	t.Helper()
+	out, err := host.Execute(procmgrCmd(cli, "describe "+name))
+	if err != nil {
+		t.Logf("describe %s reported: %v", name, err)
+		return ""
+	}
+	if pid := fieldValue(out, "PID"); pid != "-" {
+		return pid
+	}
+	return ""
 }
 
 // assertProcmgrRunning waits for a process to be Running without ever calling FailNow,
@@ -215,13 +240,28 @@ func restoreProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name 
 // process never came back.
 func assertProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
 	t.Helper()
+	assertProcmgrReplaced(t, host, cli, name, "", timeout)
+}
+
+// assertProcmgrReplaced is assertProcmgrRunning for a respawn: replacedPID is the process
+// the respawn was meant to replace, so seeing it again means the spawn path never ran and
+// the child still carries whatever the test installed. Pass "" when there was no PID to
+// read beforehand, which asserts Running alone.
+func assertProcmgrReplaced(t *testing.T, host *components.RemoteHost, cli, name, replacedPID string, timeout time.Duration) {
+	t.Helper()
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
 		if !assert.NoError(ct, err) {
 			return
 		}
-		assert.Equal(ct, "Running", fieldValue(out, "State"),
-			"%s should be Running again after cleanup: %s", name, out)
+		if !assert.Equal(ct, "Running", fieldValue(out, "State"),
+			"%s should be Running again after cleanup: %s", name, out) {
+			return
+		}
+		if replacedPID != "" {
+			assert.NotEqual(ct, replacedPID, fieldValue(out, "PID"),
+				"%s is still PID %s, the process the cleanup was meant to replace: %s", name, replacedPID, out)
+		}
 	}, timeout, 3*time.Second)
 }
 
