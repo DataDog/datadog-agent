@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+package(default_visibility = ["//internal/tools:__subpackages__"])
+
+go_library(
+    name = "analyzer",
+    srcs = ["analyzer.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/regexphoist/analyzer",
+    deps = [
+        "@org_golang_x_tools//go/analysis",
+        "@org_golang_x_tools//go/types/typeutil",
+    ],
+)
+
+dd_agent_go_test(
+    name = "analyzer_test",
+    srcs = ["analyzer_test.go"],
+    data = [
+        # keep
+        "testdata/src/example/example.go",
+        "@go_work_sdk//:files",
+        "@go_work_sdk//:host_compatible_root_file",
+    ],
+    env = {"REGEXPHOIST_GO_SDK_ROOT_FILE": "$(rlocationpath @go_work_sdk//:host_compatible_root_file)"},
+    # Let analysistest use the SDK in runfiles instead of Bazel's synthetic GOROOT.
+    x_defs = {"runtime.defaultGOROOT": ""},
+    deps = [
+        ":analyzer",
+        "@org_golang_x_tools//go/analysis/analysistest",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+package(default_visibility = ["//internal/tools:__subpackages__"])
+
+go_library(
+    name = "regexphoist",
+    srcs = ["plugin.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/tools/regexphoist",
+    deps = [
+        "//internal/tools/regexphoist/analyzer",
+        "@com_github_golangci_plugin_module_register//register",
+        "@org_golang_x_tools//go/analysis",
+    ],
+)
