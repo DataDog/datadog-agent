@@ -18,8 +18,8 @@ import (
 	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"comment
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -500,16 +500,12 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
 	// Validate that site is configured in pkgconfig
 	site := strings.TrimSpace(pkgconfig.GetString("site"))
-	isSiteEmpty := site == ""
 	if site == "" {
 		site = constants.DefaultSite
 	}
 
 	if ddcfg == nil {
-		if !isSiteEmpty {
-			return map[string]any{"api": map[string]any{"site": site}}, nil
-		}
-		return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
+		return map[string]any{"api": map[string]any{"site": site}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
@@ -517,11 +513,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		if !isSiteEmpty {
-			ddcfgMap["api"] = map[string]any{"site": site}
-			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
-		}
-		ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
+		ddcfgMap["api"] = map[string]any{"site": site}
 		return ddcfgMap, nil
 
 	}
@@ -532,11 +524,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	apiSite, ok := apicfgMap["site"]
 	apiSiteStr, isString := apiSite.(string)
 	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
-		if !isSiteEmpty {
-			apicfgMap["site"] = site
-		} else {
-			apicfgMap["site"] = "datadoghq.com"
-		}
+		apicfgMap["site"] = site
 	} else {
 		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
