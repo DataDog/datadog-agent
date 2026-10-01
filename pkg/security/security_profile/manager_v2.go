@@ -1192,17 +1192,8 @@ func baseMountNamespaceFromEvent(event *model.Event) uint32 {
 		return 0
 	}
 
-	if containerID := pc.ContainerContext.ContainerID; containerID != "" {
-		root := &pc.Process
-		for ancestor := pc.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
-			if ancestor.ContainerContext.ContainerID != containerID {
-				break
-			}
-			root = &ancestor.Process
-		}
-		if root.MntNS != 0 {
-			return root.MntNS
-		}
+	if root := activity_tree.ValidRootProcess(pc); root != nil && root.Process.MntNS != 0 {
+		return root.Process.MntNS
 	}
 
 	return pc.Process.MntNS

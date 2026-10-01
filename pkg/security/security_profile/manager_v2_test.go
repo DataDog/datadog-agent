@@ -207,19 +207,20 @@ func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
 }
 
 func TestBaseMountNamespaceFromEvent(t *testing.T) {
-	newEntry := func(containerID string, mntns uint32) *model.ProcessCacheEntry {
+	newProc := func(path, basename string, inode uint64, containerID string, mntns uint32) *model.ProcessCacheEntry {
 		e := model.NewProcessCacheEntry()
+		e.Process.FileEvent.PathnameStr = path
+		e.Process.FileEvent.BasenameStr = basename
+		e.Process.FileEvent.Inode = inode
+		e.Process.FileEvent.MountID = 1 // non-zero so the file is not treated as fileless
 		e.Process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 		e.Process.MntNS = mntns
 		return e
 	}
 
-	newEvent := func(containerID string, mntns uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+	eventFor := func(leaf *model.ProcessCacheEntry) *model.Event {
 		ev := &model.Event{}
-		ev.BaseEvent.ProcessContext = &model.ProcessContext{}
-		ev.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
-		ev.ProcessContext.Process.MntNS = mntns
-		ev.ProcessContext.Ancestor = ancestor
+		ev.BaseEvent.ProcessContext = &leaf.ProcessContext
 		return ev
 	}
 
@@ -227,37 +228,22 @@ func TestBaseMountNamespaceFromEvent(t *testing.T) {
 		assert.Equal(t, uint32(0), baseMountNamespaceFromEvent(&model.Event{}))
 	})
 
-	t.Run("non-container workload falls back to the event process namespace", func(t *testing.T) {
-		ev := newEvent("", 4242, nil)
-		assert.Equal(t, uint32(4242), baseMountNamespaceFromEvent(ev))
+	t.Run("falls back to the event process namespace when there is no valid root", func(t *testing.T) {
+		p := newProc("/app/server", "server", 20, "c1", 4242)
+		assert.Equal(t, uint32(4242), baseMountNamespaceFromEvent(eventFor(p)))
 	})
 
-	t.Run("walks past a setns'd process to the container root namespace", func(t *testing.T) {
-		// host process that spawned the container (breaks the walk)
-		host := newEntry("", 1)
-		// container root (PID 1 in the container) holds the base namespace
-		root := newEntry("c1", 100)
-		root.Ancestor = host
-		// an in-container descendant still in the base namespace
-		mid := newEntry("c1", 100)
-		mid.Ancestor = root
-		// the sampled event that seeds the profile has setns'd into another namespace
-		ev := newEvent("c1", 999, mid)
+	t.Run("skips the container runtime and anchors on the workload root", func(t *testing.T) {
+		shell := newProc("/bin/bash", "bash", 5, "", 1)
+		runc := newProc("/usr/bin/runc", "runc", 10, "c1", 50)
+		runc.Ancestor = shell
+		app := newProc("/app/server", "server", 20, "c1", 100)
+		app.Ancestor = runc
+		// a sampled descendant that has setns'd into another namespace
+		child := newProc("/app/child", "child", 30, "c1", 999)
+		child.Ancestor = app
 
-		assert.Equal(t, uint32(100), baseMountNamespaceFromEvent(ev))
-	})
-
-	t.Run("any sampled event in the workload resolves to the same base", func(t *testing.T) {
-		host := newEntry("", 1)
-		root := newEntry("c1", 100)
-		root.Ancestor = host
-
-		// the root process itself as the seeding event
-		evRoot := newEvent("c1", 100, host)
-		// a deep descendant as the seeding event
-		evDeep := newEvent("c1", 100, root)
-
-		assert.Equal(t, baseMountNamespaceFromEvent(evRoot), baseMountNamespaceFromEvent(evDeep))
+		assert.Equal(t, uint32(100), baseMountNamespaceFromEvent(eventFor(child)))
 	})
 }
 
