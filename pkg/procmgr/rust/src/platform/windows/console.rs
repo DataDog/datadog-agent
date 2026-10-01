@@ -92,7 +92,11 @@ impl InheritSource {
     fn resolve(&self) -> Option<InheritHandle> {
         match self {
             Self::Pinned(handle) => Some(InheritHandle::Pinned(*handle)),
-            Self::Console => open_console_device("CONOUT$").map(InheritHandle::Opened),
+            // Write access only: a child's stdout is there to be written to, and a
+            // process allowed to write its console is not necessarily allowed to read it.
+            Self::Console => {
+                open_console_device("CONOUT$", FILE_GENERIC_WRITE).map(InheritHandle::Opened)
+            }
             Self::None => None,
         }
     }
@@ -382,13 +386,18 @@ impl Drop for CallerConsoleGuard {
     }
 }
 
-/// Opens one of the console devices, or `None` when the process has no console.
-fn open_console_device(device: &str) -> Option<HANDLE> {
+/// Opens one of the console devices with `access`, or `None` when the process has no
+/// console.
+///
+/// A caller asks for no more than it needs: a process can be allowed to write its console
+/// without being allowed to read it, and `CreateFileW` fails outright on a right the
+/// caller does not have rather than handing back a handle that carries less.
+fn open_console_device(device: &str, access: u32) -> Option<HANDLE> {
     let name = wide::null_terminated(device);
     let handle = unsafe {
         CreateFileW(
             name.as_ptr(),
-            FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+            access,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             std::ptr::null(),
             OPEN_EXISTING,
@@ -407,8 +416,11 @@ fn open_console_device(device: &str) -> Option<HANDLE> {
 }
 
 /// Point a std handle back at the console, which `AttachConsole` leaves closed.
+///
+/// A std slot is read through `GetConsoleMode` elsewhere in this module and `CONIN$` is
+/// there to be read from, so these go back as they came: readable and writable.
 fn rebind_std_handle(kind: u32, device: &str) {
-    let Some(handle) = open_console_device(device) else {
+    let Some(handle) = open_console_device(device, FILE_GENERIC_READ | FILE_GENERIC_WRITE) else {
         return;
     };
     if unsafe { SetStdHandle(kind, handle) } == 0 {
@@ -679,10 +691,11 @@ mod tests {
         handle
     }
 
-    /// Whether a handle this test opened with read access is a console that is still
-    /// alive. `GetConsoleMode` fails once `FreeConsole` has closed the console.
+    /// Whether a handle is a console that is still alive. Both questions the classifier
+    /// asks fail once `FreeConsole` has closed the console, and asking them the same way
+    /// it does keeps this usable on the write-only handle `resolve` returns.
     fn is_live_console(handle: HANDLE) -> bool {
-        console_mode_readable(handle)
+        is_console_handle(handle)
     }
 
     /// Redirected stdio is pinned: a file or a pipe survives console churn, so the
