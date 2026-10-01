@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 # gazelle:exclude include_headers_gen.go
 # gazelle:exclude testdata/c
@@ -171,6 +172,24 @@ filegroup(
         "//pkg/ebpf/bytecode:usm_flat",
     ],
     visibility = ["//visibility:public"],
+)
+
+sh_test(
+    name = "object_metadata_test",
+    srcs = ["object_metadata_test.sh"],
+    args = [
+        "$(rootpath //bazel/tools:readelf)",
+        "$(rootpaths :co_re_objects)",
+        "$(rootpaths :prebuilt_objects)",
+        "$(rootpaths :prebuilt_test_objects)",
+    ],
+    data = [
+        ":co_re_objects",
+        ":prebuilt_objects",
+        ":prebuilt_test_objects",
+        "//bazel/tools:readelf",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 # Convenience: build every eBPF program (.o) and runtime bundle (.c) at once.

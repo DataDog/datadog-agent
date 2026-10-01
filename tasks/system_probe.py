@@ -869,39 +869,6 @@ def setup_runtime_clang(
         ctx.run(f"{sudo} chmod 0755 {binary_path}")
 
 
-@task
-def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build", verbose=True):
-    build_dir = Path(build_dir)
-    missing_metadata_files = 0
-    total_metadata_files = 0
-    print(f"Validating metadata of eBPF object files in {build_dir}...")
-
-    for file in build_dir.glob("**/*.o"):
-        total_metadata_files += 1
-        res = ctx.run(f"readelf -p dd_metadata {file}", warn=True, hide=True)
-        if res is None or not res.ok:
-            print(color_message(f"- {file}: missing metadata", "red"))
-            missing_metadata_files += 1
-            continue
-
-        groups = re.findall(r"<(?P<key>[^:]+):(?P<value>[^>]+)>", res.stdout)
-        if groups is None or len(groups) == 0:
-            print(color_message(f"- {file}: invalid metadata", "red"))
-            missing_metadata_files += 1
-            continue
-
-        if verbose:
-            metadata = ", ".join(f"{k}={v}" for k, v in groups)
-            print(color_message(f"- {file}: {metadata}", "green"))
-
-    if missing_metadata_files > 0:
-        raise Exit(
-            f"{missing_metadata_files} object files are missing metadata. Remember to include the bpf_metadata.h header in all eBPF programs"
-        )
-    else:
-        print(f"All {total_metadata_files} object files have valid metadata")
-
-
 # eBPF object filegroups (see pkg/ebpf/BUILD.bazel) -> subdirectory of the build dir.
 # Each also has an `_unstripped` variant.
 _BAZEL_EBPF_OBJECT_GROUPS = {
@@ -1080,11 +1047,15 @@ def build_object_files(
     if is_windows:
         bazel_build_windows_resources(ctx)
 
-    # Verify all committed cgo godefs files are up to date.
-    # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel("test", *arch_flags, "--build_tests_only", "//pkg/ebpf:verify_generated_files")
-
-    validate_object_file_metadata(ctx, build_dir, verbose=False)
+    # Verify the committed cgo godefs files and the eBPF objects metadata.
+    # Platform-incompatible tests are skipped via target_compatible_with.
+    bazel(
+        "test",
+        *arch_flags,
+        "--build_tests_only",
+        "//pkg/ebpf:verify_generated_files",
+        "//pkg/ebpf:object_metadata_test",
+    )
 
     build_rust_binaries(ctx, arch=arch_obj)
 
