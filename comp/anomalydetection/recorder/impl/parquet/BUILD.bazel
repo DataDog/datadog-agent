@@ -11,7 +11,7 @@ go_library(
         "parquet_metric_writer.go",
         "parquet_writer_base.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/parquet",
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl/parquet",
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [

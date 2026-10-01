@@ -44,7 +44,7 @@ comp/anomalydetection/
     fx-noop/             ← explicit testbench no-op module
     impl/                ← tagged middleware, configuration, lifecycle
     impl-noop/           ← explicit testbench no-op component
-    parquet/             ← tagged Parquet v1 metric and log writers
+    impl/parquet/        ← tagged Parquet v1 metric and log writers
 ```
 
 ## Agent Wiring

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
-	recorderparquet "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/parquet"
+	recorderparquet "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl/parquet"
 )
 
 func TestRecorderParquetV1LoadsInBothTestbenchModes(t *testing.T) {
