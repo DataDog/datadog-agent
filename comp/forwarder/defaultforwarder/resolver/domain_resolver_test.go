@@ -187,21 +187,15 @@ func TestOnUpdateConfigRemovesMissingPendingDomainBeforeSubscription(t *testing.
 	assert.False(t, resolver.IsUsable())
 }
 
-// pausingConfig blocks the first GetStringMapStringSlice call after it has read the value, so a
-// test can land a newer config write before that reconcile applies what it read.
-type pausingConfig struct {
+// hookedConfig runs onRead after every GetStringMapStringSlice read.
+type hookedConfig struct {
 	configmodel.BuildableConfig
-	once    sync.Once
-	read    chan struct{}
-	release chan struct{}
+	onRead func()
 }
 
-func (c *pausingConfig) GetStringMapStringSlice(key string) map[string][]string {
+func (c *hookedConfig) GetStringMapStringSlice(key string) map[string][]string {
 	value := c.BuildableConfig.GetStringMapStringSlice(key)
-	c.once.Do(func() {
-		close(c.read)
-		<-c.release
-	})
+	c.onRead()
 	return value
 }
 
@@ -215,16 +209,35 @@ func TestUpdateAdditionalEndpointsStaleReadDoesNotOverwriteNewerWrite(t *testing
 	config := configmock.New(t)
 	config.SetInTest("additional_endpoints", map[string][]string{domain: {"old-key"}})
 	log := logmock.New(t)
-	OnUpdateConfig(resolver, log, config)
+
+	// The OnUpdate callback reads through this wrapper so the test can see when it reads config.
+	callbackRead := make(chan struct{})
+	var callbackOnce sync.Once
+	OnUpdateConfig(resolver, log, &hookedConfig{BuildableConfig: config, onRead: func() {
+		callbackOnce.Do(func() { close(callbackRead) })
+	}})
 
 	// Like the startup reconcile: reads "old-key", then pauses before applying it.
-	paused := &pausingConfig{BuildableConfig: config, read: make(chan struct{}), release: make(chan struct{})}
+	read, release := make(chan struct{}), make(chan struct{})
+	var readOnce, releaseOnce sync.Once
+	unpause := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(unpause) // never leave the reload holding the lock if the test fails early
+	paused := &hookedConfig{BuildableConfig: config, onRead: func() {
+		readOnce.Do(func() {
+			close(read)
+			<-release
+		})
+	}}
 	reconciled := make(chan struct{})
 	go func() {
 		defer close(reconciled)
 		updateAdditionalEndpoints(resolver, "additional_endpoints", paused, log)
 	}()
-	<-paused.read
+	select {
+	case <-read:
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconcile never read config")
+	}
 
 	// Like a delegated auth write-back landing meanwhile; its OnUpdate callback reconciles too.
 	written := make(chan struct{})
@@ -232,13 +245,22 @@ func TestUpdateAdditionalEndpointsStaleReadDoesNotOverwriteNewerWrite(t *testing
 		defer close(written)
 		config.Set("additional_endpoints", map[string][]string{domain: {"new-key"}}, configmodel.SourceSecret)
 	}()
-	require.Eventually(t, func() bool {
-		return config.GetStringMapStringSlice("additional_endpoints")[domain][0] == "new-key"
-	}, 5*time.Second, time.Millisecond)
 
-	close(paused.release)
-	<-reconciled
-	<-written
+	// The paused reload holds the resolver lock, so the callback must not get to read config yet.
+	select {
+	case <-callbackRead:
+		t.Fatal("callback read config while another reload held the resolver lock")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	unpause()
+	for _, done := range []chan struct{}{reconciled, written} {
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("reconcile did not finish")
+		}
+	}
 
 	assertKeys(t, []string{"new-key"}, resolver)
 }
