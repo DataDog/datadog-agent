@@ -1193,7 +1193,7 @@ func baseMountNamespaceFromEvent(event *model.Event) uint32 {
 		return 0
 	}
 
-	if root := activity_tree.ValidRootProcess(pc); root != nil && root.Process.MntNS != 0 {
+	if root := activity_tree.FindRootProcess(pc); root != nil && root.Process.MntNS != 0 {
 		return root.Process.MntNS
 	}
 
