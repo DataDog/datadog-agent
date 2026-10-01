@@ -79,7 +79,7 @@ func Test_parseSSHLogLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sshSessionParsed, err := lru.New[SSHSessionKey, SSHSessionValue](100)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			parseSSHLogLine(tt.logLine, sshSessionParsed)
 
@@ -120,7 +120,7 @@ func Test_SSHSessionUnresolved(t *testing.T) {
 
 	t.Run("ssh disabled", func(t *testing.T) {
 		resolver, err := NewResolver(64, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// must not panic nor report anything when the ssh caches are not initialized
 		resolver.MarkSSHSessionUnresolved(key)
@@ -129,7 +129,7 @@ func Test_SSHSessionUnresolved(t *testing.T) {
 
 	t.Run("ssh enabled", func(t *testing.T) {
 		resolver, err := NewResolver(64, true)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.False(t, resolver.IsSSHSessionUnresolved(key), "session must not be flagged yet")
 
