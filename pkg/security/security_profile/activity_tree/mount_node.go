@@ -1,11 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build linux
 
-// Package activitytree holds activitytree related files
 package activitytree
 
 import (
@@ -16,9 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// MountNode is used to store a mount observed for a workload. Mount nodes live
-// in a single deduplicated table on the ActivityTree and are append-only: they
-// are never removed when the underlying mount is unmounted.
 type MountNode struct {
 	NodeBase
 	GenerationType NodeGenerationType
@@ -28,14 +24,9 @@ type MountNode struct {
 	Filesystem string
 	MountFlags uint32
 
-	// InBaseNamespace is true when this mount was observed in the workload's base
-	// mount namespace (the container's root/init mount namespace, pinned at seed
-	// time). Mounts seen only in another mount namespace (e.g. after a process
-	// setns'd into a different one) have it false.
 	InBaseNamespace bool
 }
 
-// size approximates this node's heap footprint
 func (mn *MountNode) size() int64 {
 	s := int64(unsafe.Sizeof(*mn))
 	s += seenBytes(mn.NodeBase)
@@ -43,7 +34,6 @@ func (mn *MountNode) size() int64 {
 	return s
 }
 
-// NewMountNode returns a new MountNode instance
 func NewMountNode(mountPoint, mountRoot, filesystem string, mountFlags uint32, generationType NodeGenerationType, imageTagID uint64, timestamp time.Time) *MountNode {
 	node := &MountNode{
 		GenerationType: generationType,
@@ -57,26 +47,12 @@ func NewMountNode(mountPoint, mountRoot, filesystem string, mountFlags uint32, g
 	return node
 }
 
-// SetBaseMountNamespaceID pins the workload's base mount namespace inode. The base
-// namespace is the one snapshotted when the profile is first seeded (the seeding
-// workload's mount namespace), so it is set once: a zero nsID or a call made after
-// the base is already set is ignored. This keeps concurrent or restarted instances
-// of the same image from reassigning the base to a later, ephemeral namespace.
 func (at *ActivityTree) SetBaseMountNamespaceID(nsID uint32) {
 	if at.baseMountNamespaceID == 0 && nsID != 0 {
 		at.baseMountNamespaceID = nsID
 	}
 }
 
-// InsertMount inserts a mount into the workload's deduplicated mount table.
-// Mounts observed across different mount namespaces are collapsed into a single
-// union, deduplicating on (mount point, filesystem, mount flags); the
-// mount-namespace inode is only used to flag whether the mount belongs to the
-// base namespace pinned by SetBaseMountNamespaceID. A matching entry refreshes
-// its mount root (last-writer-wins, so per-run root paths don't grow the table)
-// and bumps its last-seen timestamp (and gains the base flag if seen in the base
-// namespace); a difference in flags is recorded as a new entry. Returns true if
-// a new node was created.
 func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) bool {
 	isBase := nsID != 0 && nsID == at.baseMountNamespaceID
 
@@ -104,8 +80,6 @@ func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesyst
 	return true
 }
 
-// insertMountEvent extracts the mount from a mount event and inserts it into the
-// workload's deduplicated mount table.
 func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, generationType NodeGenerationType, res *resolvers.EBPFResolvers, dryRun bool) bool {
 	m := &event.Mount.Mount
 
