@@ -48,5 +48,11 @@ generate_minimized_btfs_x64:
 generate_minimized_btfs_arm64:
   needs: ["build_system-probe-arm64"]
   extends: .generate_minimized_btfs_common
+  # TEMPORARY CI ACCELERATION: skipped on the SMP fast-iteration branch; the
+  # rules mirror .generate_minimized_btfs_common's.
+  rules:
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
+    - when: on_success
   variables:
     ARCH: arm64
