@@ -334,11 +334,12 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 	if err := client.Bootout(ctx, label); err != nil {
 		log.Warnf("failed to unload %s before reloading it: %v", label, err)
 	}
-	if err := client.Bootstrap(ctx, job); err != nil {
-		return fmt.Errorf("failed to load %s: %w", label, err)
-	}
+	// A persistent disabled override prevents bootstrap, not just process startup.
 	if err := client.Enable(ctx, label); err != nil {
 		return fmt.Errorf("failed to enable %s: %w", label, err)
+	}
+	if err := client.Bootstrap(ctx, job); err != nil {
+		return fmt.Errorf("failed to load %s: %w", label, err)
 	}
 	if err := client.Kickstart(ctx, label, false); err != nil {
 		return fmt.Errorf("failed to start %s: %w", label, err)

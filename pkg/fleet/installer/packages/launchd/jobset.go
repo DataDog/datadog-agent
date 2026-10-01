@@ -81,8 +81,8 @@ func (s JobSet) Remove(variant Variant) error {
 // Start loads and starts every job in the set, in the given variant, in order.
 //
 // Enable is a separate step from Bootstrap because launchd's disabled override survives both a
-// bootout and a rewritten definition: a job disabled by a previous uninstall would otherwise load
-// and never run.
+// bootout and a rewritten definition. A disabled job cannot be bootstrapped, so Enable must
+// precede Bootstrap.
 func (s JobSet) Start(ctx context.Context, variant Variant) error {
 	for _, label := range s.Labels {
 		job := s.Job(label, variant)
@@ -91,10 +91,10 @@ func (s JobSet) Start(ctx context.Context, variant Variant) error {
 		if err := s.Client.Bootout(ctx, job.Label); err != nil {
 			return err
 		}
-		if err := s.Client.Bootstrap(ctx, job); err != nil {
+		if err := s.Client.Enable(ctx, job.Label); err != nil {
 			return err
 		}
-		if err := s.Client.Enable(ctx, job.Label); err != nil {
+		if err := s.Client.Bootstrap(ctx, job); err != nil {
 			return err
 		}
 		if err := s.Client.Kickstart(ctx, job.Label, false); err != nil {

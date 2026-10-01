@@ -77,6 +77,34 @@ func stubLaunchd(t *testing.T) *[][]string {
 	return &calls
 }
 
+func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
+	originalDir := launchdJobDir
+	launchdJobDir = t.TempDir()
+	t.Cleanup(func() { launchdJobDir = originalDir })
+
+	client := launchd.NewClient(launchd.System)
+	enabled := false
+	started := false
+	client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		switch args[0] {
+		case "print":
+			return []byte(notLoadedOutput), errors.New("exit status 113")
+		case "enable":
+			enabled = true
+		case "bootstrap":
+			if !enabled {
+				return nil, errors.New("service is disabled")
+			}
+		case "kickstart":
+			started = true
+		}
+		return nil, nil
+	}
+
+	require.NoError(t, loadStableJob(context.Background(), client, "com.datadoghq.agent"))
+	assert.True(t, started)
+}
+
 // stubAgentUser stops the hook reaching the machine's directory service.
 func stubAgentUser(t *testing.T) {
 	t.Helper()
