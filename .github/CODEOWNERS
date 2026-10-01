@@ -322,6 +322,7 @@
 /cmd/agent/dist/conf.d/wlan.d/                         @DataDog/windows-products
 /cmd/agent/dist/protected/                             @DataDog/windows-products
 /cmd/agent/install*.sh                              @DataDog/agent-build
+/cmd/agent/aix/                                     @DataDog/fleet-automation @DataDog/agent-runtimes
 /cmd/agent/macos/                                   @DataDog/windows-products
 /cmd/ai_prompt_logger/                              @DataDog/windows-products
 /cmd/cluster-agent/                                 @DataDog/container-platform
