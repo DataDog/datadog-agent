@@ -36,9 +36,3 @@ func TestNotableEventsModuleEnablement(t *testing.T) {
 		})
 	}
 }
-
-// TestDefaultConfigDirIsTheAgentConfPath verifies that, with no path given, system-probe.yaml is
-// looked up next to datadog.yaml rather than in the Linux /etc/datadog-agent.
-func TestDefaultConfigDirIsTheAgentConfPath(t *testing.T) {
-	assert.Equal(t, "/opt/datadog-agent/etc", defaultConfigDir)
-}

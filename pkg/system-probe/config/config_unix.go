@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 )
 
-var (
+const (
 	defaultConfigDir = "/etc/datadog-agent"
 )
 
