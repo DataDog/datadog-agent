@@ -96,22 +96,23 @@ func GetFxOptions() fx.Option {
 	return fx.Provide(NewCollector)
 }
 
-// Enabled reports whether the nodefilter collector applies to cfg. The kubelet
-// collector only steps aside for nodefilter when this holds, so that a
-// standalone otel-agent nodefilter can't run in (e.g. one whose deployment
-// lacks the node-name env var) keeps collecting pods through kubelet instead
-// of through nothing. Only config and environment are checked: a nodefilter
-// that then fails against the API server (e.g. on missing pods list/watch
-// RBAC) doesn't hand back to kubelet.
+// Enabled reports whether cfg selects the nodefilter collector, in which case
+// the kubelet collector steps aside for it: otel-agent running in DDOT
+// standalone mode selects it, unless that mode opted back out to the kubelet
+// collector. Only that configuration decides. A nodefilter that then can't
+// run, without its node-name env var or refused pods list/watch by the API
+// server, doesn't hand back to kubelet: a deployment set up for nodefilter
+// lacks the kubelet API access and settings kubelet needs, so kubelet would
+// fail too, and only log at debug level while it retries.
 func Enabled(cfg config.Component) bool {
-	_, err := localNodeName(cfg)
-	return err == nil
+	standalone := cfg.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent
+	return standalone && !cfg.GetBool("otelcollector.standalone.use_kubelet_collector")
 }
 
 // localNodeName returns the name of the node whose pods this collector
-// watches, or a disabled error when the collector doesn't apply: it only
-// applies to otel-agent running on Kubernetes in DDOT standalone mode, when
-// that mode hasn't opted back out to the kubelet collector.
+// watches, a disabled error when the collector doesn't apply (it isn't
+// selected, or the agent isn't running on Kubernetes), or an error when it
+// can't resolve that name.
 //
 // The node name is read from the environment variable named by
 // otelcollector.standalone.node_from_env_var, mirroring the
@@ -119,10 +120,10 @@ func Enabled(cfg config.Component) bool {
 // FilterConfig) rather than hardcoding a single env var name. It defaults to
 // K8S_NODE_NAME, the name the OTel Helm chart and Operator already populate
 // via the Kubernetes downward API (fieldRef: spec.nodeName) for exactly this
-// purpose.
+// purpose. When it isn't set, no collector gathers pods, so this also logs a
+// warning: workloadmeta only logs a collector failing to start at info level.
 func localNodeName(cfg config.Component) (string, error) {
-	standalone := cfg.GetBool("otel_standalone") && flavor.GetFlavor() == flavor.OTelAgent
-	if !standalone || cfg.GetBool("otelcollector.standalone.use_kubelet_collector") {
+	if !Enabled(cfg) {
 		return "", errors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode without the kubelet collector opt-out")
 	}
 
@@ -133,7 +134,8 @@ func localNodeName(cfg config.Component) (string, error) {
 	nodeFromEnvVar := cfg.GetString("otelcollector.standalone.node_from_env_var")
 	nodeName := os.Getenv(nodeFromEnvVar)
 	if nodeName == "" {
-		return "", errors.NewDisabled(componentName, fmt.Sprintf("environment variable %q (otelcollector.standalone.node_from_env_var) is not set", nodeFromEnvVar))
+		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: environment variable %q (otelcollector.standalone.node_from_env_var) is not set. Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVar)
+		return "", fmt.Errorf("environment variable %q (otelcollector.standalone.node_from_env_var) is not set", nodeFromEnvVar)
 	}
 
 	return nodeName, nil

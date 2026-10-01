@@ -33,10 +33,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
 
-// TestLocalNodeName verifies that this collector only applies to otel-agent
-// running on Kubernetes in DDOT standalone mode, without the kubelet
-// collector opt-out, and with its node-name env var set, and that Enabled
-// (which the kubelet collector steps aside on) agrees.
+// TestLocalNodeName verifies that only otel-agent running in DDOT standalone
+// mode without the kubelet collector opt-out selects this collector (Enabled,
+// which the kubelet collector steps aside on), and that it then only applies
+// on Kubernetes.
 func TestLocalNodeName(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -44,34 +44,33 @@ func TestLocalNodeName(t *testing.T) {
 		standalone bool
 		useKubelet bool
 		kubernetes bool
-		nodeName   string
+		// wantEnabled is whether the kubelet collector must step aside.
+		wantEnabled bool
 		// wantNodeName is empty when the collector must be disabled.
 		wantNodeName string
 	}{
 		{
 			name:   "standalone otel-agent, defaults to nodefilter",
-			flavor: flavor.OTelAgent, standalone: true, kubernetes: true, nodeName: "test-node",
-			wantNodeName: "test-node",
+			flavor: flavor.OTelAgent, standalone: true, kubernetes: true,
+			wantEnabled: true, wantNodeName: "test-node",
 		},
 		{
 			name:   "not standalone",
-			flavor: flavor.OTelAgent, standalone: false, kubernetes: true, nodeName: "test-node",
+			flavor: flavor.OTelAgent, standalone: false, kubernetes: true,
 		},
 		{
 			name:   "not otel-agent",
-			flavor: flavor.DefaultAgent, standalone: true, kubernetes: true, nodeName: "test-node",
+			flavor: flavor.DefaultAgent, standalone: true, kubernetes: true,
 		},
 		{
 			name:   "opted back out to kubelet",
-			flavor: flavor.OTelAgent, standalone: true, useKubelet: true, kubernetes: true, nodeName: "test-node",
+			flavor: flavor.OTelAgent, standalone: true, useKubelet: true, kubernetes: true,
 		},
 		{
+			// The kubelet collector disables itself off Kubernetes too.
 			name:   "not on Kubernetes",
-			flavor: flavor.OTelAgent, standalone: true, kubernetes: false, nodeName: "test-node",
-		},
-		{
-			name:   "node name env var not set",
-			flavor: flavor.OTelAgent, standalone: true, kubernetes: true, nodeName: "",
+			flavor: flavor.OTelAgent, standalone: true, kubernetes: false,
+			wantEnabled: true,
 		},
 	}
 
@@ -85,24 +84,48 @@ func TestLocalNodeName(t *testing.T) {
 			}
 			// K8S_NODE_NAME is the otelcollector.standalone.node_from_env_var
 			// default.
-			t.Setenv("K8S_NODE_NAME", tt.nodeName)
+			t.Setenv("K8S_NODE_NAME", "test-node")
 			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 				"otel_standalone": tt.standalone,
 				"otelcollector.standalone.use_kubelet_collector": tt.useKubelet,
 			})
 
+			assert.Equal(t, tt.wantEnabled, Enabled(cfg))
+
 			nodeName, err := localNodeName(cfg)
 			if tt.wantNodeName == "" {
 				require.Error(t, err)
 				assert.True(t, pkgerrors.IsDisabled(err))
-				assert.False(t, Enabled(cfg))
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantNodeName, nodeName)
-				assert.True(t, Enabled(cfg))
 			}
 		})
 	}
+}
+
+// TestLocalNodeName_EnvVarNotSet verifies that a missing node-name env var
+// keeps the kubelet collector stepping aside, so pods aren't collected at
+// all, and is therefore logged as a warning that names the remedies rather
+// than just disabling the collector.
+func TestLocalNodeName_EnvVarNotSet(t *testing.T) {
+	flavor.SetTestFlavor(t, flavor.OTelAgent)
+	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+	t.Setenv("K8S_NODE_NAME", "")
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"otel_standalone": true,
+	})
+	warnings := captureWarnings(t)
+
+	assert.True(t, Enabled(cfg))
+
+	_, err := localNodeName(cfg)
+	require.Error(t, err)
+	assert.False(t, pkgerrors.IsDisabled(err))
+
+	output := warnings()
+	assert.Contains(t, output, `environment variable "K8S_NODE_NAME"`)
+	assert.Contains(t, output, "otelcollector.standalone.use_kubelet_collector")
 }
 
 // TestLocalNodeName_CustomEnvVar verifies that the node name is read from
@@ -225,14 +248,11 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// TestStart_Forbidden verifies that the API server refusing to list pods, as
-// it does when the agent lacks RBAC for them, is logged to the agent's own log
-// with a hint, since Start itself has already succeeded by then.
-func TestStart_Forbidden(t *testing.T) {
-	// The workloadmeta mock sets up its own global logger, so capture logs
-	// only once it has.
-	wlm := mockedWorkloadmeta(t)
-
+// captureWarnings routes the global logger's warnings and errors to a buffer
+// until the test ends, and returns a function that flushes and reads it.
+// Anything else that sets up the global logger, like the workloadmeta mock,
+// must do so before.
+func captureWarnings(t *testing.T) func() string {
 	var output syncBuffer
 	logger, err := log.LoggerFromWriterWithMinLevel(&output, log.WarnLvl)
 	require.NoError(t, err)
@@ -241,6 +261,19 @@ func TestStart_Forbidden(t *testing.T) {
 		logger.Close()
 	})
 	log.SetupLogger(logger, log.WarnStr)
+
+	return func() string {
+		logger.Flush()
+		return output.String()
+	}
+}
+
+// TestStart_Forbidden verifies that the API server refusing to list pods, as
+// it does when the agent lacks RBAC for them, is logged to the agent's own log
+// with a hint, since Start itself has already succeeded by then.
+func TestStart_Forbidden(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	warnings := captureWarnings(t)
 
 	client := fake.NewClientset()
 	client.PrependReactor("list", "pods", func(k8stesting.Action) (bool, runtime.Object, error) {
@@ -261,7 +294,6 @@ func TestStart_Forbidden(t *testing.T) {
 	require.NoError(t, c.Start(ctx, wlm))
 
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
-		logger.Flush()
-		assert.Contains(ct, output.String(), "grant the agent's service account list and watch on pods")
+		assert.Contains(ct, warnings(), "grant the agent's service account list and watch on pods")
 	}, eventuallyTimeout, eventuallyInterval)
 }
