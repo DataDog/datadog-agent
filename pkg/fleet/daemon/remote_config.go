@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	fleetcatalog "github.com/DataDog/datadog-agent/pkg/fleet/catalog"
@@ -49,13 +50,17 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 	if rc.client == nil {
 		return
 	}
-	subscribeToTask := func() {
-		// only subscribe to tasks once the first catalog has been applied
-		// subscribe in a goroutine to avoid deadlocking the client
-		go rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest))
-	}
+	// catalogApplied tracks whether a catalog has ever been applied, so that tasks which
+	// resolve packages against the catalog can wait for one without delaying the
+	// UPDATER_TASK subscription itself. Reporting that subscription to the backend is what
+	// Fleet Automation checks to know the installer is remote-config-active, and it must not
+	// depend on the backend ever actually having assigned a catalog to this client.
+	var catalogApplied atomic.Bool
 	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
-	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, subscribeToTask))
+	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, func() {
+		catalogApplied.Store(true)
+	}))
+	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest, catalogApplied.Load))
 	rc.client.Start()
 }
 
@@ -193,6 +198,12 @@ const (
 	methodPromoteConfigExperiment = "promote_experiment_config"
 )
 
+// requiresCatalog reports whether a task method resolves its package against the catalog.
+// Config experiments read INSTALLER_CONFIG instead and must not wait for a catalog.
+func requiresCatalog(method string) bool {
+	return method == methodInstallPackage || method == methodStartExperiment
+}
+
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
 	Package       string          `json:"package_name"`
@@ -230,7 +241,7 @@ type installPackageTaskParams struct {
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
 
-func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
+func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 		requests := map[string]remoteAPIRequest{}
@@ -240,7 +251,7 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.Raw
 			if err != nil {
 				log.Errorf("could not unmarshal request: %s", err)
 				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				return
+				continue
 			}
 			requests[id] = request
 		}
@@ -249,12 +260,21 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest) func(map[string]state.Raw
 				log.Debugf("request %s already executed", request.ID)
 				continue
 			}
+			if requiresCatalog(request.Method) && catalogReady != nil && !catalogReady() {
+				// No catalog has been applied yet, so this task couldn't resolve its package
+				// against it. Leave it unacknowledged: the updater client explicitly replays
+				// the current task snapshot after delivering a changed catalog.
+				log.Debugf("request %s (%s) deferred until a catalog has been applied", request.ID, request.Method)
+				continue
+			}
 			executedRequests[request.ID] = struct{}{}
 			err := h(request)
 			if err != nil {
 				log.Errorf("could not execute request: %s", err)
 				applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				return
+				// A task error is local to this request. The client only notifies changed
+				// products, so a later callback cannot be relied on to process the rest.
+				continue
 			}
 			applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}

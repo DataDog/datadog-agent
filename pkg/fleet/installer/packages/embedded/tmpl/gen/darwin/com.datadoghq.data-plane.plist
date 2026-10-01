@@ -2,17 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
+        <key>Label</key>
+        <string>com.datadoghq.data-plane</string>
+        <!-- RunAtLoad only on the stable set: the experiment set must not restart itself, since
+             the stable definition stays on disk (unloaded, not removed) for the whole time an
+             experiment runs, and a reboot mid-experiment must bring back only the stable job. -->
+        <key>RunAtLoad</key>
+        <true/>
         <key>KeepAlive</key>
         <dict>
             <key>SuccessfulExit</key>
             <false/>
         </dict>
-        <key>Label</key>
-        <string>com.datadoghq.data-plane</string>
         <key>EnvironmentVariables</key>
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
+            <key>DD_FLEET_POLICIES_DIR</key>
+            <string>/opt/datadog-agent/etc/managed/datadog-agent/stable</string>
         </dict>
         <key>ProgramArguments</key>
         <array>

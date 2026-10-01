@@ -61,7 +61,13 @@ func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, c
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
-	return i.setupInstallerCmd(ctx, span, cmd)
+	iCmd := i.setupInstallerCmd(ctx, span, cmd)
+	// setupInstallerCmd's platform hook (newInstallerCmdPlatform) sets Cancel on every cmd to
+	// tie it to ctx, but Go's exec package refuses to start a Cmd with a non-nil Cancel unless
+	// it was built with CommandContext -- and this one is deliberately built with exec.Command
+	// (see above) so it survives ctx being cancelled. Clear it back out here.
+	iCmd.Cmd.Cancel = nil
+	return iCmd
 }
 
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
@@ -240,6 +246,14 @@ func (i *InstallerExec) RemoveConfigExperiment(ctx context.Context, pkg string) 
 // PromoteConfigExperiment promotes an experiment to stable.
 func (i *InstallerExec) PromoteConfigExperiment(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "promote-config-experiment", pkg)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// ResumeConfigExperiments recovers any configuration experiment left running unsupervised by a
+// prior, uncleanly shut down daemon process.
+func (i *InstallerExec) ResumeConfigExperiments(ctx context.Context) (err error) {
+	cmd := i.newInstallerCmd(ctx, "resume-config-experiments")
 	defer func() { cmd.span.Finish(err) }()
 	return cmd.Run()
 }

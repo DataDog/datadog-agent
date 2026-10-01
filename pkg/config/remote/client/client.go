@@ -282,7 +282,8 @@ func WithAgent(name, version string) func(opts *Options) {
 	return func(opts *Options) { opts.agentName, opts.agentVersion = name, version }
 }
 
-// WithUpdater specifies that this client is an updater
+// WithUpdater specifies that this client is an updater. Installer configs and catalogs
+// are delivered before tasks; catalog changes also trigger delivery of current tasks.
 func WithUpdater() func(opts *Options) {
 	return func(opts *Options) {
 		opts.isUpdater = true
@@ -539,9 +540,25 @@ func (c *Client) update() error {
 
 	c.m.Lock()
 	defer c.m.Unlock()
-	for product, productListeners := range c.listeners {
+	products := make([]string, 0, len(c.listeners))
+	if c.Options.isUpdater {
+		// Installer tasks consume configuration and catalog state. Apply those first,
+		// then replay the current task snapshot when a catalog changes, even when
+		// the task product itself is unchanged. Read from the repository rather than
+		// caching pending tasks so withdrawals in this response are respected.
+		products = append(products, state.ProductInstallerConfig, state.ProductUpdaterCatalogDD, state.ProductUpdaterTask)
+		if containsProduct(changedProducts, state.ProductUpdaterCatalogDD) && !containsProduct(changedProducts, state.ProductUpdaterTask) {
+			changedProducts = append(changedProducts, state.ProductUpdaterTask)
+		}
+	}
+	for product := range c.listeners {
+		if !slices.Contains(products, product) {
+			products = append(products, product)
+		}
+	}
+	for _, product := range products {
 		if containsProduct(changedProducts, product) {
-			for _, listener := range productListeners {
+			for _, listener := range c.listeners[product] {
 				if response.ConfigStatus == pbgo.ConfigStatus_CONFIG_STATUS_OK ||
 					!listener.ShouldIgnoreSignatureExpiration() {
 					listener.OnUpdate(c.state.GetConfigs(product), c.state.UpdateApplyStatus)

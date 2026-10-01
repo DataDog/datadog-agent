@@ -1,0 +1,26 @@
+---
+features:
+  - |
+    macOS Agent packages now ship the Fleet installer daemon and support remote configuration
+    management. A configuration deployment can be started, promoted and reverted from Fleet
+    Automation on a Mac; the Agent is restarted against the experiment configuration and, if the
+    experiment is not promoted, restored to the configuration it was running before.
+fixes:
+  - |
+    Fleet Automation now reports a status for every request in a task set. Previously, when one
+    request failed, the requests alongside it in the same set were left without a status, so a
+    deployment could appear to stall with no error reported against it.
+  - |
+    Fix Fleet Automation remote configuration deployments failing on macOS hosts. The Agent
+    registered itself in the package repository under a different version string than the one the
+    installer daemon reports as running, so the pre-deployment host health check never matched and
+    every deployment failed before any configuration was pushed. The registered version now also
+    moves forward when a new ``.dmg`` replaces the Agent, instead of staying pinned to the version
+    the host was first installed with.
+  - |
+    Fix the package version reported by the Agent on macOS, and by the standalone
+    ``datadog-installer`` and ``datadog-dogstatsd`` packages, where a directory name was reported
+    instead of the real version (for example ``bin`` on macOS). The version is now only read from
+    the install path for OCI/fleet-managed installs, which are the only ones that encode it there.
+    This value is also reported as ``package_version`` in the ``inventory-agent`` metadata payload
+    and as the ``package_version`` tag on Agent telemetry metrics.
