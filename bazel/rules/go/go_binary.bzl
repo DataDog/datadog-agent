@@ -1,7 +1,7 @@
 """Datadog Agent wrapper around rules_go go_binary.
 
-Injects standard version x_defs and run-path linker flags into every agent
-binary so callers don't have to repeat them.  The x_defs at binary level
+Injects standard version x_defs and linker flags into every agent binary so
+callers don't have to repeat them.  The x_defs at binary level
 override the placeholder values set in //pkg/version:version (x_defs there
 default to "0.0.0-dev").
 
@@ -14,10 +14,8 @@ Version string strategy:
 x_defs values may reference any of the common variables Python-style format
 placeholders, e.g. {"some/pkg.appVersion": "{agent_version}"}.
 
-ELF RPATH strategy ("-r" gc_linkopts), selected via //:linux_and_release and @platforms//os:linux:
-- Linux + release (//:linux_and_release): /opt/datadog-packages/run
-- Linux + dev    (@platforms//os:linux):  dev/lib
-- Non-Linux      (//conditions:default):  no "-r" flag (ELF RPATH is Linux-specific)
+No RPATH is embedded: binaries that load shipped shared libraries get one at
+install time from rewrite_rpath (see packages/agent/product).
 
 The Go run directory (pkg/util/defaultpaths.runPath) is not set here: it is
 binary-specific, so callers that need it pass their own x_defs.
@@ -43,10 +41,6 @@ load(
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
 _DEFAULTPATHS_PKG = _REPO + "/pkg/util/defaultpaths"
-
-_RUN_PATH_RELEASE = "/opt/datadog-packages/run"
-_RUN_PATH_DEV = "dev/lib"
-
 def dd_agent_go_binary(
         name,
         gc_linkopts = None,
@@ -58,7 +52,7 @@ def dd_agent_go_binary(
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
     Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
-    the version/run-path/strip definitions; caller-supplied values take
+    the version/strip definitions; caller-supplied values take
     precedence over the defaults provided here.
 
     Defaults applied automatically (override by passing the attribute explicitly):
@@ -66,10 +60,9 @@ def dd_agent_go_binary(
 
     Args:
       name: target name
-      gc_linkopts: Base set of link opts. rpath and stripping options are
-                   automatically added to these.
-                   On linux: add RPATH
-                   On release builds: add -s -w (strip symbol table and DWARF)
+      gc_linkopts: Base set of link opts. Stripping options are automatically
+                   added to these: on release builds, -s -w (strip symbol
+                   table and DWARF).
       gotags: Base set of gotags for this binary. COMMON tags are added, and
               per-platform adjustments are made.
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
@@ -110,18 +103,6 @@ def dd_agent_go_binary(
             "//conditions:default": False,
         })
 
-    # "-r <path>" embeds the ELF RPATH so shared libraries under the run path
-    # are found at runtime.  This flag is Linux-specific; non-Linux targets get
-    # an empty list.
-    # //:linux_and_release (Linux + release=True) is more specific than the plain
-    # @platforms//os:linux constraint, so Bazel's ambiguity resolution picks it
-    # first when both conditions hold.
-    run_path_linkopts = select({
-        "//:linux_and_release": ["-r", _RUN_PATH_RELEASE],
-        "@platforms//os:linux": ["-r", _RUN_PATH_DEV],
-        "//conditions:default": [],
-    })
-
     # Strip the symbol table and DWARF debug info in release builds to reduce
     # binary size.  Dev builds keep symbols for debugger and profiler use.
     strip_linkopts = select({
@@ -144,7 +125,7 @@ def dd_agent_go_binary(
 
     go_binary(
         name = name,
-        gc_linkopts = (gc_linkopts or []) + run_path_linkopts + strip_linkopts,
+        gc_linkopts = (gc_linkopts or []) + strip_linkopts,
         toolchains = kwargs.pop("toolchains", []) + [
             "//:install_dir",
             "//bazel/rules/variables",
