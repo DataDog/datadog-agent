@@ -9,7 +9,6 @@ go_library(
         "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/noop-impl",
         "//comp/forwarder/orchestrator/def",
-        "//pkg/util/fxutil",
         "//pkg/util/option",
     ],
 )
