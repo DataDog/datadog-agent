@@ -40,7 +40,9 @@ deploy_packages_aix-ppc64:
       artifacts: true
   rules:
     - !reference [.except_light_pipeline]
-    - if: $BUCKET_BRANCH =~ /^(dev|nightly|beta|stable)$/
+    - if: $BUCKET_BRANCH =~ /^(nightly|beta|stable)$/
+      allow_failure: true
+    - if: $BUCKET_BRANCH == "dev"
       when: manual
       allow_failure: true
   script:
