@@ -6,9 +6,11 @@
 package metrics
 
 import (
+	"cmp"
+	"math"
 	"math/rand"
 	"runtime"
-	"sort"
+	"slices"
 	"sync"
 	"testing"
 
@@ -209,6 +211,29 @@ func TestHistogramPercentiles(t *testing.T) {
 
 	_, err = mHistogram.flush(61)
 	assert.NotNil(t, err)
+}
+
+// TestHistogramNaNSample covers a NaN sample reaching the sort inside flush(): with
+// cmp.Compare, NaN sorts before every finite value, so it poisons .min but leaves .max
+// (the real finite maximum, sorted last) unaffected.
+func TestHistogramNaNSample(t *testing.T) {
+	cfg := setupConfig(t)
+	mHistogram := NewHistogram(10, cfg)
+	mHistogram.configure([]string{"max", "min"}, nil)
+
+	mHistogram.addSample(&MetricSample{Value: 3}, 50)
+	mHistogram.addSample(&MetricSample{Value: math.NaN()}, 50)
+	mHistogram.addSample(&MetricSample{Value: 1}, 50)
+	mHistogram.addSample(&MetricSample{Value: 2}, 50)
+
+	series, err := mHistogram.flush(60)
+	assert.Nil(t, err)
+	if assert.Len(t, series, 2) {
+		assert.InEpsilon(t, 3, series[0].Points[0].Value, epsilon) // max
+		assert.Equal(t, ".max", series[0].NameSuffix)              // max
+		assert.True(t, math.IsNaN(series[1].Points[0].Value))      // min
+		assert.Equal(t, ".min", series[1].NameSuffix)              // min
+	}
 }
 
 func TestHistogramSampleRate(t *testing.T) {
@@ -522,7 +547,7 @@ func BenchmarkHistogram100000MixedSignSampleRate1(b *testing.B) {
 
 // benchSampleSum isolates sampleSum (no sort, no flush, no alloc in the hot loop) so the
 // summation algorithm is actually what's being measured, not slice growth/sort/percentile
-// computation. Samples are pre-sorted to match the sort.Sort invariant of flush().
+// computation. Samples are pre-sorted to match the sort invariant of flush().
 func benchSampleSum(b *testing.B, values []float64) {
 	h := &Histogram{
 		samples:      make(weightSamples, len(values)),
@@ -532,7 +557,7 @@ func benchSampleSum(b *testing.B, values []float64) {
 	for i, v := range values {
 		h.samples[i] = weightSample{value: v, weight: 1}
 	}
-	sort.Sort(h.samples)
+	slices.SortFunc(h.samples, func(a, b weightSample) int { return cmp.Compare(a.value, b.value) })
 	b.ReportAllocs()
 	b.ResetTimer()
 	var sink float64

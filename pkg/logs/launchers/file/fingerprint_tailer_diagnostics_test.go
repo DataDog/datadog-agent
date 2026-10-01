@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -185,6 +186,7 @@ func TestLauncherLogsRecoveryAfterFingerprintSkip(t *testing.T) {
 // what tells them apart.
 func TestLauncherWarnsWhenFingerprintComputationFails(t *testing.T) {
 	setup := setupFingerprintSkipTest(t, 2048)
+	t.Cleanup(setup.launcher.cleanup)
 
 	// The mock fingerprinter returns an error for any file it has no fingerprint set for.
 	fingerprinter := filetailer.NewFingerprinterMock()
@@ -204,6 +206,15 @@ func TestLauncherWarnsWhenFingerprintComputationFails(t *testing.T) {
 	skip, isSkipped := setup.launcher.fingerprintSkips[setup.path]
 	require.True(t, isSkipped)
 	assert.Equal(t, fingerprintSkipError, skip.reason)
+	messages := setup.source.Messages.GetMessages()
+	require.Len(t, messages, 1, "initial errors use only the existing skipped-file reporter")
+	assert.Contains(t, messages[0], "Not tailing "+setup.path)
+	assert.Empty(t, setup.launcher.fingerprintRotationErrors)
+
+	fingerprinter.SetFingerprint(setup.path, &types.Fingerprint{Value: 12345, Config: setup.source.Config.FingerprintConfig})
+	setup.scan()
+	assert.Equal(t, 1, setup.launcher.tailers.Count())
+	assert.Empty(t, setup.source.Messages.GetMessages(), "a successful retry clears the initial error")
 }
 
 // Skip state must not outlive the files it refers to, otherwise a path that rotates away leaks an
@@ -601,4 +612,27 @@ func TestLauncherClearsFingerprintSkipMessagesOnStop(t *testing.T) {
 	assert.Empty(t, setup.launcher.fingerprintSkips, "stopping must drop the skip state")
 	assert.Empty(t, setup.source.Messages.GetMessages(),
 		"stopping must take the message off the source that outlives the launcher")
+}
+
+func TestFingerprintRotationErrorsClearOriginalRecipients(t *testing.T) {
+	launcher := &Launcher{}
+	source := sources.NewLogSource("original", &config.LogsConfig{Type: config.FileType, Path: "/logs/*.log"})
+	replacement := sources.NewLogSource("replacement", source.Config)
+	replacement.Messages.AddMessage("unrelated", "keep this message")
+	first := filetailer.NewFile("/logs/a.log", source, true)
+	second := filetailer.NewFile("/logs/b.log", source, true)
+	readErr := errors.New("direct I/O rejected")
+	launcher.recordFingerprintRotationError(first, readErr)
+	launcher.recordFingerprintRotationError(second, readErr)
+	launcher.recordFingerprintRotationError(first, readErr)
+	require.Len(t, source.Messages.GetMessages(), 2, "repeat failures replace rather than duplicate messages")
+	messages := strings.Join(source.Messages.GetMessages(), "\n")
+	assert.Contains(t, messages, first.Path)
+	assert.Contains(t, messages, second.Path)
+
+	first.Source.Replace(replacement)
+	launcher.clearFingerprintRotationErrors()
+	assert.Empty(t, source.Messages.GetMessages(), "cleanup must clear the original source, not follow ReplaceableSource")
+	assert.Equal(t, []string{"keep this message"}, replacement.Messages.GetMessages())
+	assert.Empty(t, launcher.fingerprintRotationErrors)
 }

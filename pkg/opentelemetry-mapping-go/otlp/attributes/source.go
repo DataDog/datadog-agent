@@ -39,9 +39,7 @@ const (
 	// getting added to OTel semconv. Replace with the real semconv constant once released.
 	AttributeAzureContainerAppInstanceID = "azure.container_app.instance.id"
 
-	attributeAzureResourceGroupName    = string(semconv143.AzureResourceGroupNameKey)
-	attributeAzureAppServiceInstanceID = "azure.app_service.instance.id"
-	attributeServiceInstanceID         = string(conventions.ServiceInstanceIDKey)
+	attributeAzureResourceGroupName = string(semconv143.AzureResourceGroupNameKey)
 )
 
 var (
@@ -51,11 +49,13 @@ var (
 	cloudPlatformAzureFunctionsLegacy  = conventions.CloudPlatformAzureFunctions.Value.AsString()
 )
 
+// azureFunctionsResource is an Azure Functions app identity. It has no
+// instance: the platform value that matches existing Functions billing is not
+// emitted by OTel detectors yet, so the identity stays at the app level.
 type azureFunctionsResource struct {
 	name           string
 	subscriptionID string
 	resourceGroup  string
-	instanceID     string
 }
 
 func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsResource, bool) {
@@ -67,11 +67,9 @@ func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsReso
 	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
-	instanceID, instanceIDOK := attrs.Get(string(semconv143.FaaSInstanceKey))
 	if !nameOK || name.Str() == "" ||
 		!subscriptionIDOK || subscriptionID.Str() == "" ||
-		!resourceGroupOK || resourceGroup.Str() == "" ||
-		!instanceIDOK || instanceID.Str() == "" {
+		!resourceGroupOK || resourceGroup.Str() == "" {
 		return azureFunctionsResource{}, false
 	}
 
@@ -79,15 +77,16 @@ func azureFunctionsResourceFromAttributes(attrs pcommon.Map) (azureFunctionsReso
 		name:           name.Str(),
 		subscriptionID: subscriptionID.Str(),
 		resourceGroup:  resourceGroup.Str(),
-		instanceID:     instanceID.Str(),
 	}, true
 }
 
+// azureAppServiceResource is an Azure App Service app identity. It has no
+// instance: the platform value that matches existing App Service billing is not
+// emitted by OTel detectors yet, so the identity stays at the app level.
 type azureAppServiceResource struct {
 	name           string
 	subscriptionID string
 	resourceGroup  string
-	instanceID     string
 }
 
 func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceResource, bool) {
@@ -99,14 +98,9 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 	name, nameOK := attrs.Get(string(conventions.ServiceNameKey))
 	subscriptionID, subscriptionIDOK := attrs.Get(string(conventions.CloudAccountIDKey))
 	resourceGroup, resourceGroupOK := attrs.Get(attributeAzureResourceGroupName)
-	instanceID, instanceIDOK := attrs.Get(attributeAzureAppServiceInstanceID)
-	if !instanceIDOK || instanceID.Str() == "" {
-		instanceID, instanceIDOK = attrs.Get(attributeServiceInstanceID)
-	}
 	if !nameOK || name.Str() == "" ||
 		!subscriptionIDOK || subscriptionID.Str() == "" ||
-		!resourceGroupOK || resourceGroup.Str() == "" ||
-		!instanceIDOK || instanceID.Str() == "" {
+		!resourceGroupOK || resourceGroup.Str() == "" {
 		return azureAppServiceResource{}, false
 	}
 
@@ -114,7 +108,6 @@ func azureAppServiceResourceFromAttributes(attrs pcommon.Map) (azureAppServiceRe
 		name:           name.Str(),
 		subscriptionID: subscriptionID.Str(),
 		resourceGroup:  resourceGroup.Str(),
-		instanceID:     instanceID.Str(),
 	}, true
 }
 
@@ -295,14 +288,13 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if function, ok := azureFunctionsResourceFromAttributes(attrs); ok {
 		return source.Source{
 			Kind:       source.AzureFunctionsKind,
-			Identifier: function.instanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			Identifier: function.name, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{
-				Primary: function.instanceID,
+				Primary: function.name,
 				Dimensions: map[string]string{
 					"name":            function.name,
 					"subscription_id": function.subscriptionID,
 					"resource_group":  function.resourceGroup,
-					"instance":        function.instanceID,
 				},
 			},
 		}, true
@@ -315,14 +307,13 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if appService, ok := azureAppServiceResourceFromAttributes(attrs); ok {
 		return source.Source{
 			Kind:       source.AzureAppServiceKind,
-			Identifier: appService.instanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+			Identifier: appService.name, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 			SourceIdentifier: source.SourceIdentifier{
-				Primary: appService.instanceID,
+				Primary: appService.name,
 				Dimensions: map[string]string{
 					"name":            appService.name,
 					"subscription_id": appService.subscriptionID,
 					"resource_group":  appService.resourceGroup,
-					"instance":        appService.instanceID,
 				},
 			},
 		}, true

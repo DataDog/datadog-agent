@@ -711,11 +711,7 @@ func (s *adScheduler) nextHeartbeatDelay() time.Duration {
 }
 
 func heartbeatJitterLimit(interval time.Duration) time.Duration {
-	limit := interval / 2
-	if limit > maxHeartbeatJitter {
-		return maxHeartbeatJitter
-	}
-	return limit
+	return min(interval/2, maxHeartbeatJitter)
 }
 
 func (s *adScheduler) nextRetryDelay() time.Duration {

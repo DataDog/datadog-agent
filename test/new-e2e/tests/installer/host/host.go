@@ -266,73 +266,28 @@ func (h *Host) configureDockerECRCredentialHelper() {
 	h.remote.MustExecute(`sudo mkdir -p /root/.docker && printf '{"credsStore":"ecr-login"}\n' | sudo tee /root/.docker/config.json > /dev/null`)
 }
 
-// installECRCredentialHelper installs the amazon-ecr-credential-helper binary if not already present.
-func (h *Host) installECRCredentialHelper() {
-	if _, err := h.remote.Execute("command -v docker-credential-ecr-login"); err == nil {
-		return
-	}
-	if h.pkgManager == "apt" {
-		h.remote.MustExecute("sudo apt-get install -y amazon-ecr-credential-helper")
-	} else {
-		// No official amazon-ecr-credential-helper package for non-apt distros (zypper, yum on CentOS, etc.);
-		// download the binary directly.
-		var helperArch string
-		helperVersion := "0.12.0"
-		switch h.arch {
-		case e2eos.AMD64Arch:
-			helperArch = "amd64"
-		case e2eos.ARM64Arch:
-			helperArch = "arm64"
-		default:
-			h.t().Fatalf("unsupported architecture for ECR credential helper: %s", h.arch)
-		}
-		helperURL := fmt.Sprintf("https://amazon-ecr-credential-helper-releases.s3.us-east-2.amazonaws.com/%s/linux-%s/docker-credential-ecr-login", helperVersion, helperArch)
-		h.remote.MustExecute(fmt.Sprintf(`sudo curl -fsSL "%s" -o /usr/bin/docker-credential-ecr-login && sudo chmod +x /usr/bin/docker-credential-ecr-login`, helperURL))
-	}
-}
-
 // TODO[@agent-devx]: Probably move this to the proper docker component defined in components/docker/component.go
-// InstallDocker installs Docker on the host if it is not already installed.
-func (h *Host) InstallDocker() {
-	defer func() {
-		// This defer will basically restart docker from a clean state, to avoid any issues in between tests.
-		// It will:
-		// - 1. Stop docker (if it's running)
-		// - 2. Reset failed status
-		// - 3. Remove the network directory to avoid network collision
-		// - 4. Start docker again
-		_, _ = h.remote.Execute("sudo systemctl stop docker")
-		_, err := h.remote.Execute("sudo systemctl reset-failed docker")
-		if err != nil {
-			h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
-		}
-		_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
-		if err != nil {
-			h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
-		}
-		_, err = h.remote.Execute("sudo systemctl start docker")
-		require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
-	}()
-	if _, err := h.remote.Execute("command -v docker"); err == nil {
-		h.installECRCredentialHelper()
-		h.configureDockerECRCredentialHelper()
-		return
-	}
-
-	switch h.pkgManager {
-	case "apt":
-		h.remote.MustExecute("sudo apt-get update -qq")
-		h.remote.MustExecute("sudo apt-get install -y docker.io")
-	case "yum":
-		h.remote.MustExecute("sudo yum install -y docker")
-	case "zypper":
-		h.remote.MustExecute("sudo zypper install -y docker")
-	default:
-		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
-	}
-
-	h.installECRCredentialHelper()
+// PrepareDocker configures the pre-baked Docker runtime and resets its network state.
+func (h *Host) PrepareDocker() {
+	h.remote.MustExecute("command -v docker && command -v docker-credential-ecr-login")
 	h.configureDockerECRCredentialHelper()
+	// Restart Docker from a clean state to avoid interference between tests.
+	// It will:
+	// - 1. Stop docker (if it's running)
+	// - 2. Reset failed status
+	// - 3. Remove the network directory to avoid network collision
+	// - 4. Start docker again
+	_, _ = h.remote.Execute("sudo systemctl stop docker")
+	_, err := h.remote.Execute("sudo systemctl reset-failed docker")
+	if err != nil {
+		h.t().Logf("warn: failed to reset-failed for docker.d: %v", err)
+	}
+	_, err = h.remote.Execute("sudo rm -rf /var/lib/docker/network")
+	if err != nil {
+		h.t().Logf("warn: failed to remove /var/lib/docker/network: %v", err)
+	}
+	_, err = h.remote.Execute("sudo systemctl start docker")
+	require.NoErrorf(h.t(), err, "failed to start Docker, logs: %s", h.remote.MustExecute("sudo journalctl -xeu docker"))
 }
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
@@ -806,8 +761,8 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 // SetupProxy sets up a Squid Proxy with Docker & adds iptables/nftables rules to redirect block all traffic
 // except for the proxy
 func (h *Host) SetupProxy() {
-	// Install Docker & the Squid Proxy
-	h.InstallDocker()
+	// Prepare Docker and start the Squid proxy.
+	h.PrepareDocker()
 	h.remote.MustExecute("sudo docker run -d --name squid-proxy -v /opt/fixtures/squid.conf:/etc/squid/squid.conf -p 3128:3128 " +
 		h.dockerImage("ecr-public/ubuntu/squid:4.10-20.04_beta", "public.ecr.aws/ubuntu/squid:4.10-20.04_beta"))
 
