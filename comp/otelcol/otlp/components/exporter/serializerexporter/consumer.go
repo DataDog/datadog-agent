@@ -326,7 +326,7 @@ func (c *serializerConsumer) sendAPMStats() error {
 			defer resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {
 				peek := make([]byte, 1024)
-				n, _ := resp.Body.Read(peek)
+				n, _ := io.ReadFull(resp.Body, peek)
 				return fmt.Errorf("could not flush StatsPayload: HTTP Status code == %s %s", resp.Status, string(peek[:n]))
 			}
 			return nil
