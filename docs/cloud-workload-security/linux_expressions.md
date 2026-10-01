@@ -1288,6 +1288,7 @@ A filesystem was mounted
 | Property | Definition |
 | -------- | ------------- |
 | [`mount.detached`](#mount-detached-doc) | Mount is detached from the VFS |
+| [`mount.flags`](#mount-flags-doc) | Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout) |
 | [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
@@ -4597,6 +4598,13 @@ Constants: [Protection constants](#protection-constants)
 Type: bool
 
 Definition: Mount is detached from the VFS
+
+
+
+### `mount.flags` {#mount-flags-doc}
+Type: int
+
+Definition: Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout)
 
 
 

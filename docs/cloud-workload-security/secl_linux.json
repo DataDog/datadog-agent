@@ -5014,6 +5014,11 @@
           "property_doc_link": "mount-detached-doc"
         },
         {
+          "name": "mount.flags",
+          "definition": "Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout)",
+          "property_doc_link": "mount-flags-doc"
+        },
+        {
           "name": "mount.fs_type",
           "definition": "Type of the mounted file system",
           "property_doc_link": "mount-fs_type-doc"
@@ -16760,6 +16765,18 @@
       "link": "mount-detached-doc",
       "type": "bool",
       "definition": "Mount is detached from the VFS",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "mount.flags",
+      "link": "mount-flags-doc",
+      "type": "int",
+      "definition": "Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout)",
       "prefixes": [
         "mount"
       ],
