@@ -112,8 +112,12 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		return autoscaling.NoRequeue, nil
 	}
 
-	// Final gate: check if the apply mode allows this action
-	if allowed, reason := isApplyModeAllowed(autoscalerInternal, scalingValues.Horizontal.Source); !allowed {
+	// Final gates: the pause annotation and the apply mode can never be bypassed
+	if autoscalerInternal.IsPaused() {
+		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "horizontal scaling disabled: autoscaling locally paused by the %s annotation", model.PauseAnnotationKey))
+		return autoscaling.NoRequeue, nil
+	}
+	if allowed, reason := isApplyModeAllowed(autoscalerSpec, scalingValues.Horizontal.Source); !allowed {
 		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "%s", reason))
 		return autoscaling.NoRequeue, nil
 	}
@@ -293,13 +297,22 @@ func isFallbackScalingDirectionEnabled(fallbackEnabledDirection datadoghq.Datado
 // isApplyModeAllowed checks if the apply mode allows scaling actions.
 // This is the final gate applied after the action has been computed,
 // ensuring modes like Preview can never be bypassed regardless of the code path.
-func isApplyModeAllowed(autoscalerInternal *model.PodAutoscalerInternal, source datadoghqcommon.DatadogPodAutoscalerValueSource) (bool, string) {
-	if autoscalerInternal.Spec() == nil {
+func isApplyModeAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, source datadoghqcommon.DatadogPodAutoscalerValueSource) (bool, string) {
+	if autoscalerSpec == nil {
 		return false, "pod autoscaling hasn't been initialized yet"
 	}
 
-	if allowed, reason := autoscalerInternal.CanApply(); !allowed {
-		return false, fmt.Sprintf("horizontal scaling disabled for recommendations from source %s: %s", source, reason)
+	if autoscalerSpec.ApplyPolicy == nil {
+		return true, ""
+	}
+
+	applyMode := autoscalerSpec.ApplyPolicy.Mode
+	if applyMode == "" {
+		applyMode = datadoghq.DatadogPodAutoscalerApplyModeApply
+	}
+
+	if !applyModeAllowsSource(applyMode, source) {
+		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerSpec.ApplyPolicy.Mode, source)
 	}
 
 	return true, ""

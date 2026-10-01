@@ -1086,45 +1086,6 @@ func TestUpdateFromOpsAnnotationsClearedOnRemoval(t *testing.T) {
 	assert.False(t, pai.IsFallbackForced())
 }
 
-func TestCanApply(t *testing.T) {
-	newInternal := func(mode datadoghq.DatadogPodAutoscalerApplyMode, paused bool) PodAutoscalerInternal {
-		spec := datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner}
-		if mode != "" {
-			spec.ApplyPolicy = &datadoghq.DatadogPodAutoscalerApplyPolicy{Mode: mode}
-		}
-
-		pai := NewPodAutoscalerInternal(&datadoghq.DatadogPodAutoscaler{
-			ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default"},
-			Spec:       spec,
-		})
-		if paused {
-			pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "true"})
-		}
-		return pai
-	}
-
-	for _, tt := range []struct {
-		name            string
-		mode            datadoghq.DatadogPodAutoscalerApplyMode
-		paused          bool
-		expectedAllowed bool
-		expectedReason  string
-	}{
-		{name: "no apply policy", expectedAllowed: true},
-		{name: "Apply", mode: datadoghq.DatadogPodAutoscalerApplyModeApply, expectedAllowed: true},
-		{name: "Preview", mode: datadoghq.DatadogPodAutoscalerApplyModePreview, expectedReason: "applyMode is Preview"},
-		{name: "paused", mode: datadoghq.DatadogPodAutoscalerApplyModeApply, paused: true, expectedReason: "locally paused"},
-		{name: "paused without apply policy", paused: true, expectedReason: "locally paused"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			pai := newInternal(tt.mode, tt.paused)
-			allowed, reason := pai.CanApply()
-			assert.Equal(t, tt.expectedAllowed, allowed)
-			assert.Contains(t, reason, tt.expectedReason)
-		})
-	}
-}
-
 func TestIsLocalFallbackEnabled(t *testing.T) {
 	disabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: false}}
 	enabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: true}}

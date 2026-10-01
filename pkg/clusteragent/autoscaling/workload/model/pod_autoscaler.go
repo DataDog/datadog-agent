@@ -731,20 +731,6 @@ func (p *PodAutoscalerInternal) IsLocalFallbackEnabled() bool {
 	return spec == nil || spec.Fallback == nil || spec.Fallback.Horizontal.Enabled
 }
 
-// CanApply returns whether recommendations may be applied, and why not.
-func (p *PodAutoscalerInternal) CanApply() (bool, string) {
-	if p.paused {
-		return false, "autoscaling locally paused by the " + PauseAnnotationKey + " annotation"
-	}
-
-	spec := p.Spec()
-	if spec != nil && spec.ApplyPolicy != nil && spec.ApplyPolicy.Mode != "" && spec.ApplyPolicy.Mode != datadoghq.DatadogPodAutoscalerApplyModeApply {
-		return false, "applyMode is " + string(spec.ApplyPolicy.Mode)
-	}
-
-	return true, ""
-}
-
 // PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
 // profile (e.g. `{"burstable":true}`).  Returns empty string when no preview features are
 // active.  For standalone (non-profile-managed) autoscalers this always returns empty string.
@@ -1268,17 +1254,6 @@ func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
 	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
 }
 
-// parseOpsBoolAnnotation parses a boolean operational annotation. An absent or invalid value
-// is treated as not set.
-func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
-	value, err := strconv.ParseBool(annotations[key])
-	if err != nil {
-		return false
-	}
-
-	return value
-}
-
 func (p *PodAutoscalerInternal) updateCustomRecommenderConfiguration(annotations map[string]string) {
 	annotation, err := parseCustomConfigurationAnnotation(annotations)
 	if err != nil {
@@ -1483,4 +1458,15 @@ func parseCustomConfigurationAnnotation(annotations map[string]string) (*Recomme
 	}
 
 	return &customConfiguration, nil
+}
+
+// parseOpsBoolAnnotation parses a boolean operational annotation. An absent or invalid value
+// is treated as not set.
+func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
+	value, err := strconv.ParseBool(annotations[key])
+	if err != nil {
+		return false
+	}
+
+	return value
 }

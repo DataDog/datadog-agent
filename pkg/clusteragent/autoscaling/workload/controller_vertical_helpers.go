@@ -119,13 +119,18 @@ func getVerticalPatchingStrategy(autoscalerInternal *model.PodAutoscalerInternal
 		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "no scaling values available"
 	}
 
-	if allowed, reason := autoscalerInternal.CanApply(); !allowed {
-		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, fmt.Sprintf("vertical scaling disabled for recommendations from source %s: %s", autoscalerInternal.ScalingValues().Vertical.Source, reason)
+	if autoscalerInternal.IsPaused() {
+		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, "vertical scaling disabled: autoscaling locally paused by the " + model.PauseAnnotationKey + " annotation"
 	}
 
 	// By default, policy is to allow all
 	if autoscalerInternal.Spec().ApplyPolicy == nil {
 		return datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, ""
+	}
+
+	// We do have policies, checking if they allow this source
+	if !applyModeAllowsSource(autoscalerInternal.Spec().ApplyPolicy.Mode, autoscalerInternal.ScalingValues().Vertical.Source) {
+		return datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, fmt.Sprintf("vertical scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerInternal.Spec().ApplyPolicy.Mode, autoscalerInternal.ScalingValues().Vertical.Source)
 	}
 
 	if autoscalerInternal.Spec().ApplyPolicy.Update != nil {

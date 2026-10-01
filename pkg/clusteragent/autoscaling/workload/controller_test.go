@@ -1204,12 +1204,12 @@ func TestGetActiveScalingSources(t *testing.T) {
 	}
 }
 
-// TestOpsAnnotationsHonouredForEveryOwner is the regression test for the ops annotations being
+// TestOpsAnnotationsReadOnExistingObject is the regression test for the ops annotations being
 // parsed outside the owner-specific sync logic. UpdateFromPodAutoscaler, the usual path from
 // Kubernetes annotations into the internal object, only runs for local-owner autoscalers; if
 // the ops annotations relied on it, annotating an existing remote-owner or profile-managed
 // autoscaler would silently do nothing.
-func TestOpsAnnotationsHonouredForEveryOwner(t *testing.T) {
+func TestOpsAnnotationsReadOnExistingObject(t *testing.T) {
 	testTime := time.Now()
 
 	tests := []struct {

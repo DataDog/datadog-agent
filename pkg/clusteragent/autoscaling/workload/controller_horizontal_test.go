@@ -255,7 +255,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		statusReplicas:  5,
 		recReplicas:     10,
 		scaleReplicas:   5,
-		scaleError:      testutil.NewErrorString("horizontal scaling disabled for recommendations from source Autoscaling: applyMode is Preview"),
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
@@ -275,10 +275,27 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 		statusReplicas:  10,
 		recReplicas:     7,
 		scaleReplicas:   10,
-		scaleError:      testutil.NewErrorString("horizontal scaling disabled for recommendations from source Autoscaling: applyMode is Preview"),
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Preview not allowing recommendations from source: Autoscaling"),
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
+
+	// Test case: Any scaling disabled by the pause annotation, even without an apply policy
+	fakePai.Spec.ApplyPolicy = nil
+	fakePai.Spec.Constraints = nil
+	fakePai.Paused = true
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		currentReplicas: 5,
+		statusReplicas:  5,
+		recReplicas:     10,
+		scaleReplicas:   5,
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled: autoscaling locally paused by the " + model.PauseAnnotationKey + " annotation"),
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+	fakePai.Paused = false
 
 	// Test case: Fallback scaling direction disabled by policy
 	fakePai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
@@ -331,7 +348,7 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	// 	statusReplicas:  5,
 	// 	recReplicas:     10,
 	// 	scaleReplicas:   5,
-	// 	scaleError:      testutil.NewErrorString("horizontal scaling disabled for recommendations from source Autoscaling: applyMode is Manual"),
+	// 	scaleError:      testutil.NewErrorString("horizontal scaling disabled due to applyMode: Manual not allowing recommendations from source: Autoscaling"),
 	// })
 	// assert.Equal(t, autoscaling.NoRequeue, result)
 	// assert.NoError(t, err)
@@ -1543,50 +1560,4 @@ func TestHorizontalControllerSyncScaleWithBothStabilizationWindows(t *testing.T)
 	})
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
-}
-
-// TestIsApplyModeAllowedPaused verifies the final horizontal gate refuses to act while paused,
-// including on autoscalers that have no applyPolicy at all.
-func TestIsApplyModeAllowedPaused(t *testing.T) {
-	newInternal := func(applyPolicy *datadoghq.DatadogPodAutoscalerApplyPolicy, paused bool) model.PodAutoscalerInternal {
-		pai := model.FakePodAutoscalerInternal{
-			Namespace: "default",
-			Name:      "dpa-0",
-			Spec: &datadoghq.DatadogPodAutoscalerSpec{
-				ApplyPolicy: applyPolicy,
-			},
-		}.Build()
-		if paused {
-			pai.UpdateFromOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
-		}
-		return pai
-	}
-
-	applyPolicy := &datadoghq.DatadogPodAutoscalerApplyPolicy{Mode: datadoghq.DatadogPodAutoscalerApplyModeApply}
-
-	t.Run("allowed when not paused", func(t *testing.T) {
-		pai := newInternal(applyPolicy, false)
-		allowed, reason := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
-		assert.True(t, allowed)
-		assert.Empty(t, reason)
-	})
-
-	t.Run("allowed when no apply policy is set", func(t *testing.T) {
-		pai := newInternal(nil, false)
-		allowed, _ := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
-		assert.True(t, allowed, "an absent applyPolicy must keep defaulting to Apply")
-	})
-
-	t.Run("refused when paused", func(t *testing.T) {
-		pai := newInternal(applyPolicy, true)
-		allowed, reason := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
-		assert.False(t, allowed)
-		assert.Contains(t, reason, "paused")
-	})
-
-	t.Run("refused when paused without an apply policy", func(t *testing.T) {
-		pai := newInternal(nil, true)
-		allowed, _ := isApplyModeAllowed(&pai, datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource)
-		assert.False(t, allowed, "pause must not be bypassable by omitting applyPolicy")
-	})
 }
