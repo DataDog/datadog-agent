@@ -8,6 +8,8 @@
 package privatebundles
 
 import (
+	"fmt"
+
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
@@ -15,6 +17,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	com_datadoghq_authoredscripts "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/authoredscripts"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
@@ -71,10 +74,15 @@ type Registry struct {
 // ka is accepted for signature parity with the kubeapiserver build; the
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) *Registry {
+func NewRegistry(configuration *config.Config, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
+	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient)
+	if err != nil {
+		return nil, fmt.Errorf("could not create authored-script bundle: %w", err)
+	}
+
 	return &Registry{
 		Bundles: map[string]types.Bundle{
-			"com.datadoghq.authoredscripts":                      com_datadoghq_authoredscripts.NewAuthoredScripts(),
+			"com.datadoghq.authoredscripts":                      authoredScripts,
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
 			"com.datadoghq.gitlab.commits":                       com_datadoghq_gitlab_commits.NewGitlabCommits(),
 			"com.datadoghq.gitlab.customattributes":              com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
@@ -116,7 +124,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),
 		},
-	}
+	}, nil
 }
 
 func (r *Registry) GetBundle(bundleID string) types.Bundle {

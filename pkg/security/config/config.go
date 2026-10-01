@@ -421,7 +421,7 @@ type RuntimeSecurityConfig struct {
 	// Per-type event sampling config
 	// description: EventSamplingOpenEnabled defines if the agent should sample open events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingOpenEnabled bool
 
 	// description: EventSamplingOpenRate defines the rate at which the agent should sample open events
@@ -436,7 +436,7 @@ type RuntimeSecurityConfig struct {
 	EventSamplingOpenThreshold int
 	// description: EventSamplingConnectEnabled defines if the agent should sample connect events
 	// visibility: private
-	// default_value: false
+	// default_value: true
 	EventSamplingConnectEnabled bool
 
 	// description: EventSamplingConnectRate defines the rate at which the agent should sample connect events
@@ -448,6 +448,21 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: 40
 	EventSamplingConnectThreshold int
+
+	// description: EventSamplingSyscallsEnabled defines if the agent should sample syscall events
+	// visibility: private
+	// default_value: true
+	EventSamplingSyscallsEnabled bool
+
+	// description: EventSamplingSyscallsRate defines the rate at which the agent should sample syscall events
+	// visibility: private
+	// default_value: 500
+	EventSamplingSyscallsRate int
+
+	// description: EventSamplingSyscallsThreshold defines the ring buffer pressure percentage below which syscall events are always admitted when dynamic sampling is enabled
+	// visibility: private
+	// default_value: 60
+	EventSamplingSyscallsThreshold int
 
 	// description: EventSamplingDynamicEnabled defines if event sampling should adapt based on ring buffer pressure
 	// visibility: private
@@ -877,6 +892,11 @@ func NewConfig() (*Config, error) {
 		return nil, err
 	}
 
+	// Only attach cap_capable when V2 profiles consume capability events.
+	if rsConfig.SecurityProfileV2Enabled && slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.CapabilitiesEventType) {
+		probeConfig.CapabilitiesMonitoringEnabled = true
+	}
+
 	return &Config{
 		Probe:           probeConfig,
 		RuntimeSecurity: rsConfig,
@@ -1020,13 +1040,16 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// event sampling (per-type)
-		EventSamplingOpenEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
-		EventSamplingOpenRate:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
-		EventSamplingOpenThreshold:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
-		EventSamplingConnectEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
-		EventSamplingConnectRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
-		EventSamplingConnectThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
-		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
+		EventSamplingOpenEnabled:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.open.enabled"),
+		EventSamplingOpenRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.rate"),
+		EventSamplingOpenThreshold:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.open.threshold"),
+		EventSamplingConnectEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.connect.enabled"),
+		EventSamplingConnectRate:       pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.rate"),
+		EventSamplingConnectThreshold:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.connect.threshold"),
+		EventSamplingSyscallsEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.syscalls.enabled"),
+		EventSamplingSyscallsRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.rate"),
+		EventSamplingSyscallsThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_sampling.syscalls.threshold"),
+		EventSamplingDynamicEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
@@ -1119,11 +1142,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
 	}
 	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
-
-	if rsConfig.SecurityProfileV2Enabled {
-		rsConfig.EventSamplingOpenEnabled = true
-		rsConfig.EventSamplingConnectEnabled = true
-	}
 
 	if err := rsConfig.sanitize(); err != nil {
 		return nil, err
@@ -1224,6 +1242,23 @@ func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType
 	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
+// EventSamplingEnabledFor reports whether the V2 sampler for the given event type is active: its
+// per-type knob is on, security profile V2 is enabled, and the type is in the V2 event types.
+func (c *RuntimeSecurityConfig) EventSamplingEnabledFor(eventType model.EventType) bool {
+	var enabled bool
+	switch eventType {
+	case model.FileOpenEventType:
+		enabled = c.EventSamplingOpenEnabled
+	case model.ConnectEventType:
+		enabled = c.EventSamplingConnectEnabled
+	case model.SyscallsEventType:
+		enabled = c.EventSamplingSyscallsEnabled
+	default:
+		return false
+	}
+	return enabled && c.SecurityProfileV2Enabled && slices.Contains(c.SecurityProfileV2EventTypes, eventType)
+}
+
 // sanitize ensures that the configuration is properly setup
 func (c *RuntimeSecurityConfig) sanitize() error {
 	serviceName := utils.GetTagValue("service", configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), true))
@@ -1249,6 +1284,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	}{
 		{"open", c.EventSamplingOpenThreshold},
 		{"connect", c.EventSamplingConnectThreshold},
+		{"syscalls", c.EventSamplingSyscallsThreshold},
 	} {
 		if threshold.value < 0 || threshold.value >= samplingPressureCritical {
 			return fmt.Errorf("invalid value for runtime_security_config.event_sampling.%s.threshold: %d, must be in [0, %d)", threshold.eventType, threshold.value, samplingPressureCritical)

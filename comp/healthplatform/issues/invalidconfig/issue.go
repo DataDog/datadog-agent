@@ -82,7 +82,7 @@ func (InvalidConfigIssue) BuildIssue(ctx map[string]string) (*healthplatform.Iss
 	var violations []any
 	if err := json.Unmarshal([]byte(ctx[contextKeyViolations]), &violations); err == nil && len(violations) > 0 {
 		fields[contextKeyViolations] = violations
-		if details, fixes := formatViolations(ctx[contextKeyViolations]); details != "" {
+		if details, fixes := FormatViolations(ctx[contextKeyViolations]); details != "" {
 			description, correction = details, fixes
 		}
 	}
@@ -126,9 +126,9 @@ var typeLabels = map[string]string{
 	"null":    "null",
 }
 
-// formatViolations explains each error and how to fix it.
+// FormatViolations explains each error and how to fix it.
 // Unusable details leave the existing description and generic remediation intact.
-func formatViolations(raw string) (string, string) {
+func FormatViolations(raw string) (string, string) {
 	var violations []violationPayload
 	if err := json.Unmarshal([]byte(raw), &violations); err != nil || len(violations) == 0 {
 		return "", defaultCorrection

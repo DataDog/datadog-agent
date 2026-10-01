@@ -648,7 +648,6 @@ func TestAzureAppServiceRunningMetric(t *testing.T) {
 	require.NotNil(t, running)
 	assert.Empty(t, running.Host)
 	assert.ElementsMatch(t, []string{
-		"instance:instance-1",
 		"name:my-app",
 		"subscription_id:sub-123",
 		"resource_group:my-rg",

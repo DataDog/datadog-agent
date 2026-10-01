@@ -94,6 +94,7 @@ func TestPayloadMarshalJSON(t *testing.T) {
 			ModelName:    "Test Name",
 			ChassisType:  "Desktop",
 			Identifier:   "ID123",
+			ComputerName: "Test Computer",
 		},
 	}
 
@@ -120,6 +121,7 @@ func TestPayloadMarshalJSON(t *testing.T) {
 	assert.Equal(t, "Test Name", metadata["model_name"])
 	assert.Equal(t, "Desktop", metadata["chassis_type"])
 	assert.Equal(t, "ID123", metadata["identifier"])
+	assert.Equal(t, "Test Computer", metadata["computer_name"])
 }
 
 func TestFillData(t *testing.T) {
@@ -140,6 +142,7 @@ func TestFillData(t *testing.T) {
 	t.Logf("  Model Name: %s", hh.data.ModelName)
 	t.Logf("  Chassis Type: %s", hh.data.ChassisType)
 	t.Logf("  Identifier: %s", hh.data.Identifier)
+	t.Logf("  Computer Name: %s", hh.data.ComputerName)
 }
 
 func TestPayloadStructure(t *testing.T) {
@@ -151,6 +154,7 @@ func TestPayloadStructure(t *testing.T) {
 		ModelName:    "Test Name",
 		ChassisType:  "Desktop",
 		Identifier:   "ID123",
+		ComputerName: "Test Computer",
 	}
 
 	payload := &Payload{
@@ -184,6 +188,7 @@ func TestPayloadStructure(t *testing.T) {
 		"model_name",
 		"chassis_type",
 		"identifier",
+		"computer_name",
 	}
 	for _, key := range expectedMetadataKeys {
 		assert.Contains(t, metadataMap, key, "Metadata should contain key: %s", key)

@@ -64,6 +64,8 @@ dd_agent_go_test(
     deps = [
         "//comp/core",
         "//comp/core/config",
+        "//comp/core/tagger/collectors",
+        "//comp/core/tagger/types",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",
         "//comp/core/workloadmeta/mock",

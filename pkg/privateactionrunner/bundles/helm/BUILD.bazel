@@ -4,6 +4,7 @@ go_library(
     name = "helm",
     srcs = [
         "entrypoint.go",
+        "job_service_account.go",
         "rollback.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/helm",
@@ -15,6 +16,10 @@ go_library(
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/apiserver/common/namespace",
         "@io_k8s_api//batch/v1:batch",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
     ],
 )

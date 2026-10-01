@@ -30,6 +30,18 @@ func getCapabilitiesMonitoringProbes() []*manager.Probe {
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_capable",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_netlink_capable",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_override_creds",
 			},
 		},
@@ -57,6 +69,8 @@ func GetCapabilitiesMonitoringProgramFunctions() []string {
 	return []string{
 		"hook_security_capable",
 		"rethook_security_capable",
+		"hook_capable",
+		"hook_netlink_capable",
 		"hook_override_creds",
 		"hook_revert_creds",
 		"capabilities_usage_ticker",

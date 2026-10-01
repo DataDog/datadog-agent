@@ -12,7 +12,7 @@ concept mapping between the two systems.
 ```
 packages/
 ├── agent/               ← Main agent (replaces omnibus/config/projects/agent.rb)
-│   ├── BUILD.bazel      ← Flavor flags: base, fips, heroku, iot + config_setting groups
+│   ├── BUILD.bazel      ← Flavor flags and config_setting groups
 │   ├── dependencies/    ← Third-party runtime deps (replaces datadog-agent-dependencies.rb)
 │   ├── heroku/          ← Heroku-specific files
 │   ├── linux/           ← Linux deb + rpm package targets (most complete example)
@@ -61,7 +61,7 @@ Use it (don't use environment variables) for conditional content:
 
 ```python
 select({
-    "//packages/agent:linux_default": [...],   # base flavor on Linux
+    "//packages/agent:linux_default": [...],   # base or recorder flavor on Linux
     "//packages/agent:linux_fips":    [...],   # fips flavor on Linux
     "//packages/agent:linux_heroku":  [...],   # heroku flavor on Linux
     "//conditions:default":           [...],
