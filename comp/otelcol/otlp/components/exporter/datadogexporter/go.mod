@@ -120,7 +120,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/zstd v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.65.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.66.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-sqllexer v0.2.4 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
