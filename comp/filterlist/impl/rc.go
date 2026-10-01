@@ -7,8 +7,8 @@ package filterlistimpl
 
 import (
 	"encoding/json"
-	"maps"
 	"slices"
+	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -191,7 +191,11 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 			metrics[metric.Name] = struct{}{}
 		}
 	}
-	metricNames := slices.Collect(maps.Keys(metrics))
+	metricNames := make([]string, 0, len(metrics))
+	for metric := range metrics {
+		metricNames = append(metricNames, metric)
+	}
+	sort.Strings(metricNames)
 	return metricNames
 }
 

@@ -8492,19 +8492,11 @@ properties:
     items:
       type: object
     comment: |-
-      Drops every metric name starting with one of the given prefixes, in addition to
-      metric_filterlist. Every entry is always a prefix -- no trailing `*` is needed or
-      recognized here, unlike the per-entry `*` metric_filterlist once supported. An empty
-      prefix ("") matches every metric name.
-
-      Each entry is an object with a `prefix` field and two optional exception fields,
-      `except_exact` (a list of exact metric names to keep) and `except_prefix` (a list of
-      prefixes to keep). Exceptions apply across all entries in this list: a metric excepted
-      by one entry is kept even if another prefix entry also matches it. Exact or prefix
-      matches from metric_filterlist still drop the metric.
-
-      A prefix does not need to end on a segment boundary: `sys` matches both `system.cpu` and
-      `sys.cpu`.
+      Drops metric names starting with configured prefixes. Entries are always prefixes; do
+      not add a trailing `*`. An empty prefix matches every metric name. Optional
+      `except_exact` and `except_prefix` entries keep matching names, and apply across this
+      whole list. Matches from metric_filterlist still drop the metric. Prefixes do not need
+      segment boundaries: `sys` matches both `system.cpu` and `sys.cpu`.
   metric_tag_filterlist:
     node_type: setting
     type: array

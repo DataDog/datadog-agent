@@ -261,7 +261,7 @@ func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
 func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) []string {
 	normalized, dropped := metricname.NormalizeEntries(names, matchPrefix)
 	for _, entry := range dropped {
-		log.Warnf("metric_filterlist: dropping entry %q that cannot match any metric name stored by Datadog", entry)
+		log.Warnf("metric_filterlist: dropping entry %q cannot match any metric", entry)
 	}
 	return normalized
 }
@@ -271,15 +271,12 @@ func normalizeMetricNames(names []string, matchPrefix bool, log log.Component) [
 func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool, prefixRules []metricname.PrefixRule) {
 	fl.log.Debugf("SetMetricFilterList with %d metrics, %d prefix rules", len(metricNames), len(prefixRules))
 
-	filterList, droppedRules := metricname.NewMatcherWithPrefixRules(metricNames, matchPrefix, prefixRules)
-	for _, prefix := range droppedRules {
-		fl.log.Warnf("metric_filterlist_prefix: dropping entry %q: covered by an unconditional metric_filterlist prefix", prefix)
-	}
+	filterList := metricname.NewMatcherWithPrefixRules(metricNames, matchPrefix, prefixRules)
 	histoFilterList := filterList.RestrictExact(fl.isHistogramAggregateSuffix)
 
 	// Worth a warning, since it silently drops every metric.
 	if filterList.MatchesAll() {
-		fl.log.Warn("the metric filterlist contains an entry matching every metric name: all metrics will be dropped")
+		fl.log.Warn("metric filterlist contains an entry matching every metric name")
 	}
 
 	// Report the compiled size: with prefix matching, NewMatcher compacts

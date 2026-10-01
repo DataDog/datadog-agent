@@ -228,8 +228,7 @@ func TestIsStringMatchingPatterns(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%q", c.name), func(t *testing.T) {
-			m, dropped := NewMatcherWithPrefixRules(list, false, prefixRulesFrom(prefixList))
-			assert.Empty(t, dropped)
+			m := NewMatcherWithPrefixRules(list, false, prefixRulesFrom(prefixList))
 			assert.Equal(t, c.result, m.Test(c.name))
 		})
 	}
@@ -237,14 +236,12 @@ func TestIsStringMatchingPatterns(t *testing.T) {
 
 func TestIsStringMatchingBarePrefix(t *testing.T) {
 	// Covers the equality case in testPrefixes' binary-search path.
-	m, dropped := NewMatcherWithPrefixRules(nil, false, prefixRulesFrom([]string{"foo"}))
-	assert.Empty(t, dropped)
+	m := NewMatcherWithPrefixRules(nil, false, prefixRulesFrom([]string{"foo"}))
 	assert.True(t, m.Test("foo"))
 	assert.True(t, m.Test("foobar"))
 	assert.False(t, m.Test("fo"))
 
-	matchAll, dropped := NewMatcherWithPrefixRules(nil, false, prefixRulesFrom([]string{""}))
-	assert.Empty(t, dropped)
+	matchAll := NewMatcherWithPrefixRules(nil, false, prefixRulesFrom([]string{""}))
 	assert.True(t, matchAll.Test("anything"))
 	assert.False(t, matchAll.Test(""))
 	assert.False(t, matchAll.Test("123"))
@@ -259,11 +256,10 @@ func prefixRulesFrom(prefixes []string) []PrefixRule {
 }
 
 func TestNewMatcherWithPrefixRulesBareRulesCompileAsRulePrefixes(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	m := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "redis."},
 		{Prefix: "postgresql.", ExceptExact: nil, ExceptPrefix: nil},
 	})
-	assert.Empty(t, dropped)
 	assert.Empty(t, m.prefixes)
 	assert.Equal(t, []string{"postgresql.", "redis."}, m.rulePrefixes)
 	assert.Empty(t, m.exceptExact)
@@ -271,10 +267,9 @@ func TestNewMatcherWithPrefixRulesBareRulesCompileAsRulePrefixes(t *testing.T) {
 }
 
 func TestNewMatcherWithPrefixRulesExceptExact(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	m := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "postgresql.", ExceptExact: []string{"postgresql.connections"}},
 	})
-	assert.Empty(t, dropped)
 	assert.Equal(t, []string{"postgresql."}, m.rulePrefixes)
 	assert.Equal(t, []string{"postgresql.connections"}, m.exceptExact)
 
@@ -284,10 +279,9 @@ func TestNewMatcherWithPrefixRulesExceptExact(t *testing.T) {
 }
 
 func TestNewMatcherWithPrefixRulesExceptPrefix(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	m := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "postgresql.", ExceptPrefix: []string{"postgresql.locks."}},
 	})
-	assert.Empty(t, dropped)
 
 	assert.True(t, m.Test("postgresql.connections"))
 	assert.False(t, m.Test("postgresql.locks."), "the exception prefix itself is kept")
@@ -295,14 +289,13 @@ func TestNewMatcherWithPrefixRulesExceptPrefix(t *testing.T) {
 }
 
 func TestNewMatcherWithPrefixRulesBothExceptionKinds(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	m := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{
 			Prefix:       "postgresql.",
 			ExceptExact:  []string{"postgresql.connections"},
 			ExceptPrefix: []string{"postgresql.locks."},
 		},
 	})
-	assert.Empty(t, dropped)
 
 	assert.True(t, m.Test("postgresql.queries"))
 	assert.False(t, m.Test("postgresql.connections"))
@@ -316,14 +309,12 @@ func TestNewMatcherWithPrefixRulesDoesNotRetainExceptionInputSlices(t *testing.T
 		ExceptPrefix: []string{"postgresql.metrics.", "postgresql.metrics.waiting.", "postgresql.metrics."},
 	}}
 
-	first, dropped := NewMatcherWithPrefixRules(nil, false, rules)
-	assert.Empty(t, dropped)
+	first := NewMatcherWithPrefixRules(nil, false, rules)
 	assert.False(t, first.Test("postgresql.connections"))
 	assert.False(t, first.Test("postgresql.locks"))
 	assert.False(t, first.Test("postgresql.metrics.waiting"))
 
-	second, dropped := NewMatcherWithPrefixRules(nil, false, rules)
-	assert.Empty(t, dropped)
+	second := NewMatcherWithPrefixRules(nil, false, rules)
 	assert.False(t, second.Test("postgresql.connections"))
 	assert.False(t, second.Test("postgresql.locks"))
 	assert.False(t, second.Test("postgresql.metrics.waiting"))
@@ -334,24 +325,22 @@ func TestNewMatcherWithPrefixRulesDoesNotRetainExceptionInputSlices(t *testing.T
 }
 
 func TestNewMatcherWithPrefixRulesExactEntriesStillBlockExceptedNames(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(
+	m := NewMatcherWithPrefixRules(
 		[]string{"postgresql.connections"},
 		false,
 		[]PrefixRule{
 			{Prefix: "postgresql.", ExceptExact: []string{"postgresql.connections"}},
 		},
 	)
-	assert.Empty(t, dropped)
 
 	assert.True(t, m.Test("postgresql.connections"))
 }
 
 func TestNewMatcherWithPrefixRulesExceptionsApplyAcrossRules(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	m := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "foo.", ExceptExact: []string{"foo.bar"}},
 		{Prefix: "foo.b"},
 	})
-	assert.Empty(t, dropped)
 
 	assert.False(t, m.Test("foo.bar"), "one exception allowlists across all prefix rules")
 	assert.True(t, m.Test("foo.baz"))
@@ -359,33 +348,29 @@ func TestNewMatcherWithPrefixRulesExceptionsApplyAcrossRules(t *testing.T) {
 }
 
 func TestNewMatcherWithPrefixRulesNestedExceptionsApplyToBroaderRules(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	m := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "postgresql."},
 		{Prefix: "postgresql.locks.", ExceptExact: []string{"postgresql.locks.waiting"}},
 	})
-	assert.Empty(t, dropped)
 	assert.Equal(t, []string{"postgresql."}, m.rulePrefixes)
 
 	assert.False(t, m.Test("postgresql.locks.waiting"))
 	assert.True(t, m.Test("postgresql.locks.blocked"))
 }
 
-func TestNewMatcherWithPrefixRulesDeadRuleFromMatchPrefix(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(
+func TestNewMatcherWithPrefixRulesMetricFilterListPrefixWinsOverException(t *testing.T) {
+	m := NewMatcherWithPrefixRules(
 		[]string{"postgresql."},
 		true,
 		[]PrefixRule{
 			{Prefix: "postgresql.locks.", ExceptExact: []string{"postgresql.locks.waiting"}},
 		},
 	)
-	assert.Equal(t, []string{"postgresql.locks."}, dropped)
-	assert.Empty(t, m.rulePrefixes)
 	assert.True(t, m.Test("postgresql.locks.waiting"))
 }
 
 func TestNewMatcherWithPrefixRulesNoSegmentBoundary(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{{Prefix: "sys"}})
-	assert.Empty(t, dropped)
+	m := NewMatcherWithPrefixRules(nil, false, []PrefixRule{{Prefix: "sys"}})
 
 	assert.True(t, m.Test("system.cpu"))
 	assert.True(t, m.Test("sys.cpu"))
@@ -393,22 +378,20 @@ func TestNewMatcherWithPrefixRulesNoSegmentBoundary(t *testing.T) {
 }
 
 func TestNewMatcherWithPrefixRulesEmptyPrefix(t *testing.T) {
-	bare, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{{Prefix: ""}})
-	assert.Empty(t, dropped)
+	bare := NewMatcherWithPrefixRules(nil, false, []PrefixRule{{Prefix: ""}})
 	assert.True(t, bare.MatchesAll())
 	assert.True(t, bare.Test("anything"))
 
-	withException, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	withException := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "", ExceptExact: []string{"keep.me"}},
 	})
-	assert.Empty(t, dropped)
 	assert.False(t, withException.MatchesAll())
 	assert.True(t, withException.Test("anything.else"))
 	assert.False(t, withException.Test("keep.me"))
 }
 
 func TestRestrictExact(t *testing.T) {
-	m, dropped := NewMatcherWithPrefixRules(
+	m := NewMatcherWithPrefixRules(
 		[]string{"foo.count", "foo.max"},
 		false,
 		[]PrefixRule{
@@ -416,7 +399,6 @@ func TestRestrictExact(t *testing.T) {
 			{Prefix: "baz.", ExceptExact: []string{"baz.keep"}},
 		},
 	)
-	assert.Empty(t, dropped)
 
 	restricted := m.RestrictExact(func(name string) bool {
 		return strings.HasSuffix(name, ".count")
@@ -441,8 +423,7 @@ func TestMatchesAll(t *testing.T) {
 	prefixMode := NewMatcher([]string{""}, true)
 	assert.True(t, prefixMode.MatchesAll())
 
-	withRule, dropped := NewMatcherWithPrefixRules([]string{"foo"}, false, []PrefixRule{{Prefix: ""}})
-	assert.Empty(t, dropped)
+	withRule := NewMatcherWithPrefixRules([]string{"foo"}, false, []PrefixRule{{Prefix: ""}})
 	assert.True(t, withRule.MatchesAll())
 
 	// A prefix that merely matches a lot is not the empty prefix.
@@ -454,10 +435,9 @@ func TestMatchesAll(t *testing.T) {
 	assert.False(t, prefix.MatchesAll())
 
 	// Exceptions keep empty-prefix rules out of MatchesAll.
-	withException, dropped := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
+	withException := NewMatcherWithPrefixRules(nil, false, []PrefixRule{
 		{Prefix: "", ExceptExact: []string{"keep.me"}},
 	})
-	assert.Empty(t, dropped)
 	assert.False(t, withException.MatchesAll())
 }
 
@@ -544,7 +524,7 @@ func BenchmarkStringsMatcherMixed(b *testing.B) {
 	}
 
 	exactOnly := NewMatcher(values, false)
-	mixed, _ := NewMatcherWithPrefixRules(exact, false, rules)
+	mixed := NewMatcherWithPrefixRules(exact, false, rules)
 
 	for name, matcher := range map[string]Matcher{"exact-only": exactOnly, "mixed": mixed} {
 		b.Run(name, func(b *testing.B) {
@@ -574,7 +554,7 @@ func BenchmarkStringsMatcherPrefixRulesExceptions(b *testing.B) {
 			// Include a matching bare prefix in every run.
 			rules = append(rules, PrefixRule{Prefix: "foo."})
 
-			matcher, _ := NewMatcherWithPrefixRules(nil, false, rules)
+			matcher := NewMatcherWithPrefixRules(nil, false, rules)
 
 			b.ReportAllocs()
 			b.ResetTimer()
