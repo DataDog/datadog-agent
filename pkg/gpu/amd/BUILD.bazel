@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "amd",
+    srcs = [
+        "device.go",
+        "kfd.go",
+        "kubernetes.go",
+        "metrics.go",
+        "names.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gpu/amd",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "amd_test",
+    srcs = [
+        "device_test.go",
+        "kfd_test.go",
+        "kubernetes_test.go",
+        "metrics_test.go",
+        "names_test.go",
+        "realhw_test.go",
+        "topology_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":amd"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/gpu",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/gpu",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

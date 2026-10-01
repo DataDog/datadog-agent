@@ -72,6 +72,8 @@ func newConfiguredGPUCheck(
 
 	WithGPUConfigEnabled(t)
 	check.containerProvider = newMockContainerProvider(t, pidToContainerID)
+	// Keep AMD discovery hermetic: never read the sysfs of the test host.
+	check.amdSysRoot = t.TempDir()
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
 	t.Cleanup(func() { check.Cancel() })
 

@@ -95,7 +95,7 @@ func (s *baseSample) AppendTags(tags []string) {
 	s.tags = append(s.tags, tags...)
 }
 
-// Metric represents a single metric collected from the NVML library.
+// Metric represents a single GPU metric.
 type Metric struct {
 	baseSample
 	Name                string               // Name holds the name of the metric.
@@ -103,7 +103,8 @@ type Metric struct {
 	Type                ddmetrics.MetricType // Type holds the type of the metric.
 	RateCalculationMode RateCalculationMode  // RateCalculationMode is the mode of rate calculation for the metric.
 
-	// StrictInterval overrides the check interval. Do not use with RateCalculationMode.
+	// StrictInterval overrides the check interval. Negative disables fixed cadence
+	// and clears its prior schedule. Do not use with RateCalculationMode.
 	StrictInterval time.Duration
 
 	// Timestamp overrides the check execution time. Zero uses the execution time.
