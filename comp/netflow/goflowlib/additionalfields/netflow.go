@@ -63,8 +63,12 @@ func ConvertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 }
 
 func lookupMapping(fieldsConfig map[uint16]config.Mapping, df netflow.DataField) (config.Mapping, bool) {
-	// ignore the enterprise bit (0x8000), which goflow2 strips from data template fields but not options templates
-	mappingConfig, ok := fieldsConfig[df.Type&^0x8000]
+	fieldType := df.Type
+	if df.PenProvided {
+		// IPFIX enterprise fields: goflow strips the enterprise bit (0x8000) from data template fields but not options template fields. 
+		fieldType &^= 0x8000
+	}
+	mappingConfig, ok := fieldsConfig[fieldType]
 	if !ok {
 		return mappingConfig, false
 	}

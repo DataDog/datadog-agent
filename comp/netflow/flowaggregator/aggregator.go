@@ -10,14 +10,16 @@ import (
 	"encoding/json"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 
@@ -34,7 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
@@ -48,7 +50,7 @@ type FlowAggregator struct {
 	FlushConfig                  common.FlushConfig
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
-	appCache                     *dpi.ApplicationCache
+	appCache                     dpi.Cache
 	sender                       sender.Sender
 	epForwarder                  eventplatform.Forwarder
 	stopChan                     chan struct{}
@@ -114,12 +116,9 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 
-	var appCache *dpi.ApplicationCache
-	for _, listener := range config.Listeners {
-		if listener.EnableDPI {
-			appCache = dpi.NewApplicationCache()
-			break
-		}
+	var appCache dpi.Cache
+	if dpiEnabled(config.Listeners) {
+		appCache = dpi.NewApplicationCache()
 	}
 
 	return &FlowAggregator{
@@ -147,10 +146,15 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	}
 }
 
+func dpiEnabled(listeners []config.ListenerConfig) bool {
+	return slices.ContainsFunc(listeners, func(l config.ListenerConfig) bool {
+		return l.EnableDPI
+	})
+}
+
 // Start will start the FlowAggregator worker
 func (agg *FlowAggregator) Start() {
 	agg.logger.Info("Flow Aggregator started")
-	agg.appCache.Start()
 	go agg.run()
 	agg.flushLoop() // blocking call
 }
@@ -160,7 +164,6 @@ func (agg *FlowAggregator) Stop() {
 	close(agg.stopChan)
 	<-agg.flushLoopDone
 	<-agg.runDone
-	agg.appCache.Stop()
 }
 
 // GetFlowInChan returns flow input chan
@@ -169,7 +172,7 @@ func (agg *FlowAggregator) GetFlowInChan() chan *common.Flow {
 }
 
 // GetApplicationCache returns the cache listeners send DPI applications to, nil if no listener has DPI enabled
-func (agg *FlowAggregator) GetApplicationCache() *dpi.ApplicationCache {
+func (agg *FlowAggregator) GetApplicationCache() dpi.Cache {
 	return agg.appCache
 }
 
@@ -182,7 +185,6 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
-			agg.appCache.MarkSeen(flow.Namespace, flow.ExporterAddr, flow.ApplicationID)
 			agg.flowAcc.add(flow)
 		}
 	}
@@ -235,7 +237,10 @@ func (agg *FlowAggregator) scheduleNetworkPathForFlow(flow *common.Flow) {
 
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
-		app, _ := agg.appCache.Lookup(flow.Namespace, flow.ExporterAddr, flow.ApplicationID)
+		var app dpi.Application
+		if agg.appCache != nil {
+			app, _ = agg.appCache.Lookup(flow.Namespace, flow.ExporterAddr, flow.ApplicationID)
+		}
 		flowPayload := buildPayload(flow, app, agg.hostname, flushTime)
 
 		// Calling MarshalJSON directly as it's faster than calling json.Marshall
@@ -399,9 +404,6 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.current_store_size", float64(agg.flowAcc.portRollup.GetCurrentStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.port_rollup.new_store_size", float64(agg.flowAcc.portRollup.GetNewStoreSize()), "", nil)
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.capacity", float64(cap(agg.flowIn)), "", nil)
-	if agg.appCache != nil {
-		agg.sender.MonotonicCount("datadog.netflow.dpi.dropped_options_records", float64(agg.appCache.DroppedRecords()), "", nil)
-	}
 	agg.sender.Gauge("datadog.netflow.aggregator.input_buffer.length", float64(len(agg.flowIn)), "", nil)
 
 	err := agg.submitCollectorMetrics()

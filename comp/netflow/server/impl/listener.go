@@ -28,7 +28,7 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 	listenerAtomicErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 
-	var appCache *dpi.ApplicationCache
+	var appCache dpi.Cache
 	if listenerConfig.EnableDPI {
 		appCache = flowAgg.GetApplicationCache()
 	}

@@ -6,7 +6,7 @@ go_library(
     srcs = ["cache.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/dpi",
     visibility = ["//visibility:public"],
-    deps = ["@org_uber_go_atomic//:atomic"],
+    deps = ["@com_github_hashicorp_golang_lru_v2//expirable"],
 )
 
 dd_agent_go_test(

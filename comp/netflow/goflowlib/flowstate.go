@@ -53,7 +53,7 @@ func StartFlowRoutine(
 	namespace string,
 	fieldMappings []config.Mapping,
 	enableBiflowParsing bool,
-	appCache *dpi.ApplicationCache,
+	appCache dpi.Cache,
 	flowInChan chan *common.Flow,
 	logger log.Component,
 	atomicErr *atomic.String,

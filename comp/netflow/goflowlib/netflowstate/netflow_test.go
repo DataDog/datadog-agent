@@ -85,15 +85,11 @@ func applicationOptionsRecord(id byte, name string) netflow.OptionsDataRecord {
 
 func TestNetflowState_submitApplications(t *testing.T) {
 	cache := dpi.NewApplicationCache()
-	cache.Start()
-	defer cache.Stop()
 
 	state := NewStateNetFlow(nil, false, "my-ns", cache)
 	assert.Contains(t, state.mappedFieldsConfig, uint16(95), "the application id of flows is mapped when DPI is enabled")
 
 	exporter := []byte{10, 0, 0, 1}
-	cache.MarkSeen("my-ns", exporter, 1)
-	cache.MarkSeen("my-ns", exporter, 2)
 	state.submitApplications(netflow.IPFIXPacket{
 		Version: 10,
 		FlowSets: []interface{}{
@@ -104,13 +100,11 @@ func TestNetflowState_submitApplications(t *testing.T) {
 		},
 	}, exporter)
 
-	assert.Eventually(t, func() bool {
-		_, ok := cache.Lookup("my-ns", exporter, 2)
-		return ok
-	}, time.Second, 10*time.Millisecond, "every decoded application is sent to the cache")
-	app, _ := cache.Lookup("my-ns", exporter, 1)
+	app, ok := cache.Lookup("my-ns", exporter, 1)
+	assert.True(t, ok, "every decoded application is sent to the cache")
 	assert.Equal(t, "HTTP", app.Name)
-	app, _ = cache.Lookup("my-ns", exporter, 2)
+	app, ok = cache.Lookup("my-ns", exporter, 2)
+	assert.True(t, ok, "every decoded application is sent to the cache")
 	assert.Equal(t, "DNS", app.Name)
 }
 

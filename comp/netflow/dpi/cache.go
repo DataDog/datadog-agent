@@ -10,17 +10,13 @@ package dpi
 
 import (
 	"sync"
+	"time"
 
-	"go.uber.org/atomic"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 )
 
-// ApplicationIDField is the additional field goflowlib maps the flow's applicationId (IANA 95) to
 const ApplicationIDField = "datadog.application_id"
 
-// recordsBufferSize is the number of options packets that can be queued before dropping them
-const recordsBufferSize = 100
-
-// Application is the application an exporter announced for an application id
 type Application struct {
 	ID          uint64
 	Name        string
@@ -28,7 +24,6 @@ type Application struct {
 	Metadata
 }
 
-// Metadata holds optional application attributes, e.g. from NBAR's `option application-attributes`
 type Metadata struct {
 	Category            string
 	SubCategory         string
@@ -42,149 +37,69 @@ type Metadata struct {
 	ApplicationFamily   string
 }
 
-// Record is an application decoded from an options record, along with the exporter that sent it
-type Record struct {
+type ApplicationRecord struct {
 	Namespace    string
 	ExporterAddr []byte
 	Application
 }
 
-type exporterKey struct {
+const applicationTTL = time.Hour
+const maxApplications = 100_000
+
+type applicationKey struct {
 	namespace    string
 	exporterAddr string
+	id           uint64
 }
 
-// ApplicationCache holds the applications announced by each exporter.
-// Records are submitted by listeners and applied asynchronously, so that flow decoding never waits on the cache.
-// Only applications whose id was seen on a flow are kept, instead of the exporter's full table.
-// A nil *ApplicationCache is valid and ignores records and lookups (DPI disabled).
+// Cache resolves the application ids reported on flows into the applications announced by their exporter
+type Cache interface {
+	// updates the cache with the applications decoded from options records
+	Submit(records []ApplicationRecord)
+	// returns the application an exporter announced for an application id
+	Lookup(namespace string, exporterAddr []byte, id uint64) (Application, bool)
+}
+
 type ApplicationCache struct {
-	mu   sync.RWMutex
-	apps map[exporterKey]map[uint64]Application
-
-	seenMu sync.RWMutex
-	seen   map[exporterKey]map[uint64]struct{}
-
-	records        chan []Record
-	stop           chan struct{}
-	done           chan struct{}
-	droppedRecords *atomic.Uint64
+	mu   sync.Mutex
+	apps *expirable.LRU[applicationKey, Application]
 }
 
-// NewApplicationCache returns a new ApplicationCache, which must be started to apply records
 func NewApplicationCache() *ApplicationCache {
+	return newApplicationCache(maxApplications, applicationTTL)
+}
+
+func newApplicationCache(size int, ttl time.Duration) *ApplicationCache {
 	return &ApplicationCache{
-		apps:           make(map[exporterKey]map[uint64]Application),
-		seen:           make(map[exporterKey]map[uint64]struct{}),
-		records:        make(chan []Record, recordsBufferSize),
-		stop:           make(chan struct{}),
-		done:           make(chan struct{}),
-		droppedRecords: atomic.NewUint64(0),
+		apps: expirable.NewLRU[applicationKey, Application](size, nil, ttl),
 	}
 }
 
-// Start applies submitted records until Stop is called
-func (c *ApplicationCache) Start() {
-	if c == nil {
+func (c *ApplicationCache) Submit(records []ApplicationRecord) {
+	if len(records) == 0 {
 		return
 	}
-	go func() {
-		defer close(c.done)
-		for {
-			select {
-			case <-c.stop:
-				return
-			case records := <-c.records:
-				c.apply(records)
-			}
-		}
-	}()
-}
-
-// Stop stops applying records
-func (c *ApplicationCache) Stop() {
-	if c == nil {
-		return
-	}
-	close(c.stop)
-	<-c.done
-}
-
-// Submit queues records to be applied, dropping them if the queue is full
-func (c *ApplicationCache) Submit(records []Record) {
-	if c == nil || len(records) == 0 {
-		return
-	}
-	select {
-	case c.records <- records:
-	default:
-		c.droppedRecords.Add(uint64(len(records)))
-	}
-}
-
-// DroppedRecords returns the number of records dropped because the queue was full
-func (c *ApplicationCache) DroppedRecords() uint64 {
-	if c == nil {
-		return 0
-	}
-	return c.droppedRecords.Load()
-}
-
-// MarkSeen records that the exporter reported the application id on a flow
-func (c *ApplicationCache) MarkSeen(namespace string, exporterAddr []byte, id uint64) {
-	if c == nil || id == 0 {
-		return
-	}
-	key := exporterKey{namespace: namespace, exporterAddr: string(exporterAddr)}
-	if c.isSeen(key, id) {
-		return
-	}
-
-	c.seenMu.Lock()
-	defer c.seenMu.Unlock()
-	ids := c.seen[key]
-	if ids == nil {
-		ids = make(map[uint64]struct{})
-		c.seen[key] = ids
-	}
-	ids[id] = struct{}{}
-}
-
-func (c *ApplicationCache) isSeen(key exporterKey, id uint64) bool {
-	c.seenMu.RLock()
-	defer c.seenMu.RUnlock()
-	_, ok := c.seen[key][id]
-	return ok
-}
-
-// Lookup returns the application an exporter announced for an application id
-func (c *ApplicationCache) Lookup(namespace string, exporterAddr []byte, id uint64) (Application, bool) {
-	if c == nil || id == 0 {
-		return Application{}, false
-	}
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	app, ok := c.apps[exporterKey{namespace: namespace, exporterAddr: string(exporterAddr)}][id]
-	return app, ok
-}
-
-func (c *ApplicationCache) apply(records []Record) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	for _, record := range records {
-		c.applyRecord(record)
+		c.addToCache(record)
 	}
 }
 
-func (c *ApplicationCache) applyRecord(record Record) {
-	key := exporterKey{namespace: record.Namespace, exporterAddr: string(record.ExporterAddr)}
-	if !c.isSeen(key, record.ID) {
+func (c *ApplicationCache) Lookup(namespace string, exporterAddr []byte, id uint64) (Application, bool) {
+	if id == 0 {
+		return Application{}, false
+	}
+	return c.apps.Get(applicationKey{namespace: namespace, exporterAddr: string(exporterAddr), id: id})
+}
+
+func (c *ApplicationCache) addToCache(record ApplicationRecord) {
+	if record.ID == 0 {
 		return
 	}
-	apps := c.apps[key]
-	app, known := apps[record.ID]
+	key := applicationKey{namespace: record.Namespace, exporterAddr: string(record.ExporterAddr), id: record.ID}
+	app, known := c.apps.Peek(key)
 	if record.Name != "" {
 		if record.Name != app.Name {
 			// the id now maps to a different application, so drop the old name, description and metadata
@@ -201,10 +116,6 @@ func (c *ApplicationCache) applyRecord(record Record) {
 	if record.Metadata != (Metadata{}) {
 		app.Metadata = record.Metadata
 	}
-
-	if apps == nil {
-		apps = make(map[uint64]Application)
-		c.apps[key] = apps
-	}
-	apps[record.ID] = app
+	// adding refreshes the application's TTL
+	c.apps.Add(key, app)
 }

@@ -56,7 +56,7 @@ type StateNetFlow struct {
 	sampling     map[string]producer.SamplingRateSystem
 
 	namespace string
-	appCache  *dpi.ApplicationCache
+	appCache  dpi.Cache
 
 	Config       *producer.ProducerConfig
 	configMapped *producer.ProducerConfigMapped
@@ -70,7 +70,7 @@ type StateNetFlow struct {
 
 // NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer.
 // DPI is enabled when appCache is not nil: application ids are collected on flows and options records are sent to appCache.
-func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool, namespace string, appCache *dpi.ApplicationCache) *StateNetFlow {
+func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool, namespace string, appCache dpi.Cache) *StateNetFlow {
 	return &StateNetFlow{
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
@@ -193,9 +193,9 @@ func (s *StateNetFlow) submitApplications(msgDec interface{}, samplerAddress []b
 	if len(apps) == 0 {
 		return
 	}
-	records := make([]dpi.Record, 0, len(apps))
+	records := make([]dpi.ApplicationRecord, 0, len(apps))
 	for _, app := range apps {
-		records = append(records, dpi.Record{Namespace: s.namespace, ExporterAddr: samplerAddress, Application: app})
+		records = append(records, dpi.ApplicationRecord{Namespace: s.namespace, ExporterAddr: samplerAddress, Application: app})
 	}
 	s.appCache.Submit(records)
 }

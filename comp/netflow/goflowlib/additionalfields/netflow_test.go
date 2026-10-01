@@ -224,3 +224,15 @@ func Test_ConvertNetFlowDataSet_enterpriseNumbers(t *testing.T) {
 		"any_30":   uint64(3),
 	}, fields, "mappings with MatchPen only match their enterprise number, others match any enterprise number")
 }
+
+func Test_ConvertNetFlowDataSet_netflow9HighFieldTypes(t *testing.T) {
+	fieldsConfig := map[uint16]config.Mapping{
+		33002: {Destination: "fw_ext_event", Type: common.Integer},
+		234:   {Destination: "ingress_vrf_id", Type: common.Integer},
+	}
+
+	fields := ConvertNetFlowDataSet([]netflow.DataField{
+		{Type: 33002, Value: []byte{7}}, // NetFlow v9 fields have no enterprise bit, so 33002 is not 0x8000 | 234
+	}, fieldsConfig)
+	assert.Equal(t, common.AdditionalFields{"fw_ext_event": uint64(7)}, fields)
+}
