@@ -19,6 +19,9 @@ const (
 	pods       string = "pods"
 	nodes      string = "nodes"
 	namespaces string = "namespaces"
+
+	gpuJobRunTag   string = "training_run_id"
+	gpuJobGroupTag string = "training_group_id"
 )
 
 // MetadataAsTags contains the labels as tags and annotations as tags for each kubernetes resource based on the user configurations of the following options ordered in increasing order of priority:
@@ -35,6 +38,9 @@ const (
 // In case of conflict, higher priority configuration value takes precedences
 // For example, if kubernetes_pod_labels_as_tags = {`l1`: `v1`, `l2`: `v2`} and kubernetes_resources_labels_as_tags = {`pods`: {`l1`: `x`}},
 // the resulting labels as tags for pods will be {`l1`: `x`, `l2`: `v2`}
+//
+// When gpu.enabled is true, the pod label/annotation configured in gpu.jobs is then added to the pod tags
+// alongside any tags already mapped to the same key.
 type MetadataAsTags interface {
 	// GetPodLabelsAsTags returns pod labels as tags
 	GetPodLabelsAsTags() map[string]string
@@ -133,6 +139,45 @@ func (m *metadataAsTags) mergeGenericResourcesAnnotationsAsTags(cfg pkgconfigmod
 	}
 }
 
+// mergeGPUJobsAsTags adds the pod label/annotation configured in gpu.jobs as pod tags.
+// Identifiers of type env are not handled here.
+func (m *metadataAsTags) mergeGPUJobsAsTags(cfg pkgconfigmodel.Reader) {
+	if !cfg.GetBool("gpu.enabled") {
+		return
+	}
+	m.mergeGPUJobAsTag(cfg, "gpu.jobs.run", gpuJobRunTag)
+	m.mergeGPUJobAsTag(cfg, "gpu.jobs.group", gpuJobGroupTag)
+}
+
+func (m *metadataAsTags) mergeGPUJobAsTag(cfg pkgconfigmodel.Reader, prefix string, tag string) {
+	key := strings.ToLower(cfg.GetString(prefix + ".key"))
+	if key == "" {
+		return
+	}
+
+	var resourcesAsTags map[string]map[string]string
+	switch strings.ToLower(cfg.GetString(prefix + ".type")) {
+	case "label":
+		resourcesAsTags = m.labelsAsTags
+	case "annotation":
+		resourcesAsTags = m.annotationsAsTags
+	default:
+		return
+	}
+
+	// Clone so we never mutate a map that may be shared with the config
+	podAsTags := maps.Clone(resourcesAsTags[pods])
+	if podAsTags == nil {
+		podAsTags = map[string]string{}
+	}
+	// Keep any tag the user already maps this key to; multiple tags are comma separated
+	if existing := podAsTags[key]; existing != "" {
+		tag = existing + "," + tag
+	}
+	podAsTags[key] = tag
+	resourcesAsTags[pods] = podAsTags
+}
+
 // GetMetadataAsTags returns a merged configuration of all labels and annotations as tags set by the user
 func GetMetadataAsTags(c pkgconfigmodel.Reader) MetadataAsTags {
 
@@ -168,6 +213,9 @@ func GetMetadataAsTags(c pkgconfigmodel.Reader) MetadataAsTags {
 	// generic resources labels/annotations as tags
 	metadataAsTags.mergeGenericResourcesLabelsAsTags(c)
 	metadataAsTags.mergeGenericResourcesAnnotationsAsTags(c)
+
+	// gpu job identifiers as tags
+	metadataAsTags.mergeGPUJobsAsTags(c)
 
 	return &metadataAsTags
 }
