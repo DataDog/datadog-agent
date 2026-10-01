@@ -596,11 +596,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	apiSite, ok := apicfgMap["site"]
 	apiSiteStr, isString := apiSite.(string)
 	if !ok || !isString || strings.TrimSpace(apiSiteStr) == "" {
-		if !isSiteEmpty {
-			apicfgMap["site"] = site
-		} else {
-			apicfgMap["site"] = "datadoghq.com"
-		}
+		apicfgMap["site"] = site
 	} else {
 		apicfgMap["site"] = strings.TrimSpace(apiSiteStr)
 	}
