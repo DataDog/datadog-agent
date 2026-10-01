@@ -130,9 +130,14 @@ def _variables_impl(ctx):
 
     # Mirrors get_version_ldflags() in tasks/libs/common/utils.py: versioned
     # installs such as /opt/datadog-packages/datadog-agent/<version> report it.
-    agent_package_version = paths.basename(install_dir)
-    if agent_package_version == "datadog-agent":
-        agent_package_version = env_vars.PACKAGE_VERSION or values["agent_version"]
+    # Windows install paths carry no version, and Fleet Automation expects the
+    # OCI package suffix there.
+    if ctx.target_platform_has_constraint(ctx.attr._windows[platform_common.ConstraintValueInfo]):
+        agent_package_version = values["agent_version_url_safe"] + "-1"
+    else:
+        agent_package_version = paths.basename(install_dir)
+        if agent_package_version == "datadog-agent":
+            agent_package_version = env_vars.PACKAGE_VERSION or values["agent_version"]
     values["agent_package_version"] = agent_package_version
 
     output_config_dir = DEFAULT_OUTPUT_CONFIG_DIR
@@ -166,14 +171,16 @@ Values provided:
   agent_version: The agent version in standard SemVer form, without pipeline id.
   agent_version_url_safe: The agent version in URL-safe form.
   agent_payload_version: The agent payload version.
-  agent_package_version: pkg/version.AgentPackageVersion; the install_dir
-    basename for versioned installs, PACKAGE_VERSION otherwise. Also provided
-    as the $(AGENT_PACKAGE_VERSION) make variable.
+  agent_package_version: pkg/version.AgentPackageVersion; agent_version_url_safe
+    + "-1" on Windows, the install_dir basename for versioned installs,
+    PACKAGE_VERSION otherwise. Also provided as the $(AGENT_PACKAGE_VERSION)
+    make variable.
   commit, full_commit: CI_COMMIT_SHA (short and full) in package builds, empty
     otherwise.
 """,
     attrs = {
         "_install_dir": attr.label(default = "//:install_dir"),
         "_output_config_dir": attr.label(default = "//:output_config_dir"),
+        "_windows": attr.label(default = "@platforms//os:windows"),
     },
 )
