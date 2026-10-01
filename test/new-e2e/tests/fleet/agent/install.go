@@ -438,17 +438,6 @@ remote_configuration.director_root: '%s'
 	return nil
 }
 
-// ReconfigureRemoteConfigMacOS points an already-installed macOS Agent/installer daemon at the
-// environment's current fakeintake for Remote Config, without reinstalling the package.
-//
-// A LOCAL_VM run's fakeintake container publishes a fresh ephemeral port on every test invocation
-// (configMacOSStartLocalFakeIntake), while an already-installed daemon's datadog.yaml still points
-// at whatever port the last real install configured -- so an install-skipping fast-iteration loop
-// against an already-installed host needs to re-point it here instead.
-func (a *Agent) ReconfigureRemoteConfigMacOS() error {
-	return a.configureMacOS(&installParams{remoteConfig: true})
-}
-
 // Uninstall uninstalls the agent.
 func (a *Agent) Uninstall() error {
 	switch a.host.RemoteHost.OSFamily {
