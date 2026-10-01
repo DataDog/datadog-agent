@@ -62,7 +62,7 @@ func NewWorkflowTaskExecutor(
 		registry:     registry,
 		config:       configuration,
 		taskVerifier: taskVerifier,
-		resolver:     resolver.NewPrivateCredentialResolver(),
+		resolver:     resolver.NewPrivateCredentialResolver(resolver.NewCredentialCatalog(configuration.CredentialValues)),
 	}, nil
 }
 
