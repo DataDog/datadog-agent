@@ -10,8 +10,8 @@ package module
 import (
 	"testing"
 
-	"github.com/go-openapi/testify/v2/require"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"

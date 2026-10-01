@@ -11,9 +11,9 @@ package usersessions
 import (
 	"testing"
 
-	"github.com/go-openapi/testify/v2/require"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
