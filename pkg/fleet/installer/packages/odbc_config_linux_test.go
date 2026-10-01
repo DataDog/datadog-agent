@@ -111,6 +111,16 @@ func TestRewriteODBCInst(t *testing.T) {
 			expected: "[freetds]\nDriver=" + tdsDriver + "\n",
 		},
 		{
+			name:     "section header with trailing comment",
+			content:  "[FreeTDS]\nDriver=/opt/datadog-agent/embedded/lib/libtdsodbc.so\n\n[ODBC Driver 18 for SQL Server] ; Microsoft driver\nDriver=/opt/datadog-agent/embedded/msodbcsql/lib64/libmsodbcsql-18.3.so.3.1\n",
+			expected: "[FreeTDS]\nDriver=" + tdsDriver + "\n\n[ODBC Driver 18 for SQL Server] ; Microsoft driver\nDriver=" + msDriver + "\n",
+		},
+		{
+			name:     "unterminated section header",
+			content:  "[FreeTDS]\nDriver=/opt/datadog-agent/embedded/lib/libtdsodbc.so\n[Other\nDriver=/opt/datadog-agent/embedded/lib/libother.so\n",
+			expected: "[FreeTDS]\nDriver=" + tdsDriver + "\n[Other\nDriver=/opt/datadog-agent/embedded/lib/libother.so\n",
+		},
+		{
 			name:     "preserves CRLF",
 			content:  "[FreeTDS]\r\nDriver=/opt/datadog-agent/embedded/lib/libtdsodbc.so\r\nUsageCount=1\r\n",
 			expected: "[FreeTDS]\r\nDriver=" + tdsDriver + "\r\nUsageCount=1\r\n",

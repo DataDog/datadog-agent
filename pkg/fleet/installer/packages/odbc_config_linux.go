@@ -78,8 +78,14 @@ func rewriteODBCInst(content, packagePath, msDriver, tdsDriver string, exists fu
 	section := ""
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-			section = strings.TrimSpace(trimmed[1 : len(trimmed)-1])
+		// Like unixODBC, the section name ends at the first ']' and the rest
+		// of the line is ignored.
+		if strings.HasPrefix(trimmed, "[") {
+			name := trimmed[1:]
+			if end := strings.IndexByte(name, ']'); end >= 0 {
+				name = name[:end]
+			}
+			section = strings.TrimSpace(name)
 			continue
 		}
 		key, value, ok := splitINIValue(trimmed)

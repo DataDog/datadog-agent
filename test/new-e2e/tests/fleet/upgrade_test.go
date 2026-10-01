@@ -6,6 +6,7 @@
 package fleet
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -235,5 +236,8 @@ func (s *upgradeSuite) TestODBCConfigPreservedOnUpgrade() {
 	s.Require().NoError(err)
 	s.Require().Contains(odbcInst, "[ODBC Driver 18 for SQL Server]")
 	s.Require().Contains(odbcInst, "Driver=/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.6.so.1.1")
-	s.Require().Regexp(`Driver=/opt/datadog-packages/datadog-agent/[^/]+/embedded/lib/libtdsodbc\.so`, odbcInst)
+	stableDir, err := s.Env().RemoteHost.Execute("readlink -f /opt/datadog-packages/datadog-agent/stable")
+	s.Require().NoError(err)
+	s.Require().Contains(odbcInst, "Driver="+strings.TrimSpace(stableDir)+"/embedded/lib/libtdsodbc.so")
+	s.Require().NotContains(odbcInst, "/datadog-agent/stable/")
 }
