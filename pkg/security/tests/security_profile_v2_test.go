@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -67,9 +69,6 @@ func TestSecurityProfileV2Mounts(t *testing.T) {
 		}
 		defer dockerInstance.stop()
 
-		// Let the workload link to its V2 profile and seed its mount table from the resolver.
-		time.Sleep(6 * time.Second)
-
 		p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
 		if !ok {
 			t.Skip("not supported")
@@ -79,24 +78,24 @@ func TestSecurityProfileV2Mounts(t *testing.T) {
 			t.Fatal("V2 profile manager is not active")
 		}
 
-		prof := manager.GetProfile(cgroupModel.WorkloadSelector{Image: selector.Image, Tag: "*"})
-		if prof == nil {
-			t.Fatal("no V2 profile for the workload")
-		}
-
-		prof.Lock()
-		defer prof.Unlock()
-
-		if len(prof.ActivityTree.Mounts) == 0 {
-			t.Fatal("expected the workload mount table to be seeded, got no mounts")
-		}
-
-		// The workload never setns's, so every mount lives in its base mount
-		// namespace and must be flagged accordingly.
-		for _, mn := range prof.ActivityTree.Mounts {
-			if !mn.InBaseNamespace {
-				t.Fatalf("expected mount %q to be flagged in the base namespace", mn.MountPoint)
+		// Wait for the workload to link to its V2 profile and seed its mount table
+		// from the resolver. The workload never setns's, so every mount lives in its
+		// base mount namespace and must be flagged accordingly.
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			prof := manager.GetProfile(cgroupModel.WorkloadSelector{Image: selector.Image, Tag: "*"})
+			if !assert.NotNil(c, prof, "no V2 profile for the workload yet") {
+				return
 			}
-		}
+
+			prof.Lock()
+			defer prof.Unlock()
+
+			if !assert.NotEmpty(c, prof.ActivityTree.Mounts, "workload mount table not seeded yet") {
+				return
+			}
+			for _, mn := range prof.ActivityTree.Mounts {
+				assert.True(c, mn.InBaseNamespace, "expected mount %q to be flagged in the base namespace", mn.MountPoint)
+			}
+		}, 30*time.Second, 500*time.Millisecond)
 	})
 }
