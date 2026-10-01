@@ -103,22 +103,15 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	// Use the active scaling values hash (mirrored to the DPA status) so the annotation stays
 	// identical across replicas; not the recomputed constrained hash.
 	effectiveRecommendationID := autoscaler.ScalingValues().Vertical.ResourcesHash
-	if pod.Annotations[model.RecommendationIDAnnotation] != effectiveRecommendationID {
-		pod.Annotations[model.RecommendationIDAnnotation] = effectiveRecommendationID
-		patched = true
-	}
+	patched = patchAnnotation(pod, model.RecommendationIDAnnotation, effectiveRecommendationID) || patched
 
 	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
 	for _, reco := range constrainedVertical.ContainerResources {
 		patched = patchPod(reco, pod) || patched
 	}
 
-	annotationPatched, err := patchRuntimeRecommendationID(pod, constrainedVertical.ContainerResources)
-	if err != nil {
-		log.Warnf("Autoscaler %s: failed to set runtime recommendation ID annotation for POD %s/%s: %v", autoscaler.ID(), pod.Namespace, pod.Name, err)
-	} else {
-		patched = patched || annotationPatched
-	}
+	runtimeRecID, _ := computeRuntimeRecommendationID(constrainedVertical.ContainerResources)
+	patched = patchAnnotation(pod, model.RuntimeRecommendationIDAnnotation, runtimeRecID) || patched
 
 	return patched, nil
 }
@@ -242,24 +235,21 @@ func patchPod(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, pod *
 	return false
 }
 
-// patchRuntimeRecommendationID sets the RuntimeRecommendationIDAnnotation on the pod to a hash of
-// the current runtime values (e.g. GOMEMLIMIT) across all containers. The vertical controller uses
-// this annotation to determine whether a rollout is required without comparing full JSON blobs.
-// Returns true if the annotation was created, updated, or deleted; false if already up to date.
-func patchRuntimeRecommendationID(pod *corev1.Pod, containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (bool, error) {
-	hash, hasRuntime := computeRuntimeRecommendationID(containerResources)
-	if !hasRuntime {
-		if _, exists := pod.Annotations[model.RuntimeRecommendationIDAnnotation]; exists {
-			delete(pod.Annotations, model.RuntimeRecommendationIDAnnotation)
-			return true, nil
+// patchAnnotation sets, updates, or deletes the given annotation on the pod.
+// An empty value causes the annotation to be deleted. Returns true if the annotation was changed.
+func patchAnnotation(pod *corev1.Pod, key, value string) bool {
+	if value == "" {
+		if _, exists := pod.Annotations[key]; exists {
+			delete(pod.Annotations, key)
+			return true
 		}
-		return false, nil
+		return false
 	}
-	if pod.Annotations[model.RuntimeRecommendationIDAnnotation] == hash {
-		return false, nil
+	if pod.Annotations[key] == value {
+		return false
 	}
-	pod.Annotations[model.RuntimeRecommendationIDAnnotation] = hash
-	return true, nil
+	pod.Annotations[key] = value
+	return true
 }
 
 func patchContainerResources(reco datadoghqcommon.DatadogPodAutoscalerContainerResources, cont *corev1.Container) (patched bool) {
