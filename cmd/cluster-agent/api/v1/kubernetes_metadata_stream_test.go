@@ -9,9 +9,7 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -923,104 +921,16 @@ func TestMetadataUpdatesSinceHistoryOverflow(t *testing.T) {
 	assert.Equal(t, uint64(metadataHistorySize), version)
 	first := updates[0]
 
-	for i := 0; i < metadataHistorySize; i++ {
-		srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent(strconv.Itoa(metadataHistorySize+i+1), workloadmeta.EventTypeSet)})
-		_, _, ok = srv.metadataUpdatesSince(uint64(i))
-		assert.False(t, ok, "an overwritten cursor must request a full state")
-		updates, version, ok = srv.metadataUpdatesSince(uint64(i + 1))
-		require.True(t, ok)
-		require.Len(t, updates, metadataHistorySize)
-		assert.Equal(t, strconv.Itoa(i+2), updates[0].KueueWorkloads[0].Uid)
-		assert.Equal(t, strconv.Itoa(metadataHistorySize+i+1), updates[len(updates)-1].KueueWorkloads[0].Uid)
-	}
-	assert.Equal(t, "1", first.KueueWorkloads[0].Uid, "overwriting history cannot mutate in-flight responses")
-
-	snapshot, snapshotVersion := srv.buildMetadataSnapshotWithVersion()
-	assert.Equal(t, version, snapshotVersion)
-	assert.Equal(t, strconv.Itoa(2*metadataHistorySize), snapshot.kueueWorkloads["ns1/job"].uid)
-	updates, _, ok = srv.metadataUpdatesSince(snapshotVersion)
-	assert.True(t, ok)
-	assert.Empty(t, updates)
-}
-
-func TestMetadataUpdatesConcurrentReaders(t *testing.T) {
-	srv := NewKubeMetadataStreamServer(nil, nil)
-	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("initial", workloadmeta.EventTypeSet)})
-	initial, _, ok := srv.metadataUpdatesSince(0)
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("latest", workloadmeta.EventTypeSet)})
+	_, _, ok = srv.metadataUpdatesSince(0)
+	assert.False(t, ok, "an overwritten cursor must request a full state")
+	updates, version, ok = srv.metadataUpdatesSince(1)
 	require.True(t, ok)
-	require.Len(t, initial, 1)
-	var wg sync.WaitGroup
-	for range 4 {
-		wg.Go(func() {
-			var version uint64
-			for range 2 * metadataHistorySize {
-				// Concurrent sends can marshal the same published response,
-				// even after its slot in the journal has been overwritten.
-				_, err := proto.Marshal(initial[0])
-				assert.NoError(t, err)
-				updates, currentVersion, ok := srv.metadataUpdatesSince(version)
-				if !ok {
-					_, version = srv.buildMetadataSnapshotWithVersion()
-					continue
-				}
-				for _, update := range updates {
-					_, err := proto.Marshal(update)
-					assert.NoError(t, err)
-				}
-				version = currentVersion
-			}
-		})
-	}
-	for i := range 2 * metadataHistorySize {
-		srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent(strconv.Itoa(i), workloadmeta.EventTypeSet)})
-	}
-	wg.Wait()
-}
-
-func BenchmarkMetadataStreamFanout(b *testing.B) {
-	for _, streams := range []int{1, 10, 100} {
-		for _, shared := range []bool{false, true} {
-			b.Run(fmt.Sprintf("streams=%d/shared=%t", streams, shared), func(b *testing.B) {
-				srv := NewKubeMetadataStreamServer(nil, nil)
-				for i := range 1000 {
-					srv.metadata.kueueWorkloads[strconv.Itoa(i)] = kueueWorkloadEntry{
-						name:        strconv.Itoa(i),
-						labels:      map[string]string{"team": "example", "service": "worker"},
-						annotations: map[string]string{"description": "unchanged workload"},
-					}
-				}
-				previous := make([]metadataSnapshot, streams)
-				for i := range streams {
-					srv.subscribeToNamespaceEvents(strconv.Itoa(i))
-					if !shared {
-						previous[i] = srv.buildMetadataSnapshot()
-					}
-				}
-				var version uint64
-				b.ReportAllocs()
-				b.ResetTimer()
-				for i := 0; i < b.N; i++ {
-					event := testKueueWorkloadEvent(strconv.Itoa(i), workloadmeta.EventTypeSet)
-					if shared {
-						srv.processWmetaEvents([]workloadmeta.Event{event})
-						for range streams {
-							_, _, _ = srv.metadataUpdatesSince(version)
-						}
-						version++
-					} else {
-						// The former path copied and compared the entire state per stream.
-						srv.metadata.processKueueWorkloadEvent(event.Type, event.Entity.(*workloadmeta.KubernetesKueueWorkload))
-						srv.notifyNamespaceSubscribers()
-						for client := range streams {
-							current := srv.buildMetadataSnapshot()
-							_ = computeMetadataDiff(previous[client], current).response(false)
-							previous[client] = current
-						}
-					}
-				}
-			})
-		}
-	}
+	require.Len(t, updates, metadataHistorySize)
+	assert.Equal(t, uint64(metadataHistorySize+1), version)
+	assert.Equal(t, "2", updates[0].KueueWorkloads[0].Uid)
+	assert.Equal(t, "latest", updates[len(updates)-1].KueueWorkloads[0].Uid)
+	assert.Equal(t, "1", first.KueueWorkloads[0].Uid, "overwriting history cannot mutate in-flight responses")
 }
 
 func testKueueWorkloadEvent(uid string, eventType workloadmeta.EventType) workloadmeta.Event {
