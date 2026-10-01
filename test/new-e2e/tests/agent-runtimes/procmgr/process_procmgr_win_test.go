@@ -301,8 +301,8 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	// Only the file write is required to succeed. start reports an error when the process
 	// is already running, which is the usual case for the deferred pass, and a dd-procmgr
 	// RPC can fail at the transport level while the daemon acts on it anyway. Both are
-	// logged rather than returned, and the Running assertion below is what actually proves
-	// the restore worked.
+	// logged rather than returned: what proves the restore worked is the process reaching
+	// Running, which both the inline pass and the cleanup check.
 	t := s.T()
 	restore := func() error {
 		if _, err := host.Execute(psWriteFileBase64(cfgPath, s.installedCfgBase64)); err != nil {
@@ -321,7 +321,9 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 	t.Cleanup(func() {
 		if err := restore(); err != nil {
 			t.Errorf("failed to restore %s: %v", cfgPath, err)
+			return
 		}
+		assertProcmgrRunning(t, host, cli, processProcessName, 2*time.Minute)
 	})
 
 	// The log outlives the test, so a run reusing this host already has the rejection line.

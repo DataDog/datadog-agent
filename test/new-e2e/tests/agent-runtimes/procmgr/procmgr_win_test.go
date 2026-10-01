@@ -206,6 +206,15 @@ func restoreProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name 
 	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
 		t.Logf("respawn of %s reported: %v", name, err)
 	}
+	assertProcmgrRunning(t, host, cli, name, timeout)
+}
+
+// assertProcmgrRunning waits for a process to be Running without ever calling FailNow,
+// which a cleanup must not do. A cleanup that only issues the commands and reports
+// success leaves the next test, which may run on this same host, to discover that the
+// process never came back.
+func assertProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
+	t.Helper()
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
 		if !assert.NoError(ct, err) {
