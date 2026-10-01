@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apiextensions-apiserver/pkg/apihelpers"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	kubernetesscheme "k8s.io/client-go/kubernetes/scheme"
@@ -76,5 +75,20 @@ func validateResourceIdentifier(field, value string, validateIdentifier func(str
 }
 
 func isNativeAPIGroup(group string) bool {
-	return kubernetesscheme.Scheme.IsGroupRegistered(group) || apihelpers.IsProtectedCommunityGroup(group)
+	return kubernetesscheme.Scheme.IsGroupRegistered(group) || isProtectedCommunityGroup(group)
+}
+
+// isProtectedCommunityGroup mirrors apihelpers.IsProtectedCommunityGroup from
+// k8s.io/apiextensions-apiserver/pkg/apihelpers. It should use that implementation
+// directly, but importing it pulls in the apiextensions API packages and is
+// blocked by binary size constraints.
+func isProtectedCommunityGroup(group string) bool {
+	switch {
+	case group == "k8s.io" || strings.HasSuffix(group, ".k8s.io"):
+		return true
+	case group == "kubernetes.io" || strings.HasSuffix(group, ".kubernetes.io"):
+		return true
+	default:
+		return false
+	}
 }
