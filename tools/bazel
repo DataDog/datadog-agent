@@ -80,4 +80,27 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   set -- "${args[@]}"
 fi
 
+# Emulate the CPU limit containers should normally see via cgroup quota, currently inhibited on Datadog's k8s clusters:
+# https://datadoghq.atlassian.net/wiki/spaces/cxg/pages/3473212607/Container+CPU+limits+in+internal+environments
+if [ -n "${KUBERNETES_CPU_LIMIT-}" ] && [ "$(uname -s)" = Linux ]; then
+  cpu_quota=$(awk '{print $1}' /sys/fs/cgroup/cpu.max) || cpu_quota=max
+  if [ "$cpu_quota" = max ]; then
+    pivot=$(ps -o psr= -p $$ | tr -d ' ') # pivot at this process' last executed CPU to spread the load
+    cpus=$(python3 - <<EOF
+from bisect import bisect_left
+from math import ceil
+from os import sched_getaffinity
+
+limit = "$KUBERNETES_CPU_LIMIT"
+max_cpus = ceil(float(limit[:-1]) / 1000 if limit.endswith("m") else float(limit))
+allowed = sorted(sched_getaffinity(0))
+i = bisect_left(allowed, $pivot)
+print(",".join(str(cpu) for cpu in (allowed[i:] + allowed[:i])[:max_cpus]))
+EOF
+)
+    exec taskset -c "$cpus" "$BAZEL_REAL" "$@"
+  fi
+  >&2 echo "🟡 CPU limits are now visible via cgroup quota - please consider removing the taskset pinning from $0"
+fi
+
 exec "$BAZEL_REAL" "$@"

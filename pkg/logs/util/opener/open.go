@@ -18,6 +18,8 @@ import (
 // FileOpener is an interface that defines the method to open a log file.
 type FileOpener interface {
 	OpenLogFile(path string) (afero.File, error)
+	// ReadDirectRange opens path with O_DIRECT and returns up to the first count bytes.
+	ReadDirectRange(path string, count int) ([]byte, error)
 	NoFollow() FileOpener
 	OpenShared(path string) (afero.File, error)
 	Abs(path string) (string, error)
@@ -42,6 +44,13 @@ func (f *fileOpenerImpl) OpenLogFile(path string) (afero.File, error) {
 		return internalOpener.OpenLogFileNoFollow(path)
 	}
 	return internalOpener.OpenLogFile(path)
+}
+
+func (f *fileOpenerImpl) ReadDirectRange(path string, count int) ([]byte, error) {
+	if f.noFollow {
+		return readDirectRangeNoFollow(path, count)
+	}
+	return readDirectRange(path, count)
 }
 
 // NoFollow returns an opener that rejects symbolic links in every path component.

@@ -8,6 +8,7 @@ typedef struct {
     char *serialNumber;
     char *productName;
     char *modelIdentifier;
+    char *computerName;
 } DeviceInfo;
 
 DeviceInfo getDeviceInfo(void);

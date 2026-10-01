@@ -233,10 +233,14 @@ dd_agent_go_test(
         "sysprobe_stats_test.go",
         "system_info_darwin_test.go",
         "system_info_test.go",
+        "system_info_windows_test.go",
         "user_nix_test.go",
     ],
     embed = [":checks"],
-    env_inherit = ["PATH"],  # CollectSystemInfo invokes system utilities (e.g. ioreg on macOS)
+    env_inherit = select({
+        "@platforms//os:macos": ["PATH"],  # hostinfo collection invokes ioreg on macOS
+        "//conditions:default": [],
+    }),
     gotags_sets = [["systemprobechecks"]],
     deps = [
         "//comp/core",

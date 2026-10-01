@@ -177,7 +177,23 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 		return nil, err
 	}
 
-	// Rectify the count value to the appropriate default value if not set.
+	// The unreliable-mount profile defaults to line fingerprints without replacing
+	// an explicitly configured strategy, including disabled. Direct I/O is a runtime
+	// policy of the fingerprinter, separate from these checksum parameters.
+	if UnreliableMountEnabled(coreConfig) {
+		if !coreConfig.IsConfigured("logs_config.fingerprint_config.fingerprint_strategy") {
+			config.FingerprintStrategy = types.FingerprintStrategyLineChecksum
+		}
+		// Direct reads fetch the whole window on every scan. Keep the default small,
+		// but preserve an explicit max_bytes value. Only line mode uses max_bytes.
+		if config.FingerprintStrategy == types.FingerprintStrategyLineChecksum &&
+			!coreConfig.IsConfigured("logs_config.fingerprint_config.max_bytes") {
+			config.MaxBytes = DefaultUnreliableMountFingerprintMaxBytes
+		}
+	}
+
+	// Rectify the count value to the appropriate default value if not set. Runs
+	// after the unreliable_mount block so it sees the strategy that block may set.
 	if !coreConfig.IsConfigured("logs_config.fingerprint_config.count") {
 		switch config.FingerprintStrategy {
 		case types.FingerprintStrategyLineChecksum:
@@ -187,6 +203,7 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 		default:
 		}
 	}
+
 	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 
@@ -229,6 +246,39 @@ func ValidateFingerprintConfig(config *types.FingerprintConfig) error {
 	}
 
 	return nil
+}
+
+// DefaultUnreliableMountDrainTimeout is the fallback drain window used when
+// unreliable_mount is enabled but rotation_drain_timeout is not set. It matches
+// the documented close_timeout default so the two knobs behave the same out of
+// the box.
+const DefaultUnreliableMountDrainTimeout = 60 * time.Second
+
+// DefaultUnreliableMountFingerprintMaxBytes is the line-mode max_bytes applied
+// when unreliable_mount is enabled and the operator did not set one. Direct
+// reads fetch the whole window on every scan, so the default is kept small.
+const DefaultUnreliableMountFingerprintMaxBytes = 4096
+
+// UnreliableMountEnabled reports whether the node-wide profile for unreliable
+// mounts is enabled. It selects direct fingerprint reads on Linux, line-checksum
+// defaults, and a separate rotation drain timeout. Other platforms read buffered.
+func UnreliableMountEnabled(coreConfig pkgconfigmodel.Reader) bool {
+	return coreConfig.GetBool("logs_config.unreliable_mount.enabled")
+}
+
+// UnreliableMountDrainTimeout is how long a tailer keeps reading a rotated file
+// before closing it when unreliable_mount is enabled. A fresh open can fail while
+// the existing descriptor still drains, so this is separate from close_timeout.
+// Returns 0 when unreliable_mount is disabled so callers fall back to close_timeout.
+func UnreliableMountDrainTimeout(coreConfig pkgconfigmodel.Reader) time.Duration {
+	if !UnreliableMountEnabled(coreConfig) {
+		return 0
+	}
+	timeout := coreConfig.GetDuration("logs_config.unreliable_mount.rotation_drain_timeout") * time.Second
+	if timeout <= 0 {
+		return DefaultUnreliableMountDrainTimeout
+	}
+	return timeout
 }
 
 func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigKeys, registerCallback bool) (*Endpoints, error) {

@@ -282,7 +282,6 @@ func TagsFromAttributes(attrs pcommon.Map) []string {
 			"name:"+appService.name,
 			"subscription_id:"+appService.subscriptionID,
 			"resource_group:"+appService.resourceGroup,
-			"instance:"+appService.instanceID,
 		)
 	}
 

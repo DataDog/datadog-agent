@@ -83,6 +83,14 @@ func kindUsesNewContainerdConfig(kindVersion string) bool {
 	return !v.LessThan(threshold)
 }
 
+func KindBinaryName(kindVersion string) string {
+	v, err := semver.NewVersion(kindVersion)
+	if err != nil || v.Major() != 0 || v.Patch() != 0 || v.Prerelease() != "" || v.Metadata() != "" {
+		return ""
+	}
+	return fmt.Sprintf("kind0%d", v.Minor())
+}
+
 // GetKindVersionConfig returns the kind version and the kind node image to use based on kubernetes version
 func GetKindVersionConfig(kubeVersion string) (*KindConfig, error) {
 	kubeSemVer, err := semver.NewVersion(kubeVersion)

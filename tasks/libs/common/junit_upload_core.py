@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import gitlab_section
+from tasks.libs.common.utils import gitlab_section, is_windows
 from tasks.libs.pipeline.notifications import (
     DEFAULT_JIRA_PROJECT,
     DEFAULT_SLACK_CHANNEL,
@@ -37,6 +37,24 @@ def get_datadog_ci_command():
     if path_datadog_ci is None:
         raise FileNotFoundError("datadog-ci command not found")
     return path_datadog_ci
+
+
+def skip_git_metadata_upload_flags() -> list[str]:
+    """
+    Flags to pass to datadog-ci upload commands to skip their git metadata sync on Windows.
+
+    The sync spawns `git rev-list` with the SHA of every commit of the past month passed as
+    command-line arguments (up to 2000 SHAs, ~42KB on this repository, which merges ~1000
+    commits a month), which exceeds the 32,767-character Windows command line limit. Every
+    spawn then fails with `spawn ENAMETOOLONG`, so no git metadata is uploaded anyway;
+    skipping the sync just saves time. Test results and coverage uploads are not affected.
+    See datadog-ci's getObjectsToUpload:
+    https://github.com/DataDog/datadog-ci/blob/main/packages/base/src/commands/git-metadata/gitdb.ts
+    """
+    if is_windows():
+        return ["--skip-git-metadata-upload"]
+
+    return []
 
 
 def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
@@ -228,7 +246,7 @@ def _upload_junitxmls(team_dirs: list[Path], executor: ThreadPoolExecutor):
     """
     Upload all per-team split JUnit XMLs from given directories.
     """
-    datadog_ci_command = [get_datadog_ci_command(), "junit", "upload"]
+    datadog_ci_command = [get_datadog_ci_command(), "junit", "upload", *skip_git_metadata_upload_flags()]
     futures = []
     for team_dir in team_dirs:
         for args, env in _generate_junitxmls(team_dir):

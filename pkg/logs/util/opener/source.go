@@ -36,3 +36,10 @@ func (o *sourceFileOpener) OpenLogFile(path string) (afero.File, error) {
 	}
 	return o.FileOpener.OpenLogFile(path)
 }
+
+func (o *sourceFileOpener) ReadDirectRange(path string, count int) ([]byte, error) {
+	if cfg := o.source.Config(); cfg != nil && cfg.NoFollow {
+		return o.noFollow.ReadDirectRange(path, count)
+	}
+	return o.FileOpener.ReadDirectRange(path, count)
+}

@@ -30,6 +30,17 @@ const (
 	maxProcEntries = 131072
 )
 
+// Sizes of the event sampling dedup maps. The userspace sample cookie LRU is sized from
+// these.
+const (
+	OpenSamplesMaxEntries    = 20000
+	ConnectSamplesMaxEntries = 10000
+	SyscallSamplesMaxEntries = 20000
+	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
+	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
+	ExcludedCgroupsMaxEntries = 4096
+)
+
 var (
 	// EventsPerfRingBufferSize is the buffer size of the perf buffers used for events.
 	// PLEASE NOTE: for the perf ring buffer usage metrics to be accurate, the provided value must have the
@@ -215,6 +226,7 @@ type MapSpecEditorOpts struct {
 	SecurityProfileSyscallAnomaly bool
 	EventSamplingOpenEnabled      bool
 	EventSamplingConnectEnabled   bool
+	EventSamplingSyscallsEnabled  bool
 	BasenameApproversSize         int
 }
 
@@ -305,14 +317,25 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["open_samples"] = manager.MapSpecEditor{
-			MaxEntries: 20000,
+			MaxEntries: OpenSamplesMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
 
 	if opts.EventSamplingConnectEnabled {
 		editors["connect_samples"] = manager.MapSpecEditor{
-			MaxEntries: 10000,
+			MaxEntries: ConnectSamplesMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.EventSamplingSyscallsEnabled {
+		editors["syscall_samples"] = manager.MapSpecEditor{
+			MaxEntries: SyscallSamplesMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["excluded_cgroups"] = manager.MapSpecEditor{
+			MaxEntries: ExcludedCgroupsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

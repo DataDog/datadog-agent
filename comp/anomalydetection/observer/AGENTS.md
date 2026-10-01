@@ -209,6 +209,13 @@ surface if that use case emerges. Route every storage-series removal through the
 engine cleanup path so ref-backed dedup entries are removed too; dedup eviction is
 reported by `observer.anomaly_dedup.evicted{reason}`.
 
+Metric anomalies retain their `SeriesDescriptor` for source identity and output
+metadata, but carry no title or description. Detectors capture scalar evidence
+in `AnomalyDebugInfo`; output consumers call `observer/def.FormatAnomaly` only
+after deciding to render text. The dedup key uses the source ref, aggregate,
+detector name, and timestamp. Do not format text in detection,
+scoring, or deduplication.
+
 ## Common Pitfalls
 
 1. **Don't call engine methods from multiple goroutines.** The engine assumes

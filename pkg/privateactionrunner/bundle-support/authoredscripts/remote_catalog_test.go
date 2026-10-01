@@ -6,6 +6,7 @@
 package authoredscripts
 
 import (
+	"context"
 	"encoding/json"
 	"runtime"
 	"testing"
@@ -45,6 +46,12 @@ func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 	require.Equal(t, 1, client.subscribeCount)
 	require.Equal(t, testCatalogProduct, client.product)
 	require.NotNil(t, client.handler)
+	requireCatalogNotReady(t, catalog)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, catalog.WaitForReady(ctx), context.Canceled)
+
 	_, err = catalog.Lookup(testCatalogFQN)
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
@@ -80,6 +87,8 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 		},
 	}})
 	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+	requireCatalogReady(t, catalog)
+	require.NoError(t, catalog.WaitForReady(context.Background()))
 
 	descriptor, err := catalog.Lookup(testCatalogFQN)
 	require.NoError(t, err)
@@ -99,11 +108,18 @@ func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
 	require.NoError(t, err)
 	valid := validRemotePackage()
-	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{valid}})
-	require.Equal(t, state.ApplyStateAcknowledged, status.State)
-
 	invalid := valid
 	invalid.URL = "oci://registry.example.test/authored-script@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{invalid}})
+	require.Equal(t, state.ApplyStateError, status.State)
+	require.NotEmpty(t, status.Error)
+	requireCatalogNotReady(t, catalog)
+
+	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{valid}})
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+	requireCatalogReady(t, catalog)
+
 	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{invalid}})
 	require.Equal(t, state.ApplyStateError, status.State)
 	require.NotEmpty(t, status.Error)
@@ -148,4 +164,22 @@ func applyRemoteCatalog(t *testing.T, client *testCatalogRCClient, catalog fleet
 		func(_ string, applied state.ApplyStatus) { status = applied },
 	)
 	return status
+}
+
+func requireCatalogReady(t *testing.T, catalog Catalog) {
+	t.Helper()
+	select {
+	case <-catalog.(*remoteCatalog).ready:
+	default:
+		require.Fail(t, "catalog is not ready")
+	}
+}
+
+func requireCatalogNotReady(t *testing.T, catalog Catalog) {
+	t.Helper()
+	select {
+	case <-catalog.(*remoteCatalog).ready:
+		require.Fail(t, "catalog is ready")
+	default:
+	}
 }

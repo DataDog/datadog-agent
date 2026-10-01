@@ -298,6 +298,10 @@ type ProcessSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// CapsUsed lists the capabilities that this process effectively made use of
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -871,6 +875,10 @@ type EventSerializer struct {
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
 	ses := SyscallsEventSerializer{}
+	// Sample events carry a single syscall in SyscallID instead of the Syscalls drain bitmap.
+	if e.EventReason == model.SampleReason {
+		return &SyscallsEventSerializer{{ID: int(e.SyscallID), Name: model.Syscall(e.SyscallID).String()}}
+	}
 	for _, s := range e.Syscalls {
 		ses = append(ses, SyscallSerializer{
 			ID:   int(s),
@@ -887,12 +895,18 @@ type CapabilitiesEventSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// Capabilities that the process successfully used since it started running
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 }
 
 func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
 	return &CapabilitiesEventSerializer{
-		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
-		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttempted:           model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:                model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttemptedHostUserNS: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(e, ce)).StringArray(),
+		CapsUsedHostUserNS:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(e, ce)).StringArray(),
 	}
 }
 
@@ -1029,6 +1043,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Source:          model.ProcessSourceToString(ps.Source),
 			CapsAttempted:   model.KernelCapability(ps.CapsAttempted).StringArray(),
 			CapsUsed:        model.KernelCapability(ps.CapsUsed).StringArray(),
+
+			CapsAttemptedHostUserNS: model.KernelCapability(ps.CapsAttemptedHostUserNS).StringArray(),
+			CapsUsedHostUserNS:      model.KernelCapability(ps.CapsUsedHostUserNS).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -1452,8 +1469,9 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	ps.Variables = newVariablesContext(e, rule, "process.")
 
-	// add the syscalls from the event only for the top level parent
-	if e.GetEventType() == model.SyscallsEventType {
+	// add the syscalls from the event only for the top level parent. Skip sample events unless
+	// they are anomalies, otherwise the sampled syscall (in SyscallID) is never serialized.
+	if e.GetEventType() == model.SyscallsEventType && (e.Syscalls.EventReason != model.SampleReason || e.IsAnomalyDetectionEvent()) {
 		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
 	}
 
@@ -1941,7 +1959,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Connect.Retval)
 		s.ConnectEventSerializer = newConnectEventSerializer(event)
 	case model.SyscallsEventType:
-		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
+		if event.Syscalls.EventReason != model.SampleReason || event.IsAnomalyDetectionEvent() {
+			s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
+		}
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)

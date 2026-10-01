@@ -6,6 +6,7 @@
 package authoredscripts
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -20,8 +21,7 @@ import (
 const authoredScriptPackagePrefix = "com.datadoghq.authoredscripts."
 
 // NewRemoteCatalog creates an empty authored-script catalog and subscribes it
-// to the requested Remote Config product. Lookups fail closed until the first
-// complete catalog snapshot is applied.
+// to the requested Remote Config product.
 func NewRemoteCatalog(client rcclient.Client, product string) (Catalog, error) {
 	if client == nil {
 		return nil, errors.New("Remote Config client is required for authored-script catalogs")
@@ -30,14 +30,16 @@ func NewRemoteCatalog(client rcclient.Client, product string) (Catalog, error) {
 		return nil, errors.New("Remote Config product is required for authored-script catalogs")
 	}
 
-	catalog := &remoteCatalog{}
+	catalog := &remoteCatalog{ready: make(chan struct{})}
 	client.Subscribe(product, fleetcatalogrc.NewUpdateHandler(catalog.replace))
 	return catalog, nil
 }
 
 type remoteCatalog struct {
-	mu       sync.RWMutex
-	packages map[string]fleetcatalog.Package
+	mu        sync.RWMutex
+	packages  map[string]fleetcatalog.Package
+	ready     chan struct{}
+	readyOnce sync.Once
 }
 
 func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
@@ -65,7 +67,19 @@ func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
 	c.mu.Lock()
 	c.packages = compatiblePackages
 	c.mu.Unlock()
+	c.readyOnce.Do(func() {
+		close(c.ready)
+	})
 	return nil
+}
+
+func (c *remoteCatalog) WaitForReady(ctx context.Context) error {
+	select {
+	case <-c.ready:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (c *remoteCatalog) Lookup(fqn string) (Descriptor, error) {

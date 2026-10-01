@@ -48,7 +48,7 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 	fileWildcardSelectionMode := conf.GetString("logs_config.file_wildcard_selection_mode")
 
 	fileOpener := opener.NewFileOpener()
-	fingerprinter := file.NewFingerprinter(*fingerprintConfig, fileOpener)
+	fingerprinter := file.NewFingerprinterWithUnreliableMount(*fingerprintConfig, fileOpener, config.UnreliableMountEnabled(conf))
 
 	fileLauncher := filelauncher.NewLauncher(
 		fileLimits,

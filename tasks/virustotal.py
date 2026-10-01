@@ -11,7 +11,7 @@ from pathlib import Path
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.libs.common.junit_upload_core import get_datadog_ci_command
+from tasks.libs.common.junit_upload_core import get_datadog_ci_command, skip_git_metadata_upload_flags
 from tasks.libs.common.utils import gitlab_section
 
 _vt_api_call_count = 0
@@ -358,7 +358,7 @@ def submit(
                 f"file.sha256:{file_sha}",
             ]
             # Passes --logs to make the VT file analysis output available
-            cmd = [ddci, "junit", "upload", "--logs", *tags, output]
+            cmd = [ddci, "junit", "upload", "--logs", *skip_git_metadata_upload_flags(), *tags, output]
             env = os.environ.copy()
             # Isolate HOME to avoid CI gitconfig access issues
             with tempfile.TemporaryDirectory(prefix="junit-upload-") as iso:

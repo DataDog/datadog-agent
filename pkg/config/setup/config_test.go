@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -25,6 +27,24 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
+	config := newTestConf(t)
+	config.SetInTest("delegated_auth.org_uuid", "primary-org")
+	config.SetInTest("logs_config.delegated_auth.org_uuid", "logs-org")
+
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+		paramsByKey[params.APIKeyConfigKey] = params
+		return nil
+	}}
+
+	require.NoError(t, configureDelegatedAuth(context.Background(), config, comp))
+	require.Contains(t, paramsByKey, "api_key")
+	require.Contains(t, paramsByKey, "logs_config.api_key")
+	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
+	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
+}
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)

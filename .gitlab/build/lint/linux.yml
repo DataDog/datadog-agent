@@ -1,6 +1,6 @@
 ---
 .lint_script:
-  - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
+  - dda inv -- -e linter.go --debug $FLAVORS $EXTRA_OPTS
 
 .linux_lint:
   extends: .bazel:defs:cache:progressive
@@ -8,7 +8,6 @@
   needs: ["go_deps"]
   variables:
     FLAVORS: '--flavor base'
-    KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 32Gi
     KUBERNETES_MEMORY_LIMIT: 32Gi
   before_script:

@@ -11,6 +11,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_commit_sha, get_main_parent_commit
+from tasks.libs.common.junit_upload_core import skip_git_metadata_upload_flags
 from tasks.libs.common.utils import get_distro, gitlab_section
 
 PROFILE_COV = "coverage.out"
@@ -147,7 +148,16 @@ def upload_to_datadog(_, coverage_file: str = PROFILE_COV):
     if datadog_ci is None:
         raise Exit(color_message("Error: datadog-ci command not found.", Color.RED), code=1)
 
-    subprocess.check_call([datadog_ci, "coverage", "upload", "--format=go-coverprofile", coverage_file])
+    subprocess.check_call(
+        [
+            datadog_ci,
+            "coverage",
+            "upload",
+            *skip_git_metadata_upload_flags(),
+            "--format=go-coverprofile",
+            coverage_file,
+        ]
+    )
 
 
 @task
