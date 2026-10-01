@@ -233,6 +233,10 @@ func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (boo
 //
 // Both install paths run this, from the same embedded definitions, so a host installed from the
 // .dmg and a host installed by Fleet end up with byte-identical job definitions.
+//
+// Every job is loaded even if an earlier one fails: the jobs do not depend on one another to load,
+// and one that fails must not also leave the others stopped -- the installer daemon, loaded last,
+// is what lets Fleet repair the host remotely.
 func installStableJobs(ctx HookContext) (err error) {
 	span, ctx := ctx.StartSpan("install_stable_jobs")
 	defer func() {
@@ -240,12 +244,13 @@ func installStableJobs(ctx HookContext) (err error) {
 	}()
 
 	client := launchdClient()
+	var errs []error
 	for _, label := range stableJobs {
 		if err := loadStableJob(ctx, client, label); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // loadStableJob writes one stable job definition from the embedded copy and loads it.

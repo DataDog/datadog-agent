@@ -344,6 +344,35 @@ func stubInstallerBinary(t *testing.T) string {
 // msi.WithMsiFromPackagePath: an OCI-delivered package wraps a .pkg rather than raw binaries, and
 // running it is the whole job of the OCI branch -- registerPackageRepository has nothing to do
 // since Create() already registered the version before this hook ran.
+func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := t.TempDir()
+	original := launchdJobDir
+	launchdJobDir = dir
+	t.Cleanup(func() { launchdJobDir = original })
+	failing := stableJobs[0]
+	stub := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := stub()
+		record := client.Runner
+		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			if args[0] == "bootstrap" && filepath.Base(args[len(args)-1]) == failing+".plist" {
+				return nil, errors.New("input/output error")
+			}
+			return record(ctx, name, args...)
+		}
+		return client
+	}
+
+	err := installStableJobs(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), failing)
+	for _, label := range stableJobs[1:] {
+		assert.Contains(t, *calls, []string{"kickstart", "system/" + label}, "%s was not started", label)
+	}
+}
+
 func TestInstallWrappedPackageRunsTheSinglePkgPayload(t *testing.T) {
 	calls := stubInstallerBinary(t)
 	packagePath := t.TempDir()
