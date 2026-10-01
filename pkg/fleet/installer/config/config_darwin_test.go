@@ -258,16 +258,51 @@ func TestCopyPreservesModes(t *testing.T) {
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }
 
-func TestCopyAppliesTheSourceRootModeToTheTarget(t *testing.T) {
+func TestCopyKeepsTheTargetRootPrivateUntilFinish(t *testing.T) {
 	dirs := newTestDirectories(t)
 	require.NoError(t, os.Chmod(dirs.StablePath, 0750))
 
 	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
-	require.NoError(t, configTree{sourcePath: dirs.StablePath, targetPath: incoming}.Copy(context.Background()))
+	tree := configTree{sourcePath: dirs.StablePath, targetPath: incoming}
+	require.NoError(t, tree.Copy(context.Background()))
 
 	info, err := os.Stat(incoming)
 	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0700), info.Mode().Perm(), "the copy was opened up before Finish")
+
+	require.NoError(t, tree.Finish(context.Background()))
+
+	info, err = os.Stat(incoming)
+	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0750), info.Mode().Perm())
+}
+
+func TestWriteExperimentPublishesWithTheStableRootMode(t *testing.T) {
+	dirs := newTestDirectories(t)
+	require.NoError(t, os.Chmod(dirs.StablePath, 0750))
+
+	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("exp-1", `{"log_level":"debug"}`)))
+
+	info, err := os.Stat(dirs.ExperimentPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0750), info.Mode().Perm())
+}
+
+func TestSetFileOwnershipAndPermissionsRefusesALink(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret")
+	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "datadog.yaml")))
+	root, err := os.OpenRoot(dir)
+	require.NoError(t, err)
+	defer root.Close()
+
+	spec := &configFileSpec{owner: agentConfigUser, group: agentConfigGroup, mode: 0644}
+	require.Error(t, setFileOwnershipAndPermissions(context.Background(), root, "datadog.yaml", spec))
+
+	info, err := os.Stat(outside)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm(), "the mode was applied through the link")
 }
 
 func TestCopyDoesNotWriteThroughADirectoryLinkInTheTarget(t *testing.T) {

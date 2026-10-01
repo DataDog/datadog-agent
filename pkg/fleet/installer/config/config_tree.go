@@ -39,8 +39,8 @@ type configTree struct {
 
 // Copy reproduces the source tree at the target path.
 //
-// The target root keeps the mode it was created with until every entry has been copied, and only
-// then takes on the source root's mode and ownership.
+// The target root keeps the root-only mode it is created with: it takes on the source root's mode
+// and ownership only in Finish, once nothing more will be written into the copy.
 func (t configTree) Copy(_ context.Context) error {
 	if err := os.Mkdir(t.targetPath, 0700); err != nil && !errors.Is(err, fs.ErrExist) {
 		return fmt.Errorf("could not create %s: %w", t.targetPath, err)
@@ -56,8 +56,7 @@ func (t configTree) Copy(_ context.Context) error {
 	}
 	defer target.Close()
 
-	var rootInfo fs.FileInfo
-	err = fs.WalkDir(source.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
+	return fs.WalkDir(source.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -67,7 +66,6 @@ func (t configTree) Copy(_ context.Context) error {
 		}
 		switch {
 		case path == ".":
-			rootInfo = info
 			return nil
 		case entry.IsDir():
 			if err := target.Mkdir(path, 0700); err != nil {
@@ -97,10 +95,25 @@ func (t configTree) Copy(_ context.Context) error {
 			return nil
 		}
 	})
+}
+
+// Finish gives the target root the source root's mode and ownership.
+func (t configTree) Finish(_ context.Context) error {
+	source, err := os.OpenRoot(t.sourcePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not open %s: %w", t.sourcePath, err)
 	}
-	return applyDirectoryMetadata(target, ".", rootInfo)
+	defer source.Close()
+	info, err := source.Lstat(".")
+	if err != nil {
+		return fmt.Errorf("could not stat %s: %w", t.sourcePath, err)
+	}
+	target, err := os.OpenRoot(t.targetPath)
+	if err != nil {
+		return fmt.Errorf("could not open %s: %w", t.targetPath, err)
+	}
+	defer target.Close()
+	return applyDirectoryMetadata(target, ".", info)
 }
 
 // Discard removes the copy. It succeeds when the copy is already gone.
