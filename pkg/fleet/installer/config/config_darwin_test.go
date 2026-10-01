@@ -258,6 +258,91 @@ func TestCopyPreservesModes(t *testing.T) {
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }
 
+func TestCopyAppliesTheSourceRootModeToTheTarget(t *testing.T) {
+	dirs := newTestDirectories(t)
+	require.NoError(t, os.Chmod(dirs.StablePath, 0750))
+
+	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
+	require.NoError(t, configTree{sourcePath: dirs.StablePath, targetPath: incoming}.Copy(context.Background()))
+
+	info, err := os.Stat(incoming)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0750), info.Mode().Perm())
+}
+
+func TestCopyDoesNotWriteThroughADirectoryLinkInTheTarget(t *testing.T) {
+	dirs := newTestDirectories(t)
+	outside := t.TempDir()
+	require.NoError(t, os.Chmod(outside, 0700))
+	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
+	require.NoError(t, os.Mkdir(incoming, 0700))
+	require.NoError(t, os.Symlink(outside, filepath.Join(incoming, "conf.d")))
+
+	require.Error(t, configTree{sourcePath: dirs.StablePath, targetPath: incoming}.Copy(context.Background()))
+
+	info, err := os.Stat(outside)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0700), info.Mode().Perm(), "the mode was applied through the link")
+	entries, err := os.ReadDir(outside)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "files were written through the link")
+}
+
+func TestCopyDoesNotWriteThroughAFileLinkInTheTarget(t *testing.T) {
+	dirs := newTestDirectories(t)
+	outside := filepath.Join(t.TempDir(), "datadog.yaml")
+	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
+	require.NoError(t, os.Mkdir(incoming, 0700))
+	require.NoError(t, os.Symlink(outside, filepath.Join(incoming, "datadog.yaml")))
+
+	require.Error(t, configTree{sourcePath: dirs.StablePath, targetPath: incoming}.Copy(context.Background()))
+
+	assert.NoFileExists(t, outside, "the file was written through the link")
+}
+
+func TestCopyRegularFileRefusesALink(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret")
+	require.NoError(t, os.WriteFile(outside, []byte("secret"), 0600))
+	sourcePath, targetPath := t.TempDir(), t.TempDir()
+	require.NoError(t, os.Symlink(outside, filepath.Join(sourcePath, "datadog.yaml")))
+	source, err := os.OpenRoot(sourcePath)
+	require.NoError(t, err)
+	defer source.Close()
+	target, err := os.OpenRoot(targetPath)
+	require.NoError(t, err)
+	defer target.Close()
+
+	require.Error(t, copyRegularFile(source, target, "datadog.yaml"))
+
+	assert.NoFileExists(t, filepath.Join(targetPath, "datadog.yaml"))
+}
+
+func TestCopyDoesNotWalkALinkOutOfTheSource(t *testing.T) {
+	dirs := newTestDirectories(t)
+	outside := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret"), []byte("secret"), 0600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(dirs.StablePath, "escape")))
+
+	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
+	require.NoError(t, configTree{sourcePath: dirs.StablePath, targetPath: incoming}.Copy(context.Background()))
+
+	info, err := os.Lstat(filepath.Join(incoming, "escape"))
+	require.NoError(t, err)
+	assert.NotZero(t, info.Mode()&os.ModeSymlink, "the link was followed instead of reproduced")
+	destination, err := os.Readlink(filepath.Join(incoming, "escape"))
+	require.NoError(t, err)
+	assert.Equal(t, outside, destination)
+}
+
+func TestDiscardSucceedsWhenTheCopyIsGone(t *testing.T) {
+	parent := t.TempDir()
+	tree := configTree{targetPath: filepath.Join(parent, ".incoming")}
+	require.NoError(t, tree.Discard(context.Background()))
+
+	tree = configTree{targetPath: filepath.Join(parent, "missing", ".incoming")}
+	require.NoError(t, tree.Discard(context.Background()))
+}
+
 func TestPromoteExperimentReplacesStableAndRestsTheLink(t *testing.T) {
 	dirs := newTestDirectories(t)
 	ctx := context.Background()
