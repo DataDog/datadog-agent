@@ -267,6 +267,15 @@ impl ManagedProcess {
         self.state = next;
     }
 
+    /// Put a never-spawned process into `Running` so tests can drive
+    /// `set_last_status` with a synthetic exit status. Classification and
+    /// restart-policy decisions do not need a live child.
+    #[cfg(test)]
+    pub(crate) fn force_running_for_test(&mut self) {
+        self.transition_to(ProcessState::Starting);
+        self.transition_to(ProcessState::Running);
+    }
+
     #[must_use]
     fn condition_path_exists_met(&self) -> bool {
         let Some(raw) = &self.config.condition_path_exists else {
@@ -461,11 +470,21 @@ impl ManagedProcess {
         self.watcher_handle = None;
         #[cfg(windows)]
         self.clear_windows_spawn_resources();
+        // Order matters, first match wins. `stop_requested` stays first because
+        // procmgr's own force kill sends SIGKILL on Unix and
+        // `TerminateProcess(h, 1)` on Windows, either of which the branches
+        // below would otherwise read as a crash or a failure.
         if self.stop_requested {
             self.stop_requested = false;
             self.transition_to(ProcessState::Stopped);
         } else if status.success() {
             self.transition_to(ProcessState::Exited);
+        } else if platform::is_crash_exit(&status) {
+            // Died without returning a value: a signal on Unix, a fatal
+            // exception code on Windows. Different operator response from
+            // `Failed`, where the child diagnosed its own problem and reported
+            // it through an exit code.
+            self.transition_to(ProcessState::Crashed);
         } else {
             self.transition_to(ProcessState::Failed);
         }
@@ -575,11 +594,17 @@ impl ManagedProcess {
 
     #[must_use]
     pub fn handle_restart(&mut self) -> Option<Duration> {
+        // `Crashed` is restartable exactly like `Failed`: both are unsuccessful
+        // exits, and treating them differently would silently stop supervising
+        // a segfaulting child under `restart: always`.
         let should_restart = match (self.state, &self.config.restart) {
-            (ProcessState::Exited | ProcessState::Failed, RestartPolicy::Always) => true,
-            (ProcessState::Failed, RestartPolicy::OnFailure) => true,
+            (
+                ProcessState::Exited | ProcessState::Crashed | ProcessState::Failed,
+                RestartPolicy::Always,
+            ) => true,
+            (ProcessState::Crashed | ProcessState::Failed, RestartPolicy::OnFailure) => true,
             (ProcessState::Exited, RestartPolicy::OnSuccess) => true,
-            (ProcessState::Exited | ProcessState::Failed, _) => false,
+            (ProcessState::Exited | ProcessState::Crashed | ProcessState::Failed, _) => false,
             _ => return None,
         };
 
@@ -669,6 +694,104 @@ pub mod tests {
         proc.set_last_status(status);
         assert_eq!(proc.state(), ProcessState::Exited);
         assert!(!proc.is_running());
+    }
+
+    /// `cleanup_process` force-kills, which is SIGKILL on Unix but
+    /// `TerminateProcess(h, 1)` on Windows. Only the Unix form is a death
+    /// without a returned value; Windows cannot tell the killer's exit code
+    /// from the child's own.
+    #[cfg(unix)]
+    const EXTERNAL_KILL_STATE: ProcessState = ProcessState::Crashed;
+    #[cfg(windows)]
+    const EXTERNAL_KILL_STATE: ProcessState = ProcessState::Failed;
+
+    /// Drive `set_last_status` from a synthetic `Running` process. No child is
+    /// spawned: classification only reads the exit status and `stop_requested`.
+    fn state_after_exit(status: std::process::ExitStatus, stop_requested: bool) -> ProcessState {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut proc = ManagedProcess::new_config(
+            "classify".into(),
+            test_helpers::test_uuid(),
+            test_helpers::make_config(cmd, args),
+        );
+        proc.force_running_for_test();
+        if stop_requested {
+            proc.request_stop();
+        }
+        proc.set_last_status(status);
+        proc.state()
+    }
+
+    #[test]
+    fn test_classify_crash_exit_as_crashed() {
+        assert_eq!(
+            state_after_exit(test_helpers::crash_exit_status(), false),
+            ProcessState::Crashed,
+            "a death without a returned value is a crash, not a failure"
+        );
+    }
+
+    /// SIGKILL is the OOM-killer case, which is the one `Crashed` exists for.
+    #[cfg(unix)]
+    #[test]
+    fn test_classify_sigkill_as_crashed() {
+        let status = test_helpers::signal_exit_status(Signal::SIGKILL as i32);
+        assert_eq!(state_after_exit(status, false), ProcessState::Crashed);
+    }
+
+    #[test]
+    fn test_classify_nonzero_exit_as_failed() {
+        assert_eq!(
+            state_after_exit(test_helpers::exit_status(1), false),
+            ProcessState::Failed,
+            "the child returned a value, so it did not crash"
+        );
+    }
+
+    #[test]
+    fn test_classify_zero_exit_as_exited() {
+        assert_eq!(
+            state_after_exit(test_helpers::exit_status(0), false),
+            ProcessState::Exited
+        );
+    }
+
+    /// procmgr's own force kill is a SIGKILL on Unix, so the stop branch has to
+    /// win or every forced stop would be reported as a crash.
+    #[test]
+    fn test_stop_request_wins_over_crash_exit() {
+        assert_eq!(
+            state_after_exit(test_helpers::crash_exit_status(), true),
+            ProcessState::Stopped
+        );
+    }
+
+    /// A crash is an unsuccessful exit, so it restarts exactly where a failure
+    /// does. Getting this wrong leaves a segfaulting child unsupervised under
+    /// `restart: always`.
+    #[test]
+    fn test_restart_policies_treat_crash_like_failure() {
+        for (policy, expected) in [
+            (RestartPolicy::Always, true),
+            (RestartPolicy::OnFailure, true),
+            (RestartPolicy::OnSuccess, false),
+            (RestartPolicy::Never, false),
+        ] {
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut cfg = test_helpers::make_config(cmd, args);
+            cfg.restart = policy.clone();
+            let mut proc =
+                ManagedProcess::new_config("crashy".into(), test_helpers::test_uuid(), cfg);
+            proc.force_running_for_test();
+            proc.set_last_status(test_helpers::crash_exit_status());
+
+            assert_eq!(proc.state(), ProcessState::Crashed);
+            assert_eq!(
+                proc.handle_restart().is_some(),
+                expected,
+                "restart decision for a crash under {policy:?}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -1258,7 +1381,7 @@ runtime_success_sec: 5
             .status;
         proc.set_last_status(status);
 
-        assert_eq!(proc.state(), ProcessState::Failed);
+        assert_eq!(proc.state(), EXTERNAL_KILL_STATE);
         assert!(
             proc.handle_restart().is_some(),
             "on-failure should restart after stop -> start -> external kill"

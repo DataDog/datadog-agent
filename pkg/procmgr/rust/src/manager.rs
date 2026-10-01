@@ -374,10 +374,10 @@ impl ProcessManager {
         // blocked in the first place.
         //
         // A process whose conditions closed mid-restart was already running,
-        // and the skip left it in `Exited`, `Failed`, or `Stopped`. Those
-        // states are also reached by a completed one-shot, a policy mismatch,
-        // the burst limit, a failed spawn, and an operator stop, so the guard
-        // keys off the recorded skip reason rather than the state.
+        // and the skip left it in `Exited`, `Crashed`, `Failed`, or `Stopped`.
+        // Those states are also reached by a completed one-shot, a policy
+        // mismatch, the burst limit, a failed spawn, and an operator stop, so
+        // the guard keys off the recorded skip reason rather than the state.
         // `may_respawn`, not `should_start`: `auto_start` governs boot only, so
         // consulting it here would strand a manually started process forever.
         // The burst limit is re-checked only for an exit-time skip. That skip
@@ -401,7 +401,10 @@ impl ProcessManager {
                 }
                 let eligible = match proc.state() {
                     ProcessState::Created => proc.has_start_conditions() && proc.should_start(),
-                    ProcessState::Exited | ProcessState::Failed | ProcessState::Stopped => {
+                    ProcessState::Exited
+                    | ProcessState::Crashed
+                    | ProcessState::Failed
+                    | ProcessState::Stopped => {
                         proc.restart_blocked_by_conditions()
                             && proc.may_respawn()
                             && !proc.recovered_restart_exceeds_burst()
@@ -1149,8 +1152,13 @@ mod tests {
                 .expect("shell builtin should run")
         }
 
-        /// Kills the child and reports the exit to the manager, which is what a
-        /// crash looks like from `run`'s point of view.
+        /// Kills the child and reports an unsuccessful exit to the manager,
+        /// which is what a dead child looks like from `run`'s point of view.
+        ///
+        /// The reported status is a plain non-zero exit, so these tests land in
+        /// `Failed`, not `Crashed`. The gate accounting under test is the same
+        /// for both, and keeping the synthetic status decoupled from how the
+        /// child actually died is what makes the result identical on Windows.
         async fn crash(mgr: &ProcessManager, name: &str, restart_tx: &mpsc::Sender<String>) {
             let pid = mgr.processes().await[0]
                 .pid()

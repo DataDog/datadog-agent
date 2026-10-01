@@ -266,3 +266,70 @@ pub fn send_force_kill(pid: u32) -> Result<()> {
 pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
 }
+
+
+/// Whether the process died without returning a value.
+///
+/// Windows has no signals, so this reads the exit code instead. A process
+/// terminated by an unhandled fatal exception gets the exception code as its
+/// exit code ("Terminating a Process", Win32 docs), and fatal exception codes
+/// are NTSTATUS values with severity `STATUS_SEVERITY_ERROR`, i.e. the top two
+/// bits set: 0xC0000005 (access violation), 0xC00000FD (stack overflow),
+/// 0xC0000374 (heap corruption), 0xC0000409 (stack buffer overrun).
+/// `ExitProcess` codes carry no OS-defined meaning, so they do not collide with
+/// that range in practice.
+///
+/// Two accepted consequences:
+///
+///   - This is a heuristic. A child may call `ExitProcess(0xC0000005)`
+///     deliberately and be reported as crashed; no API distinguishes the two.
+///   - A `TerminateProcess` by a third party is `Failed` here but `Crashed` on
+///     Unix. The killer picks the exit code, and the conventional choice (1) is
+///     indistinguishable from a real failure.
+///
+/// Loader and DLL-init failures surface as NTSTATUS exit codes and are reported
+/// as crashes even though they are closer to a spawn failure. That is accepted,
+/// and arguably correct: the process image did start.
+pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
+    status
+        .code()
+        .is_some_and(|code| (code as u32) >> 30 == 0b11)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_crash_exit;
+
+    /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
+    /// this is the only place Windows classification gets real CI coverage.
+    #[test]
+    fn is_crash_exit_accepts_fatal_exception_codes() {
+        use std::os::windows::process::ExitStatusExt;
+
+        for code in [
+            0xC0000005u32, // ACCESS_VIOLATION
+            0xC00000FD,    // STACK_OVERFLOW
+            0xC0000374,    // heap corruption
+            0xC0000409,    // stack buffer overrun
+        ] {
+            let status = std::process::ExitStatus::from_raw(code);
+            assert!(
+                is_crash_exit(&status),
+                "{code:#X} should be classified as a crash"
+            );
+        }
+    }
+
+    #[test]
+    fn is_crash_exit_rejects_ordinary_exit_codes() {
+        use std::os::windows::process::ExitStatusExt;
+
+        for code in [0u32, 1, 2, 42, 0x7FFFFFFF] {
+            let status = std::process::ExitStatus::from_raw(code);
+            assert!(
+                !is_crash_exit(&status),
+                "{code:#X} is an ExitProcess value, not a crash"
+            );
+        }
+    }
+}
