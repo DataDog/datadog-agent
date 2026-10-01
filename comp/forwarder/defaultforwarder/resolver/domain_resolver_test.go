@@ -210,6 +210,13 @@ func TestUpdateAdditionalEndpointsStaleReadDoesNotOverwriteNewerWrite(t *testing
 	config.SetInTest("additional_endpoints", map[string][]string{domain: {"old-key"}})
 	log := logmock.New(t)
 
+	// Receivers run in registration order, so this fires just before the resolver's callback.
+	dispatched := make(chan struct{})
+	var dispatchedOnce sync.Once
+	config.OnUpdate(func(string, configmodel.Source, any, any, uint64, configmodel.Source) {
+		dispatchedOnce.Do(func() { close(dispatched) })
+	})
+
 	// The OnUpdate callback reads through this wrapper so the test can see when it reads config.
 	callbackRead := make(chan struct{})
 	var callbackOnce sync.Once
@@ -246,7 +253,14 @@ func TestUpdateAdditionalEndpointsStaleReadDoesNotOverwriteNewerWrite(t *testing
 		config.Set("additional_endpoints", map[string][]string{domain: {"new-key"}}, configmodel.SourceSecret)
 	}()
 
-	// The paused reload holds the resolver lock, so the callback must not get to read config yet.
+	select {
+	case <-dispatched:
+	case <-time.After(5 * time.Second):
+		t.Fatal("config write never notified receivers")
+	}
+
+	// The paused reload holds the resolver lock, so the callback must not get to read config yet
+	// (it blocks on the lock in GetAPIKeysInfo, before reaching its own reload).
 	select {
 	case <-callbackRead:
 		t.Fatal("callback read config while another reload held the resolver lock")
@@ -254,11 +268,11 @@ func TestUpdateAdditionalEndpointsStaleReadDoesNotOverwriteNewerWrite(t *testing
 	}
 
 	unpause()
-	for _, done := range []chan struct{}{reconciled, written} {
+	for name, done := range map[string]chan struct{}{"paused reconcile": reconciled, "config write callback": written} {
 		select {
 		case <-done:
 		case <-time.After(5 * time.Second):
-			t.Fatal("reconcile did not finish")
+			t.Fatalf("%s did not finish", name)
 		}
 	}
 
