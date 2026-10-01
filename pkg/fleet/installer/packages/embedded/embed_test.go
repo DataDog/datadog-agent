@@ -221,6 +221,29 @@ func TestLaunchdVariantsDifferOnlyAsSpecified(t *testing.T) {
 	}
 }
 
+func TestLaunchdAgentAndSysprobeSelectSameConfigVariant(t *testing.T) {
+	for _, variant := range []LaunchdVariant{LaunchdStable, LaunchdExperiment} {
+		t.Run(string(variant), func(t *testing.T) {
+			etcDir := "/opt/datadog-agent/etc" + string(variant)
+			for _, label := range []string{"com.datadoghq.agent", "com.datadoghq.sysprobe"} {
+				content, err := GetLaunchdJob(label, variant)
+				require.NoError(t, err)
+				var plist struct {
+					Args []string `xml:"dict>array>string"`
+				}
+				require.NoError(t, xml.Unmarshal(content, &plist))
+				require.GreaterOrEqual(t, len(plist.Args), 4)
+				assert.Equal(t, []string{"run", "-c", etcDir}, plist.Args[1:4])
+				if label == "com.datadoghq.agent" {
+					require.GreaterOrEqual(t, len(plist.Args), 6)
+					assert.Equal(t, []string{"--sysprobecfgpath", etcDir}, plist.Args[4:6],
+						"the Agent loads system-probe config separately from its main config")
+				}
+			}
+		})
+	}
+}
+
 // assertPropertyList checks that content is a well-formed XML property list. The repository has no
 // plist decoder, and pulling one in for a structural check would be a dependency for one
 // assertion; launchd will refuse a definition that is not well-formed XML rooted at <plist>, which
