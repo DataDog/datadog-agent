@@ -8,6 +8,7 @@ package hostinfo
 import (
 	"context"
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -410,4 +411,63 @@ func TestHostInfoCheckNoRebalanceRecommendation(t *testing.T) {
 	mockSender.AssertExpectations(t)
 	mockSender.AssertNumberOfCalls(t, "Event", 0)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestHostInfoCheckPreemptionFailureBackoff(t *testing.T) {
+	defer resetTestVars()
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	attempts := 0
+	// A transient failure mode (IMDS unreachable — not one of the sentinel
+	// errors that stops polling), so the check must keep retrying, but only
+	// once per backoff window after repeated failures (#55269).
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		attempts++
+		return time.Time{}, errors.New("connection timed out")
+	}
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("no rebalance recommendation")
+	}
+	uptime = uptimeSampler
+
+	mockSender := mocksender.NewMockSender(t, CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+	mockSender.On("Commit").Return()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	mocksender.SetSender(mockSender, check.ID())
+
+	// Simulate the default 15s check interval: four consecutive runs hit the
+	// lookup, then the backoff window must skip it.
+	for i := 0; i < 4; i++ {
+		check.Run()
+	}
+	assert.Equal(t, 4, attempts)
+	assert.Equal(t, 4, check.preemptionFailures)
+
+	// The backoff window is 60s; without advancing the clock, further runs
+	// must not reach the lookup.
+	check.Run()
+	check.Run()
+	assert.Equal(t, 4, attempts)
+
+	// After the window elapses, the lookup is attempted again.
+	check.preemptionLastAttempt = check.preemptionLastAttempt.Add(-preemptionFailureBackoff)
+	check.Run()
+	assert.Equal(t, 5, attempts)
+
+	// A later success resets the failure count so every run polls again.
+	// (A past termination time is a success path that stores no event.)
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		attempts++
+		return time.Now().Add(-time.Minute), nil
+	}
+	check.preemptionFailures = preemptionFailureThreshold - 1
+	check.preemptionLastAttempt = time.Now().Add(-preemptionFailureBackoff)
+	check.Run()
+	assert.Equal(t, 0, check.preemptionFailures)
 }
