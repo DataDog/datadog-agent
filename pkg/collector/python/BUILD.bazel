@@ -42,6 +42,7 @@ go_library(
         "version_python.go",
     ],
     cdeps = select({
+        "//packages/agent:iot_flavor": [],
         "@rules_go//go/platform:windows": ["//rtloader:rtloader"],
         "//conditions:default": ["//rtloader:rtloader_dynamic"],
     }),
@@ -79,6 +80,7 @@ go_library(
             "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
             "-ldatadog-agent-rtloader -ldl",
         ],
+        "//packages/agent:linux_iot": [],
         "@rules_go//go/platform:linux": [
             "-Lpkg/collector/python/rtloader/build/rtloader -ldatadog-agent-rtloader -ldl",
             "-ldatadog-agent-rtloader -ldl",
@@ -115,7 +117,10 @@ go_library(
         ],
         "//conditions:default": [],
     }),  # keep
-    copts = ["-I pkg/collector/python/rtloader/include -I pkg/collector/python/rtloader/common"],
+    copts = select({
+        "//packages/agent:iot_flavor": [],
+        "//conditions:default": ["-I pkg/collector/python/rtloader/include -I pkg/collector/python/rtloader/common"],
+    }),  # keep
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/python",
     tags = ["manual"],
     visibility = ["//visibility:public"],
@@ -138,7 +143,6 @@ go_library(
         "//pkg/aggregator",
         "//pkg/aggregator/mocksender",
         "//pkg/aggregator/sender",
-        "//pkg/collector/aggregator",
         "//pkg/collector/check",
         "//pkg/collector/check/defaults",
         "//pkg/collector/check/id",
@@ -173,12 +177,15 @@ go_library(
         "@org_golang_google_protobuf//encoding/protojson",
         "@org_uber_go_atomic//:atomic",
     ] + select({
+        "//packages/agent:iot_flavor": [],
+        "//conditions:default": ["//pkg/collector/aggregator"],
+    }) + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
             "@com_github_go_ole_go_ole//:go-ole",
         ],
         "//conditions:default": [],
-    }),
+    }),  # keep
 )
 
 dd_agent_go_test(
