@@ -448,6 +448,11 @@ docker_build_agent7_full_arm64:
 docker_build_agent7_recorder_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
   rules:
+    # TEMPORARY CI ACCELERATION: dropped on the fast-iteration branch; the
+    # recorder package builds they need are disabled there. The arm64 variant
+    # shares this rules block.
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - if: '$CI_COMMIT_BRANCH && ($ANOMALY_DETECTION_RECORDER != null || $RUN_ALL_BUILDS == "true" || $DEPLOY_AGENT == "true")'
       when: on_success
     - if: '$CI_COMMIT_BRANCH'
