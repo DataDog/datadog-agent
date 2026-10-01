@@ -83,6 +83,23 @@ func (e configExperiment) Start(ctx context.Context) error {
 	return nil
 }
 
+// Resume re-establishes the experiment job set after an unsupervised restart (daemon restart,
+// crash, reboot) finds the deadline still valid. Unlike Start, it does not touch the deadline
+// file: the deadline bounds time since the experiment originally started, and rewriting it here
+// would let a resumed experiment outlive that original bound.
+func (e configExperiment) Resume(ctx context.Context) error {
+	if err := e.jobs.Stop(ctx, launchd.Stable); err != nil {
+		return err
+	}
+	if err := e.jobs.Write(launchd.Experiment); err != nil {
+		return e.abortStart(ctx, err)
+	}
+	if err := e.jobs.Start(ctx, launchd.Experiment); err != nil {
+		return e.abortStart(ctx, err)
+	}
+	return nil
+}
+
 // abortStart puts the stable jobs back after a failed handover to the experiment set. It
 // reports the original failure, not whatever the rollback itself returns, unless the rollback's
 // own retries are exhausted — in which case that error better describes the host's actual

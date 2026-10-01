@@ -335,6 +335,13 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 func (d *daemonImpl) Start(_ context.Context) error {
 	d.refreshState(d.ctx)
 
+	// Recover any configuration experiment left running unsupervised by a prior process of
+	// this daemon that did not shut down cleanly (crash, kill, reboot), before anything else
+	// runs. A no-op on platforms or packages with no such experiment to recover.
+	if err := d.installer(d.env).ResumeConfigExperiments(d.ctx); err != nil {
+		log.Errorf("Daemon: could not resume configuration experiments: %v", err)
+	}
+
 	d.m.Lock()
 	defer d.m.Unlock()
 
