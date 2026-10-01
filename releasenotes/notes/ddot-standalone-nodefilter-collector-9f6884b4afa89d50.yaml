@@ -20,17 +20,3 @@ features:
     ``use_kubelet_collector: true`` in the ``dogtel`` extension
     (``otelcollector.standalone.use_kubelet_collector`` in ``datadog.yaml``)
     to keep collecting pods from the kubelet.
-upgrade:
-  - |
-    DDOT (Datadog Distribution of OpenTelemetry Collector): in standalone mode
-    (``DD_OTEL_STANDALONE=true``) on Kubernetes, the OpenTelemetry Agent now
-    collects pods from the Kubernetes API server instead of from the kubelet.
-    This needs the ``K8S_NODE_NAME`` environment variable (or the one named by
-    ``otelcollector.standalone.node_from_env_var``) set to the node's name, and
-    ``get``, ``list`` and ``watch`` permissions on ``pods`` for its service
-    account. Otherwise Kubernetes tags such as ``kube_deployment`` and
-    ``kube_replica_set`` go missing from telemetry, and the agent logs a
-    warning. To keep the previous behavior, set
-    ``use_kubelet_collector: true`` in the ``dogtel`` extension, or
-    ``otelcollector.standalone.use_kubelet_collector: true`` in
-    ``datadog.yaml``.
