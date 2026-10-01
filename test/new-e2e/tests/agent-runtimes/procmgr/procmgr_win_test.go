@@ -197,12 +197,13 @@ func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name str
 // just made would not reflect. The PID has to move for the spawn path to have run.
 func respawnProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
 	t.Helper()
-	replaced := procmgrPID(t, host, cli, name)
+	replaced, err := procmgrPIDToReplace(host, cli, name)
+	require.NoError(t, err)
 	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
 		t.Logf("respawn of %s reported: %v", name, err)
 	}
 	pid := waitProcmgrRunning(t, host, cli, name, timeout)
-	// An unreadable PID beforehand leaves replaced empty, which any real PID satisfies.
+	// A process that was not running has no PID to replace, which any real PID satisfies.
 	require.NotEqual(t, replaced, pid,
 		"%s is still PID %s, the process the respawn was meant to replace", name, replaced)
 }
@@ -211,27 +212,49 @@ func respawnProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name 
 // never comes back without ever calling FailNow, which a cleanup must not do.
 func restoreProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) {
 	t.Helper()
-	replaced := procmgrPID(t, host, cli, name)
+	replaced, err := procmgrPIDToReplace(host, cli, name)
+	if err != nil {
+		t.Errorf("failed to read the PID %s is restarting from: %v", name, err)
+	}
 	if _, err := host.Execute(procmgrRespawn(cli, name)); err != nil {
 		t.Logf("respawn of %s reported: %v", name, err)
 	}
 	assertProcmgrReplaced(t, host, cli, name, replaced, timeout)
 }
 
-// procmgrPID reports the PID dd-procmgr has for a process, or "" when there is none to
-// read. Best effort by design: a caller uses it only to tell a respawned process from the
-// one it replaced, and a cleanup must not fail on the way to doing its job.
-func procmgrPID(t *testing.T, host *components.RemoteHost, cli, name string) string {
-	t.Helper()
-	out, err := host.Execute(procmgrCmd(cli, "describe "+name))
-	if err != nil {
-		t.Logf("describe %s reported: %v", name, err)
-		return ""
+// procmgrDescribeRetryFor is how long procmgrPIDToReplace keeps retrying a describe that
+// cannot be read, which is a transport failure rather than an answer.
+const procmgrDescribeRetryFor = 30 * time.Second
+
+// procmgrPIDToReplace reads the PID a respawn is about to replace, or "" when the process
+// is not running and so has none.
+//
+// An unreadable describe is retried rather than reported as "", since "" turns the caller's
+// replacement check back into a Running check, and a Running check is satisfied by the very
+// process the respawn was meant to replace. Only a describe that never becomes readable is
+// an error, and that is a broken host rather than a transient RPC failure.
+func procmgrPIDToReplace(host *components.RemoteHost, cli, name string) (string, error) {
+	deadline := time.Now().Add(procmgrDescribeRetryFor)
+	for {
+		var reason error
+		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		switch {
+		case err != nil:
+			reason = err
+		case fieldValue(out, "State") != "Running":
+			return "", nil
+		default:
+			pid := fieldValue(out, "PID")
+			if pid != "" && pid != "-" {
+				return pid, nil
+			}
+			reason = fmt.Errorf("no PID for a Running process: %s", out)
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("describe %s stayed unreadable for %s: %w", name, procmgrDescribeRetryFor, reason)
+		}
+		time.Sleep(3 * time.Second)
 	}
-	if pid := fieldValue(out, "PID"); pid != "-" {
-		return pid
-	}
-	return ""
 }
 
 // assertProcmgrRunning waits for a process to be Running without ever calling FailNow,
@@ -245,8 +268,8 @@ func assertProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name s
 
 // assertProcmgrReplaced is assertProcmgrRunning for a respawn: replacedPID is the process
 // the respawn was meant to replace, so seeing it again means the spawn path never ran and
-// the child still carries whatever the test installed. Pass "" when there was no PID to
-// read beforehand, which asserts Running alone.
+// the child still carries whatever the test installed. Pass "" when nothing was running
+// beforehand, which leaves no PID to rule out and asserts Running alone.
 func assertProcmgrReplaced(t *testing.T, host *components.RemoteHost, cli, name, replacedPID string, timeout time.Duration) {
 	t.Helper()
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
