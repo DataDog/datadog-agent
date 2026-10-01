@@ -360,11 +360,17 @@ func (t *Tailer) stopAfterFileRotation(endWhenIdle bool) {
 	go func() {
 		// Name whichever limit ended the drain and, for the timeout, the setting that raises it.
 		limit, advice := fmt.Sprintf("rotation close timeout (%s)", t.closeTimeout), " Consider increasing "+t.closeTimeoutSetting
-		if !t.waitForRotationDrain(endWhenIdle) {
+		timedOut := t.waitForRotationDrain(endWhenIdle)
+		if !timedOut {
 			limit, advice = fmt.Sprintf("rotation handoff quiet period (%s) without new reads", t.rotationHandoffQuietPeriod), ""
 		}
-		if newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime; newBytesRead > 0 {
+		newBytesRead := t.bytesRead.Get() - bytesReadAtRotationTime
+		if newBytesRead > 0 {
 			log.Infof("After the %s, an additional %d bytes were read from file %q", limit, newBytesRead, t.file.Path)
+		}
+		// A drain that ended on the quiet period may have stopped while reads were
+		// blocked on the pipeline, so it is checked even when nothing was read.
+		if newBytesRead > 0 || !timedOut {
 			if t.osFile != nil {
 				fileStat, err := t.osFile.Stat()
 				if err != nil {

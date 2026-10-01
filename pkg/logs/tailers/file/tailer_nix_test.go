@@ -189,3 +189,27 @@ func TestStopAfterFileRotationForHandoffEndsWhenIdle(t *testing.T) {
 		}
 	}
 }
+
+// A handoff drain that ends on the quiet period while reads are stalled still
+// reports what it left unread.
+func TestStopAfterFileRotationForHandoffReportsStalledLoss(t *testing.T) {
+	metrics.ResetMissedBytesForTest()
+	t.Cleanup(metrics.ResetMissedBytesForTest)
+
+	const readOffset, fileSize = 1024, 4096
+	tailer, osFile := newMissedBytesTailer(t, readOffset, fileSize)
+	tailer.closeTimeout = 10 * time.Second
+	tailer.rotationHandoffQuietPeriod = 50 * time.Millisecond
+	tailer.StopAfterFileRotationForHandoff()
+
+	select {
+	case <-tailer.stop:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handoff drain never ended on the quiet period")
+	}
+
+	require.NotZero(t, osFile.stats.Load())
+	summaries := metrics.MissedBytesSnapshot()
+	require.Len(t, summaries, 1)
+	require.Equal(t, int64(fileSize-readOffset), summaries[0].Bytes)
+}
