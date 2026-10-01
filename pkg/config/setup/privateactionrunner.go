@@ -27,6 +27,8 @@ const (
 	PARDefaultActionsEnabled = "private_action_runner.default_actions_enabled"
 	PARCredentialsValues     = "private_action_runner.credentials.values"
 
+	PARCredentialsAllowIntegration = "private_action_runner.credentials.allow_integration_credentials"
+
 	// HTTP Action related
 	PARHttpTimeoutSeconds    = "private_action_runner.http_timeout_seconds"
 	PARHttpAllowlist         = "private_action_runner.http_allowlist"
