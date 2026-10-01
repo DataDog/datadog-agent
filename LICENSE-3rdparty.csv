@@ -1502,6 +1502,7 @@ core,github.com/hetznercloud/hcloud-go/v2/hcloud/exp/ctxutil,MIT,Copyright (c) 2
 core,github.com/hetznercloud/hcloud-go/v2/hcloud/internal/instrumentation,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
 core,github.com/hetznercloud/hcloud-go/v2/hcloud/metadata,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
 core,github.com/hetznercloud/hcloud-go/v2/hcloud/schema,MIT,Copyright (c) 2018-2020 Hetzner Cloud GmbH
+core,github.com/hillu/go-yara/v4,BSD-2-Clause,Copyright (c) 2015-2020 Hilko Bengen <bengen@hilluzination.de>
 core,github.com/huandu/xstrings,MIT,Copyright (c) 2015 Huan Du
 core,github.com/iancoleman/strcase,MIT,"Copyright (c) 2015 Ian Coleman | Copyright (c) 2018 Ma_124, <github.com/Ma124>"
 core,github.com/inconshreveable/mousetrap,Apache-2.0,Copyright 2022 Alan Shreve (@inconshreveable)
