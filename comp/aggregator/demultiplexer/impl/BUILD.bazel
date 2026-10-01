@@ -7,6 +7,7 @@ go_library(
         "demultiplexer.go",
         "demultiplexer_fake_sampler_mock.go",
         "demultiplexer_mock.go",
+        "mock_constructor.go",
         "params.go",
         "status.go",
         "test_agent_demultiplexer.go",
