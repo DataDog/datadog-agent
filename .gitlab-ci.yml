@@ -1121,6 +1121,7 @@ workflow:
         - pkg/collector/corechecks/networkpath/**/*
         - pkg/networkpath/**/*
         - pkg/network/sender/sender_linux.go
+        - pkg/network/sender/sender.go
         - pkg/system-probe/config/config.go
         - pkg/process/checks/net.go
         - comp/rdnsquerier/impl/config.go
