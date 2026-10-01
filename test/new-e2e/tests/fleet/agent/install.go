@@ -401,6 +401,17 @@ remote_configuration.director_root: '%s'
 		return nil
 	}
 
+	// Strip any block this function appended on a previous call before appending the new one, so a
+	// second call (a resumed suite pointing an already-configured host at a fresh fakeintake, for
+	// instance) replaces the old keys instead of leaving both in the file -- YAML rejects a
+	// duplicate key like remote_configuration.enabled outright, and every job reading
+	// datadog.yaml fails to start.
+	if _, err := a.host.RemoteHost.Execute(
+		`sudo sed -i '' -E '/^remote_updates:/d;/^remote_configuration\./d' ` + macOSAgentConfigFile,
+	); err != nil {
+		return fmt.Errorf("failed to strip a previous extra Agent configuration from %s: %w", macOSAgentConfigFile, err)
+	}
+
 	// Staged through a file the unprivileged SSH user can write, then concatenated onto the target
 	// under sudo. Appending in place keeps datadog.yaml's _dd-agent ownership and mode -- a
 	// redirect run as root would reset both -- and routing the content through a file rather than
@@ -425,6 +436,17 @@ remote_configuration.director_root: '%s'
 	}
 
 	return nil
+}
+
+// ReconfigureRemoteConfigMacOS points an already-installed macOS Agent/installer daemon at the
+// environment's current fakeintake for Remote Config, without reinstalling the package.
+//
+// A LOCAL_VM run's fakeintake container publishes a fresh ephemeral port on every test invocation
+// (configMacOSStartLocalFakeIntake), while an already-installed daemon's datadog.yaml still points
+// at whatever port the last real install configured -- so an install-skipping fast-iteration loop
+// against an already-installed host needs to re-point it here instead.
+func (a *Agent) ReconfigureRemoteConfigMacOS() error {
+	return a.configureMacOS(&installParams{remoteConfig: true})
 }
 
 // Uninstall uninstalls the agent.
