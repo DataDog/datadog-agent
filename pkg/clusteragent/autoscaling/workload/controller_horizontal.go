@@ -112,7 +112,11 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		return autoscaling.NoRequeue, nil
 	}
 
-	// Final gate: check if the apply mode allows this action
+	// Final gates: the pause annotation and the apply mode can never be bypassed
+	if autoscalerInternal.IsPaused() {
+		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "horizontal scaling disabled: autoscaling locally paused by the %s annotation", model.PauseAnnotationKey))
+		return autoscaling.NoRequeue, nil
+	}
 	if allowed, reason := isApplyModeAllowed(autoscalerSpec, scalingValues.Horizontal.Source); !allowed {
 		autoscalerInternal.UpdateFromHorizontalAction(nil, autoscaling.NewConditionErrorf(autoscaling.ConditionReasonPolicyRestricted, "%s", reason))
 		return autoscaling.NoRequeue, nil

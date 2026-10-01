@@ -7,6 +7,9 @@
 
 package model
 
+// LocallyPausedReason is the Active condition reason while the pause annotation is set.
+const LocallyPausedReason = "LocallyPaused"
+
 const (
 	// PreviewAnnotationKey is the annotation key used to enable preview/alpha autoscaling features.
 	// Its value is a JSON object where each key enables a specific feature flag, e.g.:
@@ -17,6 +20,12 @@ const (
 	//   "burstable" (bool) — when true, CPU limits are removed from containers so they can burst
 	//                        beyond their CPU request when spare capacity is available on the node.
 	PreviewAnnotationKey = "autoscaling.datadoghq.com/preview"
+
+	// PauseAnnotationKey ("true") stops all actions of the autoscaler: the workload stays as it is.
+	PauseAnnotationKey = "autoscaling.datadoghq.com/pause"
+
+	// ForceFallbackAnnotationKey ("true") triggers the local fallback as if recommendations were stale.
+	ForceFallbackAnnotationKey = "autoscaling.datadoghq.com/force-fallback"
 
 	// RecommendationIDAnnotation is the annotation key used to store the recommendation ID
 	RecommendationIDAnnotation = "autoscaling.datadoghq.com/rec-id"
