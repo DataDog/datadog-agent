@@ -118,6 +118,11 @@ func (m *testPackageManager) PromoteConfigExperiment(ctx context.Context, pkg st
 	return args.Error(0)
 }
 
+func (m *testPackageManager) ResumeConfigExperiments(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
@@ -261,6 +266,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       map[string]repository.State{},
 		ConfigStates: map[string]repository.State{},
@@ -507,6 +513,7 @@ func TestRefreshStateRunningVersions(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       testPackageStates,
 		ConfigStates: testConfigStates,
@@ -583,6 +590,7 @@ func TestRefreshStateRunningConfigVersionFallback(t *testing.T) {
 	installExperimentFunc = bm.InstallExperiment
 	pm := &testPackageManager{}
 	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ResumeConfigExperiments", mock.Anything).Return(nil)
 	pm.On("ConfigAndPackageStates", mock.Anything).Return(&repository.PackageStates{
 		States:       testPackageStates,
 		ConfigStates: testConfigStates,
