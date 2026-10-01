@@ -41,6 +41,11 @@ load(
 _REPO = "github.com/DataDog/datadog-agent"
 _VERSION_PKG = _REPO + "/pkg/version"
 _DEFAULTPATHS_PKG = _REPO + "/pkg/util/defaultpaths"
+
+# rules_go ignores go.work, whose godebug directives `go build` turns into this
+# default. Keep in sync with go.work.
+_GODEBUG_DEFAULT = "tlsmlkem=0"
+
 def dd_agent_go_binary(
         name,
         gc_linkopts = None,
@@ -87,6 +92,7 @@ def dd_agent_go_binary(
         _VERSION_PKG + ".AgentPayloadVersion": common["agent_payload_version"],
         _VERSION_PKG + ".AgentVersion": agent_version,
         _VERSION_PKG + ".AgentVersionURLSafe": agent_version_url_safe,
+        "runtime.godebugDefault": _GODEBUG_DEFAULT,
     }
     if common["full_commit"]:
         all_x_defs[_VERSION_PKG + ".Commit"] = common["commit"]
