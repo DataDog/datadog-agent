@@ -35,7 +35,10 @@ dd_agent_go_test(
     embed = [":processor"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_datadog_agent_payload_v5//pb",
