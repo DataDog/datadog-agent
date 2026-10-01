@@ -53,12 +53,28 @@ type SupportReport struct {
 // daemonLogLocation rather than being written inline: only the Windows service writes a file the
 // flare can collect. Naming a path the host never produces sends support somewhere there is
 // nothing to find, in the one place that is supposed to explain a process that will not start.
+//
+// What separates a failed spawn from a failed workload is last_exit_code, not restart_count. The
+// supervisor reports Failed for both a spawn that never produced a process and a process that ran
+// and exited non-zero, and it only sets an exit code in the second case. restart_count cannot
+// stand in for that: it counts restarts actually performed, the default restart policy is never,
+// and the counter is reset once a spawn stays up long enough, so 0 is the expected reading for a
+// workload that failed on its own.
 func reportNotes() []string {
 	return []string{
 		"state=running: the process is supervised and up.",
 		"state=stopped: the process was stopped on request, e.g. an operator stop or an agent shutdown.",
-		"state=crashed or state=failed with restart_count>0: a crash loop. See last_exit_code and last_signal.",
-		"state=failed with restart_count=0: the spawn itself failed. See " + daemonLogLocation() + ".",
+		"state=failed with no last_exit_code: the spawn itself never produced a process. See " +
+			daemonLogLocation() + ".",
+		"state=failed with a last_exit_code: the process ran and exited non-zero, so this is the " +
+			"workload failing rather than the spawn. See last_exit_code and last_signal, and " +
+			daemonLogLocation() + ".",
+		"state=crashed: the process died on a signal. See last_signal.",
+		"restart_count is not a verdict on its own. It counts restarts dd-procmgrd performed, so " +
+			"restart_policy bounds it: the default policy is never, which cannot retry and leaves " +
+			"the count at 0 however badly the process failed. It is also reset once a spawn stays " +
+			"up long enough, so a low count can follow a history of restarts. Read it with " +
+			"restart_policy and last_exit_code rather than as evidence of a loop by itself.",
 		"state=created with auto_start=true: the process was never started, because a config gate " +
 			"(condition_config_any) is closed, the condition_path_exists path is missing, or a start " +
 			"ordering dependency is unmet. dd-procmgrd does not report which one over its RPC: " +

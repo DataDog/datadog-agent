@@ -95,6 +95,27 @@ func TestReportNotesPointAtALogThisPlatformActuallyHas(t *testing.T) {
 		"the daemon logs to stdout and systemd captures it, so the journal is where the reason is")
 }
 
+// dd-procmgrd reports Failed both for a spawn that never produced a process and for a process that
+// ran and exited non-zero, and only the second carries an exit code. restart_count cannot tell them
+// apart: it counts restarts actually performed, the default policy is never, and it is reset once a
+// spawn stays up long enough. Notes that read restart_count=0 as a failed spawn therefore call an
+// ordinary workload failure a spawn failure, under the default configuration.
+func TestReportNotesSeparateSpawnFailureFromWorkloadFailure(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	assert.Contains(t, notes, "no last_exit_code",
+		"a spawn that never ran is identified by the absence of an exit code")
+	assert.Contains(t, notes, "a last_exit_code",
+		"a process that ran and exited non-zero is identified by having one")
+	assert.Contains(t, notes, "restart_policy",
+		"restart_count only means something next to the policy that bounds it")
+
+	assert.NotContains(t, notes, "restart_count=0",
+		"restart_count=0 is the default-policy reading for any failure, so it cannot diagnose one")
+	assert.NotContains(t, notes, "restart_count>0",
+		"a restart count above zero is not by itself a crash loop")
+}
+
 func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {
 	collector := NewCollectorWithClient(t.TempDir(), &mockClient{
 		connectErr: errors.New("open \\\\.\\pipe\\datadog-procmgrd: file does not exist"),
