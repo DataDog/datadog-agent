@@ -47,14 +47,29 @@ func NewMountNode(mountPoint, mountRoot, filesystem string, mountFlags uint32, g
 	return node
 }
 
-func (at *ActivityTree) SetBaseMountNamespaceID(nsID uint32) {
-	if at.baseMountNamespaceID == 0 && nsID != 0 {
-		at.baseMountNamespaceID = nsID
+func (at *ActivityTree) AddBaseMountNamespaceID(nsID uint32) {
+	if nsID == 0 {
+		return
 	}
+	if at.baseMountNamespaceIDs == nil {
+		at.baseMountNamespaceIDs = make(map[uint32]int)
+	}
+	at.baseMountNamespaceIDs[nsID]++
+}
+
+func (at *ActivityTree) RemoveBaseMountNamespaceID(nsID uint32) {
+	if nsID == 0 || at.baseMountNamespaceIDs == nil {
+		return
+	}
+	if at.baseMountNamespaceIDs[nsID] <= 1 {
+		delete(at.baseMountNamespaceIDs, nsID)
+		return
+	}
+	at.baseMountNamespaceIDs[nsID]--
 }
 
 func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) bool {
-	isBase := nsID != 0 && nsID == at.baseMountNamespaceID
+	isBase := nsID != 0 && at.baseMountNamespaceIDs[nsID] > 0
 
 	for _, mn := range at.Mounts {
 		if mn.MountPoint == mountPoint && mn.Filesystem == filesystem && mn.MountFlags == mountFlags {

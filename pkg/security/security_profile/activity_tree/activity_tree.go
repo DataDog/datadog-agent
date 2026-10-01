@@ -193,11 +193,12 @@ type ActivityTree struct {
 
 	Mounts []*MountNode
 
-	// baseMountNamespaceID is the mount namespace inode snapshotted when the profile
-	// was first seeded. It anchors the InBaseNamespace flag on mount nodes and is
-	// runtime state only (the inode is ephemeral, so it is not persisted; it is
-	// re-pinned from the seeding workload on the next seed after a reload).
-	baseMountNamespaceID uint32
+	// baseMountNamespaceIDs is the set of base mount namespace inodes, one per
+	// container linked to the profile (refcounted so instances sharing an inode
+	// balance add/remove). It anchors the InBaseNamespace flag on mount nodes and
+	// is runtime state only (inodes are ephemeral, so they are not persisted; the
+	// set is repopulated as workloads re-link after a reload).
+	baseMountNamespaceIDs map[uint32]int
 
 	imageTagIDs []imageTagEntry
 }
@@ -217,13 +218,14 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 	cache, _ := simplelru.NewLRU[cookieSelector, *ProcessNode](CookieToProcessNodeCacheSize, nil)
 
 	return &ActivityTree{
-		treeType:            treeType,
-		validator:           validator,
-		pathsReducer:        pathsReducer,
-		Stats:               NewActivityTreeNodeStats(),
-		CookieToProcessNode: cache,
-		SyscallsMask:        make(map[int]int),
-		DNSNames:            utils.NewStringKeys(nil),
+		treeType:              treeType,
+		validator:             validator,
+		pathsReducer:          pathsReducer,
+		Stats:                 NewActivityTreeNodeStats(),
+		CookieToProcessNode:   cache,
+		SyscallsMask:          make(map[int]int),
+		DNSNames:              utils.NewStringKeys(nil),
+		baseMountNamespaceIDs: make(map[uint32]int),
 	}
 }
 
