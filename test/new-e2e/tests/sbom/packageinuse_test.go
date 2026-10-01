@@ -378,6 +378,34 @@ const hostShellContainer = "shell"
 func (s *packageInUseSuite) TestHostPackageInUse() {
 	shell := s.startHostShell()
 
+	// rpm lists the directories a package owns among its files, and a listing
+	// of the license directory of gzip leaves gzip unused. sed, run after the
+	// listing, is the positive control: the host SBOM that carries its run
+	// carries the listing too.
+	s.Run("directory", func() {
+		listedAt := s.hostEpoch(shell)
+
+		s.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{CollectT: collect, errors: []error{}}
+			collect = nil //nolint:ineffassign
+
+			s.hostExec(c, shell, "ls /usr/share/licenses/gzip >/dev/null && sed --version >/dev/null")
+
+			comps := s.newestHostSBOM(c)
+			sed := findComponent(comps, "sed")
+			require.NotNilf(c, sed, "no sed in the host SBOM")
+			sedTS, _ := lastSeenRunning(sed)
+			require.GreaterOrEqualf(c, sedTS, listedAt, "sed not reported in use yet")
+			gzip := findComponent(comps, "gzip")
+			require.NotNilf(c, gzip, "no gzip in the host SBOM")
+			gzipTS, _ := lastSeenRunning(gzip)
+			s.T().Logf("PKG-IN-USE[host] directory: gzip LastSeenRunning=%d, sed LastSeenRunning=%d, listed at %d", gzipTS, sedTS, listedAt)
+			assert.Lessf(c, gzipTS, listedAt, "the listing of /usr/share/licenses/gzip put gzip in use")
+			// 10m: run on its own, the subtest also waits out the Agent start and
+			// its first host scans.
+		}, 10*time.Minute, 15*time.Second, "the host SBOM never reported sed in use after the listing")
+	})
+
 	s.Run("in-use", func() {
 		startedAt := s.hostEpoch(shell)
 
