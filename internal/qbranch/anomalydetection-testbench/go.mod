@@ -74,6 +74,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/buf v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.82.0 // indirect
@@ -82,6 +83,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log/setup v0.81.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/quantile v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.78.1 // indirect
@@ -90,6 +92,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.82.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
+	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/acobaugh/osrelease v0.1.0 // indirect
