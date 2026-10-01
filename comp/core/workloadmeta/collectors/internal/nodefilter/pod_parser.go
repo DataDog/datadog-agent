@@ -38,9 +38,9 @@ const (
 // parsePod builds the workloadmeta events for a single pod: one
 // KubernetesPod entity, plus one Container entity per (init/ephemeral)
 // container that the runtime has already created. Only the fields consumed
-// by the tagger (comp/core/tagger/collectors/workloadmeta_extract.go) are
-// populated. Ephemeral containers are only parsed when collectEphemeralContainers
-// is set, mirroring the kubelet collector's own include_ephemeral_containers gate.
+// by the tagger (comp/core/tagger/collectors) are populated. Ephemeral
+// containers are only parsed when collectEphemeralContainers is set, mirroring
+// the kubelet collector's own include_ephemeral_containers gate.
 func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
 	podID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesPod,
@@ -66,9 +66,18 @@ func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.C
 		events = append(events, ephemeralContainerEvents...)
 	}
 
+	mirrorsStaticPod := staticPodUID(pod) != ""
 	owners := make([]workloadmeta.KubernetesPodOwner, 0, len(pod.OwnerReferences))
 	for _, o := range pod.OwnerReferences {
 		gv, _ := schema.ParseGroupVersion(o.APIVersion)
+		// The kubelet makes a mirror pod owned by its node, so that the mirror
+		// pod is garbage-collected with the node. The static pod it stands for,
+		// which the kubelet collector reports, has no such owner: leave it out,
+		// or the pod would get kube_ownerref_* tags for the node that the
+		// kubelet collector's doesn't.
+		if mirrorsStaticPod && gv.Group == "" && o.Kind == "Node" {
+			continue
+		}
 		owners = append(owners, workloadmeta.KubernetesPodOwner{
 			Kind:       o.Kind,
 			Name:       o.Name,
@@ -159,10 +168,16 @@ func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.C
 // the kubelet, its /pods endpoint, the downward API and the log paths under
 // /var/log/pods all use the static pod's UID, a hash of its manifest.
 func podUID(pod *corev1.Pod) string {
-	if uid := pod.Annotations[mirrorPodAnnotation]; uid != "" {
+	if uid := staticPodUID(pod); uid != "" {
 		return uid
 	}
 	return string(pod.UID)
+}
+
+// staticPodUID returns the UID of the static pod that pod mirrors, or "" when
+// pod isn't a mirror pod.
+func staticPodUID(pod *corev1.Pod) string {
+	return pod.Annotations[mirrorPodAnnotation]
 }
 
 // parsePodContainers builds the OrchestratorContainer references for a pod's
@@ -202,11 +217,13 @@ func parsePodContainers(
 		}
 
 		var env map[string]string
+		var ports []workloadmeta.ContainerPort
 		var resources workloadmeta.ContainerResources
 		var resizePolicy workloadmeta.ContainerResizePolicy
 
 		if spec := findContainerSpec(status.Name, containerSpecs); spec != nil {
 			env = extractEnvFromSpec(spec.Env)
+			ports = extractPorts(spec.Ports)
 			resources = extractResources(spec)
 			resizePolicy = extractResizePolicy(spec)
 
@@ -271,6 +288,7 @@ func parsePodContainers(
 				},
 				Image:        image,
 				EnvVars:      env,
+				Ports:        ports,
 				Runtime:      workloadmeta.ContainerRuntime(runtime),
 				State:        containerState,
 				Resources:    resources,
@@ -334,6 +352,27 @@ func extractEnvFromSpec(envSpec []corev1.EnvVar) map[string]string {
 	}
 
 	return env
+}
+
+// extractPorts lists the ports a container spec declares, as the kubelet
+// collector does, without their host port: the tagger resolves the %%port%%
+// template variables of autodiscovery tag annotations from them. It returns
+// nil for a container that declares none.
+func extractPorts(specPorts []corev1.ContainerPort) []workloadmeta.ContainerPort {
+	if len(specPorts) == 0 {
+		return nil
+	}
+
+	ports := make([]workloadmeta.ContainerPort, 0, len(specPorts))
+	for _, port := range specPorts {
+		ports = append(ports, workloadmeta.ContainerPort{
+			Name:     port.Name,
+			Port:     int(port.ContainerPort),
+			Protocol: string(port.Protocol),
+		})
+	}
+
+	return ports
 }
 
 func extractResources(spec *corev1.Container) workloadmeta.ContainerResources {
