@@ -130,6 +130,7 @@ func (c *Check) CustomQueries() error {
 		}
 		if err != nil {
 			allErrors = concatenateError(allErrors, fmt.Sprintf("failed to fetch rows for the custom query %s %s", metricPrefix, err))
+			reconnectOnConnectionError(c, &c.dbCustomQueries, err)
 			continue
 		}
 		for rows.Next() {

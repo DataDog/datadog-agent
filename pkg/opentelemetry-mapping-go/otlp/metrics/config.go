@@ -151,7 +151,7 @@ const (
 )
 
 // WithHistogramMode sets the histograms mode.
-// The default mode is HistogramModeOff.
+// The default mode is HistogramModeDistributions.
 func WithHistogramMode(mode HistogramMode) TranslatorOption {
 	return func(t *translatorConfig) error {
 		switch mode {

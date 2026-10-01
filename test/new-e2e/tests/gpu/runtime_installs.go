@@ -3,68 +3,41 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// This file installs at runtime the dependencies that the standard
-// Ubuntu2204E2E AMI ships pre-baked but that the GPU-specific NVIDIA-driver
-// AMIs do not yet include. This includes Docker itself — the NVIDIA driver
-// AMIs are bare Ubuntu images with CUDA; Docker is not pre-installed.
-//
-// TEMPORARY: this exists so the GPU e2e suite can keep running while we wait
-// for ami-builder to ship GPU AMI variants (`ubuntu/22-04-gpu-e2e` and
-// `ubuntu/18-04-gpu-e2e`) layering our e2e tooling on top of the GPU base
-// image. Once those AMIs land and the systemData entries in this package
-// point at them, delete this file and the two `installGPURuntimeDeps` call
-// sites in provisioner.go. Tracked in ACIX-1305.
+// GPU images pre-bake Docker tooling; Kind still requires a runtime install.
 
 package gpu
 
 import (
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	componentsos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	componentsremote "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// gpuRuntimeComposeVersion must match the version checked by docker.assertCompose.
-const gpuRuntimeComposeVersion = "v2.27.0"
-
-// installGPURuntimeDeps installs Docker, jq, amazon-ecr-credential-helper, and
-// docker-compose at runtime. Wire its returned Command as a Pulumi dependency
-// on any subsequent docker / ECR setup so the inner version checks pass.
+// installGPUKind installs kind at runtime, mirroring what the e2e AMIs ship
+// preinstalled (see the "24-04-e2e-kind" AMI and the kindvm scenario).
+// nvkind drives kind under the hood, so the GPU VM needs it on PATH. Wire its
+// returned Command as a Pulumi dependency on nvidia.NewKindCluster.
 //
-// TEMPORARY — see file header.
-func installGPURuntimeDeps(awsEnv *aws.Environment, host *componentsremote.Host) (command.Command, error) {
-	dockerInstall, err := docker.InstallDocker(host)
+// TODO: remove once the GPU e2e AMI variants ship kind pre-baked, along with
+// the rest of this file (ACIX-1305).
+func installGPUKind(awsEnv *aws.Environment, host *componentsremote.Host) (command.Command, error) {
+	kindVersionConfig, err := kubeComp.GetKindVersionConfig(awsEnv.KubernetesVersion())
 	if err != nil {
 		return nil, err
 	}
 
-	jqInstall, err := host.OS.PackageManager().Ensure("jq", nil, "jq")
-	if err != nil {
-		return nil, err
+	kindArch := host.OS.Descriptor().Architecture
+	if kindArch == componentsos.AMD64Arch {
+		kindArch = "amd64"
 	}
 
-	ecrHelperInstall, err := host.OS.PackageManager().Ensure("amazon-ecr-credential-helper", nil, "docker-credential-ecr-login")
-	if err != nil {
-		return nil, err
-	}
-
-	composeInstall, err := host.OS.Runner().Command(
-		awsEnv.Namer.ResourceName("gpu-runtime-install-compose"),
+	return host.OS.Runner().Command(
+		awsEnv.Namer.ResourceName("gpu-kind-install"),
 		&command.Args{
-			Create: pulumi.Sprintf(
-				"bash -c '(docker-compose version | grep %s) || (curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -p) && sudo chmod 755 /usr/local/bin/docker-compose)'",
-				gpuRuntimeComposeVersion, gpuRuntimeComposeVersion,
-			),
-			Sudo: true,
+			Create: pulumi.Sprintf(`curl --retry 10 -fsSLo ./kind "https://kind.sigs.k8s.io/dl/%s/kind-linux-%s" && sudo install kind /usr/local/bin/kind`, kindVersionConfig.KindVersion, kindArch),
 		},
-		utils.PulumiDependsOn(dockerInstall, jqInstall, ecrHelperInstall),
 	)
-	if err != nil {
-		return nil, err
-	}
-
-	return composeInstall, nil
 }

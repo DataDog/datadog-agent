@@ -183,8 +183,12 @@ func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("#%d %s", i, tt.desc), func(t *testing.T) {
 			datadogClientComp := datadogclientmock.New(t).Comp
-			datadogClientComp.SetQueryMetricsFunc(func(int64, int64, string) ([]datadog.Series, error) {
-				return tt.series, nil
+			datadogClientComp.SetQueryMetricsFunc(func(_ int64, _ int64, query string) ([]datadog.Series, error) {
+				series := append([]datadog.Series(nil), tt.series...)
+				for i := range series {
+					series[i].Expression = pointer.Ptr(query)
+				}
+				return series, nil
 			})
 			hpaCl := &Processor{datadogClient: datadogClientComp, externalMaxAge: testMaxAge, parallelQueries: testParallelQueries}
 

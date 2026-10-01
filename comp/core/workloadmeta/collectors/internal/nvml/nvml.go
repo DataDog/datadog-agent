@@ -21,7 +21,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

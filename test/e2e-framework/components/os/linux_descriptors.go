@@ -15,6 +15,9 @@ var (
 	Ubuntu2204E2E = NewDescriptor(Ubuntu, "22-04-e2e")
 	Ubuntu2404E2E = NewDescriptor(Ubuntu, "24-04-e2e")
 
+	UbuntuKindDefault = Ubuntu2404KindE2E
+	Ubuntu2404KindE2E = NewDescriptor(Ubuntu, "24-04-e2e-kind")
+
 	DebianDefault = Debian12
 	Debian11      = NewDescriptor(Debian, "11")
 	Debian12      = NewDescriptor(Debian, "12")
@@ -30,7 +33,6 @@ var (
 	RedHatDefault     = RedHat9
 	RedHat8           = NewDescriptor(RedHat, "8")
 	RedHat9           = NewDescriptor(RedHat, "9")
-	RedHat9Fapolicyd  = NewDescriptor(RedHat, "9-fapolicyd")
 	RedHat9SELinuxNPM = NewDescriptor(RedHat, "9-selinux-npm")
 	RedHat10          = NewDescriptor(RedHat, "10")
 

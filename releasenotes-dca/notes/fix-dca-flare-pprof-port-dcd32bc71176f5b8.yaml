@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix the Cluster Agent flare to collect pprof and goroutine dump data
+    from the correct port (``metrics_port``) instead of ``expvar_port``.
