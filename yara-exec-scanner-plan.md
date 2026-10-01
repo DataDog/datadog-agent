@@ -1,6 +1,6 @@
 # YARA Exec Scanner PoC — Work Plan
 
-**Area:** CWS / system-probe · **Status:** Wave 1 done (A, B, C, D, F), M1 integration next · **Engine for the PoC:** libyara (see WS-A) · **Platforms:** Linux amd64 / arm64
+**Area:** CWS / system-probe · **Status:** M1 + M2 done (local Lima dry run passed, 2026-10-01); M3/M4 not started · **Engine for the PoC:** libyara (see WS-A) · **Platforms:** Linux amd64 / arm64
 **Threat model (PoC):** unprivileged attacker on local filesystems
 
 Goal: scan every executed binary with YARA rules, once per distinct file content, without slowing the event path.
@@ -148,11 +148,11 @@ type Reporter interface {
 
 Pick between yara-x (Rust, C API + Go bindings) and libyara via go-yara. Either one adds cgo to system-probe.
 
-- [ ] Hello-world scan with each engine, linked into a Go binary, linux amd64 and arm64
-- [ ] Measure scan time for 1 MB / 20 MB / 100 MB binaries against a realistic ruleset (~500 rules)
-- [ ] Measure memory used by compiled rules, and the binary size delta (the size quality gate checks it)
-- [ ] Check static linking, glibc floor, license (both BSD-3) and CVE history
-- [ ] With the build team, check that the native lib can be built under Bazel (and omnibus if needed)
+- [x] Hello-world scan with each engine, linked into a Go binary, linux amd64 and arm64 — arm64 only; amd64 not measured
+- [x] Measure scan time for 1 MB / 20 MB / 100 MB binaries against a realistic ruleset (~500 rules)
+- [x] Measure memory used by compiled rules, and the binary size delta (the size quality gate checks it) — +0.38 MiB stripped for the final libyara build (M2)
+- [x] Check static linking, glibc floor, license (both BSD-3) and CVE history — glibc floor on the agent's build sysroot still open (WS-E)
+- [ ] With the build team, check that the native lib can be built under Bazel (and omnibus if needed) — desk research only (rules_rust, deps/ patterns); build-team review still to do
 
 **Done when:** a short decision doc with numbers is agreed, plus a throwaway `Scanner` prototype on the chosen engine.
 
@@ -174,42 +174,42 @@ The spike recommends yara-x for production (memory-safe, libyara is in maintenan
 
 Consumer skeleton: receive exec events, build `ExecFile`, hand it to the dedupe pipeline. Model it on `pkg/eventmonitor/consumers/process.go`.
 
-- [ ] Implement `probe.EventConsumerHandler` (`ID`, `ChanSize`, `EventTypes` = exec, `Copy`, `HandleEvent`); interface at `pkg/security/probe/eventconsumer.go`
-- [ ] Implement `eventmonitor.EventConsumer` (`ID`, `Start`, `Stop`); interface at `pkg/eventmonitor/consumer.go`
-- [ ] `Copy()`: extract the main binary's fields. When `HasInterpreter()`, also emit the `LinuxBinprm.FileEvent` entry. Skip kworkers. Resolve `Filesystem` in `Copy()` only if it's cheap, otherwise in the worker
-- [ ] Register in `cmd/system-probe/modules/eventmonitor_linux.go` (next to `createProcessMonitorConsumer`), gated by config
-- [ ] Ensure enabling YARA turns on the event monitor module even when CWS rules are off (check the adjust logic in `pkg/system-probe/config`)
-- [ ] Add config under `event_monitoring_config.yara.*` in `pkg/config/schema/yaml/system-probe_schema.yaml` (use the `/create-config-field` skill)
-- [ ] Split by build tag: the real consumer behind the `yara` tag, a no-op stub otherwise, so the default build stays cgo-free until WS-E lands
+- [x] Implement `probe.EventConsumerHandler` (`ID`, `ChanSize`, `EventTypes` = exec, `Copy`, `HandleEvent`); interface at `pkg/security/probe/eventconsumer.go`
+- [x] Implement `eventmonitor.EventConsumer` (`ID`, `Start`, `Stop`); interface at `pkg/eventmonitor/consumer.go`
+- [x] `Copy()`: extract the main binary's fields. When `HasInterpreter()`, also emit the `LinuxBinprm.FileEvent` entry. Skip kworkers. Resolve `Filesystem` in `Copy()` only if it's cheap, otherwise in the worker — fixed after the dry run: paths are resolved lazily, and for #! execs `Process.FileEvent` is the script and `LinuxBinprm` the interpreter
+- [x] Register in `cmd/system-probe/modules/eventmonitor_linux.go` (next to `createProcessMonitorConsumer`), gated by config
+- [x] Ensure enabling YARA turns on the event monitor module even when CWS rules are off (check the adjust logic in `pkg/system-probe/config`)
+- [x] Add config under `event_monitoring_config.yara.*` in `pkg/config/schema/yaml/system-probe_schema.yaml` (use the `/create-config-field` skill)
+- [x] Split by build tag: the real consumer behind the `yara` tag, a no-op stub otherwise, so the default build stays cgo-free until WS-E lands — done as an opt-in `yara` tag selecting the libyara engine; the stand-in engine is used without it (M2)
 
 **Done when:** with stand-in Deduper and Scanner implementations, running `/bin/true` on a dev VM logs an `ExecFile` line with correct fields, for both host and container execs.
 
 ### WS-C — Dedupe and file access
 **Size:** M · **Can start:** now
 
-- [ ] Identity LRU (`Identity → lastChecked`), size from config. `IdentityFresh` returns false after `recheck_ttl`
-- [ ] sha256 set with an in-flight state: `ClaimHash` marks the hash, `ReleaseHash` clears it on queue-full or scan error
-- [ ] Skip the identity level when `Filesystem` is fuse or a network filesystem (nfs, nfs4, cifs, smb3, 9p)
-- [ ] Open order:
+- [x] Identity LRU (`Identity → lastChecked`), size from config. `IdentityFresh` returns false after `recheck_ttl`
+- [x] sha256 set with an in-flight state: `ClaimHash` marks the hash, `ReleaseHash` clears it on queue-full or scan error — bounded LRU (100k); no separate in-flight state needed
+- [x] Skip the identity level when `Filesystem` is fuse or a network filesystem (nfs, nfs4, cifs, smb3, 9p)
+- [x] Open order: — plus inode+ctime check on the path fallbacks (M1)
   1. `/proc/<pid>/exe` (`utils.ProcExePath`, `pkg/security/utils/proc_linux.go:146`)
   2. `utils.ProcRootFilePath(pid, path)`
   3. The container's other PIDs, from the cgroup resolver
 
   Copy the loop in `pkg/security/resolvers/hash/resolver_linux.go:329-372`, or extract a shared helper if that's clean.
-- [ ] For script entries, skip `/proc/pid/exe` (it points at the interpreter)
-- [ ] Call `fstat`. Skip non-regular files, and skip files over `max_file_size` (counted)
-- [ ] Read once into a pooled buffer, sha256 those bytes, and pass the **same** buffer to the scanner
-- [ ] Unit tests: identity hit, ctime change, TTL expiry, FUSE bypass, claim/release, concurrent claims
+- [x] For script entries, skip `/proc/pid/exe` (it points at the interpreter)
+- [x] Call `fstat`. Skip non-regular files, and skip files over `max_file_size` (counted)
+- [x] Read once into a pooled buffer, sha256 those bytes, and pass the **same** buffer to the scanner
+- [x] Unit tests: identity hit, ctime change, TTL expiry, FUSE bypass, claim/release, concurrent claims
 
 **Done when:** unit tests pass. Running the same binary 10,000 times causes one read, and rewriting the binary causes exactly one more.
 
 ### WS-D — Scanner pool and rule loading
 **Size:** M · **Can start:** now with a stand-in scanner; real engine after WS-A
 
-- [ ] Bounded queue (`queue_size`) and `workers` goroutines. Submit is non-blocking; when the queue is full, call `ReleaseHash` and count a drop
-- [ ] Per-scan timeout (`scan_timeout`). On timeout, count it and release the hash
-- [ ] At start, load and compile every rule file in `rules_dir`. On a compile error, log it and disable scanning; never crash system-probe
-- [ ] `RulesVersion()` returns a hash of the rule file contents; include it in every report
+- [x] Bounded queue (`queue_size`) and `workers` goroutines. Submit is non-blocking; when the queue is full, call `ReleaseHash` and count a drop
+- [x] Per-scan timeout (`scan_timeout`). On timeout, count it and release the hash — libyara timeouts are whole seconds
+- [x] At start, load and compile every rule file in `rules_dir`. On a compile error, log it and disable scanning; never crash system-probe — all-or-nothing: one bad rule disables scanning (see findings); rule files must be root-owned
+- [x] `RulesVersion()` returns a hash of the rule file contents; include it in every report
 - [x] Stand-in scanner that matches a marker string, for tests and M1 (`MarkerScanner`, landed with the contracts)
 - [x] Real engine implementation: libyara via go-yara (WS-A decision), as a `Compiler` (`engine_libyara.go`, M2). Requirements from the spike:
   - compiled rules are shared; each worker needs its **own** scanner object (`yr.NewScanner(rules)` per worker)
@@ -217,7 +217,7 @@ Consumer skeleton: receive exec events, build `ExecFile`, hand it to the dedupe 
   - keep `Scan` synchronous, so the buffer is never returned to the pool while C code still reads it
   - compile from `.yar` source only; never load pre-compiled (serialized) rules (GHSA-2jx3-ff3v-j7jj)
   - behind the `yara` build tag (cgo); the default build keeps the stand-in
-- [ ] Cap memory: buffered bytes ≤ `workers × max_file_size`
+- [x] Cap memory: buffered bytes ≤ `workers × max_file_size` — byte budget over queued + in-flight jobs
 
 **Done when:** with the stand-in scanner, flooding the queue drops scans cleanly without blocking. With the real engine, a test rule matches a test binary.
 
@@ -239,30 +239,30 @@ Likely the longest task. Involve the build and packaging owners early.
 ### WS-F — Reporting and metrics
 **Size:** S · **Can start:** now
 
-- [ ] Structured log on match: path, pid, container ID, sha256, rule names, namespace, tags, rules version
-- [ ] Counters:
+- [x] Structured log on match: path, pid, container ID, sha256, rule names, namespace, tags, rules version
+- [x] Counters:
   - execs received
   - channel drops (the probe already exposes `eventDropped`)
   - identity hits, sha hits
   - reads, read errors by reason, too-big
   - scans, matches, scan errors, timeouts, queue drops
-- [ ] Gauges: identity cache size, sha set size, queue depth. Distribution: scan duration
-- [ ] Stretch goal, scoped as a separate follow-up: send a custom event to the CWS backend (the consumer needs a way to reach the CWS event sender)
+- [x] Gauges: identity cache size, sha set size, queue depth. Distribution: scan duration
+- [ ] Stretch goal, scoped as a separate follow-up: send a custom event to the CWS backend (the consumer needs a way to reach the CWS event sender) — not attempted
 
 **Done when:** metrics are visible in a dev-org dashboard during the M1 dry run.
 
 ### WS-G — Tests and performance
 **Size:** M · **Can start:** after WS-B, C, D
 
-- [ ] Integration test using `pkg/eventmonitor/consumers/testutil`: exec a test binary that contains a marker string, and assert exactly one match report
-- [ ] Scenarios:
+- [ ] Integration test using `pkg/eventmonitor/consumers/testutil`: exec a test binary that contains a marker string, and assert exactly one match report — written (`pipeline_evm_test.go`) but skips without eBPF; not in CI
+- [ ] Scenarios: — all checked by hand in the Lima dry run, not automated
   - same binary run many times → one scan
   - binary rewritten in place → re-scan
   - same binary copied to two paths → one scan
   - interpreter exec → the script file is scanned
   - container exec
   - deleted binary still running
-- [ ] Exec-storm benchmark (a tight `/bin/true` loop plus a realistic mix): CPU, RSS, channel drops and event latency, feature on vs off
+- [ ] Exec-storm benchmark (a tight `/bin/true` loop plus a realistic mix): CPU, RSS, channel drops and event latency, feature on vs off — rough numbers only from the dry run (~97% of execs skipped without a read, scans 0.02–38 ms); no on/off comparison
 - [ ] Cold-start test: many distinct binaries at once (image pull, then start); measure time to drain the queue
 - [ ] Tune the defaults for `chan_size`, `workers`, `queue_size` and `max_file_size`
 
@@ -284,10 +284,19 @@ Sizes are relative: S ≈ a few days, M ≈ 1–2 weeks, L ≈ several weeks (mo
 
 ## 7. Milestones
 
-1. **M1: dry run with no cgo.** WS-B + WS-C + WS-D with the stand-in scanner + WS-F. Logs `would scan sha256=…` and emits metrics on a dev VM. Shows the dedupe ratio and overhead before any native code.
-2. **M2: real engine in a local build.** WS-A decided and WS-D has the real engine. A test rule matches a test binary on a locally built system-probe.
-3. **M3: CI build and tests.** WS-E lands; WS-G integration tests run in CI on amd64 and arm64.
-4. **M4: performance validated.** WS-G benchmark report, defaults tuned, go/no-go for a wider pilot. **Gate:** engine switched to yara-x (or an explicit, reviewed exception to stay on libyara).
+1. ✅ **M1: dry run with no cgo.** WS-B + WS-C + WS-D with the stand-in scanner + WS-F. Logs `would scan sha256=…` and emits metrics on a dev VM. Shows the dedupe ratio and overhead before any native code.
+2. ✅ **M2: real engine in a local build.** WS-A decided and WS-D has the real engine. A test rule matches a test binary on a locally built system-probe.
+3. ⏳ **M3: CI build and tests.** WS-E lands; WS-G integration tests run in CI on amd64 and arm64.
+4. ⏳ **M4: performance validated.** WS-G benchmark report, defaults tuned, go/no-go for a wider pilot. **Gate:** engine switched to yara-x (or an explicit, reviewed exception to stay on libyara).
+
+**Status (2026-10-01):** M1 was folded into M2: the pipeline was wired with the stand-in engine, then validated directly with the real libyara engine on a local Lima VM (Ubuntu 24.04 arm64, real eBPF, system-probe standalone). Passed: marked ELF (1 scan, then identity hits), `#!` script, same content at a 2nd path (sha hit), rewrite in place (rescan), 2,000-exec storm (no rescans), exec in a container (match with container ID); ~97% of execs skipped without any read. M3 is blocked on push access to the repo; M4 not started.
+
+### Dry-run findings (to address before a pilot)
+
+- [ ] **Known-bad content isn't re-reported.** The sha256 set remembers "scanned", not the verdict, so the same malware under a new path, container or identity runs without an alert. Cache the matches per sha256 and report again on a hit, without rescanning.
+- [ ] **Exec paths need CWS enabled.** With `runtime_security_config.enabled: false`, exec paths aren't resolved (empty `PathnameStr`), so only `/proc/<pid>/exe` is usable: short-lived binaries and all scripts are missed. Either require CWS or find the switch that enables path resolution in event-monitor-only mode.
+- [ ] **Rule compatibility.** One failing rule file disables all scanning; external variables (`filename`, `filepath`, `extension`, `owner`, …) aren't defined; the `hash` module needs crypto (we build without). Compile files independently and skip failures, define the common externals, consider linking the agent's OpenSSL for `hash`. `pe`/`dotnet`/`macho`/`dex`/`magic` stay off until yara-x.
+- [ ] **Standalone system-probe needs core-agent artifacts** (`auth_token`, `ipc_cert.pem`) and `remote_agent.configstream.consumer.enabled: false`; not an issue in a normal install, but worth knowing for test environments.
 
 ### M1 integration checklist (after wave 1)
 
