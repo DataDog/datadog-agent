@@ -6,7 +6,6 @@ option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateacti
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "datadog/privateactionrunner/actionsclient.proto";
-import "validate/validate.proto";
 
 /**
 This proto contains a dedicated version of tasks for usage with the private actions runner.
@@ -83,8 +82,7 @@ message ConnectionInfo {
 
 message ConnectionTokenV2 {
   reserved 3, 4;
-  repeated string name_segments = 1
-      [(validate.rules).repeated.items.string.min_len = 1];
+  repeated string name_segments = 1;
 
   oneof source {
     PlainText plain_text = 2;

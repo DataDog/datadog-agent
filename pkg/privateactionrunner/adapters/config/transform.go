@@ -113,7 +113,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RunnerId:                           runnerID,
 		Urn:                                urn,
 		DatadogSite:                        ddSite,
-		CredentialValues:               config.GetStringMapString(setup.PARCredentialsValues),
+		CredentialValues:                   config.GetStringMapString(setup.PARCredentialsValues),
 	}, nil
 }
 
