@@ -149,17 +149,22 @@ include:
   - local: .gitlab/.post/**.yml
   # AIX jobs
   - local: .gitlab/aix/**.yml
-  # Windows jobs - set RUN_WINDOWS=false to exclude all Windows-related jobs (the legacy
-  # SKIP_WINDOWS=true is normalized to RUN_WINDOWS=false by a workflow rule)
+  # Windows jobs - set RUN_WINDOWS=false (or the legacy SKIP_WINDOWS=true) to exclude
+  # all Windows-related jobs. Note: include:rules are evaluated before
+  # workflow:rules:variables, so these rules only see trigger-provided variables
+  # (PIPELINE_TYPE, RUN_WINDOWS, SKIP_WINDOWS, DEPLOY_AGENT, RUN_E2E_TESTS), never
+  # the workflow-rule expansion of PIPELINE_TYPE - hence the explicit PIPELINE_TYPE
+  # rule below (https://docs.gitlab.com/ci/yaml/includes/).
   - local: .gitlab/windows/**.yml
     rules:
-      - if: $RUN_WINDOWS == "false"
+      - if: $RUN_WINDOWS == "false" || $SKIP_WINDOWS == "true"
         when: never
       - <<: *if_main_branch
       - <<: *if_release_branch
       - <<: *if_triggered_pipeline
       - <<: *if_light_pipeline
       - <<: *if_deploy
+      - if: $PIPELINE_TYPE == "full" || $PIPELINE_TYPE == "full_deploy"
       - <<: *if_run_all_e2e_tests
       # - !reference [.except_run_windows] Should be the rule but it is not working so we need to explicitly write the rule. See https://gitlab.com/gitlab-org/gitlab/-/issues/434157
       - changes:
