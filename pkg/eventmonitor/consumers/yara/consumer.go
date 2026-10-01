@@ -46,12 +46,14 @@ type lifecycle interface {
 	Stop()
 }
 
-// execFiles is what Copy() hands to HandleEvent(). It holds the main binary, and the script file
-// for interpreter execs, in a single allocation.
+// execFiles is what Copy() hands to HandleEvent(). It holds the executed file, and the
+// interpreter for interpreter execs, in a single allocation.
 type execFiles struct {
-	main      ExecFile
-	script    ExecFile
-	hasScript bool
+	// main is the executed file: the binary, or the script of an interpreter exec
+	main ExecFile
+	// interpreter is the script interpreter of an interpreter exec, when hasInterpreter is set
+	interpreter    ExecFile
+	hasInterpreter bool
 }
 
 var _ eventmonitor.EventConsumerHandler = (*ExecConsumer)(nil)
@@ -139,9 +141,17 @@ func (c *ExecConsumer) EventTypes() []model.EventType {
 	return []model.EventType{model.ExecEventType}
 }
 
-// Copy runs on the event hot path: it only copies fields that are already resolved on the event,
-// and does no I/O. It returns nil, so the event is not sent to the consumer, for kworkers and
-// events without a process.
+// Copy runs on the event hot path and does no file I/O. It returns nil, so the event is not sent
+// to the consumer, for kworkers and events without a process.
+//
+// Paths are resolved lazily on CWS events, so Copy resolves them through the field handlers (the
+// dentry resolver, as rule evaluation does). Without a path, the reader can only use
+// /proc/<pid>/exe, which is gone for short-lived processes and wrong for scripts.
+//
+// For an interpreter exec (#! script), Process.FileEvent is the script, i.e. the executed file,
+// and LinuxBinprm.FileEvent is the interpreter; /proc/<pid>/exe points at the interpreter. The
+// script entry must therefore be flagged IsScript, so that the reader doesn't read the
+// interpreter through /proc/<pid>/exe and report it under the script's identity.
 func (c *ExecConsumer) Copy(ev *model.Event) any {
 	if ev.GetEventType() != model.ExecEventType {
 		return nil
@@ -153,30 +163,36 @@ func (c *ExecConsumer) Copy(ev *model.Event) any {
 
 	now := c.now()
 	files := &execFiles{
-		main: newExecFile(p, &p.FileEvent, now),
+		main: newExecFile(ev, p, &p.FileEvent, now),
 	}
-	// the main binary's Filesystem is resolved by the process resolver before dispatch
+	// the executed file's Filesystem is resolved by the process resolver before dispatch
 	files.main.Filesystem = p.FileEvent.Filesystem
 
 	if p.HasInterpreter() {
-		files.script = newExecFile(p, &p.LinuxBinprm.FileEvent, now)
-		// the process resolver doesn't resolve the script's Filesystem, and doing it here would
-		// require a mount resolver lookup, so it is left empty. As a result the FUSE/NFS identity
-		// cache bypass doesn't apply to scripts; accepted for the PoC (see FileReader.Process).
-		files.script.IsScript = true
-		files.hasScript = true
+		files.main.IsScript = true
+
+		// the interpreter is a regular binary entry: /proc/<pid>/exe is the interpreter itself.
+		// The process resolver doesn't resolve its Filesystem, and doing it here would require a
+		// mount resolver lookup, so it is left empty: the FUSE/NFS identity cache bypass doesn't
+		// apply to interpreters; accepted for the PoC (see FileReader.Process).
+		files.interpreter = newExecFile(ev, p, &p.LinuxBinprm.FileEvent, now)
+		files.hasInterpreter = true
 	}
 
 	return files
 }
 
 // newExecFile copies the fields of fe, a file of process p, into an ExecFile
-func newExecFile(p *model.Process, fe *model.FileEvent, now time.Time) ExecFile {
+func newExecFile(ev *model.Event, p *model.Process, fe *model.FileEvent, now time.Time) ExecFile {
+	path := fe.PathnameStr
+	if path == "" && ev.FieldHandlers != nil {
+		path = ev.FieldHandlers.ResolveFilePath(ev, fe)
+	}
 	return ExecFile{
 		PID:         p.Pid,
 		CGroupID:    p.CGroup.CGroupID,
 		ContainerID: p.ContainerContext.ContainerID,
-		Path:        fe.PathnameStr,
+		Path:        path,
 		MountID:     fe.MountID,
 		Inode:       fe.Inode,
 		CTime:       fe.CTime,
@@ -194,7 +210,7 @@ func (c *ExecConsumer) HandleEvent(ev any) {
 	c.stats.ExecsReceived.Add(1)
 
 	c.handler(files.main)
-	if files.hasScript {
-		c.handler(files.script)
+	if files.hasInterpreter {
+		c.handler(files.interpreter)
 	}
 }

@@ -76,43 +76,94 @@ func TestCopyMainBinary(t *testing.T) {
 		IsScript:    false,
 		SeenAt:      testNow,
 	}, files.main)
-	assert.False(t, files.hasScript)
+	assert.False(t, files.hasInterpreter)
 }
 
+// In the CWS model, Process.FileEvent is the executed file (the script, for a #! exec) and
+// LinuxBinprm.FileEvent is the interpreter, which /proc/<pid>/exe points at.
 func TestCopyInterpreter(t *testing.T) {
 	c, _ := newTestConsumer(t, nil)
 
 	p := newTestProcess()
-	p.FileEvent.PathnameStr = "/usr/bin/bash"
+	p.FileEvent.PathnameStr = "/tmp/script.sh"
 	p.LinuxBinprm.FileEvent = model.FileEvent{
 		FileFields: model.FileFields{
 			CTime:   1700000000000000001,
 			PathKey: model.PathKey{Inode: 999, MountID: 46},
 		},
-		PathnameStr: "/tmp/script.sh",
+		PathnameStr: "/usr/bin/bash",
 	}
 	require.True(t, p.HasInterpreter())
 
 	files, ok := c.Copy(newExecEvent(p)).(*execFiles)
 	require.True(t, ok)
 
-	assert.Equal(t, "/usr/bin/bash", files.main.Path)
-	assert.False(t, files.main.IsScript)
-
-	require.True(t, files.hasScript)
+	// the script must not be read through /proc/<pid>/exe, which is the interpreter
 	assert.Equal(t, ExecFile{
 		PID:         4242,
 		CGroupID:    "/kubepods/pod1/abc",
 		ContainerID: "abc",
 		Path:        "/tmp/script.sh",
+		MountID:     45,
+		Inode:       123,
+		CTime:       1700000000000000000,
+		Filesystem:  "overlay",
+		IsScript:    true,
+		SeenAt:      testNow,
+	}, files.main)
+
+	require.True(t, files.hasInterpreter)
+	assert.Equal(t, ExecFile{
+		PID:         4242,
+		CGroupID:    "/kubepods/pod1/abc",
+		ContainerID: "abc",
+		Path:        "/usr/bin/bash",
 		MountID:     46,
 		Inode:       999,
 		CTime:       1700000000000000001,
-		// not resolved for the script
+		// not resolved for the interpreter
 		Filesystem: "",
-		IsScript:   true,
+		IsScript:   false,
 		SeenAt:     testNow,
-	}, files.script)
+	}, files.interpreter)
+}
+
+// resolvingFieldHandlers resolves paths lazily, like the eBPF field handlers
+type resolvingFieldHandlers struct {
+	*model.FakeFieldHandlers
+	paths    map[uint64]string
+	resolved int
+}
+
+func (fh *resolvingFieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
+	fh.resolved++
+	f.SetPathnameStr(fh.paths[f.Inode])
+	return f.PathnameStr
+}
+
+func TestCopyResolvesPaths(t *testing.T) {
+	c, _ := newTestConsumer(t, nil)
+
+	p := newTestProcess()
+	p.FileEvent.PathnameStr = ""
+	p.LinuxBinprm.FileEvent = model.FileEvent{FileFields: model.FileFields{PathKey: model.PathKey{Inode: 999}}}
+	ev := newExecEvent(p)
+	fh := &resolvingFieldHandlers{
+		FakeFieldHandlers: &model.FakeFieldHandlers{},
+		paths:             map[uint64]string{123: "/tmp/script.sh", 999: "/usr/bin/bash"},
+	}
+	ev.FieldHandlers = fh
+
+	files, ok := c.Copy(ev).(*execFiles)
+	require.True(t, ok)
+	assert.Equal(t, "/tmp/script.sh", files.main.Path)
+	assert.Equal(t, "/usr/bin/bash", files.interpreter.Path)
+	assert.Equal(t, 2, fh.resolved)
+
+	// already resolved paths are not resolved again
+	_, ok = c.Copy(ev).(*execFiles)
+	require.True(t, ok)
+	assert.Equal(t, 2, fh.resolved)
 }
 
 func TestCopySkips(t *testing.T) {
@@ -146,11 +197,14 @@ func TestHandleEvent(t *testing.T) {
 	assert.EqualValues(t, 1, stats.ExecsReceived.Load())
 
 	p.LinuxBinprm.FileEvent.Inode = 999
-	p.LinuxBinprm.FileEvent.PathnameStr = "/tmp/script.sh"
+	p.LinuxBinprm.FileEvent.PathnameStr = "/usr/bin/bash"
 	c.HandleEvent(c.Copy(newExecEvent(p)))
 	require.Len(t, got, 3)
-	assert.False(t, got[1].IsScript)
-	assert.True(t, got[2].IsScript)
+	// the executed file (the script) first, then the interpreter
+	assert.True(t, got[1].IsScript)
+	assert.Equal(t, "/usr/bin/true", got[1].Path)
+	assert.False(t, got[2].IsScript)
+	assert.Equal(t, "/usr/bin/bash", got[2].Path)
 	assert.EqualValues(t, 2, stats.ExecsReceived.Load())
 
 	// unexpected payloads are ignored
