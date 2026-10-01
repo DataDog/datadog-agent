@@ -57,7 +57,6 @@ func generateTestPrivateActionRunnerConfig(t *testing.T) string {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
-  split_enabled: false
   self_enroll: false
   urn: %s
   private_key: %s
@@ -75,6 +74,10 @@ type linuxPrivateActionRunnerEnabledSuite struct {
 	privilegedSigningKey testSigningKey
 }
 
+type linuxPrivateActionRunnerMonolithSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
 func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	t.Parallel()
 	config := generateTestPrivateActionRunnerConfig(t)
@@ -82,6 +85,23 @@ func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 		privilegedSigningKey: generateTestSigningKey(t, privilegedRshellKeyID+"-"+uuid.NewString()),
 	}
 	e2e.Run(t, suite, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(
+				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2404E2E)),
+				scenec2.WithPreAgentInstallHook(stagePrivateActionRunnerConfig(config)),
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(config),
+					agentparams.WithFile("/etc/datadog-agent/environment", "DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS=true\n", true),
+				),
+			),
+		),
+	))
+}
+
+func TestLinuxPrivateActionRunnerMonolithSuite(t *testing.T) {
+	t.Parallel()
+	config := GenerateTestMonolithicPrivateActionRunnerConfig(t)
+	e2e.Run(t, &linuxPrivateActionRunnerMonolithSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
 				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2404E2E)),
@@ -113,8 +133,17 @@ func stagePrivateActionRunnerConfig(configContent string) func(*aws.Environment,
 func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	host := s.Env().RemoteHost
 	client := s.Env().FakeIntake.Client()
-	svcManager := common.GetServiceManager(host)
-	s.Require().NotNil(svcManager)
+
+	// This suite intentionally omits split_enabled so it verifies the host default,
+	// not merely the split implementation behind an explicit opt-in.
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := host.Execute(fmt.Sprintf(
+			"sudo %s --socket %s describe %s", procmgrCLI, procmgrSocket, parControlProcess,
+		))
+		require.NoError(c, err)
+		require.Contains(c, strings.ReplaceAll(output, " ", ""), "State:Running")
+	}, 2*time.Minute, 2*time.Second, "split PAR control plane should run by default")
+	s.waitForSystemdUnitState(privateActionRunnerServiceName, "inactive", 2*time.Minute)
 
 	s.Require().Equal("root:root 755", strings.TrimSpace(host.MustExecute(
 		"sudo stat -c '%U:%G %a' "+privilegedRshellBinary,
@@ -146,14 +175,6 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	_, err = host.Execute("sudo -u dd-agent cat " + privilegedRshellFixture)
 	s.Require().Error(err, "dd-agent unexpectedly read the root-only fixture")
 
-	_, err = svcManager.Start(privateActionRunnerServiceName)
-	s.Require().NoError(err)
-	s.Require().EventuallyWithT(func(c *assert.CollectT) {
-		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
-		require.NoError(c, statusErr)
-		require.Contains(c, status, "active")
-	}, 2*time.Minute, 5*time.Second)
-
 	s.Require().NoError(client.FlushPAR())
 	s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id)
 	s.T().Cleanup(func() { s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id) })
@@ -166,13 +187,16 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	))
 	setPARTaskSigningKey(s.T(), client, s.privilegedSigningKey)
 
-	// Core Agent polls do not guarantee PAR has installed this signing key.
+	// Enqueuing work starts the split-mode executor. Re-publish the key while
+	// that cold executor registers its Remote Config subscription.
+	nonElevatedTaskID := s.enqueuePrivilegedRshellTask("cat " + privilegedRshellFixture)
+	deliverSigningKeyAfterSubscription(s.T(), client, strconv.FormatInt(testRunnerOrgID, 10), s.privilegedSigningKey)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -F %q %s | grep -F %q",
 			"Successfully updated keys", privateActionRunnerLogFile, s.privilegedSigningKey.id))
 	}, 45*time.Second, time.Second, "PAR should install the task signing key")
 
-	nonElevated := s.runPrivilegedRshellTask("cat " + privilegedRshellFixture)
+	nonElevated := s.waitForPrivilegedRshellTask(nonElevatedTaskID)
 	s.Require().True(nonElevated.Success, "non-elevated rshell command should complete: %+v", nonElevated)
 	s.Require().NotZero(rshellExitCode(s.T(), nonElevated))
 	s.Require().NotContains(nonElevated.Outputs["stdout"], privilegedRshellSecret)
@@ -199,7 +223,9 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	s.Require().Equal("active", strings.TrimSpace(host.MustExecute(
 		"sudo systemctl is-active "+privilegedRshellSocketUnit,
 	)))
-	reactivated := s.runPrivilegedRshellTask("sudo cat " + privilegedRshellFixture)
+	reactivatedTaskID := s.enqueuePrivilegedRshellTask("sudo cat " + privilegedRshellFixture)
+	deliverSigningKeyAfterSubscription(s.T(), client, strconv.FormatInt(testRunnerOrgID, 10), s.privilegedSigningKey)
+	reactivated := s.waitForPrivilegedRshellTask(reactivatedTaskID)
 	s.Require().True(reactivated.Success, "reactivated privileged helper failed: %+v", reactivated)
 	s.Require().Zero(rshellExitCode(s.T(), reactivated), "reactivated privileged helper failed: %+v", reactivated)
 	s.Require().Equal(privilegedRshellSecret+"\n", reactivated.Outputs["stdout"])
@@ -239,12 +265,12 @@ func (s *linuxPrivateActionRunnerEnabledSuite) installPrivilegedRshellFixture() 
 	_, _ = host.Execute("rm -f " + privilegedRshellPolicyStage + ".secret")
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTask(command string) *api.PARTaskResult {
-	_, result := s.runPrivilegedRshellTaskWithID(command)
-	return result
+func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTaskWithID(command string) (string, *api.PARTaskResult) {
+	taskID := s.enqueuePrivilegedRshellTask(command)
+	return taskID, s.waitForPrivilegedRshellTask(taskID)
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTaskWithID(command string) (string, *api.PARTaskResult) {
+func (s *linuxPrivateActionRunnerEnabledSuite) enqueuePrivilegedRshellTask(command string) string {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":              command,
@@ -254,9 +280,13 @@ func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTaskWithID(com
 		"allowedPaths":         []string{privilegedRshellFixtureDir + ":ro"},
 	})
 	s.Require().NoError(err)
+	return taskID
+}
+
+func (s *linuxPrivateActionRunnerEnabledSuite) waitForPrivilegedRshellTask(taskID string) *api.PARTaskResult {
 	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, 2*time.Minute)
 	s.Require().NoError(err)
-	return taskID, result
+	return result
 }
 
 func (s *linuxPrivateActionRunnerEnabledSuite) deleteRCConfig(product, configID string) {
@@ -315,40 +345,34 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerEnabledHos
 	}, 5*time.Minute, 10*time.Second, "Private Action Runner enabled host tag did not reach fakeintake")
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhenEnabled() {
+func (s *linuxPrivateActionRunnerMonolithSuite) TestPrivateActionRunnerStartsWhenEnabled() {
 	host := s.Env().RemoteHost
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
 
-	// Start the private action runner service
 	_, err := svcManager.Start(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
-	// Verify the service is running
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
 		assert.NoError(c, statusErr)
 		assert.Contains(c, status, "active")
 	}, 2*time.Minute, 5*time.Second, "private action runner service should be active when enabled")
 
-	// Verify the process is running
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pids, pidErr := process.FindPID(host, "privateactionrunner")
 		assert.NoError(c, pidErr)
 		assert.NotEmpty(c, pids, "privateactionrunner process should be running")
 	}, 2*time.Minute, 5*time.Second, "privateactionrunner process should be running when enabled")
 
-	// Verify the log file exists
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, "sudo test -f "+privateActionRunnerLogFile)
 	}, 2*time.Minute, 5*time.Second, "private action runner log file should exist")
 
-	// Verify log contains startup message
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 
-	// Wait for the Core Agent to report the AP_RUNNER_KEYS client in its backend requests.
 	client := s.Env().FakeIntake.Client()
 	stats, err := client.RCStats()
 	s.Require().NoError(err)
@@ -366,25 +390,22 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhen
 	}, 30*time.Second, time.Second, "private action runner log should report the keys manager ready")
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerServiceRestart() {
+func (s *linuxPrivateActionRunnerMonolithSuite) TestPrivateActionRunnerServiceRestart() {
 	host := s.Env().RemoteHost
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
 
 	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
-	// Ensure service is started
 	_, err := svcManager.Start(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
-	// Wait for service to be running
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
 		assert.NoError(c, statusErr)
 		assert.Contains(c, status, "active")
 	}, 2*time.Minute, 5*time.Second)
 
-	// Get the original PID
 	var originalPID int
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pids, pidErr := process.FindPID(host, "privateactionrunner")
@@ -395,18 +416,15 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerServiceRes
 		}
 	}, 2*time.Minute, 5*time.Second)
 
-	// Restart the service
 	_, err = svcManager.Restart(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
-	// Verify service is running again
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
 		assert.NoError(c, statusErr)
 		assert.Contains(c, status, "active")
 	}, 2*time.Minute, 5*time.Second, "private action runner should be active after restart")
 
-	// Verify we have a new PID (service actually restarted)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pids, pidErr := process.FindPID(host, "privateactionrunner")
 		assert.NoError(c, pidErr)

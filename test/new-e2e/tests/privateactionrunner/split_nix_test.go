@@ -175,7 +175,7 @@ func (s *linuxPARSplitSuite) TestSplitControlPlaneEndToEnd() {
 	}))
 	s.waitForProcessState(parExecutorProcess, "Running", 2*time.Minute)
 	// Deliver the key asynchronously while the cold executor registers its subscription.
-	s.deliverSigningKeyAfterSubscription(s.signingKey1)
+	deliverSigningKeyAfterSubscription(s.T(), client, "", s.signingKey1)
 	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
 	s.Require().NoError(err)
 	s.Require().True(result.Success, "split PAR action failed: %+v", result)
@@ -225,7 +225,7 @@ func (s *linuxPARSplitSuite) testCoreAgentUnavailableRecovery() {
 	}, 2*time.Minute, 5*time.Second, "core Agent should recover")
 	// This is a fresh executor; deliver the key as an RC update
 	// after its subscription can reach the resumed Core Agent.
-	s.deliverSigningKeyAfterSubscription(s.signingKey1)
+	deliverSigningKeyAfterSubscription(s.T(), client, "", s.signingKey1)
 
 	result, err := client.GetPARTaskResult(taskID, 2*time.Minute)
 	s.Require().NoError(err)
@@ -288,16 +288,6 @@ func (s *linuxPARSplitSuite) resetSigningKeyState() {
 			key := fmt.Sprintf("%s/%s/%s/%s", config.OrgID, config.Product, config.ConfigID, config.ConfigName)
 			s.Require().NoError(client.RCDeleteConfig(key))
 		}
-	}
-}
-
-// deliverSigningKeyAfterSubscription simulates an asynchronous RC update.
-// Repeated versions tolerate the absence of a subscription-readiness signal.
-func (s *linuxPARSplitSuite) deliverSigningKeyAfterSubscription(key testSigningKey) {
-	client := s.Env().FakeIntake.Client()
-	for range 5 {
-		s.Require().NoError(client.RCAddConfig("", runnerKeysRCProduct, key.id, key.id, key.config))
-		time.Sleep(2 * time.Second)
 	}
 }
 

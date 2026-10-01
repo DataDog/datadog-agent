@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -58,6 +59,16 @@ func setPARTaskSigningKey(t *testing.T, client *fakeintakeclient.Client, key tes
 		"test-runner-e2e",
 		"connection:execgroup_ddagent:par-rshell-e2e",
 	))
+}
+
+// deliverSigningKeyAfterSubscription simulates an asynchronous RC update.
+// Repeated versions tolerate the absence of a subscription-readiness signal.
+func deliverSigningKeyAfterSubscription(t *testing.T, client *fakeintakeclient.Client, orgID string, key testSigningKey) {
+	t.Helper()
+	for range 5 {
+		require.NoError(t, client.RCAddConfig(orgID, runnerKeysRCProduct, key.id, key.id, key.config))
+		time.Sleep(2 * time.Second)
+	}
 }
 
 // pushRunnerPublicKey pushes a fresh ED25519 public key to fakeintake as an

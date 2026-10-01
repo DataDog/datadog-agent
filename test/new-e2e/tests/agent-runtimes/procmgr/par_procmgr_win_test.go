@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -24,12 +25,18 @@ import (
 )
 
 const (
-	parProcessName           = "datadog-agent-action"
-	parLegacySCMServiceName  = "datadog-agent-action"
-	parProcmgrConfigFileName = "datadog-agent-action.yaml"
+	parControlProcessName     = "datadog-agent-par-control"
+	parControlConfigFileName  = "datadog-agent-par-control.yaml"
+	parMonolithProcessName    = "datadog-agent-action"
+	parMonolithConfigFileName = "datadog-agent-action.yaml"
+	parLegacySCMServiceName   = "datadog-agent-action"
 )
 
 type parProcmgrWindowsSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+type parMonolithProcmgrWindowsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
@@ -46,24 +53,45 @@ func TestPARManagedByProcmgrWindows(t *testing.T) {
 	))
 }
 
-func (s *parProcmgrWindowsSuite) TestPARSupervisedByProcmgrAndLegacySCMStopped() {
-	host := s.Env().RemoteHost
-	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
-	require.NoError(s.T(), err)
+func TestPARMonolithManagedByProcmgrWindows(t *testing.T) {
+	t.Parallel()
+	config := paridentity.GenerateTestMonolithicPrivateActionRunnerConfig(t)
+	e2e.Run(t, &parMonolithProcmgrWindowsSuite{}, e2e.WithProvisioner(
+		awshost.ProvisionerNoFakeIntake(
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
+			),
+		),
+	))
+}
 
-	skipUnlessHostPath(s.T(), host, agentBin(installRoot, "privateactionrunner.exe"),
+func (s *parProcmgrWindowsSuite) TestPARControlSupervisedByProcmgrAndLegacySCMStopped() {
+	assertPARSupervisedByProcmgr(s.T(), s.Env().RemoteHost, parControlProcessName, parControlConfigFileName)
+}
+
+func (s *parMonolithProcmgrWindowsSuite) TestPARMonolithSupervisedByProcmgrAndLegacySCMStopped() {
+	assertPARSupervisedByProcmgr(s.T(), s.Env().RemoteHost, parMonolithProcessName, parMonolithConfigFileName)
+}
+
+func assertPARSupervisedByProcmgr(t *testing.T, host *components.RemoteHost, processName, configFileName string) {
+	t.Helper()
+	installRoot, err := windowsagent.GetInstallPathFromRegistry(host)
+	require.NoError(t, err)
+
+	skipUnlessHostPath(t, host, agentBin(installRoot, "privateactionrunner.exe"),
 		"privateactionrunner.exe not installed; skipping PAR procmgr test")
-	requireHostPath(s.T(), host, processesDConfig(installRoot, parProcmgrConfigFileName),
+	requireHostPath(t, host, processesDConfig(installRoot, configFileName),
 		"fleet PAR processes.d config should exist at %s")
 
 	cli := agentBin(installRoot, "dd-procmgr.exe")
-	_ = waitProcmgrRunning(s.T(), host, cli, parProcessName, 2*time.Minute)
+	_ = waitProcmgrRunning(t, host, cli, processName, 2*time.Minute)
 
 	out, err := host.Execute(fmt.Sprintf(
 		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
 		parLegacySCMServiceName,
 	))
-	require.NoError(s.T(), err)
-	require.NotEqual(s.T(), "Running", strings.TrimSpace(out),
+	require.NoError(t, err)
+	require.NotEqual(t, "Running", strings.TrimSpace(out),
 		"%s Windows service must not be Running when PAR is managed by dd-procmgr", parLegacySCMServiceName)
 }
