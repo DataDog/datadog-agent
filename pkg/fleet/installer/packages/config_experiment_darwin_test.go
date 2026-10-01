@@ -337,7 +337,158 @@ func TestRestoreStableGivesUpAfterExhaustingRetries(t *testing.T) {
 	err := configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "after 3 attempts")
-	assert.Equal(t, configExperimentRestoreRetries, bootstrapAttempts, "expected the retries to stop at the configured bound")
+	assert.Equal(t, len(agentJobs)*configExperimentRestoreRetries, bootstrapAttempts, "expected every label's retries to stop at the configured bound")
+}
+
+// stubLaunchdScript is a launchctl stand-in driven by a function that decides each call's result,
+// and that records every call. print falls back to "not loaded" when the function returns nothing.
+func stubLaunchdScript(t *testing.T, respond func(args []string) ([]byte, error, bool)) *[][]string {
+	t.Helper()
+
+	var calls [][]string
+	original := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := launchd.NewClient(launchd.System)
+		client.BootoutSettlePollInterval = time.Millisecond
+		client.BootoutSettleTimeout = 20 * time.Millisecond
+		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+			calls = append(calls, args)
+			if out, err, ok := respond(args); ok {
+				return out, err
+			}
+			if args[0] == "print" {
+				return []byte(notLoadedOutput), exitError(113)
+			}
+			return nil, nil
+		}
+		return client
+	}
+	t.Cleanup(func() { launchdClient = original })
+	return &calls
+}
+
+// stableBootstraps counts the bootstraps of each stable job.
+func stableBootstraps(calls [][]string) map[string]int {
+	counts := map[string]int{}
+	for _, args := range calls {
+		if args[0] == "bootstrap" && !strings.Contains(args[len(args)-1], "-exp") {
+			counts[strings.TrimSuffix(filepath.Base(args[len(args)-1]), ".plist")]++
+		}
+	}
+	return counts
+}
+
+func shortRestoreBackoff(t *testing.T) {
+	t.Helper()
+	original := configExperimentRestoreBackoff
+	configExperimentRestoreBackoff = time.Millisecond
+	t.Cleanup(func() { configExperimentRestoreBackoff = original })
+}
+
+// TestRestoreStableRestoresEvenWhenRemovingTheExperimentFails pins that a leftover experiment
+// definition, which is never loaded at boot, does not stop the stable set from coming back.
+func TestRestoreStableRestoresEvenWhenRemovingTheExperimentFails(t *testing.T) {
+	calls := stubLaunchdScript(t, func([]string) ([]byte, error, bool) { return nil, nil, false })
+	dir := stubJobDir(t)
+	stubDeadlinePath(t)
+	// A non-empty directory where an experiment definition should be cannot be removed.
+	stuck := filepath.Join(dir, agentJobs[0]+"-exp.plist")
+	require.NoError(t, os.MkdirAll(filepath.Join(stuck, "child"), 0755))
+
+	err := configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t))
+
+	require.Error(t, err)
+	for _, label := range agentJobs {
+		assert.Equal(t, 1, stableBootstraps(*calls)[label], "%s was not restored", label)
+	}
+}
+
+// TestRestoreStableSwapsTheOtherLabelsWhenOneCannotBeUnloaded pins both halves of the label by
+// label swap: a stable job is never started while its experiment twin is still loaded, and a label
+// that cannot be handed back does not keep the others from coming back.
+func TestRestoreStableSwapsTheOtherLabelsWhenOneCannotBeUnloaded(t *testing.T) {
+	shortRestoreBackoff(t)
+	stuck := "com.datadoghq.sysprobe-exp"
+	calls := stubLaunchdScript(t, func(args []string) ([]byte, error, bool) {
+		switch {
+		case args[0] == "bootout" && args[1] == "system/"+stuck:
+			return nil, errors.New("injected failure"), true
+		case args[0] == "print" && args[1] == "system/"+stuck:
+			return []byte("state = running\n"), nil, true
+		}
+		return nil, nil, false
+	})
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	err := configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "com.datadoghq.sysprobe")
+	counts := stableBootstraps(*calls)
+	assert.Zero(t, counts["com.datadoghq.sysprobe"], "the stable job started while its experiment twin was still loaded")
+	assert.Equal(t, 1, counts["com.datadoghq.agent"])
+	assert.Equal(t, 1, counts["com.datadoghq.data-plane"])
+}
+
+// TestRestoreStableRetriesOnlyTheFailingLabel pins that a retry does not restart the labels that
+// were already handed back.
+func TestRestoreStableRetriesOnlyTheFailingLabel(t *testing.T) {
+	shortRestoreBackoff(t)
+	failures := 1
+	calls := stubLaunchdScript(t, func(args []string) ([]byte, error, bool) {
+		if args[0] == "bootstrap" && filepath.Base(args[len(args)-1]) == "com.datadoghq.data-plane.plist" && failures > 0 {
+			failures--
+			return nil, errors.New("injected failure"), true
+		}
+		return nil, nil, false
+	})
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	require.NoError(t, configExperiment{jobs: agentJobSet()}.Stop(testHookContext(t)))
+
+	assert.Equal(t, map[string]int{
+		"com.datadoghq.agent":      1,
+		"com.datadoghq.sysprobe":   1,
+		"com.datadoghq.data-plane": 2,
+	}, stableBootstraps(*calls))
+}
+
+// TestStartConfigExperimentRestoresTheStableSetWhenStoppingItFails covers a handover that fails
+// before the experiment set is touched: some stable jobs may already be down, so they are put back.
+func TestStartConfigExperimentRestoresTheStableSetWhenStoppingItFails(t *testing.T) {
+	shortRestoreBackoff(t)
+	// The stable system-probe job stays loaded until a bootout of it gets through, and the first
+	// one fails.
+	target := "system/com.datadoghq.sysprobe"
+	failures, loaded := 1, true
+	calls := stubLaunchdScript(t, func(args []string) ([]byte, error, bool) {
+		switch {
+		case args[0] == "bootout" && args[1] == target:
+			if failures > 0 {
+				failures--
+				return nil, errors.New("injected failure"), true
+			}
+			loaded = false
+		case args[0] == "print" && args[1] == target && loaded:
+			return []byte("state = running\n"), nil, true
+		}
+		return nil, nil, false
+	})
+	stubJobDir(t)
+	stubDeadlinePath(t)
+
+	err := configExperiment{jobs: agentJobSet()}.Start(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "injected failure")
+	for _, label := range agentJobs {
+		assert.Equal(t, 1, stableBootstraps(*calls)[label], "%s was not restored", label)
+	}
+	for _, args := range *calls {
+		assert.False(t, args[0] == "bootstrap" && strings.Contains(args[len(args)-1], "-exp"), "the experiment set was started")
+	}
 }
 
 // TestStartConfigExperimentDiscardsTheConfigWhenTheHandoverFails covers a start that is rolled back
