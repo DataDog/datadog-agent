@@ -288,64 +288,27 @@ dd_agent_go_test(
         "@org_uber_go_fx//:fx",
         "@org_uber_go_mock//gomock",
     ] + select({
-        "@rules_go//go/platform:aix": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
         "@rules_go//go/platform:android": [
             "//pkg/discovery/tracermetadata/model",
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
             "//pkg/proto/pbgo/process",
-            "@com_github_patrickmn_go_cache//:go-cache",
             "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:dragonfly": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:freebsd": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:illumos": [
-            "@com_github_patrickmn_go_cache//:go-cache",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/system-probe/config",
             "//pkg/system-probe/config/types",
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:js": [
-            "@com_github_patrickmn_go_cache//:go-cache",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/tracermetadata/model",
             "//pkg/discovery/usm",
             "//pkg/languagedetection/languagemodels",
             "//pkg/proto/pbgo/process",
-            "@com_github_patrickmn_go_cache//:go-cache",
             "@org_golang_google_protobuf//proto",
-        ],
-        "@rules_go//go/platform:netbsd": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:openbsd": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:osx": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:plan9": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:qnx": [
-            "@com_github_patrickmn_go_cache//:go-cache",
-        ],
-        "@rules_go//go/platform:solaris": [
-            "@com_github_patrickmn_go_cache//:go-cache",
         ],
         "//conditions:default": [],
     }),
