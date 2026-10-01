@@ -1020,6 +1020,14 @@ def bazel_build_windows_resources(ctx: Context) -> None:
     print("Copied Windows resource files to source tree")
 
 
+@task
+def build_sysprobe_binary_inputs(ctx, arch: str = CURRENT_ARCH) -> None:
+    """Stage the Bazel outputs that build-sysprobe-binary compiles in, without installing anything."""
+    arch_obj = Arch.from_str(arch)
+    bazel_build_ebpf(ctx, arch_obj, str(get_ebpf_build_dir(arch_obj)), str(get_ebpf_runtime_dir()))
+    build_rust_binaries(ctx, arch=arch_obj, packages=list(RUST_STATIC_LIBS))
+
+
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,

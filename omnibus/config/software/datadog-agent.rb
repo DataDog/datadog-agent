@@ -221,6 +221,7 @@ build do
     if linux_target?
       # Bazel has no FIPS Go toolchain yet, so install_system_probe_install_dir leaves the FIPS binary out.
       if fips_mode?
+        command "dda inv -- -e system-probe.build-sysprobe-binary-inputs", :live_stream => Omnibus.logger.live_stream(:info)
         command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
         copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
       end
