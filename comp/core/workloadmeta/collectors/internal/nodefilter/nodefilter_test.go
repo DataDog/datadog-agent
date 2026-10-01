@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -147,6 +148,35 @@ func TestLocalNodeName_CustomEnvVar(t *testing.T) {
 	assert.Equal(t, "test-node", nodeName)
 }
 
+// TestLocalNodeName_Whitespace verifies that whitespace around the node name,
+// as a templated or scripted env var may carry, doesn't end up in the field
+// selector, where it would silently select no pods.
+func TestLocalNodeName_Whitespace(t *testing.T) {
+	cfg := standaloneConfig(t)
+	t.Setenv("K8S_NODE_NAME", " test-node\n")
+
+	nodeName, err := localNodeName(cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "test-node", nodeName)
+}
+
+// TestLocalNodeName_Invalid verifies that a value that can't be a node name,
+// and so can't match any pod's spec.nodeName, is rejected with a warning, as
+// an unset env var is, rather than silently selecting no pods.
+func TestLocalNodeName_Invalid(t *testing.T) {
+	cfg := standaloneConfig(t)
+	t.Setenv("K8S_NODE_NAME", "Not a node name")
+	warnings := captureWarnings(t)
+
+	_, err := localNodeName(cfg)
+	require.Error(t, err)
+	assert.False(t, pkgerrors.IsDisabled(err))
+
+	output := warnings()
+	assert.Contains(t, output, `holds "Not a node name", which isn't a valid node name`)
+	assert.Contains(t, output, "otelcollector.standalone.use_kubelet_collector")
+}
+
 // standaloneConfig returns a config under which this collector applies, with
 // test-node as the local node's name.
 func standaloneConfig(t *testing.T) config.Component {
@@ -213,7 +243,8 @@ func TestStart(t *testing.T) {
 
 // TestStart_ClientError verifies that failing to build the API client fails
 // Start with an error workloadmeta retries, rather than one that drops the
-// collector for good.
+// collector for good, and is warned about once, since workloadmeta only logs
+// those retries at debug level.
 func TestStart_ClientError(t *testing.T) {
 	c := &collector{
 		id:      collectorID,
@@ -223,10 +254,17 @@ func TestStart_ClientError(t *testing.T) {
 			return nil, errors.New("no in-cluster config")
 		},
 	}
+	warnings := captureWarnings(t)
 
-	err := c.Start(context.Background(), nil)
-	require.Error(t, err)
-	assert.True(t, retry.IsErrWillRetry(err))
+	for range 3 {
+		err := c.Start(context.Background(), nil)
+		require.Error(t, err)
+		assert.True(t, retry.IsErrWillRetry(err))
+	}
+
+	output := warnings()
+	assert.Equal(t, 1, strings.Count(output, "until it can create a Kubernetes API client: no in-cluster config"), output)
+	assert.Contains(t, output, "kubernetes_kubeconfig_path")
 }
 
 // syncBuffer is a bytes.Buffer safe to log to from the reflector's goroutine
@@ -253,14 +291,20 @@ func (b *syncBuffer) String() string {
 // Anything else that sets up the global logger, like the workloadmeta mock,
 // must do so before.
 func captureWarnings(t *testing.T) func() string {
+	return captureLogs(t, log.WarnLvl, log.WarnStr)
+}
+
+// captureLogs is captureWarnings for any minimum level, each line prefixed
+// with its level, e.g. "[WARN] ".
+func captureLogs(t *testing.T, minLevel log.LogLevel, minLevelStr string) func() string {
 	var output syncBuffer
-	logger, err := log.LoggerFromWriterWithMinLevel(&output, log.WarnLvl)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&output, minLevel)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		log.SetupLogger(log.Default(), log.InfoStr)
 		logger.Close()
 	})
-	log.SetupLogger(logger, log.WarnStr)
+	log.SetupLogger(logger, minLevelStr)
 
 	return func() string {
 		logger.Flush()
@@ -295,5 +339,75 @@ func TestStart_Forbidden(t *testing.T) {
 
 	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
 		assert.Contains(ct, warnings(), "grant the agent's service account list and watch on pods")
+	}, eventuallyTimeout, eventuallyInterval)
+}
+
+// TestListWatchErrors verifies that list and watch errors are warned about,
+// with a hint matching their cause, when they start or change cause, rather
+// than on every retry; that recovering is logged; and that errors the
+// reflector routinely recovers from on its own aren't warned about.
+func TestListWatchErrors(t *testing.T) {
+	logs := captureLogs(t, log.InfoLvl, log.InfoStr)
+	errs := &listWatchErrors{}
+	forbidden := apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", errors.New("RBAC: access denied"))
+	unauthorized := apierrors.NewUnauthorized("invalid bearer token")
+	unreachable := errors.New("dial tcp 10.0.0.1:443: connect: connection refused")
+
+	for _, err := range []error{
+		forbidden, forbidden, forbidden,
+		unauthorized, unauthorized,
+		nil, nil,
+		unreachable, unreachable,
+		apierrors.NewResourceExpired("too old resource version"),
+		context.Canceled,
+	} {
+		assert.Equal(t, err, errs.report(err))
+	}
+
+	var warnings, infos []string
+	for _, line := range strings.Split(logs(), "\n") {
+		switch {
+		case strings.HasPrefix(line, "[WARN] "):
+			warnings = append(warnings, line)
+		case strings.HasPrefix(line, "[INFO] "):
+			infos = append(infos, line)
+		}
+	}
+
+	require.Len(t, warnings, 3, warnings)
+	assert.Contains(t, warnings[0], "grant the agent's service account list and watch on pods")
+	assert.Contains(t, warnings[0], "RBAC: access denied")
+	assert.Contains(t, warnings[1], "check the service account token mounted in the pod")
+	assert.Contains(t, warnings[1], "invalid bearer token")
+	assert.Contains(t, warnings[2], "kubernetes_apiserver_ca_path")
+	assert.Contains(t, warnings[2], "connection refused")
+
+	require.Len(t, infos, 1, infos)
+	assert.Contains(t, infos[0], "can list and watch pods on the local node again")
+}
+
+// TestStart_NoPods verifies that listing no pods at all on the node, which
+// can't happen when the node name is right since the agent's own pod runs
+// there, is warned about: the API server accepts any node name in the field
+// selector, so this is the only sign that it's wrong.
+func TestStart_NoPods(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	warnings := captureWarnings(t)
+
+	c := &collector{
+		id:      collectorID,
+		catalog: workloadmeta.NodeAgent,
+		config:  standaloneConfig(t),
+		newClient: func(config.Component) (kubernetes.Interface, error) {
+			return fake.NewClientset(), nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	require.NoError(t, c.Start(ctx, wlm))
+
+	assert.EventuallyWithT(t, func(ct *assert.CollectT) {
+		assert.Contains(ct, warnings(), `found no pods on node "test-node", not even the agent's own`)
 	}, eventuallyTimeout, eventuallyInterval)
 }

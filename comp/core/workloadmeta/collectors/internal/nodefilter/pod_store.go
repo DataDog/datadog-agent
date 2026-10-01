@@ -25,15 +25,17 @@ import (
 // pod itself is deleted or disappears from a Replace.
 type podStore struct {
 	wlmetaStore                workloadmeta.Component
+	nodeName                   string
 	collectEphemeralContainers bool
 
 	mu   sync.Mutex
 	seen map[types.UID][]workloadmeta.EntityID
 }
 
-func newPodStore(wlmetaStore workloadmeta.Component, collectEphemeralContainers bool) *podStore {
+func newPodStore(wlmetaStore workloadmeta.Component, nodeName string, collectEphemeralContainers bool) *podStore {
 	return &podStore{
 		wlmetaStore:                wlmetaStore,
+		nodeName:                   nodeName,
 		collectEphemeralContainers: collectEphemeralContainers,
 		seen:                       make(map[types.UID][]workloadmeta.EntityID),
 	}
@@ -91,7 +93,17 @@ func (s *podStore) Delete(obj interface{}) error {
 
 // Replace diffs the given list against what was previously seen, and unsets
 // any pod (and its containers) that is no longer present.
+//
+// The list holds every pod on the node, the agent's own included, so an
+// empty one means the node name doesn't match the node the agent runs on.
+// The API server accepts a field selector on any node name, so this is the
+// only sign of it. Replace only runs on the reflector's (re)lists, so warning
+// here doesn't flood the log.
 func (s *podStore) Replace(list []interface{}, _ string) error {
+	if len(list) == 0 {
+		log.Warnf("%s found no pods on node %q, not even the agent's own, so telemetry won't get Kubernetes tags: set the environment variable named by otelcollector.standalone.node_from_env_var to the pod's spec.nodeName through the downward API", componentName, s.nodeName)
+	}
+
 	seenNow := make(map[types.UID][]workloadmeta.EntityID, len(list))
 	var events []workloadmeta.CollectorEvent
 

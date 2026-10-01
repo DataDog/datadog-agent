@@ -16,9 +16,11 @@ package nodefilter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -27,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -36,7 +39,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -76,6 +79,11 @@ type collector struct {
 	// includeEphemeralContainers mirrors the kubelet collector's own
 	// include_ephemeral_containers config key.
 	includeEphemeralContainers bool
+
+	// clientErrorLogged records that a failure to build the API client was
+	// already warned about, so that workloadmeta retrying Start doesn't log
+	// it again every time. Start is never called concurrently.
+	clientErrorLogged bool
 }
 
 // NewCollector returns a nodefilter CollectorProvider that instantiates its collector
@@ -120,22 +128,30 @@ func Enabled(cfg config.Component) bool {
 // FilterConfig) rather than hardcoding a single env var name. It defaults to
 // K8S_NODE_NAME, the name the OTel Helm chart and Operator already populate
 // via the Kubernetes downward API (fieldRef: spec.nodeName) for exactly this
-// purpose. When it isn't set, no collector gathers pods, so this also logs a
-// warning: workloadmeta only logs a collector failing to start at info level.
+// purpose. When it isn't set, or doesn't hold a valid node name once trimmed,
+// no collector gathers pods, so this also logs a warning: workloadmeta only
+// logs a collector failing to start at info level.
 func localNodeName(cfg config.Component) (string, error) {
 	if !Enabled(cfg) {
-		return "", errors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode without the kubelet collector opt-out")
+		return "", pkgerrors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode without the kubelet collector opt-out")
 	}
 
 	if !env.IsFeaturePresent(env.Kubernetes) {
-		return "", errors.NewDisabled(componentName, "Agent is not running on Kubernetes")
+		return "", pkgerrors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
 	nodeFromEnvVar := cfg.GetString("otelcollector.standalone.node_from_env_var")
-	nodeName := os.Getenv(nodeFromEnvVar)
+	nodeName := strings.TrimSpace(os.Getenv(nodeFromEnvVar))
 	if nodeName == "" {
 		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: environment variable %q (otelcollector.standalone.node_from_env_var) is not set. Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVar)
 		return "", fmt.Errorf("environment variable %q (otelcollector.standalone.node_from_env_var) is not set", nodeFromEnvVar)
+	}
+
+	// Node names are DNS subdomains: anything else can't match a pod's
+	// spec.nodeName, and the field selector would silently select no pods.
+	if problems := validation.IsDNS1123Subdomain(nodeName); len(problems) > 0 {
+		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: environment variable %q (otelcollector.standalone.node_from_env_var) holds %q, which isn't a valid node name: %s. Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVar, nodeName, strings.Join(problems, "; "))
+		return "", fmt.Errorf("environment variable %q (otelcollector.standalone.node_from_env_var) holds an invalid node name %q", nodeFromEnvVar, nodeName)
 	}
 
 	return nodeName, nil
@@ -149,6 +165,13 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 
 	client, err := c.newClient(c.config)
 	if err != nil {
+		// workloadmeta only logs retried start failures at debug level, and
+		// no other collector gathers pods meanwhile, so warn, once.
+		if !c.clientErrorLogged {
+			log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags, until it can create a Kubernetes API client: %s. Mount the service account token in the pod or set kubernetes_kubeconfig_path, or set otelcollector.standalone.use_kubelet_collector to true. Will keep retrying", componentName, err)
+			c.clientErrorLogged = true
+		}
+
 		// The kubelet collector has already stepped aside for this one, so
 		// leave it in workloadmeta's candidate set rather than dropping it for
 		// good. This must be a *retry.Error: workloadmeta gates on
@@ -160,18 +183,21 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		}
 	}
 
+	log.Infof("%s watching pods on node %q", componentName, nodeName)
+
 	fieldSelector := fields.OneTermEqualSelector("spec.nodeName", nodeName).String()
+	errs := &listWatchErrors{}
 
 	podListWatch := &cache.ListWatch{
 		ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
 			options.FieldSelector = fieldSelector
 			pods, err := client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)
-			return pods, warnIfForbidden(err)
+			return pods, errs.report(err)
 		},
 		WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
 			options.FieldSelector = fieldSelector
 			watcher, err := client.CoreV1().Pods(metav1.NamespaceAll).Watch(ctx, options)
-			return watcher, warnIfForbidden(err)
+			return watcher, errs.report(err)
 		},
 	}
 
@@ -180,21 +206,67 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	// would otherwise wait forever on a client that doesn't (e.g. a fake one).
 	podListerWatcher := cache.ToListWatcherWithWatchListSemantics(podListWatch, client)
 
-	podReflector := cache.NewNamedReflector(componentName, podListerWatcher, &corev1.Pod{}, newPodStore(store, c.includeEphemeralContainers), noResync)
+	podReflector := cache.NewNamedReflector(componentName, podListerWatcher, &corev1.Pod{}, newPodStore(store, nodeName, c.includeEphemeralContainers), noResync)
 
 	go podReflector.RunWithContext(ctx)
 
 	return nil
 }
 
-// warnIfForbidden logs err, and passes it through, when it shows the agent
-// lacks RBAC to list or watch pods. The reflector keeps retrying such errors
-// in the background, long after Start has succeeded, and only reports them
-// through klog, so this is otherwise the one failure that neither fails the
-// collector nor shows up in the agent's log.
-func warnIfForbidden(err error) error {
-	if apierrors.IsForbidden(err) {
-		log.Warnf("%s cannot list or watch pods on the local node: grant the agent's service account list and watch on pods, or set otelcollector.standalone.use_kubelet_collector to true: %s", componentName, err)
+// listWatchErrors logs the errors the pod reflector's list and watch calls
+// return. The reflector keeps retrying them in the background, long after
+// Start has succeeded, and only reports them through klog, so they would
+// otherwise neither fail the collector nor show up in the agent's log. It
+// warns when the calls start failing, or fail for another reason, and logs
+// the retries in between at debug level only: the reflector retries about
+// every 30 seconds for as long as the failure lasts.
+type listWatchErrors struct {
+	mu sync.Mutex
+	// failing is the kind of error the last failed call returned, empty
+	// while the calls succeed.
+	failing string
+}
+
+// report logs err as described on listWatchErrors, and passes it through.
+func (e *listWatchErrors) report(err error) error {
+	if err == nil {
+		e.mu.Lock()
+		recovered := e.failing != ""
+		e.failing = ""
+		e.mu.Unlock()
+		if recovered {
+			log.Infof("%s can list and watch pods on the local node again", componentName)
+		}
+		return nil
+	}
+
+	// The collector is stopping, or the reflector is about to relist on its
+	// own: neither is a failure worth reporting.
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+		apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
+		log.Debugf("%s pod list or watch ended, will retry: %s", componentName, err)
+		return err
+	}
+
+	var kind, hint string
+	switch {
+	case apierrors.IsForbidden(err):
+		kind, hint = "forbidden", "grant the agent's service account list and watch on pods, or set otelcollector.standalone.use_kubelet_collector to true"
+	case apierrors.IsUnauthorized(err):
+		kind, hint = "unauthorized", "check the service account token mounted in the pod, or the credentials in kubernetes_kubeconfig_path"
+	default:
+		kind, hint = "other", "check that the Kubernetes API server is reachable and that its certificate is trusted (kubernetes_apiserver_ca_path)"
+	}
+
+	e.mu.Lock()
+	changed := e.failing != kind
+	e.failing = kind
+	e.mu.Unlock()
+
+	if changed {
+		log.Warnf("%s cannot list or watch pods on the local node, so telemetry won't get Kubernetes tags: %s. Will keep retrying: %s", componentName, hint, err)
+	} else {
+		log.Debugf("%s still cannot list or watch pods on the local node, will retry: %s", componentName, err)
 	}
 	return err
 }
