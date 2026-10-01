@@ -42,9 +42,7 @@ type ClusterChecksConfigProvider struct {
 	identifier       string
 	flushedConfigs   bool
 	nodeType         types.NodeType
-	// group is this worker's experimental cluster checks runner group
-	// (experimental.clc_runner_group); empty for a general worker.
-	group string
+	group            string
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
@@ -82,7 +80,7 @@ func NewClusterChecksConfigProvider(providerConfig *constants.ConfigurationProvi
 		c.nodeType = types.NodeTypeNodeAgent
 	}
 
-	c.group = pkgconfigsetup.Datadog().GetString("experimental.clc_runner_group")
+	c.group = pkgconfigsetup.Datadog().GetString("clc_runner_group")
 	if c.group != "" {
 		log.Infof("Advertising cluster checks runner group %q", c.group)
 	}

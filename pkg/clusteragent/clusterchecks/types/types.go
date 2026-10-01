@@ -34,9 +34,7 @@ const (
 type NodeStatus struct {
 	LastChange int64    `json:"last_change"`
 	NodeType   NodeType `json:"node_type,omitempty"`
-	// Group is the worker's experimental cluster checks runner group. Empty
-	// means a general worker, running the checks no group claims.
-	Group string `json:"group,omitempty"`
+	Group      string   `json:"group,omitempty"`
 }
 
 // StatusResponse holds the DCA response for a status report

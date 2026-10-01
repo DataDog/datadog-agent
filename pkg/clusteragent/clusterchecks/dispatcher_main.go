@@ -59,13 +59,13 @@ type dispatcher struct {
 	rebalancingPeriod                time.Duration
 	shardingStrategies               []shardingStrategy
 	shards                           *shardTracker
-	// checkGroup maps each check claimed by an experimental runner group to
+	// checkGroup maps each check claimed by a runner group to
 	// that group; runnerGroups is the set of declared groups.
 	checkGroup   map[string]string
 	runnerGroups map[string]struct{}
 }
 
-// parseRunnerGroups parses experimental.clc_runner_groups, a JSON object
+// parseRunnerGroups parses cluster_checks.runner_groups, a JSON object
 // mapping each runner group to the check names it claims, e.g.
 // {"kube":["kubernetes_state_core","orchestrator"]}. A check claimed by
 // several groups stays with the first group in name order.
@@ -75,7 +75,7 @@ func parseRunnerGroups(raw string) (checkGroup map[string]string, runnerGroups m
 	}
 	var declared map[string][]string
 	if err := json.Unmarshal([]byte(raw), &declared); err != nil {
-		log.Errorf("Ignoring invalid experimental.clc_runner_groups %q: %v", raw, err)
+		log.Errorf("Ignoring invalid cluster_checks.runner_groups %q: %v", raw, err)
 		return nil, nil
 	}
 
@@ -83,7 +83,7 @@ func parseRunnerGroups(raw string) (checkGroup map[string]string, runnerGroups m
 	runnerGroups = make(map[string]struct{}, len(declared))
 	for _, group := range slices.Sorted(maps.Keys(declared)) {
 		if group == "" {
-			log.Errorf("Ignoring experimental.clc_runner_groups entry without a group name")
+			log.Errorf("Ignoring cluster_checks.runner_groups entry without a group name")
 			continue
 		}
 		runnerGroups[group] = struct{}{}
@@ -141,7 +141,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
 	}
 
-	d.checkGroup, d.runnerGroups = parseRunnerGroups(pkgconfigsetup.Datadog().GetString("experimental.clc_runner_groups"))
+	d.checkGroup, d.runnerGroups = parseRunnerGroups(pkgconfigsetup.Datadog().GetString("cluster_checks.runner_groups"))
 
 	// These options will almost always be empty
 	d.excludedChecks = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks"))

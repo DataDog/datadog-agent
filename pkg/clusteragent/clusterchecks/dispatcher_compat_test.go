@@ -28,10 +28,10 @@ import (
 const kubeGroups = `{"kube":["kubernetes_state_core","orchestrator"]}`
 
 // newGroupDispatcher returns a dispatcher with the given runner groups
-// declared (experimental.clc_runner_groups).
+// declared (cluster_checks.runner_groups).
 func newGroupDispatcher(t *testing.T, groups string) *dispatcher {
 	t.Helper()
-	configmock.New(t).SetInTest("experimental.clc_runner_groups", groups)
+	configmock.New(t).SetInTest("cluster_checks.runner_groups", groups)
 	return newDispatcher(taggerfxmock.SetupFakeTagger(t))
 }
 
@@ -124,39 +124,6 @@ func TestAddWithNoGroupWorkerDangles(t *testing.T) {
 	assert.Equal(t, "kube-1", d.store.digestToNode[dangling[0].Digest()])
 	d.store.RUnlock()
 
-	requireNotLocked(t, d.store)
-}
-
-// TestGroupChangeRedispatchesConfigs covers a worker reporting another group
-// under the same name: the configs its new group can't run are unassigned and
-// re-dispatched, the others stay put.
-func TestGroupChangeRedispatchesConfigs(t *testing.T) {
-	d := newGroupDispatcher(t, kubeGroups)
-	registerWorker(t, d, "runner-1", "10.0.0.1", types.NodeTypeCLCRunner, "")
-	registerWorker(t, d, "kube-1", "10.0.0.2", types.NodeTypeCLCRunner, "kube")
-	http := generateIntegration("http_check")
-	d.addConfig(http, "runner-1")
-
-	runner, _ := d.store.getNodeStore("runner-1")
-	lastChange := runner.lastConfigChange
-	registerWorker(t, d, "runner-1", "10.0.0.1", types.NodeTypeCLCRunner, "kube")
-	requireNotLocked(t, d.store)
-
-	d.store.RLock()
-	assert.Equal(t, "kube", runner.group)
-	assert.NotContains(t, d.store.digestToNode, http.Digest())
-	assert.Contains(t, d.store.danglingConfigs, http.Digest())
-	d.store.RUnlock()
-	runner.RLock()
-	assert.NotContains(t, runner.digestToConfig, http.Digest())
-	// The worker is told to re-poll, so it stops running the check.
-	assert.Greater(t, runner.lastConfigChange, lastChange)
-	runner.RUnlock()
-
-	// Re-sending the same group is a no-op.
-	lastChange = runner.lastConfigChange
-	registerWorker(t, d, "runner-1", "10.0.0.1", types.NodeTypeCLCRunner, "kube")
-	assert.Equal(t, lastChange, runner.lastConfigChange)
 	requireNotLocked(t, d.store)
 }
 

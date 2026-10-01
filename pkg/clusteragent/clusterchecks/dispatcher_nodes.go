@@ -110,10 +110,7 @@ func (d *dispatcher) getNodeToScheduleCheck(checkName string) (node string, anyN
 	return node, len(d.store.nodes) > 0
 }
 
-// updateGroup records the worker's runner group on every status report, in
-// case a worker restarts under the same name in another group. Configs the
-// new group can't run go back to the dangling configs, to be re-dispatched.
-// The store must be locked.
+// updateGroup records the worker's runner group. The store must be locked.
 func (d *dispatcher) updateGroup(nodeName string, node *nodeStore, group string) {
 	if group == node.group {
 		return
@@ -124,16 +121,6 @@ func (d *dispatcher) updateGroup(nodeName string, node *nodeStore, group string)
 		log.Infof("Node %s is in cluster checks runner group %q", nodeName, cmp.Or(group, "general"))
 	}
 	node.group = group
-
-	node.Lock()
-	defer node.Unlock()
-	for digest, config := range node.digestToConfig {
-		if !d.accepts(node, config.Name) {
-			log.Infof("Node %s can no longer run %s:%s, will re-dispatch it", nodeName, config.Name, digest)
-			node.removeConfig(digest)
-			d.moveToDangling(nodeName, digest, config)
-		}
-	}
 }
 
 // accepts reports whether a worker may run a check: a check claimed by a
@@ -204,7 +191,19 @@ func (d *dispatcher) expireNodes() {
 				log.Infof("Expiring out node %s, last status report %d seconds ago", name, timestampNow()-node.heartbeat)
 			}
 			for digest, config := range node.digestToConfig {
-				d.moveToDangling(name, digest, config)
+				delete(d.store.digestToNode, digest)
+				log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
+				d.store.danglingConfigs[digest] = createDanglingConfig(config)
+				danglingConfigs.Inc(le.JoinLeaderValue)
+
+				// TODO: Use partial label matching when it becomes available:
+				// Replace the loop by a single function call (delete by node name).
+				// Requires https://github.com/prometheus/client_golang/pull/1013
+				for k, v := range d.store.idToDigest {
+					if v == digest {
+						configsInfo.Delete(name, config.Name, string(k), le.JoinLeaderValue)
+					}
+				}
 			}
 			delete(d.store.nodes, name)
 
@@ -219,25 +218,6 @@ func (d *dispatcher) expireNodes() {
 
 	if initialNodeCount != 0 && len(d.store.nodes) == 0 {
 		log.Warn("No nodes reporting, cluster checks will not run")
-	}
-}
-
-// moveToDangling unassigns a config dispatched to nodeName and stores it as a
-// dangling config, to be re-dispatched. It doesn't touch the node's own
-// config map. The store must be locked.
-func (d *dispatcher) moveToDangling(nodeName, digest string, config integration.Config) {
-	delete(d.store.digestToNode, digest)
-	log.Debugf("Adding %s:%s as a dangling Cluster Check config", config.Name, digest)
-	d.store.danglingConfigs[digest] = createDanglingConfig(config)
-	danglingConfigs.Inc(le.JoinLeaderValue)
-
-	// TODO: Use partial label matching when it becomes available:
-	// Replace the loop by a single function call (delete by node name).
-	// Requires https://github.com/prometheus/client_golang/pull/1013
-	for k, v := range d.store.idToDigest {
-		if v == digest {
-			configsInfo.Delete(nodeName, config.Name, string(k), le.JoinLeaderValue)
-		}
 	}
 }
 
