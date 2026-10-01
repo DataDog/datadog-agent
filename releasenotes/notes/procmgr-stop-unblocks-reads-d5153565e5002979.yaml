@@ -1,12 +1,9 @@
 ---
 fixes:
   - |
-    On Windows, stopping a process supervised by **dd-procmgrd** no longer takes the
-    full ``stop_timeout`` (90 seconds by default). A supervised child starts without
-    a console of its own, so the graceful stop signal could not be delivered to it,
-    and the daemon waited out the timeout before force-killing a process it had
-    never managed to ask to exit. A stop that cannot be delivered now escalates
-    straight to a force-kill.
+    When **dd-procmgrd** cannot deliver the graceful stop signal to a supervised
+    process, it now force-kills the process after a short grace period instead of
+    waiting out the full ``stop_timeout`` (90 seconds by default).
   - |
     **dd-procmgrd** keeps answering ``dd-procmgr list``, ``describe``, ``status``
     and ``config`` while a process is stopping. Those commands used to wait on the
