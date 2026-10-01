@@ -103,6 +103,29 @@ func TestClosedOnOneSideOnly(t *testing.T) {
 	assert.Equal(t, "IsClosed", r.Divergences[0].Field)
 }
 
+func TestPacketSlack(t *testing.T) {
+	a, b := tcpConn(1000, 1, 1, true), tcpConn(1000, 1, 1, true)
+	a.Monotonic.SentPackets, b.Monotonic.SentPackets = 84, 85
+
+	// closed counters are exact by default
+	r := Compare([]network.ConnectionStats{a}, []network.ConnectionStats{b}, opts)
+	require.Len(t, r.Divergences, 1, r.String())
+	assert.Equal(t, "SentPackets", r.Divergences[0].Field)
+
+	o := opts
+	o.PacketSlack = 1
+	assert.True(t, Compare([]network.ConnectionStats{a}, []network.ConnectionStats{b}, o).OK())
+
+	// slack does not apply to other counters, nor beyond its size
+	b.Monotonic.SentPackets, b.Monotonic.SentBytes = 86, 2
+	r = Compare([]network.ConnectionStats{a}, []network.ConnectionStats{b}, o)
+	var names []string
+	for _, d := range r.Divergences {
+		names = append(names, d.Field)
+	}
+	assert.ElementsMatch(t, []string{"SentPackets", "SentBytes"}, names, r.String())
+}
+
 func TestRTTTolerance(t *testing.T) {
 	a, b := tcpConn(1000, 1, 1, true), tcpConn(1000, 1, 1, true)
 	a.RTT, b.RTT = 1000, 800

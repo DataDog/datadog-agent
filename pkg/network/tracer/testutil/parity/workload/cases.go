@@ -101,15 +101,23 @@ func tcpServer(tb testing.TB, ip string, handler func(net.Conn)) net.Listener {
 	return ln
 }
 
-// tcpExchange sends req bytes, half-closes, then reads resp bytes until the
-// server closes, and closes the connection
+// tcpExchange sends req bytes and reads resp bytes back, then closes.
+//
+// Closes are ordered so that no packets are in flight at either side's
+// tcp_close: the client closes first, once it has read the full response, and
+// the server closes only after it sees the client's EOF. A close that races
+// in-flight segments makes the socket's segment counters (and so the reported
+// packet counts) depend on exactly when each tracer program reads them.
 func tcpExchange(tb testing.TB, rec *Recorder, ip string, req, resp int) {
 	requireLoopback(tb, ip)
 	ln := tcpServer(tb, ip, func(c net.Conn) {
-		if _, err := io.Copy(io.Discard, c); err != nil {
+		if _, err := io.ReadFull(c, make([]byte, req)); err != nil {
 			return
 		}
-		_, _ = c.Write(payload(resp))
+		if _, err := c.Write(payload(resp)); err != nil {
+			return
+		}
+		waitEOF(c)
 	})
 
 	c, err := net.DialTimeout("tcp", ln.Addr().String(), ioTimeout)
@@ -118,13 +126,17 @@ func tcpExchange(tb testing.TB, rec *Recorder, ip string, req, resp int) {
 
 	_, err = c.Write(payload(req))
 	require.NoError(tb, err)
-	require.NoError(tb, c.(*net.TCPConn).CloseWrite())
-	n, err := io.Copy(io.Discard, c)
+	_, err = io.ReadFull(c, make([]byte, resp))
 	require.NoError(tb, err)
-	require.EqualValues(tb, resp, n)
 
 	rec.ExpectPair(network.TCP, addrPort(c.LocalAddr()), addrPort(c.RemoteAddr()), tcpBytes(req, resp), tcpBytes(resp, req))
 	c.Close()
+}
+
+// waitEOF blocks until the peer closes, so that the caller's close comes after
+// the peer's and races no in-flight data
+func waitEOF(c net.Conn) {
+	_, _ = io.Copy(io.Discard, c)
 }
 
 // tcpLongLived does several request/response rounds on one connection and
@@ -161,13 +173,19 @@ func tcpLongLived(tb testing.TB, rec *Recorder, ip string, rounds, size int) {
 }
 
 // tcpSendfile sends size bytes with sendfile(2), exercising tcp_sendpage /
-// splice paths rather than tcp_sendmsg
+// splice paths rather than tcp_sendmsg. The server acknowledges receipt with a
+// single byte, and the client closes only after reading it, so that its close
+// doesn't race the data still in flight (see tcpExchange).
 func tcpSendfile(tb testing.TB, rec *Recorder, ip string, size int) {
 	requireLoopback(tb, ip)
-	received := make(chan int64, 1)
 	ln := tcpServer(tb, ip, func(c net.Conn) {
-		n, _ := io.Copy(io.Discard, c)
-		received <- n
+		if _, err := io.ReadFull(c, make([]byte, size)); err != nil {
+			return
+		}
+		if _, err := c.Write([]byte{1}); err != nil {
+			return
+		}
+		waitEOF(c)
 	})
 
 	path := filepath.Join(tb.TempDir(), "sendfile_source")
@@ -178,6 +196,7 @@ func tcpSendfile(tb testing.TB, rec *Recorder, ip string, size int) {
 
 	c, err := net.DialTimeout("tcp", ln.Addr().String(), ioTimeout)
 	require.NoError(tb, err)
+	require.NoError(tb, c.SetDeadline(time.Now().Add(ioTimeout)))
 	raw, err := c.(*net.TCPConn).SyscallConn()
 	require.NoError(tb, err)
 	sent := 0
@@ -195,16 +214,11 @@ func tcpSendfile(tb testing.TB, rec *Recorder, ip string, size int) {
 	}))
 	require.NoError(tb, serr)
 	require.Equal(tb, size, sent)
-	client, server := addrPort(c.LocalAddr()), addrPort(c.RemoteAddr())
-	c.Close()
 
-	select {
-	case n := <-received:
-		require.EqualValues(tb, size, n)
-	case <-time.After(ioTimeout):
-		require.Fail(tb, "sendfile server did not receive data")
-	}
-	rec.ExpectPair(network.TCP, client, server, tcpBytes(size, 0), tcpBytes(0, size))
+	_, err = io.ReadFull(c, make([]byte, 1))
+	require.NoError(tb, err, "sendfile server did not acknowledge the data")
+	rec.ExpectPair(network.TCP, addrPort(c.LocalAddr()), addrPort(c.RemoteAddr()), tcpBytes(size, 1), tcpBytes(1, size))
+	c.Close()
 }
 
 // tcpRefused connects to a port with no listener (ECONNREFUSED)

@@ -89,6 +89,14 @@ type Options struct {
 	// RTTTolerance is the relative tolerance applied to RTT and RTTVar, which are
 	// sampled at different instants by each tracer
 	RTTTolerance float64
+	// PacketSlack is an absolute difference allowed on SentPackets and
+	// RecvPackets, including for closed connections. TCP packet counts are read
+	// from the socket's segment counters at tcp_close, so two tracers running
+	// side by side read them a moment apart, and a close that races in-flight
+	// segments can make them differ. Prefer workloads that close with nothing
+	// in flight and leave this at 0; it is for traffic where that isn't
+	// possible.
+	PacketSlack uint64
 	// Ignore lists field names (see Fields) to skip
 	Ignore []string
 	// Filter, if set, drops connections for which it returns false (on both sides)
@@ -116,6 +124,8 @@ const (
 	// counter fields are compared exactly for closed connections, and with
 	// Options.CounterTolerance otherwise
 	counter fieldClass = iota
+	// packets fields are counters that additionally allow Options.PacketSlack
+	packets
 	// rtt fields are always compared with Options.RTTTolerance
 	rtt
 	// exact fields are compared with ==
@@ -135,8 +145,8 @@ func u64[T uint16 | uint32 | uint64](v T) any { return uint64(v) }
 var fields = []field{
 	{"SentBytes", counter, func(c *network.ConnectionStats) any { return u64(c.Monotonic.SentBytes) }},
 	{"RecvBytes", counter, func(c *network.ConnectionStats) any { return u64(c.Monotonic.RecvBytes) }},
-	{"SentPackets", counter, func(c *network.ConnectionStats) any { return u64(c.Monotonic.SentPackets) }},
-	{"RecvPackets", counter, func(c *network.ConnectionStats) any { return u64(c.Monotonic.RecvPackets) }},
+	{"SentPackets", packets, func(c *network.ConnectionStats) any { return u64(c.Monotonic.SentPackets) }},
+	{"RecvPackets", packets, func(c *network.ConnectionStats) any { return u64(c.Monotonic.RecvPackets) }},
 	{"Retransmits", counter, func(c *network.ConnectionStats) any { return u64(c.Monotonic.Retransmits) }},
 	{"TCPEstablished", counter, func(c *network.ConnectionStats) any { return u64(c.Monotonic.TCPEstablished) }},
 	{"TCPClosed", counter, func(c *network.ConnectionStats) any { return u64(c.Monotonic.TCPClosed) }},
@@ -276,6 +286,11 @@ func compareConn(a, b *network.ConnectionStats, occurrence int, ignore map[strin
 
 func fieldEqual(class fieldClass, a, b any, closed bool, opts Options) bool {
 	switch class {
+	case packets:
+		if absDiff(a.(uint64), b.(uint64)) <= opts.PacketSlack {
+			return true
+		}
+		return !closed && withinTolerance(a.(uint64), b.(uint64), opts.CounterTolerance)
 	case counter:
 		if closed {
 			return a == b
@@ -286,6 +301,10 @@ func fieldEqual(class fieldClass, a, b any, closed bool, opts Options) bool {
 	default:
 		return a == b
 	}
+}
+
+func absDiff(a, b uint64) uint64 {
+	return max(a, b) - min(a, b)
 }
 
 // withinTolerance reports whether a and b differ by at most tol relative to the
