@@ -312,6 +312,7 @@ require (
 	github.com/hashicorp/vault/api/auth/aws v0.12.0
 	github.com/hashicorp/vault/api/auth/ldap v0.12.0
 	github.com/hashicorp/vault/api/auth/userpass v0.12.0
+	github.com/hillu/go-yara/v4 v4.3.4
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/invopop/jsonschema v0.14.0
 	github.com/jackc/pgx/v5 v5.11.0
