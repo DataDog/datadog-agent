@@ -25,9 +25,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// dockerImageIDPrefix is stripped from ImageID, mirroring the kubelet API's
-// own convention for reporting pullable image references.
-const dockerImageIDPrefix = "docker-pullable://"
+const (
+	// dockerImageIDPrefix is stripped from ImageID, mirroring the kubelet
+	// API's own convention for reporting pullable image references.
+	dockerImageIDPrefix = "docker-pullable://"
+
+	// mirrorPodAnnotation is set by the kubelet, on the mirror pod it creates
+	// in the API server for each static pod, to the static pod's UID.
+	mirrorPodAnnotation = "kubernetes.io/config.mirror"
+)
 
 // parsePod builds the workloadmeta events for a single pod: one
 // KubernetesPod entity, plus one Container entity per (init/ephemeral)
@@ -38,7 +44,7 @@ const dockerImageIDPrefix = "docker-pullable://"
 func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
 	podID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesPod,
-		ID:   string(pod.UID),
+		ID:   podUID(pod),
 	}
 
 	initContainers, initContainerEvents := parsePodContainers(pod.Spec.InitContainers, pod.Status.InitContainerStatuses, pod.Namespace, &podID)
@@ -145,6 +151,18 @@ func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.C
 	})
 
 	return events
+}
+
+// podUID returns the UID the kubelet knows pod by, which the kubelet
+// collector stores pods under. It's the pod's own UID, except for a static
+// pod: the API server only holds its mirror pod, under another UID, while
+// the kubelet, its /pods endpoint, the downward API and the log paths under
+// /var/log/pods all use the static pod's UID, a hash of its manifest.
+func podUID(pod *corev1.Pod) string {
+	if uid := pod.Annotations[mirrorPodAnnotation]; uid != "" {
+		return uid
+	}
+	return string(pod.UID)
 }
 
 // parsePodContainers builds the OrchestratorContainer references for a pod's

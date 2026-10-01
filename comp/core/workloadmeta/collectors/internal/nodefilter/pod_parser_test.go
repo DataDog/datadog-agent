@@ -275,6 +275,38 @@ func TestParsePod_SkipsContainerWithoutID(t *testing.T) {
 	}
 }
 
+// TestParsePod_StaticPod verifies that a static pod, which the API server
+// only holds as a mirror pod under another UID, is stored under the static
+// pod's own UID, as the kubelet collector stores it, and that its containers
+// point to it under that UID.
+func TestParsePod_StaticPod(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "kube-apiserver-node",
+			Namespace:   "kube-system",
+			UID:         types.UID("85a6cc02-4460-4f8a-b5f0-0123456789ab"),
+			Annotations: map[string]string{mirrorPodAnnotation: "9b3c1a2d4e5f60718293a4b5c6d7e8f9"},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "kube-apiserver"}},
+		},
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{
+				{Name: "kube-apiserver", ContainerID: "containerd://container-id"},
+			},
+		},
+	}
+
+	events := parsePod(pod, false)
+
+	require.Len(t, events, 2)
+	container := events[0].Entity.(*workloadmeta.Container)
+	podEntity := events[1].Entity.(*workloadmeta.KubernetesPod)
+	assert.Equal(t, "9b3c1a2d4e5f60718293a4b5c6d7e8f9", podEntity.ID)
+	require.NotNil(t, container.Owner)
+	assert.Equal(t, podEntity.EntityID, *container.Owner)
+}
+
 func TestParsePod_DeletionTimestamp(t *testing.T) {
 	deletionTime := metav1.NewTime(time.Date(2025, time.January, 2, 0, 0, 0, 0, time.UTC))
 	pod := &corev1.Pod{
