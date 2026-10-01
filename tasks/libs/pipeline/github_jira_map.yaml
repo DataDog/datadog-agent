@@ -62,4 +62,4 @@
 '@datadog/profiling-full-host': 'PROF'
 '@datadog/q-branch': AAD
 '@datadog/agent-anomaly-detection': AAD
-'@datadog/accelerator-telemetry': EBPF
+'@datadog/accelerator-telemetry': AXT

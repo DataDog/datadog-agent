@@ -287,7 +287,7 @@ github_team = "profiling-full-host"
 github_labels = ["team/profiling-full-host"]
 
 [teams."Accelerator Telemetry"]
-jira_project = "EBPF"
+jira_project = "AXT"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "accelerator-telemetry"
