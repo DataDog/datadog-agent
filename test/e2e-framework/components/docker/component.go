@@ -24,10 +24,8 @@ import (
 )
 
 const (
-	composeVersion                      = "v2.27.0"
-	redHatFamilyDockerCEInstallVersion  = "3:29.6.2-1.el9"
-	redHatFamilyDockerCLIInstallVersion = "1:29.6.2-1.el9"
-	defaultTimeout                      = 300
+	composeVersion = "v2.27.0"
+	defaultTimeout = 300
 )
 
 type ManagerOutput struct {
@@ -53,17 +51,29 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 		comp.Host = host
 		comp.opts = opts
 
-		installCmd, err := comp.install()
+		prepareCmd, err := comp.prepare()
 		if err != nil {
 			return err
 		}
-		comp.opts = utils.MergeOptions(comp.opts, utils.PulumiDependsOn(installCmd))
+		comp.opts = utils.MergeOptions(comp.opts, utils.PulumiDependsOn(prepareCmd))
 
 		composeCmd, err := comp.assertCompose()
 		if err != nil {
 			return err
 		}
 		comp.opts = utils.MergeOptions(comp.opts, utils.PulumiDependsOn(composeCmd))
+
+		// Inject the internal registry hosting the workload app images so that
+		// compose files using ${DD_APPS_REGISTRY:-ghcr.io/datadog} pull the apps
+		// from the internal registry (agent-qa ECR, GCP Artifact Registry, Azure
+		// ACR depending on the cloud) when one is available. Environments without
+		// an internal registry (local runs, which report "none") keep the
+		// default public ghcr.io.
+		if reg := e.InternalRegistry(); reg != "" && reg != "none" {
+			comp.defaultEnvVars = pulumi.StringMap{
+				"DD_APPS_REGISTRY": pulumi.String(reg),
+			}
+		}
 
 		return nil
 	}, opts...)
@@ -78,7 +88,9 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 // When ImagePullRegistry is configured, DD_REGISTRY is automatically injected into every
 // ComposeStrUp call so that compose files using ${DD_REGISTRY:-docker.io} pull from the
 // ECR pull-through cache for Docker Hub images. Callers may still override DD_REGISTRY by
-// passing it explicitly in their envVars map.
+// passing it explicitly in their envVars map. DD_APPS_REGISTRY (the internal registry
+// hosting the workload app images, set by NewManager) is injected the same way so compose
+// files using ${DD_APPS_REGISTRY:-ghcr.io/datadog} pull the workload apps from ECR.
 func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOption) (*Manager, error) {
 	ecrCreds, err := SetupECRDockerAuth(e.CommonNamer().WithPrefix("docker"), host, opts...)
 	if err != nil {
@@ -89,9 +101,10 @@ func NewAWSManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceO
 		return nil, err
 	}
 	if reg := e.ImagePullRegistry(); reg != "" {
-		mgr.defaultEnvVars = pulumi.StringMap{
-			"DD_REGISTRY": pulumi.String(strings.SplitN(reg, ",", 2)[0] + "/dockerhub"),
+		if mgr.defaultEnvVars == nil {
+			mgr.defaultEnvVars = pulumi.StringMap{}
 		}
+		mgr.defaultEnvVars["DD_REGISTRY"] = pulumi.String(strings.SplitN(reg, ",", 2)[0] + "/dockerhub")
 	}
 	return mgr, nil
 }
@@ -183,72 +196,36 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 	)
 }
 
-func (d *Manager) install() (command.Command, error) {
+func (d *Manager) prepare() (command.Command, error) {
 	opts := []pulumi.ResourceOption{pulumi.Parent(d)}
 	opts = utils.MergeOptions(d.opts, opts...)
 
-	// TODO(ACIX-1305 follow-up): remove this runtime install once a RHEL 10 -e2e
-	// AMI pre-bakes Docker CE. The migrated OSes assume Docker is pre-baked and
-	// hard-fail if it is missing; RHEL family has no -e2e AMI yet (introduced by
-	// the SBOM/RHEL10 work in #51486), so it remains a temporary runtime install.
-	//
-	// Red Hat family flavors have no distro "docker" package, so install Docker CE
-	// from Docker's repo first; the generic Ensure below then no-ops (command -v
-	// docker succeeds). The el9 repo is reused because RHEL 10 ($releasever=10) is
-	// not served by Docker yet. Keep the engine version pinned while this runtime
-	// install exists, as upstream Docker CE releases can break provisioning.
-	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
-		dockerCEInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-ce-install"), &command.Args{
-			Sudo: true,
-			Create: pulumi.String(fmt.Sprintf(`bash <<'EOF'
-set -euxo pipefail
-# Single-node e2e box: relax SELinux and firewalld (mirrors the kubeadm box) so
-# the agent container can read host bind mounts without extra rules.
-setenforce 0 || true
-sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config || true
-systemctl disable --now firewalld || true
-curl -fsSL https://download.docker.com/linux/centos/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo
-sed -i 's/\$releasever/9/g' /etc/yum.repos.d/docker-ce.repo
-dnf install -y docker-ce-%[1]s docker-ce-cli-%[2]s containerd.io
-# RHEL 10 dropped the legacy iptables kernel module, so docker 29 must use its
-# nftables firewall backend or the daemon cannot program bridge NAT. Set it
-# before the first start (the full daemon.json follows); surface logs on failure.
-mkdir -p /etc/docker && printf '{"firewall-backend": "nftables", "storage-driver": "overlay2"}' > /etc/docker/daemon.json
-# docker needs IPv4 forwarding to create its default bridge network.
-echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf && sysctl -w net.ipv4.ip_forward=1
-systemctl enable --now docker || { journalctl -xeu docker.service --no-pager | tail -80; exit 1; }
-EOF`, redHatFamilyDockerCEInstallVersion, redHatFamilyDockerCLIInstallVersion)),
-		}, opts...)
-		if err != nil {
-			return nil, err
-		}
-		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerCEInstall))
+	// AWS images bake Docker; other clouds provision it explicitly before NewManager.
+	dockerCheck, err := d.Host.OS.PackageManager().AssertInstalled("docker", os.WithPulumiResourceOptions(opts...))
+	if err != nil {
+		return nil, err
+	}
+	opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerCheck))
 
-		dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
-		if err != nil {
-			return nil, err
-		}
-		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))
-	case os.AmazonLinux:
-		// Amazon Linux ships Docker in its own repos (no docker-ce repo); install it
-		// directly. Temporary runtime install like the Red Hat family above, until a
-		// pre-baked -e2e AMI exists.
-		dockerInstall, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-install"), &command.Args{
+	// Retain host configuration that used to accompany the RPM installation.
+	switch d.Host.OS.Descriptor().Flavor {
+	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux:
+		configure, err := d.Host.OS.Runner().Command(d.namer.ResourceName("docker-host-config"), &command.Args{
 			Sudo: true,
 			Create: pulumi.String(`bash <<'EOF'
 set -euxo pipefail
 setenforce 0 || true
+sed -i 's/^SELINUX=enforcing/SELINUX=permissive/' /etc/selinux/config || true
 systemctl disable --now firewalld || true
-dnf install -y docker
-echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf && sysctl -w net.ipv4.ip_forward=1
-systemctl enable --now docker || { journalctl -xeu docker.service --no-pager | tail -80; exit 1; }
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-docker.conf
+sysctl -w net.ipv4.ip_forward=1
+systemctl enable docker
 EOF`),
 		}, opts...)
 		if err != nil {
 			return nil, err
 		}
-		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(dockerInstall))
+		opts = utils.MergeOptions(opts, utils.PulumiDependsOn(configure))
 	}
 
 	// Patch the daemon config: pin overlay2 + a mirror and move docker off the
@@ -256,8 +233,10 @@ EOF`),
 	// Red Hat 10 dropped the legacy iptables kernel module, so docker 29 needs
 	// its nftables firewall backend or the daemon cannot program bridge NAT.
 	daemonOpts := `"storage-driver": "overlay2", "registry-mirrors": ["https://mirror.gcr.io"], "bip": "192.168.16.1/24", "default-address-pools":[{"base":"192.168.32.0/24", "size":24}], "max-download-attempts": 10`
-	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux:
+	desc := d.Host.OS.Descriptor()
+	majorVersion := strings.Split(desc.Version, "-")[0]
+	if (desc.Flavor == os.RedHat || desc.Flavor == os.AlmaLinux || desc.Flavor == os.RockyLinux) &&
+		(majorVersion == "9" || majorVersion == "10") {
 		daemonOpts += `, "firewall-backend": "nftables"`
 	}
 	daemonPatch, err := d.Host.OS.Runner().Command(d.namer.ResourceName("daemon-patch"), &command.Args{
@@ -310,15 +289,6 @@ EOF`),
 // surfaces as a typed Go error rather than a bare bash exit code.
 func (d *Manager) assertCompose() (command.Command, error) {
 	opts := append(d.opts, pulumi.Parent(d))
-
-	// TODO(ACIX-1305 follow-up): remove this runtime install once a RHEL 10 -e2e
-	// AMI pre-bakes docker-compose. RHEL family has no -e2e AMI yet (introduced by
-	// the SBOM/RHEL10 work in #51486); migrated OSes assume docker-compose is
-	// pre-baked and hard-fail below if it is missing.
-	switch d.Host.OS.Descriptor().Flavor {
-	case os.RedHat, os.CentOS, os.RockyLinux, os.AlmaLinux, os.AmazonLinux, os.AmazonLinuxECS:
-		return InstallCompose(d.Host, opts...)
-	}
 
 	versionCmd, err := d.Host.OS.Runner().Command(
 		d.namer.ResourceName("compose-version"),

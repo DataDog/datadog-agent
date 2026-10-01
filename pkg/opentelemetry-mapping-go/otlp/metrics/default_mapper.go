@@ -33,10 +33,10 @@ import (
 // defaultMapper is the default implementation of the mapper interface.
 // It provides the standard mapping logic for converting OTLP metrics to Datadog format.
 type defaultMapper struct {
-	prevPts              *ttlCache
-	logger               *zap.Logger
-	cfg                  translatorConfig
-	warnedRateAttrErrors sync.Map
+	prevPts       *ttlCache
+	logger        *zap.Logger
+	cfg           translatorConfig
+	warnedMetrics sync.Map
 }
 
 // newDefaultMapper creates a new defaultMapper with the given dependencies.
@@ -57,7 +57,7 @@ func (m *defaultMapper) MapNumberMetrics(
 	dt DataType,
 	slice pmetric.NumberDataPointSlice,
 ) {
-	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedRateAttrErrors)
+	mapNumberMetrics(ctx, consumer, dims, dt, slice, m.logger, m.cfg.InferDeltaInterval, &m.warnedMetrics)
 }
 
 // MapHistogramMetrics maps double histogram metrics slices to Datadog metrics
@@ -86,6 +86,9 @@ func (m *defaultMapper) MapHistogramMetrics(
 			// No recorded value, skip.
 			continue
 		}
+		// The sketch limit is checked in getSketchBuckets, against the counts that
+		// reach the sketch: only that mode builds one, and a cumulative point
+		// contributes its deltas rather than the counts it carries.
 
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
@@ -97,9 +100,10 @@ func (m *defaultMapper) MapHistogramMetrics(
 		countDims := pointDims.WithSuffix("count").WithoutUnit()
 		if delta {
 			histInfo.count = p.Count()
-		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok {
+		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok && dx >= 0 {
 			histInfo.count = uint64(dx)
-		} else { // not ok
+		} else {
+			// A count going down is a reset, and leaves no delta to report.
 			histInfo.ok = false
 		}
 
@@ -242,6 +246,13 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
+		// Validated up front, unlike explicit-bounds histograms: only delta points
+		// reach this mapper, and all of them become a sketch.
+		if reason, observations, drop := validateExpHistogramDataPoint(p, sketchMaxObservationCount); drop {
+			warnDroppedDataPoint(m.logger, &m.warnedMetrics, dims.name, reason, observations, sketchMaxObservationCount)
+			continue
+		}
+
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
 		pointDims := dims.WithAttributeMap(p.Attributes())
@@ -381,6 +392,13 @@ func (m *defaultMapper) getSketchBuckets(
 	//   there was at least a nonzero bucket.
 	var minBound, maxBound float64
 	var minBoundSet bool
+
+	// What bounds the bins a sketch ends up with is the total inserted, not each
+	// bucket on its own. Once that total is too high the sketch is abandoned, but
+	// the loop runs on, so that every bucket's delta cache entry stays up to date.
+	var dropSketch bool
+	var inserted float64
+
 	for j := 0; j < bucketCounts.Len(); j++ {
 		lowerBound, upperBound := getBounds(explicitBounds, j)
 		originalLowerBound, originalUpperBound := lowerBound, upperBound
@@ -410,29 +428,37 @@ func (m *defaultMapper) getSketchBuckets(
 			lowerBound = upperBound
 		}
 
-		count := bucketCounts.At(j)
-		var nonZeroBucket bool
-		if delta {
-			nonZeroBucket = count > 0
-			err := as.InsertInterpolate(lowerBound, upperBound, uint(count))
-			if err != nil {
-				return err
+		// A cumulative point contributes the delta from the previous point. A delta
+		// that is absent or negative, the latter being a reset, contributes nothing.
+		count := float64(bucketCounts.At(j))
+		if !delta {
+			var ok bool
+			if count, ok = m.prevPts.Diff(bucketDims, startTs, ts, count); !ok || count < 0 {
+				continue
 			}
-		} else if dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
-			nonZeroBucket = dx > 0
-			err := as.InsertInterpolate(lowerBound, upperBound, uint(dx))
-			if err != nil {
+		}
+
+		if !dropSketch {
+			inserted += count
+			if inserted > float64(sketchMaxObservationCount) {
+				dropSketch = true
+			} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(count)); err != nil {
 				return err
 			}
 		}
 
-		if nonZeroBucket {
+		if count > 0 {
 			if !minBoundSet {
 				minBound = originalLowerBound
 				minBoundSet = true
 			}
 			maxBound = originalUpperBound
 		}
+	}
+
+	if dropSketch {
+		warnDroppedDataPoint(m.logger, &m.warnedMetrics, pointDims.name, dropReasonBucketCountTooHigh, inserted, sketchMaxObservationCount)
+		return nil
 	}
 
 	sketch := as.Finish()

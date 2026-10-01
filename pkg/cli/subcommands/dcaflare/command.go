@@ -113,7 +113,7 @@ func readProfileData(client ipc.HTTPClient, seconds int) (clusterAgentFlare.Prof
 	pdata := clusterAgentFlare.ProfileData{}
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
-	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("expvar_port"))
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfigsetup.Datadog().GetInt("metrics_port"))
 
 	for _, prof := range []struct{ name, URL string }{
 		{

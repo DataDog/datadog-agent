@@ -13,6 +13,7 @@ import (
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 )
@@ -27,7 +28,7 @@ func runtimeClassToPulumi(runtimeClass string) pulumi.StringInput {
 }
 
 // NewNginxDeploymentManifest creates a new deployment manifest for Nginx server
-func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
+func NewNginxDeploymentManifest(e config.Env, namespace string, nginxPort int, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
 	manifest := &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx"),
@@ -73,7 +74,7 @@ func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...Deploym
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("nginx"),
-							Image: pulumi.String("ghcr.io/datadog/apps-nginx-server:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-nginx-server")),
 							Resources: &corev1.ResourceRequirementsArgs{
 								Limits: pulumi.StringMap{
 									"cpu":    pulumi.String("100m"),
@@ -141,7 +142,7 @@ func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...Deploym
 }
 
 // NewNginxQueryDeploymentManifest creates a new deployment manifest for Nginx query app
-func NewNginxQueryDeploymentManifest(namespace string, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
+func NewNginxQueryDeploymentManifest(e config.Env, namespace string, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
 	manifest := &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx-query"),
@@ -167,7 +168,7 @@ func NewNginxQueryDeploymentManifest(namespace string, mods ...DeploymentModifie
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("query"),
-							Image: pulumi.String("ghcr.io/datadog/apps-http-client:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-http-client")),
 							Args: pulumi.StringArray{
 								pulumi.String("-url"),
 								pulumi.String("http://nginx"),

@@ -1,0 +1,32 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    OTLP: a histogram or exponential histogram data point whose buckets hold
+    more than 268,431,360 observations together is no longer converted into a
+    Datadog distribution. Such a point used to be
+    converted anyway: every 65535 observations took a sketch bin of their own,
+    enough to exhaust the Agent's memory, and past that count the lower
+    percentiles were silently distorted. For cumulative histograms, the
+    observations counted are the difference from the previous point, not the
+    lifetime total. A warning naming the metric is logged the first time one of
+    its points is dropped. Explicit bounds histograms are only checked in the
+    ``distributions`` histogram mode, and keep their aggregation metrics;
+    exponential histograms become distributions in every mode, and are dropped
+    whole, aggregation metrics included.
+  - |
+    OTLP: exponential histogram data points flagged as having no recorded value
+    are now skipped, as explicit bounds histogram data points already were.
+  - |
+    OTLP: when a cumulative histogram's count goes down between two points
+    without a new start timestamp, the later point no longer reports a
+    meaningless count: its ``.count`` and ``.sum`` aggregation metrics are
+    skipped, as after any other reset, and its distribution keeps the count of
+    the observations it holds. On amd64 hosts, ``.count`` used to report a value
+    close to 1.8e19.

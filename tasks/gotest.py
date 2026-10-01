@@ -906,6 +906,9 @@ def test(
         modules, _ = process_input_args(ctx, module, targets, input_flavor=None)
 
     if not modules:
+        if only_modified_packages:
+            print("No modified Go packages to test")
+            return
         raise Exit("No targets selected for testing!")
 
     bazel_flags = [

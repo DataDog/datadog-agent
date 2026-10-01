@@ -192,7 +192,7 @@ func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider
 	if config.withoutDatadogAnnotations {
 		deploymentModifiers = append(deploymentModifiers, k8s.WithoutDatadogAnnotations())
 	}
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, deploymentModifiers...)
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(e, namespace, nginxPort, deploymentModifiers...)
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +389,7 @@ func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider
 		return nil, err
 	}
 
-	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(namespace, k8s.WithImagePullSecrets(imagePullSecrets))
+	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(e, namespace, k8s.WithImagePullSecrets(imagePullSecrets))
 	if err != nil {
 		return nil, err
 	}
@@ -509,7 +509,7 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 					Containers: &corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("nginx"),
-							Image: pulumi.String("ghcr.io/datadog/apps-nginx-server:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-nginx-server")),
 							Ports: &corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									Name:          pulumi.String("http"),

@@ -59,7 +59,7 @@ services:
     privileged: true
     ports:
     - 80:8080/tcp
-    image: ghcr.io/datadog/apps-go-httpbin:{APPS_VERSION}
+    image: ${DD_APPS_REGISTRY:-ghcr.io/datadog}/apps-go-httpbin:{APPS_VERSION}
     container_name: httpbin
     volumes: []
     environment: {}
