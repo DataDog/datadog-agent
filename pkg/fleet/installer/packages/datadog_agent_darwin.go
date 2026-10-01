@@ -39,6 +39,7 @@ var datadogAgentPackage = hooks{
 	postStartConfigExperiment:   postStartConfigExperimentDatadogAgent,
 	preStopConfigExperiment:     preStopConfigExperimentDatadogAgent,
 	postPromoteConfigExperiment: postPromoteConfigExperimentDatadogAgent,
+	resumeConfigExperiment:      resumeConfigExperimentDatadogAgent,
 }
 
 const (
