@@ -63,6 +63,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
@@ -126,7 +127,7 @@ type EBPFProbe struct {
 	// internals
 	event           *model.Event
 	dnsLayer        *layers.DNS
-	dnsRequests     *dnsRequestTracker
+	dnsRequests     *dns.RequestTracker
 	monitors        *EBPFMonitors
 	profileManager  securityprofile.ProfileManager
 	fieldHandlers   *EBPFFieldHandlers
@@ -1292,17 +1293,8 @@ func (p *EBPFProbe) SendStats() error {
 	}
 
 	if p.dnsRequests != nil {
-		for _, m := range []struct {
-			name    string
-			counter *atomic.Uint64
-		}{
-			{metrics.MetricDNSADCorrelationHits, p.dnsRequests.hits},
-			{metrics.MetricDNSADCorrelationMisses, p.dnsRequests.misses},
-			{metrics.MetricDNSADCorrelationCollisions, p.dnsRequests.collisions},
-		} {
-			if err := p.statsdClient.Count(m.name, int64(m.counter.Swap(0)), []string{}, 1.0); err != nil {
-				return err
-			}
+		if err := p.dnsRequests.SendStats(p.statsdClient); err != nil {
+			return err
 		}
 	}
 
@@ -1969,7 +1961,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// remember who sent the request, so that the response can be attributed to it. Security
 		// profiles only cover containers.
 		if event.Error == nil && !event.ProcessContext.Process.ContainerContext.IsNull() && p.dnsRequests != nil {
-			p.dnsRequests.recordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
+			p.dnsRequests.RecordRequest(event.DNS.ID, event.DNS.Question.Name, event.DNS.Question.Type, event.ProcessCacheEntry, time.Now())
 		}
 
 	case model.FullDNSResponseEventType:
@@ -2004,6 +1996,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 						Type:  uint16(p.dnsLayer.Questions[0].Type),
 						Size:  uint16(len(data[offset:])),
 					}
+				}
+
+				// a rule needing the response sends it here instead of the short path. A response already
+				// attributed to a container reaches the profile with its own process context.
+				if event.ProcessContext.Process.ContainerContext.IsNull() {
+					p.correlateDNSResponseForActivityDump(p.dnsLayer, ips, cnames)
 				}
 			}
 		}
@@ -3606,9 +3604,9 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	var dnsRequests *dnsRequestTracker
+	var dnsRequests *dns.RequestTracker
 	if config.RuntimeSecurity.SecurityProfileV2Enabled {
-		if dnsRequests, err = newDNSRequestTracker(dnsRequestTrackerSize, dnsRequestTrackerTTL); err != nil {
+		if dnsRequests, err = dns.NewRequestTracker(); err != nil {
 			cancelFnc()
 			return nil, fmt.Errorf("couldn't create the DNS request tracker: %w", err)
 		}
