@@ -9,9 +9,9 @@ package launchd
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -68,6 +68,13 @@ const exitedPrintOutput = `system/com.datadoghq.agent-exp = {
 const notLoadedOutput = `Bad request.
 Could not find service "com.datadoghq.agent" in domain for system
 `
+
+// exitError stands in for the *exec.ExitError a failed launchctl run returns: the client reads
+// the status it exited with, not its output.
+type exitError int
+
+func (e exitError) Error() string { return "exit status " + strconv.Itoa(int(e)) }
+func (e exitError) ExitCode() int { return int(e) }
 
 type call struct {
 	name string
@@ -138,7 +145,7 @@ func TestParsePrint(t *testing.T) {
 }
 
 func TestPrintNotLoadedIsNotAnError(t *testing.T) {
-	rec := &recorder{outputs: [][]byte{[]byte(notLoadedOutput)}, errs: []error{errors.New("exit status 113")}}
+	rec := &recorder{outputs: [][]byte{[]byte(notLoadedOutput)}, errs: []error{exitError(113)}}
 	status, err := newClient(rec).Print(context.Background(), "com.datadoghq.agent")
 	require.NoError(t, err)
 	assert.Equal(t, JobStatus{Label: "com.datadoghq.agent"}, status)
@@ -146,7 +153,7 @@ func TestPrintNotLoadedIsNotAnError(t *testing.T) {
 }
 
 func TestPrintRealFailureIsAnError(t *testing.T) {
-	rec := &recorder{outputs: [][]byte{[]byte("Bad request.\nCould not talk to launchd\n")}, errs: []error{errors.New("exit status 1")}}
+	rec := &recorder{outputs: [][]byte{[]byte("Bad request.\nCould not talk to launchd\n")}, errs: []error{exitError(1)}}
 	_, err := newClient(rec).Print(context.Background(), "com.datadoghq.agent")
 	assert.Error(t, err)
 }
@@ -157,7 +164,7 @@ func TestLoaded(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, loaded)
 
-	rec = &recorder{outputs: [][]byte{[]byte(notLoadedOutput)}, errs: []error{errors.New("exit status 113")}}
+	rec = &recorder{outputs: [][]byte{[]byte(notLoadedOutput)}, errs: []error{exitError(113)}}
 	loaded, err = newClient(rec).Loaded(context.Background(), "com.datadoghq.agent")
 	require.NoError(t, err)
 	assert.False(t, loaded)
@@ -175,7 +182,7 @@ func TestOperationsAreIdempotentWhenJobIsAbsent(t *testing.T) {
 			// already absent, so the very first check must confirm that and return.
 			rec := &recorder{
 				outputs: [][]byte{[]byte(out), []byte(notLoadedOutput)},
-				errs:    []error{errors.New("exit status 3"), errors.New("exit status 113")},
+				errs:    []error{exitError(3), exitError(113)},
 			}
 			assert.NoError(t, newClient(rec).Bootout(context.Background(), "com.datadoghq.agent"))
 		}
@@ -187,7 +194,7 @@ func TestOperationsAreIdempotentWhenJobIsAbsent(t *testing.T) {
 			"Bootstrap failed: 17: File exists\n",
 			"Load failed: 5: Input/output error: service already loaded\n",
 		} {
-			rec := &recorder{outputs: [][]byte{[]byte(out)}, errs: []error{errors.New("exit status 5")}}
+			rec := &recorder{outputs: [][]byte{[]byte(out)}, errs: []error{exitError(5)}}
 			job := Job{Label: "com.datadoghq.agent", Domain: System}
 			assert.NoError(t, newClient(rec).Bootstrap(context.Background(), job))
 		}
@@ -200,17 +207,42 @@ func TestOperationsAreIdempotentWhenJobIsAbsent(t *testing.T) {
 	})
 }
 
+// TestBootstrapFailureIsAnErrorWhenTheJobIsNotLoaded guards the idempotency above from
+// swallowing a genuine failure: a bootstrap that failed and left nothing loaded must surface.
+func TestBootstrapFailureIsAnErrorWhenTheJobIsNotLoaded(t *testing.T) {
+	rec := &recorder{
+		outputs: [][]byte{[]byte("Bootstrap failed: 5: Input/output error\n"), []byte(notLoadedOutput)},
+		errs:    []error{exitError(5), exitError(exitServiceNotFound)},
+	}
+	job := Job{Label: "com.datadoghq.agent", Domain: System}
+	assert.Error(t, newClient(rec).Bootstrap(context.Background(), job))
+}
+
+// TestNotLoadedIsReadFromTheExitStatus pins that the client never depends on launchctl's wording,
+// which is free text: a missing service is recognised by its exit status alone.
+func TestNotLoadedIsReadFromTheExitStatus(t *testing.T) {
+	rec := &recorder{outputs: [][]byte{[]byte("anything at all\n")}, errs: []error{exitError(exitServiceNotFound)}}
+	loaded, err := newClient(rec).Loaded(context.Background(), "com.datadoghq.agent")
+	require.NoError(t, err)
+	assert.False(t, loaded)
+
+	// The same text with another status is a real failure.
+	rec = &recorder{outputs: [][]byte{[]byte(notLoadedOutput)}, errs: []error{exitError(1)}}
+	_, err = newClient(rec).Loaded(context.Background(), "com.datadoghq.agent")
+	assert.Error(t, err)
+}
+
 // TestBootoutRealFailureIsAnError guards the idempotency above from swallowing a genuine failure:
 // a bootout refused for any reason other than the job being absent must surface.
 func TestBootoutRealFailureIsAnError(t *testing.T) {
-	rec := &recorder{outputs: [][]byte{[]byte("Boot-out failed: 1: Operation not permitted\n")}, errs: []error{errors.New("exit status 1")}}
+	rec := &recorder{outputs: [][]byte{[]byte("Boot-out failed: 1: Operation not permitted\n")}, errs: []error{exitError(1)}}
 	assert.Error(t, newClient(rec).Bootout(context.Background(), "com.datadoghq.agent"))
 }
 
 // TestBootoutNamesTheServiceTarget pins the launchctl invocation bootout makes, independent of the
 // settle loop that follows it.
 func TestBootoutNamesTheServiceTarget(t *testing.T) {
-	rec := &recorder{outputs: [][]byte{nil, []byte(notLoadedOutput)}, errs: []error{nil, errors.New("exit status 113")}}
+	rec := &recorder{outputs: [][]byte{nil, []byte(notLoadedOutput)}, errs: []error{nil, exitError(113)}}
 	require.NoError(t, newClient(rec).Bootout(context.Background(), "com.datadoghq.agent"))
 	require.NotEmpty(t, rec.calls)
 	assert.Equal(t, []string{"bootout", "system/com.datadoghq.agent"}, rec.calls[0].args)
@@ -229,7 +261,7 @@ func TestBootoutWaitsForTheJobToLeaveTheDomain(t *testing.T) {
 			[]byte(runningPrintOutput), // print: still loaded
 			[]byte(notLoadedOutput),    // print: finally gone
 		},
-		errs: []error{nil, nil, nil, errors.New("exit status 113")},
+		errs: []error{nil, nil, nil, exitError(113)},
 	}
 	c := newClient(rec)
 	c.BootoutSettlePollInterval = time.Millisecond

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -42,6 +43,13 @@ func testLayout(t *testing.T) agentLayout {
 	}
 }
 
+// exitError stands in for the *exec.ExitError a failed launchctl run returns: the client reads
+// the status it exited with, not its output.
+type exitError int
+
+func (e exitError) Error() string { return "exit status " + strconv.Itoa(int(e)) }
+func (e exitError) ExitCode() int { return int(e) }
+
 // stubLaunchd replaces the launchd client with one that records its invocations instead of
 // running launchctl. print always reports the label as not loaded, so Bootout's settle loop
 // (which polls print after every bootout) returns immediately instead of spinning for the full
@@ -57,7 +65,7 @@ func stubLaunchd(t *testing.T) *[][]string {
 		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 			calls = append(calls, args)
 			if len(args) > 0 && args[0] == "print" {
-				return []byte(notLoadedOutput), errors.New("exit status 113")
+				return []byte(notLoadedOutput), exitError(113)
 			}
 			return nil, nil
 		}
@@ -78,7 +86,7 @@ func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
 	client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		switch args[0] {
 		case "print":
-			return []byte(notLoadedOutput), errors.New("exit status 113")
+			return []byte(notLoadedOutput), exitError(113)
 		case "enable":
 			enabled = true
 		case "bootstrap":

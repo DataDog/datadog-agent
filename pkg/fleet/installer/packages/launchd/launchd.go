@@ -178,14 +178,11 @@ func (c *Client) Bootstrap(ctx context.Context, job Job) error {
 	if err == nil {
 		return nil
 	}
-	// launchctl's "file exists"-shaped errors are ambiguous: they are errno text, not a specific
-	// diagnosis, so the same message covers the job already being loaded and an unrelated resource
-	// (e.g. a stale socket) already existing. Print settles it either way: only a job the domain
-	// actually reports as loaded is treated as a successful, idempotent bootstrap.
-	if isAlreadyLoaded(out) {
-		if loaded, loadedErr := c.Loaded(ctx, job.Label); loadedErr == nil && loaded {
-			return nil
-		}
+	// launchctl's error output is free text that varies between macOS versions, so whether the
+	// job ended up loaded is asked of the domain instead: a job it reports as loaded is a
+	// successful, idempotent bootstrap.
+	if loaded, loadedErr := c.Loaded(ctx, job.Label); loadedErr == nil && loaded {
+		return nil
 	}
 	return fmt.Errorf("could not bootstrap %s: %w (%s)", job.Label, err, strings.TrimSpace(string(out)))
 }
@@ -198,7 +195,13 @@ func (c *Client) Bootstrap(ctx context.Context, job Job) error {
 // BootoutSettleTimeout, so a nil return is a real guarantee that the domain no longer has it.
 func (c *Client) Bootout(ctx context.Context, label string) error {
 	out, err := c.launchctl(ctx, "bootout", c.serviceTarget(label))
-	if err != nil && !isNotLoaded(out) {
+	if err != nil {
+		// As in Bootstrap, the domain rather than the error text says whether the job is gone: a
+		// job that is not loaded is a successful, idempotent bootout, and any other failure is
+		// reported at once rather than after waiting for a job that is not going to leave.
+		if loaded, loadedErr := c.Loaded(ctx, label); loadedErr == nil && !loaded {
+			return nil
+		}
 		return fmt.Errorf("could not bootout %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
 	}
 	return c.waitUntilUnloaded(ctx, label)
@@ -255,7 +258,7 @@ func (c *Client) Enable(ctx context.Context, label string) error {
 func (c *Client) Print(ctx context.Context, label string) (JobStatus, error) {
 	out, err := c.launchctl(ctx, "print", c.serviceTarget(label))
 	if err != nil {
-		if isNotLoaded(out) {
+		if code, ok := exitCode(err); ok && code == exitServiceNotFound {
 			return JobStatus{Label: label}, nil
 		}
 		return JobStatus{Label: label}, fmt.Errorf("could not print %s: %w (%s)", label, err, strings.TrimSpace(string(out)))
@@ -288,16 +291,31 @@ func (c *Client) launchctl(ctx context.Context, args ...string) ([]byte, error) 
 	if c.Runner != nil {
 		return c.Runner(ctx, launchctlPath, args...)
 	}
-	return telemetry.CommandContext(ctx, launchctlPath, args...).CombinedOutput()
+	cmd := telemetry.CommandContext(ctx, launchctlPath, args...)
+	// print's output is parsed, so it is requested in the C locale whatever the host's is.
+	cmd.Env = append(os.Environ(), "LC_ALL=C")
+	return cmd.CombinedOutput()
 }
 
-const launchctlPath = "/bin/launchctl"
+const (
+	launchctlPath = "/bin/launchctl"
+	// exitServiceNotFound is the status launchctl exits with when the service it is asked about
+	// is not in the domain.
+	exitServiceNotFound = 113
+)
+
+// exitCode returns the status a command exited with, when err carries one.
+func exitCode(err error) (int, bool) {
+	var exitErr interface{ ExitCode() int }
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode(), true
+	}
+	return 0, false
+}
 
 var (
-	pidRe       = regexp.MustCompile(`(?m)^\s*pid\s*=\s*(\d+)\s*$`)
-	exitRe      = regexp.MustCompile(`(?m)^\s*last exit (?:code|status)\s*=\s*(-?\d+)\s*$`)
-	notLoadedRe = regexp.MustCompile(`(?i)could not find service|no such (?:process|file or directory)|service not loaded`)
-	loadedRe    = regexp.MustCompile(`(?i)service already loaded|already bootstrapped|operation already in progress|file exists`)
+	pidRe  = regexp.MustCompile(`(?m)^\s*pid\s*=\s*(\d+)\s*$`)
+	exitRe = regexp.MustCompile(`(?m)^\s*last exit (?:code|status)\s*=\s*(-?\d+)\s*$`)
 )
 
 // parsePrint extracts the fields the installer needs from launchctl print output. launchd's
@@ -317,12 +335,4 @@ func parsePrint(label string, out string) JobStatus {
 		}
 	}
 	return status
-}
-
-func isNotLoaded(out []byte) bool {
-	return notLoadedRe.Match(out)
-}
-
-func isAlreadyLoaded(out []byte) bool {
-	return loadedRe.Match(out)
 }

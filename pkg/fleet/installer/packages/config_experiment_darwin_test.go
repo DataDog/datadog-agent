@@ -240,7 +240,7 @@ func stubLaunchdFailing(t *testing.T, verb, match string) *[][]string {
 		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 			calls = append(calls, args)
 			if len(args) > 0 && args[0] == "print" {
-				return []byte(notLoadedOutput), errors.New("exit status 113")
+				return []byte(notLoadedOutput), exitError(113)
 			}
 			if len(args) > 0 && args[0] == verb && strings.Contains(strings.Join(args, " "), match) {
 				return nil, errors.New("injected failure")
@@ -289,7 +289,7 @@ func TestRestoreStableRetriesBeforeGivingUp(t *testing.T) {
 		client.BootoutSettlePollInterval = time.Millisecond
 		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 			if len(args) > 0 && args[0] == "print" {
-				return []byte(notLoadedOutput), errors.New("exit status 113")
+				return []byte(notLoadedOutput), exitError(113)
 			}
 			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") {
 				attempts++
@@ -321,7 +321,7 @@ func TestRestoreStableGivesUpAfterExhaustingRetries(t *testing.T) {
 		client.BootoutSettlePollInterval = time.Millisecond
 		client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 			if len(args) > 0 && args[0] == "print" {
-				return []byte(notLoadedOutput), errors.New("exit status 113")
+				return []byte(notLoadedOutput), exitError(113)
 			}
 			if len(args) > 0 && args[0] == "bootstrap" && !strings.Contains(strings.Join(args, " "), "-exp") {
 				bootstrapAttempts++
