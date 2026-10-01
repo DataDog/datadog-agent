@@ -595,6 +595,28 @@ func isContainerRuntimePrefix(basename string) bool {
 	return strings.HasPrefix(basename, "runc") || strings.HasPrefix(basename, "containerd-shim")
 }
 
+// ValidRootProcess returns the process this entry would be rooted on in the tree
+// (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
+// runtime processes via isValidRootNode), or nil if there is none.
+func ValidRootProcess(entry *model.ProcessContext) *model.ProcessContext {
+	var branch []*model.ProcessContext
+	for cur := entry; cur != nil; {
+		branch = append(branch, cur)
+		ancestor := GetNextAncestorBinaryOrArgv0(cur)
+		if ancestor == nil {
+			break
+		}
+		cur = &ancestor.ProcessContext
+	}
+
+	for i := len(branch) - 1; i >= 0; i-- {
+		if isValidRootNode(branch[i]) {
+			return branch[i]
+		}
+	}
+	return nil
+}
+
 // isValidRootNode evaluates if the provided process entry is allowed to become a root node of an Activity Dump
 func isValidRootNode(entry *model.ProcessContext) bool {
 	// an ancestor is required
