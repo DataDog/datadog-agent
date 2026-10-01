@@ -464,7 +464,7 @@ func ValidateEmittedMetricsAgainstSpec(specs *Specs, config GPUConfig, emittedMe
 	for metricName, metricSpec := range expectedMetrics {
 		metricSamples, found := emittedMetrics[metricName]
 		if !found {
-			if !metricSpec.Optional {
+			if !metricSpec.Optional || hasKnownGoodReference(metricName, metricSpec.Validator, options) {
 				results.getMetricStatus(metricName).Missing++
 			}
 			continue
@@ -517,6 +517,18 @@ func validateValidationOptions(specs *Specs, options ValidationOptions) error {
 		}
 	}
 	return nil
+}
+
+// hasKnownGoodReference reports whether an enabled external source provides a value for the
+// metric, in which case the Agent must emit it even if the metric is optional.
+func hasKnownGoodReference(metricName string, validator *MetricValidator, options ValidationOptions) bool {
+	if validator == nil {
+		return false
+	}
+	if validator.NvidiaSMI && options.NvidiaSMIValues[metricName] != nil {
+		return true
+	}
+	return validator.CalibratedWorkload && options.CalibratedWorkloadValues[metricName] != nil
 }
 
 func validateMetricAgainstKnownGood(results *ValidationResult, metricName string, validator *MetricValidator, observations []MetricObservation, knownGoodValues map[string]*float64) {

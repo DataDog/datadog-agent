@@ -13,6 +13,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.libs.common.auth import datadog_infra_token, dd_auth_api_app_keys
+from tasks.libs.common.utils import join_command
 from tasks.schema.generate import schema_codegen
 
 SPEC_PACKAGE = "./pkg/collector/corechecks/gpu/spec"
@@ -59,10 +60,11 @@ def agent_version_from_branch(ctx) -> str:
         raise Exit(message=f"cannot derive agent version: branch {branch!r} is not a release branch")
 
     tag_pattern = f"{branch_match['major']}.{branch_match['minor']}.*"
-    tags = ctx.run(f"git tag --list {shlex.quote(tag_pattern)} --sort=-v:refname", hide=True).stdout.splitlines()
+    list_tags = join_command(["git", "tag", "--list", tag_pattern, "--sort=-v:refname"])
+    tags = ctx.run(list_tags, hide=True).stdout.splitlines()
     if not tags:
         ctx.run("git fetch --tags")
-        tags = ctx.run(f"git tag --list {shlex.quote(tag_pattern)} --sort=-v:refname", hide=True).stdout.splitlines()
+        tags = ctx.run(list_tags, hide=True).stdout.splitlines()
     if not tags:
         raise Exit(message=f"cannot derive agent version: no tags found for branch {branch!r}")
 
@@ -164,18 +166,21 @@ def validate_metrics(
                 dd_auth_api_app_keys(ctx, dd_auth_domain) as _,
                 tempfile.NamedTemporaryFile(prefix="gpu-metrics-validator-", suffix=".json") as tmp,
             ):
-                command = (
-                    f"{shlex.quote(binary_path)} "
-                    f"--site {shlex.quote(VALIDATOR_SITE)} "
-                    f"--lookback-seconds {int(lookback_seconds)} "
-                    f"--output-file {shlex.quote(tmp.name)}"
-                )
+                args = [
+                    binary_path,
+                    "--site",
+                    VALIDATOR_SITE,
+                    "--lookback-seconds",
+                    str(int(lookback_seconds)),
+                    "--output-file",
+                    tmp.name,
+                ]
                 if agent_version:
-                    command += f" --agent-version {shlex.quote(agent_version)}"
+                    args += ["--agent-version", agent_version]
                 if metric_filter:
-                    command += f" --metric-filter {shlex.quote(metric_filter)}"
+                    args += ["--metric-filter", metric_filter]
                 print(" - running validator...")
-                res = ctx.run(command, warn=True)
+                res = ctx.run(join_command(args), warn=True)
                 result = validation_results_from_dict(json.load(tmp), site=VALIDATOR_SITE)
 
                 if results is None:
@@ -212,7 +217,7 @@ def update_metrics_allowlist(ctx, allowlist_path: str = DEFAULT_ALLOWLIST_PATH):
     Update the GPU metrics entries in the standard metric allowlist.
     """
     binary_path = build_binary(ctx, ALLOWLIST_PACKAGE, ALLOWLIST_BINARY, "allowlist updater")
-    command = f"{shlex.quote(binary_path)} " f"--allowlist-path {shlex.quote(allowlist_path)}"
+    command = f"{shlex.quote(binary_path)} --allowlist-path {shlex.quote(allowlist_path)}"
     print(f"== Updating GPU metric allowlist at {allowlist_path} ==")
     ctx.run(command)
 
@@ -260,6 +265,6 @@ def generate_metrics_list(
     Generate a GPU metrics list TSV from the shared GPU spec.
     """
     binary_path = build_binary(ctx, METRICS_LIST_PACKAGE, METRICS_LIST_BINARY, "metrics list generator")
-    command = f"{shlex.quote(binary_path)} " f"--output-path {shlex.quote(output_path)}"
+    command = f"{shlex.quote(binary_path)} --output-path {shlex.quote(output_path)}"
     print(f"== Generating GPU metrics list TSV at {output_path} ==")
     ctx.run(command)

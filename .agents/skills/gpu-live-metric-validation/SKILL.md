@@ -1,6 +1,6 @@
 ---
 name: gpu-live-metric-validation
-description: Validate live GPU metrics only on clusters running the Agent version under test.
+description: Validate live GPU metrics on clusters running the Agent version under test and investigate missing metrics or tag failures. Use when asked to validate GPU metrics on live clusters, check a GPU Agent release, or run dda inv gpu.validate-metrics.
 ---
 
 <!-- @format -->
@@ -29,7 +29,8 @@ supported values match `tasks/gpu.py`:
 
    ```bash
    dda inv gpu.validate-metrics \
-     --org <prod-or-staging>
+     --org <prod-or-staging> \
+     --lookback-seconds <window-seconds>
    ```
 
    By default, the task derives the Agent image-tag wildcard from the current
@@ -39,7 +40,8 @@ supported values match `tasks/gpu.py`:
    all match the wildcard, and ANDs that cluster selection with the GPU
    configuration filters.
 
-   Use `--agent-version <wildcard>` to override the derived version. Use
+   Use `--agent-version <wildcard>` to override the derived version; it is
+   required outside release branches (`N.N.x`), where derivation fails. Use
    `--metric-filter <filter>` only for an additional scope; it is ANDed with
    the version-derived cluster filter.
 
