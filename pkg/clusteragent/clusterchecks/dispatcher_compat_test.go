@@ -160,40 +160,6 @@ func TestGroupChangeRedispatchesConfigs(t *testing.T) {
 	requireNotLocked(t, d.store)
 }
 
-func TestUseUtilizationRebalance(t *testing.T) {
-	configmock.New(t).SetInTest("cluster_checks.rebalance_with_utilization", false)
-	assert.False(t, newGroupDispatcher(t, "").useUtilizationRebalance())
-
-	// Runner groups are declared: the busyness algorithm is not group-aware,
-	// so the utilization algorithm is used regardless.
-	assert.True(t, newGroupDispatcher(t, kubeGroups).useUtilizationRebalance())
-}
-
-// TestUpdateRunnersStatsFetchesWorkersWhenGroupsForceUtilization covers
-// rebalance_with_utilization=false with runner groups declared: the
-// utilization algorithm is forced, so worker counts must be fetched,
-// otherwise every runner's utilization is 0 and nothing is ever rebalanced.
-func TestUpdateRunnersStatsFetchesWorkersWhenGroupsForceUtilization(t *testing.T) {
-	configmock.New(t).SetInTest("cluster_checks.rebalance_with_utilization", false)
-	for _, tt := range []struct {
-		groups      string
-		wantWorkers int
-	}{
-		{"", 0}, // busyness algorithm: worker counts aren't needed
-		{kubeGroups, constants.DefaultNumWorkers},
-	} {
-		d := newGroupDispatcher(t, tt.groups)
-		d.clcRunnersClient = &rebalanceTestClcRunnerClient{testStats: map[string]types.CLCRunnersStats{}}
-		registerWorker(t, d, "runner-1", "10.0.0.1", types.NodeTypeCLCRunner, "")
-		d.updateRunnersStats()
-
-		d.store.RLock()
-		assert.Equal(t, tt.wantWorkers, d.store.nodes["runner-1"].workers, "groups=%q", tt.groups)
-		d.store.RUnlock()
-		requireNotLocked(t, d.store)
-	}
-}
-
 // rebalanceWorker is a CLC runner registered by newRebalanceDispatcher, with
 // the cluster checks it currently runs (check ID -> check name).
 type rebalanceWorker struct {
@@ -209,7 +175,6 @@ type rebalanceWorker struct {
 func newRebalanceDispatcher(t *testing.T, groups string, workers ...rebalanceWorker) *dispatcher {
 	t.Helper()
 	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
-	configmock.New(t).SetInTest("cluster_checks.rebalance_with_utilization", true)
 
 	d := newGroupDispatcher(t, groups)
 	mockClient := &rebalanceTestClcRunnerClient{testStats: make(map[string]types.CLCRunnersStats)}

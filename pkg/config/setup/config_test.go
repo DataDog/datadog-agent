@@ -1357,7 +1357,6 @@ func TestLogDefaults(t *testing.T) {
 func TestClusterCheckDefaults(t *testing.T) {
 	conf := newTestConf(t)
 	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
-	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
 }
 
 var testExampleConf = []byte(`

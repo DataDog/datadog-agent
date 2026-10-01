@@ -1122,12 +1122,6 @@ api_key:
 #
 #   advanced_dispatching_enabled: true
 
-#   # @param rebalance_with_utilization - boolean - optional - default: true
-#   # @env DD_CLUSTER_CHECKS_REBALANCE_WITH_UTILIZATION - boolean - optional - default: true
-#   # If rebalance_with_utilization is true, the cluster-agent will rebalance cluster checks using node utilization.
-#
-#   rebalance_with_utilization: true
-
 #   # @param clc_runners_port - integer - optional - default: 5005
 #   # @env DD_CLUSTER_CHECKS_CLC_RUNNERS_PORT - integer - optional - default: 5005
 #   # Set the "clc_runners_port" used by the cluster-agent client to reach cluster level

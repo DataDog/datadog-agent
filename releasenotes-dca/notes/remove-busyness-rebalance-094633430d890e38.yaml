@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The Cluster Agent no longer supports the legacy busyness-based cluster
+    checks rebalancing algorithm. Cluster checks are always rebalanced based on
+    the utilization of the cluster check runners, and the
+    ``cluster_checks.rebalance_with_utilization`` option has been removed.
+    The output of ``datadog-cluster-agent clusterchecks rebalance`` no longer
+    reports check weights and source/destination diffs.

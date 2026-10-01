@@ -254,9 +254,6 @@ func (d *dispatcher) updateRunnersStats() {
 		updateStatsDuration.Set(time.Since(start).Seconds(), le.JoinLeaderValue)
 	}()
 
-	// Worker counts feed the utilization algorithm, also when runner groups force it.
-	fetchWorkers := d.useUtilizationRebalance()
-
 	d.store.Lock()
 	defer d.store.Unlock()
 	for name, node := range d.store.nodes {
@@ -264,15 +261,13 @@ func (d *dispatcher) updateRunnersStats() {
 		ip := node.clientIP
 		node.RUnlock()
 
-		if fetchWorkers {
-			workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
-			if err != nil {
-				// This can happen in old versions of the runners that do not expose this information.
-				log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, node.clientIP, err)
-				node.workers = constants.DefaultNumWorkers
-			} else {
-				node.workers = workers.Count
-			}
+		workers, err := d.clcRunnersClient.GetRunnerWorkers(ip)
+		if err != nil {
+			// This can happen in old versions of the runners that do not expose this information.
+			log.Debugf("Cannot get number of workers for node %s with IP %s. Assuming default. Error: %v", name, node.clientIP, err)
+			node.workers = constants.DefaultNumWorkers
+		} else {
+			node.workers = workers.Count
 		}
 
 		stats, err := d.clcRunnersClient.GetRunnerStats(ip)

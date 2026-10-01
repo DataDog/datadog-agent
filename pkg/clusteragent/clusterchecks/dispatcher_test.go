@@ -726,8 +726,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 
 func TestUpdateRunnersStats(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("cluster_checks.rebalance_with_utilization", true)
+	configmock.New(t)
 
 	dispatcher := newDispatcher(fakeTagger)
 	status := types.NodeStatus{LastChange: 10}
