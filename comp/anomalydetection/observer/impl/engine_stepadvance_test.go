@@ -56,7 +56,6 @@ func makeTestAnomaly(name string, ts int64) observer.Anomaly {
 		SourceRef:    &observer.QueryHandle{Ref: ref, Aggregate: observer.AggregateAverage},
 		DetectorName: "scanmw",
 		Timestamp:    ts,
-		Description:  name + " changed",
 	}
 }
 
