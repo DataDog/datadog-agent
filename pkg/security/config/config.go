@@ -591,12 +591,12 @@ type RuntimeSecurityConfig struct {
 
 	// description: AnomalyDetectionRateLimiterPeriod is the duration during which a limited number of anomaly detection events are allowed
 	// visibility: private
-	// default_value: 1m
+	// default_value: 1s
 	AnomalyDetectionRateLimiterPeriod time.Duration
 
 	// description: AnomalyDetectionRateLimiterNumEventsAllowed is the number of anomaly detection events allowed per duration by the rate limiter
 	// visibility: private
-	// default_value: 10
+	// default_value: 2000
 	AnomalyDetectionRateLimiterNumEventsAllowed int
 
 	// description: AnomalyDetectionRateLimiterNumKeys is the number of keys in the rate limiter

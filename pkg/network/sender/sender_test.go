@@ -8,10 +8,14 @@
 package sender
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	evmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
@@ -586,4 +591,105 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	connMissing := cc.Connections[1]
 	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
+}
+
+// blockingConnectionSource holds a collection open until it is released, and
+// records the moment that collection returns.
+type blockingConnectionSource struct {
+	entered chan struct{}
+	release chan struct{}
+	order   chan string
+}
+
+func (f *blockingConnectionSource) RegisterClient(_ string) error { return nil }
+func (f *blockingConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	close(f.entered)
+	<-f.release
+	f.order <- "collection returned"
+	return nil, nil, errors.New("collection released")
+}
+func (f *blockingConnectionSource) GetProcessCacheTags() map[uint32][]string { return nil }
+
+// collectOnlySender builds the smallest sender the collection loop needs. New
+// is unusable here: it sleeps for over a second retrying the network ID, which
+// is far too slow to pay once per iteration.
+func collectOnlySender(t *testing.T, tracer ConnectionsSource) *directSender {
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	return &directSender{
+		log:          logmock.New(t),
+		ctx:          ctx,
+		cancelFunc:   cancel,
+		tracer:       tracer,
+		resultsQueue: api.NewWeightedQueue(1, 1024),
+	}
+}
+
+func TestStopWaitsForInFlightCollection(t *testing.T) {
+	// Waiting is only observable as an ordering, never as elapsed time: a Stop
+	// that waits records the collection first whatever the scheduler does, so
+	// this cannot flake, while a Stop that returns early only sometimes loses
+	// the race. Repeat until losing it every single time is not credible.
+	for i := 0; i < 100; i++ {
+		source := &blockingConnectionSource{
+			entered: make(chan struct{}),
+			release: make(chan struct{}),
+			order:   make(chan string, 2),
+		}
+		d := collectOnlySender(t, source)
+
+		// Drive the collection loop by hand instead of waiting on the real ticker.
+		tick := make(chan time.Time)
+		d.collectWG.Add(1)
+		go d.collectLoop(tick)
+
+		tick <- time.Now()
+		<-source.entered
+
+		stopping := make(chan struct{})
+		go func() {
+			close(stopping)
+			d.Stop()
+			source.order <- "Stop returned"
+		}()
+
+		// Let Stop get going before releasing the collection, otherwise the
+		// collection finishes first by default and the race is never run.
+		<-stopping
+		close(source.release)
+
+		require.Equal(t, "collection returned", <-source.order,
+			"Stop returned while a collection was still in flight")
+		require.Equal(t, "Stop returned", <-source.order)
+	}
+}
+
+// countingConnectionSource records how many collections were started.
+type countingConnectionSource struct {
+	calls atomic.Int32
+}
+
+func (f *countingConnectionSource) RegisterClient(_ string) error { return nil }
+func (f *countingConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	f.calls.Add(1)
+	return nil, nil, errors.New("no connections")
+}
+func (f *countingConnectionSource) GetProcessCacheTags() map[uint32][]string { return nil }
+
+func TestCollectLoopIgnoresPendingTickAfterCancel(t *testing.T) {
+	source := &countingConnectionSource{}
+	d := collectOnlySender(t, source)
+	d.cancelFunc()
+
+	// A pending tick and a cancelled context are both ready, and select picks
+	// a ready case at random, so repeat often enough that a loop missing the
+	// cancellation check would collect at least once.
+	for i := 0; i < 100; i++ {
+		tick := make(chan time.Time, 1)
+		tick <- time.Now()
+		d.collectWG.Add(1)
+		d.collectLoop(tick)
+	}
+
+	require.Zero(t, source.calls.Load(), "collectLoop collected after the context was cancelled")
 }

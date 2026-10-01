@@ -34,7 +34,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 
 	serverContainer := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Name:  pulumi.String("redis"),
-		Image: pulumi.String("ghcr.io/datadog/redis:" + apps.Version),
+		Image: pulumi.String(apps.Image(&e, "redis")),
 		DockerLabels: pulumi.StringMap{
 			"com.datadoghq.ad.tags": pulumi.String("[\"ecs_launch_type:fargate\"]"),
 		},
@@ -58,7 +58,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 
 	queryContainer := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Name:  e.CommonNamer().DisplayName(255, pulumi.String("query")),
-		Image: pulumi.String("ghcr.io/datadog/apps-redis-client:" + apps.Version),
+		Image: pulumi.String(apps.Image(&e, "apps-redis-client")),
 		Command: pulumi.StringArray{
 			pulumi.String("-addr"),
 			pulumi.String("localhost:6379"),

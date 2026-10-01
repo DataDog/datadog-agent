@@ -5,21 +5,18 @@
 
 package transaction
 
-import "sort"
+import (
+	"cmp"
+	"slices"
+)
 
 // SortByCreatedTimeAndPriority sorts transactions by priority (highest first) and,
 // for transactions with equal priority, by creation time (newest first).
 func SortByCreatedTimeAndPriority(transactions []Transaction) {
-	sort.Sort(byCreatedTimeAndPriority(transactions))
-}
-
-type byCreatedTimeAndPriority []Transaction
-
-func (v byCreatedTimeAndPriority) Len() int      { return len(v) }
-func (v byCreatedTimeAndPriority) Swap(i, j int) { v[i], v[j] = v[j], v[i] }
-func (v byCreatedTimeAndPriority) Less(i, j int) bool {
-	if v[i].GetPriority() != v[j].GetPriority() {
-		return v[i].GetPriority() > v[j].GetPriority()
-	}
-	return v[i].GetCreatedAt().After(v[j].GetCreatedAt())
+	slices.SortFunc(transactions, func(a, b Transaction) int {
+		return cmp.Or(
+			cmp.Compare(b.GetPriority(), a.GetPriority()),
+			b.GetCreatedAt().Compare(a.GetCreatedAt()),
+		)
+	})
 }

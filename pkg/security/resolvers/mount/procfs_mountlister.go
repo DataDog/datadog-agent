@@ -81,14 +81,22 @@ func GetPidProcfs(procfs string, pid uint32, cb func(*model.Mount)) error {
 		return err
 	}
 
-	for _, m := range mnts {
-		mnt := newMountFromMountInfo(m)
-		mnt.NamespaceInode = uint32(ino)
-
+	for _, mnt := range newMountsFromMountInfo(mnts, ino) {
 		cb(mnt)
 	}
 
 	return nil
+}
+
+func newMountsFromMountInfo(mnts []*mountinfo.Info, ino uint64) []*model.Mount {
+	mounts := make([]*model.Mount, 0, len(mnts))
+	for _, m := range mnts {
+		mnt := newMountFromMountInfo(m)
+		mnt.NamespaceInode = uint32(ino)
+		mounts = append(mounts, mnt)
+	}
+	relativizeSnapshotMountPoints(mounts)
+	return mounts
 }
 
 // GetAllProcfs iterates over all the mount namespaces and gets all the mounts using procfs
@@ -129,10 +137,7 @@ func GetAllProcfs(procfs string, cb func(*model.Mount)) error {
 			continue
 		}
 
-		for _, m := range mnts {
-			mnt := newMountFromMountInfo(m)
-			mnt.NamespaceInode = uint32(ino)
-
+		for _, mnt := range newMountsFromMountInfo(mnts, ino) {
 			cb(mnt)
 		}
 

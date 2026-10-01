@@ -12,13 +12,14 @@ import (
 	"strings"
 	"testing"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetPodLogsRegistered(t *testing.T) {
-	if _, ok := NewKubernetesCore().GetAction("getPodLogs").(*GetPodLogsHandler); !ok {
-		t.Fatal("getPodLogs is not registered with its handler")
-	}
+	_, ok := NewKubernetesCore().GetAction("getPodLogs").(*GetPodLogsHandler)
+	require.True(t, ok)
 }
 
 func TestGetPodLogsInputsValidate(t *testing.T) {
@@ -53,14 +54,10 @@ func TestGetPodLogsInputsValidate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.inputs.validate()
 			if test.wantErr == "" {
-				if err != nil {
-					t.Fatalf("validate() error = %v", err)
-				}
+				require.NoError(t, err)
 				return
 			}
-			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
-				t.Fatalf("validate() error = %v, want error containing %q", err, test.wantErr)
-			}
+			require.ErrorContains(t, err, test.wantErr)
 		})
 	}
 }
@@ -79,18 +76,16 @@ func TestGetPodLogsOptions(t *testing.T) {
 	}
 
 	options := inputs.options()
-	if options.Container != inputs.Container || options.Previous != inputs.Previous || options.Timestamps != inputs.Timestamps {
-		t.Fatalf("options() did not preserve scalar inputs: %#v", options)
-	}
-	if options.SinceSeconds != inputs.SinceSeconds || options.TailLines != inputs.TailLines || options.LimitBytes != inputs.LimitBytes {
-		t.Fatalf("options() did not preserve pointer inputs: %#v", options)
-	}
+	require.Equal(t, inputs.Container, options.Container)
+	require.Equal(t, inputs.Previous, options.Previous)
+	require.Equal(t, inputs.Timestamps, options.Timestamps)
+	require.Equal(t, inputs.SinceSeconds, options.SinceSeconds)
+	require.Equal(t, inputs.TailLines, options.TailLines)
+	require.Equal(t, inputs.LimitBytes, options.LimitBytes)
 
 	defaultOptions := (GetPodLogsInputs{}).options()
-	const wantDefaultLimit int64 = 9 * 1024 * 1024
-	if defaultOptions.LimitBytes == nil || *defaultOptions.LimitBytes != wantDefaultLimit {
-		t.Fatalf("options() default limit = %v, want %d", defaultOptions.LimitBytes, wantDefaultLimit)
-	}
+	require.NotNil(t, defaultOptions.LimitBytes)
+	require.Equal(t, maxPodLogsBytes, *defaultOptions.LimitBytes)
 }
 
 func TestReadPodLogs(t *testing.T) {
@@ -99,15 +94,9 @@ func TestReadPodLogs(t *testing.T) {
 		logs, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
 			return reader, nil
 		})
-		if err != nil {
-			t.Fatalf("readPodLogs() error = %v", err)
-		}
-		if logs != "first\nsecond\n" {
-			t.Fatalf("readPodLogs() = %q", logs)
-		}
-		if !reader.closed {
-			t.Fatal("readPodLogs() did not close the stream")
-		}
+		require.NoError(t, err)
+		require.Equal(t, "first\nsecond\n", logs)
+		require.True(t, reader.closed)
 	})
 
 	t.Run("propagates stream errors", func(t *testing.T) {
@@ -115,19 +104,111 @@ func TestReadPodLogs(t *testing.T) {
 		_, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
 			return nil, wantErr
 		})
-		if !errors.Is(err, wantErr) {
-			t.Fatalf("readPodLogs() error = %v, want %v", err, wantErr)
-		}
+		require.ErrorIs(t, err, wantErr)
 	})
 
 	t.Run("rejects oversized output", func(t *testing.T) {
 		_, err := readPodLogs(context.Background(), func(context.Context) (io.ReadCloser, error) {
 			return io.NopCloser(io.LimitReader(zeroReader{}, maxPodLogsBytes+1)), nil
 		})
-		if err == nil || !strings.Contains(err.Error(), "output limit") {
-			t.Fatalf("readPodLogs() error = %v, want output limit error", err)
-		}
+		require.ErrorContains(t, err, "output limit")
 	})
+}
+
+func TestGetPodLogsMaskSequences(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{
+				"type":                "mask_sequences",
+				"name":                "mask_token",
+				"pattern":             `token=[^[:space:]]+`,
+				"replace_placeholder": "token=[MASKED]",
+			},
+			{
+				"type":    "exclude_at_match",
+				"name":    "unrelated_rule",
+				"pattern": "drop this",
+			},
+		},
+	})
+	handler := newGetPodLogsHandler(config)
+
+	logs, err := handler.maskSequences("first token=secret\ndrop this\nsecond token=another-secret", false)
+	require.NoError(t, err)
+	require.Equal(t, "first token=[MASKED]\ndrop this\nsecond token=[MASKED]", logs)
+}
+
+func TestGetPodLogsMaskSequencesAppliesAnchoredRulesPerEntry(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{
+				"type":                "mask_sequences",
+				"name":                "mask_token",
+				"pattern":             `^token=.*$`,
+				"replace_placeholder": "token=[MASKED]",
+			},
+		},
+	})
+
+	handler := newGetPodLogsHandler(config)
+	tests := []struct {
+		name       string
+		logs       string
+		timestamps bool
+		want       string
+	}{
+		{
+			name: "newline-delimited entries",
+			logs: "token=first\ntoken=second\nvisible\n",
+			want: "token=[MASKED]\ntoken=[MASKED]\nvisible\n",
+		},
+		{
+			name: "CRLF-delimited entries without trailing delimiter",
+			logs: "token=first\r\ntoken=second\r\nvisible",
+			want: "token=[MASKED]\r\ntoken=[MASKED]\r\nvisible",
+		},
+		{
+			name:       "Kubernetes timestamp prefixes",
+			logs:       "2026-09-28T12:00:00Z token=first\n2026-09-28T12:00:01.123456789Z token=second\n",
+			timestamps: true,
+			want:       "2026-09-28T12:00:00Z token=[MASKED]\n2026-09-28T12:00:01.123456789Z token=[MASKED]\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logs, err := handler.maskSequences(test.logs, test.timestamps)
+			require.NoError(t, err)
+			require.Equal(t, test.want, logs)
+		})
+	}
+}
+
+func TestGetPodLogsMaskSequencesRejectsInvalidRules(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{"type": "mask_sequences", "name": "invalid", "pattern": "("},
+		},
+	})
+
+	_, err := newGetPodLogsHandler(config).maskSequences("token=secret", false)
+	require.ErrorContains(t, err, "could not load global log processing rules")
+}
+
+func TestGetPodLogsMaskSequencesEnforcesOutputLimit(t *testing.T) {
+	config := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"logs_config.processing_rules": []map[string]interface{}{
+			{
+				"type":                "mask_sequences",
+				"name":                "expand",
+				"pattern":             "x",
+				"replace_placeholder": "xx",
+			},
+		},
+	})
+
+	_, err := newGetPodLogsHandler(config).maskSequences(strings.Repeat("x", int(maxPodLogsBytes)), false)
+	require.ErrorContains(t, err, "output limit")
 }
 
 type trackingReadCloser struct {

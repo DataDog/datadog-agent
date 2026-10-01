@@ -631,7 +631,7 @@ properties:
               num_events_allowed:
                 node_type: setting
                 type: integer
-                default: 10
+                default: 2000
               num_keys:
                 node_type: setting
                 type: integer
@@ -639,7 +639,7 @@ properties:
               period:
                 node_type: setting
                 type: string
-                default: 1m
+                default: 1s
           silent_rule_events:
             node_type: section
             type: object

@@ -6,9 +6,7 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
@@ -268,12 +266,10 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
+			var matched bool
+			content, matched = config.ApplyMaskSequence(content, rule)
+			if matched {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
 			}
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
@@ -295,17 +291,6 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 
 	msg.SetContent(content)
 	return true // we want to send this message
-}
-
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
-		return true
-	}
-
-	return bytes.Contains(content, []byte(prefix))
 }
 
 // GetHostname returns the hostname to applied the given log message

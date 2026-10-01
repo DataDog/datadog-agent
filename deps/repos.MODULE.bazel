@@ -133,10 +133,10 @@ http_archive(
         # We still need to vendor the build file as long as we need .pc files
         "BUILD.bazel": "//deps:pcre2.BUILD.bazel",
     },
-    sha256 = "15fbc5aba6beee0b17aecb04602ae39432393aba1ebd8e39b7cabf7db883299f",
-    strip_prefix = "pcre2-10.46",
+    sha256 = "53c156e1ba416a20da8e65395daa132da0d80e76910424caca3fcdae7831d384",
+    strip_prefix = "pcre2-10.49",
     urls = [
-        "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.46/pcre2-10.46.tar.bz2",
+        "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.49/pcre2-10.49.tar.bz2",
     ],
 )
 
@@ -402,11 +402,11 @@ http_archive(
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
     ],
-    sha256 = "a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2",
-    strip_prefix = "openssl-3.5.8",
+    sha256 = "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+    strip_prefix = "openssl-3.5.9",
     urls = [
-        "https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz",
-        "https://www.openssl.org/source/openssl-3.5.8.tar.gz",
+        "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+        "https://www.openssl.org/source/openssl-3.5.9.tar.gz",
     ],
 )
 

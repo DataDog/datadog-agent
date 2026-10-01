@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Apply configured global ``mask_sequences`` rules to logs returned by the
+    Kubernetes ``getPodLogs`` private action.

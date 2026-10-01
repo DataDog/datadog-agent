@@ -721,9 +721,9 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 				bestFS     string
 			)
 			p.mountResolver.Iterate(func(mount *model.Mount) {
-				if strings.HasPrefix(pathnameStr, mount.MountPointStr) {
-					if len(mount.MountPointStr) > len(bestPrefix) {
-						bestPrefix = mount.MountPointStr
+				if strings.HasPrefix(pathnameStr, mount.Path) {
+					if len(mount.Path) > len(bestPrefix) {
+						bestPrefix = mount.Path
 						bestFS = mount.FSType
 					}
 				}

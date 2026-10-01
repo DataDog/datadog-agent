@@ -23,6 +23,7 @@ import (
 type Monitor interface {
 	Start()
 	GetHTTPStats() map[protocols.ProtocolType]interface{}
+	PrepareStop()
 	Stop() error
 }
 
@@ -93,33 +94,43 @@ func (m *WindowsMonitor) Start() {
 	m.hei.StartReadingHttpFlows()
 
 	m.eventLoopWG.Add(1)
-	go func() {
-		defer m.eventLoopWG.Done()
-		for {
-			select {
-			case transactionBatch, ok := <-m.di.DataChannel:
-				if !ok {
-					return
-				}
-				// dbtodo
-				// the linux side has an error code potentially, that
-				// gets aggregated under the hood.  Do we need somthing
-				// analogous
-				m.process(transactionBatch)
-			case transactions, ok := <-m.hei.DataChannel:
-				if !ok {
-					return
-				}
-				// dbtodo
-				// the linux side has an error code potentially, that
-				// gets aggregated under the hood.  Do we need somthing
-				// analogous
-				if len(transactions) > 0 {
-					m.process(transactions)
-				}
+	go m.eventLoop()
+}
+
+// eventLoop keeps draining until both producers are done. Stop closes them one
+// at a time, and a producer that is blocked on a send it cannot complete never
+// returns, which would deadlock Stop.
+func (m *WindowsMonitor) eventLoop() {
+	defer m.eventLoopWG.Done()
+	driverChannel := m.di.DataChannel
+	etwChannel := m.hei.DataChannel
+	for driverChannel != nil || etwChannel != nil {
+		select {
+		case transactionBatch, ok := <-driverChannel:
+			if !ok {
+				// A nil channel blocks forever, disabling this case.
+				driverChannel = nil
+				continue
+			}
+			// dbtodo
+			// the linux side has an error code potentially, that
+			// gets aggregated under the hood.  Do we need somthing
+			// analogous
+			m.process(transactionBatch)
+		case transactions, ok := <-etwChannel:
+			if !ok {
+				etwChannel = nil
+				continue
+			}
+			// dbtodo
+			// the linux side has an error code potentially, that
+			// gets aggregated under the hood.  Do we need somthing
+			// analogous
+			if len(transactions) > 0 {
+				m.process(transactions)
 			}
 		}
-	}()
+	}
 }
 
 func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
@@ -154,6 +165,12 @@ func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
 	ret[protocols.HTTP] = stats
 
 	return ret
+}
+
+// PrepareStop makes GetHTTPStats return promptly from then on, so that a
+// caller blocked in it does not hold up shutdown. Stop still has to be called.
+func (m *WindowsMonitor) PrepareStop() {
+	m.di.PrepareStop()
 }
 
 // Stop HTTP monitoring

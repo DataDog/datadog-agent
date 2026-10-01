@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
@@ -666,9 +665,6 @@ func (s *baseStartStopSuite) SetupSuite() {
 
 		windowsCommon.RebootAndWait(host, backoff.NewConstantBackOff(10*time.Second))
 	}
-
-	// TODO(WINA-1320): mark this crash as flaky while we investigate it
-	flake.MarkOnLog(s.T(), "Exception code: 0x40000015")
 
 	// Enable crash dumps
 	s.dumpFolder = werCrashDumpFolder

@@ -37,23 +37,37 @@ pkg_tar(
 tar_md5sums(
     name = "gen_checksums_gz",
     src = ":test_archive_gz",
+    installed_size = "test_installed_size_gz.txt",
     md5sums = "test_checksums_gz.txt",
 )
 
 tar_md5sums(
     name = "gen_checksums_xz",
     src = ":test_archive_xz",
+    installed_size = "test_installed_size_xz.txt",
     md5sums = "test_checksums_xz.txt",
 )
 
 diff_test(
     name = "checksums_gz_test",
-    file1 = ":gen_checksums_gz",
+    file1 = ":test_checksums_gz.txt",
     file2 = "testdata/expected_checksums.txt",
 )
 
 diff_test(
     name = "checksums_xz_test",
-    file1 = ":gen_checksums_xz",
+    file1 = ":test_checksums_xz.txt",
     file2 = "testdata/expected_checksums.txt",
+)
+
+diff_test(
+    name = "installed_size_gz_test",
+    file1 = ":test_installed_size_gz.txt",
+    file2 = "testdata/expected_installed_size.txt",
+)
+
+diff_test(
+    name = "installed_size_xz_test",
+    file1 = ":test_installed_size_xz.txt",
+    file2 = "testdata/expected_installed_size.txt",
 )
