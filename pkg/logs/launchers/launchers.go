@@ -60,11 +60,18 @@ func (ls *Launchers) AddLauncher(launcher Launcher) {
 	}
 }
 
-// Start starts all launchers in the collection.
+// Start starts all launchers in the collection, concurrently: each launcher's Start is
+// independent of the others, and some (e.g. the integration and windowsevent launchers)
+// do blocking work before returning, so starting them one at a time would serialize
+// that work for no reason.
 func (ls *Launchers) Start() {
+	var wg sync.WaitGroup
 	for _, s := range ls.launchers {
-		s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
+		wg.Go(func() {
+			s.Start(ls.sourceProvider, ls.pipelineProvider, ls.registry, ls.tracker)
+		})
 	}
+	wg.Wait()
 	ls.started = true
 }
 
