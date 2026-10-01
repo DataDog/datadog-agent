@@ -35,19 +35,16 @@ static int __attribute__((always_inline)) sys_socket_ret_impl(void *ctx, int ret
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_SOCKET);
-        return 0;
+        goto pop_and_exit;
     }
 
     if (approve_syscall(syscall, socket_approvers) == DISCARDED) {
-        pop_syscall(EVENT_SOCKET);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct socket_event_t *event = SPAN_FILL_EVENT(struct socket_event_t, EVENT_SOCKET);
     if (!event) {
-        pop_syscall(EVENT_SOCKET);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
@@ -66,6 +63,9 @@ static int __attribute__((always_inline)) sys_socket_ret_impl(void *ctx, int ret
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_SOCKET);
     return 0;
 }
 

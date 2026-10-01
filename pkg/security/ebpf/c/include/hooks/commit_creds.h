@@ -22,15 +22,13 @@ int __attribute__((always_inline)) credentials_update_ret_impl(void *ctx, int re
     }
 
     if (retval < 0) {
-        pop_syscall_with(credentials_predicate);
-        return 0;
+        goto pop_and_exit;
     }
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
-        pop_syscall_with(credentials_predicate);
-        return 0;
+        goto pop_and_exit;
     }
 
     u64 type = syscall->type;
@@ -80,6 +78,8 @@ int __attribute__((always_inline)) credentials_update_ret_impl(void *ctx, int re
     }
     }
 
+pop_and_exit:
+    pop_syscall_with(credentials_predicate);
     return 0;
 }
 

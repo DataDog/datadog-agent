@@ -49,18 +49,18 @@ int hook_set_fs_pwd(ctx_t *ctx) {
     struct dentry *dentry = get_path_dentry(path);
 
     if (is_non_mountable_dentry(dentry)) {
-        pop_syscall(EVENT_CHDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     syscall->chdir.dentry = dentry;
     syscall->chdir.file.path_key = get_dentry_key_path(syscall->chdir.dentry, path);
 
-    if (approve_syscall(syscall, chdir_approvers) == DISCARDED) {
-        pop_syscall(EVENT_CHDIR);
+    if (approve_syscall(syscall, chdir_approvers) != DISCARDED) {
         return 0;
     }
 
+pop_and_exit:
+    pop_syscall(EVENT_CHDIR);
     return 0;
 }
 
@@ -70,8 +70,7 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, enum TAI
         return 0;
     }
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_CHDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, PATH_ID_INVALIDATE_TYPE_NONE);
@@ -89,6 +88,7 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, enum TAI
     resolve_dentry(ctx, prog_type);
 
     // if the tail call fails, we need to pop the syscall cache entry
+pop_and_exit:
     pop_syscall(EVENT_CHDIR);
     return 0;
 }
@@ -117,20 +117,17 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx, enum TAIL_CALL_P
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_CHDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_CHDIR);
     if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_CHDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct chdir_event_t *event = SPAN_FILL_EVENT(struct chdir_event_t, EVENT_CHDIR);
     if (!event) {
-        pop_syscall(EVENT_CHDIR);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
@@ -143,6 +140,9 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx, enum TAIL_CALL_P
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_CHDIR);
     return 0;
 }
 

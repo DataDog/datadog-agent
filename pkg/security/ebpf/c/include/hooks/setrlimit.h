@@ -7,7 +7,7 @@
 #include "helpers/syscalls.h"
 #include "events_definition.h"
 
-#define SETRLIMIT_RATE_LIMITER  100     
+#define SETRLIMIT_RATE_LIMITER  100
 
 static const int important_resources[] = {
     RLIMIT_CPU,
@@ -92,8 +92,7 @@ sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
     }
 
     if (ret != 0 && ret != -EPERM) {
-        pop_syscall(EVENT_SETRLIMIT);
-        return 0;
+        goto pop_and_exit;
     }
 
     if (cache->setrlimit.pid == 0) {
@@ -103,8 +102,7 @@ sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
 
     struct setrlimit_event_t *evt = SPAN_FILL_EVENT(struct setrlimit_event_t, EVENT_SETRLIMIT);
     if (!evt) {
-        pop_syscall(EVENT_SETRLIMIT);
-        return 0;
+        goto pop_and_exit;
     }
     evt->syscall.retval = ret;
     evt->resource = cache->setrlimit.resource;
@@ -118,6 +116,9 @@ sys_setrlimit_ret_impl(void *ctx, int ret, enum TAIL_CALL_PROG_TYPE prog_type)
     fill_cgroup_context(pc, &evt->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_SETRLIMIT);
     return 0;
 }
 
@@ -146,7 +147,7 @@ HOOK_SYSCALL_ENTRY4(prlimit64,
     if (new_limit == NULL) {
         return 0;
     }
-    
+
     return handle_setrlimit_common(ctx, resource, new_limit, pid);
 }
 

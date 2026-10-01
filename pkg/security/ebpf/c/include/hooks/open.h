@@ -253,8 +253,7 @@ int hook_io_ftruncate(ctx_t *ctx) {
 // used by both tail call callback and directly for tracepoints
 int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(syscall->retval)) {
-        pop_syscall(EVENT_OPEN);
-        return 0;
+        goto pop_and_exit;
     }
 
     // emit a sample refresh if the dedup map flagged one
@@ -266,19 +265,16 @@ int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_
 
     apply_dentry_resolution_outcome(syscall, EVENT_OPEN);
     if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_OPEN);
-        return 0;
+        goto pop_and_exit;
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
-        pop_syscall(EVENT_OPEN);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct open_event_t *event = SPAN_FILL_EVENT(struct open_event_t, EVENT_OPEN);
     if (!event) {
-        pop_syscall(EVENT_OPEN);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = syscall->retval;
     event->syscall_ctx.id = syscall->ctx_id;
@@ -296,8 +292,7 @@ int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_
     // INTERNAL cgroupfs events are forwarded only to feed the userspace cgroup resolver,
     // which only cares about directory entries; drop the rest.
     if (syscall->state == INTERNAL && !S_ISDIR(event->file.metadata.mode)) {
-        pop_syscall(EVENT_OPEN);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct proc_cache_t *entry;
@@ -312,6 +307,8 @@ int __attribute__((always_inline)) _sys_open_ret_impl(void *ctx, struct syscall_
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_OPEN);
     return 0;
 }
 

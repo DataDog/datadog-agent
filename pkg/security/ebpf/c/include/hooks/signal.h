@@ -63,15 +63,13 @@ int rethook_check_kill_permission(ctx_t *ctx) {
 
     /* do not send event for signals with EINVAL error code */
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_SIGNAL);
-        return 0;
+        goto pop_and_exit;
     }
 
     /* constuct and send the event */
     struct signal_event_t *event = SPAN_FILL_EVENT(struct signal_event_t, EVENT_SIGNAL);
     if (!event) {
-        pop_syscall(EVENT_SIGNAL);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->pid = syscall->signal.pid;
@@ -81,6 +79,9 @@ int rethook_check_kill_permission(ctx_t *ctx) {
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
     bpf_tail_call_compat(ctx, &span_fill_progs, 0);
+
+pop_and_exit:
+    pop_syscall(EVENT_SIGNAL);
     return 0;
 }
 

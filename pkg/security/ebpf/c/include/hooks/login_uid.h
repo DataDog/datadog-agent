@@ -33,8 +33,7 @@ int rethook_audit_set_loginuid(ctx_t *ctx) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
     if (!pid_entry) {
-        pop_syscall(EVENT_LOGIN_UID_WRITE);
-        return 0;
+        goto pop_and_exit;
     }
     bpf_probe_read(&pid_entry->credentials.auid, sizeof(pid_entry->credentials.auid), &syscall->login_uid.auid);
     pid_entry->credentials.is_auid_set = 1;
@@ -51,6 +50,10 @@ int rethook_audit_set_loginuid(ctx_t *ctx) {
 
     event->auid = pid_entry->credentials.auid;
     bpf_tail_call_compat(ctx, &span_fill_progs, 0);
+    return 0;
+
+pop_and_exit:
+    pop_syscall(EVENT_LOGIN_UID_WRITE);
     return 0;
 }
 

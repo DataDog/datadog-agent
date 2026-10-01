@@ -148,8 +148,7 @@ int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enu
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall_with(rmdir_predicate);
-        return 0;
+        goto pop_and_exit;
     }
 
     if (syscall->state != DISCARDED && is_auid_discarder(EVENT_RMDIR)) {
@@ -167,8 +166,7 @@ int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enu
     if (syscall->state != DISCARDED) {
         struct rmdir_event_t *event = SPAN_FILL_EVENT(struct rmdir_event_t, EVENT_RMDIR);
         if (!event) {
-            pop_syscall_with(rmdir_predicate);
-            return 0;
+            goto pop_and_exit;
         }
         event->syscall.retval = retval;
         event->syscall_ctx.id = syscall->ctx_id;
@@ -182,10 +180,10 @@ int __attribute__((always_inline)) sys_rmdir_ret_impl(void *ctx, int retval, enu
         fill_cgroup_context(entry, &event->cgroup);
 
         span_fill_tail_call(ctx, prog_type);
-    } else {
-        pop_syscall_with(rmdir_predicate);
     }
 
+pop_and_exit:
+    pop_syscall_with(rmdir_predicate);
     return 0;
 }
 

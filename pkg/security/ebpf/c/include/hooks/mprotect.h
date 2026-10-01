@@ -52,14 +52,12 @@ int __attribute__((always_inline)) sys_mprotect_ret_impl(void *ctx, int retval, 
     }
 
     if (approve_syscall(syscall, mprotect_approvers) == DISCARDED) {
-        pop_syscall(EVENT_MPROTECT);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct mprotect_event_t *event = SPAN_FILL_EVENT(struct mprotect_event_t, EVENT_MPROTECT);
     if (!event) {
-        pop_syscall(EVENT_MPROTECT);
-        return 0;
+        goto pop_and_exit;
     }
     event->vm_protection = syscall->mprotect.vm_protection;
     event->req_protection = syscall->mprotect.req_protection;
@@ -72,6 +70,9 @@ int __attribute__((always_inline)) sys_mprotect_ret_impl(void *ctx, int retval, 
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_MPROTECT);
     return 0;
 }
 

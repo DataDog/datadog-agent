@@ -158,8 +158,7 @@ int rethook_lookup_one_qstr_excl(ctx_t *ctx) {
 
 int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_LINK);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct syscall_cache_t *syscall = peek_syscall(EVENT_LINK);
@@ -200,6 +199,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL
         resolve_dentry(ctx, prog_type);
     }
 
+pop_and_exit:
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_LINK);
     return 0;
@@ -240,14 +240,12 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, enum TAIL_CAL
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_LINK);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct link_event_t *event = SPAN_FILL_EVENT(struct link_event_t, EVENT_LINK);
     if (!event) {
-        pop_syscall(EVENT_LINK);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
@@ -262,6 +260,8 @@ int __attribute__((always_inline)) dr_link_dst_callback(void *ctx, enum TAIL_CAL
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_LINK);
     return 0;
 }
 

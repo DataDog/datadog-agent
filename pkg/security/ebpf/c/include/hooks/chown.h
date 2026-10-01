@@ -62,16 +62,14 @@ int __attribute__((always_inline)) sys_chown_ret_impl(void *ctx, int retval, enu
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_CHOWN);
-        return 0;
+        goto pop_and_exit;
     }
 
     set_file_layer(syscall->resolver.dentry, &syscall->setattr.file);
 
     struct chown_event_t *event = SPAN_FILL_EVENT(struct chown_event_t, EVENT_CHOWN);
     if (!event) {
-        pop_syscall(EVENT_CHOWN);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
@@ -88,6 +86,8 @@ int __attribute__((always_inline)) sys_chown_ret_impl(void *ctx, int retval, enu
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_CHOWN);
     return 0;
 }
 

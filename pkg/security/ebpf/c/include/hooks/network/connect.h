@@ -39,8 +39,7 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
     // pollute connect_samples and suppress later successful connects to the same endpoint.
     // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64).
     if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
-        pop_syscall(EVENT_CONNECT);
-        return 0;
+        goto pop_and_exit;
     }
 
     approve_syscall(syscall, connect_approvers);
@@ -49,8 +48,7 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
 
     // these probes are also loaded with the network probes, only send the event when a rule asks for it
     if (!is_event_enabled(EVENT_CONNECT)) {
-        pop_syscall(EVENT_CONNECT);
-        return 0;
+        goto pop_and_exit;
     }
 
     // emit a sample refresh if the dedup map flagged one
@@ -61,15 +59,13 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
     }
 
     if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_CONNECT);
-        return 0;
+        goto pop_and_exit;
     }
 
     /* pre-fill the event */
     struct connect_event_t *event = SPAN_FILL_EVENT(struct connect_event_t, EVENT_CONNECT);
     if (!event) {
-        pop_syscall(EVENT_CONNECT);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->addr[0] = syscall->connect.addr[0];
@@ -99,6 +95,9 @@ int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, e
     }
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_CONNECT);
     return 0;
 }
 
@@ -134,7 +133,7 @@ int hook_security_socket_connect(ctx_t *ctx) {
         bpf_probe_read(&syscall->connect.port, sizeof(addr_in6->sin6_port), &addr_in6->sin6_port);
         bpf_probe_read(&syscall->connect.addr, sizeof(u64) * 2, (char *)addr_in6 + offsetof(struct sockaddr_in6, sin6_addr));
     }
-    
+
     struct sock *sk = get_sock_from_socket(sock);
     syscall->connect.protocol = get_protocol_from_sock(sk);
     syscall->connect.sk = sk;

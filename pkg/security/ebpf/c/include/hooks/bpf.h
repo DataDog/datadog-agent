@@ -79,8 +79,7 @@ __attribute__((always_inline)) int sys_bpf_ret_impl(void *ctx, int retval, enum 
     }
 
     if (approve_syscall(syscall, bpf_approvers) == DISCARDED) {
-        pop_syscall(EVENT_BPF);
-        return 0;
+        goto pop_and_exit;
     }
 
     syscall->bpf.retval = retval;
@@ -95,8 +94,9 @@ __attribute__((always_inline)) int sys_bpf_ret_impl(void *ctx, int retval, enum 
 
     // send monitoring event
     send_bpf_event(ctx, syscall, prog_type);
-    pop_syscall(EVENT_BPF);
 
+pop_and_exit:
+    pop_syscall(EVENT_BPF);
     return 0;
 }
 

@@ -85,20 +85,17 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
-        pop_syscall(EVENT_SELINUX);
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_SELINUX);
     if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_SELINUX);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct selinux_event_t *event = SPAN_FILL_EVENT(struct selinux_event_t, EVENT_SELINUX);
     if (!event) {
-        pop_syscall(EVENT_SELINUX);
-        return 0;
+        goto pop_and_exit;
     }
     event->event_kind = syscall->selinux.event_kind;
     event->file = syscall->selinux.file;
@@ -113,6 +110,9 @@ int __attribute__((always_inline)) dr_selinux_callback(void *ctx, int retval) {
     // target. Everything above must be built into the event before this point,
     // because the tail call never returns here.
     bpf_tail_call_compat(ctx, &span_fill_progs, 0);
+
+pop_and_exit:
+    pop_syscall(EVENT_SELINUX);
     return 0;
 }
 

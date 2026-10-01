@@ -367,8 +367,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
             flush_capabilities_usage(ctx, tgid, pid_entry->cookie);
         } else if (is_current_kworker_dying()) {
-            pop_syscall(EVENT_ANY);
-            return 0;
+            goto pop_and_exit;
         }
 
         // send the entry to maintain userspace cache
@@ -377,8 +376,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
             // tear down the process state even if the event can't be staged
             unregister_span_context();
             cleanup_traced_state(tgid);
-            pop_syscall(EVENT_ANY);
-            return 0;
+            goto pop_and_exit;
         }
 
         struct proc_cache_t *pc = fill_process_context(&event->process);
@@ -400,6 +398,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         return 0;
     }
 
+pop_and_exit:
     // cleanup any remaining syscall cache entry for this pid_tgid
     pop_syscall(EVENT_ANY);
 

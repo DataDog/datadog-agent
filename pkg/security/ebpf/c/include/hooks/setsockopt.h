@@ -34,15 +34,13 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, i
         return 0;
     }
     if (approve_syscall(syscall, setsockopt_approvers) == DISCARDED) {
-        pop_syscall(EVENT_SETSOCKOPT);
-        return 0;
+        goto pop_and_exit;
     }
     int key = 0;
     struct setsockopt_event_t *event = bpf_map_lookup_elem(&setsockopt_event,&key);
 
     if (!event) {
-        pop_syscall(EVENT_SETSOCKOPT);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
@@ -67,6 +65,8 @@ static int __attribute__((always_inline)) sys_set_sock_opt_ret_impl(void *ctx, i
     // span-fill program matching this caller's program type.
     span_fill_tail_call_key(ctx, prog_type, SPAN_FILL_KEY_SETSOCKOPT);
 
+pop_and_exit:
+    pop_syscall(EVENT_SETSOCKOPT);
     return 0;
 }
 
@@ -162,12 +162,12 @@ static int rethook_release_sock(ctx_t *ctx) {
         return 0;
     }
     if (syscall->setsockopt.filter_size_to_send >= MAX_BPF_FILTER_SIZE) {
-        bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, prog.filter); 
+        bpf_probe_read(&event->bpf_filters_buffer, MAX_BPF_FILTER_SIZE, prog.filter);
         syscall->setsockopt.truncated = 1;
         syscall->setsockopt.filter_size_to_send = MAX_BPF_FILTER_SIZE;
     }
     else if (syscall->setsockopt.filter_size_to_send >= sizeof(struct sock_filter)) {
-        bpf_probe_read(&event->bpf_filters_buffer, syscall->setsockopt.filter_size_to_send, prog.filter); 
+        bpf_probe_read(&event->bpf_filters_buffer, syscall->setsockopt.filter_size_to_send, prog.filter);
         syscall->setsockopt.truncated = 0;
     }
     else {

@@ -101,8 +101,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAI
         return 0;
     }
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_MKDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
@@ -124,6 +123,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAI
 
     resolve_dentry(ctx, prog_type);
 
+pop_and_exit:
     // if the tail call fails, we need to pop the syscall cache entry
     pop_syscall(EVENT_MKDIR);
     return 0;
@@ -185,20 +185,17 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, enum TAIL_CALL_P
     s64 retval = syscall->retval;
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(EVENT_MKDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_MKDIR);
     if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_MKDIR);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct mkdir_event_t *event = SPAN_FILL_EVENT(struct mkdir_event_t, EVENT_MKDIR);
     if (!event) {
-        pop_syscall(EVENT_MKDIR);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->syscall_ctx.id = syscall->ctx_id;
@@ -213,6 +210,9 @@ int __attribute__((always_inline)) dr_mkdir_callback(void *ctx, enum TAIL_CALL_P
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_MKDIR);
     return 0;
 }
 

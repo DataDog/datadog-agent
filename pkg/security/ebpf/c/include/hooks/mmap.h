@@ -69,14 +69,12 @@ int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 
     }
 
     if (approve_syscall(syscall, mmap_approvers) == DISCARDED) {
-        pop_syscall(EVENT_MMAP);
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_MMAP);
     if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_MMAP);
-        return 0;
+        goto pop_and_exit;
     }
 
     if (retval != -1) {
@@ -85,8 +83,7 @@ int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 
 
     struct mmap_event_t *event = SPAN_FILL_EVENT(struct mmap_event_t, EVENT_MMAP);
     if (!event) {
-        pop_syscall(EVENT_MMAP);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->file = syscall->mmap.file;
@@ -106,6 +103,9 @@ int __attribute__((always_inline)) sys_mmap_ret_impl(void *ctx, int retval, u64 
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_MMAP);
     return 0;
 }
 

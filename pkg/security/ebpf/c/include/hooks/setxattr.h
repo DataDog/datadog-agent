@@ -116,15 +116,16 @@ TAIL_CALL_FNC(dr_setxattr_callback, ctx_t *ctx) {
     }
 
     if (syscall->resolver.ret == DENTRY_INVALID) {
-        pop_syscall(EVENT_SETXATTR);
-        return 0;
+        goto pop_and_exit;
     }
 
     apply_dentry_resolution_outcome(syscall, EVENT_SETXATTR);
-    if (syscall->state == DISCARDED) {
-        pop_syscall(EVENT_SETXATTR);
+    if (syscall->state != DISCARDED) {
+        return 0;
     }
 
+pop_and_exit:
+    pop_syscall(EVENT_SETXATTR);
     return 0;
 }
 
@@ -151,14 +152,12 @@ int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        pop_syscall(event_type);
-        return 0;
+        goto pop_and_exit;
     }
 
     struct setxattr_event_t *event = SPAN_FILL_EVENT(struct setxattr_event_t, event_type);
     if (!event) {
-        pop_syscall(event_type);
-        return 0;
+        goto pop_and_exit;
     }
 
     event->event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0;
@@ -182,6 +181,8 @@ int __attribute__((always_inline)) sys_xattr_ret_impl(void *ctx, int retval, u64
 
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(event_type);
     return 0;
 }
 

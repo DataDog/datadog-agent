@@ -82,8 +82,7 @@ int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, en
 
     struct ptrace_event_t *event = SPAN_FILL_EVENT(struct ptrace_event_t, EVENT_PTRACE);
     if (!event) {
-        pop_syscall(EVENT_PTRACE);
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->request = syscall->ptrace.request;
@@ -97,6 +96,9 @@ int __attribute__((always_inline)) sys_ptrace_ret_impl(void *ctx, int retval, en
     fill_cgroup_context(entry, &event->cgroup);
 
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_PTRACE);
     return 0;
 }
 
