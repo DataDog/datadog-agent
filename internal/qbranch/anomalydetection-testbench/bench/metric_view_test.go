@@ -8,15 +8,39 @@ package bench
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/apache/arrow-go/v18/arrow"
+	"github.com/apache/arrow-go/v18/arrow/array"
+	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewParquetMetricViewResolvesHostTag(t *testing.T) {
-	view := newParquetMetricView("system.cpu", 1, []string{"env:prod", "host:web-1", "service:api"}, 100)
+	view := newParquetMetricView("system.cpu", 1, []string{"env:prod", "host:web-1", "service:api"}, 100, "")
 
 	assert.Equal(t, "web-1", view.GetHost())
 	assert.Equal(t, []string{"env:prod", "service:api"}, view.GetTags().UnsafeToReadOnlySliceString())
+}
+
+func TestMetricTypeFallbackForNullableParquetColumn(t *testing.T) {
+	schema := arrow.NewSchema([]arrow.Field{{Name: "MetricType", Type: arrow.BinaryTypes.String, Nullable: true}}, nil)
+	builder := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer builder.Release()
+	types := builder.Field(0).(*array.StringBuilder)
+	types.AppendNull()
+	types.Append("")
+	types.Append("future-type")
+	record := builder.NewRecord()
+	defer record.Release()
+
+	rows, err := extractMetricsFromRecord(record)
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	for _, row := range rows {
+		assert.Equal(t, metrics.UnknownType, newParquetMetricView(row.MetricName, 0, nil, 0, row.MetricType).GetMetricType())
+	}
 }
 
 func TestParseSeriesKeyIncludesHost(t *testing.T) {

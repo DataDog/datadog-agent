@@ -32,3 +32,12 @@ func TestUnknownMetricType(t *testing.T) {
 	assert.Equal(t, "Unknown", UnknownType.String())
 	assert.Equal(t, MetricType(0), GaugeType)
 }
+
+func TestParseMetricType(t *testing.T) {
+	for metricType := GaugeType; metricType < NumMetricTypes; metricType++ {
+		assert.Equal(t, metricType, ParseMetricType(metricType.String()))
+	}
+	for _, name := range []string{"", "Unknown", "future-type"} {
+		assert.Equal(t, UnknownType, ParseMetricType(name))
+	}
+}

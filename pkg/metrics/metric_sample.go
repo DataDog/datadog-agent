@@ -74,6 +74,36 @@ func (m MetricType) String() string {
 	}
 }
 
+// ParseMetricType returns UnknownType for names absent from older recordings.
+func ParseMetricType(name string) MetricType {
+	switch name {
+	case "Gauge":
+		return GaugeType
+	case "Rate":
+		return RateType
+	case "Count":
+		return CountType
+	case "MonotonicCount":
+		return MonotonicCountType
+	case "Counter":
+		return CounterType
+	case "Histogram":
+		return HistogramType
+	case "Historate":
+		return HistorateType
+	case "Set":
+		return SetType
+	case "Distribution":
+		return DistributionType
+	case "GaugeWithTimestamp":
+		return GaugeWithTimestampType
+	case "CountWithTimestamp":
+		return CountWithTimestampType
+	default:
+		return UnknownType
+	}
+}
+
 // MetricSampleContext allows to access a sample context data
 type MetricSampleContext interface {
 	GetName() string

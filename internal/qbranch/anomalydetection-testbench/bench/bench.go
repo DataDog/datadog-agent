@@ -499,7 +499,7 @@ func (tb *Bench) loadParquetDir(dir string) error {
 				droppedCount++
 				continue
 			}
-			view := newParquetMetricView(m.Name, m.Value, m.Tags, m.Timestamp)
+			view := newParquetMetricView(m.Name, m.Value, m.Tags, m.Timestamp, m.MetricType)
 			tb.rawMetrics = append(tb.rawMetrics, &view)
 		}
 		if droppedCount > 0 {
@@ -545,7 +545,7 @@ func (tb *Bench) streamParquetObservations(dir string, format ParquetFormat) err
 				return nil
 			}
 
-			view := newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp)
+			view := newParquetMetricView(metric.Name, metric.Value, metric.Tags, metric.Timestamp, metric.MetricType)
 			sort.Strings(view.tags)
 			tb.streamInputMetricSeries[metricSeriesHash(view.name, view.host, view.tags)] = struct{}{}
 			tb.streamInputMetricsCount++
@@ -630,18 +630,19 @@ func (tb *Bench) feedRawMetrics() {
 
 // parquetMetricView wraps a metric record to satisfy observerdef.MetricView.
 type parquetMetricView struct {
-	name      string
-	value     float64
-	host      string
-	tags      []string
-	timestamp int64
+	name       string
+	value      float64
+	metricType metrics.MetricType
+	host       string
+	tags       []string
+	timestamp  int64
 }
 
 // newParquetMetricView resolves the recorder's legacy host:* tag into the
 // separate host dimension. The remaining tags are the final tags from the replay input.
-func newParquetMetricView(name string, value float64, tags []string, timestamp int64) parquetMetricView {
+func newParquetMetricView(name string, value float64, tags []string, timestamp int64, metricType string) parquetMetricView {
 	host, metricTags := resolveParquetMetricHostAndTags(tags)
-	return parquetMetricView{name: name, value: value, host: host, tags: metricTags, timestamp: timestamp}
+	return parquetMetricView{name: name, value: value, metricType: metrics.ParseMetricType(metricType), host: host, tags: metricTags, timestamp: timestamp}
 }
 
 func resolveParquetMetricHostAndTags(tags []string) (string, []string) {
@@ -699,7 +700,7 @@ func (m *parquetMetricView) GetTags() tagset.CompositeTags {
 func (m *parquetMetricView) GetHost() string                   { return m.host }
 func (m *parquetMetricView) GetTimestampUnix() int64           { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64            { return 1.0 }
-func (m *parquetMetricView) GetMetricType() metrics.MetricType { return metrics.UnknownType }
+func (m parquetMetricView) GetMetricType() metrics.MetricType { return m.metricType }
 
 // unboundedStorageCfg returns a StorageConfig for testbench replay:
 // no point-retention or inactivity-eviction window (pre-loaded data stays in memory) and full
@@ -1397,7 +1398,7 @@ func (tb *Bench) loadDemoScenario() error {
 				{"connection.errors", getDemoConnectionErrorsValue(elapsed) * 0.6, []string{"service:worker"}},
 			}
 			for _, obs := range observations {
-				view := newParquetMetricView(obs.name, obs.value, obs.tags, timestamp)
+				view := newParquetMetricView(obs.name, obs.value, obs.tags, timestamp, "")
 				tb.rawMetrics = append(tb.rawMetrics, &view)
 			}
 		}
