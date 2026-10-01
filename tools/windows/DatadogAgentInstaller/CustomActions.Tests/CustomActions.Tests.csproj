@@ -76,12 +76,14 @@
     <Compile Include="APM\ApmConfigTests.cs" />
     <Compile Include="ConfigureUserCustomActions\ConfigureUserAccountRightsTests.cs" />
     <Compile Include="ConfigureUserCustomActions\ConfigureUserCustomActionsTestSetup.cs" />
+    <Compile Include="ConfigureUserCustomActions\ConfigureUserGroupsTests.cs" />
     <Compile Include="InstallState\InstallStateTests.cs" />
     <Compile Include="InstallState\InstallStateTestSetup.cs" />
     <Compile Include="ProcessUserCustomActions\BaseProcessUserCustomActionsDomainTests.cs" />
     <Compile Include="Flare\FlareUnitTests.cs" />
     <Compile Include="IntegrationTests\TestConfig.cs" />
     <Compile Include="Logs\ProcessConfigTests.cs" />
+    <Compile Include="Native\DomainControllerDetectionTests.cs" />
     <Compile Include="Native\SecureDirectoryTests.cs" />
     <Compile Include="ProcessUserCustomActions\TestDelegate.cs" />
     <Compile Include="Process\ProcessConfigTests.cs" />
