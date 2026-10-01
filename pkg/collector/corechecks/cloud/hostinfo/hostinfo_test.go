@@ -532,26 +532,81 @@ func TestHostInfoCheckHealthy404ResetsStaleFailures(t *testing.T) {
 		return "AWS", ""
 	}
 
-	// The healthy no-active-notice steady state: IMDS answers 404.
-	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
 	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
-		return time.Time{}, notFound
+		return time.Time{}, errors.New("connection timed out")
+	}
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, errors.New("connection timed out")
 	}
 
 	mockSender := mocksender.NewMockSender(t, CheckName)
 	mockSender.On("FinalizeCheckServiceTag").Return()
+	mockSender.On("Commit").Return()
 
 	check := newCheck().(*Check)
 	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
 	mocksender.SetSender(mockSender, check.ID())
 
-	// Stale failures left over from an earlier outage, below the backoff
-	// threshold.
-	check.metadataFailures = metadataFailureThreshold - 1
-	check.metadataLastAttempt = time.Now()
+	// Build up stale failures, below the backoff threshold.
+	check.Run()
+	check.Run()
+	assert.Equal(t, 2, check.metadataFailures)
 
-	// A 404 must clear the stale failures, not just skip the increment, or
-	// they would linger forever on a spot instance that only ever 404s.
-	check.checkPreemptionEvents(mockSender)
+	// IMDS recovers to the healthy no-active-notice steady state: a 404
+	// must clear the stale failures, not just skip the increment, or they
+	// would linger forever on a spot instance that only ever 404s.
+	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, notFound
+	}
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, notFound
+	}
+	check.Run()
 	assert.Equal(t, 0, check.metadataFailures)
+}
+
+func TestHostInfoCheckBothLookupsFailingCountsOncePerRun(t *testing.T) {
+	defer resetTestVars()
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	// A full IMDS outage (e.g. a hop-limited container): both the
+	// preemption and rebalance lookups hit the same unreachable endpoint
+	// and fail on every run.
+	preemptionAttempts := 0
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		preemptionAttempts++
+		return time.Time{}, errors.New("connection timed out")
+	}
+	rebalanceAttempts := 0
+	getRebalanceRecommendationFn = func(_ context.Context, _ string) (time.Time, error) {
+		rebalanceAttempts++
+		return time.Time{}, errors.New("connection timed out")
+	}
+
+	mockSender := mocksender.NewMockSender(t, CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+	mockSender.On("Commit").Return()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	mocksender.SetSender(mockSender, check.ID())
+
+	// The two lookups share metadataFailures; a failing run must count as
+	// a single failure, so the backoff still takes metadataFailureThreshold
+	// runs to arm, not half that because both lookups failed.
+	for i := 0; i < metadataFailureThreshold; i++ {
+		check.Run()
+	}
+	assert.Equal(t, metadataFailureThreshold, preemptionAttempts)
+	assert.Equal(t, metadataFailureThreshold, rebalanceAttempts)
+	assert.Equal(t, metadataFailureThreshold, check.metadataFailures)
+
+	// The backoff is now armed: neither lookup should be attempted again.
+	check.Run()
+	assert.Equal(t, metadataFailureThreshold, preemptionAttempts)
+	assert.Equal(t, metadataFailureThreshold, rebalanceAttempts)
 }
