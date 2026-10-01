@@ -31,10 +31,10 @@ func normalizeMetricPrefixList(entries []MetricPrefixListEntry, log log.Componen
 
 	normalized, droppedRules, droppedExceptions := metricname.NormalizePrefixRules(rules)
 	for _, prefix := range droppedRules {
-		log.Warnf("metric_filterlist_prefix: dropping entry %q cannot match any metric", prefix)
+		log.Warnf("metric_filterlist_prefix: dropping entry %q that cannot match any metric name stored by Datadog", prefix)
 	}
 	for _, exception := range droppedExceptions {
-		log.Warnf("metric_filterlist_prefix: dropping exception %q cannot match any metric", exception)
+		log.Warnf("metric_filterlist_prefix: dropping exception %q that cannot match any metric name stored by Datadog", exception)
 	}
 	return normalized
 }

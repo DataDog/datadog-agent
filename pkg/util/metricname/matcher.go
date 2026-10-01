@@ -6,6 +6,7 @@
 package metricname
 
 import (
+	"slices"
 	"sort"
 	"strings"
 	"unsafe"
@@ -37,12 +38,14 @@ type PrefixRule struct {
 // NewMatcher creates a matcher for metric_filterlist only.
 // Entries must already be normalized. matchPrefix applies to the whole list.
 func NewMatcher(data []string, matchPrefix bool) Matcher {
-	return NewMatcherWithPrefixRules(data, matchPrefix, nil)
+	m, _ := NewMatcherWithPrefixRules(data, matchPrefix, nil)
+	return m
 }
 
 // NewMatcherWithPrefixRules combines metric_filterlist and metric_filterlist_prefix.
-// rules must already be normalized.
-func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRule) Matcher {
+// rules must already be normalized. The second return lists rules shadowed by
+// an unconditional prefix.
+func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRule) (Matcher, []string) {
 	var exact, prefixes []string
 
 	for _, entry := range data {
@@ -67,6 +70,18 @@ func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRu
 	exceptPrefix = compactPrefixes(exceptPrefix)
 	exceptExact = compactExact(exceptExact, exceptPrefix)
 
+	var dropped []string
+	if len(prefixes) > 0 {
+		kept := rulePrefixes[:0]
+		for _, prefix := range rulePrefixes {
+			if testPrefixes(prefixes, prefix) {
+				dropped = append(dropped, prefix)
+				continue
+			}
+			kept = append(kept, prefix)
+		}
+		rulePrefixes = kept
+	}
 	rulePrefixes = compactPrefixes(rulePrefixes)
 
 	return Matcher{
@@ -75,7 +90,7 @@ func NewMatcherWithPrefixRules(data []string, matchPrefix bool, rules []PrefixRu
 		rulePrefixes: rulePrefixes,
 		exceptExact:  exceptExact,
 		exceptPrefix: exceptPrefix,
-	}
+	}, dropped
 }
 
 // NormalizeEntries normalizes raw metric_filterlist entries.
@@ -143,23 +158,20 @@ func compactExact(exact, prefixes []string) []string {
 	}
 
 	sort.Strings(exact)
+	exact = slices.Compact(exact)
 
-	i := 0
-	for _, name := range exact {
-		if i > 0 && name == exact[i-1] {
-			continue
-		}
-		if len(prefixes) > 0 && testPrefixes(prefixes, name) {
-			continue
-		}
-		exact[i] = name
-		i++
+	if len(prefixes) == 0 {
+		return exact
 	}
-	if i == 0 {
+
+	exact = slices.DeleteFunc(exact, func(name string) bool {
+		return testPrefixes(prefixes, name)
+	})
+	if len(exact) == 0 {
 		return nil
 	}
 
-	return exact[:i]
+	return exact
 }
 
 // RestrictExact filters exact entries and shares prefix state.

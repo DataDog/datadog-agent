@@ -1011,11 +1011,12 @@ func TestMetricFilterListShouldBlock(t *testing.T) {
 }
 
 func TestMetricFilterListPrefixEntry(t *testing.T) {
-	filter := metricname.NewMatcherWithPrefixRules(
+	filter, dropped := metricname.NewMatcherWithPrefixRules(
 		[]string{"other.metric"},
 		false,
 		[]metricname.PrefixRule{{Prefix: "custom.metric."}},
 	)
+	assert.Empty(t, dropped)
 	conf := enrichConfig{
 		defaultHostname: "default",
 	}
