@@ -655,28 +655,17 @@ profiles:
       - name: dogstatsd.uds_origin_detection_error
         preserve_tags:
           - transport
-      # Check execution quality
+      # Inputs: checks that run but warn or submit nothing, and workloadmeta
+      # collectors (kubelet, container runtimes) failing to pull.
       - name: checks.warnings
         preserve_tags:
           - check_name
       - name: checks.metrics_samples
         preserve_tags:
           - check_name
-      # Tagging / container metadata on the NODE agent. These exist only in the
-      # cluster-agent profile today, so container-tagging problems on the node
-      # agent are invisible.
-      - name: workloadmeta.stored_entities
-        preserve_tags:
-          - kind
-          - source
       - name: workloadmeta.pull_errors
         preserve_tags:
           - collector_id
-      - name: tagger.stored_entities
-        preserve_tags:
-          - source
-          - prefix
-      - name: tagger.client_stream_errors
   schedule:
     start_after: 30
     iterations: 0
