@@ -252,6 +252,33 @@ func TestJobSetStartLoadsEnablesAndStartsEveryJob(t *testing.T) {
 	}
 }
 
+func TestJobSetStartEnablesDisabledJobsBeforeBootstrap(t *testing.T) {
+	for _, variant := range []Variant{Stable, Experiment} {
+		t.Run(string(variant), func(t *testing.T) {
+			jobs, _ := testJobSet(t)
+			require.NoError(t, jobs.Write(variant))
+			enabled := make(map[string]bool)
+			jobs.Client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
+				switch args[0] {
+				case "print":
+					return []byte(notLoadedOutput), errors.New("exit status 113")
+				case "enable":
+					enabled[strings.TrimPrefix(args[1], "system/")] = true
+				case "bootstrap":
+					label := strings.TrimSuffix(filepath.Base(args[2]), ".plist")
+					if !enabled[label] {
+						return nil, errors.New("service is disabled")
+					}
+				}
+				return nil, nil
+			}
+
+			require.NoError(t, jobs.Start(context.Background(), variant))
+			assert.Len(t, enabled, len(jobs.Labels))
+		})
+	}
+}
+
 // TestJobSetStopUnloadsInReverse pins the teardown order: a job must not be left running against a
 // dependency that has already gone away.
 func TestJobSetStopUnloadsInReverse(t *testing.T) {
