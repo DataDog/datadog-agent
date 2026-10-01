@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -221,60 +220,40 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 	return nil
 }
 
-// listWatchErrors logs the errors the pod reflector's list and watch calls
-// return. The reflector keeps retrying them in the background, long after
-// Start has succeeded, and only reports them through klog, so they would
-// otherwise neither fail the collector nor show up in the agent's log. It
-// warns when the calls start failing, or fail for another reason, and logs
-// the retries in between at debug level only: the reflector retries about
-// every 30 seconds for as long as the failure lasts.
+// listWatchErrors warns about the errors the pod reflector's list and watch
+// calls return, with a hint on how to fix them: client-go only logs them to
+// stderr through klog, without a hint. The reflector retries for as long as
+// they last, so it warns once per hint until a call succeeds. The reflector
+// makes these calls one at a time, so this needs no lock.
 type listWatchErrors struct {
-	mu sync.Mutex
-	// failing is the kind of error the last failed call returned, empty
-	// while the calls succeed.
-	failing string
+	// hint is the last one warned about, empty once a call succeeds.
+	hint string
 }
 
-// report logs err as described on listWatchErrors, and passes it through.
+// report warns about err as described on listWatchErrors, and passes it through.
 func (e *listWatchErrors) report(err error) error {
-	if err == nil {
-		e.mu.Lock()
-		recovered := e.failing != ""
-		e.failing = ""
-		e.mu.Unlock()
-		if recovered {
-			log.Infof("%s can list and watch pods on the local node again", componentName)
-		}
+	switch {
+	case err == nil:
+		e.hint = ""
 		return nil
-	}
-
 	// The collector is stopping, or the reflector is about to relist on its
-	// own: neither is a failure worth reporting.
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
-		apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
-		log.Debugf("%s pod list or watch ended, will retry: %s", componentName, err)
+	// own: neither needs fixing.
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
+		apierrors.IsResourceExpired(err), apierrors.IsGone(err):
 		return err
 	}
 
-	var kind, hint string
+	hint := "check that the Kubernetes API server is reachable and that its certificate is trusted (kubernetes_apiserver_ca_path)"
 	switch {
 	case apierrors.IsForbidden(err):
-		kind, hint = "forbidden", "grant the agent's service account list and watch on pods, or set otelcollector.standalone.use_kubelet_collector to true"
+		hint = "grant the agent's service account list and watch on pods, or set otelcollector.standalone.use_kubelet_collector to true"
 	case apierrors.IsUnauthorized(err):
-		kind, hint = "unauthorized", "check the service account token mounted in the pod, or the credentials in kubernetes_kubeconfig_path"
-	default:
-		kind, hint = "other", "check that the Kubernetes API server is reachable and that its certificate is trusted (kubernetes_apiserver_ca_path)"
+		hint = "check the service account token mounted in the pod, or the credentials in kubernetes_kubeconfig_path"
 	}
 
-	e.mu.Lock()
-	changed := e.failing != kind
-	e.failing = kind
-	e.mu.Unlock()
-
-	if changed {
+	if hint != e.hint {
+		e.hint = hint
 		log.Warnf("%s cannot list or watch pods on the local node, so telemetry won't get Kubernetes tags: %s. Will keep retrying: %s", componentName, hint, err)
-	} else {
-		log.Debugf("%s still cannot list or watch pods on the local node, will retry: %s", componentName, err)
 	}
 	return err
 }

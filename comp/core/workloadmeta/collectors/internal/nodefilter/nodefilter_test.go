@@ -388,20 +388,14 @@ func (b *syncBuffer) String() string {
 // Anything else that sets up the global logger, like the workloadmeta mock,
 // must do so before.
 func captureWarnings(t *testing.T) func() string {
-	return captureLogs(t, log.WarnLvl, log.WarnStr)
-}
-
-// captureLogs is captureWarnings for any minimum level, each line prefixed
-// with its level, e.g. "[WARN] ".
-func captureLogs(t *testing.T, minLevel log.LogLevel, minLevelStr string) func() string {
 	var output syncBuffer
-	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&output, minLevel)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&output, log.WarnLvl)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		log.SetupLogger(log.Default(), log.InfoStr)
 		logger.Close()
 	})
-	log.SetupLogger(logger, minLevelStr)
+	log.SetupLogger(logger, log.WarnStr)
 
 	return func() string {
 		logger.Flush()
@@ -440,11 +434,11 @@ func TestStart_Forbidden(t *testing.T) {
 }
 
 // TestListWatchErrors verifies that list and watch errors are warned about,
-// with a hint matching their cause, when they start or change cause, rather
-// than on every retry; that recovering is logged; and that errors the
-// reflector routinely recovers from on its own aren't warned about.
+// with a hint matching their cause, once per cause until a call succeeds
+// rather than on every retry, and that errors the reflector routinely
+// recovers from on its own aren't warned about.
 func TestListWatchErrors(t *testing.T) {
-	logs := captureLogs(t, log.InfoLvl, log.InfoStr)
+	warnings := captureWarnings(t)
 	errs := &listWatchErrors{}
 	forbidden := apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", errors.New("RBAC: access denied"))
 	unauthorized := apierrors.NewUnauthorized("invalid bearer token")
@@ -454,6 +448,7 @@ func TestListWatchErrors(t *testing.T) {
 		forbidden, forbidden, forbidden,
 		unauthorized, unauthorized,
 		nil, nil,
+		unauthorized,
 		unreachable, unreachable,
 		apierrors.NewResourceExpired("too old resource version"),
 		context.Canceled,
@@ -461,26 +456,15 @@ func TestListWatchErrors(t *testing.T) {
 		assert.Equal(t, err, errs.report(err))
 	}
 
-	var warnings, infos []string
-	for _, line := range strings.Split(logs(), "\n") {
-		switch {
-		case strings.HasPrefix(line, "[WARN] "):
-			warnings = append(warnings, line)
-		case strings.HasPrefix(line, "[INFO] "):
-			infos = append(infos, line)
-		}
-	}
-
-	require.Len(t, warnings, 3, warnings)
-	assert.Contains(t, warnings[0], "grant the agent's service account list and watch on pods")
-	assert.Contains(t, warnings[0], "RBAC: access denied")
-	assert.Contains(t, warnings[1], "check the service account token mounted in the pod")
-	assert.Contains(t, warnings[1], "invalid bearer token")
-	assert.Contains(t, warnings[2], "kubernetes_apiserver_ca_path")
-	assert.Contains(t, warnings[2], "connection refused")
-
-	require.Len(t, infos, 1, infos)
-	assert.Contains(t, infos[0], "can list and watch pods on the local node again")
+	lines := strings.Split(strings.TrimSpace(warnings()), "\n")
+	require.Len(t, lines, 4, lines)
+	assert.Contains(t, lines[0], "grant the agent's service account list and watch on pods")
+	assert.Contains(t, lines[0], "RBAC: access denied")
+	assert.Contains(t, lines[1], "check the service account token mounted in the pod")
+	assert.Contains(t, lines[1], "invalid bearer token")
+	assert.Contains(t, lines[2], "check the service account token mounted in the pod")
+	assert.Contains(t, lines[3], "kubernetes_apiserver_ca_path")
+	assert.Contains(t, lines[3], "connection refused")
 }
 
 // TestStart_NoPods verifies that listing no pods at all on the node, which
