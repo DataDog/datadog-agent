@@ -142,8 +142,6 @@ properties:
   restricted_shell:
     node_type: section
     type: object
-    visibility: public
-    description: Configuration for restricted-shell actions run by the Private Action Runner.
     properties:
       allowed_commands:
         node_type: setting
@@ -241,7 +239,7 @@ properties:
       linux: true
       windows: true
       other: false
-    comment: Enables split runner mode by default on supported host deployments.
+    comment: Enables split runner mode by default on supported host deployments. Split mode requires the process manager; disable this setting to retain monolithic execution.
   urn:
     node_type: setting
     type: string
