@@ -503,6 +503,7 @@ func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	defer m.profilesLock.Unlock()
 	for selector, prof := range m.profiles {
 		if removed, remainingInstances := m.unlinkWorkloadFromProfile(prof, cgce); removed {
+			prof.RemoveBaseMountNamespace(cgce.GetCGroupInode())
 			if remainingInstances == 0 {
 				// Queue for delayed removal
 				m.pendingProfileRemovalsLock.Lock()
@@ -1066,7 +1067,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	// Link this workload to the profile (tracks in profile.Instances)
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
 	if m.linkWorkloadToProfile(secprof, workload) {
-		m.seedMountsForWorkload(secprof, event)
+		m.seedMountsForWorkload(secprof, workload, event)
 	}
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
@@ -1202,13 +1203,13 @@ func baseMountNamespaceFromEvent(event *model.Event) uint32 {
 // seedMountsForWorkload seeds a profile's mount table with the workload's
 // pre-existing mounts from its base mount namespace. Later changes come from
 // live mount events.
-func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, event *model.Event) {
+func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
 	nsID := baseMountNamespaceFromEvent(event)
 	if nsID == 0 {
 		return
 	}
 
-	secprof.SetBaseMountNamespaceID(nsID)
+	secprof.AddBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID)
 
 	var mounts []model.Mount
 	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {

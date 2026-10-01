@@ -106,8 +106,7 @@ func TestInsertMountBaseNamespaceFlag(t *testing.T) {
 	tagID := at.GetOrInsertImageTag("img:v1")
 	now := time.Unix(0, 1000)
 
-	// the base namespace is pinned explicitly (from the seeding workload)
-	at.SetBaseMountNamespaceID(testNsA)
+	at.AddBaseMountNamespaceID(testNsA)
 
 	at.InsertMount(testNsA, "/base", "/", "ext4", 0, tagID, Runtime, now, false)
 	// a mount seen only in a later namespace is not part of the base
@@ -138,25 +137,51 @@ func TestInsertMountNoBaseNamespacePinned(t *testing.T) {
 	assert.False(t, at.Mounts[0].InBaseNamespace)
 }
 
-func TestSetBaseMountNamespaceIDIsSetOnce(t *testing.T) {
+func TestMultipleBaseMountNamespaces(t *testing.T) {
 	at := newMountTestTree()
 	tagID := at.GetOrInsertImageTag("img:v1")
 	now := time.Unix(0, 1000)
 
-	at.SetBaseMountNamespaceID(testNsA)
-	// a later call (e.g. a second instance of the same image) must not reassign it
-	at.SetBaseMountNamespaceID(testNsB)
+	// two containers of the same image, each with its own base namespace
+	at.AddBaseMountNamespaceID(testNsA)
+	at.AddBaseMountNamespaceID(testNsB)
 
-	at.InsertMount(testNsA, "/base", "/", "ext4", 0, tagID, Runtime, now, false)
-	at.InsertMount(testNsB, "/other", "/", "ext4", 0, tagID, Runtime, now, false)
+	at.InsertMount(testNsA, "/a", "/", "ext4", 0, tagID, Runtime, now, false)
+	at.InsertMount(testNsB, "/b", "/", "ext4", 0, tagID, Runtime, now, false)
 
-	base := findMount(at, "/base", 0)
-	require.NotNil(t, base)
-	assert.True(t, base.InBaseNamespace)
+	a := findMount(at, "/a", 0)
+	require.NotNil(t, a)
+	assert.True(t, a.InBaseNamespace)
 
-	other := findMount(at, "/other", 0)
-	require.NotNil(t, other)
-	assert.False(t, other.InBaseNamespace)
+	b := findMount(at, "/b", 0)
+	require.NotNil(t, b)
+	assert.True(t, b.InBaseNamespace)
+}
+
+func TestRemoveBaseMountNamespaceIsRefcounted(t *testing.T) {
+	at := newMountTestTree()
+	tagID := at.GetOrInsertImageTag("img:v1")
+	now := time.Unix(0, 1000)
+
+	// two containers share the same base namespace inode
+	at.AddBaseMountNamespaceID(testNsA)
+	at.AddBaseMountNamespaceID(testNsA)
+
+	// one unlinks: the inode is still a base namespace for the other
+	at.RemoveBaseMountNamespaceID(testNsA)
+	at.InsertMount(testNsA, "/shared", "/", "ext4", 0, tagID, Runtime, now, false)
+	shared := findMount(at, "/shared", 0)
+	require.NotNil(t, shared)
+	assert.True(t, shared.InBaseNamespace)
+
+	// the second unlinks: the inode is no longer a base namespace
+	at.RemoveBaseMountNamespaceID(testNsA)
+	assert.Zero(t, at.baseMountNamespaceIDs[testNsA])
+
+	at.InsertMount(testNsA, "/after", "/", "ext4", 0, tagID, Runtime, now, false)
+	after := findMount(at, "/after", 0)
+	require.NotNil(t, after)
+	assert.False(t, after.InBaseNamespace)
 }
 
 func TestInsertMountDryRun(t *testing.T) {
@@ -193,7 +218,7 @@ func TestMountsProtoRoundTrip(t *testing.T) {
 	first := time.Unix(0, 1000)
 	last := time.Unix(0, 5000)
 
-	src.SetBaseMountNamespaceID(testNsA)
+	src.AddBaseMountNamespaceID(testNsA)
 	src.InsertMount(testNsA, "/", "/", "overlay", 0, tagID, Snapshot, first, false)
 	src.Mounts[0].RecordWithTimestamps(tagID, first, last)
 	src.InsertMount(testNsA, "/proc", "/", "proc", model.MountAttrReadOnly|model.MountAttrNoExec, tagID, Runtime, first, false)

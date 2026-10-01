@@ -97,6 +97,11 @@ type Profile struct {
 	// observedRollups makes the encoder derive per-version syscall/capability lists from the tree.
 	observedRollups bool
 	seededSyscalls  []uint32
+
+	// baseMountNSByCgroup maps a linked workload's cgroup inode to its base mount
+	// namespace, so the namespace can be dropped from the tree's base-namespace set
+	// when the workload is unlinked.
+	baseMountNSByCgroup map[uint64]uint32
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -342,12 +347,38 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
-// SetBaseMountNamespaceID pins the workload's base mount namespace inode (set once)
-func (p *Profile) SetBaseMountNamespaceID(nsID uint32) {
+// AddBaseMountNamespace records the base mount namespace of the workload identified
+// by cgroupInode and adds it to the tree's base-namespace set. It is idempotent per
+// cgroup so a re-seed does not inflate the refcount.
+func (p *Profile) AddBaseMountNamespace(cgroupInode uint64, nsID uint32) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.ActivityTree.SetBaseMountNamespaceID(nsID)
+	if nsID == 0 {
+		return
+	}
+	if p.baseMountNSByCgroup == nil {
+		p.baseMountNSByCgroup = make(map[uint64]uint32)
+	}
+	if _, ok := p.baseMountNSByCgroup[cgroupInode]; ok {
+		return
+	}
+	p.baseMountNSByCgroup[cgroupInode] = nsID
+	p.ActivityTree.AddBaseMountNamespaceID(nsID)
+}
+
+// RemoveBaseMountNamespace drops the base mount namespace recorded for the workload
+// identified by cgroupInode from the tree's base-namespace set.
+func (p *Profile) RemoveBaseMountNamespace(cgroupInode uint64) {
+	p.Lock()
+	defer p.Unlock()
+
+	nsID, ok := p.baseMountNSByCgroup[cgroupInode]
+	if !ok {
+		return
+	}
+	delete(p.baseMountNSByCgroup, cgroupInode)
+	p.ActivityTree.RemoveBaseMountNamespaceID(nsID)
 }
 
 // InsertMount inserts a mount into the profile's deduplicated mount table
