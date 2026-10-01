@@ -20,6 +20,7 @@ import (
 
 	testhelpers "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/test"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestUpdateCronJobSchedule(t *testing.T) {
@@ -47,7 +48,7 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 	}{
 		{
 			name:              "updates schedule without changing suspended state",
-			schedule:          stringPointer("*/15 * * * *"),
+			schedule:          pointer.Ptr("*/15 * * * *"),
 			initialSuspend:    true,
 			cronJobExists:     true,
 			wantSchedule:      "*/15 * * * *",
@@ -56,8 +57,8 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 		},
 		{
 			name:              "updates schedule and suspends future runs",
-			schedule:          stringPointer("0 2 * * *"),
-			suspend:           boolPointer(true),
+			schedule:          pointer.Ptr("0 2 * * *"),
+			suspend:           pointer.Ptr(true),
 			cronJobExists:     true,
 			wantSchedule:      "0 2 * * *",
 			wantSuspend:       true,
@@ -66,16 +67,16 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 		},
 		{
 			name:              "updates time zone with dry run",
-			timeZone:          stringPointer("America/New_York"),
+			timeZone:          pointer.Ptr("America/New_York"),
 			dryRun:            "All",
 			cronJobExists:     true,
 			wantSchedule:      originalSchedule,
-			wantTimeZone:      stringPointer("America/New_York"),
+			wantTimeZone:      pointer.Ptr("America/New_York"),
 			wantPatchTimeZone: true,
 		},
 		{
 			name:             "resumes future runs without changing schedule",
-			suspend:          boolPointer(false),
+			suspend:          pointer.Ptr(false),
 			initialSuspend:   true,
 			cronJobExists:    true,
 			wantSchedule:     originalSchedule,
@@ -83,7 +84,7 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 		},
 		{
 			name:             "suspends future runs without changing schedule",
-			suspend:          boolPointer(true),
+			suspend:          pointer.Ptr(true),
 			cronJobExists:    true,
 			wantSchedule:     originalSchedule,
 			wantSuspend:      true,
@@ -96,7 +97,7 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 		},
 		{
 			name:     "returns error when cron job does not exist",
-			schedule: stringPointer("0 4 * * *"),
+			schedule: pointer.Ptr("0 4 * * *"),
 			wantErr:  true,
 		},
 	}
@@ -112,7 +113,7 @@ func TestUpdateCronJobSchedule(t *testing.T) {
 					},
 					Spec: batchv1.CronJobSpec{
 						Schedule: originalSchedule,
-						Suspend:  boolPointer(test.initialSuspend),
+						Suspend:  pointer.Ptr(test.initialSuspend),
 					},
 				})
 			}
@@ -207,12 +208,4 @@ func newBatchTestTask(inputs map[string]interface{}) *types.Task {
 		Inputs:   inputs,
 		OrgId:    123,
 	})
-}
-
-func boolPointer(value bool) *bool {
-	return &value
-}
-
-func stringPointer(value string) *string {
-	return &value
 }
