@@ -10,7 +10,10 @@ package sbom
 import (
 	"context"
 	"fmt"
+	"math"
+	"os"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -477,9 +480,33 @@ func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, err
 	return nil, fmt.Errorf("container %q not found", id)
 }
 
+// ownRoot returns the device and the inode of the root of the test process.
+func ownRoot(t *testing.T) (dev, ino uint64) {
+	t.Helper()
+
+	stat, err := utils.UnixStat(utils.ProcRootPath(uint32(os.Getpid())))
+	if err != nil {
+		t.Fatalf("stat of the root of the test process: %v", err)
+	}
+	return stat.Dev, stat.Ino
+}
+
+// tempRoot returns the device and the inode of a fresh directory, standing for
+// a foreign root.
+func tempRoot(t *testing.T) (dev, ino uint64) {
+	t.Helper()
+
+	stat, err := utils.UnixStat(t.TempDir())
+	if err != nil {
+		t.Fatalf("stat of a temporary directory: %v", err)
+	}
+	return stat.Dev, stat.Ino
+}
+
 // newHostSBOMResolver returns a resolver whose host SBOM is computed and holds
-// util-linux, the owner of /usr/bin/su. Its forwarder waits an hour, so tests
-// call forward themselves.
+// util-linux, the owner of /usr/bin/su and of its documentation directory. The
+// host root is the root of the test process. Its forwarder waits an hour, so
+// tests call forward themselves.
 func newHostSBOMResolver(t *testing.T) *Resolver {
 	t.Helper()
 
@@ -493,10 +520,12 @@ func newHostSBOMResolver(t *testing.T) *Resolver {
 		wmeta:             failingWorkloadmeta{},
 	}
 
+	r.hostRootDevice, r.hostRootInode = ownRoot(t)
+
 	r.hostSBOM = NewSBOM("", nil, "")
 	r.hostSBOM.setReport([]sbomtypes.PackageWithInstalledFiles{{
 		Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
-		InstalledFiles: []string{"/usr/bin/su"},
+		InstalledFiles: []string{"/usr/bin/su", "/usr/share/doc/util-linux"},
 	}})
 	r.hostSBOM.state.Store(computedState)
 	t.Cleanup(r.hostSBOM.stop)
@@ -504,13 +533,16 @@ func newHostSBOMResolver(t *testing.T) *Resolver {
 	return r
 }
 
-// hostAccess returns a root process with an empty container ID running
-// /usr/bin/su, setuid, as the host runs it.
+// hostAccess returns the test process, a root process with an empty container
+// ID, running /usr/bin/su, setuid, as the host runs it.
 func hostAccess() (*model.ProcessContext, *model.FileEvent) {
+	pc := &model.ProcessContext{}
+	pc.Pid = uint32(os.Getpid())
+
 	file := &model.FileEvent{}
 	file.SetPathnameStr("/usr/bin/su")
 	file.Mode = 04755
-	return &model.ProcessContext{}, file
+	return pc, file
 }
 
 // TestResolvePackageRecordsHostUsage checks that a process with an empty
@@ -616,5 +648,76 @@ func TestStartIndexesHostThroughInitRoot(t *testing.T) {
 	}
 	if !r.hostSBOM.IsComputed() {
 		t.Errorf("host SBOM left uncomputed")
+	}
+}
+
+// TestOnHostRoot checks that a process counts as a host process when its root
+// is the root of the host, or when it is gone before its root can be read.
+func TestOnHostRoot(t *testing.T) {
+	pid := uint32(os.Getpid())
+
+	r := &Resolver{}
+	r.hostRootDevice, r.hostRootInode = ownRoot(t)
+	if !r.onHostRoot(pid) {
+		t.Errorf("the test process, on the host root, counts as foreign")
+	}
+	if !r.onHostRoot(math.MaxUint32) {
+		t.Errorf("a process gone before its root was read counts as foreign")
+	}
+
+	r.hostRootDevice, r.hostRootInode = tempRoot(t)
+	if r.onHostRoot(pid) {
+		t.Errorf("the test process counts as a host process with the host root elsewhere")
+	}
+}
+
+// TestResolvePackageSkipsForeignRoot checks that ResolvePackage returns nil for
+// a process with an empty container ID on a root of its own, as in a system
+// container or a snap, and leaves the usage of the host packages as it was.
+func TestResolvePackageSkipsForeignRoot(t *testing.T) {
+	r := newHostSBOMResolver(t)
+	r.hostRootDevice, r.hostRootInode = tempRoot(t)
+
+	pc, file := hostAccess()
+	if pkg := r.ResolvePackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v, want none for a process on a root of its own", pkg)
+	}
+	if pkg := r.hostSBOM.data.packages[0]; !pkg.LastAccess.IsZero() || pkg.SuidBit || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want the usage left as it was", pkg)
+	}
+}
+
+// TestResolvePackageRecordsNoUsageOnDirectory checks that opening a directory a
+// package owns, which rpm lists among its files, resolves to the package and
+// leaves its usage as it was. A walk of the filesystem opens every directory.
+func TestResolvePackageRecordsNoUsageOnDirectory(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	pc, _ := hostAccess()
+	dir := &model.FileEvent{}
+	dir.SetPathnameStr("/usr/share/doc/util-linux")
+	dir.Mode = syscall.S_IFDIR | 0755
+
+	pkg := r.ResolvePackage(pc, dir)
+	if pkg == nil || pkg.Name != "util-linux" {
+		t.Fatalf("package = %+v, want util-linux, the owner of the directory", pkg)
+	}
+	if !pkg.LastAccess.IsZero() || pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want the usage left as it was", pkg)
+	}
+	if r.hostSBOM.forwarder != nil {
+		t.Errorf("the directory open triggered forwarding")
+	}
+}
+
+// TestPendingFileEventsSkipDirectories checks that a directory open waiting on
+// the SBOM of its container stays out of the queue, as a directory open leaves
+// the usage of its package as it is.
+func TestPendingFileEventsSkipDirectories(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	r.queuePendingFileEvent("container-id", "/usr/share/doc", syscall.S_IFDIR|0755, 0)
+	if r.pendingFileEvents.Len() != 0 {
+		t.Errorf("the directory open was queued")
 	}
 }
