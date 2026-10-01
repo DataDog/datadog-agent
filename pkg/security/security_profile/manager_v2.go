@@ -1216,7 +1216,10 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 		mounts = append(mounts, *mnt)
 	})
 
-	imageTag := secprof.GetTagValue("image_tag")
+	imageTag := utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+	if imageTag == "" {
+		imageTag = "latest"
+	}
 	now := time.Now()
 	for i := range mounts {
 		secprof.InsertMount(&mounts[i], imageTag, activity_tree.Snapshot, now)
