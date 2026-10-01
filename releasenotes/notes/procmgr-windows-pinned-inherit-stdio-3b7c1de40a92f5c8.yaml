@@ -3,11 +3,10 @@ fixes:
   - |
     On Windows, **dd-procmgrd** now resolves a ``stdout: inherit`` or
     ``stderr: inherit`` process configuration against the standard handles it
-    owned at startup, instead of reading them again at spawn time. Stopping a
-    supervised process gracefully attaches the supervisor to that process's
-    console and detaches again, which left closed console handles in the
-    supervisor's standard handle slots. Because Windows reuses handle values, a
-    later spawn could hand a child a handle that by then belonged to something
-    else, such as a named pipe carrying an in-flight ``dd-procmgr`` command, and
-    the child's output would corrupt that connection. The command then failed
-    with ``h2 protocol error`` even though the daemon had carried it out.
+    owned at startup, instead of reading them again at spawn time, and restores
+    its standard handle slots after stopping a supervised process gracefully.
+    Stopping a process gracefully attaches the supervisor to that process's
+    console and detaches again, so when the supervisor has no console of its
+    own the standard handle slots are not a dependable source of stdio for a
+    later spawn. Pinning them at startup makes ``inherit`` resolve the same way
+    for every spawn, regardless of the order commands arrive in.
