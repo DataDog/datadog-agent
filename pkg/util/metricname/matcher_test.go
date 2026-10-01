@@ -195,7 +195,7 @@ func TestNewMatcherPatterns(t *testing.T) {
 
 func TestIsStringMatchingPatterns(t *testing.T) {
 	list := []string{"foo.bar", "zzz"}
-	prefixList := []string{"foo.baz.", "app."}
+	prefixList := []string{"foo.baz.", "app.", "normalized_metric.baz."}
 
 	cases := []struct {
 		result bool
@@ -215,6 +215,10 @@ func TestIsStringMatchingPatterns(t *testing.T) {
 		{false, "ap"},
 		// the name is normalized before being matched
 		{true, "foo.baz.count-per-second"},
+		{true, "normalized_metric.baz.boz"},
+		{true, "normalized-metric.baz__.boz"},
+		{true, "normalized-metric.baz_-.boz"},
+		{false, "normalized-metric.baz_-z.boz"},
 		{true, "app.metrics per second"},
 		{false, "app metrics"},
 		// unrelated
@@ -276,7 +280,7 @@ func TestNewMatcherWithPrefixRulesExceptExact(t *testing.T) {
 
 	assert.True(t, m.Test("postgresql.locks"))
 	assert.False(t, m.Test("postgresql.connections"), "excepted exact name is kept")
-	assert.False(t, m.Test("postgres.other"))
+	assert.False(t, m.Test("postgres.connections"))
 }
 
 func TestNewMatcherWithPrefixRulesExceptPrefix(t *testing.T) {
