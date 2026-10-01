@@ -1,5 +1,6 @@
 """Heroku Agent package."""
 
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -233,4 +234,28 @@ spdx(
     out = "debian_spdx.yml",
     format = "yaml",
     sbom = ":debian_sbom",
+)
+
+# Temporary: only used by the omnibus heroku build to stage files into
+# {install_dir}. Goes away once the package is built with bazel.
+pkg_install(
+    name = "install_dependencies",
+    srcs = [":dependencies"],
+    destdir_flag = "//:install_dir",
+)
+
+pkg_filegroup(
+    name = "post_build_install_files",
+    srcs = [
+        ":example_config",
+        "//cmd/agent/dist:all_files",
+        "//cmd/agent/dist:all_python_files",
+        "//packages/agent/product:dirs",
+    ],
+)
+
+pkg_install(
+    name = "post_build_install",
+    srcs = [":post_build_install_files"],
+    destdir_flag = "//:install_dir",
 )
