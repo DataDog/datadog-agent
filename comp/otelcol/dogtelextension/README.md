@@ -29,7 +29,7 @@ The pod/K8s-metadata source defaults to **`nodefilter`**: a workloadmeta collect
 
 #### Using the k8s API
 
-`nodefilter` reads the local node's name from an environment variable, mirroring the `k8sattributesprocessor`'s own `node_from_env_var` filter config rather than hardcoding a single env var name. It defaults to `K8S_NODE_NAME`, which the OTel Helm chart only populates with some presets (e.g. `kubernetesAttributes` in daemonset mode); set `node_from_env_var` in the extension config to point at a different env var if necessary, e.g. `OTEL_K8S_NODE_NAME`, which the OTel Helm chart always populates, or `DD_KUBERNETES_KUBELET_NODENAME`, populated by the Datadog Helm chart/Operator.
+`nodefilter` reads the local node's name from the first of a list of environment variables that is set, extending the `k8sattributesprocessor`'s own `node_from_env_var` filter config, which takes a single name. The default list is `K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME`: `K8S_NODE_NAME` is only populated by the OTel Helm chart with some presets (e.g. `kubernetesAttributes` in daemonset mode), `DD_KUBERNETES_KUBELET_NODENAME` by the Datadog Helm chart/Operator, and `OTEL_K8S_NODE_NAME` is always populated by the OTel Helm chart. Set `node_from_env_var` in the extension config, as a comma-separated list or a single name, to read it from other env vars if necessary.
 
 **Required deployment configuration, if not already set by Helm/Operator**
 ```yaml
@@ -134,7 +134,9 @@ extensions:
 
     # K8s tag enrichment collector selection (default: nodefilter)
     use_kubelet_collector: false      # Opt back out to the kubelet collector (default: false)
-    node_from_env_var: K8S_NODE_NAME  # Env var nodefilter reads the local node's name from (default: K8S_NODE_NAME)
+    # Comma-separated env vars nodefilter reads the local node's name from, the first one set winning
+    # (default: K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME)
+    node_from_env_var: K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME
 
 service:
   extensions: [dogtel]  # Only include when DD_OTEL_STANDALONE=true

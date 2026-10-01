@@ -790,8 +790,9 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
 	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 	// node_from_env_var not set in dogtelextension config: DD agent schema
-	// default (K8S_NODE_NAME) must remain intact.
-	assert.Equal(t, "K8S_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
+	// default (K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME)
+	// must remain intact.
+	assert.Equal(t, "K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 }
 
 // TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig verifies that

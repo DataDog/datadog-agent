@@ -101,7 +101,7 @@ func (s *podStore) Delete(obj interface{}) error {
 // here doesn't flood the log.
 func (s *podStore) Replace(list []interface{}, _ string) error {
 	if len(list) == 0 {
-		log.Warnf("%s found no pods on node %q, not even the agent's own, so telemetry won't get Kubernetes tags: set the environment variable named by otelcollector.standalone.node_from_env_var to the pod's spec.nodeName through the downward API", componentName, s.nodeName)
+		log.Warnf("%s found no pods on node %q, not even the agent's own, so telemetry won't get Kubernetes tags: set one of the environment variables listed in otelcollector.standalone.node_from_env_var to the pod's spec.nodeName through the downward API", componentName, s.nodeName)
 	}
 
 	seenNow := make(map[types.UID][]workloadmeta.EntityID, len(list))

@@ -317,9 +317,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			&corev1.EnvVarArgs{
 				// Scopes the nodefilter workloadmeta collector's API-server pod
 				// watch to this node (spec.nodeName field selector). K8S_NODE_NAME
-				// is nodefilter's default node_from_env_var (matching the OTel
-				// Helm chart/Operator convention); see
-				// comp/otelcol/dogtelextension/README.md.
+				// is the first of nodefilter's default node_from_env_var list;
+				// see comp/otelcol/dogtelextension/README.md.
 				Name: pulumi.String("K8S_NODE_NAME"),
 				ValueFrom: &corev1.EnvVarSourceArgs{
 					FieldRef: &corev1.ObjectFieldSelectorArgs{

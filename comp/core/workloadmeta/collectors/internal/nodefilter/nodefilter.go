@@ -118,47 +118,55 @@ func Enabled(cfg config.Component) bool {
 }
 
 // localNodeName returns the name of the node whose pods this collector
-// watches, a disabled error when the collector doesn't apply (it isn't
-// selected, or the agent isn't running on Kubernetes), or an error when it
-// can't resolve that name.
+// watches and the environment variable it read it from, a disabled error when
+// the collector doesn't apply (it isn't selected, or the agent isn't running
+// on Kubernetes), or an error when it can't resolve that name.
 //
-// The node name is read from the environment variable named by
-// otelcollector.standalone.node_from_env_var, mirroring the
-// k8sattributesprocessor's own "node_from_env_var" filter config (config.go,
-// FilterConfig) rather than hardcoding a single env var name. It defaults to
-// K8S_NODE_NAME, the name the OTel Helm chart and Operator already populate
-// via the Kubernetes downward API (fieldRef: spec.nodeName) for exactly this
-// purpose. When it isn't set, or doesn't hold a valid node name once trimmed,
-// no collector gathers pods, so this also logs a warning: workloadmeta only
-// logs a collector failing to start at info level.
-func localNodeName(cfg config.Component) (string, error) {
+// The node name is read from the first set environment variable among those
+// listed, comma-separated, in otelcollector.standalone.node_from_env_var. That
+// setting extends the k8sattributesprocessor's own "node_from_env_var" filter
+// config (config.go, FilterConfig), which takes a single name, so that the
+// name each deployment tool already populates through the Kubernetes downward
+// API (fieldRef: spec.nodeName) works without configuration: K8S_NODE_NAME
+// (OTel Helm chart presets), DD_KUBERNETES_KUBELET_NODENAME (Datadog Helm
+// chart and Operator) and OTEL_K8S_NODE_NAME (OTel Helm chart). When none is
+// set, or the value isn't a valid node name once trimmed, no collector gathers
+// pods, so this also logs a warning: workloadmeta only logs a collector
+// failing to start at info level.
+func localNodeName(cfg config.Component) (nodeName, fromEnvVar string, err error) {
 	if !Enabled(cfg) {
-		return "", pkgerrors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode without the kubelet collector opt-out")
+		return "", "", pkgerrors.NewDisabled(componentName, "collector only applies to otel-agent running in DDOT standalone mode without the kubelet collector opt-out")
 	}
 
 	if !env.IsFeaturePresent(env.Kubernetes) {
-		return "", pkgerrors.NewDisabled(componentName, "Agent is not running on Kubernetes")
+		return "", "", pkgerrors.NewDisabled(componentName, "Agent is not running on Kubernetes")
 	}
 
-	nodeFromEnvVar := cfg.GetString("otelcollector.standalone.node_from_env_var")
-	nodeName := strings.TrimSpace(os.Getenv(nodeFromEnvVar))
+	nodeFromEnvVars := cfg.GetString("otelcollector.standalone.node_from_env_var")
+	for _, envVar := range strings.Split(nodeFromEnvVars, ",") {
+		envVar = strings.TrimSpace(envVar)
+		if value := strings.TrimSpace(os.Getenv(envVar)); value != "" {
+			nodeName, fromEnvVar = value, envVar
+			break
+		}
+	}
 	if nodeName == "" {
-		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: environment variable %q (otelcollector.standalone.node_from_env_var) is not set. Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVar)
-		return "", fmt.Errorf("environment variable %q (otelcollector.standalone.node_from_env_var) is not set", nodeFromEnvVar)
+		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: none of the environment variables in %q (otelcollector.standalone.node_from_env_var) is set. Set one of them to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVars)
+		return "", "", fmt.Errorf("none of the environment variables in %q (otelcollector.standalone.node_from_env_var) is set", nodeFromEnvVars)
 	}
 
 	// Node names are DNS subdomains: anything else can't match a pod's
 	// spec.nodeName, and the field selector would silently select no pods.
 	if problems := validation.IsDNS1123Subdomain(nodeName); len(problems) > 0 {
-		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: environment variable %q (otelcollector.standalone.node_from_env_var) holds %q, which isn't a valid node name: %s. Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, nodeFromEnvVar, nodeName, strings.Join(problems, "; "))
-		return "", fmt.Errorf("environment variable %q (otelcollector.standalone.node_from_env_var) holds an invalid node name %q", nodeFromEnvVar, nodeName)
+		log.Warnf("%s cannot collect pods, so telemetry won't get Kubernetes tags: environment variable %q (otelcollector.standalone.node_from_env_var) holds %q, which isn't a valid node name: %s. Set it to the pod's spec.nodeName through the downward API, or set otelcollector.standalone.use_kubelet_collector to true", componentName, fromEnvVar, nodeName, strings.Join(problems, "; "))
+		return "", "", fmt.Errorf("environment variable %q (otelcollector.standalone.node_from_env_var) holds an invalid node name %q", fromEnvVar, nodeName)
 	}
 
-	return nodeName, nil
+	return nodeName, fromEnvVar, nil
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	nodeName, err := localNodeName(c.config)
+	nodeName, nodeEnvVar, err := localNodeName(c.config)
 	if err != nil {
 		return err
 	}
@@ -183,7 +191,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		}
 	}
 
-	log.Infof("%s watching pods on node %q", componentName, nodeName)
+	log.Infof("%s watching pods on node %q (read from environment variable %q)", componentName, nodeName, nodeEnvVar)
 
 	fieldSelector := fields.OneTermEqualSelector("spec.nodeName", nodeName).String()
 	errs := &listWatchErrors{}

@@ -81,14 +81,15 @@ type Config struct {
 	// false, leaving the DD agent default (nodefilter, i.e. false) intact
 	// when the field is absent.
 	UseKubeletCollector *bool `mapstructure:"use_kubelet_collector"`
-	// NodeFromEnvVar names the environment variable the nodefilter
-	// workloadmeta collector reads the local node's name from, mirroring the
-	// k8sattributesprocessor's own "node_from_env_var" filter config (rather
-	// than hardcoding a single env var name). Maps to the
-	// "otelcollector.standalone.node_from_env_var" DD agent config key, whose
-	// default (K8S_NODE_NAME) already matches what the OTel Helm chart and
-	// Operator populate via the Kubernetes downward API. Only needs setting
-	// here to point at a different env var name.
+	// NodeFromEnvVar lists, comma-separated, the environment variables the
+	// nodefilter workloadmeta collector reads the local node's name from, the
+	// first one that is set winning. It extends the k8sattributesprocessor's
+	// own "node_from_env_var" filter config, which takes a single name. Maps
+	// to the "otelcollector.standalone.node_from_env_var" DD agent config key,
+	// whose default (K8S_NODE_NAME, DD_KUBERNETES_KUBELET_NODENAME and
+	// OTEL_K8S_NODE_NAME) covers the names the OTel Helm chart and the Datadog
+	// Helm chart and Operator populate via the Kubernetes downward API. Only
+	// needs setting here to read the node name from other env vars.
 	NodeFromEnvVar string `mapstructure:"node_from_env_var"`
 }
 

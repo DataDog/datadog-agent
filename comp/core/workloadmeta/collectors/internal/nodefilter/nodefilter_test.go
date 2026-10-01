@@ -83,8 +83,8 @@ func TestLocalNodeName(t *testing.T) {
 			} else {
 				pkgconfigenv.SetFeatures(t)
 			}
-			// K8S_NODE_NAME is the otelcollector.standalone.node_from_env_var
-			// default.
+			// K8S_NODE_NAME is the first of the
+			// otelcollector.standalone.node_from_env_var defaults.
 			t.Setenv("K8S_NODE_NAME", "test-node")
 			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 				"otel_standalone": tt.standalone,
@@ -93,7 +93,7 @@ func TestLocalNodeName(t *testing.T) {
 
 			assert.Equal(t, tt.wantEnabled, Enabled(cfg))
 
-			nodeName, err := localNodeName(cfg)
+			nodeName, _, err := localNodeName(cfg)
 			if tt.wantNodeName == "" {
 				require.Error(t, err)
 				assert.True(t, pkgerrors.IsDisabled(err))
@@ -112,7 +112,7 @@ func TestLocalNodeName(t *testing.T) {
 func TestLocalNodeName_EnvVarNotSet(t *testing.T) {
 	flavor.SetTestFlavor(t, flavor.OTelAgent)
 	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
-	t.Setenv("K8S_NODE_NAME", "")
+	unsetNodeEnvVars(t)
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"otel_standalone": true,
 	})
@@ -120,32 +120,117 @@ func TestLocalNodeName_EnvVarNotSet(t *testing.T) {
 
 	assert.True(t, Enabled(cfg))
 
-	_, err := localNodeName(cfg)
+	_, _, err := localNodeName(cfg)
 	require.Error(t, err)
 	assert.False(t, pkgerrors.IsDisabled(err))
 
 	output := warnings()
-	assert.Contains(t, output, `environment variable "K8S_NODE_NAME"`)
+	assert.Contains(t, output, `none of the environment variables in "`+strings.Join(defaultNodeEnvVars, ",")+`"`)
 	assert.Contains(t, output, "otelcollector.standalone.use_kubelet_collector")
 }
 
 // TestLocalNodeName_CustomEnvVar verifies that the node name is read from
 // whichever environment variable otelcollector.standalone.node_from_env_var
-// names, mirroring k8sattributesprocessor's configurable node_from_env_var
-// filter rather than hardcoding a single env var.
+// names, like k8sattributesprocessor's node_from_env_var filter, and that the
+// defaults then no longer apply.
 func TestLocalNodeName_CustomEnvVar(t *testing.T) {
 	flavor.SetTestFlavor(t, flavor.OTelAgent)
 	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
-	t.Setenv("K8S_NODE_NAME", "")
+	unsetNodeEnvVars(t)
+	t.Setenv("K8S_NODE_NAME", "default-node")
 	t.Setenv("MY_CUSTOM_NODE_NAME_VAR", "test-node")
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"otel_standalone": true,
 		"otelcollector.standalone.node_from_env_var": "MY_CUSTOM_NODE_NAME_VAR",
 	})
 
-	nodeName, err := localNodeName(cfg)
+	nodeName, fromEnvVar, err := localNodeName(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "test-node", nodeName)
+	assert.Equal(t, "MY_CUSTOM_NODE_NAME_VAR", fromEnvVar)
+}
+
+// TestLocalNodeName_EnvVarList verifies that the node name is read from the
+// first set environment variable of the comma-separated
+// otelcollector.standalone.node_from_env_var list, whose default covers the
+// names the OTel and Datadog Helm charts and the Operator populate.
+func TestLocalNodeName_EnvVarList(t *testing.T) {
+	tests := []struct {
+		name string
+		// setting overrides the node_from_env_var default when not empty.
+		setting string
+		env     map[string]string
+		// wantNodeName is empty when no node name can be resolved.
+		wantNodeName string
+		wantFrom     string
+	}{
+		{
+			name: "default list, the first variable wins",
+			env: map[string]string{
+				"K8S_NODE_NAME":                  "first-node",
+				"DD_KUBERNETES_KUBELET_NODENAME": "second-node",
+				"OTEL_K8S_NODE_NAME":             "third-node",
+			},
+			wantNodeName: "first-node", wantFrom: "K8S_NODE_NAME",
+		},
+		{
+			name: "default list, falls through to the second variable",
+			env: map[string]string{
+				"DD_KUBERNETES_KUBELET_NODENAME": "second-node",
+				"OTEL_K8S_NODE_NAME":             "third-node",
+			},
+			wantNodeName: "second-node", wantFrom: "DD_KUBERNETES_KUBELET_NODENAME",
+		},
+		{
+			name:         "default list, falls through to the third variable",
+			env:          map[string]string{"OTEL_K8S_NODE_NAME": "third-node"},
+			wantNodeName: "third-node", wantFrom: "OTEL_K8S_NODE_NAME",
+		},
+		{
+			name: "default list, a blank variable doesn't stop the fall through",
+			env: map[string]string{
+				"K8S_NODE_NAME":      " \n",
+				"OTEL_K8S_NODE_NAME": "third-node",
+			},
+			wantNodeName: "third-node", wantFrom: "OTEL_K8S_NODE_NAME",
+		},
+		{
+			name:         "custom list, whitespace around the names",
+			setting:      " MY_FIRST_VAR , MY_SECOND_VAR ",
+			env:          map[string]string{"MY_SECOND_VAR": "custom-node"},
+			wantNodeName: "custom-node", wantFrom: "MY_SECOND_VAR",
+		},
+		{
+			name:    "custom list replaces the default list",
+			setting: "MY_FIRST_VAR,MY_SECOND_VAR",
+			env:     map[string]string{"K8S_NODE_NAME": "default-node"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flavor.SetTestFlavor(t, flavor.OTelAgent)
+			pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+			unsetNodeEnvVars(t)
+			for name, value := range tt.env {
+				t.Setenv(name, value)
+			}
+			overrides := map[string]interface{}{"otel_standalone": true}
+			if tt.setting != "" {
+				overrides["otelcollector.standalone.node_from_env_var"] = tt.setting
+			}
+			cfg := config.NewMockWithOverrides(t, overrides)
+
+			nodeName, fromEnvVar, err := localNodeName(cfg)
+			if tt.wantNodeName == "" {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantNodeName, nodeName)
+			assert.Equal(t, tt.wantFrom, fromEnvVar)
+		})
+	}
 }
 
 // TestLocalNodeName_Whitespace verifies that whitespace around the node name,
@@ -155,7 +240,7 @@ func TestLocalNodeName_Whitespace(t *testing.T) {
 	cfg := standaloneConfig(t)
 	t.Setenv("K8S_NODE_NAME", " test-node\n")
 
-	nodeName, err := localNodeName(cfg)
+	nodeName, _, err := localNodeName(cfg)
 	require.NoError(t, err)
 	assert.Equal(t, "test-node", nodeName)
 }
@@ -168,13 +253,25 @@ func TestLocalNodeName_Invalid(t *testing.T) {
 	t.Setenv("K8S_NODE_NAME", "Not a node name")
 	warnings := captureWarnings(t)
 
-	_, err := localNodeName(cfg)
+	_, _, err := localNodeName(cfg)
 	require.Error(t, err)
 	assert.False(t, pkgerrors.IsDisabled(err))
 
 	output := warnings()
 	assert.Contains(t, output, `holds "Not a node name", which isn't a valid node name`)
 	assert.Contains(t, output, "otelcollector.standalone.use_kubelet_collector")
+}
+
+// defaultNodeEnvVars are the environment variables
+// otelcollector.standalone.node_from_env_var defaults to, in order.
+var defaultNodeEnvVars = []string{"K8S_NODE_NAME", "DD_KUBERNETES_KUBELET_NODENAME", "OTEL_K8S_NODE_NAME"}
+
+// unsetNodeEnvVars blanks the default node-name environment variables, so that
+// the environment the test runs in can't leak a node name into it.
+func unsetNodeEnvVars(t *testing.T) {
+	for _, name := range defaultNodeEnvVars {
+		t.Setenv(name, "")
+	}
 }
 
 // standaloneConfig returns a config under which this collector applies, with
