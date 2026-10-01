@@ -14,9 +14,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -201,10 +199,8 @@ func exitedCleanly(status int) bool {
 // configuration directory itself (RemoveConfigExperiment's i.config.RemoveExperiment, called
 // after the package's own Stop hook). This path runs detached from the daemon and has no access
 // to its installer/db state, but the directory swap it still owes is a plain filesystem
-// operation -- restoring the experiment link to resting -- so it is done directly here with the
-// same config.Directories the daemon itself uses. Left undone, the host would be left with the
-// job set back on stable but /etc-exp still a real, non-resting directory, and the daemon's
-// periodic state refresh would keep reporting the reverted experiment as still deployed.
+// operation -- restoring the experiment link to resting -- so revertExperiment does it directly
+// (see discardExperimentConfig).
 func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadline, reason string) (bool, error) {
 	present, err := deadline.Present()
 	if err != nil {
@@ -214,12 +210,17 @@ func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadli
 		return false, nil
 	}
 	log.Warnf("watcher: reverting configuration experiment: %s", reason)
-	if err := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); err != nil {
-		return false, fmt.Errorf("watcher: could not revert experiment: %w", err)
-	}
-	dirs := config.Directories{StablePath: paths.AgentConfigDir, ExperimentPath: paths.AgentConfigDirExp}
-	if err := dirs.RemoveExperiment(context.WithoutCancel(ctx)); err != nil {
-		return false, fmt.Errorf("watcher: could not discard the experiment configuration directory: %w", err)
+	if err := revertExperiment(ctx); err != nil {
+		return false, fmt.Errorf("watcher: %w", err)
 	}
 	return true, nil
+}
+
+// revertExperiment hands the Agent back to the stable job set and discards the experiment
+// configuration directory, leaving the host as if no experiment had ever been started.
+func revertExperiment(ctx context.Context) error {
+	if err := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); err != nil {
+		return fmt.Errorf("could not revert experiment: %w", err)
+	}
+	return discardExperimentConfig(ctx)
 }

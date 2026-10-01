@@ -333,14 +333,15 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
-	d.refreshState(d.ctx)
-
 	// Recover any configuration experiment left running unsupervised by a prior process of
 	// this daemon that did not shut down cleanly (crash, kill, reboot), before anything else
-	// runs. A no-op on platforms or packages with no such experiment to recover.
+	// runs. A no-op on platforms or packages with no such experiment to recover. It runs before
+	// the first state refresh because it may resume or revert the experiment, and until it does,
+	// the configuration on disk is not the one the Agent is running.
 	if err := d.installer(d.env).ResumeConfigExperiments(d.ctx); err != nil {
 		log.Errorf("Daemon: could not resume configuration experiments: %v", err)
 	}
+	d.refreshState(d.ctx)
 
 	d.m.Lock()
 	defer d.m.Unlock()

@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 )
 
@@ -58,6 +59,46 @@ func stubDeadlinePath(t *testing.T) string {
 	configExperimentDeadlinePath = path
 	t.Cleanup(func() { configExperimentDeadlinePath = original })
 	return path
+}
+
+// stubConfigExperimentDirs points the configuration directories at a temporary state root laid
+// out the way the installer leaves it: etc holding a stable deployment, and etc-exp resting as a
+// symlink to it.
+func stubConfigExperimentDirs(t *testing.T) config.Directories {
+	t.Helper()
+
+	root := t.TempDir()
+	dirs := config.Directories{
+		StablePath:     filepath.Join(root, "etc"),
+		ExperimentPath: filepath.Join(root, "etc-exp"),
+	}
+	require.NoError(t, os.MkdirAll(dirs.StablePath, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, ".deployment-id"), []byte("stable-1"), 0640))
+	require.NoError(t, os.Symlink(dirs.StablePath, dirs.ExperimentPath))
+
+	original := configExperimentDirs
+	configExperimentDirs = dirs
+	t.Cleanup(func() { configExperimentDirs = original })
+	return dirs
+}
+
+// deployExperimentConfig replaces the resting link with a real experiment directory, as the
+// installer does before it calls the post-start hook.
+func deployExperimentConfig(t *testing.T, dirs config.Directories) {
+	t.Helper()
+
+	require.NoError(t, os.Remove(dirs.ExperimentPath))
+	require.NoError(t, os.MkdirAll(dirs.ExperimentPath, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.ExperimentPath, ".deployment-id"), []byte("experiment-1"), 0640))
+}
+
+// experimentDeploymentID is the experiment the daemon's state refresh would report as running.
+func experimentDeploymentID(t *testing.T, dirs config.Directories) string {
+	t.Helper()
+
+	state, err := dirs.GetState()
+	require.NoError(t, err)
+	return state.ExperimentDeploymentID
 }
 
 // launchctlCalls flattens the recorded invocations to "verb target" pairs, in order.
@@ -297,4 +338,88 @@ func TestRestoreStableGivesUpAfterExhaustingRetries(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "after 3 attempts")
 	assert.Equal(t, configExperimentRestoreRetries, bootstrapAttempts, "expected the retries to stop at the configured bound")
+}
+
+// TestStartConfigExperimentDiscardsTheConfigWhenTheHandoverFails covers a start that is rolled back
+// to the stable job set: the experiment directory the installer published must go with it, or the
+// daemon would keep reporting the failed experiment as the running configuration.
+func TestStartConfigExperimentDiscardsTheConfigWhenTheHandoverFails(t *testing.T) {
+	stubLaunchdFailing(t, "bootstrap", "-exp")
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+
+	err := postStartConfigExperimentDatadogAgent(testHookContext(t))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "injected failure")
+	assert.Zero(t, *watcherCalls, "a watcher was launched for an experiment that never started")
+	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration survived a failed start")
+}
+
+// TestStartConfigExperimentDiscardsTheConfigWhenTheWatcherFailsToLaunch is the same guarantee for
+// the other revert in the post-start hook.
+func TestStartConfigExperimentDiscardsTheConfigWhenTheWatcherFailsToLaunch(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	original := launchConfigExperimentWatcher
+	launchConfigExperimentWatcher = func(context.Context) error { return errors.New("injected failure") }
+	t.Cleanup(func() { launchConfigExperimentWatcher = original })
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+
+	err := postStartConfigExperimentDatadogAgent(testHookContext(t))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "watcher failed to launch, experiment reverted")
+	assert.Empty(t, experimentDeploymentID(t, dirs), "the experiment configuration survived a reverted start")
+}
+
+// TestStartConfigExperimentKeepsTheConfigWhenItSucceeds guards the other side: a running
+// experiment must still be reported as running.
+func TestStartConfigExperimentKeepsTheConfigWhenItSucceeds(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+
+	require.NoError(t, postStartConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+}
+
+// TestResumeRevertsAnExperimentDeployedWithNoDeadline covers a daemon that died between the
+// installer publishing the experiment directory and Start writing the deadline (or partway through
+// a deliberate stop, which clears the deadline first). Nothing will ever resume that experiment,
+// so it is reverted instead of being reported as running for good.
+func TestResumeRevertsAnExperimentDeployedWithNoDeadline(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubDeadlinePath(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Empty(t, experimentDeploymentID(t, dirs), "an orphaned experiment configuration was left deployed")
+	assert.Zero(t, *watcherCalls, "an orphaned experiment was resumed instead of reverted")
+	for _, label := range agentJobs {
+		assert.NoFileExists(t, filepath.Join(dir, label+"-exp.plist"))
+		assert.Contains(t, launchctlCalls(*calls, "kickstart"), "system/"+label, "the stable job %s was not restored", label)
+	}
+}
+
+// TestResumeLeavesARestingHostAlone pins the common case: no deadline and no experiment means
+// nothing to recover, so resume must not touch any job.
+func TestResumeLeavesARestingHostAlone(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubDeadlinePath(t)
+	dirs := stubConfigExperimentDirs(t)
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Empty(t, *calls, "resume touched launchd on a host with no experiment")
+	assert.Empty(t, experimentDeploymentID(t, dirs))
 }
