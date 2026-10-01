@@ -19,8 +19,10 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	gpu "github.com/DataDog/datadog-agent/pkg/gpu/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
@@ -52,17 +54,26 @@ type providerDef struct {
 func getProvidersDefinitions(conf model.Reader) map[string]*providerDef {
 	providers := make(map[string]*providerDef)
 
-	if conf.GetBool("collect_gce_tags") {
+	// DMI can positively identify a handful of cloud providers (EC2, GCE, Azure, Oracle)
+	// without making any network call. When it confirms we're on one of them, there's no
+	// point probing the others' metadata endpoints: a host can't be on two clouds at once,
+	// and those probes would otherwise time out after several retries.
+	dmiCloudProvider := cloudproviders.DetectCloudProviderDMI()
+	runsOnOtherCloud := func(provider string) bool {
+		return dmiCloudProvider != "" && dmiCloudProvider != provider
+	}
+
+	if conf.GetBool("collect_gce_tags") && !runsOnOtherCloud(gce.CloudProviderName) {
 		providers["gce"] = &providerDef{1, gce.GetTags}
 	}
 
-	if conf.GetBool("collect_ec2_tags") {
+	if conf.GetBool("collect_ec2_tags") && !runsOnOtherCloud(ec2.CloudProviderName) {
 		// WARNING: if this config is enabled on a non-ec2 host, then its
 		// retries may time out, causing a 3s delay
 		providers["ec2"] = &providerDef{10, ec2tags.GetTags}
 	}
 
-	if conf.GetBool("collect_ec2_instance_info") {
+	if conf.GetBool("collect_ec2_instance_info") && !runsOnOtherCloud(ec2.CloudProviderName) {
 		providers["ec2_instance_info"] = &providerDef{3, ec2tags.GetInstanceInfo}
 	}
 

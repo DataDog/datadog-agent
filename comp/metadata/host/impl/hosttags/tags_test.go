@@ -19,7 +19,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 )
+
+// setupDMIProvider mocks DMI so that cloudproviders.DetectCloudProviderDMI() returns the given
+// provider (or "" for an inconclusive result, when provider is empty).
+func setupDMIProvider(t *testing.T, mockConfig model.Config, provider string) {
+	mockConfig.SetInTest("ec2_use_dmi", true)
+	mockConfig.SetInTest("gce_use_dmi", true)
+	mockConfig.SetInTest("azure_use_dmi", true)
+	mockConfig.SetInTest("oracle_use_dmi", true)
+
+	dmi.SetupMock(t, "", "", "", "")
+	dmi.SetupMockProductName(t, "")
+	dmi.SetupMockChassisAssetTag(t, "")
+
+	switch provider {
+	case ec2.CloudProviderName:
+		dmi.SetupMock(t, "", "", "i-myinstance", ec2.DMIBoardVendor)
+	case gce.CloudProviderName:
+		dmi.SetupMockProductName(t, gce.DMIProductName)
+	case azure.CloudProviderName:
+		dmi.SetupMockChassisAssetTag(t, azure.DMIChassisAssetTag)
+	case oracle.CloudProviderName:
+		dmi.SetupMockChassisAssetTag(t, oracle.DMIChassisAssetTag)
+	}
+}
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
 	retrySleepTime = 0
@@ -192,6 +221,81 @@ func TestGetProvidersDefinitionsIncludesKubernetesNodeTagsOnNodeAgent(t *testing
 	providers := getProvidersDefinitions(mockConfig)
 	_, hasKubernetesNodeTags := providers["kubernetes"]
 	assert.True(t, hasKubernetesNodeTags, "kubernetes node-tags provider should be registered on a regular node Agent")
+}
+
+func TestGetProvidersDefinitionsSkipsEC2AndGCEWhenDMIConfirmsAzure(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupDMIProvider(t, mockConfig, azure.CloudProviderName)
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.False(t, hasGCE, "gce provider should be skipped once DMI confirms the host is running on Azure")
+	_, hasEC2 := providers["ec2"]
+	assert.False(t, hasEC2, "ec2 provider should be skipped once DMI confirms the host is running on Azure")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.False(t, hasEC2InstanceInfo, "ec2_instance_info provider should be skipped once DMI confirms the host is running on Azure")
+}
+
+func TestGetProvidersDefinitionsSkipsEC2AndGCEWhenDMIConfirmsOracle(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupDMIProvider(t, mockConfig, oracle.CloudProviderName)
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.False(t, hasGCE, "gce provider should be skipped once DMI confirms the host is running on Oracle Cloud")
+	_, hasEC2 := providers["ec2"]
+	assert.False(t, hasEC2, "ec2 provider should be skipped once DMI confirms the host is running on Oracle Cloud")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.False(t, hasEC2InstanceInfo, "ec2_instance_info provider should be skipped once DMI confirms the host is running on Oracle Cloud")
+}
+
+func TestGetProvidersDefinitionsKeepsMatchingProviderWhenDMIConfirmsGCE(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupDMIProvider(t, mockConfig, gce.CloudProviderName)
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.True(t, hasGCE, "gce provider should still be registered when DMI confirms the host is running on GCE")
+	_, hasEC2 := providers["ec2"]
+	assert.False(t, hasEC2, "ec2 provider should be skipped once DMI confirms the host is running on GCE")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.False(t, hasEC2InstanceInfo, "ec2_instance_info provider should be skipped once DMI confirms the host is running on GCE")
+}
+
+func TestGetProvidersDefinitionsKeepsMatchingProviderWhenDMIConfirmsEC2(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupDMIProvider(t, mockConfig, ec2.CloudProviderName)
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.False(t, hasGCE, "gce provider should be skipped once DMI confirms the host is running on EC2")
+	_, hasEC2 := providers["ec2"]
+	assert.True(t, hasEC2, "ec2 provider should still be registered when DMI confirms the host is running on EC2")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.True(t, hasEC2InstanceInfo, "ec2_instance_info provider should still be registered when DMI confirms the host is running on EC2")
+}
+
+func TestGetProvidersDefinitionsKeepsAllProvidersWhenDMIIsInconclusive(t *testing.T) {
+	mockConfig, _ := setupTest(t)
+	mockConfig.SetInTest("collect_ec2_tags", true)
+	mockConfig.SetInTest("collect_ec2_instance_info", true)
+	setupDMIProvider(t, mockConfig, "")
+
+	providers := getProvidersDefinitions(mockConfig)
+	_, hasGCE := providers["gce"]
+	assert.True(t, hasGCE, "gce provider should still be registered when DMI can't identify the cloud provider")
+	_, hasEC2 := providers["ec2"]
+	assert.True(t, hasEC2, "ec2 provider should still be registered when DMI can't identify the cloud provider")
+	_, hasEC2InstanceInfo := providers["ec2_instance_info"]
+	assert.True(t, hasEC2InstanceInfo, "ec2_instance_info provider should still be registered when DMI can't identify the cloud provider")
 }
 
 func TestHostTagsCache(t *testing.T) {
