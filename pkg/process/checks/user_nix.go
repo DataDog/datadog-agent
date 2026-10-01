@@ -17,19 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LookupIDProbe prefers host passwd entries and optionally caches fallback user.LookupId calls.
+// LookupIDProbe resolves host users with an optional per-UID cache.
 type LookupIDProbe struct {
 	config pkgconfigmodel.Reader
 
 	lookupIDCache *cache.Cache
 	lookupID      func(uid string) (*user.User, error)
-	hostPasswd    *hostPasswdCache
 }
 
 // NewLookupIDProbe returns a new LookupIDProbe from the config
 func NewLookupIDProbe(coreConfig pkgconfigmodel.Reader) *LookupIDProbe {
 	if coreConfig.GetBool("process_config.cache_lookupid") {
-		log.Debug("Using cached calls to `user.LookupID`")
+		log.Debug("Using cached user lookups")
 	}
 	return &LookupIDProbe{
 		// Inject global logger and config to make it easy to use components
@@ -37,7 +36,6 @@ func NewLookupIDProbe(coreConfig pkgconfigmodel.Reader) *LookupIDProbe {
 
 		lookupIDCache: cache.New(time.Hour, time.Hour), // Used by lookupIDWithCache
 		lookupID:      user.LookupId,
-		hostPasswd:    newHostPasswdCache(),
 	}
 }
 
@@ -45,7 +43,7 @@ func (p *LookupIDProbe) lookupIDWithCache(uid string) (*user.User, error) {
 	result, ok := p.lookupIDCache.Get(uid)
 	if !ok {
 		var err error
-		u, err := p.lookupID(uid)
+		u, err := p.lookupIDUncached(uid)
 		if err == nil {
 			p.lookupIDCache.SetDefault(uid, u)
 		} else {
@@ -64,14 +62,18 @@ func (p *LookupIDProbe) lookupIDWithCache(uid string) (*user.User, error) {
 	}
 }
 
-// LookupID returns the user.User for the given uid, preferring HOST_ETC/passwd
-// and using the configured cache only for the local user database fallback.
-func (p *LookupIDProbe) LookupID(uid string) (*user.User, error) {
-	if u, found := p.hostPasswd.lookup(uid); found {
+func (p *LookupIDProbe) lookupIDUncached(uid string) (*user.User, error) {
+	if u := lookupHostUser(uid); u != nil {
 		return u, nil
 	}
+	return p.lookupID(uid)
+}
+
+// LookupID returns the user.User for the given uid, preferring HOST_ETC/passwd
+// before the local user database, and using a per-UID cache if configured.
+func (p *LookupIDProbe) LookupID(uid string) (*user.User, error) {
 	if p.config.GetBool("process_config.cache_lookupid") {
 		return p.lookupIDWithCache(uid)
 	}
-	return p.lookupID(uid)
+	return p.lookupIDUncached(uid)
 }
