@@ -335,18 +335,22 @@ docker_build_base_image_arm64:
 docker_build_host_profiler_standalone_amd64:
   extends:
     [.docker_build_host_profiler_standalone, .docker_build_amd64]
-  needs:
-    - job: docker_build_base_image_amd64
-    - job: build_host_profiler_binary_x64
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_host_profiler_amd64"
 
 docker_build_host_profiler_standalone_arm64:
   extends:
     [.docker_build_host_profiler_standalone, .docker_build_arm64]
-  needs:
-    - job: docker_build_base_image_arm64
-    - job: build_host_profiler_binary_arm64
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_host_profiler_arm64"
 
@@ -515,13 +519,11 @@ docker_build_cluster_agent_amd64:
     - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
       when: never
     - when: on_success
-  needs:
-    - job: cluster_agent-build_amd64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_amd64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_arm64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_amd64"
 
@@ -531,13 +533,11 @@ docker_build_cluster_agent_arm64:
     - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
       when: never
     - when: on_success
-  needs:
-    - job: cluster_agent-build_arm64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_amd64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_arm64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_arm64"
 
@@ -551,23 +551,19 @@ docker_build_cluster_agent_arm64:
 
 docker_build_cluster_agent_fips_amd64:
   extends: [.docker_build_amd64, .docker_build_cluster_agent_fips]
-  needs:
-    - job: cluster_agent_fips-build_amd64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_amd64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_arm64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
 
 docker_build_cluster_agent_fips_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent_fips]
-  needs:
-    - job: cluster_agent_fips-build_arm64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_amd64
-      artifacts: true
-    - job: cws_instrumentation-build_injector_arm64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
 
 # build the cws-instrumentation image
 .docker_build_cws_instrumentation:
@@ -584,17 +580,21 @@ docker_build_cluster_agent_fips_arm64:
 
 docker_build_cws_instrumentation_amd64:
   extends: [.docker_build_cws_instrumentation, .docker_build_amd64]
-  needs:
-    - job: cws_instrumentation-build_amd64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cws_instrumentation_amd64"
 
 docker_build_cws_instrumentation_arm64:
   extends: [.docker_build_cws_instrumentation, .docker_build_arm64]
-  needs:
-    - job: cws_instrumentation-build_arm64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cws_instrumentation_arm64"
 
@@ -613,17 +613,21 @@ docker_build_cws_instrumentation_arm64:
 
 docker_build_secret_generic_connector_amd64:
   extends: [.docker_build_secret_generic_connector, .docker_build_amd64]
-  needs:
-    - job: secret_generic_connector-build_amd64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_amd64"
 
 docker_build_secret_generic_connector_arm64:
   extends: [.docker_build_secret_generic_connector, .docker_build_arm64]
-  needs:
-    - job: secret_generic_connector-build_arm64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_secret_generic_connector_arm64"
 
@@ -638,15 +642,19 @@ docker_build_secret_generic_connector_arm64:
 
 docker_build_secret_generic_connector_fips_amd64:
   extends: [.docker_build_secret_generic_connector_fips, .docker_build_amd64]
-  needs:
-    - job: secret_generic_connector_fips-build_amd64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
 
 docker_build_secret_generic_connector_fips_arm64:
   extends: [.docker_build_secret_generic_connector_fips, .docker_build_arm64]
-  needs:
-    - job: secret_generic_connector_fips-build_arm64
-      artifacts: true
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
 
 # build the dogstatsd image
 .docker_build_dogstatsd:
@@ -662,18 +670,22 @@ docker_build_secret_generic_connector_fips_arm64:
 
 docker_build_dogstatsd_amd64:
   extends: [.docker_build_dogstatsd, .docker_build_amd64, .docker_build_s3]
-  needs:
-    - job: build_dogstatsd_static-binary_x64
-      artifacts: false
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   timeout: 20m
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_amd64"
 
 docker_build_dogstatsd_arm64:
   extends: [.docker_build_dogstatsd, .docker_build_arm64, .docker_build_s3]
-  needs:
-    - job: build_dogstatsd_static-binary_arm64
-      artifacts: false
+  # TEMPORARY CI ACCELERATION: needs neutralized on the fast-iteration
+  # branch; the required binaries are outside the trimmed include set and
+  # GitLab validates needs at compile time even for rule-disabled jobs.
+  # This job is disabled there anyway. Restore before merging.
+  needs: []
   timeout: 20m
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_dogstatsd_arm64"
