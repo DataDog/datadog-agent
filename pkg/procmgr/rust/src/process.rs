@@ -93,10 +93,10 @@ pub enum ProcessOrigin {
 /// Why a respawn was skipped by a closed start condition, and what recovering
 /// it still owes the restart accounting.
 ///
-/// Reload needs the skip *reason*, not the state: `Exited`, `Failed`, and
-/// `Stopped` are also reached by a completed one-shot, a policy mismatch, the
-/// burst limit, a failed spawn, and an operator stop, none of which an
-/// unrelated reload may restart.
+/// Reload needs the skip *reason*, not the state: `Exited`, `Crashed`,
+/// `Failed`, and `Stopped` are also reached by a completed one-shot, a policy
+/// mismatch, the burst limit, a failed spawn, and an operator stop, none of
+/// which an unrelated reload may restart.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RestartBlock {
     /// No respawn was skipped for a closed condition.

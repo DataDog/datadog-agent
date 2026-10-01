@@ -267,7 +267,6 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
     None
 }
 
-
 /// Whether the process died without returning a value.
 ///
 /// Windows has no signals, so this reads the exit code instead. A process
