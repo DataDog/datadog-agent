@@ -7,8 +7,10 @@
 package config
 
 import (
+	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -60,6 +62,8 @@ type Config struct {
 	// CgroupReapplyInfinitely controls whether the cgroup device configuration should be reapplied infinitely (true) or only once (false).
 	// Defaults to false. When true, the configuration will be reapplied every CgroupReapplyInterval interval.
 	CgroupReapplyInfinitely bool
+	// JobsConfig provides the ability for the user to define run/group identifiers to be attached to traces and metrics.
+	JobsConfig JobsConfig
 }
 
 // StreamConfig is the configuration for the streams.
@@ -76,6 +80,63 @@ type StreamConfig struct {
 	MaxPendingKernelSpans int
 	// MaxPendingMemorySpans is the maximum number of pending memory allocation spans to keep in each stream handler.
 	MaxPendingMemorySpans int
+}
+
+// JobsConfig lets users define where the identifiers of a training job are read from.
+type JobsConfig struct {
+	// Run is a unique id for a training run.
+	Run IdentifierConfig
+	// Group is an id for a group of training runs.
+	Group IdentifierConfig
+}
+
+// IdentifierType is the kind of metadata an identifier is read from.
+type IdentifierType string
+
+const (
+	// IdentifierTypeLabel means the identifier is read from a pod label.
+	IdentifierTypeLabel IdentifierType = "label"
+	// IdentifierTypeAnnotation means the identifier is read from a pod annotation.
+	IdentifierTypeAnnotation IdentifierType = "annotation"
+	// IdentifierTypeEnv means the identifier is read from an environment variable of the process using the GPU.
+	IdentifierTypeEnv IdentifierType = "env"
+)
+
+// IdentifierConfig points at a pod label, pod annotation or environment variable holding an identifier.
+type IdentifierConfig struct {
+	// Key is the name of the label, annotation or environment variable. Empty means not configured.
+	Key string
+	// Type is where Key is read from.
+	Type IdentifierType
+}
+
+// Configured returns true if the identifier has a key and a supported type.
+func (i IdentifierConfig) Configured() bool {
+	if i.Key == "" {
+		return false
+	}
+	switch i.Type {
+	case IdentifierTypeLabel, IdentifierTypeAnnotation, IdentifierTypeEnv:
+		return true
+	default:
+		return false
+	}
+}
+
+// NewJobsConfig reads the training job identifiers from the agent configuration.
+func NewJobsConfig() JobsConfig {
+	agentCfg := pkgconfigsetup.Datadog()
+	return JobsConfig{
+		Run:   newIdentifierConfig(agentCfg, "gpu.jobs.run"),
+		Group: newIdentifierConfig(agentCfg, "gpu.jobs.group"),
+	}
+}
+
+func newIdentifierConfig(cfg model.Reader, prefix string) IdentifierConfig {
+	return IdentifierConfig{
+		Key:  cfg.GetString(prefix + ".key"),
+		Type: IdentifierType(strings.ToLower(cfg.GetString(prefix + ".type"))),
+	}
 }
 
 // New generates a new configuration for the GPU monitoring probe.
@@ -111,5 +172,6 @@ func New() *Config {
 		DeviceCacheRefreshInterval: spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "device_cache_refresh_interval")),
 		CgroupReapplyInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_interval")),
 		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
+		JobsConfig:                 NewJobsConfig(),
 	}
 }

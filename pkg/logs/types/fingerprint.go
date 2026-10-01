@@ -56,6 +56,10 @@ type FingerprintConfig struct {
 
 	// MaxBytes is only used for line-based fingerprinting to prevent overloading
 	// when reading large files. It's ignored for byte-based fingerprinting.
+	//
+	// With logs_config.unreliable_mount.enabled, Linux fingerprint reads bypass
+	// the page cache and read this whole window on every scan. The profile defaults
+	// the global window to 4096 bytes; explicit per-source values still apply.
 	MaxBytes int `json:"max_bytes" mapstructure:"max_bytes" yaml:"max_bytes"`
 
 	// Source is the source of the fingerprint config
@@ -63,6 +67,18 @@ type FingerprintConfig struct {
 	// - "global": the fingerprint config is set globally
 	// - "none": the fingerprint config is not set
 	Source FingerprintConfigSource `json:"source" mapstructure:"source" yaml:"source"`
+}
+
+// SameChecksumParameters reports whether two configurations hash the same bytes of a file.
+// Source does not affect the resulting value and is ignored.
+func (c *FingerprintConfig) SameChecksumParameters(other *FingerprintConfig) bool {
+	if c == nil || other == nil {
+		return c == other
+	}
+	return c.FingerprintStrategy == other.FingerprintStrategy &&
+		c.Count == other.Count &&
+		c.CountToSkip == other.CountToSkip &&
+		c.MaxBytes == other.MaxBytes
 }
 
 // FingerprintStrategy defines the strategy used for fingerprinting
