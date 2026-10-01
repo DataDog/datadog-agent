@@ -311,7 +311,7 @@ func isApplyModeAllowed(autoscalerSpec *datadoghq.DatadogPodAutoscalerSpec, sour
 		applyMode = datadoghq.DatadogPodAutoscalerApplyModeApply
 	}
 
-	if !applyModeAllowsSource(applyMode, source) {
+	if !model.ApplyModeAllowSource(applyMode, source) {
 		return false, fmt.Sprintf("horizontal scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerSpec.ApplyPolicy.Mode, source)
 	}
 

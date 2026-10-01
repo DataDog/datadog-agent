@@ -13,6 +13,7 @@ go_library(
         "pod_autoscaler_validation.go",
         "rc_schema.go",
         "recommendations.go",
+        "utils.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model",
     visibility = ["//visibility:public"],

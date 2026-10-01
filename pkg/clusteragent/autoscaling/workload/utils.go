@@ -7,12 +7,7 @@
 
 package workload
 
-import (
-	"cmp"
-
-	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
-	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
-)
+import "cmp"
 
 func min[T cmp.Ordered](a T, b T) T {
 	if a < b {
@@ -26,14 +21,4 @@ func max[T cmp.Ordered](a T, b T) T {
 		return a
 	}
 	return b
-}
-
-// applyModeAllowsSource returns true if the given source is allowed by the given apply mode.
-func applyModeAllowsSource(mode datadoghq.DatadogPodAutoscalerApplyMode, _ datadoghqcommon.DatadogPodAutoscalerValueSource) bool {
-	switch mode {
-	case datadoghq.DatadogPodAutoscalerApplyModeApply:
-		return true
-	default:
-		return false
-	}
 }
