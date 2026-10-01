@@ -9,13 +9,16 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -26,10 +29,9 @@ const (
 	// datadog_agent_windows.go, 60 minutes) rather than inventing an unrelated number.
 	configExperimentDeadlineWindow = 60 * time.Minute
 
-	// configExperimentRestoreRetries bounds restoreStableJobs's retries of the two steps PR
-	// #55770's review flagged as unrecoverable: rewriting and restarting the stable job set. A
-	// transient disk or launchd hiccup is the most plausible failure here; anything that still
-	// fails after this many attempts is reported, not retried forever.
+	// configExperimentRestoreRetries bounds restoreStableJobs's attempts at handing each label back
+	// to its stable job. A transient disk or launchd hiccup is the most plausible failure here;
+	// anything that still fails after this many attempts is reported, not retried forever.
 	configExperimentRestoreRetries = 3
 )
 
@@ -89,8 +91,8 @@ func (e configExperiment) Start(ctx context.Context) error {
 		return err
 	}
 	if err := e.jobs.Stop(ctx, launchd.Stable); err != nil {
-		_ = deadline.Clear()
-		return err
+		// Some of the stable jobs may already be down.
+		return e.abortStart(ctx, err)
 	}
 	if err := e.jobs.Write(launchd.Experiment); err != nil {
 		return e.abortStart(ctx, err)
@@ -107,7 +109,8 @@ func (e configExperiment) Start(ctx context.Context) error {
 // would let a resumed experiment outlive that original bound.
 func (e configExperiment) Resume(ctx context.Context) error {
 	if err := e.jobs.Stop(ctx, launchd.Stable); err != nil {
-		return err
+		// Some of the stable jobs may already be down.
+		return e.abortStart(ctx, err)
 	}
 	if err := e.jobs.Write(launchd.Experiment); err != nil {
 		return e.abortStart(ctx, err)
@@ -159,38 +162,47 @@ func (e configExperiment) restoreStable(ctx context.Context) error {
 	if err := (launchd.Deadline{Path: configExperimentDeadlinePath}).Clear(); err != nil {
 		return err
 	}
+	// Unloading the whole experiment set first keeps the reverse teardown order. It is best
+	// effort: restoreStableJobs unloads each experiment job again before starting its stable twin,
+	// so a job that failed to unload here is retried there rather than ending the restore.
 	if err := e.jobs.Stop(ctx, launchd.Experiment); err != nil {
-		return err
+		log.Warnf("could not unload every experiment job, retrying label by label: %v", err)
 	}
-	if err := e.jobs.Remove(launchd.Experiment); err != nil {
-		return err
-	}
-	return e.restoreStableJobs(ctx)
+	restoreErr := e.restoreStableJobs(ctx)
+	// A leftover experiment definition is not loaded at boot, so failing to remove one does not
+	// stop the stable set from being restored; it is still reported.
+	removeErr := e.jobs.Remove(launchd.Experiment)
+	return errors.Join(restoreErr, removeErr)
 }
 
-// restoreStableJobs rewrites and restarts the stable job set, retrying a bounded number of times
-// on failure before giving up. This is the second gap PR #55770's review flagged: previously, a
-// failure here left the host with neither job set running, and nothing retried. Once the
-// retries are exhausted, the error is reported and there is no further automated recovery — the
-// deadline is already cleared by this point, so the watcher does not act as a backstop for a
-// failed rollback, only for a hung experiment.
+// restoreStableJobs hands every label back from the experiment job to the stable one, retrying a
+// bounded number of times on failure before giving up.
+//
+// The labels are swapped one at a time: a stable job is started only once its experiment twin has
+// left the domain, so the two never run at once, and a label that fails does not keep the others
+// from coming back. Only the labels that failed are retried. Once the retries are exhausted the
+// error is reported and there is no further automated recovery — the deadline is already cleared
+// by this point, so the watcher does not act as a backstop for a failed rollback, only for a hung
+// experiment.
 func (e configExperiment) restoreStableJobs(ctx context.Context) error {
-	var lastErr error
-	for attempt := 0; attempt < configExperimentRestoreRetries; attempt++ {
+	pending := e.jobs.Labels
+	var errs []error
+	for attempt := 0; attempt < configExperimentRestoreRetries && len(pending) > 0; attempt++ {
 		if attempt > 0 {
 			time.Sleep(configExperimentRestoreBackoff)
 		}
-		// The stable definitions are rewritten rather than assumed present: bootstrap needs
-		// the file on disk, and this is the path a host takes back to a working state.
-		if err := e.jobs.Write(launchd.Stable); err != nil {
-			lastErr = err
-			continue
+		var failed []string
+		errs = nil
+		for _, label := range pending {
+			if err := e.jobs.Swap(ctx, label, launchd.Experiment, launchd.Stable); err != nil {
+				failed = append(failed, label)
+				errs = append(errs, err)
+			}
 		}
-		if err := e.jobs.Start(ctx, launchd.Stable); err != nil {
-			lastErr = err
-			continue
-		}
+		pending = failed
+	}
+	if len(pending) == 0 {
 		return nil
 	}
-	return fmt.Errorf("could not restore the stable job set after %d attempts: %w", configExperimentRestoreRetries, lastErr)
+	return fmt.Errorf("could not restore %s after %d attempts: %w", strings.Join(pending, ", "), configExperimentRestoreRetries, errors.Join(errs...))
 }
