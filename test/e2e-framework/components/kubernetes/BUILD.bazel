@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "kubernetes",
@@ -30,5 +31,16 @@ go_library(
         "@com_github_pulumi_pulumi_eks_sdk_v4//go/eks",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
+    ],
+)
+
+dd_agent_go_test(
+    name = "kubernetes_test",
+    srcs = [
+        "kind_test.go",
+    ],
+    embed = [":kubernetes"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
     ],
 )

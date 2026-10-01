@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
@@ -422,7 +423,7 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	for i, node := range n.Bind {
 		bindNode := &utils.Node{
 			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
-			Label: "[" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
+			Label: "bind [" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
 			Size:  smallText,
 			Color: networkColor,
 			Shape: networkShape,
@@ -440,6 +441,31 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 			Color: networkColor,
 		})
 		data.Nodes[bindNode.ID] = bindNode
+	}
+
+	// prepare connect nodes
+	bindCount := uint64(len(n.Bind))
+	for i, node := range n.Connect {
+		connectNode := &utils.Node{
+			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(bindCount+uint64(i)+1)),
+			Label: "connect [" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
+			Size:  smallText,
+			Color: networkColor,
+			Shape: networkShape,
+		}
+
+		switch node.GenerationType {
+		case Runtime, Snapshot, Unknown:
+			connectNode.FillColor = networkRuntimeColor
+		case ProfileDrift:
+			connectNode.FillColor = networkProfileDriftColor
+		}
+		data.Edges = append(data.Edges, &utils.Edge{
+			From:  targetID,
+			To:    connectNode.ID,
+			Color: networkColor,
+		})
+		data.Nodes[connectNode.ID] = connectNode
 	}
 
 	return targetID
@@ -470,7 +496,12 @@ func (at *ActivityTree) prepareFileNode(f *FileNode, data *utils.SubGraph, proce
 func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph) utils.GraphID {
 	var labelBuilder strings.Builder
 	labelBuilder.WriteString(tableHeader)
-	for i, s := range p.Syscalls {
+	syscallIDs := make([]int, 0, len(p.Syscalls))
+	for id := range p.Syscalls {
+		syscallIDs = append(syscallIDs, id)
+	}
+	slices.Sort(syscallIDs)
+	for i, id := range syscallIDs {
 		if i%5 == 0 {
 			if i != 0 {
 				labelBuilder.WriteString("</TD></TR>")
@@ -479,7 +510,7 @@ func (at *ActivityTree) prepareSyscallsNode(p *ProcessNode, data *utils.SubGraph
 		} else {
 			labelBuilder.WriteString(", ")
 		}
-		labelBuilder.WriteString(model.Syscall(s.Syscall).String())
+		labelBuilder.WriteString(model.Syscall(id).String())
 	}
 	labelBuilder.WriteString("</TD></TR>")
 	labelBuilder.WriteString("</TABLE>>")
