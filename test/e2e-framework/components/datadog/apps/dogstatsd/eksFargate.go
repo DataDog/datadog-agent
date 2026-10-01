@@ -74,7 +74,7 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("dogstatsd"),
-							Image: pulumi.String(apps.Image(e, "apps-dogstatsd")),
+							Image: pulumi.String("ghcr.io/datadog/apps-dogstatsd:" + apps.Version),
 							Env: &corev1.EnvVarArray{
 								&corev1.EnvVarArgs{
 									Name:  pulumi.String("STATSD_URL"),

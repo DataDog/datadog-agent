@@ -58,7 +58,6 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 	}
 
 	nginxManifest, err := k8s.NewNginxDeploymentManifest(
-		e,
 		namespace,
 		80,
 		k8s.WithLabels(map[string]string{
@@ -83,7 +82,6 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 	}
 
 	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(
-		e,
 		namespace,
 		k8s.WithLabels(map[string]string{
 			"agent.datadoghq.com/sidecar": "fargate",

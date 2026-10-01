@@ -41,7 +41,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 				"prometheus": {
 					Name:  pulumi.String("prometheus"),
-					Image: pulumi.String(apps.Image(&e, "apps-prometheus")),
+					Image: pulumi.String("ghcr.io/datadog/apps-prometheus:" + apps.Version),
 					DockerLabels: pulumi.StringMap{
 						"com.datadoghq.ad.checks": pulumi.String(utils.JSONMustMarshal(
 							map[string]interface{}{

@@ -42,7 +42,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, testURL 
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 				"curl-dig": {
 					Name:  pulumi.String("curl-dig"),
-					Image: pulumi.String(apps.Image(&e, "apps-npm-tools")),
+					Image: pulumi.String("ghcr.io/datadog/apps-npm-tools:" + apps.Version),
 					Command: pulumi.StringArray{
 						pulumi.String("sh"),
 						pulumi.String("-c"),

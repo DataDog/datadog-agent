@@ -75,11 +75,11 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		expectedTags := append([]string{
 			`^container_id:`,
 			`^container_name:redis$`,
-			"^docker_image:.*/redis:" + regexp.QuoteMeta(apps.Version) + "$",
+			`^docker_image:ghcr\.io/datadog/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
 			`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
 			`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 			`^image_id:sha256:`,
-			"^image_name:.*/redis$",
+			`^image_name:ghcr\.io/datadog/redis$`,
 			`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 			`^runtime:docker$`,
 			`^short_image:redis$`,
@@ -131,11 +131,11 @@ func (suite *DockerSuite) TestDockerMetrics() {
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
-				"^docker_image:.*/redis:" + regexp.QuoteMeta(apps.Version) + "$",
+				`^docker_image:ghcr\.io/datadog/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                      // org.opencontainers.image.revision docker image label
 				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:sha256:`,
-				"^image_name:.*/redis$",
+				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^short_image:redis$`,
 			},
@@ -252,11 +252,11 @@ func (suite *DockerSuite) TestDSDWithUDS() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:metric-sender-uds$`,
-				"^docker_image:.*/apps-dogstatsd:" + regexp.QuoteMeta(apps.Version) + "$",
+				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
 				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
 				`^image_id:sha256:`,
-				"^image_name:.*/apps-dogstatsd$",
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,
@@ -277,11 +277,11 @@ func (suite *DockerSuite) TestDSDWithUDP() {
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:metric-sender-udp$`,
-				"^docker_image:.*/apps-dogstatsd:" + regexp.QuoteMeta(apps.Version) + "$",
+				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
 				`^git.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
 				`^image_id:sha256:`,
-				"^image_name:.*/apps-dogstatsd$",
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^series:`,
 				`^short_image:apps-dogstatsd$`,

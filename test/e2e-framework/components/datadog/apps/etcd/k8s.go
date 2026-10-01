@@ -205,7 +205,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 						},
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("etcd-config"),
-							Image: pulumi.String(apps.Image(e, "apps-alpine")),
+							Image: pulumi.String("ghcr.io/datadog/apps-alpine:" + apps.Version),
 							Command: pulumi.StringArray{
 								pulumi.String("/bin/sh"),
 								pulumi.String("-c"),

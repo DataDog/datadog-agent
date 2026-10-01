@@ -5,15 +5,4 @@
 
 package apps
 
-import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-)
-
-const Version = "v0.0.8"
-
-func Image(e config.Env, repo string) string {
-	if reg := e.InternalRegistry(); reg != "" && reg != "none" {
-		return reg + "/" + repo + ":" + Version
-	}
-	return "ghcr.io/datadog/" + repo + ":" + Version
-}
+const Version = "v0.0.7"

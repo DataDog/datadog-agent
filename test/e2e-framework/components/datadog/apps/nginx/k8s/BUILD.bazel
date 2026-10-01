@@ -9,7 +9,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx/k8s",
     visibility = ["//visibility:public"],
     deps = [
-        "//test/e2e-framework/common/config",
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/datadog/apps",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/apps/v1:apps",

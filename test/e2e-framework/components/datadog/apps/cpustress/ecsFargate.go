@@ -30,7 +30,7 @@ func FargateAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, apiK
 
 	stressContainer := &ecs.TaskDefinitionContainerDefinitionArgs{
 		Name:  pulumi.String("stress-ng"),
-		Image: pulumi.String(apps.Image(&e, "apps-stress-ng")),
+		Image: pulumi.String("ghcr.io/datadog/apps-stress-ng:" + apps.Version),
 		DockerLabels: pulumi.StringMap{
 			"com.datadoghq.ad.tags": pulumi.String("[\"ecs_launch_type:fargate\"]"),
 		},

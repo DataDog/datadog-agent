@@ -40,7 +40,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 				"dogstatsd": {
 					Name:  pulumi.String("dogstatsd"),
-					Image: pulumi.String(apps.Image(&e, "apps-dogstatsd")),
+					Image: pulumi.String("ghcr.io/datadog/apps-dogstatsd:" + apps.Version),
 					Environment: ecs.TaskDefinitionKeyValuePairArray{
 						ecs.TaskDefinitionKeyValuePairArgs{
 							Name:  pulumi.StringPtr("STATSD_URL"),
@@ -86,7 +86,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 				"dogstatsd": {
 					Name:  pulumi.String("dogstatsd"),
-					Image: pulumi.String(apps.Image(&e, "apps-dogstatsd")),
+					Image: pulumi.String("ghcr.io/datadog/apps-dogstatsd:" + apps.Version),
 					Environment: ecs.TaskDefinitionKeyValuePairArray{
 						ecs.TaskDefinitionKeyValuePairArgs{
 							Name:  pulumi.StringPtr("ECS_AGENT_HOST"),

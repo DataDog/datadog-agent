@@ -40,7 +40,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 				"tracegen": {
 					Name:  pulumi.String("tracegen"),
-					Image: pulumi.String(apps.Image(&e, "apps-tracegen")),
+					Image: pulumi.String("ghcr.io/datadog/apps-tracegen:" + apps.Version),
 					Environment: ecs.TaskDefinitionKeyValuePairArray{
 						ecs.TaskDefinitionKeyValuePairArgs{
 							Name:  pulumi.StringPtr("DD_TRACE_AGENT_URL"),
@@ -86,7 +86,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 				"tracegen": {
 					Name:  pulumi.String("tracegen"),
-					Image: pulumi.String(apps.Image(&e, "apps-tracegen")),
+					Image: pulumi.String("ghcr.io/datadog/apps-tracegen:" + apps.Version),
 					Environment: ecs.TaskDefinitionKeyValuePairArray{
 						ecs.TaskDefinitionKeyValuePairArgs{
 							Name:  pulumi.StringPtr("ECS_AGENT_HOST"),

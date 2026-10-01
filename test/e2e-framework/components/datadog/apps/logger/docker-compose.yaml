@@ -3,7 +3,7 @@
 services:
 
   logger-app:
-    image: ${DD_APPS_REGISTRY:-ghcr.io/datadog}/apps-logger:{APPS_VERSION}
+    image: ghcr.io/datadog/apps-logger:{APPS_VERSION}
     container_name: logger-app
     depends_on:
       - agent

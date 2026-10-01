@@ -40,7 +40,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 			Containers: map[string]ecs.TaskDefinitionContainerDefinitionArgs{
 				"redis": {
 					Name:  pulumi.String("redis"),
-					Image: pulumi.String(apps.Image(&e, "redis")),
+					Image: pulumi.String("ghcr.io/datadog/redis:" + apps.Version),
 					DockerLabels: pulumi.StringMap{
 						"com.datadoghq.ad.tags": pulumi.String("[\"ecs_launch_type:ec2\"]"),
 					},
@@ -60,7 +60,7 @@ func EcsAppDefinition(e aws.Environment, clusterArn pulumi.StringInput, opts ...
 				},
 				"query": {
 					Name:  pulumi.String("query"),
-					Image: pulumi.String(apps.Image(&e, "apps-redis-client")),
+					Image: pulumi.String("ghcr.io/datadog/apps-redis-client:" + apps.Version),
 					Command: pulumi.StringArray{
 						pulumi.String("-addr"),
 						pulumi.String("redis:6379"),

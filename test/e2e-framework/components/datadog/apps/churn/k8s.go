@@ -104,17 +104,6 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 		return nil, err
 	}
 
-	var imagePullSecrets corev1.LocalObjectReferenceArray
-	if e.ImagePullRegistry() != "" {
-		imgPullSecret, err := utils.NewImagePullSecret(e, "churn", opts...)
-		if err != nil {
-			return nil, err
-		}
-		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
-			Name: imgPullSecret.Metadata.Name(),
-		})
-	}
-
 	if _, err := appsv1.NewDeployment(e.Ctx(), "churn", &appsv1.DeploymentArgs{
 		Metadata: metav1.ObjectMetaArgs{
 			Name:      pulumi.StringPtr("churn"),
@@ -138,11 +127,10 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
-					ImagePullSecrets: imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("churn"),
-							Image: pulumi.String(apps.Image(e, "apps-churn")),
+							Image: pulumi.String("ghcr.io/datadog/apps-churn:" + apps.Version),
 							Args: pulumi.StringArray{
 								pulumi.String("--manifests-dir"),
 								pulumi.String("/etc/churn/..data/"),
