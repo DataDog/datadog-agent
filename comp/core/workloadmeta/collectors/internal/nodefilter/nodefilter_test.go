@@ -11,6 +11,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -23,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	k8stesting "k8s.io/client-go/testing"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config"
@@ -33,6 +36,79 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
+
+// TestApplyTLSSettings verifies how the in-cluster client config is adjusted
+// to the configured API server certificate verification. client-go refuses a
+// root CA together with the insecure flag, and rest.InClusterConfig sets the
+// service account's CA, so disabling verification must drop every CA, the
+// custom one included, or no client can be created.
+func TestApplyTLSSettings(t *testing.T) {
+	// client-go reads a CA file before it checks it against the insecure flag,
+	// so these must exist for the settings to fail the way they do in a pod.
+	dir := t.TempDir()
+	serviceAccountCA := filepath.Join(dir, "service-account-ca.crt")
+	customCA := filepath.Join(dir, "custom-ca.crt")
+	for _, path := range []string{serviceAccountCA, customCA} {
+		require.NoError(t, os.WriteFile(path, []byte("not a certificate"), 0o600))
+	}
+
+	tests := []struct {
+		name         string
+		verify       bool
+		caPath       string
+		wantInsecure bool
+		wantCAFile   string
+	}{
+		{
+			name:       "verifies against the service account's CA",
+			verify:     true,
+			wantCAFile: serviceAccountCA,
+		},
+		{
+			name:       "verifies against a custom CA",
+			verify:     true,
+			caPath:     customCA,
+			wantCAFile: customCA,
+		},
+		{
+			name:         "verification disabled",
+			wantInsecure: true,
+		},
+		{
+			name:         "verification disabled, with a custom CA",
+			caPath:       customCA,
+			wantInsecure: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				"kubernetes_apiserver_tls_verify": tt.verify,
+				"kubernetes_apiserver_ca_path":    tt.caPath,
+			})
+			// What rest.InClusterConfig builds once it can read the service
+			// account's CA.
+			clientConfig := &rest.Config{
+				Host:            "https://kubernetes.default.svc",
+				TLSClientConfig: rest.TLSClientConfig{CAFile: serviceAccountCA},
+			}
+
+			applyTLSSettings(cfg, clientConfig)
+
+			assert.Equal(t, tt.wantInsecure, clientConfig.TLSClientConfig.Insecure)
+			assert.Equal(t, tt.wantCAFile, clientConfig.TLSClientConfig.CAFile)
+			assert.Empty(t, clientConfig.TLSClientConfig.CAData)
+
+			// A client that verifies needs a readable CA file, so only the
+			// insecure ones can be built here.
+			if tt.wantInsecure {
+				_, err := kubernetes.NewForConfig(clientConfig)
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
 // TestLocalNodeName verifies that only otel-agent running in DDOT standalone
 // mode without the kubelet collector opt-out selects this collector (Enabled,
