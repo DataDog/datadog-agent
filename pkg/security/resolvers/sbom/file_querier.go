@@ -10,32 +10,25 @@ package sbom
 
 import (
 	"slices"
+	"sort"
 	"strings"
-	"sync"
 
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/twmb/murmur3"
 )
 
+// fileQuerier maps the installed files of a workload to the packages owning
+// them. It holds the hashes of the file paths in increasing order, each with
+// the index of the package listing it, so a lookup is a binary search. A path
+// listed by two packages resolves to the first of them in the report.
 type fileQuerier struct {
-	files []uint64
-	pkgs  []*sbomtypes.Package
+	hashes []uint64 // murmur3 hashes of the installed file paths, sorted
+	owners []uint32 // owners[i] is the index in pkgs of the package listing hashes[i]
+	pkgs   []*sbomtypes.Package
 
 	usrMerged bool
-
-	lastNegativeCache *fixedSizeQueue[uint64]
 }
-
-/*
-files are stored in the following format:
-
-| partSize | hash1 | hash2 | ... | partSize | hash3 | hash4 | ... | partSize | hash5 | hash6 | ... |
-
-where partSize is the number of hashes in the part
-and each part group is at the index of the given package
-for example here hash5 would match pkgs[2]
-*/
 
 // newFileQuerier builds the file->package index from report. It stores murmur3
 // hashes of the installed file paths — never the paths themselves — together with
@@ -47,72 +40,69 @@ for example here hash5 would match pkgs[2]
 func newFileQuerier(report []sbomtypes.PackageWithInstalledFiles, backing []sbomtypes.Package, usrMerged bool) fileQuerier {
 	fileCount := 0
 	for _, pkg := range report {
-		fileCount += 2 + len(pkg.InstalledFiles)
+		fileCount += len(pkg.InstalledFiles)
 	}
 
-	files := make([]uint64, 0, fileCount)
-	pkgs := make([]*sbomtypes.Package, 0, len(backing))
+	fq := fileQuerier{
+		hashes:    make([]uint64, 0, fileCount),
+		owners:    make([]uint32, 0, fileCount),
+		pkgs:      make([]*sbomtypes.Package, 0, len(backing)),
+		usrMerged: usrMerged,
+	}
 
 	for i := range report {
 		// IMPORTANT: Store pointer into the retained backing slice, not into report,
 		// so LastAccess updates are reflected in the stored packages and report's
 		// InstalledFiles are not kept alive.
-		pkgs = append(pkgs, &backing[i])
-
-		files = append(files, uint64(len(report[i].InstalledFiles)))
+		fq.pkgs = append(fq.pkgs, &backing[i])
 
 		for _, file := range report[i].InstalledFiles {
 			seclog.Tracef("indexing %s as %+v", file, backing[i])
 
-			hash := murmur3.StringSum64(file)
-			files = append(files, hash)
+			fq.hashes = append(fq.hashes, murmur3.StringSum64(file))
+			fq.owners = append(fq.owners, uint32(i))
 		}
 	}
 
-	return fileQuerier{files: files, pkgs: pkgs, usrMerged: usrMerged, lastNegativeCache: newFixedSizeQueue[uint64](2)}
+	sort.Sort(fileOrder{hashes: fq.hashes, owners: fq.owners})
+
+	return fq
 }
 
+// fileOrder sorts installed files by the hash of their path, then by the index
+// of the package listing them, moving each hash with its owner.
+type fileOrder struct {
+	hashes []uint64
+	owners []uint32
+}
+
+func (o fileOrder) Len() int { return len(o.hashes) }
+
+func (o fileOrder) Less(i, j int) bool {
+	if o.hashes[i] != o.hashes[j] {
+		return o.hashes[i] < o.hashes[j]
+	}
+	return o.owners[i] < o.owners[j]
+}
+
+func (o fileOrder) Swap(i, j int) {
+	o.hashes[i], o.hashes[j] = o.hashes[j], o.hashes[i]
+	o.owners[i], o.owners[j] = o.owners[j], o.owners[i]
+}
+
+// queryHash returns the package listing the file whose path hashes to hash. The
+// search lands on the first entry of that hash, which belongs to the first
+// package listing it.
 func (fq *fileQuerier) queryHash(hash uint64) *sbomtypes.Package {
-	// fast path, if no package in the report contains the file
-	if !slices.Contains(fq.files, hash) {
+	i, found := slices.BinarySearch(fq.hashes, hash)
+	if !found {
 		return nil
 	}
-
-	var i, pkgIndex uint64
-	for i < uint64(len(fq.files)) {
-		partSize := fq.files[i]
-
-		for offset := uint64(0); offset < partSize; offset++ {
-			if fq.files[i+1+offset] == hash {
-				return fq.pkgs[pkgIndex]
-			}
-		}
-
-		i += partSize + 1
-		pkgIndex++
-	}
-
-	return nil
-}
-
-func (fq *fileQuerier) queryHashWithNegativeCache(hash uint64) *sbomtypes.Package {
-	if fq.lastNegativeCache.contains(hash) {
-		return nil
-	}
-
-	pkg := fq.queryHash(hash)
-	if pkg == nil {
-		if fq.lastNegativeCache == nil {
-			fq.lastNegativeCache = newFixedSizeQueue[uint64](2)
-		}
-		fq.lastNegativeCache.push(hash)
-	}
-
-	return pkg
+	return fq.pkgs[fq.owners[i]]
 }
 
 func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
-	if pkg := fq.queryHashWithNegativeCache(murmur3.StringSum64(path)); pkg != nil {
+	if pkg := fq.queryHash(murmur3.StringSum64(path)); pkg != nil {
 		return pkg
 	}
 
@@ -120,13 +110,13 @@ func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
 	// database and the resolved exec path may use either prefix for one file.
 	if fq.usrMerged {
 		if !strings.HasPrefix(path, "/usr") && (strings.HasPrefix(path, "/bin") || strings.HasPrefix(path, "/sbin") || strings.HasPrefix(path, "/lib")) {
-			if result := fq.queryHashWithNegativeCache(murmur3.StringSum64("/usr" + path)); result != nil {
+			if result := fq.queryHash(murmur3.StringSum64("/usr" + path)); result != nil {
 				return result
 			}
 		}
 
 		if after, ok := strings.CutPrefix(path, "/usr"); ok && (strings.HasPrefix(after, "/bin") || strings.HasPrefix(after, "/sbin") || strings.HasPrefix(after, "/lib")) {
-			if result := fq.queryHashWithNegativeCache(murmur3.StringSum64(after)); result != nil {
+			if result := fq.queryHash(murmur3.StringSum64(after)); result != nil {
 				return result
 			}
 		}
@@ -136,39 +126,5 @@ func (fq *fileQuerier) queryFile(path string) *sbomtypes.Package {
 }
 
 func (fq *fileQuerier) len() int {
-	return len(fq.files)
-}
-
-// fixedSizeQueue is shared across containers with the same image (see newData),
-// so it needs its own lock rather than relying on the caller's SBOM lock.
-type fixedSizeQueue[T comparable] struct {
-	mu      sync.Mutex
-	queue   []T
-	maxSize int
-}
-
-func newFixedSizeQueue[T comparable](maxSize int) *fixedSizeQueue[T] {
-	return &fixedSizeQueue[T]{maxSize: maxSize}
-}
-
-func (q *fixedSizeQueue[T]) push(value T) {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	if len(q.queue) == q.maxSize {
-		q.queue = q.queue[1:]
-	}
-
-	q.queue = append(q.queue, value)
-}
-
-func (q *fixedSizeQueue[T]) contains(value T) bool {
-	if q == nil {
-		return false
-	}
-
-	q.mu.Lock()
-	defer q.mu.Unlock()
-
-	return slices.Contains(q.queue, value)
+	return len(fq.hashes)
 }
