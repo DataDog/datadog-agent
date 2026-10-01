@@ -13,7 +13,7 @@ go_library(
     deps = [
         "@com_github_evanphx_json_patch_v5//:json-patch",
         "@com_github_itchyny_gojq//:gojq",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/packages/file",
@@ -140,7 +140,7 @@ dd_agent_go_test(
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",

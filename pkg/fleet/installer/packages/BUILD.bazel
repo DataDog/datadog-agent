@@ -75,7 +75,6 @@ go_library(
             "//pkg/fleet/installer/packages/user/windows",
             "//pkg/fleet/installer/setup/config",
             "//pkg/util/winutil",
-            "@in_yaml_go_yaml_v2//:yaml",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
             "@org_golang_x_sys//windows/svc",
