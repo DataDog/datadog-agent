@@ -12,12 +12,13 @@ use windows_sys::Win32::Foundation::{
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, FILE_TYPE_UNKNOWN, GetFileType, OPEN_EXISTING,
+    FILE_SHARE_WRITE, FILE_TYPE_DISK, FILE_TYPE_PIPE, FILE_TYPE_UNKNOWN, GetFileType,
+    OPEN_EXISTING,
 };
 use windows_sys::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
-    GetConsoleCP, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
-    STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle,
+    GetConsoleCP, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    SetConsoleCtrlHandler, SetStdHandle,
 };
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -59,9 +60,9 @@ enum InheritSource {
     /// value for the lifetime of the supervisor. Only for a handle console churn cannot
     /// reach, meaning a redirected file or pipe.
     Pinned(HANDLE),
-    /// The startup handle belonged to the supervisor's own console, where there is
-    /// nothing worth pinning: `FreeConsole` closes every console handle the process
-    /// holds, duplicates included, so one taken at startup is dead from the first
+    /// The startup handle was console backed, or could not be shown not to be, where
+    /// there is nothing worth pinning: `FreeConsole` closes every console handle the
+    /// process holds, duplicates included, so one taken at startup is dead from the first
     /// graceful stop onwards. A spawn opens `CONOUT$` instead, which names whatever
     /// console the supervisor is attached to by then, and gets nothing when it has none.
     Console,
@@ -75,7 +76,7 @@ impl InheritSource {
             return Self::None;
         }
         let handle = unsafe { GetStdHandle(kind) };
-        if is_console_handle(handle) {
+        if !survives_console_churn(handle) {
             return Self::Console;
         }
         match duplicate_for_self(handle) {
@@ -150,11 +151,22 @@ fn startup_stdio() -> &'static StartupStdio {
     })
 }
 
-/// True when the handle belongs to a console. `GetConsoleMode` is the only call that
-/// answers this: `GetFileType` reports `FILE_TYPE_CHAR` for `NUL` and printers too.
-fn is_console_handle(handle: HANDLE) -> bool {
-    let mut mode = 0u32;
-    unsafe { GetConsoleMode(handle, &mut mode) != 0 }
+/// True when a duplicate of `handle` is worth keeping, meaning console churn cannot
+/// invalidate it. Only a disk file or a pipe qualifies.
+///
+/// Everything else is treated as console backed, including the character devices that are
+/// not consoles, because the two mistakes do not cost the same: routing a child's output
+/// to the console when it should have gone elsewhere is a misroute, while pinning a
+/// console handle is the dead or recycled handle this module exists to avoid.
+///
+/// `GetFileType` is the only test that holds whatever access the handle carries.
+/// `GetConsoleMode` needs `GENERIC_READ`, and a parent is free to hand its child a
+/// write-only `CONOUT$`.
+fn survives_console_churn(handle: HANDLE) -> bool {
+    matches!(
+        unsafe { GetFileType(handle) },
+        FILE_TYPE_DISK | FILE_TYPE_PIPE
+    )
 }
 
 /// A private duplicate of `handle`, or `None` when it cannot be taken.
@@ -507,7 +519,7 @@ pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
 mod tests {
     use super::*;
     use windows_sys::Win32::Foundation::CompareObjectHandles;
-    use windows_sys::Win32::System::Console::AllocConsole;
+    use windows_sys::Win32::System::Console::{AllocConsole, GetConsoleMode};
     use windows_sys::Win32::System::Pipes::CreatePipe;
 
     /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
@@ -610,8 +622,39 @@ mod tests {
             "AllocConsole failed: {}",
             std::io::Error::last_os_error()
         );
-        let console_out = open_console_device("CONOUT$").expect("open CONOUT$ for the new console");
+        let console_out = open_console_out(FILE_GENERIC_READ | FILE_GENERIC_WRITE);
         set_std_handle(STD_OUTPUT_HANDLE, console_out);
+    }
+
+    /// `CONOUT$` with exactly the access asked for, so a test can hold the write-only
+    /// handle a parent is free to pass down as a child's stdout.
+    fn open_console_out(access: u32) -> HANDLE {
+        let name = wide::null_terminated("CONOUT$");
+        let handle = unsafe {
+            CreateFileW(
+                name.as_ptr(),
+                access,
+                FILE_SHARE_READ | FILE_SHARE_WRITE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                FILE_ATTRIBUTE_NORMAL,
+                std::ptr::null_mut(),
+            )
+        };
+        assert!(
+            handle != INVALID_HANDLE_VALUE && !handle.is_null(),
+            "CreateFileW(CONOUT$) failed: {}",
+            std::io::Error::last_os_error()
+        );
+        handle
+    }
+
+    /// Whether a handle this test opened with read access is a console that is still
+    /// alive. Production code cannot ask this way, since `GetConsoleMode` answers only
+    /// for a handle carrying `GENERIC_READ`.
+    fn is_live_console(handle: HANDLE) -> bool {
+        let mut mode = 0u32;
+        unsafe { GetConsoleMode(handle, &mut mode) != 0 }
     }
 
     /// Redirected stdio is pinned: a file or a pipe survives console churn, so the
@@ -622,26 +665,26 @@ mod tests {
         let _lock = console_lock();
         let slots = StdHandleSlots::capture();
 
-        let redirected = open_nul();
-        set_std_handle(STD_OUTPUT_HANDLE, redirected);
+        let (startup_read, startup_write) = open_pipe();
+        set_std_handle(STD_OUTPUT_HANDLE, startup_write);
         let source = InheritSource::capture(STD_OUTPUT_HANDLE);
 
-        let (pipe_read, pipe_write) = open_pipe();
-        set_std_handle(STD_OUTPUT_HANDLE, pipe_write);
+        let (other_read, other_write) = open_pipe();
+        set_std_handle(STD_OUTPUT_HANDLE, other_write);
 
         let resolved = source.resolve().expect("a pinned source always resolves");
         let kept_the_startup_object =
-            unsafe { CompareObjectHandles(resolved.raw(), redirected) } != 0;
-        let followed_the_slot = unsafe { CompareObjectHandles(resolved.raw(), pipe_write) } != 0;
+            unsafe { CompareObjectHandles(resolved.raw(), startup_write) } != 0;
+        let followed_the_slot = unsafe { CompareObjectHandles(resolved.raw(), other_write) } != 0;
 
         drop(resolved);
         slots.restore();
         if let InheritSource::Pinned(duplicate) = source {
             close(duplicate);
         }
-        close(pipe_write);
-        close(pipe_read);
-        close(redirected);
+        for handle in [startup_write, startup_read, other_write, other_read] {
+            close(handle);
+        }
 
         assert!(
             kept_the_startup_object,
@@ -670,14 +713,14 @@ mod tests {
         let source = InheritSource::capture(STD_OUTPUT_HANDLE);
         let pinned_a_console_handle = matches!(source, InheritSource::Pinned(_));
         let before = source.resolve();
-        let resolved_before = before.as_ref().is_some_and(|h| is_console_handle(h.raw()));
+        let resolved_before = before.as_ref().is_some_and(|h| is_live_console(h.raw()));
         drop(before);
 
         leave_console();
         attach_fresh_console();
 
         let after = source.resolve();
-        let resolved_after = after.as_ref().is_some_and(|h| is_console_handle(h.raw()));
+        let resolved_after = after.as_ref().is_some_and(|h| is_live_console(h.raw()));
         drop(after);
 
         leave_console();
@@ -691,6 +734,32 @@ mod tests {
         assert!(
             resolved_after,
             "inherit handed the child a handle that is no longer a console"
+        );
+    }
+
+    /// A console handle the supervisor cannot read from is still a console handle, and
+    /// `FreeConsole` closes it like any other. Classifying with `GetConsoleMode`, which
+    /// needs `GENERIC_READ`, would call this one redirected and pin a duplicate that the
+    /// first graceful stop invalidates.
+    #[test]
+    fn write_only_console_handle_is_not_pinned() {
+        let _lock = console_lock();
+        let restore = CallerConsoleGuard::capture();
+
+        leave_console();
+        attach_fresh_console();
+        // Closed by FreeConsole below along with every other handle to this console.
+        set_std_handle(STD_OUTPUT_HANDLE, open_console_out(FILE_GENERIC_WRITE));
+
+        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
+        let pinned = matches!(source, InheritSource::Pinned(_));
+
+        leave_console();
+        drop(restore);
+
+        assert!(
+            !pinned,
+            "a console handle the supervisor cannot read from must not be pinned"
         );
     }
 
