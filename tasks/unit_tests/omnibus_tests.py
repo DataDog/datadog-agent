@@ -304,6 +304,13 @@ class TestOmnibusInstall(unittest.TestCase):
         omnibus.bundle_install_omnibus(self.mock_ctx)
         self.assertEqual(len(self.mock_ctx.run.mock_calls), 1)
 
+    def test_ffi_yajl_build_flags(self):
+        self.mock_ctx.set_result_for('run', 'bundle install', Result())
+        omnibus.bundle_install_omnibus(self.mock_ctx, env={'FOO': 'bar'})
+        env = self.mock_ctx.run.mock_calls[0].kwargs['env']
+        self.assertEqual(env['FOO'], 'bar')
+        self.assertEqual(env['BUNDLE_BUILD__FFI___YAJL'], '--with-cflags=-std=gnu17')
+
     def test_failure(self):
         self.mock_ctx.set_result_for('run', 'bundle install', Result(exited=1))
         with self.assertRaises(UnexpectedExit):
