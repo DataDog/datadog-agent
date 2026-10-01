@@ -14,7 +14,9 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,9 +41,10 @@ type configTree struct {
 
 // Copy reproduces the source tree at the target path.
 //
-// The target root keeps the root-only mode it is created with: it takes on the source root's mode
-// and ownership only in Finish, once nothing more will be written into the copy.
-func (t configTree) Copy(_ context.Context) error {
+// The target root keeps the root-only mode it is created with: it takes on the source root's mode,
+// ownership and access control list only in Finish, once nothing more will be written into the
+// copy.
+func (t configTree) Copy(ctx context.Context) error {
 	if err := os.Mkdir(t.targetPath, 0700); err != nil && !errors.Is(err, fs.ErrExist) {
 		return fmt.Errorf("could not create %s: %w", t.targetPath, err)
 	}
@@ -56,7 +59,10 @@ func (t configTree) Copy(_ context.Context) error {
 	}
 	defer target.Close()
 
-	return fs.WalkDir(source.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
+	// Access control lists are copied once every entry exists rather than as each is created, so
+	// that no entry inherits an entry from a directory copied before it.
+	var withACL []string
+	err = fs.WalkDir(source.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -71,6 +77,7 @@ func (t configTree) Copy(_ context.Context) error {
 			if err := target.Mkdir(path, 0700); err != nil {
 				return fmt.Errorf("could not create %s: %w", path, err)
 			}
+			withACL = append(withACL, path)
 			return applyDirectoryMetadata(target, path, info)
 		case info.Mode()&os.ModeSymlink != 0:
 			destination, err := source.Readlink(path)
@@ -87,6 +94,7 @@ func (t configTree) Copy(_ context.Context) error {
 			}
 			return nil
 		case info.Mode().IsRegular():
+			withACL = append(withACL, path)
 			return copyRegularFile(source, target, path)
 		default:
 			// Sockets, fifos and device nodes are not configuration. The Agent recreates its own
@@ -95,10 +103,19 @@ func (t configTree) Copy(_ context.Context) error {
 			return nil
 		}
 	})
+	if err != nil {
+		return err
+	}
+	for _, path := range withACL {
+		if err := t.copyACL(ctx, path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// Finish gives the target root the source root's mode and ownership.
-func (t configTree) Finish(_ context.Context) error {
+// Finish gives the target root the source root's mode, ownership and access control list.
+func (t configTree) Finish(ctx context.Context) error {
 	source, err := os.OpenRoot(t.sourcePath)
 	if err != nil {
 		return fmt.Errorf("could not open %s: %w", t.sourcePath, err)
@@ -113,7 +130,51 @@ func (t configTree) Finish(_ context.Context) error {
 		return fmt.Errorf("could not open %s: %w", t.targetPath, err)
 	}
 	defer target.Close()
-	return applyDirectoryMetadata(target, ".", info)
+	if err := applyDirectoryMetadata(target, ".", info); err != nil {
+		return err
+	}
+	return t.copyACL(ctx, ".")
+}
+
+// copyACL gives an entry of the copy the source entry's access control list.
+//
+// The .dmg's postinstall script grants _dd-agent access through access control lists on top of the
+// Unix permissions, so that a file an editor replaces keeps its access, and a copy that dropped
+// them would differ from the tree it replaces. The standard library has no access control list
+// API, so this goes through the same tools the script uses.
+func (t configTree) copyACL(ctx context.Context, path string) error {
+	listing, err := exec.CommandContext(ctx, "/bin/ls", "-led", filepath.Join(t.sourcePath, path)).Output()
+	if err != nil {
+		return fmt.Errorf("could not read the access control list of %s: %w", path, err)
+	}
+	entries := aclEntries(listing)
+	if len(entries) == 0 {
+		return nil
+	}
+	cmd := exec.CommandContext(ctx, "/bin/chmod", "-E", filepath.Join(t.targetPath, path))
+	cmd.Stdin = strings.NewReader(strings.Join(entries, "\n") + "\n")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("could not set the access control list of %s: %w: %s", path, err, output)
+	}
+	return nil
+}
+
+// aclEntries extracts the access control entries from `ls -led` output, in the form `chmod -E`
+// reads them.
+//
+// ls numbers each entry and marks the ones a file inherited from its directory, a marker chmod
+// rejects; inherited entries are kept as explicit ones, which grant the same access.
+func aclEntries(listing []byte) []string {
+	var entries []string
+	lines := strings.Split(strings.TrimRight(string(listing), "\n"), "\n")
+	for _, line := range lines[1:] {
+		_, entry, ok := strings.Cut(strings.TrimSpace(line), ": ")
+		if !ok {
+			continue
+		}
+		entries = append(entries, strings.Replace(entry, " inherited ", " ", 1))
+	}
+	return entries
 }
 
 // Discard removes the copy. It succeeds when the copy is already gone.

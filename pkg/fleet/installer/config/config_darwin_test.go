@@ -11,6 +11,8 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -366,6 +368,55 @@ func TestCopyDoesNotWalkALinkOutOfTheSource(t *testing.T) {
 	destination, err := os.Readlink(filepath.Join(incoming, "escape"))
 	require.NoError(t, err)
 	assert.Equal(t, outside, destination)
+}
+
+func TestACLEntries(t *testing.T) {
+	listing := `drwxrwx---+ 3 _dd-agent  admin  96 Oct  1 12:00 /opt/datadog-agent/etc/conf.d
+ 0: user:_dd-agent allow list,add_file,search,file_inherit,directory_inherit
+ 1: user:_dd-agent inherited allow read,write
+`
+	assert.Equal(t, []string{
+		"user:_dd-agent allow list,add_file,search,file_inherit,directory_inherit",
+		"user:_dd-agent allow read,write",
+	}, aclEntries([]byte(listing)))
+	assert.Empty(t, aclEntries([]byte("-rw-rw----  1 _dd-agent  admin  0 Oct  1 12:00 datadog.yaml\n")))
+}
+
+// readACL returns a path's access control entries.
+func readACL(t *testing.T, path string) []string {
+	t.Helper()
+	listing, err := exec.Command("/bin/ls", "-led", path).Output()
+	require.NoError(t, err)
+	return aclEntries(listing)
+}
+
+func setACL(t *testing.T, path string, entry string) {
+	t.Helper()
+	require.NoError(t, exec.Command("/bin/chmod", "+a", entry, path).Run())
+}
+
+func TestCopyReproducesAccessControlLists(t *testing.T) {
+	current, err := user.Current()
+	require.NoError(t, err)
+	dirs := newTestDirectories(t)
+	setACL(t, dirs.StablePath, "user:"+current.Username+" allow list,search,file_inherit,directory_inherit")
+	setACL(t, filepath.Join(dirs.StablePath, "conf.d"), "user:"+current.Username+" allow list,add_file,search,file_inherit")
+	setACL(t, filepath.Join(dirs.StablePath, "datadog.yaml"), "group:everyone allow read")
+	// Created after conf.d's inheritable entry, so it carries an inherited one.
+	require.NoError(t, os.WriteFile(filepath.Join(dirs.StablePath, "conf.d", "inherited.yaml"), nil, 0640))
+
+	incoming := filepath.Join(filepath.Dir(dirs.StablePath), ".incoming")
+	tree := configTree{sourcePath: dirs.StablePath, targetPath: incoming}
+	require.NoError(t, tree.Copy(context.Background()))
+	require.NoError(t, tree.Finish(context.Background()))
+
+	for _, path := range []string{"", "conf.d", "datadog.yaml", filepath.Join("conf.d", "inherited.yaml")} {
+		assert.Equal(t, readACL(t, filepath.Join(dirs.StablePath, path)), readACL(t, filepath.Join(incoming, path)),
+			"access control list of %q", path)
+	}
+	// deploymentIDFile has no entries of its own, and must not pick any up from the root it is
+	// copied into.
+	assert.Empty(t, readACL(t, filepath.Join(incoming, deploymentIDFile)))
 }
 
 func TestDiscardSucceedsWhenTheCopyIsGone(t *testing.T) {
