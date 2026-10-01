@@ -56,5 +56,5 @@ From the list, select the <number> that has the baseRefName equal to this featur
 merge it directly (`gh pr merge <number> --merge`); feature branches carry no protection rule,
 so this needs no approval.
 
-Confirm the merged commit touches `btfhub/constants.json` and that your new offset names appear
-in the diff.
+Confirm the merged commit touches `constantfetch/constants_amd64.json` and `constants_arm64.json`
+and that your new offset names appear in the diff.

@@ -42,8 +42,7 @@ func nsInode(t *testing.T, path string) uint32 {
 }
 
 // ownNamespaceIDs returns the namespace IDs of the test process, which the syscall tester inherits,
-// or 0 for those the probe didn't resolve the offsets of. Offsets are requested from the kernel
-// version upstream introduced them in, so a backported namespace type (timens on RHEL 8) reports 0.
+// or 0 for those the probe didn't resolve the offsets of.
 func ownNamespaceIDs(t *testing.T, test *testModule) model.NamespaceIDs {
 	t.Helper()
 

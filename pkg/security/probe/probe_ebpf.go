@@ -4002,12 +4002,12 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUtsNamespaceNs, "struct uts_namespace", "ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameIpcNamespaceNs, "struct ipc_namespace", "ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameUserNamespaceNs, "struct user_namespace", "ns")
-	}
-	if kv.Code >= kernel.Kernel4_6 {
+
+		// cgroup (4.6) and time (5.6) namespaces were backported to older distro kernels (ubuntu 16.04
+		// 4.4, sles 15.2 5.3), so they aren't gated on the upstream version: BTF/BTFHub tells whether
+		// they exist. They are optional constants: a kernel without them doesn't log an error
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyCgroupNs, "struct nsproxy", "cgroup_ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameCgroupNamespaceNs, "struct cgroup_namespace", "ns")
-	}
-	if kv.Code >= kernel.Kernel5_6 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsproxyTimeNs, "struct nsproxy", "time_ns")
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTimeNamespaceNs, "struct time_namespace", "ns")
 	}
