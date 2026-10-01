@@ -45,7 +45,7 @@ func testJobSet(t *testing.T) (JobSet, *[][]string) {
 	client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 		calls = append(calls, args)
 		if len(args) > 0 && args[0] == "print" {
-			return []byte(notLoadedOutput), errors.New("exit status 113")
+			return []byte(notLoadedOutput), exitError(113)
 		}
 		return nil, nil
 	}
@@ -271,7 +271,7 @@ func TestJobSetStartEnablesDisabledJobsBeforeBootstrap(t *testing.T) {
 			jobs.Client.Runner = func(_ context.Context, _ string, args ...string) ([]byte, error) {
 				switch args[0] {
 				case "print":
-					return []byte(notLoadedOutput), errors.New("exit status 113")
+					return []byte(notLoadedOutput), exitError(113)
 				case "enable":
 					enabled[strings.TrimPrefix(args[1], "system/")] = true
 				case "bootstrap":
