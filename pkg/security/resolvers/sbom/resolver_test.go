@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -576,5 +577,44 @@ func TestHostForwardingSkipsImageSBOM(t *testing.T) {
 	}
 	if seen, _ := propertyValue(components[0], LastAccessProperty); seen == "0" || seen == "" {
 		t.Errorf("%s = %q, want util-linux seen running", LastAccessProperty, seen)
+	}
+}
+
+// rootRecorder is a package scanner that records the root it was given.
+type rootRecorder struct {
+	root string
+}
+
+func (s *rootRecorder) ScanInstalledPackages(_ context.Context, root string) ([]sbomtypes.PackageWithInstalledFiles, error) {
+	s.root = root
+	return nil, nil
+}
+
+// TestStartIndexesHostThroughInitRoot checks that the host packages are read
+// through the root of init, as those of a container are read through the root
+// of one of its processes. A containerized system-probe sees its own image at
+// /, and HOST_ROOT, here pointing elsewhere, may be unset.
+func TestStartIndexesHostThroughInitRoot(t *testing.T) {
+	t.Setenv("HOST_ROOT", t.TempDir())
+
+	scanner := &rootRecorder{}
+	r := &Resolver{
+		cfg:                   &config.RuntimeSecurityConfig{SBOMResolverHostEnabled: true},
+		sbomCollector:         scanner,
+		sbomGenerations:       atomic.NewUint64(0),
+		failedSBOMGenerations: atomic.NewUint64(0),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	if want := utils.ProcRootPath(1); scanner.root != want {
+		t.Errorf("host scanned at %q, want %q", scanner.root, want)
+	}
+	if !r.hostSBOM.IsComputed() {
+		t.Errorf("host SBOM left uncomputed")
 	}
 }
