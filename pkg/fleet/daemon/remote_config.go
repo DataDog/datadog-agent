@@ -251,7 +251,7 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool)
 			if err != nil {
 				log.Errorf("could not unmarshal request: %s", err)
 				applyStateCallback(id, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				return
+				continue
 			}
 			requests[id] = request
 		}
@@ -265,13 +265,9 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool)
 			if err != nil {
 				log.Errorf("could not execute request: %s", err)
 				applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
-				// TODO: returning here stops processing the rest of the set, so the other
-				// requests never get an applyStateCallback this pass (they're only retried on
-				// the next RC update, with no guarantee of promptness). Check whether that's the
-				// expected behaviour, e.g. for a method the platform declines. Until that is
-				// settled the behaviour is pinned by TestDeclinedRequestAbortsTheRestOfTheSet
-				// and TestFailedRequestAbortsTheRestOfTheSet in method_gate_test.go.
-				return
+				// A task error is local to this request. The client only notifies changed
+				// products, so a later callback cannot be relied on to process the rest.
+				continue
 			}
 			applyStateCallback(configID, state.ApplyStatus{State: state.ApplyStateAcknowledged})
 		}
