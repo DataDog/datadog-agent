@@ -1223,9 +1223,29 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 	if imageTag == "" {
 		imageTag = "latest"
 	}
+
+	pid := event.ProcessContext.Process.Pid
+	maxSize := int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize())
 	now := time.Now()
 	for i := range mounts {
-		secprof.InsertMount(&mounts[i], imageTag, activity_tree.Snapshot, now)
+		mnt := &mounts[i]
+
+		// mount paths are resolved lazily, so a cached entry may have an empty Path.
+		// Resolve it here (the iterator lock is released) and skip mounts we cannot
+		// resolve rather than recording an empty mount point.
+		mountPoint := mnt.Path
+		if resolved, _, _, err := m.resolvers.MountResolver.ResolveMountPath(mnt.MountID, pid); err == nil && resolved != "" {
+			mountPoint = resolved
+		}
+		if mountPoint == "" {
+			continue
+		}
+		mnt.Path = mountPoint
+
+		secprof.InsertMount(mnt, imageTag, activity_tree.Snapshot, now)
+		if secprof.ComputeHeapSize() >= maxSize {
+			break
+		}
 	}
 }
 
