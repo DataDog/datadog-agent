@@ -193,23 +193,28 @@ func TestInsertMountDryRun(t *testing.T) {
 	assert.Empty(t, at.Mounts)
 }
 
-func TestEvictImageTagKeepsMountsButClearsTag(t *testing.T) {
+func TestEvictImageTagRemovesOrphanMountsAndClearsSharedTag(t *testing.T) {
 	at := newMountTestTree()
-	tagID := at.GetOrInsertImageTag("img:v1")
+	v1 := at.GetOrInsertImageTag("img:v1")
+	v2 := at.GetOrInsertImageTag("img:v2")
 	now := time.Unix(0, 1000)
 
-	at.InsertMount(testNsA, "/data", "/", "ext4", 0, tagID, Runtime, now, false)
+	at.InsertMount(testNsA, "/only-v1", "/", "ext4", 0, v1, Runtime, now, false)
+	at.InsertMount(testNsA, "/shared", "/", "ext4", 0, v1, Runtime, now, false)
+	at.InsertMount(testNsA, "/shared", "/", "ext4", 0, v2, Runtime, now, false)
 
 	at.EvictImageTag("img:v1")
 
-	// the mount node survives eviction (append-only)
-	require.Len(t, at.Mounts, 1)
+	// a mount that only belonged to the evicted tag is removed
+	assert.Nil(t, findMount(at, "/only-v1", 0))
 
-	// the freed slot is reused by a new tag; the surviving mount must not be
-	// misattributed to it
-	reusedID := at.GetOrInsertImageTag("img:v2")
-	assert.Equal(t, tagID, reusedID)
-	assert.False(t, at.Mounts[0].HasImageTag(reusedID))
+	// a mount still referenced by another tag survives with the evicted tag cleared
+	shared := findMount(at, "/shared", 0)
+	require.NotNil(t, shared)
+	assert.False(t, shared.HasImageTag(v1))
+	assert.True(t, shared.HasImageTag(v2))
+
+	require.Len(t, at.Mounts, 1)
 }
 
 func TestMountsProtoRoundTrip(t *testing.T) {
