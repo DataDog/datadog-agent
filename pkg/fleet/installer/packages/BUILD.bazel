@@ -8,6 +8,7 @@ go_library(
         "apm_inject_windows.go",
         "apm_library_dotnet_windows.go",
         "config_experiment_darwin.go",
+        "config_experiment_resume_darwin.go",
         "config_experiment_watcher_darwin.go",
         "datadog_agent_darwin.go",
         "datadog_agent_ddot_linux.go",
@@ -55,6 +56,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:darwin": [
+            "//pkg/fleet/installer/config",
             "//pkg/fleet/installer/installinfo",
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
@@ -63,6 +65,7 @@ go_library(
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
+            "//pkg/fleet/installer/config",
             "//pkg/fleet/installer/installinfo",
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
