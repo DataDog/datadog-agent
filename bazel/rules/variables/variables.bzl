@@ -98,7 +98,10 @@ def compute_version_variables():
         agent_version_url_safe = env_vars.PACKAGE_VERSION
     else:
         agent_version_url_safe = release_json.get("current_milestone") + "-localbuild"
-    agent_version = _url_safe_to_standard(agent_version_url_safe)
+
+    # As in invoke's get_version_ldflags(), only the URL-safe form carries the
+    # pipeline id.
+    agent_version = _url_safe_to_standard(agent_version_url_safe.split(".pipeline.")[0])
 
     # CI_COMMIT_SHA is set in every CI job, but only package builds set
     # PACKAGE_VERSION: stamping it elsewhere would relink binaries on each commit.
@@ -160,7 +163,7 @@ Values provided:
   build_version: The pipeline build version (PACKAGE_VERSION), raw.
   base_branch: Agent base branch from release.json.
   milestone: Next product milestone version from release.json.
-  agent_version: The agent version in standard SemVer form.
+  agent_version: The agent version in standard SemVer form, without pipeline id.
   agent_version_url_safe: The agent version in URL-safe form.
   agent_payload_version: The agent payload version.
   agent_package_version: pkg/version.AgentPackageVersion; the install_dir
