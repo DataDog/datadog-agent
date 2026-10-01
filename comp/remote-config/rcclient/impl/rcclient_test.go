@@ -251,6 +251,9 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	activeAllowlist := state.RawConfig{Config: []byte(`{"name": "yesallowlist", "metrics_allowlist": ["system.cpu.usage"]}`)}
 	emptyAllowlist := state.RawConfig{Config: []byte(`{"name": "emptyallowlist", "metrics_allowlist": []}`)}
 	nilAllowlist := state.RawConfig{Config: []byte(`{"name": "nilallowlist"}`)}
+	activeServices := state.RawConfig{Config: []byte(`{"name": "yesservices", "logs_service_allowlist": ["web", "api"]}`)}
+	moreServices := state.RawConfig{Config: []byte(`{"name": "moreservices", "logs_service_allowlist": ["api", "worker"]}`)}
+	emptyServices := state.RawConfig{Config: []byte(`{"name": "emptyservices", "logs_service_allowlist": []}`)}
 
 	rc := rcComponent.(*rcClient)
 
@@ -267,35 +270,42 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		client.WithPollInterval(time.Hour),
 	)
 
-	// Should enable metrics failover and disable logs failover
-	// and set the metrics allowlist
+	// Should enable metrics failover and disable logs failover,
+	// set the metrics allowlist and merge the logs service allowlists
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_FAILOVER/none/configname":         allInactive,
 		"datadog/2/AGENT_FAILOVER/nologs/configname":       noLogs,
 		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
 		"datadog/2/AGENT_FAILOVER/yesapm/configname":       activeAPM,
 		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": activeAllowlist,
+		"datadog/2/AGENT_FAILOVER/yesservices/configname":  activeServices,
+		"datadog/2/AGENT_FAILOVER/moreservices/configname": moreServices,
 	}, applyEmpty)
 
 	metricsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_metrics")
 	logsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_logs")
 	apmVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_apm")
 	allowlistVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	servicesVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.logs_service_allowlist")
 	assert.True(t, metricsVal.(bool))
 	assert.False(t, logsVal.(bool))
 	assert.True(t, apmVal.(bool))
 	assert.ElementsMatch(t, []string{"system.cpu.usage"}, allowlistVal.([]string))
+	assert.Equal(t, []string{"api", "web", "worker"}, servicesVal)
 
-	// Should set an empty allowlist
+	// Should set empty allowlists
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": emptyAllowlist,
 		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
+		"datadog/2/AGENT_FAILOVER/yesservices/configname":  emptyServices,
 	}, applyEmpty)
 
 	metricsVal, _ = settingsComp.GetRuntimeSetting("multi_region_failover.failover_metrics")
 	allowlistVal, _ = settingsComp.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	servicesVal, _ = settingsComp.GetRuntimeSetting("multi_region_failover.logs_service_allowlist")
 	assert.True(t, metricsVal.(bool))
 	assert.ElementsMatch(t, []string{}, allowlistVal.([]string))
+	assert.Equal(t, []string{}, servicesVal)
 
 	// Should not set an allowlist (nil means not configured, so we fallback)
 	// First, let's set a new mock to verify allowlist is not set
@@ -308,6 +318,54 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	metricsVal, _ = settingsComp2.GetRuntimeSetting("multi_region_failover.failover_metrics")
 	allowlistVal, _ = settingsComp2.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	servicesVal, _ = settingsComp2.GetRuntimeSetting("multi_region_failover.logs_service_allowlist")
 	assert.True(t, metricsVal.(bool))
 	assert.Nil(t, allowlistVal)
+	assert.Nil(t, servicesVal)
+}
+
+// recordingSettings records the runtime settings set through it.
+type recordingSettings struct {
+	settings.Component
+	events *[]string
+}
+
+func (s *recordingSettings) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
+	*s.events = append(*s.events, "set "+setting)
+	return s.Component.SetRuntimeSetting(setting, value, source)
+}
+
+// Logs failover must never be enabled with the fallback logs service allowlist, which forwards every log.
+func TestAgentMRFLogsServiceAllowlistOrdering(t *testing.T) {
+	cfg := configmock.New(t)
+	var events []string
+	cfg.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
+		events = append(events, "update "+setting)
+	})
+	rc := &rcClient{settingsComponent: &recordingSettings{
+		Component: fxutil.Test[settings.Component](t, settingsmock.MockModule()),
+		events:    &events,
+	}}
+
+	activeLogs := state.RawConfig{Config: []byte(`{"name": "yeslogs", "failover_logs": true}`)}
+	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
+	services := state.RawConfig{Config: []byte(`{"name": "services", "logs_service_allowlist": ["web"]}`)}
+
+	// Enabling logs failover: the allowlist is set first
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
+		"datadog/2/AGENT_FAILOVER/yeslogs/configname":  activeLogs,
+		"datadog/2/AGENT_FAILOVER/services/configname": services,
+	}, applyEmpty)
+	assert.Equal(t, []string{"set " + logsServiceAllowlistSetting, "set " + failoverLogsSetting}, events)
+
+	// Disabling logs failover and removing the allowlist: the allowlist is removed last.
+	// The mocked settings component does not write to the config, so store the allowlist there as the
+	// runtime setting would.
+	cfg.Set(logsServiceAllowlistSetting, []string{"web"}, model.SourceRC)
+	events = nil
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
+		"datadog/2/AGENT_FAILOVER/nologs/configname": noLogs,
+	}, applyEmpty)
+	assert.Equal(t, []string{"set " + failoverLogsSetting, "update " + logsServiceAllowlistSetting}, events)
+	assert.Empty(t, cfg.GetStringSlice(logsServiceAllowlistSetting))
 }
