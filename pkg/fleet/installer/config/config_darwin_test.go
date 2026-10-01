@@ -297,8 +297,7 @@ func TestSetFileOwnershipAndPermissionsRefusesALink(t *testing.T) {
 	require.NoError(t, err)
 	defer root.Close()
 
-	spec := &configFileSpec{owner: agentConfigUser, group: agentConfigGroup, mode: 0644}
-	require.Error(t, setFileOwnershipAndPermissions(context.Background(), root, "datadog.yaml", spec))
+	require.Error(t, setFileOwnershipAndPermissions(context.Background(), root, "datadog.yaml", &configFileSpec{}))
 
 	info, err := os.Stat(outside)
 	require.NoError(t, err)
@@ -376,6 +375,25 @@ func TestDiscardSucceedsWhenTheCopyIsGone(t *testing.T) {
 
 	tree = configTree{targetPath: filepath.Join(parent, "missing", ".incoming")}
 	require.NoError(t, tree.Discard(context.Background()))
+}
+
+// TestWriteExperimentGivesWrittenFilesThePostinstallMode covers a file whose Linux spec differs
+// from the .dmg layout: system-probe.yaml is root-owned 0640 on Linux, but on macOS every
+// configuration file has the mode the .dmg's postinstall script gives the tree.
+func TestWriteExperimentGivesWrittenFilesThePostinstallMode(t *testing.T) {
+	dirs := newTestDirectories(t)
+	operations := Operations{
+		DeploymentID: "exp-1",
+		FileOperations: []FileOperation{
+			{FileOperationType: FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config":{"enabled":true}}`)},
+		},
+	}
+
+	require.NoError(t, dirs.WriteExperiment(context.Background(), operations))
+
+	info, err := os.Stat(filepath.Join(dirs.ExperimentPath, "system-probe.yaml"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(agentConfigFileMode), info.Mode().Perm())
 }
 
 func TestPromoteExperimentReplacesStableAndRestsTheLink(t *testing.T) {
@@ -486,12 +504,10 @@ func TestDirSwapRefusesDifferentParents(t *testing.T) {
 }
 
 // TestAgentAccountIsTheMacOSOne pins the ownership the patched files are given. macOS reserves the
-// unprefixed namespace for the system, so a spec naming dd-agent would silently fail to apply --
+// unprefixed namespace for the system, so an account named dd-agent would silently fail to apply --
 // setFileOwnershipAndPermissions only warns on a failed chown -- and leave fleet configuration
-// unreadable by the Agent.
+// unreadable by the Agent. The group is the one the .dmg's postinstall script gives the tree.
 func TestAgentAccountIsTheMacOSOne(t *testing.T) {
-	spec := getConfigFileSpec("/datadog.yaml")
-	require.NotNil(t, spec)
-	assert.Equal(t, "_dd-agent", spec.owner)
-	assert.Equal(t, "daemon", spec.group)
+	assert.Equal(t, "_dd-agent", agentConfigUser)
+	assert.Equal(t, "admin", agentConfigGroup)
 }

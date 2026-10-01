@@ -11,7 +11,10 @@ const (
 	// agentConfigUser owns the configuration files the Agent reads. macOS reserves the
 	// unprefixed namespace for the operating system, so the Agent's account is _dd-agent.
 	agentConfigUser = "_dd-agent"
-	// agentConfigGroup is the group of the configuration files the Agent reads. macOS has no
-	// per-user group, so the Agent's account belongs to the system daemon group.
-	agentConfigGroup = "daemon"
+	// agentConfigGroup is the group of the configuration files the Agent reads, the one the
+	// .dmg's postinstall script gives the whole configuration tree.
+	agentConfigGroup = "admin"
+	// agentConfigFileMode is the mode of every configuration file, the one the .dmg's
+	// postinstall script gives the whole configuration tree.
+	agentConfigFileMode = 0660
 )
