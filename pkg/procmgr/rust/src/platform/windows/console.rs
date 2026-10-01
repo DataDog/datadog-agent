@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, GENERIC_READ, GetLastError, HANDLE,
+    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, GetLastError, HANDLE,
     INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
@@ -18,7 +18,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 use windows_sys::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
     GetConsoleCP, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
-    STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle,
+    STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle, WriteConsoleW,
 };
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -154,33 +154,21 @@ fn startup_stdio() -> &'static StartupStdio {
 /// True when `handle` belongs to a console, so that pinning a duplicate of it would be
 /// pinning something `FreeConsole` closes.
 ///
-/// `GetConsoleMode` is the question to ask, but it answers only for a handle carrying
-/// `GENERIC_READ`, and a parent is free to hand its child a write-only `CONOUT$`. So a
-/// handle that cannot answer for itself is asked again through a duplicate that can read.
-///
-/// When even that fails the answer is yes, because the two mistakes do not cost the same:
-/// calling a redirection console backed sends a child's output to the console, a
-/// misroute, while calling a console handle redirected is the dead or recycled handle
-/// this module exists to avoid.
+/// No one call answers for every handle. `GetConsoleMode` needs `GENERIC_READ`, and a
+/// parent is free to hand its child a write-only `CONOUT$`; borrowing the right through
+/// `DuplicateHandle` is not open either, since a duplicate cannot carry access the source
+/// handle does not have. So a handle that cannot answer by being read is asked the other
+/// way round, by being written to. Between them the two cover any handle usable as a
+/// child's stdout, which has to carry one right or the other to be worth inheriting.
 fn is_console_handle(handle: HANDLE) -> bool {
-    // Settles a disk file or a pipe without a duplicate, whatever access it carries.
+    // Settles a disk file or a pipe without touching the console API at all.
     if matches!(
         unsafe { GetFileType(handle) },
         FILE_TYPE_DISK | FILE_TYPE_PIPE
     ) {
         return false;
     }
-    if console_mode_readable(handle) {
-        return true;
-    }
-    match duplicate_for_self_with_access(handle, GENERIC_READ) {
-        Some(readable) => {
-            let answer = console_mode_readable(readable);
-            unsafe { CloseHandle(readable) };
-            answer
-        }
-        None => true,
-    }
+    console_mode_readable(handle) || console_write_accepted(handle)
 }
 
 fn console_mode_readable(handle: HANDLE) -> bool {
@@ -188,28 +176,25 @@ fn console_mode_readable(handle: HANDLE) -> bool {
     unsafe { GetConsoleMode(handle, &mut mode) != 0 }
 }
 
-/// A private duplicate of `handle` carrying the same access, or `None` when it cannot be
-/// taken.
-fn duplicate_for_self(handle: HANDLE) -> Option<HANDLE> {
-    let duplicate = duplicate_for_self_with_access(handle, 0);
-    if duplicate.is_none() {
-        log::warn!(
-            "DuplicateHandle(std handle) failed: {}, spawns will not inherit it",
-            std::io::Error::last_os_error()
-        );
+/// Whether the handle takes a write of nothing, which a console screen buffer does and a
+/// redirection does not: `WriteConsoleW` fails on any handle that is not a console. The
+/// zero length is what makes it a question rather than an edit.
+fn console_write_accepted(handle: HANDLE) -> bool {
+    let nothing: u16 = 0;
+    let mut written = 0u32;
+    unsafe {
+        WriteConsoleW(
+            handle,
+            std::ptr::from_ref(&nothing).cast(),
+            0,
+            &mut written,
+            std::ptr::null(),
+        ) != 0
     }
-    duplicate
 }
 
-/// A private duplicate of `handle`. `access` of 0 means the source's own access, which is
-/// what `DUPLICATE_SAME_ACCESS` selects; anything else is checked against the object, so
-/// it can ask for a right the source handle does not carry.
-fn duplicate_for_self_with_access(handle: HANDLE, access: u32) -> Option<HANDLE> {
-    let options = if access == 0 {
-        DUPLICATE_SAME_ACCESS
-    } else {
-        0
-    };
+/// A private duplicate of `handle`, or `None` when it cannot be taken.
+fn duplicate_for_self(handle: HANDLE) -> Option<HANDLE> {
     let mut dup: HANDLE = std::ptr::null_mut();
     let ok = unsafe {
         DuplicateHandle(
@@ -217,12 +202,19 @@ fn duplicate_for_self_with_access(handle: HANDLE, access: u32) -> Option<HANDLE>
             handle,
             GetCurrentProcess(),
             &mut dup,
-            access,
             0,
-            options,
+            0,
+            DUPLICATE_SAME_ACCESS,
         )
     };
-    if ok == 0 { None } else { Some(dup) }
+    if ok == 0 {
+        log::warn!(
+            "DuplicateHandle(std handle) failed: {}, spawns will not inherit it",
+            std::io::Error::last_os_error()
+        );
+        return None;
+    }
+    Some(dup)
 }
 
 /// The handle an `inherit` spawn should duplicate for `kind`, if any.
