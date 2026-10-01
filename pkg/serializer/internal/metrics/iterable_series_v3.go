@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"math/bits"
 	"slices"
 
@@ -160,7 +161,7 @@ type v3stats struct {
 	valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
 }
 
-func newPayloadsBuilderV3WithConfig(
+func newSeriesPayloadBuilderV3WithConfig(
 	config config.Component,
 	compression compression.Component,
 	pipelineConfig PipelineConfig,
@@ -169,6 +170,40 @@ func newPayloadsBuilderV3WithConfig(
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
+
+	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
+		compression = selector.NewCompressor(config.GetString("serializer_compressor_kind"), level)
+	}
+
+	return newPayloadsBuilderV3(
+		maxCompressedSize,
+		maxUncompressedSize,
+		maxPointsPerPayload,
+		compression,
+		pipelineConfig,
+		pipelineContext,
+	)
+}
+
+func newSketchesPayloadBuilderV3WithConfig(
+	config config.Component,
+	compression compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+) (*payloadsBuilderV3, error) {
+	maxCompressedSize := config.GetInt("serializer_experimental_use_v3_api.sketches.max_compressed_payload_size")
+	if maxCompressedSize <= 0 {
+		maxCompressedSize = config.GetInt("serializer_max_payload_size")
+	}
+	maxUncompressedSize := config.GetInt("serializer_experimental_use_v3_api.sketches.max_uncompressed_payload_size")
+	if maxUncompressedSize <= 0 {
+		maxUncompressedSize = config.GetInt("serializer_max_uncompressed_payload_size")
+	}
+	maxPointsPerPayload := config.GetInt("serializer_experimental_use_v3_api.sketches.max_points_per_payload")
+	// Unlike series, sketches point limit is disabled by default.
+	if maxPointsPerPayload <= 0 {
+		maxPointsPerPayload = math.MaxInt
+	}
 
 	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
 		compression = selector.NewCompressor(config.GetString("serializer_compressor_kind"), level)

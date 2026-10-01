@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"slices"
 	"time"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -74,8 +75,13 @@ func processActivityNodeToProto(pan *ProcessNode, tagIDToImageTag func(id uint64
 		ppan.Sockets = append(ppan.Sockets, socketNodeToProto(socket, tagIDToImageTag))
 	}
 
-	for _, sysc := range pan.Syscalls {
-		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(sysc, tagIDToImageTag))
+	syscallIDs := make([]int, 0, len(pan.Syscalls))
+	for id := range pan.Syscalls {
+		syscallIDs = append(syscallIDs, id)
+	}
+	slices.Sort(syscallIDs)
+	for _, id := range syscallIDs {
+		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(pan.Syscalls[id], tagIDToImageTag))
 	}
 
 	for _, networkDevice := range pan.NetworkDevices {
