@@ -27,7 +27,7 @@ must come from a future repository rule (bazel/repo/git_info.bzl) and should
 only be set when Bazel is invoked with the --stamp flag.
 """
 
-load("@rules_go//go:def.bzl", "go_binary")
+load("@rules_go//go:def.bzl", "go_binary", "go_cross_binary")
 load("@with_cfg.bzl", "with_cfg")
 load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_symbols")
 load("//bazel/rules/variables:variables.bzl", "compute_version_variables", "standard_to_url_safe")
@@ -141,9 +141,42 @@ def dd_agent_go_binary(
     binary_tags = (tags or []) + ["manual"]
     unstripped_name = "%s_unstripped" % name
 
+    _ = """
+    # Attempt 1
     # TODO: investigate using go_cross_binary(compilation_mode = "dbg") as
     # an alternate way of preventing stripping.
-# unstripped_go_binary(
+    unstripped_go_binary(
+        name = underlying_name,
+        gc_linkopts = (gc_linkopts or []) + run_path_linkopts,
+        x_defs = all_x_defs,
+        tags = binary_tags,
+        visibility = ["//visibility:private"],
+        **kwargs
+    )
+    go_cross_binary(
+        target = ":" + underlying_name,
+        compilation_mode = "dbg",
+    )
+
+    # Attempt 2
+    # TODO: investigate using unstripped_go_binary instead of go_cross_binary
+    underlying_name = "%s_original" % name
+    go_binary(
+        name = underlying_name,
+        gc_linkopts = (gc_linkopts or []) + run_path_linkopts,
+        x_defs = all_x_defs,
+        tags = binary_tags,
+        visibility = ["//visibility:private"],
+        **kwargs
+    )
+    go_cross_binary(
+        name = unstripped_name,
+        target = ":" + underlying_name,
+        compilation_mode = "dbg",
+    )
+    """
+
+    # Attempt 3, with rules_go fix to stripping vs fastbuild.
     go_binary(
         name = unstripped_name,
         gc_linkopts = (gc_linkopts or []) + run_path_linkopts,
