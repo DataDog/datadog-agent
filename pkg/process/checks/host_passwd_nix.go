@@ -33,7 +33,6 @@ func newHostPasswdCache() *hostPasswdCache {
 	return &hostPasswdCache{now: time.Now}
 }
 
-// ponytail: production check runners serialize UID lookups; add synchronization if formatting becomes parallel.
 func (c *hostPasswdCache) lookup(uid string) (*user.User, bool) {
 	c.refresh()
 	u, found := c.users[uid]
