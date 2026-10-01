@@ -8,6 +8,8 @@ package daemon
 import (
 	"encoding/json"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -233,7 +235,7 @@ func TestRemoteAPIRequestIgnoresAlreadyExecutedRequests(t *testing.T) {
 // TestRemoteAPIRequestWaitsForCatalog pins the property the UPDATER_TASK/UPDATER_CATALOG_DD
 // decoupling relies on: subscribing to tasks no longer waits for a catalog, but executing one
 // still does. A task delivered before any catalog has been applied must be left unacknowledged,
-// not executed or errored, so remote-config redelivers it once a catalog exists.
+// not executed or errored, so it runs when the tasks are replayed once a catalog exists.
 func TestRemoteAPIRequestWaitsForCatalog(t *testing.T) {
 	callback := &callbackMock{}
 	handler := handleUpdaterTaskUpdate(callback.handleRemoteAPIRequest, func() bool { return false })
@@ -303,4 +305,86 @@ func TestRemoteAPIRequestDeferredUntilCatalog(t *testing.T) {
 	}, callback.applyStateCallback)
 
 	callback.AssertExpectations(t)
+}
+
+// fakeTaskClient is a remoteConfigClient whose current tasks are set by the test.
+type fakeTaskClient struct {
+	remoteConfigClient
+	tasks    map[string]state.RawConfig
+	statuses map[string]state.ApplyStatus
+}
+
+func (c *fakeTaskClient) GetConfigs(product string) map[string]state.RawConfig {
+	if product != state.ProductUpdaterTask {
+		return nil
+	}
+	return c.tasks
+}
+
+func (c *fakeTaskClient) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
+	c.statuses[cfgPath] = status
+}
+
+// TestReplayTasksRunsATaskDeferredBeforeTheCatalog covers what replayTasks is for: the client
+// only notifies a product that changed, so a task deferred while no catalog existed would never be
+// delivered again unless the tasks are replayed once the first catalog is applied.
+func TestReplayTasksRunsATaskDeferredBeforeTheCatalog(t *testing.T) {
+	var catalogReady atomic.Bool
+	var executed atomic.Int32
+	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
+		executed.Add(1)
+		return nil
+	}, catalogReady.Load)
+	tasks := map[string]state.RawConfig{"test": {Config: testRemoteAPIRequestJSON}}
+	client := &fakeTaskClient{tasks: tasks, statuses: map[string]state.ApplyStatus{}}
+
+	handler(tasks, client.UpdateApplyStatus)
+	require.Zero(t, executed.Load(), "the task ran before any catalog was applied")
+
+	catalogReady.Store(true)
+	replayTasks(client, handler)
+
+	assert.EqualValues(t, 1, executed.Load())
+	assert.Equal(t, state.ApplyStateAcknowledged, client.statuses["test"].State)
+}
+
+// TestReplayTasksSkipsAWithdrawnTask pins that the replay reads the client's current tasks: a task
+// the backend withdrew after it was deferred must not run.
+func TestReplayTasksSkipsAWithdrawnTask(t *testing.T) {
+	var catalogReady atomic.Bool
+	var executed atomic.Int32
+	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
+		executed.Add(1)
+		return nil
+	}, catalogReady.Load)
+	client := &fakeTaskClient{tasks: map[string]state.RawConfig{}, statuses: map[string]state.ApplyStatus{}}
+
+	handler(map[string]state.RawConfig{"test": {Config: testRemoteAPIRequestJSON}}, client.UpdateApplyStatus)
+	catalogReady.Store(true)
+	replayTasks(client, handler)
+
+	assert.Zero(t, executed.Load())
+}
+
+// TestTaskHandlerRunsARequestOnceUnderConcurrentDelivery covers the replay racing a regular
+// delivery of the same tasks: the request runs exactly once.
+func TestTaskHandlerRunsARequestOnceUnderConcurrentDelivery(t *testing.T) {
+	var executed atomic.Int32
+	handler := handleUpdaterTaskUpdate(func(remoteAPIRequest) error {
+		executed.Add(1)
+		return nil
+	}, alwaysCatalogReady)
+	tasks := map[string]state.RawConfig{"test": {Config: testRemoteAPIRequestJSON}}
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			handler(tasks, func(string, state.ApplyStatus) {})
+		}()
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 1, executed.Load())
 }

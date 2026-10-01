@@ -26,6 +26,8 @@ type remoteConfigClient interface {
 	GetInstallerState() *pbgo.ClientUpdater
 	SetInstallerState(state *pbgo.ClientUpdater)
 	GetClientID() string
+	GetConfigs(product string) map[string]state.RawConfig
+	UpdateApplyStatus(cfgPath string, status state.ApplyStatus)
 }
 
 type remoteConfig struct {
@@ -56,11 +58,16 @@ func (rc *remoteConfig) Start(handleConfigsUpdate handleConfigsUpdate, handleCat
 	// Fleet Automation checks to know the installer is remote-config-active, and it must not
 	// depend on the backend ever actually having assigned a catalog to this client.
 	var catalogApplied atomic.Bool
+	handleTasks := handleUpdaterTaskUpdate(handleRemoteAPIRequest, catalogApplied.Load)
 	rc.client.Subscribe(state.ProductInstallerConfig, handleInstallerConfigUpdate(handleConfigsUpdate))
 	rc.client.Subscribe(state.ProductUpdaterCatalogDD, handleUpdaterCatalogDDUpdate(handleCatalogUpdate, func() {
 		catalogApplied.Store(true)
+		// Tasks deferred while no catalog existed are only redelivered when the task product
+		// itself changes, so the current tasks are replayed once now. In a goroutine: the
+		// client runs this callback while holding the lock GetConfigs takes.
+		go replayTasks(rc.client, handleTasks)
 	}))
-	rc.client.Subscribe(state.ProductUpdaterTask, handleUpdaterTaskUpdate(handleRemoteAPIRequest, catalogApplied.Load))
+	rc.client.Subscribe(state.ProductUpdaterTask, handleTasks)
 	rc.client.Start()
 }
 
@@ -241,9 +248,21 @@ type installPackageTaskParams struct {
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error
 
+// replayTasks runs the task handler on the client's current tasks. It reads them from the client
+// rather than from an earlier delivery, so a task the backend has withdrawn since is not run.
+func replayTasks(c remoteConfigClient, handleTasks func(map[string]state.RawConfig, func(string, state.ApplyStatus))) {
+	handleTasks(c.GetConfigs(state.ProductUpdaterTask), c.UpdateApplyStatus)
+}
+
+// handleUpdaterTaskUpdate returns the handler for remote tasks. It is safe for concurrent use: the
+// client delivers tasks from its poll loop while replayTasks may run from another goroutine, and a
+// request is executed at most once either way.
 func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool) func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus)) {
+	var mu sync.Mutex
 	var executedRequests = make(map[string]struct{})
 	return func(requestConfigs map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+		mu.Lock()
+		defer mu.Unlock()
 		requests := map[string]remoteAPIRequest{}
 		for id, requestConfig := range requestConfigs {
 			var request remoteAPIRequest
@@ -262,8 +281,8 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool)
 			}
 			if requiresCatalog(request.Method) && catalogReady != nil && !catalogReady() {
 				// No catalog has been applied yet, so this task couldn't resolve its package
-				// against it. Leave it unacknowledged: the updater client explicitly replays
-				// the current task snapshot after delivering a changed catalog.
+				// against it. Leave it unacknowledged: the current tasks are replayed once the
+				// first catalog has been applied (see replayTasks).
 				log.Debugf("request %s (%s) deferred until a catalog has been applied", request.ID, request.Method)
 				continue
 			}
