@@ -524,3 +524,34 @@ func TestHostInfoCheckHealthy404DoesNotBackOff(t *testing.T) {
 	assert.Equal(t, 10, attempts)
 	assert.Equal(t, 0, check.metadataFailures)
 }
+
+func TestHostInfoCheckHealthy404ResetsStaleFailures(t *testing.T) {
+	defer resetTestVars()
+
+	detectCloudProviderFn = func(_ context.Context, _ bool) (string, string) {
+		return "AWS", ""
+	}
+
+	// The healthy no-active-notice steady state: IMDS answers 404.
+	notFound := &httputils.StatusCodeError{StatusCode: 404, Method: "GET", URL: "u"}
+	getPreemptionTerminationFn = func(_ context.Context, _ string) (time.Time, error) {
+		return time.Time{}, notFound
+	}
+
+	mockSender := mocksender.NewMockSender(t, CheckName)
+	mockSender.On("FinalizeCheckServiceTag").Return()
+
+	check := newCheck().(*Check)
+	check.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test", "provider")
+	mocksender.SetSender(mockSender, check.ID())
+
+	// Stale failures left over from an earlier outage, below the backoff
+	// threshold.
+	check.metadataFailures = metadataFailureThreshold - 1
+	check.metadataLastAttempt = time.Now()
+
+	// A 404 must clear the stale failures, not just skip the increment, or
+	// they would linger forever on a spot instance that only ever 404s.
+	check.checkPreemptionEvents(mockSender)
+	assert.Equal(t, 0, check.metadataFailures)
+}
