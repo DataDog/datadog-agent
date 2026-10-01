@@ -111,20 +111,10 @@ func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse,
 		return nil, errors.New("no checks to rebalance: advanced dispatching is not enabled")
 	}
 
-	rebalancingDecisions := h.dispatcher.rebalance(force)
-	response := []types.RebalanceResponse{}
-
-	for _, decision := range rebalancingDecisions {
-		response = append(response, types.RebalanceResponse{
-			Digest:         decision.Digest,
-			CheckWeight:    decision.CheckWeight,
-			SourceNodeName: decision.SourceNodeName,
-			SourceDiff:     decision.SourceDiff,
-			DestNodeName:   decision.DestNodeName,
-			DestDiff:       decision.DestDiff,
-		})
+	response := h.dispatcher.rebalance(force)
+	if response == nil {
+		response = []types.RebalanceResponse{}
 	}
-
 	return response, nil
 }
 

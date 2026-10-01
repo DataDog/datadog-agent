@@ -186,15 +186,3 @@ func (s *nodeStore) GetRunnerStats(checkID string) (types.CLCRunnerStats, error)
 	}
 	return stats, nil
 }
-
-// GetBusyness calculates busyness of the node
-// The nodeStore handles thread safety for this public method
-func (s *nodeStore) GetBusyness(busynessFunc func(stats types.CLCRunnerStats) int) int {
-	s.RLock()
-	defer s.RUnlock()
-	busyness := 0
-	for _, stats := range s.clcRunnerStats {
-		busyness += busynessFunc(stats)
-	}
-	return busyness
-}
