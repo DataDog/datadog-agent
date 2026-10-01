@@ -159,6 +159,30 @@ func (s *configMacOSSuite) resetRemoteConfig() {
 	}
 }
 
+// clearPendingUpdaterTasks removes every UPDATER_TASK still sitting on fakeintake, so a daemon
+// restart does not see (and redeliver) a task issued before the simulated crash.
+//
+// fakeintake keeps a pushed UPDATER_TASK assigned until it is explicitly deleted, mirroring a real
+// Remote Config backend's targets. In production that deletion happens once the backend observes the
+// client's applied status; this test's RC poll interval is seconds, so a real crash-and-restart cycle
+// -- which plays out over minutes, long after the backend would have settled the task -- is
+// compressed here into a gap too short for that to happen naturally. Left unhandled, a task this
+// test already applied (start_experiment_config) gets redelivered right after restart and
+// verifyState lets it re-apply, because a successful revert leaves the daemon's state exactly
+// matching that task's pre-state. That is a test-timing artifact of the fast local loop, not a
+// product bug: a real backend would not still be offering this task minutes after it first applied.
+func (s *configMacOSSuite) clearPendingUpdaterTasks() {
+	configs, err := s.fakeintake().RCListConfigs()
+	require.NoError(s.T(), err)
+	for _, config := range configs {
+		if config.Product != "UPDATER_TASK" {
+			continue
+		}
+		key := strings.Join([]string{config.OrgID, config.Product, config.ConfigID, config.ConfigName}, "/")
+		require.NoError(s.T(), s.fakeintake().RCDeleteConfig(key), "could not delete the pending task %s", key)
+	}
+}
+
 // --- Remote Config plumbing -------------------------------------------------------------------
 //
 // The shapes below mirror pkg/fleet/daemon/remote_config.go's installerConfig/remoteAPIRequest/
@@ -901,4 +925,152 @@ func (s *configMacOSSuite) TestWatcherRevertsOnSysprobeCrashMacOS() {
 	} else {
 		s.T().Logf("could not read updater.log for the watcher's revert log line: %v", err)
 	}
+}
+
+// --- Set 14: shutdown-mid-experiment recovery (macOS-specific) ---------------------------------
+
+const installerDaemonPlistPath = "/Library/LaunchDaemons/com.datadoghq.installer.plist"
+
+// killAllServicesSimulatingShutdown simulates an abrupt shutdown (crash, power loss, kill -9)
+// during a live configuration experiment: every swappable job, in both variants, and the detached
+// watcher process (config_experiment_watcher_darwin.go) that has no launchd job of its own and so
+// would otherwise never come back, are killed. The installer daemon itself is booted out rather
+// than sent a plain kill, so that its own KeepAlive stanza (RunAtLoad+KeepAlive.SuccessfulExit:
+// false in com.datadoghq.installer.plist.tmpl) cannot race this helper by respawning it before the
+// caller is ready -- bringing the daemon back up is always a separate, explicit
+// restartInstallerDaemon call.
+//
+// Only the stable job set is restarted here, mirroring what actually comes back unsupervised after
+// a real reboot: the experiment job set and the watcher stay down until the daemon's resume-or-
+// revert logic (pkg/fleet/installer/packages/config_experiment_resume_darwin.go) decides their fate.
+func (s *configMacOSSuite) killAllServicesSimulatingShutdown() {
+	_, _ = s.Env().RemoteHost.Execute("sudo pkill -SIGKILL -f 'package-command datadog-agent watchConfigExperiment' || true")
+
+	_, err := s.Env().RemoteHost.Execute("sudo launchctl bootout system/com.datadoghq.installer || true")
+	require.NoError(s.T(), err, "booting out the installer daemon should succeed")
+
+	for _, label := range append(append([]string{}, swappableJobLabels...), experimentLabels()...) {
+		_, _ = s.Env().RemoteHost.Execute("sudo launchctl kill SIGKILL system/" + label + " || true")
+	}
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.Execute("pgrep -f 'package-command datadog-agent watchConfigExperiment' || true")
+		assert.NoError(c, err)
+		assert.Empty(c, strings.TrimSpace(out), "the detached watcher process should be gone")
+	}, 30*time.Second, 2*time.Second)
+
+	// The kill loop above only ever reaches a *running* job: by the time this method runs, an
+	// active experiment has already had configExperiment.Start bootout the stable set entirely
+	// (pkg/fleet/installer/packages/config_experiment_darwin.go), leaving only the -exp variants
+	// loaded. So the stable definitions must be reloaded from disk here, the same bootstrap+
+	// enable+kickstart sequence restartInstallerDaemon uses below -- a plain kickstart would fail
+	// with "Could not find service" against a label launchd has never heard of.
+	for _, label := range swappableJobLabels {
+		plistPath := "/Library/LaunchDaemons/" + label + ".plist"
+		_, err := s.Env().RemoteHost.Execute("sudo launchctl bootstrap system " + plistPath)
+		require.NoError(s.T(), err, "bootstrapping the stable %s job should succeed", label)
+		_, err = s.Env().RemoteHost.Execute("sudo launchctl enable system/" + label)
+		require.NoError(s.T(), err, "enabling the stable %s job should succeed", label)
+		_, err = s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/" + label)
+		require.NoError(s.T(), err, "restarting the stable %s job should succeed", label)
+	}
+}
+
+// restartInstallerDaemon brings the installer daemon back up after killAllServicesSimulatingShutdown
+// booted it out, mirroring the bootstrap+enable+kickstart sequence launchd.JobSet.Start uses for the
+// job sets it owns: bootout leaves no cached definition behind, so a plain kickstart would fail with
+// "no such process" until the definition is reloaded from disk.
+func (s *configMacOSSuite) restartInstallerDaemon() {
+	_, err := s.Env().RemoteHost.Execute("sudo launchctl bootstrap system " + installerDaemonPlistPath)
+	require.NoError(s.T(), err, "bootstrapping the installer daemon should succeed")
+	_, err = s.Env().RemoteHost.Execute("sudo launchctl enable system/com.datadoghq.installer")
+	require.NoError(s.T(), err, "enabling the installer daemon should succeed")
+	_, err = s.Env().RemoteHost.Execute("sudo launchctl kickstart -k system/com.datadoghq.installer")
+	require.NoError(s.T(), err, "kickstarting the installer daemon should succeed")
+	s.waitForDaemon()
+}
+
+func (s *configMacOSSuite) watcherRunning() bool {
+	out, err := s.Env().RemoteHost.Execute("pgrep -f 'package-command datadog-agent watchConfigExperiment' || true")
+	require.NoError(s.T(), err)
+	return strings.TrimSpace(out) != ""
+}
+
+// TestShutdownMidExperimentResumesWatcherMacOS regression-tests
+// pkg/fleet/installer/packages/config_experiment_resume_darwin.go: an abrupt shutdown mid-experiment,
+// with the experiment's deadline still valid, must be recovered on the daemon's next start by
+// re-establishing the experiment job set and relaunching its watcher, not by reverting to stable.
+func (s *configMacOSSuite) TestShutdownMidExperimentResumesWatcherMacOS() {
+	s.requireResting()
+
+	deploymentID := nextID("cfg-shutdown-resume")
+	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config": {"enabled": true}}`)},
+	}, nil)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		loaded := s.launchdLabelsLoaded("com.datadoghq.sysprobe-exp")
+		assert.True(c, loaded["com.datadoghq.sysprobe-exp"], "sysprobe experiment job should be loaded")
+	}, 60*time.Second, 5*time.Second)
+	require.True(s.T(), s.watcherRunning(), "the watcher process should be running while the experiment is live")
+
+	s.killAllServicesSimulatingShutdown()
+	require.False(s.T(), s.watcherRunning(), "the watcher process must be gone before the daemon is asked to resume it")
+
+	s.restartInstallerDaemon()
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		loaded := s.launchdLabelsLoaded("com.datadoghq.sysprobe-exp")
+		assert.True(c, loaded["com.datadoghq.sysprobe-exp"], "sysprobe experiment job should be loaded again after resume")
+		assert.True(c, s.watcherRunning(), "a new watcher process should be supervising the resumed experiment")
+	}, 60*time.Second, 5*time.Second)
+
+	assert.False(s.T(), s.etcExpResting(), "etc-exp should still be a real directory: the experiment must not have been reverted")
+	assert.Equal(s.T(), deploymentID, s.packageState(s.readStatus()).ExperimentConfigVersion,
+		"experiment_config_version should still reflect the resumed experiment, not a revert")
+
+	s.stopConfigExperimentRC()
+}
+
+// TestShutdownAfterDeadlineExpiryRevertsMacOS regression-tests
+// pkg/fleet/installer/packages/config_experiment_resume_darwin.go: an abrupt shutdown mid-experiment
+// whose deadline has already expired by the time the daemon restarts must be reverted to stable, not
+// resumed -- the unsupervised window guaranteed by configExperimentDeadlineWindow was exceeded before
+// the daemon got a chance to recover it. The deadline file is forced into the past directly on disk
+// (rather than waiting out the real window) while the daemon is down, so there is no race with the
+// daemon reading it.
+func (s *configMacOSSuite) TestShutdownAfterDeadlineExpiryRevertsMacOS() {
+	s.requireResting()
+
+	deploymentID := nextID("cfg-shutdown-expire")
+	s.startConfigExperimentRC(deploymentID, []backend.FileOperation{
+		{FileOperationType: backend.FileOperationMergePatch, FilePath: "/system-probe.yaml", Patch: []byte(`{"network_config": {"enabled": true}}`)},
+	}, nil)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		loaded := s.launchdLabelsLoaded("com.datadoghq.sysprobe-exp")
+		assert.True(c, loaded["com.datadoghq.sysprobe-exp"], "sysprobe experiment job should be loaded")
+	}, 60*time.Second, 5*time.Second)
+
+	s.killAllServicesSimulatingShutdown()
+
+	_, err := s.Env().RemoteHost.Execute(
+		`sudo sh -c 'date -u -v-2H +"%Y-%m-%dT%H:%M:%SZ" > /opt/datadog-agent/run/experiment-deadline'`)
+	require.NoError(s.T(), err, "forcing the experiment deadline into the past should succeed")
+
+	// See clearPendingUpdaterTasks: without this, the start_experiment_config task pushed above gets
+	// redelivered right after restart and re-applied, undoing the revert this test is asserting on.
+	s.clearPendingUpdaterTasks()
+
+	s.restartInstallerDaemon()
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assert.True(c, s.etcExpResting(), "etc-exp should be a symlink again: an already-expired deadline must be reverted, not resumed")
+		assert.Empty(c, s.packageState(s.readStatus()).ExperimentConfigVersion,
+			"experiment_config_version should be cleared once the expired deadline is reverted")
+	}, 60*time.Second, 5*time.Second)
+
+	loadedStable := s.launchdLabelsLoaded("com.datadoghq.sysprobe")
+	assert.True(s.T(), loadedStable["com.datadoghq.sysprobe"], "sysprobe stable job should be loaded again after the revert")
+	assert.False(s.T(), s.watcherRunning(), "no watcher process should be left running for a reverted experiment")
 }
