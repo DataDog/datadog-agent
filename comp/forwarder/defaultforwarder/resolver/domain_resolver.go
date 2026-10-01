@@ -73,16 +73,6 @@ type domainResolver struct {
 // OnUpdateConfig adds a hook into the config which will listen for updates to the API keys
 // of the resolver.
 func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Component) {
-	// reconcileMu makes each read-config-then-apply atomic. The OnUpdate callback and the startup
-	// reconcile below can run concurrently, and a stale snapshot must not overwrite a newer one.
-	// The resolver's key data itself is guarded by domainResolver.mu.
-	var reconcileMu sync.Mutex
-	reconcileAdditionalEndpoints := func(setting string) {
-		reconcileMu.Lock()
-		defer reconcileMu.Unlock()
-		updateAdditionalEndpoints(resolver, setting, config, log)
-	}
-
 	config.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		found := false
 
@@ -100,7 +90,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 
 		if strings.Contains(setting, "additional_endpoints") {
 			// Updating additional endpoints don't give us the exact key that has been updated so we reload the whole config section.
-			reconcileAdditionalEndpoints(setting)
+			updateAdditionalEndpoints(resolver, setting, config, log)
 			return
 		}
 
@@ -141,7 +131,7 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 		}
 	}
 	for setting := range additionalSettings {
-		reconcileAdditionalEndpoints(setting)
+		updateAdditionalEndpoints(resolver, setting, config, log)
 	}
 }
 
@@ -150,23 +140,14 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 // will not know exactly which api key has been updated so we reload the whole list from the config and insert this
 // into our list before deduping.
 func updateAdditionalEndpoints(resolver DomainResolver, setting string, config config.Component, log log.Component) {
-	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
-	endpoints, ok := additionalEndpoints[resolver.GetConfigName()]
-	if !ok {
-		// Only the infra setting's resolvers are keyed by the raw config URL (it's also the only
-		// resolver-backed setting with delegated auth write-back). Other forwarders normalize to
-		// scheme://host, so a miss there isn't a removal.
-		if setting != "additional_endpoints" {
-			log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetConfigName())
-			return
-		}
-		// The domain was removed: fall through with no keys to drop this setting's keys.
-		log.Errorf("the domain in additional_endpoints changed at runtime for '%s'; removing keys from '%s'", resolver.GetConfigName(), setting)
+	oldKeys, newKeys, found, applied := resolver.reloadAdditionalEndpoints(setting, config)
+	if !applied {
+		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetConfigName())
+		return
 	}
-
-	oldKeys := resolver.GetAPIKeys()
-	resolver.UpdateAPIKeys(setting, endpoints)
-	newKeys := resolver.GetAPIKeys()
+	if !found {
+		log.Errorf("the domain in additional_endpoints changed at runtime for '%s'; removed keys from '%s'", resolver.GetConfigName(), setting)
+	}
 
 	removed := missing(oldKeys, newKeys)
 	added := missing(newKeys, oldKeys)
@@ -301,10 +282,38 @@ func (r *domainResolver) SetBaseDomain(domain string) {
 	r.domain = domain
 }
 
+// reloadAdditionalEndpoints replaces this resolver's keys for setting with what's in config and
+// returns the deduped keys before and after. If the domain is missing from config (found=false),
+// its keys for setting are dropped, but only for the infra additional_endpoints setting: its
+// resolvers are keyed by the raw config URL, and it's the only resolver-backed setting with
+// delegated auth write-back. Other forwarders normalize to scheme://host, so a miss there isn't a
+// removal and nothing changes (applied=false).
+//
+// The OnUpdate callback and the startup reconcile in OnUpdateConfig can run concurrently, so the
+// config read and the replacement happen under r.mu: a stale snapshot can't overwrite a newer one.
+// Callers must update forwarder health after this returns, since health calls back into GetAPIKeys.
+func (r *domainResolver) reloadAdditionalEndpoints(setting string, config config.Component) (oldKeys, newKeys []string, found, applied bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	endpoints, found := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)[r.configName]
+	if !found && setting != "additional_endpoints" {
+		return nil, nil, false, false
+	}
+	oldKeys = r.dedupedAPIKeys
+	r.updateAPIKeysLocked(setting, endpoints)
+	return oldKeys, r.dedupedAPIKeys, found, true
+}
+
 // UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
 func (r *domainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKeys) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.updateAPIKeysLocked(configPath, newKeys)
+}
+
+// updateAPIKeysLocked is UpdateAPIKeys for callers that already hold r.mu.
+func (r *domainResolver) updateAPIKeysLocked(configPath string, newKeys []utils.APIKeys) {
 	newAPIKeys := make([]utils.APIKeys, 0)
 	for idx := range r.apiKeys {
 		if r.apiKeys[idx].ConfigSettingPath != configPath {

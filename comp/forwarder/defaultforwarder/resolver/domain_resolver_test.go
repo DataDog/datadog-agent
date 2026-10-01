@@ -6,7 +6,9 @@
 package resolver
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
@@ -183,6 +185,62 @@ func TestOnUpdateConfigRemovesMissingPendingDomainBeforeSubscription(t *testing.
 	assert.Empty(t, resolver.GetAPIKeys())
 	assert.False(t, resolver.hasPendingDelegatedAuth)
 	assert.False(t, resolver.IsUsable())
+}
+
+// pausingConfig blocks the first GetStringMapStringSlice call after it has read the value, so a
+// test can land a newer config write before that reconcile applies what it read.
+type pausingConfig struct {
+	configmodel.BuildableConfig
+	once    sync.Once
+	read    chan struct{}
+	release chan struct{}
+}
+
+func (c *pausingConfig) GetStringMapStringSlice(key string) map[string][]string {
+	value := c.BuildableConfig.GetStringMapStringSlice(key)
+	c.once.Do(func() {
+		close(c.read)
+		<-c.release
+	})
+	return value
+}
+
+func TestUpdateAdditionalEndpointsStaleReadDoesNotOverwriteNewerWrite(t *testing.T) {
+	const domain = "https://concurrent-org.datadoghq.com"
+	resolver, err := NewSingleDomainResolver(domain, []utils.APIKeys{
+		utils.NewAPIKeys("additional_endpoints", "old-key"),
+	})
+	require.NoError(t, err)
+
+	config := configmock.New(t)
+	config.SetInTest("additional_endpoints", map[string][]string{domain: {"old-key"}})
+	log := logmock.New(t)
+	OnUpdateConfig(resolver, log, config)
+
+	// Like the startup reconcile: reads "old-key", then pauses before applying it.
+	paused := &pausingConfig{BuildableConfig: config, read: make(chan struct{}), release: make(chan struct{})}
+	reconciled := make(chan struct{})
+	go func() {
+		defer close(reconciled)
+		updateAdditionalEndpoints(resolver, "additional_endpoints", paused, log)
+	}()
+	<-paused.read
+
+	// Like a delegated auth write-back landing meanwhile; its OnUpdate callback reconciles too.
+	written := make(chan struct{})
+	go func() {
+		defer close(written)
+		config.Set("additional_endpoints", map[string][]string{domain: {"new-key"}}, configmodel.SourceSecret)
+	}()
+	require.Eventually(t, func() bool {
+		return config.GetStringMapStringSlice("additional_endpoints")[domain][0] == "new-key"
+	}, 5*time.Second, time.Millisecond)
+
+	close(paused.release)
+	<-reconciled
+	<-written
+
+	assertKeys(t, []string{"new-key"}, resolver)
 }
 
 func TestOnUpdateConfigRemovesDomainAfterResolution(t *testing.T) {
