@@ -597,6 +597,12 @@ mod tests {
         (read, write)
     }
 
+    /// Takes a console for this process and points stdout at it, which is the shape a
+    /// supervisor launched from a terminal has.
+    ///
+    /// The second half is not optional: `AllocConsole` leaves a std handle the parent
+    /// redirected alone, and a test runner that hands this process a pipe for stdout, as
+    /// Bazel does, would otherwise keep that pipe in the slot.
     fn attach_fresh_console() {
         assert_ne!(
             unsafe { AllocConsole() },
@@ -604,6 +610,8 @@ mod tests {
             "AllocConsole failed: {}",
             std::io::Error::last_os_error()
         );
+        let console_out = open_console_device("CONOUT$").expect("open CONOUT$ for the new console");
+        set_std_handle(STD_OUTPUT_HANDLE, console_out);
     }
 
     /// Redirected stdio is pinned: a file or a pipe survives console churn, so the
