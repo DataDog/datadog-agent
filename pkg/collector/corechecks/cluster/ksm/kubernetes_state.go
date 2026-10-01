@@ -1387,11 +1387,10 @@ func (k *KSMCheck) configurePodCollection(builder *kubestatemetrics.Builder, col
 	}
 }
 
-// resetTagCache clears the tag cache
+// resetTagCache discards the tag cache so tag keys that are no longer in use
+// do not accumulate over the check's lifetime
 func (k *KSMCheck) resetTagCache() {
-	for _, valueCache := range k.tagCache {
-		clear(valueCache)
-	}
+	k.tagCache = make(map[string]map[string]string)
 }
 
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
