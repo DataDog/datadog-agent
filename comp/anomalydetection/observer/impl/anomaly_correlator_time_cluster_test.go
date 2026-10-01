@@ -23,13 +23,11 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.a"},
 
-		Title:     "Anomaly A",
 		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.b"},
 
-		Title:     "Anomaly B",
 		Timestamp: 105, // 5 seconds later, within 10s proximity
 	})
 
@@ -49,13 +47,11 @@ func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.a"},
 
-		Title:     "Anomaly A",
 		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.b"},
 
-		Title:     "Anomaly B",
 		Timestamp: 108, // 8 seconds later, within 10s proximity
 	})
 
@@ -74,13 +70,11 @@ func TestTimeClusterCorrelator_NotNearby(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.a"},
 
-		Title:     "Anomaly A",
 		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.b"},
 
-		Title:     "Anomaly B",
 		Timestamp: 150, // 50 seconds later, outside 10s proximity
 	})
 
@@ -101,13 +95,11 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.a"},
 
-		Title:     "Anomaly A",
 		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.b"},
 
-		Title:     "Anomaly B",
 		Timestamp: 120, // Far enough to be separate (20s apart)
 	})
 
@@ -118,7 +110,6 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.c"},
 
-		Title:     "Anomaly C",
 		Timestamp: 110, // Near both clusters
 	})
 
@@ -139,16 +130,12 @@ func TestTimeClusterCorrelator_SameSeriesMultipleAnomalies(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.a"},
 
-		Title:       "Anomaly A v1",
-		Description: "first",
-		Timestamp:   100,
+		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.a"},
 
-		Title:       "Anomaly A v2",
-		Description: "second",
-		Timestamp:   105,
+		Timestamp: 105,
 	})
 
 	correlations := c.ActiveCorrelations()
@@ -168,12 +155,10 @@ func TestTimeClusterCorrelator_TaggedVariants(t *testing.T) {
 	// Both should be separate members in the cluster
 	c.ProcessAnomaly(observer.Anomaly{
 		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: testCompositeTags([]string{"host:A"})},
-		Title:     "Anomaly from host A",
 		Timestamp: 100,
 	})
 	c.ProcessAnomaly(observer.Anomaly{
 		Source:    observer.SeriesDescriptor{Name: "metric.a", Tags: testCompositeTags([]string{"host:B"})},
-		Title:     "Anomaly from host B",
 		Timestamp: 102,
 	})
 
@@ -193,7 +178,6 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.old"},
 
-		Title:     "Old Anomaly",
 		Timestamp: 100,
 	})
 
@@ -201,7 +185,6 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 	c.ProcessAnomaly(observer.Anomaly{
 		Source: observer.SeriesDescriptor{Name: "metric.new"},
 
-		Title:     "New Anomaly",
 		Timestamp: 200, // 100 seconds later, old one should be evicted
 	})
 
