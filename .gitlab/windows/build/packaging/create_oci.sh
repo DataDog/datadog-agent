@@ -30,7 +30,11 @@ case "${WIN_SOURCE_TYPE}" in
 esac
 # Add installer binary for datadog-agent OCI package
 if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-  INSTALLER_BIN=$(ls -1 "${PIPE_DIR}"/datadog-installer-*-x86_64.exe 2>/dev/null | head -1)
+  INSTALLER_NAME="datadog-installer"
+  if [ "${OCI_VARIANT:-}" = "fips" ]; then
+    INSTALLER_NAME="datadog-fips-installer"
+  fi
+  INSTALLER_BIN=$(ls -1 "${PIPE_DIR}"/${INSTALLER_NAME}-*-x86_64.exe 2>/dev/null | head -1)
   if [ -n "$INSTALLER_BIN" ]; then
     EXTRA_FLAGS="${EXTRA_FLAGS} --installer ${INSTALLER_BIN}"
   else

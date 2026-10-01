@@ -37,6 +37,7 @@ type hostSystemInfoMetadata struct {
 	ModelName    string `json:"model_name"`
 	ChassisType  string `json:"chassis_type"`
 	Identifier   string `json:"identifier"`
+	ComputerName string `json:"computer_name"`
 }
 
 type hostSystemInfo struct {
@@ -143,6 +144,7 @@ func (hh *hostSystemInfo) fillData() error {
 	hh.data.ModelName = sysInfo.ModelName
 	hh.data.ChassisType = sysInfo.ChassisType
 	hh.data.Identifier = sysInfo.Identifier
+	hh.data.ComputerName = sysInfo.ComputerName
 
 	return nil
 }
