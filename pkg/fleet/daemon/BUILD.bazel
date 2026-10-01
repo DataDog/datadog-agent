@@ -7,6 +7,8 @@ go_library(
         "daemon.go",
         "ddot_state.go",
         "local_api.go",
+        "local_api_peer_darwin.go",
+        "local_api_peer_other.go",
         "local_api_unix.go",
         "local_api_windows.go",
         "method_gate.go",
@@ -51,6 +53,7 @@ go_library(
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/filesystem",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/util/filesystem",
@@ -63,6 +66,7 @@ go_library(
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/filesystem",
+            "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/util/filesystem",
@@ -100,6 +104,7 @@ dd_agent_go_test(
     srcs = [
         "daemon_test.go",
         "ddot_state_test.go",
+        "local_api_peer_darwin_test.go",
         "local_api_test.go",
         "method_gate_test.go",
         "remote_config_test.go",

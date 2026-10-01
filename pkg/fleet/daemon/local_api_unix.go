@@ -47,7 +47,7 @@ func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
 		return nil, fmt.Errorf("error restricting socket access: %v", err)
 	}
 	return &localAPIImpl{
-		server:   &http.Server{},
+		server:   &http.Server{ConnContext: connContext},
 		listener: listener,
 		daemon:   daemon,
 	}, nil
