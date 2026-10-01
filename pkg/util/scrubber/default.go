@@ -42,13 +42,31 @@ func init() {
 	AddDefaultReplacers(DefaultScrubber)
 }
 
+var (
+	hintedAPIKeyRegex               = regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`)
+	hintedAPPKeyRegex               = regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`)
+	prefixedAPPKeyRegex             = regexp.MustCompile(`ddapp_[a-zA-Z0-9_]{30}([a-zA-Z0-9_]{4})`)
+	hintedBearerRegex               = regexp.MustCompile(`\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`)
+	hintedBearerInvalidRegex        = regexp.MustCompile(`\bBearer\s+[^*]+\b`)
+	apiKeyYAMLRegex                 = regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{28}([a-fA-F0-9]{4})\b`)
+	apiKeyRegex                     = regexp.MustCompile(`\b[a-fA-F0-9]{28}([a-fA-F0-9]{4})\b`)
+	appKeyYAMLRegex                 = regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{36}([a-fA-F0-9]{4})\b`)
+	appKeyRegex                     = regexp.MustCompile(`\b[a-fA-F0-9]{36}([a-fA-F0-9]{4})\b`)
+	rcAppKeyRegex                   = regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`)
+	uriPasswordRegex                = regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:\s]+):([^\s|"]+)@`)
+	passwordRegex                   = regexp.MustCompile(`(?i)([\"\']?(?:pass(?:word)?|pswd|pwd)[\"\']?)((?:=| = |: )[\"\']?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`)
+	scanningRulesPatternRegex       = regexp.MustCompile(`(\bpattern\s*:)\s+.+`)
+	certificateRegex                = regexp.MustCompile(`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`)
+	additionalEndpointsYAMLKeyRegex = regexp.MustCompile(`^additional_endpoints$`)
+)
+
 // AddDefaultReplacers to a scrubber. This is called automatically for
 // DefaultScrubber, but can be used to initialize other, custom scrubbers with
 // the default replacers.
 func AddDefaultReplacers(scrubber *Scrubber) {
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
-		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
+		Regex: hintedAPIKeyRegex,
 		Hints: []string{"api_key", "apikey"},
 		Repl:  []byte(`$1****************************$2`),
 
@@ -56,14 +74,14 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 	hintedAPPKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 40-char hexadecimal string
-		Regex: regexp.MustCompile(`(ap(?:p|plication)_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
+		Regex: hintedAPPKeyRegex,
 		Hints: []string{"app_key", "appkey", "application_key"},
 		Repl:  []byte(`$1************************************$2`),
 
 		LastUpdated: defaultVersion,
 	}
 	prefixedAPPKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`ddapp_[a-zA-Z0-9_]{30}([a-zA-Z0-9_]{4})`),
+		Regex: prefixedAPPKeyRegex,
 		Hints: []string{"ddapp_"},
 		Repl:  []byte(`************************************$1`),
 
@@ -73,7 +91,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// replacers are check one by one in order. We first try to scrub 64 bytes token, keeping the last 5 digit. If
 	// the token has a different size we scrub it entirely.
 	hintedBearerReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bBearer [a-fA-F0-9]{59}([a-fA-F0-9]{5})\b`),
+		Regex: hintedBearerRegex,
 		Hints: []string{"Bearer"},
 		Repl:  []byte(`Bearer ***********************************************************$1`),
 
@@ -82,7 +100,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 	// For this one we match any characters
 	hintedBearerInvalidReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bBearer\s+[^*]+\b`),
+		Regex: hintedBearerInvalidRegex,
 		Hints: []string{"Bearer"},
 		Repl:  []byte("Bearer " + defaultReplacement),
 
@@ -91,33 +109,33 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	}
 
 	apiKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{28}([a-fA-F0-9]{4})\b`),
+		Regex: apiKeyYAMLRegex,
 		Repl:  []byte(`$1$2"****************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
 		LastUpdated: parseVersion("7.39.0"),
 	}
 	apiKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{28}([a-fA-F0-9]{4})\b`),
+		Regex: apiKeyRegex,
 		Repl:  []byte(`****************************$1`),
 
 		LastUpdated: defaultVersion,
 	}
 	appKeyReplacerYAML := Replacer{
-		Regex: regexp.MustCompile(`(\-|\:|,|\[|\{)(\s+)?\b[a-fA-F0-9]{36}([a-fA-F0-9]{4})\b`),
+		Regex: appKeyYAMLRegex,
 		Repl:  []byte(`$1$2"************************************$3"`),
 
 		// https://github.com/DataDog/datadog-agent/pull/12605
 		LastUpdated: parseVersion("7.39.0"),
 	}
 	appKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\b[a-fA-F0-9]{36}([a-fA-F0-9]{4})\b`),
+		Regex: appKeyRegex,
 		Repl:  []byte(`************************************$1`),
 
 		LastUpdated: defaultVersion,
 	}
 	rcAppKeyReplacer := Replacer{
-		Regex: regexp.MustCompile(`\bDDRCM_[A-Z0-9]+([A-Z0-9]{5})\b`),
+		Regex: rcAppKeyRegex,
 		Repl:  []byte(`***********************************$1`),
 
 		// https://github.com/DataDog/datadog-agent/pull/14681
@@ -128,7 +146,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// https://tools.ietf.org/html/rfc3986
 	uriPasswordReplacer := Replacer{
 		Hints: []string{"@"}, // regex cannot match without it, so skipping spares a backtracking scan
-		Regex: regexp.MustCompile(`(?i)([a-z][a-z0-9+-.]+://|\b)([^:\s]+):([^\s|"]+)@`),
+		Regex: uriPasswordRegex,
 		Repl:  []byte(`$1$2:********@`),
 
 		// https://github.com/DataDog/datadog-agent/pull/32503
@@ -146,7 +164,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
 		// * separator: (= or :) with optional opening quote we don't want to match as part of the password
 		// * password string: alphanum + special chars except quotes and semicolon
-		Regex: regexp.MustCompile(`(?i)([\"\']?(?:pass(?:word)?|pswd|pwd)[\"\']?)((?:=| = |: )[\"\']?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		Regex: passwordRegex,
 		// replace the 3rd capture group (password string) with ********
 		Repl: []byte(`$1$2********`),
 
@@ -206,7 +224,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Single-line YAML text, e.g. integration.Config.Dump in the scheduling trace log.
 	scanningRulesPatternReplacer := Replacer{
-		Regex:       regexp.MustCompile(`(\bpattern\s*:)\s+.+`),
+		Regex:       scanningRulesPatternRegex,
 		Hints:       []string{"scanning_rules"},
 		Repl:        []byte(`$1 "********"`),
 		LastUpdated: parseVersion("7.85.0"), // https://github.com/DataDog/datadog-agent/pull/56761
@@ -217,7 +235,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		   Backreferences are not available in go, so we cannot verify
 		   here that the BEGIN label is the same as the END label.
 		*/
-		Regex: regexp.MustCompile(`-----BEGIN (?:.*)-----[A-Za-z0-9=\+\/\s]*-----END (?:.*)-----`),
+		Regex: certificateRegex,
 		Hints: []string{"BEGIN"},
 		Repl:  []byte(`********`),
 
@@ -274,7 +292,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// (We have to manually recurse in the case of Format B because otherwise matching the top-level
 	//  additional-endpoints key would cause the YAML parser to skip all subnodes).
 	additionalEndpointsYaml := Replacer{
-		YAMLKeyRegex: regexp.MustCompile(`^additional_endpoints$`),
+		YAMLKeyRegex: additionalEndpointsYAMLKeyRegex,
 		ProcessValue: func(data any) any {
 			switch data.(type) {
 			case map[string]interface{}, map[interface{}]interface{}:

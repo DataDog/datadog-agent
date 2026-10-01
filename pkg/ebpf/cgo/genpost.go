@@ -35,6 +35,14 @@ func main() {
 	}
 }
 
+var (
+	convertPointerToUint64Regex     = regexp.MustCompile(`\*_Ctype_struct_(\w+)`)
+	convertBytePointerToUint64Regex = regexp.MustCompile(`(\s+)(\*(byte|uint64))`)
+	removeLinuxAbsolutePathRegex    = regexp.MustCompile(`(// cgo -godefs .+) /.+/([^/]+)$`)
+	removeWindowsAbsolutePathRegex  = regexp.MustCompile(`(// cgo.exe -godefs .+) .:\\.+\\([^\\]+)$`)
+	structRegex                     = regexp.MustCompile("type ([^ ]+) struct")
+)
+
 func processFile(rdr io.Reader, out io.Writer) error {
 	b, err := io.ReadAll(rdr)
 	if err != nil {
@@ -66,11 +74,9 @@ func processFile(rdr io.Reader, out io.Writer) error {
 	b = convertInt8ArrayToByteArrayRegex.ReplaceAll(b, []byte("$1$2[$3]byte"))
 
 	// Convert generated pointers to CGo structs to uint64
-	convertPointerToUint64Regex := regexp.MustCompile(`\*_Ctype_struct_(\w+)`)
 	b = convertPointerToUint64Regex.ReplaceAll(b, []byte("uint64"))
 
 	// Convert *byte and *uint64 pointers to uint64 (original void * in C)
-	convertBytePointerToUint64Regex := regexp.MustCompile(`(\s+)(\*(byte|uint64))`)
 	b = convertBytePointerToUint64Regex.ReplaceAll(b, []byte("${1}uint64"))
 
 	b, err = format.Source(b)
@@ -88,9 +94,9 @@ func removeAbsolutePath(b []byte, platform string) []byte {
 	var removeAbsolutePathRegex *regexp.Regexp
 	switch platform {
 	case "linux":
-		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo -godefs .+) /.+/([^/]+)$`)
+		removeAbsolutePathRegex = removeLinuxAbsolutePathRegex
 	case "windows":
-		removeAbsolutePathRegex = regexp.MustCompile(`(// cgo.exe -godefs .+) .:\\.+\\([^\\]+)$`)
+		removeAbsolutePathRegex = removeWindowsAbsolutePathRegex
 	default:
 		log.Fatal("unsupported platform")
 	}
@@ -119,7 +125,6 @@ func TestCgoAlignment_%[1]s(t *testing.T) {
 
 func writeTests(rdr io.Reader, dstFile string, packageName string) error {
 	var typeNames []string
-	structRegex := regexp.MustCompile("type ([^ ]+) struct")
 	scanner := bufio.NewScanner(rdr)
 	for scanner.Scan() {
 		matches := structRegex.FindSubmatch(scanner.Bytes())

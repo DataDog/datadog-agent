@@ -125,11 +125,11 @@ func (t *Tailer) Stop() {
 	<-t.done
 }
 
+var journaldMatchRegex = regexp.MustCompile("^([^=]+)=(.+)$")
+
 // setup configures the tailer
 func (t *Tailer) setup() error {
 	config := t.source.Config
-
-	matchRe := regexp.MustCompile("^([^=]+)=(.+)$")
 
 	// add filters to collect only the logs of the units defined in the configuration,
 	// if no units for both System and User, and no matches are defined,
@@ -162,7 +162,7 @@ func (t *Tailer) setup() error {
 
 	for _, match := range config.IncludeMatches {
 		// add filters to collect only the logs of the matches defined in the configuration.
-		submatches := matchRe.FindStringSubmatch(match)
+		submatches := journaldMatchRegex.FindStringSubmatch(match)
 		if len(submatches) < 1 {
 			return fmt.Errorf("incorrectly formatted IncludeMatch (must be `[field]=[value]`: %s", match)
 		}
@@ -187,7 +187,7 @@ func (t *Tailer) setup() error {
 	t.exclude.matches = make(map[string]map[string]bool)
 	for _, match := range config.ExcludeMatches {
 		// add filters to drop all the logs related to the matches to exclude.
-		submatches := matchRe.FindStringSubmatch(match)
+		submatches := journaldMatchRegex.FindStringSubmatch(match)
 		if len(submatches) < 1 {
 			return fmt.Errorf("incorrectly formatted ExcludeMatch (must be `[field]=[value]`: %s", match)
 		}

@@ -17,12 +17,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
+var ciliumRegex = regexp.MustCompile(`datadog-cilium==.*`)
+
 // CheckIntegrationInstall run test to test installation of integrations
 func CheckIntegrationInstall(t *testing.T, client *TestClient) {
 	t.Run("integration", func(tt *testing.T) {
 		requirementIntegrationPath := client.Helper.GetInstallFolder() + "requirements-agent-release.txt"
 
-		ciliumRegex := regexp.MustCompile(`datadog-cilium==.*`)
 		freezeContent, err := client.FileManager.ReadFile(requirementIntegrationPath)
 		require.NoError(tt, err)
 

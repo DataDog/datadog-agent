@@ -341,12 +341,13 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 	return err
 }
 
+var indentedEmptyLines = regexp.MustCompile("\n( +\n)+")
+
 // CleanInfoExtraLines removes empty lines from template code indentation.
 // The idea is that an indented empty line (only indentation spaces) is because of code indentation,
 // so we remove it.
 // Real legit empty lines contain no space.
 func CleanInfoExtraLines(info string) string {
-	var indentedEmptyLines = regexp.MustCompile("\n( +\n)+")
 	return indentedEmptyLines.ReplaceAllString(info, "\n")
 }
 

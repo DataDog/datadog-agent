@@ -106,6 +106,13 @@ username cisco privilege 15 secret 9 <redacted secret>
 redundancy
 !`
 
+var (
+	buildingConfigurationRegex    = regexp.MustCompile("Building configuration...")
+	lastConfigurationChangeRegex  = regexp.MustCompile(`! Last configuration change at (.*)`)
+	currentConfigurationSizeRegex = regexp.MustCompile(`Current configuration : (?P<Size>\d+)`)
+	usernameSecretRegex           = regexp.MustCompile(`(username .+ (password|secret) \d) .+`)
+)
+
 func newTestProfile() *NCMProfile {
 	return &NCMProfile{
 		Name: "test",
@@ -114,7 +121,7 @@ func newTestProfile() *NCMProfile {
 				Command: "show running-config",
 				Validator: Validator{
 					Require: []*regexp.Regexp{
-						regexp.MustCompile("Building configuration..."),
+						buildingConfigurationRegex,
 					},
 				},
 			},
@@ -122,16 +129,16 @@ func newTestProfile() *NCMProfile {
 		MetadataRules: []MetadataRule{
 			{
 				Type:   Timestamp,
-				Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
+				Regex:  lastConfigurationChangeRegex,
 				Format: "15:04:05 MST Mon Jan 2 2006",
 			},
 			{
 				Type:  ConfigSize,
-				Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
+				Regex: currentConfigurationSizeRegex,
 			},
 		},
 		Redactions: []RedactionRule{
-			{Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`), Replacement: "$1 <redacted secret>"},
+			{Regex: usernameSecretRegex, Replacement: "$1 <redacted secret>"},
 		},
 	}
 }

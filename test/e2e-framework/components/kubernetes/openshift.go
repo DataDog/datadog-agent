@@ -76,6 +76,8 @@ func NewLocalOpenShiftCluster(env config.Env, name string, args OpenShiftCluster
 	}, pulumiResourceOptions...)
 }
 
+var openshiftCertificateAuthorityDataRegex = regexp.MustCompile("certificate-authority-data:.+")
+
 func NewOpenShiftCluster(env config.Env, vm *remote.Host, name string, args OpenShiftClusterArgs, opts ...pulumi.ResourceOption) (*Cluster, error) {
 	return components.NewComponent(env, name, func(clusterComp *Cluster) error {
 		openShiftClusterName := env.CommonNamer().DisplayName(49)
@@ -219,7 +221,7 @@ exit 0
 			kubeconfigRaw := args[0].(string)
 			vmIP := args[1].(string)
 			// args[2] is the output from waitControlPlane, ensuring it completes first
-			allowInsecure := regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(kubeconfigRaw, "insecure-skip-tls-verify: true")
+			allowInsecure := openshiftCertificateAuthorityDataRegex.ReplaceAllString(kubeconfigRaw, "insecure-skip-tls-verify: true")
 			updated := strings.ReplaceAll(allowInsecure, "api.crc.testing:6443", vmIP+":8443")
 			return updated
 		}).(pulumi.StringOutput)

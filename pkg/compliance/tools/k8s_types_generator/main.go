@@ -821,9 +821,10 @@ func parseTypeIP(str string) string {
 	return ip.String()
 }
 
+var integerRangeRegex = regexp.MustCompile("^[0-9]+-[0-9]+$")
+
 func parseTypeRange(str string) string {
-	r := regexp.MustCompile("^[0-9]+-[0-9]+$")
-	if !r.MatchString(str) {
+	if !integerRangeRegex.MatchString(str) {
 		log.Fatalf("bad range type default %q", str)
 	}
 	return str

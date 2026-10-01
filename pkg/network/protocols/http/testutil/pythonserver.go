@@ -165,6 +165,8 @@ func linkFile(t *testing.T, src, dst string) error {
 	return nil
 }
 
+var pythonServerReadyRegex = regexp.MustCompile("Server running at https.*")
+
 // HTTPPythonServerContainer launches an HTTPs server written in Python inside a container.
 func HTTPPythonServerContainer(t *testing.T, serverPort string) error {
 	t.Helper()
@@ -187,7 +189,7 @@ func HTTPPythonServerContainer(t *testing.T, serverPort string) error {
 		"TESTDIR=" + dir + "/testdata",
 	}
 
-	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(pythonServerReadyRegex, globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(

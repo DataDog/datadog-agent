@@ -40,6 +40,12 @@ import (
 // logLimitProbe is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitProbe = log.NewLogLimit(20, 10*time.Minute)
 
+var (
+	cudaLibraryRegex = regexp.MustCompile(`lib(cudart|nd4jcuda)\.so`)
+	libcRegex        = regexp.MustCompile(`libc\.so`)
+	cudaDriverRegex  = regexp.MustCompile(`libcuda\.so`)
+)
+
 const (
 	// consumerChannelSize controls the size of the go channel that buffers ringbuffer
 	// events (*ddebpf.RingBufferHandler).
@@ -407,7 +413,7 @@ func (p *Probe) CollectConsumedEvents(ctx context.Context, count int) ([][]byte,
 // split in a separate function to make it easier to test
 func getCudaLibraryAttacherRule() *uprobes.AttachRule {
 	return &uprobes.AttachRule{
-		LibraryNameRegex: regexp.MustCompile(`lib(cudart|nd4jcuda)\.so`),
+		LibraryNameRegex: cudaLibraryRegex,
 		Targets:          uprobes.AttachToExecutable | uprobes.AttachToSharedLibraries,
 		ProbesSelector: []manager.ProbesSelector{
 			&manager.AllOf{
@@ -439,7 +445,7 @@ func getCudaLibraryAttacherRule() *uprobes.AttachRule {
 // split in a separate function to make it easier to test
 func getLibcAttacherRule() *uprobes.AttachRule {
 	return &uprobes.AttachRule{
-		LibraryNameRegex: regexp.MustCompile(`libc\.so`),
+		LibraryNameRegex: libcRegex,
 		Targets:          uprobes.AttachToSharedLibraries | uprobes.AttachToExecutable,
 		ProbesSelector: []manager.ProbesSelector{
 			&manager.AllOf{
@@ -454,7 +460,7 @@ func getLibcAttacherRule() *uprobes.AttachRule {
 // getCuLibraryAttacherRule returns the attach rule for the CU driver libraries, which we only partially support
 func getCuLibraryAttacherRule() *uprobes.AttachRule {
 	return &uprobes.AttachRule{
-		LibraryNameRegex: regexp.MustCompile(`libcuda\.so`),
+		LibraryNameRegex: cudaDriverRegex,
 		Targets:          uprobes.AttachToSharedLibraries | uprobes.AttachToExecutable,
 		ProbesSelector: []manager.ProbesSelector{
 			&manager.AllOf{

@@ -177,6 +177,8 @@ func installNvkind(env config.Env, vm *remote.Host, kindVersion string, clusterO
 	return nvkindInstall, nil
 }
 
+var certificateAuthorityDataRegex = regexp.MustCompile("certificate-authority-data:.+")
+
 // inivtNvkindCluster creates a new Kubernetes cluster using nvkind so that nodes can be GPU-enabled, installing
 // the necessary components and configuring the cluster.
 func initNvkindCluster(env config.Env, vm *remote.Host, name string, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (*kubernetes.Cluster, error) {
@@ -262,7 +264,7 @@ func initNvkindCluster(env config.Env, vm *remote.Host, name string, clusterOpts
 		// Patch Kubeconfig based on private IP output
 		// Also add skip tls
 		clusterComp.KubeConfig = pulumi.All(kubeConfigCmd.StdoutOutput(), vm.Address).ApplyT(func(args []interface{}) string {
-			allowInsecure := regexp.MustCompile("certificate-authority-data:.+").ReplaceAllString(args[0].(string), "insecure-skip-tls-verify: true")
+			allowInsecure := certificateAuthorityDataRegex.ReplaceAllString(args[0].(string), "insecure-skip-tls-verify: true")
 			return strings.ReplaceAll(allowInsecure, "0.0.0.0", args[1].(string))
 		}).(pulumi.StringOutput)
 		clusterComp.ClusterName = kindClusterName.ToStringOutput()

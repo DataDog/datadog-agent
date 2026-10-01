@@ -25,6 +25,8 @@ const (
 	KafkaOldPort = "9082"
 )
 
+var kafkaServerReadyRegex = regexp.MustCompile(`.*started \(kafka.server.KafkaRaftServer\).*`)
+
 // RunServer runs a kafka server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
@@ -48,7 +50,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 		return err
 	}
 
-	scanner, err := globalutils.NewScanner(regexp.MustCompile(`.*started \(kafka.server.KafkaRaftServer\).*`), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(kafkaServerReadyRegex, globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(

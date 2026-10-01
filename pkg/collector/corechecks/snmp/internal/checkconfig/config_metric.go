@@ -57,11 +57,12 @@ func RegexReplaceValue(value string, pattern *regexp.Regexp, normalizedTemplate 
 	return string(result)
 }
 
+var regexReplaceValueRegex = regexp.MustCompile(`\\(\d+)`)
+
 // normalizeRegexReplaceValue normalize regex value to keep compatibility with Python
 // Converts \1 into $1, \2 into $2, etc
 func normalizeRegexReplaceValue(val string) string {
-	re := regexp.MustCompile(`\\(\d+)`)
-	return re.ReplaceAllString(val, "$$$1")
+	return regexReplaceValueRegex.ReplaceAllString(val, "$$$1")
 }
 
 // GetMappedValue retrieves mapped value from a given mapping.

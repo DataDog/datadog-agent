@@ -236,10 +236,11 @@ func BuildPatterns(ruleset []*rules.RuleDefinition) []*rules.RuleDefinition {
 	return ruleset
 }
 
+var arrayPatternRegex = regexp.MustCompile(`\[(.*?)\]`)
+
 func findAndReplacePatterns(expression *string) {
 
-	re := regexp.MustCompile(`\[(.*?)\]`)
-	matches := re.FindAllStringSubmatch(*expression, -1)
+	matches := arrayPatternRegex.FindAllStringSubmatch(*expression, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
 			arrayContent := match[1]
@@ -306,14 +307,16 @@ func containsExceptions(path string) bool {
 	return false
 }
 
+var (
+	uuidRegex                  = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+	dateRegex                  = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`) // Date in YYYY-MM-DD format
+	numericRegex               = regexp.MustCompile(`^\d+$`)               // Any purely numeric subpath
+	hexRegex                   = regexp.MustCompile(`^[0-9a-fA-F]+$`)      // Hexadecimal pattern
+	patternsWithSeparatorRegex = regexp.MustCompile(`^\.*\d+([._-]\d+)*([._-]\d+)*$`)
+)
+
 // CheckForPatterns replace patterns like uuid with *
 func CheckForPatterns(path string) string {
-	uuidRegex := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-	dateRegex := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`) // Date in YYYY-MM-DD format
-	numericRegex := regexp.MustCompile(`^\d+$`)            // Any purely numeric subpath
-	hexRegex := regexp.MustCompile(`^[0-9a-fA-F]+$`)       // Hexadecimal pattern
-	patternsWithSeparatorRegex := regexp.MustCompile(`^\.*\d+([._-]\d+)*([._-]\d+)*$`)
-
 	// Split the path into subpaths
 	subpaths := strings.Split(path, "/")
 

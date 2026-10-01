@@ -219,10 +219,10 @@ func AutoscalerMetricsUpdate(new, old metav1.Object) bool {
 	return old.GetResourceVersion() == new.GetResourceVersion() || oldAnn != newAnn
 }
 
+var metricNamingConventionRegex = regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_.]{0,199}$")
+
 // IsValidMetricName will return true if the metric name follows the Datadog metric naming conventions.
 // See https://docs.datadoghq.com/developers/metrics/#naming-custom-metrics
 func IsValidMetricName(metricName string) bool {
-	metricNamingConvention := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_.]{0,199}$")
-
-	return metricNamingConvention.Match([]byte(metricName))
+	return metricNamingConventionRegex.Match([]byte(metricName))
 }

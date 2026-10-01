@@ -21,6 +21,8 @@ import (
 	dockerutils "github.com/DataDog/datadog-agent/pkg/util/testutil/docker"
 )
 
+var redisReadyRegex = regexp.MustCompile(".*Ready to accept connections")
+
 // RunServer runs a Redis server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) error {
 	t.Helper()
@@ -42,7 +44,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 		env = append(env, args)
 	}
 
-	scanner, err := globalutils.NewScanner(regexp.MustCompile(".*Ready to accept connections"), globalutils.NoPattern)
+	scanner, err := globalutils.NewScanner(redisReadyRegex, globalutils.NoPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
 	dockerCfg := dockerutils.NewComposeConfig(

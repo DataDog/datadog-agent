@@ -27,6 +27,8 @@ type CentOSBackend struct {
 	logger     types.Logger
 }
 
+var redhatReleaseVersionRegex = regexp.MustCompile(`.* release ([0-9.]*)`)
+
 func getRedhatRelease() (string, error) {
 	redhatReleasePath := types.HostEtc("redhat-release")
 	redhatRelease, err := os.ReadFile(redhatReleasePath)
@@ -34,8 +36,7 @@ func getRedhatRelease() (string, error) {
 		return "", fmt.Errorf("read %s: %w", redhatReleasePath, err)
 	}
 
-	re := regexp.MustCompile(`.* release ([0-9.]*)`)
-	submatches := re.FindStringSubmatch(string(redhatRelease))
+	submatches := redhatReleaseVersionRegex.FindStringSubmatch(string(redhatRelease))
 	if len(submatches) == 2 {
 		return submatches[1], nil
 	}
