@@ -118,11 +118,14 @@ single_version_override(
     version = "0.2.25",
 )
 
-# Temporary until https://github.com/bazel-contrib/rules_go/pull/3977 (or equivalent) lands
+# Temporary until corresponding PRs (or equivalent) land in a release
 single_version_override(
     module_name = "rules_go",
     patch_strip = 1,
-    patches = ["//bazel/patches:rules_go-windows-symlink-workaround.patch"],
+    patches = [
+        "//bazel/patches:rules_go-cover-workdir-trimpath.patch",  # https://github.com/bazel-contrib/rules_go/pull/4733
+        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # https://github.com/bazel-contrib/rules_go/pull/3977
+    ],
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
