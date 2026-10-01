@@ -10,7 +10,6 @@ go_library(
         "compile.go",
         "doc.go",
         "ebpf_conntracker.go",
-        "interfaceclassifier_darwin.go",
         "interfaceclassifier_other.go",
         "interfaceclassifier_windows.go",
         "process_cache.go",
@@ -95,7 +94,6 @@ go_library(
             "//pkg/process/util",
             "//pkg/util/log",
             "@com_github_datadog_datadog_go_v5//statsd",
-            "@org_go4_intern//:intern",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/core/telemetry/def",
@@ -108,7 +106,6 @@ go_library(
             "//pkg/process/util",
             "//pkg/util/log",
             "@com_github_datadog_datadog_go_v5//statsd",
-            "@org_go4_intern//:intern",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/telemetry/def",
@@ -196,7 +193,6 @@ dd_agent_go_test(
         "compile_test.go",
         "conntracker_test.go",
         "ebpf_conntracker_test.go",
-        "interfaceclassifier_darwin_test.go",
         "interfaceclassifier_windows_test.go",
         "mock_gateway_lookup_test.go",
         "offsetguess_test.go",

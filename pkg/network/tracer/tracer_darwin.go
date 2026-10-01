@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go4.org/intern"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -28,13 +27,12 @@ import (
 
 // Tracer struct for tracking network state and connections on Darwin
 type Tracer struct {
-	config              *config.Config
-	connTracer          connection.Tracer
-	state               network.State
-	reverseDNS          dns.ReverseDNS
-	sourceExcludes      []*networkfilter.ConnectionFilter
-	destExcludes        []*networkfilter.ConnectionFilter
-	interfaceClassifier *InterfaceClassifier
+	config         *config.Config
+	connTracer     connection.Tracer
+	state          network.State
+	reverseDNS     dns.ReverseDNS
+	sourceExcludes []*networkfilter.ConnectionFilter
+	destExcludes   []*networkfilter.ConnectionFilter
 }
 
 // NewTracer returns an initialized tracer struct for Darwin
@@ -74,22 +72,19 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 	}
 
 	tr := &Tracer{
-		config:              cfg,
-		connTracer:          connTracer,
-		state:               state,
-		reverseDNS:          reverseDNS,
-		sourceExcludes:      networkfilter.ParseConnectionFilters(cfg.ExcludedSourceConnections),
-		destExcludes:        networkfilter.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
-		interfaceClassifier: NewInterfaceClassifier(),
+		config:         cfg,
+		connTracer:     connTracer,
+		state:          state,
+		reverseDNS:     reverseDNS,
+		sourceExcludes: networkfilter.ParseConnectionFilters(cfg.ExcludedSourceConnections),
+		destExcludes:   networkfilter.ParseConnectionFilters(cfg.ExcludedDestinationConnections),
 	}
 
-	// Start the connection tracer with a callback for closed connections.
-	// The classifier is live first so a close during Start can still be tagged.
+	// Start the connection tracer with a callback for closed connections
 	err = connTracer.Start(func(conn *network.ConnectionStats) {
 		tr.storeClosedConnection(conn)
 	})
 	if err != nil {
-		tr.interfaceClassifier.Close()
 		return nil, fmt.Errorf("error starting connection tracer: %w", err)
 	}
 
@@ -98,13 +93,8 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component, _ statsd.C
 
 // Stop halts all network monitoring.
 func (t *Tracer) Stop() {
-	// Stop the connection tracer first so closes emitted during shutdown are
-	// still tagged, then stop the refresh loop.
 	if t.connTracer != nil {
 		t.connTracer.Stop()
-	}
-	if t.interfaceClassifier != nil {
-		t.interfaceClassifier.Close()
 	}
 	if t.reverseDNS != nil {
 		t.reverseDNS.Close()
@@ -132,12 +122,8 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	// Remove expired entries from the tracer and state
 	t.removeEntries(expired)
 
-	// Convert buffer to connections slice and tag resolved interfaces before
-	// delta calculation. GetDelta returns these objects and does not copy tags.
+	// Convert buffer to connections slice
 	activeConns := buffer.Connections()
-	for i := range activeConns {
-		t.addInterfaceInfo(&activeConns[i])
-	}
 
 	// Get DNS stats if available
 	var dnsStats dns.StatsByKeyByNameByType
@@ -289,30 +275,7 @@ func (t *Tracer) storeClosedConnection(conn *network.ConnectionStats) {
 	if t.shouldSkipConnection(conn) {
 		return
 	}
-	t.addInterfaceInfo(conn)
 	t.state.StoreClosedConnection(conn)
-}
-
-// addInterfaceInfo appends interface_name and interface_type when the
-// connection's interface index resolves. Index 0 and an unknown index add
-// nothing. CloneTags is required because the closed path receives the live
-// connection from closeAndRemoveSource; appending in place would rewrite that
-// row's tag slice. The active path has already cloned, and this second copy
-// keeps one helper for both.
-func (t *Tracer) addInterfaceInfo(c *network.ConnectionStats) {
-	if t.interfaceClassifier == nil || c.InterfaceIndex == 0 {
-		return
-	}
-	result := t.interfaceClassifier.Classify(c.InterfaceIndex)
-	if result.InterfaceName == "" {
-		return
-	}
-	c.Tags = append(c.CloneTags(),
-		intern.GetByString("interface_name:"+result.InterfaceName),
-		intern.GetByString("interface_type:"+result.InterfaceType),
-	)
-	log.Debugf("interface_classifier: pid=%d ifIndex=%d tagged interface_name=%q interface_type=%q",
-		c.Pid, c.InterfaceIndex, result.InterfaceName, result.InterfaceType)
 }
 
 // Note: shouldSkipConnection is defined in tracer_shared.go
