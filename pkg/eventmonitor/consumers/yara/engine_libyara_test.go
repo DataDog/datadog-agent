@@ -248,6 +248,8 @@ func TestLibyaraClose(t *testing.T) {
 }
 
 func TestLibyaraLoadScanner(t *testing.T) {
+	// the temp dir is owned by the test user, not root
+	trustCurrentUser(t)
 	dir := t.TempDir()
 	writeRuleFiles(t, dir, map[string]string{
 		"marker.yar": testRule,
