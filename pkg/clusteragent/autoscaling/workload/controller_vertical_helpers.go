@@ -590,22 +590,21 @@ func shouldFallbackToRollout(toEvict []classifiedPod, hasInfeasible bool, podAut
 // A rollout is required when:
 //
 //	a) The global config flag (autoscaling.workload.in_place_vertical_scaling.enabled) is disabled, or
-//	b) The DPA explicitly sets Strategy: TriggerRollout
-func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
+//	b) The DPA explicitly sets Strategy: TriggerRollout, or
+//	c) Any runtime value is recommended for a container but not yet applied to all running pods
+//
+// pods is the current live pod list for the workload, used to check whether runtime values are already
+// applied so we avoid triggering unnecessary rollouts (e.g. when only CPU changed).
+func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal, pods []*workloadmeta.KubernetesPod) bool {
 	if !pkgconfigsetup.Datadog().GetBool("autoscaling.workload.in_place_vertical_scaling.enabled") {
 		return true
 	}
-	// Runtime values (e.g. GOMEMLIMIT) are env vars that can only be applied to new pods via the
+	// Runtime values are env vars that can only be applied to new pods via the
 	// admission webhook — they cannot be updated on a running container via pods/resize.
-	// Force the rollout path so pods are recreated and pick up the new values.
-	//
-	// Known limitation: this forces a rollout whenever a GOMEMLIMIT is present in the recommendation,
-	// even if the value has not changed (e.g. only CPU requests/limits changed). Fixing this requires
-	// comparing the recommended value against the running pod's env vars, which isRolloutRequired does
-	// not currently have access to. Left for a follow-up.
+	// Force the rollout path only when the recommended value differs from what is already on the pods.
 	if sv := autoscalerInternal.ScalingValues(); sv.Vertical != nil {
-		for _, cr := range sv.Vertical.ContainerResources {
-			if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+		if hash, hasRuntime := computeRuntimeRecommendationID(sv.Vertical.ContainerResources); hasRuntime {
+			if !runtimeRecommendationIDApplied(hash, pods) {
 				return true
 			}
 		}
@@ -615,6 +614,44 @@ func isRolloutRequired(autoscalerInternal *model.PodAutoscalerInternal) bool {
 		return false
 	}
 	return spec.ApplyPolicy.Update.Strategy == datadoghqcommon.DatadogPodAutoscalerTriggerRolloutUpdateStrategy
+}
+
+// computeRuntimeRecommendationID collects all non-nil Runtime values across container resources
+// and returns a deterministic hash of the combined map, suitable for use as the runtime-rec-id
+// annotation. Returns ("", false) when no container has runtime values.
+func computeRuntimeRecommendationID(containerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources) (string, bool) {
+	runtimeValues := make(map[string]datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues)
+	for _, cr := range containerResources {
+		if cr.Runtime != nil {
+			runtimeValues[cr.Name] = *cr.Runtime
+		}
+	}
+	if len(runtimeValues) == 0 {
+		return "", false
+	}
+	hash, err := autoscaling.ObjectHash(runtimeValues)
+	if err != nil {
+		log.Debugf("Failed to compute runtime recommendation ID hash: %v", err)
+		return "", false
+	}
+	return hash, true
+}
+
+// runtimeRecommendationIDApplied returns true if all non-terminating pods already carry the expected
+// runtime-rec-id annotation. Returns false if any pod is missing the annotation or has a different hash.
+func runtimeRecommendationIDApplied(expectedHash string, pods []*workloadmeta.KubernetesPod) bool {
+	if len(pods) == 0 {
+		return false
+	}
+	for _, pod := range pods {
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		if pod.Annotations[model.RuntimeRecommendationIDAnnotation] != expectedHash {
+			return false
+		}
+	}
+	return true
 }
 
 // getPodResizeStatus returns the resize status of pod and the LastTransitionTime

@@ -49,6 +49,10 @@ env:
   PATH: C:\Windows\System32;C:\Windows
 auto_start: true
 restart: always
+# Start-Sleep receives CTRL_BREAK and keeps sleeping, so every stop of this
+# fixture goes through the force-kill path. Bounded here so a stop costs ten
+# seconds rather than the ninety-second default.
+stop_timeout: 10
 description: E2E test process
 `
 
