@@ -582,6 +582,8 @@ type MountEventSerializer struct {
 	Detached bool `json:"detached,omitempty"`
 	// Mount is not visible in the VFS tree
 	Visible bool `json:"visible,omitempty"`
+	// Normalized per-mount attribute flags
+	Flags []string `json:"flags,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -1355,6 +1357,7 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		MountSourcePath: mountSourcePath,
 		Detached:        e.Mount.Detached,
 		Visible:         e.Mount.Visible,
+		Flags:           model.MountFlagsStrings(e.Mount.MountFlags),
 	}
 
 	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
