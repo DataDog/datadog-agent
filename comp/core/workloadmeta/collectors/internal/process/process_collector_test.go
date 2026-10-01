@@ -901,14 +901,14 @@ func TestProcessCacheDifferenceParentPID(t *testing.T) {
 	current := &procutil.Process{
 		Pid:     pid,
 		Ppid:    2,
-		Cmdline: []string{"zombie"},
-		Stats:   &procutil.Stats{CreateTime: createTime, Status: "Z"},
+		Cmdline: []string{"worker"},
+		Stats:   &procutil.Stats{CreateTime: createTime, Status: "S"},
 	}
 	previous := &procutil.Process{
 		Pid:     pid,
 		Ppid:    1,
-		Cmdline: []string{"zombie"},
-		Stats:   &procutil.Stats{CreateTime: createTime, Status: "Z"},
+		Cmdline: []string{"worker"},
+		Stats:   &procutil.Stats{CreateTime: createTime, Status: "S"},
 	}
 
 	diff := processCacheDifference(
