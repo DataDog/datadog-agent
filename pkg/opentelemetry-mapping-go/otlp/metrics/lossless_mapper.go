@@ -180,11 +180,8 @@ func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 	}
 }
 
-// The histogram data points below are forwarded without validation, unlike every
-// other path in this mapper. The limits that would apply here depend on how the
-// backend rebuilds a natively forwarded histogram, which is not settled yet, and
-// the consumers are no-ops in the meantime. Tracked by OTAGENT-1131 — do not read
-// the absence of checks here as "already guarded".
+// Histograms are forwarded unvalidated on purpose: the limits depend on the
+// backend that will consume them, which is not settled yet (OTAGENT-1131).
 func (m *lossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
 	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
 	return nil

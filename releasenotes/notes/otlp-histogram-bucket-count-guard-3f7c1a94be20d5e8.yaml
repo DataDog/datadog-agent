@@ -8,9 +8,9 @@
 ---
 fixes:
   - |
-    OTLP: a histogram or exponential histogram data point carrying more than
-    268,431,360 observations, by its count or by its buckets added together, is
-    no longer converted into a Datadog distribution. Such a point used to be
+    OTLP: a histogram or exponential histogram data point whose buckets hold
+    more than 268,431,360 observations together is no longer converted into a
+    Datadog distribution. Such a point used to be
     converted anyway: every 65535 observations took a sketch bin of their own,
     enough to exhaust the Agent's memory, and past that count the lower
     percentiles were silently distorted. For cumulative histograms, the

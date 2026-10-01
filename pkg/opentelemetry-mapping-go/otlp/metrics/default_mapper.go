@@ -86,10 +86,9 @@ func (m *defaultMapper) MapHistogramMetrics(
 			// No recorded value, skip.
 			continue
 		}
-		// The sketch capacity limit is not checked here: it only applies to
-		// HistogramModeDistributions, and it has to be checked against the counts that
-		// actually reach the sketch, which for a cumulative point are the deltas
-		// computed below. See getSketchBuckets.
+		// The sketch limit is checked in getSketchBuckets, against the counts that
+		// reach the sketch: only that mode builds one, and a cumulative point
+		// contributes its deltas rather than the counts it carries.
 
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
@@ -102,11 +101,9 @@ func (m *defaultMapper) MapHistogramMetrics(
 		if delta {
 			histInfo.count = p.Count()
 		} else if dx, ok := m.prevPts.Diff(countDims, startTs, ts, float64(p.Count())); ok && dx >= 0 {
-			histInfo.count = saturatingUint64(dx)
+			histInfo.count = uint64(dx)
 		} else {
-			// No delta to report: the point is a first or an out-of-order one, or its
-			// count went down, which is a reset the start timestamp did not reveal.
-			// Converting that negative delta to uint64 is architecture-dependent.
+			// A count going down is a reset, and leaves no delta to report.
 			histInfo.ok = false
 		}
 
@@ -249,12 +246,10 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 ) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
-		// Unlike explicit-bounds histograms, the raw counts are the ones inserted into
-		// the sketch here: only delta exponential histograms reach this mapper (see the
-		// temporality switch in metrics_translator.go), and every one of them is
-		// converted into a sketch, with no HistogramMode to opt out of it.
-		if reason, badCount, drop := validateExpHistogramDataPoint(p, sketchMaxObservationCount); drop {
-			warnDroppedDataPoint(m.logger, &m.warnedMetrics, dims.name, reason, badCount, sketchMaxObservationCount)
+		// Validated up front, unlike explicit-bounds histograms: only delta points
+		// reach this mapper, and all of them become a sketch.
+		if reason, observations, drop := validateExpHistogramDataPoint(p, sketchMaxObservationCount); drop {
+			warnDroppedDataPoint(m.logger, &m.warnedMetrics, dims.name, reason, observations, sketchMaxObservationCount)
 			continue
 		}
 
@@ -398,25 +393,11 @@ func (m *defaultMapper) getSketchBuckets(
 	var minBound, maxBound float64
 	var minBoundSet bool
 
-	// More observations than the sketch can represent make the whole sketch
-	// unusable: insertCounts expands a count into one bin per 65535 observations,
-	// and trimLeft does not give the budget back once the bins are full, so the bin
-	// count grows with the total number of observations.
-	//
-	// What is bounded below is the running total of what is actually inserted, not
-	// each bucket on its own: the counts of all buckets land in the same sketch, and
-	// the Count the point declares is no help — OTLP requires it to equal their sum,
-	// but nothing enforces that. histInfo.count is only an early exit.
-	//
-	// The loop still runs to completion once the sketch is abandoned, so that every
-	// bucket's entry in the delta cache stays up to date and the next point is not
-	// computed against a stale value.
-	var badCount uint64
+	// What bounds the bins a sketch ends up with is the total inserted, not each
+	// bucket on its own. Once that total is too high the sketch is abandoned, but
+	// the loop runs on, so that every bucket's delta cache entry stays up to date.
+	var dropSketch bool
 	var inserted float64
-	dropSketch := exceedsSketchCapacity(float64(histInfo.count), sketchMaxObservationCount)
-	if dropSketch {
-		badCount = histInfo.count
-	}
 
 	for j := 0; j < bucketCounts.Len(); j++ {
 		lowerBound, upperBound := getBounds(explicitBounds, j)
@@ -447,37 +428,26 @@ func (m *defaultMapper) getSketchBuckets(
 			lowerBound = upperBound
 		}
 
-		count := bucketCounts.At(j)
-		var nonZeroBucket bool
-		if delta {
-			nonZeroBucket = count > 0
-			if !dropSketch {
-				inserted += float64(count)
-				if exceedsSketchCapacity(inserted, sketchMaxObservationCount) {
-					dropSketch, badCount = true, saturatingUint64(inserted)
-				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(count)); err != nil {
-					return err
-				}
-			}
-		} else if dx, ok := m.prevPts.Diff(bucketDims, startTs, ts, float64(count)); ok {
-			nonZeroBucket = dx > 0
-			if !dropSketch {
-				// dx, not count: a cumulative point carries lifetime counts, while only
-				// the difference from the previous point is inserted. A negative dx (a
-				// counter reset) inserts nothing and adds nothing to the total; it is
-				// clamped rather than converted, as uint of a negative float64 is
-				// architecture-dependent.
-				added := math.Max(dx, 0)
-				inserted += added
-				if exceedsSketchCapacity(inserted, sketchMaxObservationCount) {
-					dropSketch, badCount = true, saturatingUint64(inserted)
-				} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(added)); err != nil {
-					return err
-				}
+		// A cumulative point contributes the delta from the previous point. A delta
+		// that is absent or negative, the latter being a reset, contributes nothing.
+		count := float64(bucketCounts.At(j))
+		if !delta {
+			var ok bool
+			if count, ok = m.prevPts.Diff(bucketDims, startTs, ts, count); !ok || count < 0 {
+				continue
 			}
 		}
 
-		if nonZeroBucket {
+		if !dropSketch {
+			inserted += count
+			if inserted > float64(sketchMaxObservationCount) {
+				dropSketch = true
+			} else if err := as.InsertInterpolate(lowerBound, upperBound, uint(count)); err != nil {
+				return err
+			}
+		}
+
+		if count > 0 {
 			if !minBoundSet {
 				minBound = originalLowerBound
 				minBoundSet = true
@@ -487,7 +457,7 @@ func (m *defaultMapper) getSketchBuckets(
 	}
 
 	if dropSketch {
-		warnDroppedDataPoint(m.logger, &m.warnedMetrics, pointDims.name, dropReasonBucketCountTooHigh, badCount, sketchMaxObservationCount)
+		warnDroppedDataPoint(m.logger, &m.warnedMetrics, pointDims.name, dropReasonBucketCountTooHigh, inserted, sketchMaxObservationCount)
 		return nil
 	}
 

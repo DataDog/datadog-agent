@@ -222,9 +222,7 @@ func TestCols(t *testing.T) {
 }
 
 // TestInsertCountsAboveMaxCount records what a count above Config.MaxCount()
-// actually costs. The count itself survives — trimLeft folds the trimmed mass
-// into overflow bins — but the sketch silently outgrows its binLimit budget and
-// the low tail loses resolution, with no error, log or telemetry anywhere.
+// costs: the count survives, but the sketch silently outgrows its bin budget.
 func TestInsertCountsAboveMaxCount(t *testing.T) {
 	c := Default()
 	require.Equal(t, defaultBinLimit*math.MaxUint16, c.MaxCount())

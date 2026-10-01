@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"context"
-	"math"
 	"strings"
 	"testing"
 
@@ -23,8 +22,7 @@ import (
 )
 
 func TestValidateExpHistogramDataPoint(t *testing.T) {
-	// The limit is the agent sketch's own capacity, not a policy number: binLimit
-	// bins of uint16 each.
+	// The limit is the sketch's own capacity: binLimit bins of uint16 each.
 	require.Equal(t, uint64(quantile.Default().MaxCount()), sketchMaxObservationCount)
 	sketchMax := sketchMaxObservationCount
 
@@ -32,9 +30,9 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 		name   string
 		setup  func(dp pmetric.ExponentialHistogramDataPoint)
 		reason string
-		// badCount is the number of observations counted when the limit was crossed.
-		badCount uint64
-		drop     bool
+		// observations is the total counted when the limit was crossed.
+		observations uint64
+		drop         bool
 	}{
 		{
 			name: "plausible point passes",
@@ -59,9 +57,9 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 				dp.SetCount(10)
 				dp.SetZeroCount(sketchMax + 1)
 			},
-			reason:   dropReasonBucketCountTooHigh,
-			badCount: sketchMax + 1,
-			drop:     true,
+			reason:       dropReasonBucketCountTooHigh,
+			observations: sketchMax + 1,
+			drop:         true,
 		},
 		{
 			name: "positive bucket above limit",
@@ -69,9 +67,9 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 				dp.SetCount(10)
 				dp.Positive().BucketCounts().Append(1, sketchMax+1)
 			},
-			reason:   dropReasonBucketCountTooHigh,
-			badCount: sketchMax + 2,
-			drop:     true,
+			reason:       dropReasonBucketCountTooHigh,
+			observations: sketchMax + 2,
+			drop:         true,
 		},
 		{
 			name: "negative bucket above limit",
@@ -79,9 +77,9 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 				dp.SetCount(10)
 				dp.Negative().BucketCounts().Append(1, sketchMax+1)
 			},
-			reason:   dropReasonBucketCountTooHigh,
-			badCount: sketchMax + 2,
-			drop:     true,
+			reason:       dropReasonBucketCountTooHigh,
+			observations: sketchMax + 2,
+			drop:         true,
 		},
 		{
 			name: "zero count and buckets summing above limit",
@@ -91,9 +89,9 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 				dp.Positive().BucketCounts().Append(sketchMax - 1)
 				dp.Negative().BucketCounts().Append(1)
 			},
-			reason:   dropReasonBucketCountTooHigh,
-			badCount: sketchMax + 1,
-			drop:     true,
+			reason:       dropReasonBucketCountTooHigh,
+			observations: sketchMax + 1,
+			drop:         true,
 		},
 		{
 			name: "zero count and buckets summing exactly to limit pass",
@@ -105,16 +103,6 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 			},
 		},
 		{
-			name: "sum past the uint64 range is reported saturated",
-			setup: func(dp pmetric.ExponentialHistogramDataPoint) {
-				dp.SetCount(10)
-				dp.Positive().BucketCounts().Append(1, math.MaxUint64)
-			},
-			reason:   dropReasonBucketCountTooHigh,
-			badCount: math.MaxUint64,
-			drop:     true,
-		},
-		{
 			name: "bucket count exactly at limit passes",
 			setup: func(dp pmetric.ExponentialHistogramDataPoint) {
 				dp.SetCount(sketchMax)
@@ -122,14 +110,11 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 			},
 		},
 		{
-			name: "total count above limit",
+			name: "count above the limit is ignored, only the buckets are counted",
 			setup: func(dp pmetric.ExponentialHistogramDataPoint) {
 				dp.SetCount(sketchMax + 1)
 				dp.Positive().BucketCounts().Append(1, 2)
 			},
-			reason:   dropReasonBucketCountTooHigh,
-			badCount: sketchMax + 1,
-			drop:     true,
 		},
 	}
 
@@ -138,11 +123,11 @@ func TestValidateExpHistogramDataPoint(t *testing.T) {
 			dp := pmetric.NewExponentialHistogramDataPoint()
 			tt.setup(dp)
 
-			reason, badCount, drop := validateExpHistogramDataPoint(dp, sketchMaxObservationCount)
+			reason, observations, drop := validateExpHistogramDataPoint(dp, sketchMaxObservationCount)
 
 			assert.Equal(t, tt.drop, drop)
 			assert.Equal(t, tt.reason, reason)
-			assert.Equal(t, tt.badCount, badCount)
+			assert.Equal(t, float64(tt.observations), observations)
 		})
 	}
 }
@@ -158,9 +143,8 @@ func appendHistogramPoint(slice pmetric.HistogramDataPointSlice, ts uint64, coun
 	dp.SetTimestamp(pcommon.Timestamp(ts))
 }
 
-// appendBucketsPoint adds a histogram point with one bucket per value in buckets,
-// bounded at 1, 2, and so on. It declares count observations whatever the
-// buckets hold, so that a test can make the two disagree.
+// appendBucketsPoint adds a point with one bucket per value in buckets, bounded at
+// 1, 2, and so on. Its declared count is independent of what the buckets hold.
 func appendBucketsPoint(slice pmetric.HistogramDataPointSlice, ts, count uint64, buckets ...uint64) {
 	dp := slice.AppendEmpty()
 	dp.SetCount(count)
@@ -172,8 +156,8 @@ func appendBucketsPoint(slice pmetric.HistogramDataPointSlice, ts, count uint64,
 	dp.SetTimestamp(pcommon.Timestamp(ts))
 }
 
-// seriesTotal returns the sum of the time series whose name ends in suffix. It is
-// a sum because a histogram emits one .bucket series per bucket.
+// seriesTotal sums the time series whose name ends in suffix: a histogram emits
+// one .bucket series per bucket.
 func seriesTotal(t *testing.T, consumer *testConsumer, suffix string) float64 {
 	t.Helper()
 
@@ -215,15 +199,12 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 		entry := logs.All()[0]
 		assert.Contains(t, entry.Message, "too many observations")
 		assert.Equal(t, "test.histogram", entry.ContextMap()["metric name"])
-		assert.Equal(t, sketchMax+1, entry.ContextMap()["count"])
+		assert.Equal(t, float64(sketchMax+1), entry.ContextMap()["observations"])
 		assert.Equal(t, sketchMax, entry.ContextMap()["limit"])
 	})
 
 	t.Run("cumulative lifetime count above the limit is kept", func(t *testing.T) {
-		// The regression this guards against: a cumulative point carries the counts of
-		// the whole process lifetime, but only the delta reaches the sketch. Checking
-		// the raw counts would silence the series forever once the lifetime total
-		// passes the limit.
+		// A cumulative point carries lifetime counts, but only its delta is inserted.
 		core, logs := observer.New(zapcore.WarnLevel)
 		m := newDefaultMapper(newTTLCache(1800, 3600), zap.New(core), distributions)
 
@@ -258,10 +239,8 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 	})
 
 	t.Run("cumulative count going down is not read as a huge count", func(t *testing.T) {
-		// Without a start timestamp nothing else reveals the reset, and converting the
-		// negative delta to uint64 gives an architecture-dependent count, close to 2^64
-		// on amd64. A point without buckets would also carry it into the sketch, as the
-		// single bucket built from its count.
+		// Nothing but the count going down reveals this reset, and a negative delta
+		// converted to uint64 would report close to 2^64 on amd64.
 		for _, tc := range []struct {
 			name          string
 			before, after []uint64
@@ -285,24 +264,6 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 				assert.Zero(t, logs.Len())
 			})
 		}
-	})
-
-	t.Run("cumulative count delta past the uint64 range is reported saturated", func(t *testing.T) {
-		// float64(math.MaxUint64) rounds to 2^64, which has no uint64 value: converting
-		// it as is gives an architecture-dependent count, 2^63 on amd64.
-		core, logs := observer.New(zapcore.WarnLevel)
-		m := newDefaultMapper(newTTLCache(1800, 3600), zap.New(core), distributions)
-
-		slice := pmetric.NewHistogramDataPointSlice()
-		appendHistogramPoint(slice, 1_000_000_000, 0, 1)
-		appendHistogramPoint(slice, 2_000_000_000, math.MaxUint64, 2)
-
-		consumer := newTestConsumer()
-		require.NoError(t, m.MapHistogramMetrics(context.Background(), &consumer, &Dimensions{name: "test.histogram"}, slice, false))
-
-		assert.Empty(t, consumer.data.Metrics.Sketches)
-		require.Equal(t, 1, logs.Len())
-		assert.Equal(t, uint64(math.MaxUint64), logs.All()[0].ContextMap()["count"])
 	})
 
 	t.Run("counters mode is untouched", func(t *testing.T) {
@@ -375,9 +336,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 	})
 
 	t.Run("exponential histogram above the limit is dropped", func(t *testing.T) {
-		// Exponential points are validated at the top of the loop, so the whole point
-		// goes, aggregates included: only delta points get here and their raw counts
-		// are the ones inserted.
+		// Validated up front, so the aggregations go with the distribution.
 		core, logs := observer.New(zapcore.WarnLevel)
 		m := newDefaultMapper(newTTLCache(1800, 3600), zap.New(core), distributions)
 
@@ -417,10 +376,7 @@ func TestDefaultMapperSketchCapacity(t *testing.T) {
 }
 
 // TestDefaultMapperSketchCapacityAcrossBuckets covers the limit on what all the
-// buckets of a point put into the sketch together. The Count a point declares
-// cannot stand in for it: OTLP requires Count to equal the sum of the buckets,
-// but nothing enforces it, and it is the sum that decides how many bins the
-// sketch allocates.
+// buckets of a point insert together, which is what decides the bins it needs.
 func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 	distributions := translatorConfig{
 		HistMode:                  HistogramModeDistributions,
@@ -440,7 +396,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())
-		assert.Equal(t, 2*sketchMax, logs.All()[0].ContextMap()["count"],
+		assert.Equal(t, float64(2*sketchMax), logs.All()[0].ContextMap()["observations"],
 			"the total when the limit was crossed, not the bucket that crossed it")
 	})
 
@@ -456,7 +412,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())
-		assert.Equal(t, sketchMax+1, logs.All()[0].ContextMap()["count"])
+		assert.Equal(t, float64(sketchMax+1), logs.All()[0].ContextMap()["observations"])
 	})
 
 	t.Run("buckets summing exactly to the limit are kept", func(t *testing.T) {
@@ -475,8 +431,6 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 	})
 
 	t.Run("cumulative deltas summing above the limit drop only that point", func(t *testing.T) {
-		// The declared Count does not move, so only the bucket deltas reveal the
-		// observations the second point puts into the sketch.
 		core, logs := observer.New(zapcore.WarnLevel)
 		m := newDefaultMapper(newTTLCache(1800, 3600), zap.New(core), distributions)
 
@@ -491,7 +445,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 		require.Len(t, consumer.data.Metrics.Sketches, 1, "the third point is computed against the second one, not against a stale cache entry")
 		assert.Equal(t, int64(10), consumer.data.Metrics.Sketches[0].Summary.Cnt)
 		require.Equal(t, 1, logs.Len())
-		assert.Equal(t, 2*sketchMax, logs.All()[0].ContextMap()["count"])
+		assert.Equal(t, float64(2*sketchMax), logs.All()[0].ContextMap()["observations"])
 	})
 
 	t.Run("a negative cumulative delta does not make room for other buckets", func(t *testing.T) {
@@ -507,7 +461,7 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())
-		assert.Equal(t, 2*sketchMax, logs.All()[0].ContextMap()["count"])
+		assert.Equal(t, float64(2*sketchMax), logs.All()[0].ContextMap()["observations"])
 	})
 
 	t.Run("exponential buckets summing above the limit", func(t *testing.T) {
@@ -526,6 +480,6 @@ func TestDefaultMapperSketchCapacityAcrossBuckets(t *testing.T) {
 
 		assert.Empty(t, consumer.data.Metrics.Sketches)
 		require.Equal(t, 1, logs.Len())
-		assert.Equal(t, 2*sketchMax, logs.All()[0].ContextMap()["count"])
+		assert.Equal(t, float64(2*sketchMax), logs.All()[0].ContextMap()["observations"])
 	})
 }

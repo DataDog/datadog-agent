@@ -61,13 +61,9 @@ func TestBin_incrSafe(t *testing.T) {
 	}
 }
 
-// TestAppendSafeCountValueDrivesBinCount pins down why a large bucket count is a
-// memory hazard and not just a precision one: appendSafe splits a single count
-// into ceil(n/maxBinWidth) bins, so both the allocation and the loop scale with
-// the *value* of the count, independently of how many distinct keys there are.
-//
-// 1<<30 is used rather than a larger value because n is an int, which is 32 bits
-// wide on the 32-bit build targets.
+// TestAppendSafeCountValueDrivesBinCount shows why a large count is a memory
+// hazard: appendSafe splits it into ceil(n/maxBinWidth) bins, whatever the number
+// of keys. n stays under 1<<31, as int is 32 bits wide on some build targets.
 func TestAppendSafeCountValueDrivesBinCount(t *testing.T) {
 	const (
 		n = 1 << 30
