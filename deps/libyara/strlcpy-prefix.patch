@@ -1,0 +1,42 @@
+diff --git a/libyara/include/yara/strutils.h b/libyara/include/yara/strutils.h
+--- a/libyara/include/yara/strutils.h
++++ b/libyara/include/yara/strutils.h
+@@ -85,11 +85,17 @@
+ 
+ uint64_t xtoi(const char* hexstr);
+ 
++// Prefixed, so that the fallbacks don't clash with other static libraries' own fallbacks
++// (libpcap's strlcpy) when linked into the same binary
+ #if !HAVE_STRLCPY && !defined(strlcpy)
++#define strlcpy yr_strlcpy
++#define YR_STRLCPY_FALLBACK 1
+ size_t strlcpy(char* dst, const char* src, size_t size);
+ #endif
+ 
+ #if !HAVE_STRLCAT && !defined(strlcat)
++#define strlcat yr_strlcat
++#define YR_STRLCAT_FALLBACK 1
+ size_t strlcat(char* dst, const char* src, size_t size);
+ #endif
+ 
+diff --git a/libyara/strutils.c b/libyara/strutils.c
+--- a/libyara/strutils.c
++++ b/libyara/strutils.c
+@@ -86,7 +86,7 @@
+ 
+ */
+ 
+-#if !HAVE_STRLCPY && !defined(strlcpy)
++#if YR_STRLCPY_FALLBACK
+ size_t strlcpy(char* dst, const char* src, size_t size)
+ {
+   register char* d = dst;
+@@ -120,7 +120,7 @@
+ }
+ #endif
+ 
+-#if !HAVE_STRLCAT && !defined(strlcat)
++#if YR_STRLCAT_FALLBACK
+ size_t strlcat(char* dst, const char* src, size_t size)
+ {
+   register char* d = dst;

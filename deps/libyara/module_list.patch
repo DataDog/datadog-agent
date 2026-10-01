@@ -1,0 +1,22 @@
+--- a/libyara/modules/module_list
++++ b/libyara/modules/module_list
+@@ -1,9 +1,19 @@
++#ifdef TESTS_MODULE
+ MODULE(tests)
++#endif
++
++#ifdef PE_MODULE
+ MODULE(pe)
++#endif
++
+ MODULE(elf)
+ MODULE(math)
+ MODULE(time)
++
++#ifdef CONSOLE_MODULE
+ MODULE(console)
++#endif
++
+ MODULE(string)
+ 
+ #ifdef DOTNET_MODULE
