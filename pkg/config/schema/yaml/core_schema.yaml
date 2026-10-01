@@ -863,6 +863,15 @@ properties:
     - template_section:Common
     - full-agent-only:true
     comment: value in milliseconds
+  gce_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - template_section:Common
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      GCE or not.
   collect_gpu_tags:
     node_type: setting
     type: boolean
@@ -911,6 +920,24 @@ properties:
     tags:
     - template_section:Common
     - full-agent-only:true
+  azure_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - template_section:Common
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      Azure or not.
+  oracle_use_dmi:
+    node_type: setting
+    type: boolean
+    default: true
+    tags:
+    - template_section:Common
+    - full-agent-only:true
+    comment: should the agent leverage DMI information to know if it's running on
+      Oracle Cloud or not.
   scrubber:
     node_type: section
     type: object
