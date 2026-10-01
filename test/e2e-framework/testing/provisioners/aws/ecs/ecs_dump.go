@@ -14,7 +14,12 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 )
+
+// describeServicesBatchSize is the most services a single DescribeServices
+// call accepts.
+const describeServicesBatchSize = 10
 
 // maxStoppedTasksPerService bounds how many stopped tasks are described for a
 // service: a crashlooping service accumulates them indefinitely, and the most
@@ -53,24 +58,35 @@ func DumpECSClusterState(ctx context.Context, stackName string) (string, error) 
 	var out strings.Builder
 	fmt.Fprintf(&out, "ECS cluster: %s\n", clusterArn)
 
-	services, err := client.ListServices(ctx, &awsecs.ListServicesInput{Cluster: &clusterArn})
-	if err != nil {
-		return "", fmt.Errorf("failed to list services of %s: %w", clusterArn, err)
+	var serviceArns []string
+	servicesPaginator := awsecs.NewListServicesPaginator(client, &awsecs.ListServicesInput{Cluster: &clusterArn})
+	for servicesPaginator.HasMorePages() {
+		page, err := servicesPaginator.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to list services of %s: %w", clusterArn, err)
+		}
+		serviceArns = append(serviceArns, page.ServiceArns...)
 	}
-	if len(services.ServiceArns) == 0 {
+	if len(serviceArns) == 0 {
 		fmt.Fprintf(&out, "  no services\n")
 		return out.String(), nil
 	}
 
-	described, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
-		Cluster:  &clusterArn,
-		Services: services.ServiceArns,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to describe services of %s: %w", clusterArn, err)
+	// DescribeServices accepts at most describeServicesBatchSize services per call.
+	var services []ecstypes.Service
+	for start := 0; start < len(serviceArns); start += describeServicesBatchSize {
+		end := min(start+describeServicesBatchSize, len(serviceArns))
+		described, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
+			Cluster:  &clusterArn,
+			Services: serviceArns[start:end],
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to describe services of %s: %w", clusterArn, err)
+		}
+		services = append(services, described.Services...)
 	}
 
-	for _, svc := range described.Services {
+	for _, svc := range services {
 		name := derefOr(svc.ServiceName, "<unnamed>")
 		fmt.Fprintf(&out, "\n  service %s: running=%d desired=%d\n", name, svc.RunningCount, svc.DesiredCount)
 
@@ -207,11 +223,6 @@ func dumpContainerLog(ctx context.Context, client *awsecs.Client, logsClient *cl
 // cluster name embeds the stack name but is not equal to it (the scenario
 // appends its own suffix), so this matches on containment rather than equality.
 func findClusterForStack(ctx context.Context, client *awsecs.Client, stackName string) (string, error) {
-	listed, err := client.ListClusters(ctx, &awsecs.ListClustersInput{})
-	if err != nil {
-		return "", fmt.Errorf("failed to list ECS clusters: %w", err)
-	}
-
 	// The stack name reaches ECS lowercased, and may be fully qualified
 	// (organization/project/stack) while the cluster name uses only the last part.
 	needle := strings.ToLower(stackName)
@@ -219,12 +230,23 @@ func findClusterForStack(ctx context.Context, client *awsecs.Client, stackName s
 		needle = needle[idx+1:]
 	}
 
-	for _, arn := range listed.ClusterArns {
-		if strings.Contains(strings.ToLower(arn), needle) {
-			return arn, nil
+	// A shared account can hold more clusters than fit on one page, so walk
+	// every page before concluding there is no match.
+	total := 0
+	paginator := awsecs.NewListClustersPaginator(client, &awsecs.ListClustersInput{})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to list ECS clusters: %w", err)
 		}
+		for _, arn := range page.ClusterArns {
+			if strings.Contains(strings.ToLower(arn), needle) {
+				return arn, nil
+			}
+		}
+		total += len(page.ClusterArns)
 	}
-	return "", fmt.Errorf("no ECS cluster found for stack %s among %d cluster(s)", stackName, len(listed.ClusterArns))
+	return "", fmt.Errorf("no ECS cluster found for stack %s among %d cluster(s)", stackName, total)
 }
 
 func derefOr(s *string, fallback string) string {
