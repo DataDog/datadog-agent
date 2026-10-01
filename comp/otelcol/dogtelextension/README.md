@@ -29,7 +29,7 @@ The pod/K8s-metadata source defaults to **`nodefilter`**: a workloadmeta collect
 
 Only `use_kubelet_collector` picks between the two collectors: `nodefilter` never hands back to `kubelet` on its own, since a deployment set up for `nodefilter` lacks the kubelet API access and settings `kubelet` needs. When `nodefilter` can't run, no pods are collected and the otel-agent logs a warning: once at startup if the node-name env var below isn't set, or each time the API server refuses its pod list/watch for lack of the RBAC below. Fix the deployment, or set `use_kubelet_collector: true`.
 
-`nodefilter` reads the local node's name from an environment variable, mirroring the `k8sattributesprocessor`'s own `node_from_env_var` filter config rather than hardcoding a single env var name. It defaults to `K8S_NODE_NAME`, already populated by the OTel Helm chart and Operator; set `node_from_env_var` in the extension config to point at a different env var (e.g. `DD_KUBERNETES_KUBELET_NODENAME`, populated by the Datadog Helm chart/Operator).
+`nodefilter` reads the local node's name from an environment variable, mirroring the `k8sattributesprocessor`'s own `node_from_env_var` filter config rather than hardcoding a single env var name. It defaults to `K8S_NODE_NAME`, which the OTel Helm chart only populates with some presets (e.g. `kubernetesAttributes` in daemonset mode); set `node_from_env_var` in the extension config to point at a different env var, e.g. `OTEL_K8S_NODE_NAME`, which the OTel Helm chart always populates, or `DD_KUBERNETES_KUBELET_NODENAME`, populated by the Datadog Helm chart/Operator.
 
 **Required deployment configuration (`nodefilter`, the default):**
 ```yaml
