@@ -27,8 +27,8 @@ import (
 // (each one is `retryDelay` apart) is enough to close that gap.
 //
 // This budget must stay small: the retry queue is ordered, so an event waiting here delays all the
-// following events. Sessions that can never be resolved (typically because they were established
-// before the agent started tailing the log) pay it only once, see MarkUnresolved.
+// following events. Sessions that can never be resolved (the auth log line was missed or couldn't
+// be parsed) pay it only once, see MarkUnresolved.
 const maxRetryForMsgWithSSHContext = 5
 
 func (p *EBPFProbe) HandleSSHUserSessionFromEvent(event *model.Event) {

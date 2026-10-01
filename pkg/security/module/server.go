@@ -148,9 +148,8 @@ func (p *pendingMsg) isResolved() bool {
 				seclog.Tracef("ssh session not resolved: %v", err)
 				return false
 			}
-			// give up on this session, the auth log line will most likely never show up (session
-			// established before the agent started tailing the log). Flag it so that its next
-			// events are sent right away instead of being delayed too.
+			// give up on this session, the auth log line will most likely never show up. Flag it
+			// so that its next events are sent right away instead of being delayed too.
 			seclog.Debugf("giving up on ssh session resolution: %v", err)
 			p.sshSessionPatcher.MarkUnresolved()
 		}
