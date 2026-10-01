@@ -577,10 +577,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 
 	if ddcfg == nil {
-		if !isSiteEmpty {
-			return map[string]any{"api": map[string]any{"site": site}}, nil
-		}
-		return map[string]any{"api": map[string]any{"site": "datadoghq.com"}}, nil
+		return map[string]any{"api": map[string]any{"site": site}}, nil
 	}
 	ddcfgMap, ok := ddcfg.(map[string]any)
 	if !ok {
