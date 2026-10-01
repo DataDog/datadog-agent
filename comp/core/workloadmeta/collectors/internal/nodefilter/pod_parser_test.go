@@ -255,6 +255,44 @@ func TestParsePodContainers_UnparsableSpecImage(t *testing.T) {
 	assert.Equal(t, wantImage, container.Image)
 }
 
+// TestParsePodContainers_Ports verifies that the ports a container spec
+// declares end up on its Container entity, as with the kubelet collector: the
+// tagger resolves the %%port%% template variables of autodiscovery tag
+// annotations from them.
+func TestParsePodContainers_Ports(t *testing.T) {
+	specs := []corev1.Container{
+		{
+			Name: "web",
+			Ports: []corev1.ContainerPort{
+				{Name: "http", ContainerPort: 8080, Protocol: corev1.ProtocolTCP},
+				{ContainerPort: 53, Protocol: corev1.ProtocolUDP},
+			},
+		},
+		{Name: "sidecar"},
+	}
+	statuses := []corev1.ContainerStatus{
+		{Name: "web", ContainerID: "docker://web-containerID"},
+		{Name: "sidecar", ContainerID: "docker://sidecar-containerID"},
+		{Name: "without-spec", ContainerID: "docker://without-spec-containerID"},
+	}
+
+	_, events := parsePodContainers(specs, statuses, "default", nil)
+
+	require.Len(t, events, 3)
+	ports := make(map[string][]workloadmeta.ContainerPort)
+	for _, event := range events {
+		container := event.Entity.(*workloadmeta.Container)
+		ports[container.Name] = container.Ports
+	}
+
+	assert.Equal(t, []workloadmeta.ContainerPort{
+		{Name: "http", Port: 8080, Protocol: "TCP"},
+		{Port: 53, Protocol: "UDP"},
+	}, ports["web"])
+	assert.Empty(t, ports["sidecar"])
+	assert.Empty(t, ports["without-spec"])
+}
+
 func TestParsePod_SkipsContainerWithoutID(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", UID: types.UID("pod-uid")},
@@ -305,6 +343,77 @@ func TestParsePod_StaticPod(t *testing.T) {
 	assert.Equal(t, "9b3c1a2d4e5f60718293a4b5c6d7e8f9", podEntity.ID)
 	require.NotNil(t, container.Owner)
 	assert.Equal(t, podEntity.EntityID, *container.Owner)
+}
+
+// TestParsePod_StaticPodOwners verifies that the node owner the kubelet gives a
+// mirror pod isn't reported as an owner of the static pod it stands for, which
+// has none for the kubelet collector, and that it's only left out for mirror
+// pods.
+func TestParsePod_StaticPodOwners(t *testing.T) {
+	controller := true
+	nodeOwner := metav1.OwnerReference{
+		APIVersion: "v1",
+		Kind:       "Node",
+		Name:       "test-node",
+		UID:        types.UID("node-uid"),
+		Controller: &controller,
+	}
+	daemonSetOwner := metav1.OwnerReference{
+		APIVersion: "apps/v1",
+		Kind:       "DaemonSet",
+		Name:       "test-daemonset",
+		UID:        types.UID("daemonset-uid"),
+	}
+	mirrorPodAnnotations := map[string]string{mirrorPodAnnotation: "9b3c1a2d4e5f60718293a4b5c6d7e8f9"}
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		owners      []metav1.OwnerReference
+		want        []workloadmeta.KubernetesPodOwner
+	}{
+		{
+			name:        "mirror pod without its node owner",
+			annotations: mirrorPodAnnotations,
+			owners:      []metav1.OwnerReference{nodeOwner},
+			want:        nil,
+		},
+		{
+			name:        "mirror pod keeps its other owners",
+			annotations: mirrorPodAnnotations,
+			owners:      []metav1.OwnerReference{nodeOwner, daemonSetOwner},
+			want: []workloadmeta.KubernetesPodOwner{
+				{Kind: "DaemonSet", Name: "test-daemonset", ID: "daemonset-uid", Group: "apps"},
+			},
+		},
+		{
+			name:   "regular pod keeps a node owner",
+			owners: []metav1.OwnerReference{nodeOwner},
+			want: []workloadmeta.KubernetesPodOwner{
+				{Kind: "Node", Name: "test-node", ID: "node-uid", Controller: &controller},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "kube-apiserver-test-node",
+					Namespace:       "kube-system",
+					UID:             types.UID("85a6cc02-4460-4f8a-b5f0-0123456789ab"),
+					Annotations:     tt.annotations,
+					OwnerReferences: tt.owners,
+				},
+			}
+
+			events := parsePod(pod, false)
+
+			require.Len(t, events, 1)
+			podEntity := events[0].Entity.(*workloadmeta.KubernetesPod)
+			assert.ElementsMatch(t, tt.want, podEntity.Owners)
+		})
+	}
 }
 
 func TestParsePod_DeletionTimestamp(t *testing.T) {
