@@ -300,11 +300,18 @@ func newAPIClient(cfg config.Component) (kubernetes.Interface, error) {
 }
 
 // applyTLSSettings configures how clientConfig, built from the pod's service
-// account, verifies the API server's certificate, as
-// pkg/util/kubernetes/apiserver/apiserver.go does for its own clients.
+// account, verifies the API server's certificate.
+//
+// Unlike pkg/util/kubernetes/apiserver/apiserver.go, it drops every CA when
+// verification is disabled: client-go refuses a root CA together with the
+// insecure flag, and rest.InClusterConfig sets the service account's, so
+// keeping it, or adding a custom one, would fail the client's creation.
 func applyTLSSettings(cfg config.Component, clientConfig *rest.Config) {
 	if !cfg.GetBool("kubernetes_apiserver_tls_verify") {
 		clientConfig.TLSClientConfig.Insecure = true
+		clientConfig.TLSClientConfig.CAFile = ""
+		clientConfig.TLSClientConfig.CAData = nil
+		return
 	}
 
 	if customCAPath := cfg.GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
