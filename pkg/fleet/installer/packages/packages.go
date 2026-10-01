@@ -175,6 +175,8 @@ const (
 	PackageTypeRPM PackageType = "rpm"
 	// PackageTypeMSI is the type for MSI packages.
 	PackageTypeMSI PackageType = "msi"
+	// PackageTypeDMG is the type for the macOS .dmg (and the .pkg it ships).
+	PackageTypeDMG PackageType = "dmg"
 )
 
 // HookContext is the context passed to hooks during install/upgrade/uninstall.

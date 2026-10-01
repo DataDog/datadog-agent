@@ -514,6 +514,54 @@ func TestPostInstallDatadogAgentSkipsRegistrationForAnOCIPackage(t *testing.T) {
 	require.NoError(t, postInstallDatadogAgent(ctx))
 }
 
+// TestPostInstallDMGRegistersAndLoadsWithoutTouchingTheFilesystem covers what
+// `installer postinst datadog-agent dmg` does for the .dmg's postinstall script: it registers the
+// package and loads the stable jobs, but leaves the install root to the script, whose ownerships
+// installFilesystem would reset.
+func TestPostInstallDMGRegistersAndLoadsWithoutTouchingTheFilesystem(t *testing.T) {
+	stubLaunchd(t)
+	dir := t.TempDir()
+	original := launchdJobDir
+	launchdJobDir = dir
+	t.Cleanup(func() { launchdJobDir = original })
+	layout := testLayout(t)
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.NoError(t, postInstallDMG(ctx, layout))
+
+	repositories := repository.NewRepositories(layout.packagesRoot, AsyncPreRemoveHooks)
+	state, err := repositories.GetState(agentPackage)
+	require.NoError(t, err)
+	assert.True(t, state.HasStable(), "the package was not registered")
+	for _, label := range stableJobs {
+		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+	}
+	assert.NoDirExists(t, layout.installRoot, "the install root is the .dmg script's to set up")
+}
+
+// TestPostInstallDMGLoadsTheJobsWhenRegistrationFails pins that a failed registration, which only
+// costs configuration experiments, does not also leave the Agent stopped.
+func TestPostInstallDMGLoadsTheJobsWhenRegistrationFails(t *testing.T) {
+	stubLaunchd(t)
+	dir := t.TempDir()
+	original := launchdJobDir
+	launchdJobDir = dir
+	t.Cleanup(func() { launchdJobDir = original })
+	layout := testLayout(t)
+	// A file where the packages root should be makes the registration fail.
+	require.NoError(t, os.MkdirAll(filepath.Dir(layout.packagesRoot), 0755))
+	require.NoError(t, os.WriteFile(layout.packagesRoot, nil, 0644))
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.Error(t, postInstallDMG(ctx, layout))
+
+	for _, label := range stableJobs {
+		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+	}
+}
+
 func TestPreRemoveStopsBothJobSets(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := t.TempDir()

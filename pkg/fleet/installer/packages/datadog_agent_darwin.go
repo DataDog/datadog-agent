@@ -9,6 +9,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -352,37 +353,6 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 	return nil
 }
 
-// InstallStableJobs is postinst's entry point for the agent, system-probe, Agent Data Plane and
-// installer daemon launchd jobs.
-//
-// None of the four is shipped as static plist XML for the .dmg to install: all come from the same
-// embedded copies a Fleet configuration experiment later swaps between, so the .dmg install path
-// and the Fleet path can never drift apart. The installer daemon's job exits cleanly when
-// remote_updates is off, and launchd does not relaunch a clean exit, so loading it unconditionally
-// is safe.
-func InstallStableJobs(ctx context.Context) error {
-	return installStableJobs(HookContext{Context: ctx, Package: agentPackage})
-}
-
-// RegisterPackageRepository is postinst's entry point for registering the Agent in the OCI package
-// repository the shared installer code keeps per package. Without it no Fleet configuration
-// experiment can start on a .dmg-installed host -- see registerPackageRepository for why.
-//
-// postinst calls this rather than the whole postInstall hook because it already does its own
-// equivalent of installFilesystem and installinfo.WriteInstallInfo inline, with .dmg-specific
-// ownership and install-method logic. Running the full hook would have the two fight over the same
-// files for no gain.
-func RegisterPackageRepository(ctx context.Context) error {
-	return registerPackageRepository(HookContext{Context: ctx, Package: agentPackage}, defaultAgentLayout)
-}
-
-// RemoveDaemonJob unloads the installer daemon and removes its definition. Every step is allowed
-// to fail: it runs on the uninstall and upgrade paths, where a job that is already gone is the
-// desired outcome.
-func RemoveDaemonJob(ctx context.Context) {
-	removeJob(ctx, launchdClient(), installerJob)
-}
-
 // removeJobs unloads the given jobs and removes their definitions. Every step is allowed to fail:
 // it runs on the uninstall path, where a job that is already gone is the desired outcome.
 func removeJobs(ctx HookContext, labels []string) {
@@ -437,6 +407,9 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		// script a real .dmg install runs directly.
 		return installWrappedPackage(ctx)
 	}
+	if ctx.PackageType == PackageTypeDMG {
+		return postInstallDMG(ctx, defaultAgentLayout)
+	}
 
 	if err := installFilesystem(ctx, defaultAgentLayout); err != nil {
 		return err
@@ -448,6 +421,29 @@ func postInstallDatadogAgent(ctx HookContext) error {
 		return fmt.Errorf("failed to write install info: %w", err)
 	}
 	return installStableJobs(ctx)
+}
+
+// postInstallDMG is the part of the post-install the .dmg's postinstall script delegates to
+// `installer postinst datadog-agent dmg`: registering the Agent as a package and loading the stable
+// job set.
+//
+// The script does its own equivalent of installFilesystem and installinfo.WriteInstallInfo inline,
+// with .dmg-specific ownership (the admin group, the world-writable run/ipc the GUI sockets live
+// in) and install-method logic, so neither runs here: installFilesystem would reset those
+// ownerships and modes.
+//
+// Both steps run even if the other fails, and in this order so the daemon finds the package
+// registered when it starts: a failed registration only disables configuration experiments, and
+// must not also leave the Agent stopped.
+func postInstallDMG(ctx HookContext, layout agentLayout) error {
+	var errs []error
+	if err := registerPackageRepository(ctx, layout); err != nil {
+		errs = append(errs, err)
+	}
+	if err := installStableJobs(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
 }
 
 // installWrappedPackage runs the .pkg installer payload an OCI-delivered Agent package wraps.

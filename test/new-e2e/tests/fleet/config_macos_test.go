@@ -99,7 +99,7 @@ func (s *configMacOSSuite) SetupSuite() {
 	// suite depends on: InstallConfigExperiment reads the package's repository unconditionally, and
 	// ConfigAndPackageStates enumerates every registered package to answer /status. Nothing here
 	// creates it -- omnibus/package-scripts/agent-dmg/postinst does, via `installer
-	// register-package` -- so a failure means that regressed, not that the suite is misconfigured.
+	// postinst datadog-agent dmg` -- so a failure means that regressed, not that the suite is misconfigured.
 	_, err := s.Env().RemoteHost.Execute(
 		"test -L /opt/datadog-packages/datadog-agent/stable && test -L /opt/datadog-packages/datadog-agent/experiment")
 	require.NoError(s.T(), err, "the .dmg install did not register the Agent in the OCI package "+
@@ -865,7 +865,7 @@ func (s *configMacOSSuite) TestLaunchdBootoutBootstrapRaceRegressionMacOS() {
 // --- Set 12: config-experiment job definitions match installed (macOS-specific) ----------------
 
 // TestConfigExperimentJobDefinitionsMatchInstalledMacOS regression-tests
-// pkg/fleet/installer/packages/datadog_agent_darwin.go's InstallStableJobs: the stable launchd job
+// pkg/fleet/installer/packages/datadog_agent_darwin.go's installStableJobs: the stable launchd job
 // definitions a config experiment writes back on promote must be byte-identical to the ones
 // already on disk from install, since both come from the same embedded template.
 func (s *configMacOSSuite) TestConfigExperimentJobDefinitionsMatchInstalledMacOS() {
