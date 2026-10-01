@@ -88,9 +88,8 @@ mkitab "datadog-agent:2:once:startsrc -g datadog-agent >/dev/console 2>&1"
 # On an upgrade the preinst stopped the services; this brings them back up.
 # Skipped when DD_INSTALL_ONLY is set
 if [ -f /etc/datadog-agent/datadog.yaml ] && [ -z "$DD_INSTALL_ONLY" ]; then
-    startsrc -s datadog-agent            2>/dev/null || true
-    startsrc -s datadog-trace-agent      2>/dev/null || true
-    startsrc -s datadog-agent-data-plane 2>/dev/null || true
+    # The SRC group was just (re)created by the mkssys calls above.
+    startsrc -g datadog-agent 2>/dev/null || true
 fi
 
 # Convenience symlink so operators can run `datadog-agent` without the full
