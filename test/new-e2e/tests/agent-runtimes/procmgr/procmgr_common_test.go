@@ -75,9 +75,10 @@ func (s *baseProcmgrSuite) requireCLI() {
 	}
 }
 
-// stopShouldTakeLessThan bounds a dd-procmgr stop of a test fixture. Well under
-// the 90s default stop_timeout, so a stop that falls back to waiting the timeout
-// out is a failure here rather than a slow pass.
+// stopShouldTakeLessThan bounds a dd-procmgr stop of a test fixture. Linux's
+// exits on the signal; Windows' ignores it and is pinned to a 10s stop_timeout,
+// so this leaves room for that plus the force kill. A stop that runs past this
+// is one the daemon never escalated.
 const stopShouldTakeLessThan = 20 * time.Second
 
 // retryCLIAction runs a mutating dd-procmgr command until it succeeds.
@@ -178,14 +179,13 @@ func (s *baseProcmgrSuite) TestCLIStopStartThenKillRestarts() {
 		assertTableRow(ct, out, procName, map[string]string{"STATE": "Running"})
 	}, 30*time.Second, 2*time.Second)
 
-	// Held to a duration, not just an outcome. This fixture takes the shipped
-	// 90s stop_timeout, and a stop that cannot deliver its signal used to wait
-	// the whole of it out before force-killing, which is the regression this
-	// test has to be able to see. Nothing here needs more than a couple of
-	// seconds to go down.
+	// Held to a duration, not just an outcome. On Windows the fixture ignores
+	// the graceful stop, so this exercises the escalation: the daemon has to
+	// give up after stop_timeout and force-kill. A daemon that waits forever
+	// on a child that will never exit on its own fails here.
 	stopTook := s.retryCLIAction("stop", procName, "is not running")
 	assert.Less(s.T(), stopTook, stopShouldTakeLessThan,
-		"stop took %s: the daemon is waiting out a stop_timeout it has nothing to wait for", stopTook)
+		"stop took %s: the daemon did not escalate to a force kill after stop_timeout", stopTook)
 
 	s.retryCLIAction("start", procName, "is already running")
 
