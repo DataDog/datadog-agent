@@ -15,6 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
+type mountNodeKey struct {
+	mountPoint string
+	filesystem string
+	mountFlags uint32
+}
+
 type MountNode struct {
 	NodeBase
 	GenerationType NodeGenerationType
@@ -47,6 +53,14 @@ func NewMountNode(mountPoint, mountRoot, filesystem string, mountFlags uint32, g
 	return node
 }
 
+func (at *ActivityTree) indexMount(key mountNodeKey, node *MountNode) {
+	if at.mountIndex == nil {
+		at.mountIndex = make(map[mountNodeKey]*MountNode)
+	}
+	at.Mounts = append(at.Mounts, node)
+	at.mountIndex[key] = node
+}
+
 func (at *ActivityTree) AddBaseMountNamespaceID(nsID uint32) {
 	if nsID == 0 {
 		return
@@ -71,17 +85,16 @@ func (at *ActivityTree) RemoveBaseMountNamespaceID(nsID uint32) {
 func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) bool {
 	isBase := nsID != 0 && at.baseMountNamespaceIDs[nsID] > 0
 
-	for _, mn := range at.Mounts {
-		if mn.MountPoint == mountPoint && mn.Filesystem == filesystem && mn.MountFlags == mountFlags {
-			if !dryRun {
-				mn.MountRoot = mountRoot
-				mn.AppendImageTagID(imageTagID, timestamp)
-				if isBase {
-					mn.InBaseNamespace = true
-				}
+	key := mountNodeKey{mountPoint: mountPoint, filesystem: filesystem, mountFlags: mountFlags}
+	if mn, ok := at.mountIndex[key]; ok {
+		if !dryRun {
+			mn.MountRoot = mountRoot
+			mn.AppendImageTagID(imageTagID, timestamp)
+			if isBase {
+				mn.InBaseNamespace = true
 			}
-			return false
 		}
+		return false
 	}
 
 	if dryRun {
@@ -90,7 +103,7 @@ func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesyst
 
 	node := NewMountNode(mountPoint, mountRoot, filesystem, mountFlags, generationType, imageTagID, timestamp)
 	node.InBaseNamespace = isBase
-	at.Mounts = append(at.Mounts, node)
+	at.indexMount(key, node)
 	at.Stats.SizeBytes += node.size()
 	return true
 }

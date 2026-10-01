@@ -192,6 +192,9 @@ type ActivityTree struct {
 	SyscallsMask map[int]int
 
 	Mounts []*MountNode
+	// mountIndex maps a mount's dedup key to its node so InsertMount is O(1)
+	// instead of scanning Mounts (seeding a namespace is otherwise quadratic).
+	mountIndex map[mountNodeKey]*MountNode
 
 	// baseMountNamespaceIDs is the set of base mount namespace inodes, one per
 	// container linked to the profile (refcounted so instances sharing an inode
@@ -226,6 +229,7 @@ func NewActivityTree(validator Owner, pathsReducer *PathsReducer, treeType strin
 		SyscallsMask:          make(map[int]int),
 		DNSNames:              utils.NewStringKeys(nil),
 		baseMountNamespaceIDs: make(map[uint32]int),
+		mountIndex:            make(map[mountNodeKey]*MountNode),
 	}
 }
 
