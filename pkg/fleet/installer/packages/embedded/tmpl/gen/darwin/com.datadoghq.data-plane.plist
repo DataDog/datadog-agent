@@ -18,8 +18,6 @@
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
-            <key>DD_FLEET_POLICIES_DIR</key>
-            <string>/opt/datadog-agent/etc/managed/datadog-agent/stable</string>
         </dict>
         <key>ProgramArguments</key>
         <array>

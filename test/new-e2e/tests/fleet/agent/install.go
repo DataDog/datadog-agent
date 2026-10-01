@@ -274,7 +274,7 @@ const (
 // Deliberately nothing more. macOS ships as a .dmg and the product being delivered manages
 // configuration only, not Agent versions, so there is no OCI artifact to install from and no
 // upgrade path to exercise. Everything a Fleet configuration experiment needs on disk -- the
-// install root, the managed configuration directory, the launchd jobs, and the placeholder OCI
+// install root, the configuration directory, the launchd jobs, and the placeholder OCI
 // package repository that the shared configuration code reads unconditionally -- is created by the
 // .dmg's own postinstall script (omnibus/package-scripts/agent-dmg/postinst). A test that built
 // that state itself would be testing its own scaffolding.

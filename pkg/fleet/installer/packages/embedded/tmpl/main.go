@@ -89,10 +89,6 @@ type launchdTemplateData struct {
 	// EtcDir is the configuration directory the job reads. launchd cannot supply a
 	// configuration path at load time, so the definition names it itself.
 	EtcDir string
-	// FleetPoliciesDir is the Fleet-managed policy directory. Its trailing stable/experiment
-	// segment is unrelated to the pool link of the same name and is the same for both sets:
-	// an -exp job swaps the etc prefix and leaves that segment alone.
-	FleetPoliciesDir string
 	// Supervised reports whether launchd relaunches the job on an unsuccessful exit. The -exp
 	// set omits KeepAlive entirely, which is what makes an experiment's exit terminal rather
 	// than one iteration of a respawn loop.
@@ -327,30 +323,28 @@ var (
 	// macOS has a single install root: /opt/datadog-agent holds the binaries alongside etc,
 	// etc-exp, run and logs. A configuration experiment changes only which configuration
 	// directory the Agent reads, so both job sets run the very same binaries and differ in
-	// EtcDir, FleetPoliciesDir, the label suffix and whether launchd keeps them alive.
+	// EtcDir, the label suffix and whether launchd keeps them alive.
 	stableDataLaunchd = launchdTemplateData{
-		LabelSuffix:      "",
-		ProgramDir:       "/opt/datadog-agent",
-		EtcDir:           "/opt/datadog-agent/etc",
-		FleetPoliciesDir: "/opt/datadog-agent/etc/managed/datadog-agent/stable",
-		Supervised:       true,
-		Stable:           true,
-		RunDir:           "/opt/datadog-agent/run",
-		LogDir:           "/opt/datadog-agent/logs",
-		AgentUser:        "_dd-agent",
-		AgentGroup:       "daemon",
+		LabelSuffix: "",
+		ProgramDir:  "/opt/datadog-agent",
+		EtcDir:      "/opt/datadog-agent/etc",
+		Supervised:  true,
+		Stable:      true,
+		RunDir:      "/opt/datadog-agent/run",
+		LogDir:      "/opt/datadog-agent/logs",
+		AgentUser:   "_dd-agent",
+		AgentGroup:  "daemon",
 	}
 	expDataLaunchd = launchdTemplateData{
-		LabelSuffix:      "-exp",
-		ProgramDir:       "/opt/datadog-agent",
-		EtcDir:           "/opt/datadog-agent/etc-exp",
-		FleetPoliciesDir: "/opt/datadog-agent/etc-exp/managed/datadog-agent/stable",
-		Supervised:       false,
-		Stable:           false,
-		RunDir:           "/opt/datadog-agent/run",
-		LogDir:           "/opt/datadog-agent/logs",
-		AgentUser:        "_dd-agent",
-		AgentGroup:       "daemon",
+		LabelSuffix: "-exp",
+		ProgramDir:  "/opt/datadog-agent",
+		EtcDir:      "/opt/datadog-agent/etc-exp",
+		Supervised:  false,
+		Stable:      false,
+		RunDir:      "/opt/datadog-agent/run",
+		LogDir:      "/opt/datadog-agent/logs",
+		AgentUser:   "_dd-agent",
+		AgentGroup:  "daemon",
 	}
 
 	windowsEmbeddedLayouts = []embeddedLayout{

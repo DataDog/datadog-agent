@@ -24,8 +24,9 @@ const (
 	// same, so the install registers a placeholder one here (see registerPackageRepository in
 	// pkg/fleet/installer/packages/datadog_agent_darwin.go) and the path keeps its Linux value.
 	PackagesPath = "/opt/datadog-packages"
-	// ConfigsPath is the path to the Fleet-managed configuration directory.
-	ConfigsPath = "/opt/datadog-agent/etc/managed"
+	// ConfigsPath is empty: macOS never had the legacy managed/ policy layout, so there is no
+	// directory for the installer to create or purge.
+	ConfigsPath = ""
 	// RootTmpDir is the temporary path where the bootstrapper will be extracted to.
 	RootTmpDir = "/opt/datadog-packages/tmp"
 	// DefaultUserConfigsDir is the default Agent configuration directory.

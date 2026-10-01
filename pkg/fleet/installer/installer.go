@@ -976,9 +976,11 @@ func ensureRepositoriesExist() error {
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
-	err = os.MkdirAll(paths.ConfigsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating configs directory: %w", err)
+	if paths.ConfigsPath != "" {
+		err = os.MkdirAll(paths.ConfigsPath, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating configs directory: %w", err)
+		}
 	}
 	err = os.MkdirAll(paths.RootTmpDir, 0755)
 	if err != nil {
