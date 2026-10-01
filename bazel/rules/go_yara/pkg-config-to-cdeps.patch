@@ -1,0 +1,23 @@
+diff --git a/cgo.go b/cgo.go
+--- a/cgo.go
++++ b/cgo.go
+@@ -6,8 +6,6 @@
+ 
+ package yara
+ 
+-// #cgo !yara_no_pkg_config,!yara_static  pkg-config: yara
+-// #cgo !yara_no_pkg_config,yara_static   pkg-config: --static yara
+ // #cgo yara_no_pkg_config                LDFLAGS:    -lyara -lm
+ /*
+ #include <yara.h>
+diff --git a/BUILD.bazel b/BUILD.bazel
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -26,6 +26,7 @@
+         "stream.go",
+         "util.go",
+     ],
++    cdeps = ["@libyara"],  # keep
+     cgo = True,
+     importpath = "github.com/hillu/go-yara/v4",
+     importpath_aliases = ["github.com/hillu/go-yara"],

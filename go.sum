@@ -3844,6 +3844,8 @@ github.com/hetznercloud/hcloud-go/v2 v2.44.0 h1:1p9qwaZ/H55nLP9c7WfuwUA0LfsexS2Y
 github.com/hetznercloud/hcloud-go/v2 v2.44.0/go.mod h1:d0s2WLe7jSoStamv3eHoWgBSOxc/K17tYSXsqUkbse0=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
+github.com/hillu/go-yara/v4 v4.3.4 h1:llJ9e0hQ1Cxyw5jH8O/a61qIBZCYCS45298MvYTf1fw=
+github.com/hillu/go-yara/v4 v4.3.4/go.mod h1:/mb2HtBQf80I3JNL13tO5pt0w+3oR35EMc76OVjBYZU=
 github.com/huandu/xstrings v1.5.0 h1:2ag3IFq9ZDANvthTwTiqSSZLjDc+BedvHPAp5tJy2TI=
 github.com/huandu/xstrings v1.5.0/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/iancoleman/orderedmap v0.0.0-20190318233801-ac98e3ecb4b0/go.mod h1:N0Wam8K1arqPXNWjMo21EXnBPOPp36vB07FNRdD2geA=

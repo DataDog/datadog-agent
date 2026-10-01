@@ -198,6 +198,7 @@ use_repo(
     "com_github_hashicorp_vault_api_auth_aws",
     "com_github_hashicorp_vault_api_auth_ldap",
     "com_github_hashicorp_vault_api_auth_userpass",
+    "com_github_hillu_go_yara_v4",
     "com_github_iceber_iouring_go",
     "com_github_invopop_jsonschema",
     "com_github_itchyny_gojq",
@@ -570,6 +571,17 @@ go_deps.module_override(
     patches = ["//bazel/patches:kustomize-disable-go-plugin-loader.patch"],
     path = "sigs.k8s.io/kustomize/api",
 )
+
+# go-yara links libyara through `#cgo pkg-config: yara`, which rules_go doesn't support.
+# Patch out the pkg-config directives and link the vendored @libyara cc_library via cdeps.
+# Non-Bazel builds (dda inv system-probe.build) use go-yara's yara_no_pkg_config tag instead.
+go_deps.module_override(
+    patch_strip = 1,
+    patches = ["//bazel/rules/go_yara:pkg-config-to-cdeps.patch"],
+    path = "github.com/hillu/go-yara/v4",
+)
+
+inject_repo(go_deps, "libyara")
 
 inject_repo(go_deps, "systemd")
 
