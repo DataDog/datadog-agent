@@ -124,15 +124,22 @@ func (s *podStore) Replace(list []interface{}, _ string) error {
 		events = append(events, s.track(pod)...)
 	}
 
-	// A pod missing from the list is gone, along with its containers.
+	// A pod missing from the list is gone, along with its containers, unless a
+	// listed pod still yields them: the mirror pod of a static pod that the
+	// kubelet recreated has a new UID, but yields the same entities.
+	var goneEntityIDs []workloadmeta.EntityID
 	s.mu.Lock()
 	for uid, entityIDs := range s.seen {
 		if _, ok := listed[uid]; !ok {
-			events = append(events, unsetEventsForEntityIDs(entityIDs)...)
+			goneEntityIDs = append(goneEntityIDs, entityIDs...)
 			delete(s.seen, uid)
 		}
 	}
+	for _, entityIDs := range s.seen {
+		goneEntityIDs = removedEntityIDs(goneEntityIDs, entityIDs)
+	}
 	s.mu.Unlock()
+	events = append(events, unsetEventsForEntityIDs(goneEntityIDs)...)
 
 	s.wlmetaStore.Notify(events)
 
