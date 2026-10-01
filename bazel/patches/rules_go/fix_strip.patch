@@ -1,0 +1,13 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+index 360e100c..cdd15ace 100644
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -113,7 +113,7 @@ go_config(
+     static = "//go/config:static",
+     strip = select({
+         "//go/private:is_strip_always": True,
+-        "//go/private:is_strip_sometimes_fastbuild": True,
++        "//go/private:is_strip_sometimes_fastbuild": False,
+         "//conditions:default": False,
+     }),
+     visibility = ["//visibility:public"],

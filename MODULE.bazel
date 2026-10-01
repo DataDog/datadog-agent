@@ -125,6 +125,7 @@ single_version_override(
     patches = [
         "//bazel/patches:rules_go-cover-workdir-trimpath.patch",  # https://github.com/bazel-contrib/rules_go/pull/4733
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # https://github.com/bazel-contrib/rules_go/pull/3977
+        "//bazel/patches:rules_go/fix_strip.patch",  # do not strip in fastbuild
     ],
 )
 

@@ -27,6 +27,7 @@ def _get_deps(ctx, attr_names):
 _WALKED_ATTRS = ["dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps", "data"]
 
 def _collect_dd_packaging_aspect_impl(target, ctx):
+    print("V 4", target)
     if DdPackagingInfo in target:
         direct = target[DdPackagingInfo].installed_files
     elif PackageFilegroupInfo in target:
