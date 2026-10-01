@@ -13,6 +13,3 @@ fixes:
     are no longer reported in real-time process collection.
     Previously, zombie processes on macOS, and processes on Linux that became
     zombies after being collected, could still appear.
-  - |
-    On macOS, process start times are now read from the kernel,
-    so they no longer drift between collections.
