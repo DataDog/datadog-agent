@@ -21,10 +21,13 @@ f9a6f2aa44430e18abbc7363751e3f7c  opt/datadog-installer/LICENSES/THIRD-PARTY-0BS
 3b83ef96387f14655fc854ddc3c6bd57  opt/datadog-installer/LICENSES/THIRD-PARTY-Apache-2.0
 11d3feb7137319430849e84dbc75ac27  opt/datadog-installer/LICENSES/THIRD-PARTY-BSD-2-Clause
 ```
-- the installed size output file contains a single integer: the total size in KiB
-  (rounded up) of all plain files in the tar
+- the installed size output file contains a single integer: the installed size in KiB,
+  computed like dpkg-gencontrol: each regular file and symlink is rounded up to KiB
+  individually (a symlink's size is its target length), hardlinks add nothing, and every
+  other entry (e.g. directories) adds 1 KiB
+- the md5sums output only covers regular files
 - emitted paths must be relative, with no preceding "./"
-- directories and symlinks in the tar file should be ignored.
+- directories and symlinks in the tar file must not appear in the md5sums output.
 - support different compression algorithms that are used in our product
   - we do not have to decode the compression from the binary itself, we can use the file name as a hint
   - required for first implementation:  XZ compression, if the file ends in .xz,  gzip compression if the file ends in .gz or .tgz.
@@ -43,12 +46,18 @@ def _open_tar(path):
 
 
 def generate_md5sums(tar_path, md5sums_output_path, installed_size_output_path):
-    total_bytes = 0
+    installed_size_kib = 0
     # newline = '\n' prevents automatic translation to '\r\n' on Windows
     with open(md5sums_output_path, 'w', newline='\n') as out:
         with _open_tar(tar_path) as tf:
             for member in tf:
+                if member.islnk():
+                    continue
+                if member.issym():
+                    installed_size_kib += (len(member.linkname.encode()) + 1023) // 1024
+                    continue
                 if not member.isfile():
+                    installed_size_kib += 1
                     continue
 
                 path = member.name.removeprefix('./')
@@ -58,9 +67,8 @@ def generate_md5sums(tar_path, md5sums_output_path, installed_size_output_path):
 
                 digest = hashlib.file_digest(f, 'md5').hexdigest()
                 out.write(f"{digest}  {path}\n")
-                total_bytes += member.size
+                installed_size_kib += (member.size + 1023) // 1024
 
-    installed_size_kib = (total_bytes + 1023) // 1024
     with open(installed_size_output_path, 'w', newline='\n') as out:
         out.write(f"{installed_size_kib}\n")
 
