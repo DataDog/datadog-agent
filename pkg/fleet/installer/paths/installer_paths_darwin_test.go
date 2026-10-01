@@ -18,7 +18,7 @@ import (
 // were split away from are all FHS paths that happen to exist on macOS, so an edit that
 // reintroduced one would compile, run, and only fail on a real machine.
 func TestDarwinPathsMatchTheLayout(t *testing.T) {
-	assert.Equal(t, "/opt/datadog-agent/etc/managed", ConfigsPath)
+	assert.Equal(t, "", ConfigsPath)
 	assert.Equal(t, "/opt/datadog-agent", DefaultUserConfigsDir)
 	assert.Equal(t, "/opt/datadog-agent/etc", AgentConfigDir)
 	assert.Equal(t, "/opt/datadog-agent/etc-exp", AgentConfigDirExp)
@@ -34,7 +34,6 @@ func TestEverythingTheAgentOwnsIsUnderTheInstallRoot(t *testing.T) {
 	const installRoot = "/opt/datadog-agent"
 
 	for name, path := range map[string]string{
-		"ConfigsPath":             ConfigsPath,
 		"DefaultUserConfigsDir":   DefaultUserConfigsDir,
 		"AgentConfigDir":          AgentConfigDir,
 		"AgentConfigDirExp":       AgentConfigDirExp,

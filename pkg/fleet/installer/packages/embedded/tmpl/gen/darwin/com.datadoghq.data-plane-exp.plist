@@ -13,8 +13,6 @@
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
-            <key>DD_FLEET_POLICIES_DIR</key>
-            <string>/opt/datadog-agent/etc-exp/managed/datadog-agent/stable</string>
             <key>DD_INVENTORIES_FIRST_RUN_DELAY</key>
             <string>5</string>
         </dict>

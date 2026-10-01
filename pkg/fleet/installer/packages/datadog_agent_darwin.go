@@ -93,7 +93,6 @@ func (l agentLayout) directories() file.Directories {
 	return file.Directories{
 		{Path: l.installRoot, Mode: 0755, Owner: l.owner, Group: l.group},
 		{Path: l.etcDir(), Mode: 0755, Owner: l.owner, Group: l.group},
-		{Path: filepath.Join(l.etcDir(), "managed"), Mode: 0755, Owner: l.owner, Group: l.group},
 		{Path: l.runDir(), Mode: 0755, Owner: l.owner, Group: l.group},
 		{Path: filepath.Join(l.runDir(), "ipc"), Mode: 0755, Owner: l.owner, Group: l.group},
 		{Path: l.logDir(), Mode: 0750, Owner: l.owner, Group: l.group},
@@ -106,7 +105,6 @@ func (l agentLayout) directories() file.Directories {
 func (l agentLayout) configPermissions() file.Permissions {
 	return file.Permissions{
 		{Path: ".", Owner: l.owner, Group: l.group, Recursive: true},
-		{Path: "managed", Owner: l.owner, Group: l.group, Recursive: true},
 	}
 }
 

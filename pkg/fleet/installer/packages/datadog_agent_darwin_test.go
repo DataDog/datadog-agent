@@ -128,7 +128,6 @@ func TestInstallFilesystemCreatesTheStateDirectoriesAndTheLinks(t *testing.T) {
 	for _, dir := range []string{
 		layout.installRoot,
 		layout.etcDir(),
-		filepath.Join(layout.etcDir(), "managed"),
 		layout.runDir(),
 		filepath.Join(layout.runDir(), "ipc"),
 		layout.logDir(),
