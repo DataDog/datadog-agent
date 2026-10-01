@@ -513,9 +513,12 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
 		}
 
+		// securityfs may not be mounted explicitly, but can still be reachable through the host root mount
 		securityFSPath := filepath.Join(utilkernel.SysFSRoot(), "kernel/security")
 		if mounted, _ := mountinfo.Mounted(securityFSPath); !mounted {
-			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", securityFSPath))
+			if mounted, _ := mountinfo.Mounted(utilkernel.SecurityFSHostRootPath); !mounted {
+				err = multierror.Append(err, fmt.Errorf("neither %s nor %s seem to be a mountpoint", securityFSPath, utilkernel.SecurityFSHostRootPath))
+			}
 		}
 
 		capsEffective, _, capErr := utils.CapEffCapEprm(p.pid)
