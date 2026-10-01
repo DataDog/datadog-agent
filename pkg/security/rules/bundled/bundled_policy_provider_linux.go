@@ -26,8 +26,10 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 
 	if cfg.SBOMResolverEnabled {
 		ruleDefinitions = append(ruleDefinitions, &rules.RuleDefinition{
-			ID:         NeedRefreshSBOMRuleID,
-			Expression: `open.file.path in [~"/lib/rpm/*", ~"/lib/dpkg/*", ~"/var/lib/rpm/*", ~"/var/lib/dpkg/*", ~"/lib/apk/db/*"] && (open.flags & (O_CREAT | O_RDWR | O_WRONLY)) > 0`,
+			ID: NeedRefreshSBOMRuleID,
+			// Every rpm process, a query included, opens the sqlite shared memory
+			// and log, the Berkeley DB environment or the ndb index read-write.
+			Expression: `open.file.path in [~"/lib/rpm/*", ~"/lib/dpkg/*", ~"/var/lib/rpm/*", ~"/var/lib/dpkg/*", ~"/lib/apk/db/*", ~"/usr/lib/sysimage/rpm/*"] && (open.flags & (O_CREAT | O_RDWR | O_WRONLY)) > 0 && open.file.name not in [~"*.sqlite-shm", ~"*.sqlite-wal", ~"__db.*", ".dbenv.lock", "Index.db"]`,
 			Actions: []*rules.ActionDefinition{{
 				Set: &rules.SetDefinition{
 					Name:  needRefreshSBOMVariableName,

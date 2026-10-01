@@ -204,6 +204,10 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
+	if sbomResolver != nil {
+		sbomResolver.SetProcessWalker(processResolver.Walk)
+	}
+
 	resolvers := &EBPFResolvers{
 		manager:                 manager,
 		MountResolver:           mountResolver,
