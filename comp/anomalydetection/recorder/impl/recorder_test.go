@@ -148,10 +148,11 @@ func TestRecorderTimestampFallbackAndHostTag(t *testing.T) {
 	logs := &logWriter{events: &events}
 	h := NewComponent(metrics, logs).GetHandle(func(string) observer.Handle { return &testHandle{events: &events} })("logs")
 	before := time.Now()
-	h.ObserveMetric(&testMetric{name: "count", host: "agent", tags: []string{"host:other"}}, 0)
+	h.ObserveMetric(&testMetric{name: "count", host: "agent", tags: []string{"host:other"}, metricType: observer.UnknownType}, 0)
 	h.ObserveLog(&testLog{content: "message"})
 	after := time.Now()
 	require.Equal(t, []string{"host:other", "host:agent"}, metrics.data[0].Tags)
+	require.Equal(t, "Unknown", metrics.data[0].MetricType)
 	require.GreaterOrEqual(t, metrics.data[0].Timestamp, before.Unix())
 	require.LessOrEqual(t, metrics.data[0].Timestamp, after.Unix())
 	require.GreaterOrEqual(t, logs.data[0].TimestampMs, before.UnixMilli())

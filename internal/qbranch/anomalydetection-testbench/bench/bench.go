@@ -642,7 +642,36 @@ type parquetMetricView struct {
 // separate host dimension. The remaining tags are the final tags from the replay input.
 func newParquetMetricView(name string, value float64, tags []string, timestamp int64, metricType string) parquetMetricView {
 	host, metricTags := resolveParquetMetricHostAndTags(tags)
-	return parquetMetricView{name: name, value: value, metricType: metrics.ParseMetricType(metricType), host: host, tags: metricTags, timestamp: timestamp}
+	return parquetMetricView{name: name, value: value, metricType: parseMetricType(metricType), host: host, tags: metricTags, timestamp: timestamp}
+}
+
+func parseMetricType(name string) metrics.MetricType {
+	switch name {
+	case "Gauge":
+		return metrics.GaugeType
+	case "Rate":
+		return metrics.RateType
+	case "Count":
+		return metrics.CountType
+	case "MonotonicCount":
+		return metrics.MonotonicCountType
+	case "Counter":
+		return metrics.CounterType
+	case "Histogram":
+		return metrics.HistogramType
+	case "Historate":
+		return metrics.HistorateType
+	case "Set":
+		return metrics.SetType
+	case "Distribution":
+		return metrics.DistributionType
+	case "GaugeWithTimestamp":
+		return metrics.GaugeWithTimestampType
+	case "CountWithTimestamp":
+		return metrics.CountWithTimestampType
+	default:
+		return observerdef.UnknownType
+	}
 }
 
 func resolveParquetMetricHostAndTags(tags []string) (string, []string) {
@@ -697,9 +726,9 @@ func (m *parquetMetricView) GetValue() float64 { return m.value }
 func (m *parquetMetricView) GetTags() tagset.CompositeTags {
 	return tagset.CompositeTagsFromSlice(m.tags)
 }
-func (m *parquetMetricView) GetHost() string                   { return m.host }
-func (m *parquetMetricView) GetTimestampUnix() int64           { return m.timestamp }
-func (m *parquetMetricView) GetSampleRate() float64            { return 1.0 }
+func (m *parquetMetricView) GetHost() string                  { return m.host }
+func (m *parquetMetricView) GetTimestampUnix() int64          { return m.timestamp }
+func (m *parquetMetricView) GetSampleRate() float64           { return 1.0 }
 func (m parquetMetricView) GetMetricType() metrics.MetricType { return m.metricType }
 
 // unboundedStorageCfg returns a StorageConfig for testbench replay:

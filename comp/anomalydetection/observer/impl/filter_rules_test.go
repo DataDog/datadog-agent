@@ -83,7 +83,7 @@ func (m *tagsTrackingMetric) GetValue() float64                 { return m.value
 func (m *tagsTrackingMetric) GetHost() string                   { return "" }
 func (m *tagsTrackingMetric) GetTimestampUnix() int64           { return m.timestamp }
 func (m *tagsTrackingMetric) GetSampleRate() float64            { return 1.0 }
-func (m *tagsTrackingMetric) GetMetricType() metrics.MetricType { return metrics.UnknownType }
+func (m *tagsTrackingMetric) GetMetricType() metrics.MetricType { return observerdef.UnknownType }
 func (m *tagsTrackingMetric) GetTags() tagset.CompositeTags {
 	m.tagsRead++
 	return tagset.CompositeTagsFromSlice(m.tags)

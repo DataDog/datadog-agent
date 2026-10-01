@@ -19,6 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
+// UnknownType represents a metric whose type is unavailable during replay.
+const UnknownType metrics.MetricType = -1
+
 // Handle is the lightweight observation interface passed to other components.
 type Handle interface {
 	// ObserveMetric observes a metric with the metrics pipeline's resolved

@@ -14,9 +14,6 @@ import (
 // MetricType is the representation of an aggregator metric type
 type MetricType int
 
-// UnknownType represents a metric whose original type was not recorded.
-const UnknownType MetricType = -1
-
 // metric type constants enumeration
 const (
 	GaugeType MetricType = iota
@@ -45,8 +42,6 @@ var (
 // String returns a string representation of MetricType
 func (m MetricType) String() string {
 	switch m {
-	case UnknownType:
-		return "Unknown"
 	case GaugeType:
 		return "Gauge"
 	case RateType:
@@ -71,36 +66,6 @@ func (m MetricType) String() string {
 		return "CountWithTimestamp"
 	default:
 		return ""
-	}
-}
-
-// ParseMetricType returns UnknownType for names absent from older recordings.
-func ParseMetricType(name string) MetricType {
-	switch name {
-	case "Gauge":
-		return GaugeType
-	case "Rate":
-		return RateType
-	case "Count":
-		return CountType
-	case "MonotonicCount":
-		return MonotonicCountType
-	case "Counter":
-		return CounterType
-	case "Histogram":
-		return HistogramType
-	case "Historate":
-		return HistorateType
-	case "Set":
-		return SetType
-	case "Distribution":
-		return DistributionType
-	case "GaugeWithTimestamp":
-		return GaugeWithTimestampType
-	case "CountWithTimestamp":
-		return CountWithTimestampType
-	default:
-		return UnknownType
 	}
 }
 

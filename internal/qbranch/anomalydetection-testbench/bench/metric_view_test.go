@@ -8,6 +8,7 @@ package bench
 import (
 	"testing"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/apache/arrow-go/v18/arrow"
@@ -39,7 +40,16 @@ func TestMetricTypeFallbackForNullableParquetColumn(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 	for _, row := range rows {
-		assert.Equal(t, metrics.UnknownType, newParquetMetricView(row.MetricName, 0, nil, 0, row.MetricType).GetMetricType())
+		assert.Equal(t, observerdef.UnknownType, newParquetMetricView(row.MetricName, 0, nil, 0, row.MetricType).GetMetricType())
+	}
+}
+
+func TestParseMetricType(t *testing.T) {
+	for metricType := metrics.GaugeType; metricType < metrics.NumMetricTypes; metricType++ {
+		assert.Equal(t, metricType, parseMetricType(metricType.String()))
+	}
+	for _, name := range []string{"", "Unknown", "future-type"} {
+		assert.Equal(t, observerdef.UnknownType, parseMetricType(name))
 	}
 }
 

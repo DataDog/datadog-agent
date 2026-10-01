@@ -22,7 +22,7 @@ func (s *sampleNoSource) GetTags() tagset.CompositeTags     { return tagset.Comp
 func (s *sampleNoSource) GetHost() string                   { return "" }
 func (s *sampleNoSource) GetTimestampUnix() int64           { return 0 }
 func (s *sampleNoSource) GetSampleRate() float64            { return 1 }
-func (s *sampleNoSource) GetMetricType() metrics.MetricType { return metrics.UnknownType }
+func (s *sampleNoSource) GetMetricType() metrics.MetricType { return observerdef.UnknownType }
 
 // testContextKeyFor derives a key from test fixture fields without calling
 // GetTags. This preserves lazy-tag-read assertions in filter tests while every
