@@ -112,13 +112,8 @@ func TestSupportedMethodPassesTheGate(t *testing.T) {
 	assert.Len(t, daemon.requests, 1)
 }
 
-// TestDeclinedRequestAbortsTheRestOfTheSet pins the batch semantics handleUpdaterTaskUpdate has
-// always had: the first request that does not go through ends the pass, so the requests behind it
-// get no applyStateCallback and are only reconsidered on the next remote-config update.
-//
-// Both requests here carry a declined method, because handleUpdaterTaskUpdate walks a map: with a
-// mixed set it is the iteration order, not the gate, that decides how many requests are reached.
-func TestDeclinedRequestAbortsTheRestOfTheSet(t *testing.T) {
+// Every request needs an outcome even if another method in the update is unsupported.
+func TestDeclinedRequestDoesNotAbortTheRestOfTheSet(t *testing.T) {
 	first := requestJSON(t, "first", methodStartExperiment)
 	second := requestJSON(t, "second", methodStartExperiment)
 
@@ -136,7 +131,7 @@ func TestDeclinedRequestAbortsTheRestOfTheSet(t *testing.T) {
 		statuses[id] = status
 	})
 
-	require.Len(t, statuses, 1, "the pass continued past the declined request")
+	require.Len(t, statuses, 2, "a declined request must not strand another task")
 	for id, status := range statuses {
 		assert.Equal(t, state.ApplyStateError, status.State, "request %s", id)
 		assert.Contains(t, status.Error, methodStartExperiment, "request %s", id)
@@ -144,9 +139,8 @@ func TestDeclinedRequestAbortsTheRestOfTheSet(t *testing.T) {
 	assert.Empty(t, daemon.requests, "a declined request was queued for dispatch")
 }
 
-// TestFailedRequestAbortsTheRestOfTheSet is the same property for an ordinary failure, which shares
-// the code path the decline takes.
-func TestFailedRequestAbortsTheRestOfTheSet(t *testing.T) {
+// Ordinary handler failures must not prevent unrelated requests from being processed.
+func TestFailedRequestDoesNotAbortTheRestOfTheSet(t *testing.T) {
 	first := requestJSON(t, "first", methodStartExperiment)
 	second := requestJSON(t, "second", methodStartExperiment)
 
@@ -163,12 +157,32 @@ func TestFailedRequestAbortsTheRestOfTheSet(t *testing.T) {
 		statuses[id] = status
 	})
 
-	assert.Equal(t, 1, executed, "the pass continued past the failed request")
-	require.Len(t, statuses, 1)
+	assert.Equal(t, 2, executed, "a failed request must not strand another task")
+	require.Len(t, statuses, 2)
 	for id, status := range statuses {
 		assert.Equal(t, state.ApplyStateError, status.State, "request %s", id)
 		assert.Equal(t, "boom", status.Error, "request %s", id)
 	}
+}
+
+func TestMalformedRequestDoesNotAbortValidRequests(t *testing.T) {
+	var executed []string
+	statuses := map[string]state.ApplyStatus{}
+	handler := handleUpdaterTaskUpdate(func(request remoteAPIRequest) error {
+		executed = append(executed, request.ID)
+		return nil
+	}, alwaysCatalogReady)
+	handler(map[string]state.RawConfig{
+		"bad":   {Config: []byte("invalid JSON")},
+		"valid": {Config: requestJSON(t, "valid", methodStartConfigExperiment)},
+	}, func(id string, status state.ApplyStatus) {
+		statuses[id] = status
+	})
+
+	require.Len(t, statuses, 2)
+	assert.Equal(t, state.ApplyStateError, statuses["bad"].State)
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses["valid"].State)
+	assert.Equal(t, []string{"valid"}, executed)
 }
 
 func requestJSON(t *testing.T, id string, method string) []byte {
