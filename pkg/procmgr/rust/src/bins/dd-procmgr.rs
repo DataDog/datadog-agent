@@ -210,12 +210,12 @@ fn short_uuid(uuid: &str) -> &str {
 
 /// Same rule as `platform::is_crash_exit` on Windows: `STATUS_SEVERITY_ERROR`,
 /// plus the terminating codes below that severity (`STATUS_BREAKPOINT`,
-/// `STATUS_SINGLE_STEP`). Repeated here because the CLI binary does not link the
-/// daemon library, and because it must label a retained exit code once the
-/// process has restarted out of `Crashed`. Change both together.
+/// `STATUS_SINGLE_STEP`, `STATUS_FATAL_APP_EXIT`). Repeated here because the CLI
+/// binary does not link the daemon library, and because it must label a retained
+/// exit code once the process has restarted out of `Crashed`. Change both together.
 fn is_windows_crash_exit_code(code: i32) -> bool {
     let code = code as u32;
-    code >> 30 == 0b11 || matches!(code, 0x8000_0003 | 0x8000_0004)
+    code >> 30 == 0b11 || matches!(code, 0x8000_0003 | 0x8000_0004 | 0x4000_0015)
 }
 
 /// Classifies from the stored exit, not the current state: `spawn()` keeps the

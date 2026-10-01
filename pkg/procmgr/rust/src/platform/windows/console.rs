@@ -268,13 +268,17 @@ pub fn last_signal(_status: &std::process::ExitStatus) -> Option<i32> {
 }
 
 /// Terminating exception codes that `STATUS_SEVERITY_ERROR` does not cover.
-/// Both are warning-severity debugger events, but with no debugger attached
-/// they reach the unhandled-exception filter and end the process. An
+///
+/// The first two are warning-severity debugger events, but with no debugger
+/// attached they reach the unhandled-exception filter and end the process. An
 /// `int 3` from `__debugbreak()` is the usual source: V8's `CHECK` and Go's
-/// `runtime.abort` both compile to one.
-const TERMINATING_WARNING_STATUS: [u32; 2] = [
+/// `runtime.abort` both compile to one. The third is informational severity and
+/// comes from the CRT's `abort()`; a UCRT on Windows 8 or later routes that
+/// through `__fastfail` and lands on 0xC0000409 instead.
+const TERMINATING_NON_ERROR_STATUS: [u32; 3] = [
     0x8000_0003, // STATUS_BREAKPOINT
     0x8000_0004, // STATUS_SINGLE_STEP
+    0x4000_0015, // STATUS_FATAL_APP_EXIT
 ];
 
 /// Whether the process died without returning a value.
@@ -284,7 +288,7 @@ const TERMINATING_WARNING_STATUS: [u32; 2] = [
 /// exit code ("Terminating a Process", Win32 docs). Most such codes are
 /// NTSTATUS values with severity `STATUS_SEVERITY_ERROR`, i.e. the top two bits
 /// set: 0xC0000005 (access violation), 0xC00000FD (stack overflow), 0xC0000374
-/// (heap corruption), 0xC0000409 (stack buffer overrun). `TERMINATING_WARNING_STATUS`
+/// (heap corruption), 0xC0000409 (stack buffer overrun). `TERMINATING_NON_ERROR_STATUS`
 /// covers the terminating codes below that severity. `ExitProcess` codes carry
 /// no OS-defined meaning, so they do not collide with either range in practice.
 ///
@@ -305,7 +309,7 @@ const TERMINATING_WARNING_STATUS: [u32; 2] = [
 pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
     status.code().is_some_and(|code| {
         let code = code as u32;
-        code >> 30 == 0b11 || TERMINATING_WARNING_STATUS.contains(&code)
+        code >> 30 == 0b11 || TERMINATING_NON_ERROR_STATUS.contains(&code)
     })
 }
 
@@ -326,6 +330,7 @@ mod tests {
             0xC0000409,    // stack buffer overrun
             0x80000003,    // BREAKPOINT, below ERROR severity but still fatal
             0x80000004,    // SINGLE_STEP, likewise
+            0x40000015,    // FATAL_APP_EXIT, from the CRT's abort()
         ] {
             let status = std::process::ExitStatus::from_raw(code);
             assert!(
