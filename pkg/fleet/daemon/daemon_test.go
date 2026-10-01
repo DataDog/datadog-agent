@@ -212,6 +212,16 @@ func (c *testRemoteConfigClient) GetClientID() string {
 	return c.clientID
 }
 
+// GetConfigs reports no stored configs: the tests deliver every task through SubmitRequest.
+func (c *testRemoteConfigClient) GetConfigs(string) map[string]state.RawConfig {
+	c.Lock()
+	defer c.Unlock()
+	return nil
+}
+
+func (c *testRemoteConfigClient) UpdateApplyStatus(string, state.ApplyStatus) {
+}
+
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
 	c.Lock()
 	defer c.Unlock()
