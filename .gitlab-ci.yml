@@ -173,7 +173,7 @@ include:
     rules: &smp_fast_pipeline_skip
       - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
         when: never
-      - when: on_success
+      - when: always
   - local: .gitlab/deploy/**.yml
     rules: *smp_fast_pipeline_skip
   - local: .gitlab/test/**.yml
