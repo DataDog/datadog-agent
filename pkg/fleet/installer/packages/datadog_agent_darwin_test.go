@@ -95,7 +95,6 @@ func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
 	assert.True(t, started)
 }
 
-// stubAgentUser stops the hook reaching the machine's directory service.
 func testHookContext(t *testing.T) HookContext {
 	t.Helper()
 	return HookContext{Context: context.Background(), Package: agentPackage, PackageType: PackageTypeOCI}
