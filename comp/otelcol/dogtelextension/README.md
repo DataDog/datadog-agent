@@ -27,11 +27,11 @@ In standalone mode, the otel-agent runs a **local tagger** backed by workloadmet
 
 The pod/K8s-metadata source defaults to **`nodefilter`**: a workloadmeta collector that watches pods directly from the K8s API server, scoped to the local node via a `spec.nodeName` field selector. This avoids granting the broader kubelet-API RBAC that the previous `kubelet`-only default required. Set `use_kubelet_collector: true` in the extension config to opt back out to the `kubelet` collector (e.g. if the API-server RBAC below isn't obtainable, or to reduce API-server load).
 
-Only `use_kubelet_collector` picks between the two collectors: `nodefilter` never hands back to `kubelet` on its own, since a deployment set up for `nodefilter` lacks the kubelet API access and settings `kubelet` needs. When `nodefilter` can't run, no pods are collected and the otel-agent logs a warning: once at startup if the node-name env var below isn't set, or each time the API server refuses its pod list/watch for lack of the RBAC below. Fix the deployment, or set `use_kubelet_collector: true`.
+#### Using the k8s API
 
-`nodefilter` reads the local node's name from an environment variable, mirroring the `k8sattributesprocessor`'s own `node_from_env_var` filter config rather than hardcoding a single env var name. It defaults to `K8S_NODE_NAME`, which the OTel Helm chart only populates with some presets (e.g. `kubernetesAttributes` in daemonset mode); set `node_from_env_var` in the extension config to point at a different env var, e.g. `OTEL_K8S_NODE_NAME`, which the OTel Helm chart always populates, or `DD_KUBERNETES_KUBELET_NODENAME`, populated by the Datadog Helm chart/Operator.
+`nodefilter` reads the local node's name from an environment variable, mirroring the `k8sattributesprocessor`'s own `node_from_env_var` filter config rather than hardcoding a single env var name. It defaults to `K8S_NODE_NAME`, which the OTel Helm chart only populates with some presets (e.g. `kubernetesAttributes` in daemonset mode); set `node_from_env_var` in the extension config to point at a different env var if necessary, e.g. `OTEL_K8S_NODE_NAME`, which the OTel Helm chart always populates, or `DD_KUBERNETES_KUBELET_NODENAME`, populated by the Datadog Helm chart/Operator.
 
-**Required deployment configuration (`nodefilter`, the default):**
+**Required deployment configuration, if not already set by Helm/Operator**
 ```yaml
 env:
   - name: K8S_NODE_NAME
@@ -40,14 +40,29 @@ env:
         fieldPath: spec.nodeName
 ```
 
-**Required RBAC (`nodefilter`, the default):** the ServiceAccount needs `get`/`list`/`watch` on `pods`:
+**Required RBAC:** the ServiceAccount needs `get`/`list`/`watch` on `pods`:
 ```yaml
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "list", "watch"]
 ```
 
-**Required deployment configuration (`use_kubelet_collector: true`, opt-out):**
+Note that hostname resolution might still need kubelet access. A workaround is to set the hostname manually:
+```yaml
+env:
+  - name: K8S_NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: K8S_CLUSTER_NAME
+    value: my-cluster
+  - name: DD_HOSTNAME
+    value: "$(K8S_NODE_NAME)-$(K8S_CLUSTER_NAME)"
+```
+
+#### Using kubelet
+
+**Required deployment configuration**
 ```yaml
 env:
   - name: DD_KUBERNETES_KUBELET_HOST
@@ -58,7 +73,7 @@ env:
     value: "false"   # or configure a CA cert
 ```
 
-**Required RBAC (`use_kubelet_collector: true`, opt-out):** the ServiceAccount needs `get` on `nodes/proxy` so the kubelet collector can list pods:
+**Required RBAC:** the ServiceAccount needs `get` on `nodes/proxy` so the kubelet collector can list pods:
 ```yaml
 - apiGroups: [""]
   resources: ["nodes/proxy"]
