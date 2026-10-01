@@ -346,6 +346,13 @@ impl StdHandleSlots {
 struct CallerConsoleGuard {
     had_console: bool,
     std_handles: StdHandleSlots,
+    /// Which std slots the console owned, and so which ones come back dead.
+    ///
+    /// Asked while the console is still attached, because afterwards there is nothing
+    /// left to ask: `FreeConsole` closes the handle and Windows is free to hand its value
+    /// to the next object any thread opens, so a slot that looks alive may be alive as
+    /// something else entirely.
+    console_backed: [bool; 3],
 }
 
 impl CallerConsoleGuard {
@@ -353,6 +360,8 @@ impl CallerConsoleGuard {
         Self {
             had_console: has_console(),
             std_handles: StdHandleSlots::capture(),
+            console_backed: CONSOLE_STD_HANDLES
+                .map(|(kind, _)| is_console_handle(unsafe { GetStdHandle(kind) })),
         }
     }
 }
@@ -376,10 +385,13 @@ impl Drop for CallerConsoleGuard {
             );
             return;
         }
-        for (kind, device) in CONSOLE_STD_HANDLES {
+        for ((kind, device), console_backed) in
+            CONSOLE_STD_HANDLES.into_iter().zip(self.console_backed)
+        {
             // Redirected handles survive FreeConsole untouched, and rebinding them would
-            // discard the redirection. Only the ones the console owned come back dead.
-            if !std_handle_live(kind) {
+            // discard the redirection. Only the ones the console owned come back dead,
+            // which is what was recorded before leaving rather than guessed after.
+            if console_backed {
                 rebind_std_handle(kind, device);
             }
         }
@@ -801,6 +813,53 @@ mod tests {
         assert!(
             !pinned,
             "a console handle the supervisor cannot read from must not be pinned"
+        );
+    }
+
+    /// Which slots the caller guard rebinds is settled while the console is still there.
+    /// Asking afterwards is a different question: `FreeConsole` closes the console's
+    /// handles, and by the time the guard reattaches, Windows may have given their values
+    /// to whatever another thread opened in the meantime, so a slot that looks alive can
+    /// be alive as something that was never the console's. A redirection, which the
+    /// console never owned, has to come through the round trip untouched.
+    #[test]
+    fn the_caller_guard_records_what_the_console_owned() {
+        let _lock = console_lock();
+        let restore = CallerConsoleGuard::capture();
+        let slots = StdHandleSlots::capture();
+
+        leave_console();
+        attach_fresh_console();
+        let (read, write) = open_pipe();
+        set_std_handle(STD_ERROR_HANDLE, write);
+
+        let guard = CallerConsoleGuard::capture();
+        let [_, stdout_console, stderr_console] = guard.console_backed;
+
+        leave_console();
+        drop(guard);
+
+        let stderr_now = unsafe { GetStdHandle(STD_ERROR_HANDLE) };
+        let kept_the_pipe = unsafe { CompareObjectHandles(stderr_now, write) } != 0;
+
+        leave_console();
+        slots.restore();
+        drop(restore);
+        for handle in [write, read] {
+            close(handle);
+        }
+
+        assert!(
+            stdout_console,
+            "a console-backed stdout comes back dead and has to be rebound"
+        );
+        assert!(
+            !stderr_console,
+            "a redirection is not the console's to rebind"
+        );
+        assert!(
+            kept_the_pipe,
+            "the caller guard replaced a redirection the console never owned"
         );
     }
 
