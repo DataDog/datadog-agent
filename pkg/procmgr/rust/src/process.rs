@@ -148,8 +148,8 @@ impl ProcessKiller {
 pub(crate) struct StopWait {
     name: String,
     handle: JoinHandle<()>,
-    /// How long to let the child exit on its own. `None` escalates at once,
-    /// which is the only useful answer when it was never asked to stop.
+    /// How long to let the child exit on its own. `None` means it was never
+    /// asked to, so there is nothing for a full `stop_timeout` to wait for.
     timeout: Option<Duration>,
     killer: ProcessKiller,
 }
@@ -164,31 +164,25 @@ impl StopWait {
         } = self;
         tokio::pin!(handle);
 
-        let escalate = match timeout {
-            None => {
-                warn!("[{name}] graceful stop was not delivered, force-killing now");
-                true
-            }
-            Some(stop) => {
-                let timed_out = time::timeout(stop, &mut handle).await.is_err();
-                if timed_out {
-                    warn!(
-                        "[{name}] stop timeout ({}s) reached, force-killing",
-                        stop.as_secs()
-                    );
-                }
-                timed_out
-            }
-        };
+        let grace = timeout.unwrap_or(ManagedProcess::UNDELIVERED_STOP_GRACE);
+        if time::timeout(grace, &mut handle).await.is_ok() {
+            return;
+        }
 
-        if escalate {
-            killer.force_kill(&name);
-            if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, handle)
-                .await
-                .is_err()
-            {
-                warn!("[{name}] still running after force-kill, giving up");
-            }
+        match timeout {
+            None => warn!("[{name}] graceful stop was not delivered, force-killing"),
+            Some(stop) => warn!(
+                "[{name}] stop timeout ({}s) reached, force-killing",
+                stop.as_secs()
+            ),
+        }
+
+        killer.force_kill(&name);
+        if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, handle)
+            .await
+            .is_err()
+        {
+            warn!("[{name}] still running after force-kill, giving up");
         }
     }
 }
@@ -222,6 +216,17 @@ pub struct ManagedProcess {
 
 impl ManagedProcess {
     pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+
+    /// How long to give the exit watcher when the graceful stop never reached
+    /// the child.
+    ///
+    /// Sending it fails both when the child cannot hear us and when it has
+    /// already exited, and the two are indistinguishable from here: on Unix a
+    /// child that is gone answers the signal with ESRCH. Waiting briefly settles
+    /// that case without force-killing a pid that has already been reaped, and
+    /// which by then may belong to something else, while still costing a child
+    /// that genuinely cannot hear us almost nothing against a 90s stop_timeout.
+    pub(crate) const UNDELIVERED_STOP_GRACE: Duration = Duration::from_secs(2);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -1335,9 +1340,9 @@ runtime_success_sec: 5
     }
 
     /// A graceful stop that never reached the child leaves nothing to wait for,
-    /// so the timeout only postpones the kill. On Windows this is the common
-    /// case, not the rare one: a managed child has no console of its own, so
-    /// `AttachConsole` fails and `CTRL_BREAK` is never delivered.
+    /// so a full `stop_timeout` only postpones the kill. Windows gets here
+    /// whenever `AttachConsole` cannot reach the child and `CTRL_BREAK` goes
+    /// undelivered.
     #[tokio::test]
     async fn test_undelivered_graceful_stop_skips_the_stop_timeout() {
         let (cmd, args) = test_helpers::trap_term_sleep();
