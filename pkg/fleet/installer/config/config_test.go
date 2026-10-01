@@ -16,7 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
+	"go.yaml.in/yaml/v3" // not v3 due to lenient duplicate mapping-key handling
 )
 
 func TestOperationApply_Patch(t *testing.T) {
