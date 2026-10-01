@@ -45,6 +45,8 @@ const (
 	testAzureResourceGroup        = "example-resource-group"
 	testAzureAppServiceInstanceID = "example-instance"
 	testAzureFunctionsInstanceID  = "example-functions-instance"
+	testAzureContainerAppsName    = "example-container-app"
+	testAzureContainerAppsReplica = "example-replica"
 	testServiceInstanceID         = "example-service-instance"
 )
 
@@ -352,46 +354,6 @@ func TestSourceFromAttrs(t *testing.T) {
 			},
 		},
 		{
-			name: "Azure Container Apps (no replica name, falls back to name for Primary)",
-			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(conventions.ServiceNameKey):           "my-app",
-				string(semconv1_27.CloudAccountIDKey):        "sub-123",
-				string(semconv143.AzureResourceGroupNameKey): "my-rg",
-			}),
-			ok: true,
-			src: source.Source{
-				Kind:       source.AzureContainerAppsKind,
-				Identifier: "my-app", //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
-				SourceIdentifier: source.SourceIdentifier{
-					Primary: "my-app",
-					Dimensions: map[string]string{
-						"name":            "my-app",
-						"subscription_id": "sub-123",
-						"resource_group":  "my-rg",
-					},
-				},
-			},
-		},
-		{
-			name: "Azure Container Apps (missing identifying attributes, still classified as ACA but unidentified)",
-			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudProviderKey):         conventions.CloudProviderAzure.Value.AsString(),
-				string(conventions.CloudPlatformKey):         semconv143.CloudPlatformAzureContainerApps.Value.AsString(),
-				string(semconv143.AzureResourceGroupNameKey): "my-rg",
-			}),
-			ok: true,
-			src: source.Source{
-				Kind: source.AzureContainerAppsKind,
-				SourceIdentifier: source.SourceIdentifier{
-					Dimensions: map[string]string{
-						"resource_group": "my-rg",
-					},
-				},
-			},
-		},
-		{
 			name: "GCP",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudProviderKey):  conventions.CloudProviderGCP.Value.AsString(),
@@ -488,6 +450,40 @@ func TestAzureFunctionsSource(t *testing.T) {
 				string(semconv143.FaaSInstanceKey):    testAzureFunctionsInstanceID,
 				string(semconv143.FaaSNameKey):        "ignored-function-name",
 				string(semconv143.CloudResourceIDKey): "/subscriptions/ignored/functions/ignored-function-name",
+				string(conventions.HostIDKey):         testHostID,
+			})
+
+			got, ok := SourceFromAttrs(attrs, nil)
+			assert.True(t, ok)
+			assert.Equal(t, want, got)
+			assert.Empty(t, GetHost(attrs, "fallback-host"))
+		})
+	}
+}
+
+func TestAzureContainerAppsSource(t *testing.T) {
+	want := source.Source{
+		Kind:       source.AzureContainerAppsKind,
+		Identifier: testAzureContainerAppsReplica, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		SourceIdentifier: source.SourceIdentifier{
+			Primary: testAzureContainerAppsReplica,
+			Dimensions: map[string]string{
+				"name":            testAzureContainerAppsName,
+				"subscription_id": testAzureSubscriptionID,
+				"resource_group":  testAzureResourceGroup,
+				"replica":         testAzureContainerAppsReplica,
+			},
+		},
+	}
+
+	for _, platform := range []string{cloudPlatformAzureContainerApps, cloudPlatformAzureContainerAppsLegacy} {
+		t.Run(platform, func(t *testing.T) {
+			attrs := testutils.NewAttributeMap(map[string]string{
+				string(conventions.CloudPlatformKey):  platform,
+				string(conventions.ServiceNameKey):    testAzureContainerAppsName,
+				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+				attributeAzureResourceGroupName:       testAzureResourceGroup,
+				AttributeAzureContainerAppInstanceID:  testAzureContainerAppsReplica,
 				string(conventions.HostIDKey):         testHostID,
 			})
 
@@ -610,6 +606,47 @@ func TestAzureFunctionsSourceRequiresBillingIdentity(t *testing.T) {
 					string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
 					attributeAzureResourceGroupName:       testAzureResourceGroup,
 					string(semconv143.FaaSInstanceKey):    testAzureFunctionsInstanceID,
+					string(conventions.HostIDKey):         testHostID,
+				}
+				testCase.mutate(attrs)
+
+				got, ok := SourceFromAttrs(testutils.NewAttributeMap(attrs), nil)
+				assert.True(t, ok)
+				assert.Equal(t, source.HostnameKind, got.Kind)
+				assert.Equal(t, testHostID, GetHost(testutils.NewAttributeMap(attrs), "fallback-host"))
+
+				delete(attrs, string(conventions.HostIDKey))
+				_, ok = SourceFromAttrs(testutils.NewAttributeMap(attrs), nil)
+				assert.False(t, ok)
+				assert.Equal(t, "fallback-host", GetHost(testutils.NewAttributeMap(attrs), "fallback-host"))
+			})
+		}
+	}
+}
+
+func TestAzureContainerAppsSourceRequiresBillingIdentity(t *testing.T) {
+	requiredAttributes := []string{
+		string(conventions.ServiceNameKey),
+		string(conventions.CloudAccountIDKey),
+		attributeAzureResourceGroupName,
+		AttributeAzureContainerAppInstanceID,
+	}
+
+	for _, required := range requiredAttributes {
+		for _, testCase := range []struct {
+			name   string
+			mutate func(map[string]string)
+		}{
+			{name: "missing", mutate: func(attrs map[string]string) { delete(attrs, required) }},
+			{name: "empty", mutate: func(attrs map[string]string) { attrs[required] = "" }},
+		} {
+			t.Run(testCase.name+" "+required, func(t *testing.T) {
+				attrs := map[string]string{
+					string(conventions.CloudPlatformKey):  cloudPlatformAzureContainerApps,
+					string(conventions.ServiceNameKey):    testAzureContainerAppsName,
+					string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
+					attributeAzureResourceGroupName:       testAzureResourceGroup,
+					AttributeAzureContainerAppInstanceID:  testAzureContainerAppsReplica,
 					string(conventions.HostIDKey):         testHostID,
 				}
 				testCase.mutate(attrs)
