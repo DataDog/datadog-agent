@@ -211,7 +211,7 @@ Consumer skeleton: receive exec events, build `ExecFile`, hand it to the dedupe 
 - [ ] At start, load and compile every rule file in `rules_dir`. On a compile error, log it and disable scanning; never crash system-probe
 - [ ] `RulesVersion()` returns a hash of the rule file contents; include it in every report
 - [x] Stand-in scanner that matches a marker string, for tests and M1 (`MarkerScanner`, landed with the contracts)
-- [ ] Real engine implementation: libyara via go-yara (WS-A decision), as a `Compiler`. Requirements from the spike:
+- [x] Real engine implementation: libyara via go-yara (WS-A decision), as a `Compiler` (`engine_libyara.go`, M2). Requirements from the spike:
   - compiled rules are shared; each worker needs its **own** scanner object (`yr.NewScanner(rules)` per worker)
   - a scan can't be cancelled once started, and the engine timeout is in **whole seconds**: check `ctx.Err()` before scanning, set the engine timeout to `ceil(time until ctx deadline)`
   - keep `Scan` synchronous, so the buffer is never returned to the pool while C code still reads it
@@ -226,13 +226,13 @@ Consumer skeleton: receive exec events, build `ExecFile`, hand it to the dedupe 
 
 Likely the longest task. Involve the build and packaging owners early.
 
-- [ ] Add the native lib and Go binding as dependencies (Bazel; see `bazel/AGENTS.md`). For libyara: a `cc_library` under `deps/` (see the `update-3rd-party-libs` skill), `--without-crypto`, only the needed modules, static link. go-yara uses `#cgo pkg-config`, which rules_go doesn't support: patch the binding or add a thin cgo wrapper
+- [x] Add the native lib and Go binding as dependencies (Bazel; see `bazel/AGENTS.md`). For libyara: a `cc_library` under `deps/` (see the `update-3rd-party-libs` skill), `--without-crypto`, only the needed modules, static link. go-yara uses `#cgo pkg-config`, which rules_go doesn't support: patch the binding or add a thin cgo wrapper
 - [ ] Check the glibc floor on the agent's build sysroot (the spike built on glibc 2.39)
-- [ ] Add a `yara` build tag to the system-probe flavors in `tasks/build_tags.bzl`, Linux only
+- [x] Add a `yara` build tag to the system-probe flavors in `tasks/build_tags.bzl`, Linux only (opt-in for now: `SYSTEM_PROBE_YARA_TAGS`, `dda inv system-probe.build --yara`)
 - [ ] Package with the agent (`packages/`; omnibus only if unavoidable)
-- [ ] Update `LICENSE-3rdparty.csv`
+- [x] Update `LICENSE-3rdparty.csv` (go-yara; libyara is tracked by its Bazel `license()`, like the other C deps)
 - [ ] Run the size quality gate and report the delta
-- [ ] Confirm `dda inv system-probe.build` works with and without the tag
+- [x] Confirm `dda inv system-probe.build` works with and without the tag (arm64)
 
 **Done when:** a CI-built system-probe (amd64 and arm64) includes the scanner, and the size delta is known and accepted.
 
