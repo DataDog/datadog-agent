@@ -604,3 +604,69 @@ profiles:
     start_after: 120 # 2 minutes
     iterations: 0
     period: 900
+# Support troubleshooting bundle, gated behind a remote flag.
+- name: troubleshooting
+  remote_flag: troubleshooting_coat_bundle
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      # Delivery failures: why the data never reached the intake. error_type
+      # separates DNS from TLS from timeout without pulling a flare.
+      - name: transactions.errors
+        preserve_tags:
+          - domain
+          - endpoint
+          - error_type
+      - name: transactions.dropped
+        preserve_tags:
+          - domain
+          - endpoint
+      - name: transactions.retry_queue_size
+        preserve_tags:
+          - domain
+      - name: transactions.connection_events
+        preserve_tags:
+          - connection_event_type
+      # Aggregator: loss upstream of the forwarder. Read against the
+      # already-collected points.sent, aggregator.processed tells whether the
+      # loss happened before or after the forwarder. "shard" is aggregated away.
+      - name: aggregator.flush
+        preserve_tags:
+          - data_type
+          - state
+      - name: aggregator.processed
+        preserve_tags:
+          - data_type
+      # DogStatsD intake: errors. Only the bytes counters are
+      # collected by default today. "origin" and "listener_id" are unbounded
+      # and deliberately aggregated away.
+      - name: dogstatsd.processed
+        preserve_tags:
+          - message_type
+          - state
+      - name: dogstatsd.udp_packets
+        preserve_tags:
+          - state
+      - name: dogstatsd.uds_packets
+        preserve_tags:
+          - transport
+          - state
+      - name: dogstatsd.uds_origin_detection_error
+        preserve_tags:
+          - transport
+      # Inputs: checks that run but warn or submit nothing, and workloadmeta
+      # collectors (kubelet, container runtimes) failing to pull.
+      - name: checks.warnings
+        preserve_tags:
+          - check_name
+      - name: checks.metrics_samples
+        preserve_tags:
+          - check_name
+      - name: workloadmeta.pull_errors
+        preserve_tags:
+          - collector_id
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
