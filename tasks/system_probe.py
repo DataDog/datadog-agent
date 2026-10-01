@@ -135,7 +135,7 @@ def ninja_define_ebpf_compiler(
         depfile="$out.d",
     )
 
-    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g $out"
+    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g --remove-section=.rel.BTF.ext $out"
     strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
     strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
 
