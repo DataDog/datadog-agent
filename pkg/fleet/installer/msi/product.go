@@ -20,6 +20,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+var errProductNotFound = errors.New("no products found")
+
+// CheckAgentFlavor rejects an installer that targets the opposite installed Agent flavor.
+func CheckAgentFlavor(fipsMode bool) error {
+	return checkAgentFlavor(fipsMode, FindAllProductCodes)
+}
+
+func checkAgentFlavor(fipsMode bool, findProducts func(string) ([]Product, error)) error {
+	installedProduct := AgentProductName(!fipsMode)
+	_, err := findProducts(installedProduct)
+	if errors.Is(err, errProductNotFound) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("could not check installed Agent flavor: %w", err)
+	}
+	matchingInstaller := "FIPS"
+	if fipsMode {
+		matchingInstaller = "standard"
+	}
+	return fmt.Errorf("cannot install %s while %s is installed; use the %s installer to manage the existing Agent", AgentProductName(fipsMode), installedProduct, matchingInstaller)
+}
+
 // readMSIProductName reads ProductName without installing the package.
 func readMSIProductName(filename string) (string, error) {
 	filenamePtr, err := windows.UTF16PtrFromString(filename)
@@ -194,7 +217,7 @@ func FindAllProductCodes(productName string) ([]Product, error) {
 	}
 
 	if len(products) == 0 {
-		return nil, errors.New("no products found")
+		return nil, errProductNotFound
 	}
 
 	return products, nil

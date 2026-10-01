@@ -68,11 +68,11 @@ func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
 	t.Run("complete identity", func(t *testing.T) {
 		attrs := pcommon.NewMap()
 		require.NoError(t, attrs.FromRaw(map[string]any{
-			string(semconv127.CloudPlatformKey):  cloudPlatformAzureAppService,
-			string(semconv127.ServiceNameKey):    testAzureAppServiceName,
-			string(semconv127.CloudAccountIDKey): testAzureSubscriptionID,
-			attributeAzureResourceGroupName:      testAzureResourceGroup,
-			attributeAzureAppServiceInstanceID:   testAzureAppServiceInstanceID,
+			string(semconv127.CloudPlatformKey):    cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):      testAzureAppServiceName,
+			string(semconv127.CloudAccountIDKey):   testAzureSubscriptionID,
+			attributeAzureResourceGroupName:        testAzureResourceGroup,
+			testAttributeAzureAppServiceInstanceID: testAzureAppServiceInstanceID,
 		}))
 
 		assert.ElementsMatch(t, []string{
@@ -80,18 +80,17 @@ func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
 			"name:" + testAzureAppServiceName,
 			"subscription_id:" + testAzureSubscriptionID,
 			"resource_group:" + testAzureResourceGroup,
-			"instance:" + testAzureAppServiceInstanceID,
 		}, TagsFromAttributes(attrs))
 	})
 
-	t.Run("service instance fallback", func(t *testing.T) {
+	t.Run("service instance is not the billing instance", func(t *testing.T) {
 		attrs := pcommon.NewMap()
 		require.NoError(t, attrs.FromRaw(map[string]any{
-			string(semconv127.CloudPlatformKey):  cloudPlatformAzureAppService,
-			string(semconv127.ServiceNameKey):    testAzureAppServiceName,
-			string(semconv127.CloudAccountIDKey): testAzureSubscriptionID,
-			attributeAzureResourceGroupName:      testAzureResourceGroup,
-			attributeServiceInstanceID:           testServiceInstanceID,
+			string(semconv127.CloudPlatformKey):     cloudPlatformAzureAppService,
+			string(semconv127.ServiceNameKey):       testAzureAppServiceName,
+			string(semconv127.CloudAccountIDKey):    testAzureSubscriptionID,
+			attributeAzureResourceGroupName:         testAzureResourceGroup,
+			string(semconv127.ServiceInstanceIDKey): testServiceInstanceID,
 		}))
 
 		assert.ElementsMatch(t, []string{
@@ -100,7 +99,6 @@ func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
 			"name:" + testAzureAppServiceName,
 			"subscription_id:" + testAzureSubscriptionID,
 			"resource_group:" + testAzureResourceGroup,
-			"instance:" + testServiceInstanceID,
 		}, TagsFromAttributes(attrs))
 	})
 
@@ -110,7 +108,6 @@ func TestTagsFromAzureAppServiceAttributes(t *testing.T) {
 			string(semconv127.CloudPlatformKey):  cloudPlatformAzureAppService,
 			string(semconv127.ServiceNameKey):    testAzureAppServiceName,
 			string(semconv127.CloudAccountIDKey): testAzureSubscriptionID,
-			attributeAzureResourceGroupName:      testAzureResourceGroup,
 		}))
 
 		assert.Equal(t, []string{"service:" + testAzureAppServiceName}, TagsFromAttributes(attrs))
