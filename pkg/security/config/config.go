@@ -629,7 +629,7 @@ type RuntimeSecurityConfig struct {
 	// default_value: 10
 	SBOMResolverWorkloadsCacheSize int
 
-	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
+	// description: SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM, which the runtime usage enrichment of the host SBOM needs too
 	// visibility: private
 	// default_value: false
 	SBOMResolverHostEnabled bool
@@ -1016,8 +1016,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnrichmentInterval: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.enrichment_interval"),
 		SBOMResolverRefreshInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.refresh_interval"),
 		SBOMResolverForwardInterval:    pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sbom.forward_interval"),
-		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverGeneratePolicies:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
+		SBOMResolverHostEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled") ||
+			pkgconfigsetup.Datadog().GetBool("sbom.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.host.enabled") && pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
+		SBOMResolverGeneratePolicies: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.generate_policies"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),

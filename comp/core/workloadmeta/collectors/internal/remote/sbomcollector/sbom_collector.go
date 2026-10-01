@@ -88,6 +88,14 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
+	// The host SBOM stays out of workloadmeta, so the sbom check merges the
+	// report of the host itself.
+	if event.Kind == sbompkg.HostKind {
+		log.Debug("Received forwarded SBOM for the host")
+		sbompkg.SetHostUsage(&newBom)
+		return workloadmeta.Event{}, nil
+	}
+
 	if event.Kind != string(workloadmeta.KindContainer) {
 		return workloadmeta.Event{}, fmt.Errorf("expected KindContainer, got %s", event.Kind)
 	}
