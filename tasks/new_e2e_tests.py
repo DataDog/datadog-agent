@@ -13,10 +13,8 @@ import re
 import shutil
 import sys
 import tempfile
-import threading
 import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import yaml
@@ -160,190 +158,6 @@ def write_test_binaries_bzl(_):
                 file=bzl,
             )
         print("}", file=bzl)
-
-
-@task(
-    help={
-        "output_dir": "Directory to store compiled test binaries",
-        "manifest_file_path": "Path to write the build manifest",
-    },
-)
-def build_binaries(ctx, output_dir="test-binaries", manifest_file_path="manifest.json"):
-    """
-    Build E2E test binaries for all test packages to be reused across test jobs.
-    This pre-builds all test binaries to optimize CI pipeline performance.
-    """
-    output_path = Path(output_dir).absolute()
-    bazel(
-        "run",
-        "--@rules_go//go/toolchain:sdk_name=go_civisibility_sdk",
-        "//test/new-e2e/tests:install_test_binaries",
-        "--",
-        f"--destdir={output_path}",
-    )
-
-    # Create manifest file
-    test_binaries_bzl = {}
-    exec((get_repo_root() / "test/new-e2e/tests/test_binaries.bzl").read_text(), test_binaries_bzl)
-    manifest = {
-        "build_info": {
-            "timestamp": ctx.run("date -u +%Y-%m-%dT%H:%M:%SZ", hide=True).stdout.strip(),
-            "commit": get_commit_sha(ctx, short=True),
-        },
-        "binaries": [
-            {
-                "package": label.removeprefix("//").partition(":")[0].removeprefix("test/new-e2e/"),
-                "binary": binary_name,
-                "size": (output_path / binary_name).stat().st_size,
-            }
-            for label, binary_name in test_binaries_bzl["TEST_BINARIES"].items()
-        ],
-    }
-
-    with open(manifest_file_path, "w") as f:
-        json.dump(manifest, f, indent=2)
-
-    print(f"Manifest created: {manifest_file_path}")
-
-
-@task(
-    help={
-        "output_dir": "Directory containing compiled test binaries",
-        "manifest_file_path": "Path to the manifest JSON file",
-        "s3_base_uri": "S3 base URI for uploading (e.g. s3://bucket/path/e2e-pre-build/pipeline-id)",
-        "parallel": "Number of parallel uploads [default: 8]",
-    },
-)
-def upload_binaries(
-    ctx,
-    output_dir="test-binaries",
-    manifest_file_path="manifest.json",
-    s3_base_uri="",
-    parallel=8,
-):
-    """
-    Create per-package tarballs from pre-built test binaries and upload them to S3.
-    Each binary gets its own tarball so that test jobs can download only what they need.
-    """
-    if not s3_base_uri:
-        raise Exit("--s3-base-uri is required", code=1)
-
-    with open(manifest_file_path) as f:
-        manifest = json.load(f)
-
-    output_path = Path(output_dir)
-    tarball_dir = Path(tempfile.mkdtemp(prefix="e2e-tarballs-"))
-
-    print(f"Creating per-package tarballs and uploading to {s3_base_uri}")
-
-    print_lock = threading.Lock()
-    upload_failures = 0
-
-    def upload_single(binary_info):
-        nonlocal upload_failures
-        binary_name = binary_info["binary"]
-        binary_file = output_path / binary_name
-        if not binary_file.exists():
-            with print_lock:
-                print(f"  ✗ Binary {binary_name} not found, skipping")
-            return
-
-        tarball_path = tarball_dir / f"{binary_name}.tar.zst"
-        try:
-            ctx.run(
-                f'tar c -I zstd -f {tarball_path} -C {output_path.parent} {output_path.name}/{binary_name}',
-                hide=True,
-            )
-            ctx.run(f'aws s3 cp {tarball_path} {s3_base_uri}/{binary_name}.tar.zst', hide=True)
-            with print_lock:
-                print(f"  ✓ Uploaded {binary_name}")
-        except Exception as e:
-            with print_lock:
-                print(f"  ✗ Failed to upload {binary_name}: {e}")
-                upload_failures += 1
-
-    with ThreadPoolExecutor(max_workers=parallel) as executor:
-        futures = [executor.submit(upload_single, bi) for bi in manifest["binaries"]]
-        for future in as_completed(futures):
-            future.result()
-
-    if upload_failures > 0:
-        print(f"Error: {upload_failures} uploads failed")
-        raise Exit(code=1)
-
-    # Upload manifest
-    result = ctx.run(f'aws s3 cp {manifest_file_path} {s3_base_uri}/manifest.json', warn=True)
-    if not result.ok:
-        print(f"  ✗ Failed to upload manifest to {s3_base_uri}/manifest.json")
-        raise Exit(code=1)
-    print(f"Uploaded manifest to {s3_base_uri}/manifest.json")
-
-    # Cleanup temp tarballs
-    shutil.rmtree(tarball_dir, ignore_errors=True)
-
-
-def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
-    """Download pre-built binaries from S3 for the specified targets.
-
-    Downloads manifest.json, resolves which binaries are needed based on the
-    target package prefixes, then downloads and extracts only those tarballs.
-    Returns True if binaries were successfully downloaded, False otherwise.
-    """
-    manifest_path = "manifest.json"
-    extract_path = Path("test-binaries")
-
-    # Download manifest from S3 (unset AWS_PROFILE to use default runner credentials for the build-stable bucket)
-    with environ({"AWS_PROFILE": "DELETE"}):
-        result = ctx.run(f'aws s3 cp {s3_base_uri}/manifest.json {manifest_path}', warn=True)
-        if not result.ok:
-            print(f"WARNING: Failed to download manifest from {s3_base_uri}/manifest.json")
-            return False
-
-    with open(manifest_path) as f:
-        manifest = json.load(f)
-
-    # Normalize targets: ./tests/agent-devx -> tests/agent-devx
-    target_prefixes = []
-    for target in targets:
-        prefix = target.lstrip("./")
-        target_prefixes.append(prefix)
-
-    # Find matching binaries in manifest
-    needed_binaries = []
-    for binary_info in manifest["binaries"]:
-        pkg = binary_info["package"]
-        for prefix in target_prefixes:
-            if pkg == prefix or pkg.startswith(prefix + "/"):
-                needed_binaries.append(binary_info)
-                break
-
-    if not needed_binaries:
-        print(f"WARNING: No pre-built binaries found matching targets: {targets}")
-        return False
-
-    print(f"Downloading {len(needed_binaries)} pre-built binaries from S3")
-
-    extract_path.mkdir(exist_ok=True, parents=True)
-
-    with environ({"AWS_PROFILE": "DELETE"}):
-        for binary_info in needed_binaries:
-            binary_name = binary_info["binary"]
-            tarball_name = f"{binary_name}.tar.zst"
-            s3_path = f"{s3_base_uri}/{tarball_name}"
-
-            print(f"  Downloading {binary_name}...")
-            result = ctx.run(f'aws s3 cp {s3_path} {tarball_name}', warn=True)
-            if not result.ok:
-                print(f"  ✗ Failed to download {tarball_name}")
-                return False
-            result = ctx.run(f'tar xf {tarball_name}', warn=True)
-            if not result.ok:
-                print(f"  ✗ Failed to extract {tarball_name}")
-                return False
-            os.remove(tarball_name)
-
-    print(f"Pre-built binaries extracted to {extract_path}")
-    return True
 
 
 def _build_binaries_with_bazel(ctx: Context, targets: list[str], no_cache: bool = False) -> bool:
@@ -529,8 +343,7 @@ def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None
         "local_package": "Directory holding a locally built Agent package to install instead of a published one; build one with `dda inv omnibus.build-repackaged-agent`",
         "flavor": 'Agent package flavor to install (e.g. "datadog-agent")',
         "stack_name_suffix": "Suffix to add to the stack name, it can be useful when your stack is stuck in a weird state and you need to run the tests again",
-        "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
-        "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of using pre-built ones or building them on the fly, then execute them with gotestsum",
+        "use_bazel_built_binaries": "Build the test binaries with Bazel first instead of building them on the fly, then execute them with gotestsum",
         "bazel_no_cache": "With --use-bazel-built-binaries: build with no Bazel cache (remote or disk) to test cold-build behavior (e.g. OOM when the cache is empty)",
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
@@ -572,7 +385,6 @@ def run(
     local_package="",
     result_json=DEFAULT_E2E_TEST_OUTPUT_JSON,
     stack_name_suffix="",
-    use_prebuilt_binaries=False,
     use_bazel_built_binaries=False,
     bazel_no_cache=False,
     max_retries=0,
@@ -764,22 +576,6 @@ def run(
     raw_command = ""
     # Scrub the test output to avoid leaking API or APP keys when running in the CI
 
-    if use_prebuilt_binaries and use_bazel_built_binaries:
-        raise Exit("--use-prebuilt-binaries and --use-bazel-built-binaries cannot be used together", 1)
-
-    if use_prebuilt_binaries:
-        s3_uri = os.environ.get("E2E_PREBUILD_S3_URI", "")
-        if s3_uri and targets:
-            # New flow: download per-package tarballs from S3
-            if not _download_prebuilt_binaries(ctx, s3_uri, targets):
-                print("WARNING: Failed to download pre-built binaries from S3, disabling use_prebuilt_binaries")
-                use_prebuilt_binaries = False
-        elif not os.path.exists("test-binaries.tar.zst") or not os.path.exists("manifest.json"):
-            print(
-                "WARNING: required artifacts test-binaries.tar.zst and manifest.json not found, disabling use_prebuilt_binaries"
-            )
-            use_prebuilt_binaries = False
-
     if use_bazel_built_binaries:
         if not _build_binaries_with_bazel(ctx, targets, no_cache=bazel_no_cache):
             print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
@@ -787,7 +583,7 @@ def run(
     elif bazel_no_cache:
         print("WARNING: --bazel-no-cache has no effect without --use-bazel-built-binaries, ignoring it")
 
-    if use_prebuilt_binaries or use_bazel_built_binaries:
+    if use_bazel_built_binaries:
         ctx.run("go build -o ./gotest-custom ./internal/tools/gotest-custom")
         raw_command = "--raw-command ./gotest-custom {packages}"
         env_vars["GOTEST_COMMAND"] = "./gotest-custom"
