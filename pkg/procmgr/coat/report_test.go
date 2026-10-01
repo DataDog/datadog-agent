@@ -11,6 +11,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -69,6 +70,29 @@ func TestReportIncludesEveryProcessNotJustCatalogServices(t *testing.T) {
 	assert.Equal(t, "1.2.3", report.Daemon.Version)
 	assert.Empty(t, report.DaemonError)
 	assert.NotEmpty(t, report.Notes, "the report must explain how to read a process that is down")
+}
+
+// The notes are the only thing in the report that tells a reader where to look when a process will
+// not start, so they must not name an artifact this platform never produces. Only the Windows
+// service writes a log file the flare collects: the Unix daemon starts with no log file and its
+// systemd unit sets no StandardOutput, so its lines go to the journal, which the flare cannot read
+// as dd-agent and therefore does not ship.
+func TestReportNotesPointAtALogThisPlatformActuallyHas(t *testing.T) {
+	notes := strings.Join(reportNotes(), "\n")
+
+	require.Contains(t, notes, daemonLogLocation(),
+		"the notes must name where the daemon log can be read on this platform")
+
+	if runtime.GOOS == "windows" {
+		assert.Contains(t, notes, "dd-procmgr.log",
+			"the Windows service writes this file and the flare collects it")
+		return
+	}
+
+	assert.NotContains(t, notes, "dd-procmgr.log",
+		"nothing writes this file off Windows, so pointing support at it sends them nowhere")
+	assert.Contains(t, notes, "journalctl",
+		"the daemon logs to stdout and systemd captures it, so the journal is where the reason is")
 }
 
 func TestReportUnreachableDaemonIsRecordedNotDropped(t *testing.T) {

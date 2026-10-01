@@ -46,21 +46,27 @@ type SupportReport struct {
 //
 // dd-procmgrd does not report a start-block reason over its RPC: the wire format carries
 // condition_path_exists but not condition_config_any, and there is no Blocked state, so a
-// config-gated process is indistinguishable from one waiting on start ordering. The daemon logs
-// the gate decision, and the flare already collects logs/dd-procmgr.log through the log
-// directory sweep, so the notes point a reader there rather than guessing.
-var reportNotes = []string{
-	"state=running: the process is supervised and up.",
-	"state=stopped: the process was stopped on request, e.g. an operator stop or an agent shutdown.",
-	"state=crashed or state=failed with restart_count>0: a crash loop. See last_exit_code and last_signal.",
-	"state=failed with restart_count=0: the spawn itself failed. See logs/dd-procmgr.log.",
-	"state=created with auto_start=true: the process was never started, because a config gate " +
-		"(condition_config_any) is closed, the condition_path_exists path is missing, or a start " +
-		"ordering dependency is unmet. dd-procmgrd does not report which one over its RPC: search " +
-		"logs/dd-procmgr.log for the gate decision.",
-	"state=created with auto_start=false: an inert catalog entry, expected until the matching service is migrated.",
-	"A legacy service reported Stopped in servicestatus.json is the expected state when the same " +
-		"workload appears in the services list with management_mode=procmgr.",
+// config-gated process is indistinguishable from one waiting on start ordering. The daemon logs the
+// gate decision, so the notes point a reader at that log rather than guessing.
+//
+// Where the log is depends on the platform, which is why the location comes from
+// daemonLogLocation rather than being written inline: only the Windows service writes a file the
+// flare can collect. Naming a path the host never produces sends support somewhere there is
+// nothing to find, in the one place that is supposed to explain a process that will not start.
+func reportNotes() []string {
+	return []string{
+		"state=running: the process is supervised and up.",
+		"state=stopped: the process was stopped on request, e.g. an operator stop or an agent shutdown.",
+		"state=crashed or state=failed with restart_count>0: a crash loop. See last_exit_code and last_signal.",
+		"state=failed with restart_count=0: the spawn itself failed. See " + daemonLogLocation() + ".",
+		"state=created with auto_start=true: the process was never started, because a config gate " +
+			"(condition_config_any) is closed, the condition_path_exists path is missing, or a start " +
+			"ordering dependency is unmet. dd-procmgrd does not report which one over its RPC: " +
+			"search " + daemonLogLocation() + " for the gate decision.",
+		"state=created with auto_start=false: an inert catalog entry, expected until the matching service is migrated.",
+		"A legacy service reported Stopped in servicestatus.json is the expected state when the same " +
+			"workload appears in the services list with management_mode=procmgr.",
+	}
 }
 
 // flareCollectionBudget is how long Report may spend asking dd-procmgrd about itself and every
@@ -120,7 +126,7 @@ func (c *Collector) Report(ctx context.Context, opts ScrubOptions) SupportReport
 		SocketPath:  procmgrSocketPath(),
 		Processes:   []ProcessSnapshot{},
 		Services:    make([]ServiceSnapshot, 0, len(migratableServices)),
-		Notes:       reportNotes,
+		Notes:       reportNotes(),
 	}
 
 	processes := map[string]ProcessSnapshot{}
