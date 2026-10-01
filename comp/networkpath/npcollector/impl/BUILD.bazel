@@ -20,6 +20,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
+        "//comp/core/sysprobeconfig/def",
         "//comp/def",
         "//comp/forwarder/eventplatform/def",
         "//comp/networkpath/npcollector/def",
@@ -68,6 +69,8 @@ dd_agent_go_test(
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/sysprobeconfig/def",
+        "//comp/core/sysprobeconfig/mock",
         "//comp/core/telemetry/mock",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/def",
