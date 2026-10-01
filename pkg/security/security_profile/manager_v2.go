@@ -1208,10 +1208,9 @@ func baseMountNamespaceFromEvent(event *model.Event) uint32 {
 	return pc.Process.MntNS
 }
 
-// seedMountsForWorkload seeds a profile's mount table from the mount resolver's
-// current view of the workload's base mount namespace. This captures the
-// workload's pre-existing mounts (rootfs, binds set up before the profile
-// existed); later changes come from live mount events.
+// seedMountsForWorkload seeds a profile's mount table with the workload's
+// pre-existing mounts from its base mount namespace. Later changes come from
+// live mount events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, event *model.Event) {
 	nsID := baseMountNamespaceFromEvent(event)
 	if nsID == 0 {

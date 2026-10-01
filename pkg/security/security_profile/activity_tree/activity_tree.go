@@ -1127,9 +1127,6 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	}
 	at.ProcessNodes = newProcessNodes
 
-	// Mounts are append-only: drop the evicted tag from each mount's seen set so
-	// its freed image-tag ID can't be reattributed to a reused slot, but keep the
-	// mount node itself even once it has no remaining tags.
 	for _, mn := range at.Mounts {
 		mn.EvictImageTag(imageTagID)
 	}
