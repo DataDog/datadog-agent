@@ -78,8 +78,9 @@ func eudmSystemInfoTags(info *systeminfo.SystemInfo) []string {
 	if info.Identifier != "" {
 		tags = append(tags, "device_model:"+sanitizeEUDMTagValue(info.Identifier))
 	}
+	// The device serial number is the current source of the EUDM host identifier.
 	if serial := sanitizeEUDMTagValue(info.SerialNumber); serial != "" {
-		tags = append(tags, "serial_number:"+serial)
+		tags = append(tags, "hostid:"+serial)
 	}
 	return tags
 }

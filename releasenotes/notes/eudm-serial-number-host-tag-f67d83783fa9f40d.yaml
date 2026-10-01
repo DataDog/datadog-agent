@@ -1,6 +1,0 @@
----
-enhancements:
-  - |
-    Add a ``serial_number`` host tag on macOS and Windows when
-    ``infrastructure_mode`` is ``end_user_device`` and the device serial
-    number is available.
