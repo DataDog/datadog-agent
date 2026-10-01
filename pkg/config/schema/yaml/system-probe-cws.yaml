@@ -369,7 +369,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -393,7 +393,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           rate:
             node_type: setting
             type: integer
@@ -402,6 +402,22 @@ properties:
             node_type: setting
             type: integer
             default: 80
+      syscalls:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          rate:
+            node_type: setting
+            type: integer
+            default: 500
+          threshold:
+            node_type: setting
+            type: integer
+            default: 60
   event_server:
     node_type: section
     type: object
@@ -724,6 +740,7 @@ properties:
             - dns
             - bind
             - connect
+            - capabilities
             items:
               type: string
           excluded_images:
