@@ -1,11 +1,10 @@
 #!/bin/sh
-# Stop the whole SRC group. Upgrades from pre-group installs have no
-# datadog-agent group on file yet, so fall back to per-subsystem stops.
-stopsrc -g datadog-agent 2>/dev/null || {
-    stopsrc -s datadog-agent            2>/dev/null || true
-    stopsrc -s datadog-trace-agent      2>/dev/null || true
-    stopsrc -s datadog-agent-data-plane 2>/dev/null || true
-}
+# Stop the SRC group; the per-subsystem stops only matter for
+# pre-group installs (no group on file yet) and need no new services.
+stopsrc -g datadog-agent 2>/dev/null || true
+stopsrc -s datadog-agent            2>/dev/null || true
+stopsrc -s datadog-trace-agent      2>/dev/null || true
+stopsrc -s datadog-agent-data-plane 2>/dev/null || true
 
 COMPILED_LIST=/opt/datadog-agent/embedded/.pyc_compiled_files.txt
 if [ -f "$COMPILED_LIST" ]; then

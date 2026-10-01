@@ -6,13 +6,12 @@
 #   3. Pre_rm does NOT run during upgrades (only -u deinstall).
 
 # Belt-and-suspenders: stop services in case unconfig did not run.
-# Fall back to per-subsystem stops when the SRC group does not exist
-# (deinstall of a pre-group install).
-stopsrc -g datadog-agent 2>/dev/null || {
-    stopsrc -s datadog-agent            2>/dev/null || true
-    stopsrc -s datadog-trace-agent      2>/dev/null || true
-    stopsrc -s datadog-agent-data-plane 2>/dev/null || true
-}
+# The per-subsystem stops only matter for pre-group installs (no group
+# on file yet) and need no new services.
+stopsrc -g datadog-agent 2>/dev/null || true
+stopsrc -s datadog-agent            2>/dev/null || true
+stopsrc -s datadog-trace-agent      2>/dev/null || true
+stopsrc -s datadog-agent-data-plane 2>/dev/null || true
 rmitab datadog-agent 2>/dev/null || true
 
 # Wait up to 30 s for dd-agent processes to fully exit before cleanup.

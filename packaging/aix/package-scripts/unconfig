@@ -2,13 +2,7 @@
 # Unconfiguration Script — the only lifecycle script reliably stored in
 # liblpp.a and run by installp during deinstallation (installp -u).
 # It also runs during upgrades, but preinst recreates any removed state.
-# Fall back to per-subsystem stops when the SRC group does not exist yet
-# (upgrade from a pre-group install).
-stopsrc -g datadog-agent 2>/dev/null || {
-    stopsrc -s datadog-agent            2>/dev/null || true
-    stopsrc -s datadog-trace-agent      2>/dev/null || true
-    stopsrc -s datadog-agent-data-plane 2>/dev/null || true
-}
+stopsrc -g datadog-agent 2>/dev/null || true
 # Wait up to 30 s for dd-agent processes to fully exit before cleanup.
 i=0
 while [ $i -lt 30 ]; do
