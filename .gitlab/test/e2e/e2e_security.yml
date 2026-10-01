@@ -40,6 +40,7 @@ new-e2e-cws:
     - qa_dca
   variables:
     TARGETS: ./tests/cws
+    DYNAMIC_TESTS_FLAG: ""
     TEAM: csm-threats-agent
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"

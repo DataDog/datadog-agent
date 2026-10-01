@@ -13,6 +13,7 @@ new-e2e-npm-packages:
     - agent_rpm-x64-a7
   variables:
     TARGETS: ./tests/npm
+    DYNAMIC_TESTS_FLAG: ""
     TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMDirect)Suite"
     ON_NIGHTLY_FIPS: "true"
@@ -28,6 +29,7 @@ new-e2e-npm-docker:
     - qa_agent_linux
   variables:
     TARGETS: ./tests/npm
+    DYNAMIC_TESTS_FLAG: ""
     TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
     ON_NIGHTLY_FIPS: "true"
@@ -44,6 +46,7 @@ new-e2e-npm-eks-init:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/npm
+    DYNAMIC_TESTS_FLAG: ""
     TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_INIT_ONLY: "true"
@@ -66,6 +69,7 @@ new-e2e-npm-eks:
     - qa_dca
   variables:
     TARGETS: ./tests/npm
+    DYNAMIC_TESTS_FLAG: ""
     TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
@@ -83,6 +87,7 @@ new-e2e-npm:
     - qa_dca
   variables:
     TARGETS: ./tests/npm
+    DYNAMIC_TESTS_FLAG: ""
     TEAM: cloud-network-monitoring
     EXTRA_PARAMS: --run TestCiliumLBConntracker
 

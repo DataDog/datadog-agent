@@ -13,5 +13,6 @@ new-e2e-usm:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/usm
+    DYNAMIC_TESTS_FLAG: ""
     EXTRA_PARAMS: --run "TestPythonRemoteTagsLinuxSuite|TestPythonRemoteTagsDirectLinuxSuite"
     TEAM: universal-service-monitoring

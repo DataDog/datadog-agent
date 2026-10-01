@@ -1047,6 +1047,7 @@ workflow:
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
+        - bazel/rules/ebpf/**/*
         - pkg/network/**/*
         - test/new-e2e/tests/npm/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1217,6 +1218,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
+        - bazel/rules/ebpf/**/*
         - pkg/discovery/module/*
         - pkg/network/**/*
         - pkg/process/checks/**/*
