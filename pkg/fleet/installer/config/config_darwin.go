@@ -180,27 +180,29 @@ func readDeploymentID(dir string) (string, error) {
 	return string(id), nil
 }
 
-// setFileOwnershipAndPermissions sets the ownership and permissions for a file based on its
-// configFileSpec, through a handle that refuses to resolve to anything but the file itself. If the
-// account doesn't exist (e.g. in tests) or the process doesn't have permission to change
-// ownership, the function logs a warning and continues without failing.
-func setFileOwnershipAndPermissions(ctx context.Context, root *os.Root, path string, spec *configFileSpec) error {
+// setFileOwnershipAndPermissions sets the ownership and permissions for a file, through a handle
+// that refuses to resolve to anything but the file itself. If the account doesn't exist (e.g. in
+// tests) or the process doesn't have permission to change ownership, the function logs a warning
+// and continues without failing.
+//
+// The owners and modes in the configFileSpec describe the Linux layout. On macOS every
+// configuration file has the same ownership and mode, the ones the .dmg's postinstall script gives
+// the whole tree, so a file written by Fleet is indistinguishable from one installed by the .dmg.
+func setFileOwnershipAndPermissions(ctx context.Context, root *os.Root, path string, _ *configFileSpec) error {
 	f, err := root.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return fmt.Errorf("error opening %s: %w", path, err)
 	}
 	defer f.Close()
-	if spec.mode != 0 {
-		if err := f.Chmod(spec.mode); err != nil {
-			return fmt.Errorf("error setting file permissions for %s: %w", path, err)
-		}
+	if err := f.Chmod(agentConfigFileMode); err != nil {
+		return fmt.Errorf("error setting file permissions for %s: %w", path, err)
 	}
-	uid, err := user.GetUserID(ctx, spec.owner)
+	uid, err := user.GetUserID(ctx, agentConfigUser)
 	if err != nil {
 		log.Warnf("error setting file ownership for %s: %v", path, err)
 		return nil
 	}
-	gid, err := user.GetGroupID(ctx, spec.group)
+	gid, err := user.GetGroupID(ctx, agentConfigGroup)
 	if err != nil {
 		log.Warnf("error setting file ownership for %s: %v", path, err)
 		return nil
