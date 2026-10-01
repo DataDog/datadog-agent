@@ -123,12 +123,14 @@ go_library(
 dd_agent_go_test(
     name = "coat_test",
     srcs = [
+        "catalog_drift_test.go",
         "collector_test.go",
         "process_state_test.go",
         "report_test.go",
     ],
     embed = [":coat"],
     deps = [
+        "//pkg/fleet/installer/packages/embedded",
         "//pkg/process/procutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

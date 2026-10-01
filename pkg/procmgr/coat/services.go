@@ -130,9 +130,8 @@ func serviceByID(id string) (MigratableService, bool) {
 	return MigratableService{}, false
 }
 
-// ProcmgrConfigFiles returns the processes.d basenames the catalog tracks. Callers that ship
-// processes.d entries (the installer embeds) use this to assert every shipped config is
-// registered, so a new migration cannot land silently without COAT and flare coverage.
+// ProcmgrConfigFiles returns the processes.d basenames the catalog tracks. Drift tests compare
+// this set to the installer embeds so a new migration cannot land silently without COAT coverage.
 func ProcmgrConfigFiles() []string {
 	out := make([]string, 0, len(migratableServices))
 	for _, service := range migratableServices {

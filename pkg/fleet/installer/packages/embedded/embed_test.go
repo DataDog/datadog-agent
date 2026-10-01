@@ -13,8 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/procmgr/coat"
 )
 
 // TestGetSystemdUnitEmbedsAllVariants ensures every unit GetSystemdUnit can construct at runtime is
@@ -131,53 +129,10 @@ func serviceNames(entries []fs.DirEntry) []string {
 	return names
 }
 
-// Every processes.d YAML the installer ships must be registered in the COAT migratable catalog.
-// Omitting one leaves flares and agent_service_* gauges silent for that service, which is how the
-// PAR family shipped under dd-procmgrd without appearing in services[]. Catalog may list more
-// entries than are shipped today (migration targets still on systemd), so this is ⊆, not equality.
-func TestShippedProcmgrConfigsAreInTheCOATCatalog(t *testing.T) {
-	shipped := shippedProcmgrConfigFiles(t)
-	require.NotEmpty(t, shipped, "installer embeds must ship at least one processes.d entry")
-
-	registered := map[string]struct{}{}
-	for _, name := range coat.ProcmgrConfigFiles() {
-		registered[name] = struct{}{}
-	}
-
-	var missing []string
-	for _, name := range shipped {
-		if _, ok := registered[name]; !ok {
-			missing = append(missing, name)
-		}
-	}
-	assert.Empty(t, missing,
-		"processes.d configs shipped by the installer but absent from pkg/procmgr/coat migratableServices: %v",
-		missing)
-}
-
-func shippedProcmgrConfigFiles(t *testing.T) []string {
-	t.Helper()
-	seen := map[string]struct{}{}
-
-	linuxEntries, err := procmgrUnits.ReadDir("tmpl/gen/pm/processes.d")
+func TestShippedProcmgrConfigFilesListsEmbeds(t *testing.T) {
+	shipped, err := ShippedProcmgrConfigFiles()
 	require.NoError(t, err)
-	for _, entry := range linuxEntries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
-			seen[entry.Name()] = struct{}{}
-		}
-	}
-
-	windowsEntries, err := windowsProcmgrConfigs.ReadDir("tmpl/gen/windows")
-	require.NoError(t, err)
-	for _, entry := range windowsEntries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".yaml") {
-			seen[entry.Name()] = struct{}{}
-		}
-	}
-
-	out := make([]string, 0, len(seen))
-	for name := range seen {
-		out = append(out, name)
-	}
-	return out
+	require.NotEmpty(t, shipped)
+	assert.Contains(t, shipped, "datadog-agent-ddot.yaml")
+	assert.Contains(t, shipped, "datadog-agent-par-control.yaml")
 }

@@ -110,7 +110,6 @@ dd_agent_go_test(
     srcs = ["embed_test.go"],
     embed = [":embedded"],
     deps = [
-        "//pkg/procmgr/coat",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
