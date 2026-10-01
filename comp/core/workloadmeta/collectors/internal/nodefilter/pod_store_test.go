@@ -161,6 +161,68 @@ func TestPodStore_Replace(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// mirrorPod returns the mirror pod of the static pod "static-pod-uid", as the
+// API server holds it: under an API UID of its own, which changes whenever the
+// kubelet recreates the mirror pod.
+func mirrorPod(apiUID types.UID, containerID string) *corev1.Pod {
+	pod := podWithContainer("kube-apiserver-test-node", apiUID, containerID)
+	pod.Annotations = map[string]string{mirrorPodAnnotation: "static-pod-uid"}
+	return pod
+}
+
+// TestPodStore_ReplaceMirrorPodRecreated verifies that Replace keeps the
+// entities of a static pod whose mirror pod the kubelet recreated since the
+// previous Replace. The mirror pod's API UID changed, but the static pod and
+// its container did not, and are still running.
+func TestPodStore_ReplaceMirrorPodRecreated(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	store := newPodStore(wlm, "test-node", false)
+
+	require.NoError(t, store.Replace([]interface{}{mirrorPod("api-uid-1", "container-id")}, ""))
+	require.Eventually(t, func() bool {
+		_, err := wlm.GetKubernetesPod("static-pod-uid")
+		return err == nil
+	}, eventuallyTimeout, eventuallyInterval)
+
+	// The label tells when the second Replace's events were handled.
+	recreated := mirrorPod("api-uid-2", "container-id")
+	recreated.Labels = map[string]string{"generation": "2"}
+	require.NoError(t, store.Replace([]interface{}{recreated}, ""))
+
+	require.Eventually(t, func() bool {
+		pod, err := wlm.GetKubernetesPod("static-pod-uid")
+		return err == nil && pod.Labels["generation"] == "2"
+	}, eventuallyTimeout, eventuallyInterval)
+
+	_, err := wlm.GetContainer("container-id")
+	require.NoError(t, err)
+}
+
+// TestPodStore_ReplaceMirrorPodRecreatedWithNewContainer verifies that, when
+// the recreated mirror pod's container also got a new ID, Replace keeps the
+// static pod but still unsets the container that is gone.
+func TestPodStore_ReplaceMirrorPodRecreatedWithNewContainer(t *testing.T) {
+	wlm := mockedWorkloadmeta(t)
+	store := newPodStore(wlm, "test-node", false)
+
+	require.NoError(t, store.Replace([]interface{}{mirrorPod("api-uid-1", "old-container-id")}, ""))
+	require.Eventually(t, func() bool {
+		_, err := wlm.GetContainer("old-container-id")
+		return err == nil
+	}, eventuallyTimeout, eventuallyInterval)
+
+	require.NoError(t, store.Replace([]interface{}{mirrorPod("api-uid-2", "new-container-id")}, ""))
+
+	require.Eventually(t, func() bool {
+		_, newErr := wlm.GetContainer("new-container-id")
+		_, oldErr := wlm.GetContainer("old-container-id")
+		return newErr == nil && oldErr != nil
+	}, eventuallyTimeout, eventuallyInterval)
+
+	_, err := wlm.GetKubernetesPod("static-pod-uid")
+	require.NoError(t, err)
+}
+
 // TestPodStore_ReplaceContainerRestart verifies that Replace unsets a
 // container that dropped out even for a pod that itself is present in both
 // the previous and the new list (e.g. the runtime restarted one of its
