@@ -149,4 +149,3 @@ func TestHostPasswdMissingFileAndRecovery(t *testing.T) {
 	_, found = cache.lookup("88")
 	assert.False(t, found)
 }
-
