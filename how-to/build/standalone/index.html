@@ -4207,16 +4207,16 @@
 </span></code></pre></div></p>
 <p>You can give more info about your build context using the <code>-b</code>, <code>-f</code> and <code>-p</code> flags:
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>print-default-build-tags<span class="w"> </span>-b<span class="w"> </span>otel-agent<span class="w"> </span>-p<span class="w"> </span>windows
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>&gt;<span class="w"> </span>otlp,zlib,zstd
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>&gt;<span class="w"> </span>otlp,zlib
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>dda<span class="w"> </span>inv<span class="w"> </span>print-default-build-tags<span class="w"> </span>-f<span class="w"> </span>fips
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>&gt;<span class="w"> </span>bundle_installer,consul,datadog.no_waf,ec2,etcd,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zk,zlib,zstd
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>&gt;<span class="w"> </span>bundle_installer,consul,datadog.no_waf,ec2,etcd,fargateprocess,goexperiment.systemcrypto,grpcnotrace,jmx,kubeapiserver,kubelet,ncm,oracle,orchestrator,otlp,python,requirefips,trivy_no_javadb,zk,zlib
 </span></code></pre></div>
 Run <code>dda inv print-default-build-tags --help</code> for more details.</p>
 </details>
 <div class="admonition example">
 <p class="admonition-title">Example</p>
-<p>To include the <code>zstd</code>, <code>etcd</code> and <code>python</code> features:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>&lt;target&gt;.build<span class="w"> </span>--build-include<span class="o">=</span>zstd,etcd,python
+<p>To include the <code>zlib</code>, <code>etcd</code> and <code>python</code> features:
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>&lt;target&gt;.build<span class="w"> </span>--build-include<span class="o">=</span>zlib,etcd,python
 </span></code></pre></div></p>
 <p>To exclude some features that would otherwise be enabled:
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>dda<span class="w"> </span>inv<span class="w"> </span>&lt;target&gt;.build<span class="w"> </span>--build-exclude<span class="o">=</span>systemd,python
