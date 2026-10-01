@@ -55,6 +55,7 @@ go_library(
         "stringkeys.go",
         "sys.go",
         "syscalls.go",
+        "syscalls_sampling.go",
         "tags.go",
         "utils.go",
     ],

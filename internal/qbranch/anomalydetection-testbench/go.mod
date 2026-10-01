@@ -25,7 +25,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.212 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.213 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.82.0 // indirect
@@ -69,6 +69,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteflags v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
@@ -351,3 +352,5 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel
 )
+
+replace github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../pkg/remoteflags

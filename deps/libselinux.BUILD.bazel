@@ -80,7 +80,7 @@ cc_shared_library(
     ],
     user_link_flags = [
         "-Wl,-soname=libselinux.so",
-        "-Wl,--version-script=$(location src/libselinux.map)",
+        "-Wl,--version-script=$(execpath src/libselinux.map)",
     ],
     visibility = ["//visibility:public"],
     deps = [

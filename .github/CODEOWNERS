@@ -90,14 +90,14 @@
 /go.work                                        @DataDog/agent-runtimes
 
 # Bazel configuration
-/*.bazel*                   @DataDog/agent-build
-/.adms/                     @DataDog/agent-build @DataDog/agent-devx
-/.bazel*                    @DataDog/agent-build
-/.buildifier.json           @DataDog/agent-build
-/bazel/                     @DataDog/agent-build
-/bazel/configs/rust.bazelrc @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
-/deps/                      @DataDog/agent-build
-/deps/agent_data_plane/     @DataDog/agent-data-plane @DataDog/agent-build
+/*.bazel*                                            @DataDog/agent-build
+/.adms/                                              @DataDog/agent-build @DataDog/agent-devx
+/.bazel*                                             @DataDog/agent-build
+/.buildifier.json                                    @DataDog/agent-build
+/bazel/                                              @DataDog/agent-build
+/bazel/configs/rust.bazelrc                          @DataDog/agent-discovery @DataDog/agent-runtimes @DataDog/agent-build
+/deps/                                               @DataDog/agent-build
+/deps/agent_data_plane/agent_data_plane.MODULE.bazel @DataDog/agent-data-plane
 
 # The owner should really be to a team that does not exist yet. It would cover supply chain in general.
 # For now, agent-build are the experts in that.
@@ -724,6 +724,7 @@
 /pkg/flare/*_win.go                                                   @DataDog/windows-products @DataDog/fleet-remediation
 /pkg/flare/*_windows.go                                               @DataDog/windows-products @DataDog/fleet-remediation
 /pkg/flare/*_windows_test.go                                          @DataDog/windows-products @DataDog/fleet-remediation
+/pkg/flare/certificates*.go                                           @DataDog/agent-runtimes
 /pkg/fleet/                                                           @DataDog/fleet @DataDog/windows-products
 /pkg/fleet/installer/setup/djm/                                       @DataDog/fleet @DataDog/data-observability
 /pkg/inventory/                                                       @DataDog/windows-products
@@ -1135,3 +1136,7 @@
 # Packaging rules (which files go into which package) for the main agent binary, owned by agent-build.
 # Must stay last for the same reason as the /**/*.bzl rule above.
 /cmd/agent/dist/**/BUILD.bazel     @DataDog/agent-build
+
+# CWS syscall tester Bazel build logic is test tooling maintained by agent-security
+/pkg/security/tests/syscall_tester/c/*.bzl           @DataDog/agent-security
+/pkg/security/tests/syscall_tester/c/BUILD.bazel     @DataDog/agent-security

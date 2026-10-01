@@ -52,8 +52,12 @@ impl RestartTracker {
     }
 
     fn is_burst_limited(&self, burst: u32, interval: Duration) -> bool {
-        let cutoff = Instant::now() - interval;
-        let recent = self.timestamps.iter().filter(|t| **t > cutoff).count() as u32;
+        // An `Instant` is measured from boot, so an interval longer than the current uptime
+        // has no representable cutoff. Everything recorded so far is inside that window.
+        let recent = match Instant::now().checked_sub(interval) {
+            Some(cutoff) => self.timestamps.iter().filter(|t| **t > cutoff).count(),
+            None => self.timestamps.len(),
+        } as u32;
         recent >= burst
     }
 
@@ -107,6 +111,82 @@ enum RestartBlock {
     AlreadyAccounted,
 }
 
+/// What it takes to force-kill a child, held apart from [`ManagedProcess`] so a
+/// stop can escalate after the manager has released it.
+struct ProcessKiller {
+    pid: Option<u32>,
+    #[cfg(windows)]
+    job_object: Option<platform::JobObject>,
+}
+
+impl ProcessKiller {
+    fn force_kill(&mut self, name: &str) {
+        #[cfg(windows)]
+        if let Some(ref job) = self.job_object {
+            if let Err(e) = job.terminate() {
+                warn!("[{name}] job object terminate failed: {e}");
+            } else {
+                self.job_object = None;
+                return;
+            }
+        }
+
+        if let Some(pid) = self.pid
+            && let Err(e) = platform::send_force_kill(pid)
+        {
+            warn!("[{name}] force kill failed: {e}");
+        }
+    }
+}
+
+/// The waiting half of a stop, self-contained so that it can be awaited without
+/// the lock guarding the process it belongs to.
+///
+/// A stop runs for as long as `stop_timeout`, which read-only RPCs must not
+/// queue behind: from the outside, a manager that cannot answer `list` for a
+/// minute and a half is indistinguishable from a dead one.
+pub(crate) struct StopWait {
+    name: String,
+    handle: JoinHandle<()>,
+    /// How long to let the child exit on its own. `None` means it was never
+    /// asked to, so there is nothing for a full `stop_timeout` to wait for.
+    timeout: Option<Duration>,
+    killer: ProcessKiller,
+}
+
+impl StopWait {
+    pub(crate) async fn run(self) {
+        let StopWait {
+            name,
+            handle,
+            timeout,
+            mut killer,
+        } = self;
+        tokio::pin!(handle);
+
+        let grace = timeout.unwrap_or(ManagedProcess::UNDELIVERED_STOP_GRACE);
+        if time::timeout(grace, &mut handle).await.is_ok() {
+            return;
+        }
+
+        match timeout {
+            None => warn!("[{name}] graceful stop was not delivered, force-killing"),
+            Some(stop) => warn!(
+                "[{name}] stop timeout ({}s) reached, force-killing",
+                stop.as_secs()
+            ),
+        }
+
+        killer.force_kill(&name);
+        if time::timeout(ManagedProcess::FORCE_KILL_TIMEOUT, handle)
+            .await
+            .is_err()
+        {
+            warn!("[{name}] still running after force-kill, giving up");
+        }
+    }
+}
+
 pub struct ManagedProcess {
     name: String,
     uuid: String,
@@ -118,6 +198,9 @@ pub struct ManagedProcess {
     watcher_handle: Option<JoinHandle<()>>,
     restarts: RestartTracker,
     stop_requested: bool,
+    /// Set by `request_stop` when the stop signal never reached the child, so
+    /// `wait_for_stop` knows waiting out `stop_timeout` would change nothing.
+    graceful_stop_failed: bool,
     /// Set only where a respawn was skipped because a start condition was
     /// closed, and cleared in `spawn()`.
     restart_block: RestartBlock,
@@ -133,6 +216,17 @@ pub struct ManagedProcess {
 
 impl ManagedProcess {
     pub(crate) const FORCE_KILL_TIMEOUT: Duration = Duration::from_secs(10);
+
+    /// How long to give the exit watcher when the graceful stop never reached
+    /// the child.
+    ///
+    /// Sending it fails both when the child cannot hear us and when it has
+    /// already exited, and the two are indistinguishable from here: on Unix a
+    /// child that is gone answers the signal with ESRCH. Waiting briefly settles
+    /// that case without force-killing a pid that has already been reaped, and
+    /// which by then may belong to something else, while still costing a child
+    /// that genuinely cannot hear us almost nothing against a 90s stop_timeout.
+    pub(crate) const UNDELIVERED_STOP_GRACE: Duration = Duration::from_secs(2);
 
     pub fn new_config(name: String, uuid: String, config: ProcessConfig) -> Self {
         Self::new_inner(name, uuid, config, ProcessOrigin::Config)
@@ -160,6 +254,7 @@ impl ManagedProcess {
             watcher_handle: None,
             restarts,
             stop_requested: false,
+            graceful_stop_failed: false,
             restart_block: RestartBlock::None,
             origin,
             last_exit_status: None,
@@ -278,15 +373,23 @@ impl ManagedProcess {
 
     #[must_use]
     fn config_gate_met(&self) -> bool {
-        if crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
-            return true;
+        if !crate::config_gate::condition_config_any_met(&self.config.condition_config_any) {
+            info!(
+                "[{}] condition_config_any not met: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_any)
+            );
+            return false;
         }
-        info!(
-            "[{}] condition_config_any not met: {}",
-            self.name,
-            crate::config_gate::condition_config_summary(&self.config.condition_config_any)
-        );
-        false
+        if !crate::config_gate::condition_config_none_met(&self.config.condition_config_none) {
+            info!(
+                "[{}] condition_config_none vetoed: {}",
+                self.name,
+                crate::config_gate::condition_config_summary(&self.config.condition_config_none)
+            );
+            return false;
+        }
+        true
     }
 
     #[must_use]
@@ -308,7 +411,9 @@ impl ManagedProcess {
     /// reload would override whatever left it alone.
     #[must_use]
     pub(crate) fn has_start_conditions(&self) -> bool {
-        self.config.condition_path_exists.is_some() || !self.config.condition_config_any.is_empty()
+        self.config.condition_path_exists.is_some()
+            || !self.config.condition_config_any.is_empty()
+            || !self.config.condition_config_none.is_empty()
     }
 
     /// Whether a respawn this process was otherwise due was skipped because a
@@ -378,6 +483,7 @@ impl ManagedProcess {
             bail!("[{}] cannot spawn: invalid state {}", self.name, self.state);
         }
         self.stop_requested = false;
+        self.graceful_stop_failed = false;
         // The single clear site, which is what keeps the reason from going
         // stale: boot, restart, manual start, and reload all land here.
         self.restart_block = RestartBlock::None;
@@ -458,37 +564,41 @@ impl ManagedProcess {
     }
 
     pub fn request_stop(&mut self) {
-        if self.is_running() {
-            self.stop_requested = true;
-            info!("[{}] sending graceful stop (stop requested)", self.name);
-            self.graceful_stop();
+        if !self.mark_stop_requested() {
+            return;
         }
+        info!("[{}] sending graceful stop (stop requested)", self.name);
+        self.graceful_stop_failed = !self.graceful_stop();
     }
 
-    fn graceful_stop(&self) {
-        if let Some(pid) = self.pid
-            && let Err(e) = platform::send_graceful_stop(pid)
-        {
+    /// Record that a stop is under way, without signalling the child. Returns
+    /// false when there is nothing running to stop.
+    fn mark_stop_requested(&mut self) -> bool {
+        if !self.is_running() {
+            return false;
+        }
+        self.stop_requested = true;
+        // The manager lock is free while the child goes down, so this state is
+        // what `list`, `describe`, and `status` report for as long as the stop
+        // runs. Reporting `Running` throughout is how a stop that takes its
+        // time reads from the outside as a process that ignored one.
+        if matches!(self.state, ProcessState::Running) {
+            self.transition_to(ProcessState::Stopping);
+        }
+        true
+    }
+
+    /// Ask the child to exit. Returns whether the request reached it.
+    fn graceful_stop(&self) -> bool {
+        let Some(pid) = self.pid else {
+            warn!("[{}] no pid to send a graceful stop to", self.name);
+            return false;
+        };
+        if let Err(e) = platform::send_graceful_stop(pid) {
             warn!("[{}] graceful stop failed: {e}", self.name);
+            return false;
         }
-    }
-
-    fn force_kill(&mut self) {
-        #[cfg(windows)]
-        if let Some(ref job) = self.job_object {
-            if let Err(e) = job.terminate() {
-                warn!("[{}] job object terminate failed: {e}", self.name);
-            } else {
-                self.job_object = None;
-                return;
-            }
-        }
-
-        if let Some(pid) = self.pid
-            && let Err(e) = platform::send_force_kill(pid)
-        {
-            warn!("[{}] force kill failed: {e}", self.name);
-        }
+        true
     }
 
     #[cfg(unix)]
@@ -515,23 +625,39 @@ impl ManagedProcess {
         if !self.is_running() {
             return;
         }
-        let stop = self.stop_timeout();
-        if let Some(handle) = self.watcher_handle.take() {
-            tokio::pin!(handle);
-            if time::timeout(stop, &mut handle).await.is_err() {
-                warn!(
-                    "[{}] stop timeout ({}s) reached, force-killing",
-                    self.name,
-                    stop.as_secs()
-                );
-                self.force_kill();
-                if time::timeout(Self::FORCE_KILL_TIMEOUT, handle)
-                    .await
-                    .is_err()
-                {
-                    warn!("[{}] still running after force-kill, giving up", self.name);
-                }
-            }
+        if let Some(wait) = self.take_stop_wait() {
+            wait.run().await;
+        }
+        self.finish_stop();
+    }
+
+    /// Detach the part of a stop that only waits, so a caller holding a shared
+    /// lock can release it first. `finish_stop` must follow once the returned
+    /// [`StopWait`] has run. Returns `None` when there is nothing to wait for.
+    pub(crate) fn take_stop_wait(&mut self) -> Option<StopWait> {
+        if !self.is_running() {
+            return None;
+        }
+        let handle = self.watcher_handle.take()?;
+        Some(StopWait {
+            name: self.name.clone(),
+            handle,
+            // A stop that never reached the child leaves nothing to wait for:
+            // the timeout would pass with the process untouched.
+            timeout: (!self.graceful_stop_failed).then(|| self.stop_timeout()),
+            killer: ProcessKiller {
+                pid: self.pid,
+                #[cfg(windows)]
+                job_object: self.job_object.take(),
+            },
+        })
+    }
+
+    /// Record the stop that [`StopWait::run`] carried out. A process that is no
+    /// longer alive was never this stop's to mark.
+    pub(crate) fn finish_stop(&mut self) {
+        if !self.is_running() {
+            return;
         }
         self.mark_stopped();
     }
@@ -740,6 +866,31 @@ pub mod tests {
         cfg.condition_path_exists = Some(exe.to_str().unwrap().to_string());
         let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
         assert!(proc.should_start());
+    }
+
+    /// The veto has to be consulted by the start path, not merely parsed. The pair also
+    /// pins the direction: only the true value blocks.
+    #[test]
+    fn test_should_start_honours_condition_config_none() {
+        for (body, expected_start) in [
+            ("system_probe_config:\n  external: true\n", false),
+            ("system_probe_config:\n  external: false\n", true),
+        ] {
+            let _env = crate::config_gate::test_env_guard();
+            let dir = tempfile::tempdir().unwrap();
+            let sysprobe = dir.path().join("system-probe.yaml");
+            std::fs::write(&sysprobe, body).unwrap();
+
+            let (cmd, args) = test_helpers::true_cmd();
+            let mut cfg = test_helpers::make_config(cmd, args);
+            cfg.condition_config_none = vec![crate::config_gate::ConditionConfigFile {
+                path: sysprobe.to_string_lossy().into_owned(),
+                keys: vec!["system_probe_config.external".to_string()],
+            }];
+            let proc = ManagedProcess::new_config("test".into(), test_helpers::test_uuid(), cfg);
+
+            assert_eq!(proc.should_start(), expected_start, "for {body:?}");
+        }
     }
 
     #[test]
@@ -1077,6 +1228,30 @@ pub mod tests {
         );
     }
 
+    /// An `Instant` is measured from boot, so an interval longer than the host's uptime has
+    /// no representable cutoff. Subtracting it used to panic, which on Windows hit every
+    /// host booted less than `start_limit_interval_sec` ago.
+    #[test]
+    fn test_burst_interval_longer_than_uptime() {
+        let (cmd, args) = test_helpers::true_cmd();
+        let mut cfg = test_helpers::make_config(cmd, args);
+        cfg.restart = RestartPolicy::Always;
+        cfg.start_limit_burst = Some(2);
+        let mut proc = ManagedProcess::new_config("uptime".into(), test_helpers::test_uuid(), cfg);
+        let burst = proc.config.burst_limit();
+
+        assert!(!proc.restarts.is_burst_limited(burst, Duration::MAX));
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!(!proc.restarts.is_burst_limited(burst, Duration::MAX));
+        proc.restarts
+            .record(proc.config.restart_delay(), proc.config.runtime_success());
+        assert!(
+            proc.restarts.is_burst_limited(burst, Duration::MAX),
+            "the whole history counts when the window starts before boot"
+        );
+    }
+
     #[test]
     fn test_backoff_increases() {
         let (cmd, args) = test_helpers::true_cmd();
@@ -1171,6 +1346,35 @@ runtime_success_sec: 5
         let _ = exit_rx.try_recv();
 
         assert_eq!(proc.state(), ProcessState::Stopped);
+    }
+
+    /// A graceful stop that never reached the child leaves nothing to wait for,
+    /// so a full `stop_timeout` only postpones the kill. Windows gets here
+    /// whenever `AttachConsole` cannot reach the child and `CTRL_BREAK` goes
+    /// undelivered.
+    #[tokio::test]
+    async fn test_undelivered_graceful_stop_skips_the_stop_timeout() {
+        let mut cfg = test_helpers::sleep_test_config(60);
+        cfg.stop_timeout = Some(30);
+        let mut proc = ManagedProcess::new_config("svc".into(), test_helpers::test_uuid(), cfg);
+        let mut exit_rx = spawn_ok(&mut proc);
+
+        // An undelivered stop, staged rather than provoked: making the platform
+        // call fail against a live child is not portable. Nothing is sent, so
+        // the child stays up until the force kill whatever it does with signals.
+        assert!(proc.mark_stop_requested());
+        proc.graceful_stop_failed = true;
+
+        let started = std::time::Instant::now();
+        proc.wait_for_stop().await;
+        let _ = exit_rx.try_recv();
+
+        assert_eq!(proc.state(), ProcessState::Stopped);
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "an undelivered stop should force-kill instead of waiting out stop_timeout (took {:?})",
+            started.elapsed()
+        );
     }
 
     #[tokio::test]
