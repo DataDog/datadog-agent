@@ -267,26 +267,6 @@ static u64 __attribute__((always_inline)) impersonated_exec_key(u64 pid_tgid) {
     return transfer->pid_tgid;
 }
 
-static void __attribute__((always_inline)) cache_exec_syscall(void *ctx, struct syscall_cache_t *syscall) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-    u32 pid = pid_tgid;
-    if (tgid != pid) {
-        // exec is called from a non leader thread:
-        //   - we need to remember that this thread will change its pid to the thread group leader's in the flush_old_exec kernel function,
-        //     before sending the event to userspace
-        //   - because the "real" thread leader will be terminated during this exec syscall, we also need to make sure to not send
-        //     the corresponding exit event
-        struct exec_pid_transfer_t transfer = {
-            .pid_tgid = pid_tgid,
-            .task = bpf_get_current_task(),
-        };
-        bpf_map_update_elem(&exec_pid_transfer, &tgid, &transfer, BPF_ANY);
-    }
-
-    cache_syscall_update_cgroup(ctx, syscall);
-}
-
 static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_impersonated_exec_syscall() {
 #if USE_SYSCALL_TASK_STORAGE == 1
     u64 use_syscall_task_storage;
@@ -311,9 +291,6 @@ static struct syscall_cache_t *__attribute__((always_inline)) peek_current_or_im
 }
 
 static void __attribute__((always_inline)) pop_current_or_impersonated_exec_syscall() {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
 #if USE_SYSCALL_TASK_STORAGE == 1
     u64 use_syscall_task_storage;
     LOAD_CONSTANT("use_syscall_task_storage", use_syscall_task_storage);
@@ -321,21 +298,19 @@ static void __attribute__((always_inline)) pop_current_or_impersonated_exec_sysc
         // see peek_current_or_impersonated_exec_syscall: task storage keys on the task_struct,
         // which survives thread-leader impersonation, so the exec_pid_transfer fallback is redundant.
         pop_syscall(EVENT_EXEC);
-        bpf_map_delete_elem(&exec_pid_transfer, &tgid);
         return;
     }
 #endif
     if (peek_syscall(EVENT_EXEC) != NULL) {
         // popping the slot's entry here would consume a sibling's in-flight exec
         pop_syscall(EVENT_EXEC);
-    } else {
-        u64 pid_tgid_execing = impersonated_exec_key(pid_tgid);
-        if (pid_tgid_execing != 0) {
-            pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
-        }
+        return;
     }
 
-    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
+    u64 pid_tgid_execing = impersonated_exec_key(bpf_get_current_pid_tgid());
+    if (pid_tgid_execing != 0) {
+        pop_task_syscall(pid_tgid_execing, EVENT_EXEC);
+    }
 }
 
 static __attribute__((always_inline)) int capture_all_errors_enabled(void) {
