@@ -225,12 +225,17 @@ func TestBaseMountNamespaceFromEvent(t *testing.T) {
 	}
 
 	t.Run("nil process context yields zero", func(t *testing.T) {
-		assert.Equal(t, uint32(0), baseMountNamespaceFromEvent(&model.Event{}))
+		nsID, authoritative := baseMountNamespaceFromEvent(&model.Event{})
+		assert.Equal(t, uint32(0), nsID)
+		assert.False(t, authoritative)
 	})
 
 	t.Run("falls back to the event process namespace when there is no valid root", func(t *testing.T) {
 		p := newProc("/app/server", "server", 20, "c1", 4242)
-		assert.Equal(t, uint32(4242), baseMountNamespaceFromEvent(eventFor(p)))
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(p))
+		assert.Equal(t, uint32(4242), nsID)
+		// the branch is truncated, so the namespace is a guess and must stay revisable
+		assert.False(t, authoritative)
 	})
 
 	t.Run("skips the container runtime and anchors on the workload root", func(t *testing.T) {
@@ -243,7 +248,9 @@ func TestBaseMountNamespaceFromEvent(t *testing.T) {
 		child := newProc("/app/child", "child", 30, "c1", 999)
 		child.Ancestor = app
 
-		assert.Equal(t, uint32(100), baseMountNamespaceFromEvent(eventFor(child)))
+		nsID, authoritative := baseMountNamespaceFromEvent(eventFor(child))
+		assert.Equal(t, uint32(100), nsID)
+		assert.True(t, authoritative)
 	})
 }
 

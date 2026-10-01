@@ -98,7 +98,16 @@ type Profile struct {
 	observedRollups bool
 	seededSyscalls  []uint32
 
-	baseMountNSByCgroup map[uint64]uint32
+	baseMountNSByCgroup map[uint64]baseMountNSPin
+}
+
+// baseMountNSPin is a workload's base mount namespace. A pin is provisional when it was
+// derived from the namespace of the event itself because the workload's root process was
+// not resolvable: that event may come from a process that has setns'd away from the base,
+// so the value is replaced as soon as an authoritative one is available.
+type baseMountNSPin struct {
+	nsID          uint32
+	authoritative bool
 }
 
 // IsEnabled returns true if the profile is enabled
@@ -344,24 +353,39 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
-// AddBaseMountNamespace records the base mount namespace of the workload identified
-// by cgroupInode and adds it to the tree's base-namespace set. It is idempotent per
-// cgroup so a re-seed does not inflate the refcount.
-func (p *Profile) AddBaseMountNamespace(cgroupInode uint64, nsID uint32) {
+// PinBaseMountNamespace records the base mount namespace of the workload identified by
+// cgroupInode and reports whether the caller should seed the mount table for it. It
+// returns true only on the first pin and when a provisional pin is replaced by a
+// differing authoritative one, so callers can gate the cost of seeding on it.
+func (p *Profile) PinBaseMountNamespace(cgroupInode uint64, nsID uint32, authoritative bool) bool {
 	p.Lock()
 	defer p.Unlock()
 
 	if nsID == 0 {
-		return
+		return false
 	}
 	if p.baseMountNSByCgroup == nil {
-		p.baseMountNSByCgroup = make(map[uint64]uint32)
+		p.baseMountNSByCgroup = make(map[uint64]baseMountNSPin)
 	}
-	if _, ok := p.baseMountNSByCgroup[cgroupInode]; ok {
-		return
+
+	if cur, pinned := p.baseMountNSByCgroup[cgroupInode]; pinned {
+		if cur.authoritative || !authoritative {
+			return false
+		}
+		if cur.nsID == nsID {
+			// the provisional pin guessed right, so promote it without seeding again
+			p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: true}
+			return false
+		}
+		// Correcting a wrong guess only stops new mounts from the superseded namespace
+		// counting as base. Mounts already seeded under it keep their flag: nodes are
+		// deduped across namespaces, so they cannot be attributed back to a single one.
+		p.ActivityTree.RemoveBaseMountNamespaceID(cur.nsID)
 	}
-	p.baseMountNSByCgroup[cgroupInode] = nsID
+
+	p.baseMountNSByCgroup[cgroupInode] = baseMountNSPin{nsID: nsID, authoritative: authoritative}
 	p.ActivityTree.AddBaseMountNamespaceID(nsID)
+	return true
 }
 
 // RemoveBaseMountNamespace drops the base mount namespace recorded for the workload
@@ -370,12 +394,12 @@ func (p *Profile) RemoveBaseMountNamespace(cgroupInode uint64) {
 	p.Lock()
 	defer p.Unlock()
 
-	nsID, ok := p.baseMountNSByCgroup[cgroupInode]
+	pin, ok := p.baseMountNSByCgroup[cgroupInode]
 	if !ok {
 		return
 	}
 	delete(p.baseMountNSByCgroup, cgroupInode)
-	p.ActivityTree.RemoveBaseMountNamespaceID(nsID)
+	p.ActivityTree.RemoveBaseMountNamespaceID(pin.nsID)
 }
 
 // InsertMount inserts a mount into the profile's deduplicated mount table
