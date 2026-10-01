@@ -208,22 +208,23 @@ fn short_uuid(uuid: &str) -> &str {
     if uuid.len() >= 8 { &uuid[..8] } else { uuid }
 }
 
-fn is_crashed(state: i32) -> bool {
-    matches!(
-        proto::ProcessState::try_from(state),
-        Ok(proto::ProcessState::Crashed)
-    )
+/// Same severity-bit test as `platform::is_crash_exit` on Windows. Kept local so
+/// the CLI can classify a retained exit code after the process has restarted and
+/// is no longer in `Crashed`.
+fn is_windows_crash_exit_code(code: i32) -> bool {
+    (code as u32) >> 30 == 0b11
 }
 
-/// `state` decides how an exit code is rendered. Windows reports a crash as the
-/// fatal exception code, so `exit 3221225477` is really `exception 0xC0000005`,
-/// and only the state says which reading applies. Unix crashes carry a signal
-/// instead and keep the `signal 11` form.
-fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>, state: i32) -> String {
+/// Classifies from the stored exit, not the current state: `spawn()` keeps the
+/// last exit while moving back to `Starting` and `Running`, so a Windows crash
+/// followed by a restart must still render as `exception 0xC0000005` rather
+/// than `exit -1073741819`. Unix crashes carry a signal and render as
+/// `signal 11`.
+fn format_last_exit(exit_code: Option<i32>, signal: Option<i32>) -> String {
     if let Some(sig) = signal {
         format!("signal {sig}")
     } else if let Some(code) = exit_code {
-        if is_crashed(state) {
+        if cfg!(windows) && is_windows_crash_exit_code(code) {
             format!("exception {:#010X}", code as u32)
         } else {
             format!("exit {code}")
@@ -325,7 +326,7 @@ async fn cmd_list(client: &mut ProcessManagerClient<Channel>, json: bool) -> Res
                 p.profile.clone(),
                 p.user.clone(),
                 p.restart_count.to_string(),
-                format_last_exit(p.last_exit_code, p.last_signal, p.state),
+                format_last_exit(p.last_exit_code, p.last_signal),
                 p.command.clone(),
             ]
         })
@@ -409,7 +410,7 @@ async fn cmd_describe(
     }
     println!("Restart Policy:      {}", detail.restart_policy);
     println!("Restarts:            {}", detail.restart_count);
-    let exit_str = format_last_exit(detail.last_exit_code, detail.last_signal, detail.state);
+    let exit_str = format_last_exit(detail.last_exit_code, detail.last_signal);
     if exit_str != "-" {
         println!("Last Exit:           {}", exit_str);
     }
@@ -699,47 +700,32 @@ mod tests {
         assert_eq!(state_name(-1), "Unknown");
     }
 
-    /// A Unix crash carries a signal, so the state changes nothing there.
     #[test]
     fn test_format_last_exit_signal() {
-        assert_eq!(
-            format_last_exit(None, Some(11), proto::ProcessState::Crashed as i32),
-            "signal 11"
-        );
+        assert_eq!(format_last_exit(None, Some(11)), "signal 11");
     }
 
     /// A Windows crash has no signal and reports the fatal exception code as
-    /// the exit code, which `exit 3221225477` renders unreadably.
+    /// the exit code, which `exit -1073741819` renders unreadably. No state is
+    /// passed, so this also holds once the process has restarted.
+    #[cfg(windows)]
     #[test]
     fn test_format_last_exit_crash_exit_code_is_hex() {
         assert_eq!(
-            format_last_exit(
-                Some(0xC0000005u32 as i32),
-                None,
-                proto::ProcessState::Crashed as i32
-            ),
+            format_last_exit(Some(0xC0000005u32 as i32), None),
             "exception 0xC0000005"
         );
     }
 
     #[test]
     fn test_format_last_exit_failed_stays_decimal() {
-        assert_eq!(
-            format_last_exit(Some(1), None, proto::ProcessState::Failed as i32),
-            "exit 1"
-        );
-        assert_eq!(
-            format_last_exit(Some(0), None, proto::ProcessState::Exited as i32),
-            "exit 0"
-        );
+        assert_eq!(format_last_exit(Some(1), None), "exit 1");
+        assert_eq!(format_last_exit(Some(0), None), "exit 0");
     }
 
     #[test]
     fn test_format_last_exit_never_ran() {
-        assert_eq!(
-            format_last_exit(None, None, proto::ProcessState::Created as i32),
-            "-"
-        );
+        assert_eq!(format_last_exit(None, None), "-");
     }
 
     #[test]
