@@ -67,6 +67,7 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
+    "yara",  # used by system-probe to link the libyara YARA engine (cgo, @libyara) into the exec scanner
     "zk",
     "zlib",
     "zstd",
@@ -250,6 +251,12 @@ SYSTEM_PROBE_TAGS = set([
     "seclmax",
 ])
 
+# SYSTEM_PROBE_YARA_TAGS lists the opt-in tags that link the YARA exec scanner's libyara
+# engine into system-probe (dda inv system-probe.build --yara). They are not part of the
+# default system-probe build yet: the non-Bazel build paths (lint, KMT test builds, omnibus)
+# would need the libyara headers and archive first.
+SYSTEM_PROBE_YARA_TAGS = set(["yara"])
+
 # TRACE_AGENT_TAGS lists the tags necessary to build the trace-agent
 TRACE_AGENT_TAGS = set([
     "docker",
@@ -292,7 +299,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union(set(["clusterchecks"]))
 ### Tag exclusion lists
 
 # List of tags to always remove when not building on Linux
-LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "nvml", "pcap", "podman", "trivy", "crio"])
+LINUX_ONLY_TAGS = set(["netcgo", "systemd", "jetson", "bpf", "nvml", "pcap", "podman", "trivy", "crio", "yara"])
 
 # List of tags to always remove when building on AIX
 AIX_EXCLUDED_TAGS = set([
@@ -318,6 +325,7 @@ AIX_EXCLUDED_TAGS = set([
     "systemd",
     "systemprobechecks",
     "trivy",
+    "yara",
 ])
 
 # List of tags to always remove when building on Windows
@@ -347,7 +355,7 @@ DEP_ONLY_TAGS = COMMON_TAGS | set([
 BASE_TEST_TAGS = sorted(UNIT_TEST_TAGS)
 
 # Feature tags covered by the existing unit-test configurations.
-TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | SYSTEM_PROBE_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
+TEST_FEATURE_TAGS = AGENT_TEST_TAGS | PROCESS_AGENT_TAGS | CLUSTER_AGENT_TAGS | SYSTEM_PROBE_TAGS | SYSTEM_PROBE_YARA_TAGS | FIPS_TAGS | AGENT_HEROKU_TAGS | IOT_AGENT_TAGS | DOGSTATSD_TAGS
 
 # Supported feature tags that a test source may opt into through //go:build.
 AUTO_TEST_TAGS = sorted(TEST_FEATURE_TAGS - DEP_ONLY_TAGS - UNIT_TEST_TAGS - UNIT_TEST_EXCLUDED_TAGS)
