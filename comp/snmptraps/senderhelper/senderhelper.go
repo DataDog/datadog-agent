@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -27,7 +28,7 @@ import (
 // Opts is a set of options for providing a demux with a mock sender.
 // We can remove this if the Sender is ever exposed as a component.
 var Opts = fx.Options(
-	defaultforwardermock.MockModule(),
+	fx.Provide(func(t testing.TB) defaultforwarder.Component { return defaultforwardermock.New(t) }),
 	demultiplexerimpl.MockModule(),
 	hostnameimpl.MockModule(),
 	fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),

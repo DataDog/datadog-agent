@@ -38,6 +38,7 @@ dd_agent_go_test(
         "//comp/dogstatsd/server/def",
         "//comp/dogstatsd/serverDebug/def",
         "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/mock",
         "//pkg/config/model",
         "//pkg/util/fxutil",

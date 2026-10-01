@@ -69,6 +69,7 @@ dd_agent_go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/forwarder/eventplatform/def",
         "//comp/forwarder/eventplatform/impl",

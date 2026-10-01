@@ -50,6 +50,7 @@ dd_agent_go_test(
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/tagger/impl-noop",
         "//comp/filterlist/impl",
+        "//comp/forwarder/defaultforwarder/def",
         "//comp/forwarder/defaultforwarder/mock",
         "//comp/snmpscanmanager/def",
         "//comp/snmpscanmanager/mock",
