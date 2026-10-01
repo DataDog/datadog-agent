@@ -26,10 +26,14 @@ go_library(
 
 dd_agent_go_test(
     name = "client_test",
-    srcs = ["tuf_proof_test.go"],
+    srcs = [
+        "tuf_proof_test.go",
+        "updater_test.go",
+    ],
     embed = [":client"],
     deps = [
         "//pkg/proto/pbgo/core",
+        "//pkg/remoteconfig/state",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

@@ -262,8 +262,8 @@ func handleUpdaterTaskUpdate(h handleRemoteAPIRequest, catalogReady func() bool)
 			}
 			if requiresCatalog(request.Method) && catalogReady != nil && !catalogReady() {
 				// No catalog has been applied yet, so this task couldn't resolve its package
-				// against it. Leave it unacknowledged: remote-config redelivers it on a later
-				// update once a catalog exists.
+				// against it. Leave it unacknowledged: the updater client explicitly replays
+				// the current task snapshot after delivering a changed catalog.
 				log.Debugf("request %s (%s) deferred until a catalog has been applied", request.ID, request.Method)
 				continue
 			}
