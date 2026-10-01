@@ -4,7 +4,7 @@ go_library(
     name = "types",
     srcs = [
         "types.go",
-        "types_orchestrator.go",
+        "types_kubeapiserver.go",
         "types_sbom_serverless.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/types",
