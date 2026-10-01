@@ -509,43 +509,45 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 	IDs := []string{"", "123456789"}
 
 	for i, configID := range IDs {
-		testDir := testDirs[i]
+		func() {
+			testDir := testDirs[i]
 
-		// create launcher
-		path = testDir + "/*.log"
+			// create launcher
+			path = testDir + "/*.log"
 
-		launcher := createLauncher(t, launcherTestOptions{
-			openFilesLimit: 2,
-		})
-		launcher.pipelineProvider = mock.NewMockProvider()
-		launcher.registry = auditorMock.NewMockRegistry()
-		outputChan := launcher.pipelineProvider.NextPipelineChan()
-		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
-		launcher.activeSources = append(launcher.activeSources, source)
-		status.Clear()
-		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
-		defer status.Clear()
+			launcher := createLauncher(t, launcherTestOptions{
+				openFilesLimit: 2,
+			})
+			launcher.pipelineProvider = mock.NewMockProvider()
+			launcher.registry = auditorMock.NewMockRegistry()
+			outputChan := launcher.pipelineProvider.NextPipelineChan()
+			source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
+			launcher.activeSources = append(launcher.activeSources, source)
+			status.Clear()
+			status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+			defer status.Clear()
 
-		// create file
-		path = testDir + "/test.log"
-		file, err := os.Create(path)
-		assert.Nil(t, err)
+			// create file
+			path = testDir + "/test.log"
+			file, err := os.Create(path)
+			assert.Nil(t, err)
 
-		// add content
-		_, err = file.WriteString("hello\n")
-		assert.Nil(t, err)
-		_, err = file.WriteString("world\n")
-		assert.Nil(t, err)
-		file.Close()
+			// add content
+			_, err = file.WriteString("hello\n")
+			assert.Nil(t, err)
+			_, err = file.WriteString("world\n")
+			assert.Nil(t, err)
+			file.Close()
 
-		// test scan from beginning
-		launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+			// test scan from beginning
+			launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 
-		assert.Equal(t, 1, launcher.tailers.Count())
-		msg = <-outputChan
-		assert.Equal(t, "hello", string(msg.GetContent()))
-		msg = <-outputChan
-		assert.Equal(t, "world", string(msg.GetContent()))
+			assert.Equal(t, 1, launcher.tailers.Count())
+			msg = <-outputChan
+			assert.Equal(t, "hello", string(msg.GetContent()))
+			msg = <-outputChan
+			assert.Equal(t, "world", string(msg.GetContent()))
+		}()
 	}
 }
 

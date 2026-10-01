@@ -34,20 +34,22 @@ func TestDriverRequiresPath(t *testing.T) {
 
 func TestDriverCanOpenExpectedPaths(t *testing.T) {
 	for _, pathext := range handleTypeToPathName {
-		fullpath := deviceName + `\` + pathext
-		p, err := windows.UTF16PtrFromString(fullpath)
-		assert.Nil(t, err)
-		h, err := windows.CreateFile(p,
-			windows.GENERIC_READ|windows.GENERIC_WRITE,
-			windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
-			nil,
-			windows.OPEN_EXISTING,
-			0,
-			windows.Handle(0))
-		if err == nil {
-			defer windows.CloseHandle(h)
-		}
-		assert.Nil(t, err)
+		func() {
+			fullpath := deviceName + `\` + pathext
+			p, err := windows.UTF16PtrFromString(fullpath)
+			assert.Nil(t, err)
+			h, err := windows.CreateFile(p,
+				windows.GENERIC_READ|windows.GENERIC_WRITE,
+				windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
+				nil,
+				windows.OPEN_EXISTING,
+				0,
+				windows.Handle(0))
+			if err == nil {
+				defer windows.CloseHandle(h)
+			}
+			assert.Nil(t, err)
+		}()
 	}
 }
 

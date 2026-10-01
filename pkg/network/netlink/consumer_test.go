@@ -69,7 +69,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	for i := int64(0); i < loopCount; i++ {
 		conn, err := net.Dial("tcp", l.Addr().String())
 		require.NoError(t, err)
-		defer conn.Close()
+		defer conn.Close() //nolint:revive // intentional: all dialed connections stay open across the loop to exceed the conntrack limit
 		time.Sleep(sleepAmt)
 	}
 

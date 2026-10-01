@@ -495,14 +495,16 @@ func readSymDBRoot(t *testing.T, req *http.Request) SymDBRoot {
 		if part.FormName() != "file" {
 			continue
 		}
-		gzReader, err := gzip.NewReader(bytes.NewReader(data))
-		require.NoError(t, err)
-		defer gzReader.Close()
-		raw, err := io.ReadAll(gzReader)
-		require.NoError(t, err)
-		var root SymDBRoot
-		require.NoError(t, json.Unmarshal(raw, &root))
-		return root
+		return func() SymDBRoot {
+			gzReader, err := gzip.NewReader(bytes.NewReader(data))
+			require.NoError(t, err)
+			defer gzReader.Close()
+			raw, err := io.ReadAll(gzReader)
+			require.NoError(t, err)
+			var root SymDBRoot
+			require.NoError(t, json.Unmarshal(raw, &root))
+			return root
+		}()
 	}
 	t.Fatal("no file part in multipart request")
 	return SymDBRoot{}

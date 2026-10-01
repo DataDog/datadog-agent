@@ -74,33 +74,35 @@ func (c *collectorImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder)
 			path := strings.ReplaceAll(urll.Path, "/", "_")
 			name := name + path
 
-			response, err := http.Get(sourceURL)
-			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
-				continue
-			}
-			defer response.Body.Close()
+			func() {
+				response, err := http.Get(sourceURL)
+				if err != nil {
+					fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
+					return
+				}
+				defer response.Body.Close()
 
-			data, err := io.ReadAll(response.Body)
-			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
-				continue
-			}
+				data, err := io.ReadAll(response.Body)
+				if err != nil {
+					fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", name), []byte(err.Error()))
+					return
+				}
 
-			isOctetStream := false
-			if contentTypeSlice, ok := response.Header["Content-Type"]; ok {
-				for _, contentType := range contentTypeSlice {
-					if contentType == "application/octet-stream" {
-						isOctetStream = true
+				isOctetStream := false
+				if contentTypeSlice, ok := response.Header["Content-Type"]; ok {
+					for _, contentType := range contentTypeSlice {
+						if contentType == "application/octet-stream" {
+							isOctetStream = true
+						}
 					}
 				}
-			}
 
-			if isOctetStream {
-				fb.AddFileWithoutScrubbing(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
-			} else {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
-			}
+				if isOctetStream {
+					fb.AddFileWithoutScrubbing(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
+				} else {
+					fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", name), data)
+				}
+			}()
 
 		}
 	}

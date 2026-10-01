@@ -809,54 +809,59 @@ func netstatAndSnmpCounters(procfsPath string, protocolNames []string) (map[stri
 	}
 
 	for _, subdirectory := range procfsSubdirectories {
-		fs := filesystem
-		procfsSubdirectoryPath := filepath.Join(procfsPath, "net", subdirectory)
-		f, err := fs.Open(procfsSubdirectoryPath)
-		if err != nil {
-			if subdirectory == "snmp" {
-				continue
-			}
-			return nil, err
-		}
-		defer f.Close()
-
-		// Inter-|   Receive                                                 |  Transmit
-		//  face |bytes     packets errs drop fifo frame compressed multicast|bytes       packets errs drop fifo colls carrier compressed
-		//     lo:45890956   112797   0    0    0     0          0         0    45890956   112797    0    0    0     0       0          0
-		//   eth0:631947052 1042233   0   19    0   184          0      1206  1208625538  1320529    0    0    0     0       0          0
-		//   eth1:       0        0   0    0    0     0          0         0           0        0    0    0    0     0       0          0
-		scanner := bufio.NewScanner(f)
-		var protocolName string
-		for scanner.Scan() {
-			line := scanner.Text()
-			i := strings.IndexRune(line, ':')
-			if i == -1 {
-				return nil, fmt.Errorf("%s is not fomatted correctly, expected ':'", procfsSubdirectoryPath)
-			}
-			if slices.Contains(protocolNames, line[:i]) {
-				protocolName = line[:i]
-			} else {
-				continue
-			}
-
-			counterNames := strings.Split(line[i+2:], " ")
-
-			if !scanner.Scan() {
-				return nil, fmt.Errorf("%s is not fomatted correctly, not data line", procfsSubdirectoryPath)
-			}
-			line = scanner.Text()
-
-			counterValues := strings.Split(line[i+2:], " ")
-			if len(counterNames) != len(counterValues) {
-				return nil, fmt.Errorf("%s is not fomatted correctly, expected same number of columns", procfsSubdirectoryPath)
-			}
-			for j := range counterNames {
-				value, err := strconv.ParseInt(counterValues[j], 10, 64)
-				if err != nil {
-					return nil, err
+		if err := func() error {
+			fs := filesystem
+			procfsSubdirectoryPath := filepath.Join(procfsPath, "net", subdirectory)
+			f, err := fs.Open(procfsSubdirectoryPath)
+			if err != nil {
+				if subdirectory == "snmp" {
+					return nil
 				}
-				counters[protocolName].Stats[counterNames[j]] = value
+				return err
 			}
+			defer f.Close()
+
+			// Inter-|   Receive                                                 |  Transmit
+			//  face |bytes     packets errs drop fifo frame compressed multicast|bytes       packets errs drop fifo colls carrier compressed
+			//     lo:45890956   112797   0    0    0     0          0         0    45890956   112797    0    0    0     0       0          0
+			//   eth0:631947052 1042233   0   19    0   184          0      1206  1208625538  1320529    0    0    0     0       0          0
+			//   eth1:       0        0   0    0    0     0          0         0           0        0    0    0    0     0       0          0
+			scanner := bufio.NewScanner(f)
+			var protocolName string
+			for scanner.Scan() {
+				line := scanner.Text()
+				i := strings.IndexRune(line, ':')
+				if i == -1 {
+					return fmt.Errorf("%s is not fomatted correctly, expected ':'", procfsSubdirectoryPath)
+				}
+				if slices.Contains(protocolNames, line[:i]) {
+					protocolName = line[:i]
+				} else {
+					continue
+				}
+
+				counterNames := strings.Split(line[i+2:], " ")
+
+				if !scanner.Scan() {
+					return fmt.Errorf("%s is not fomatted correctly, not data line", procfsSubdirectoryPath)
+				}
+				line = scanner.Text()
+
+				counterValues := strings.Split(line[i+2:], " ")
+				if len(counterNames) != len(counterValues) {
+					return fmt.Errorf("%s is not fomatted correctly, expected same number of columns", procfsSubdirectoryPath)
+				}
+				for j := range counterNames {
+					value, err := strconv.ParseInt(counterValues[j], 10, 64)
+					if err != nil {
+						return err
+					}
+					counters[protocolName].Stats[counterNames[j]] = value
+				}
+			}
+			return nil
+		}(); err != nil {
+			return nil, err
 		}
 	}
 	return counters, nil

@@ -310,8 +310,9 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 		}
 
 		// Success case - analyze the response
-		defer r.Body.Close()
-		return analyzeResponse(r, apiKey)
+		resp, analyzeErr := analyzeResponse(r, apiKey)
+		r.Body.Close()
+		return resp, analyzeErr
 	}
 	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
 }

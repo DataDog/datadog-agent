@@ -535,7 +535,7 @@ func TestActivityDumps(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer dockerInstance.stop()
+			defer dockerInstance.stop() //nolint:revive // intentional: docker instances must stay running until the end of the subtest
 			startedDumps = append(startedDumps, dump)
 		}
 

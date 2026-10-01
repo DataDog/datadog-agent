@@ -98,24 +98,26 @@ func TestBuildVerifierStats(t *testing.T) {
 			strings.Split(filepath.Base(file), ".")[0], "-", "_",
 		)
 
-		bc, err := os.Open(file)
-		require.NoError(t, err)
-		defer bc.Close()
+		func() {
+			bc, err := os.Open(file)
+			require.NoError(t, err)
+			defer bc.Close()
 
-		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
-		require.NoError(t, err)
+			collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
+			require.NoError(t, err)
 
-		for _, progSpec := range collectionSpec.Programs {
-			// ensure all programs were attempted
-			key := fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)
-			_, loaded := stats[key]
-			_, notLoaded := failedToLoad[key]
-			if !(loaded || notLoaded) {
-				t.Logf("load not attempted for program %s/%s", objectFileName, progSpec.Name)
-				assert.True(t, loaded || notLoaded)
-				break
+			for _, progSpec := range collectionSpec.Programs {
+				// ensure all programs were attempted
+				key := fmt.Sprintf("%s/%s", objectFileName, progSpec.Name)
+				_, loaded := stats[key]
+				_, notLoaded := failedToLoad[key]
+				if !(loaded || notLoaded) {
+					t.Logf("load not attempted for program %s/%s", objectFileName, progSpec.Name)
+					assert.True(t, loaded || notLoaded)
+					break
+				}
 			}
-		}
+		}()
 	}
 
 	bpfComplexity := OldBPFComplexityLimit

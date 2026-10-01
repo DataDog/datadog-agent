@@ -64,27 +64,29 @@ func assertAgentsUseKey(t assert.TestingT, host *components.RemoteHost, authtoke
 		processConfigEndpoint(processCmdPort),
 		securityConfigEndpoint(securityCmdPort),
 	} {
-		req, err := endpoint.httpRequest(authtoken)
-		if !assert.NoErrorf(t, err, "failed to create request for %s", endpoint.name) {
-			continue
-		}
+		func() {
+			req, err := endpoint.httpRequest(authtoken)
+			if !assert.NoErrorf(t, err, "failed to create request for %s", endpoint.name) {
+				return
+			}
 
-		resp, err := hostHTTPClient.Do(req)
-		if !assert.NoErrorf(t, err, "failed to fetch config from %s", endpoint.name) {
-			continue
-		}
-		defer resp.Body.Close()
+			resp, err := hostHTTPClient.Do(req)
+			if !assert.NoErrorf(t, err, "failed to fetch config from %s", endpoint.name) {
+				return
+			}
+			defer resp.Body.Close()
 
-		if !assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", endpoint.name) {
-			continue
-		}
+			if !assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", endpoint.name) {
+				return
+			}
 
-		cfg, err := io.ReadAll(resp.Body)
-		if !assert.NoErrorf(t, err, "failed to read response body from %s", endpoint.name) {
-			continue
-		}
+			cfg, err := io.ReadAll(resp.Body)
+			if !assert.NoErrorf(t, err, "failed to read response body from %s", endpoint.name) {
+				return
+			}
 
-		assertConfigHasKey(t, string(cfg), key, "checking key used by "+endpoint.name)
+			assertConfigHasKey(t, string(cfg), key, "checking key used by "+endpoint.name)
+		}()
 	}
 }
 

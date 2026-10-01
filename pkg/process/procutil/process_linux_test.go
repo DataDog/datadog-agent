@@ -1722,14 +1722,16 @@ func BenchmarkNativeReaddirnames(b *testing.B) {
 	defer os.RemoveAll(dirPath)
 
 	for i := 0; i < b.N; i++ {
-		d, err := os.Open(dirPath)
-		assert.NoError(b, err)
-		defer d.Close()
+		func() {
+			d, err := os.Open(dirPath)
+			assert.NoError(b, err)
+			defer d.Close()
 
-		names, err := d.Readdirnames(-1)
-		assert.NoError(b, err)
+			names, err := d.Readdirnames(-1)
+			assert.NoError(b, err)
 
-		assert.Equal(b, fileCount, len(names))
+			assert.Equal(b, fileCount, len(names))
+		}()
 	}
 }
 
@@ -1740,24 +1742,26 @@ func BenchmarkImprovedReaddirnames(b *testing.B) {
 	defer os.RemoveAll(dirPath)
 
 	for i := 0; i < b.N; i++ {
-		d, err := os.Open(dirPath)
-		assert.NoError(b, err)
-		defer d.Close()
+		func() {
+			d, err := os.Open(dirPath)
+			assert.NoError(b, err)
+			defer d.Close()
 
-		buf := make([]byte, 8192)
-		count := 0
+			buf := make([]byte, 8192)
+			count := 0
 
-		for i := 0; ; i++ {
-			n, _ := syscall.ReadDirent(int(d.Fd()), buf)
-			if n <= 0 {
-				break
+			for i := 0; ; i++ {
+				n, _ := syscall.ReadDirent(int(d.Fd()), buf)
+				if n <= 0 {
+					break
+				}
+
+				_, numDirs := countDirent(buf[:n])
+				count += numDirs
 			}
 
-			_, numDirs := countDirent(buf[:n])
-			count += numDirs
-		}
-
-		assert.Equal(b, fileCount, count)
+			assert.Equal(b, fileCount, count)
+		}()
 	}
 }
 
@@ -1794,7 +1798,7 @@ func BenchmarkGetFDCount(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		defer f.Close()
+		defer f.Close() //nolint:revive // intentional: all opened FDs must stay open until after the benchmark loop below
 	}
 
 	b.Run("self_proc", func(b *testing.B) {

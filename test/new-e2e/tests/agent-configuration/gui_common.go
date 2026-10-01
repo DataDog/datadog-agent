@@ -135,25 +135,27 @@ func checkStaticFiles(t *testing.T, client *http.Client, host *components.Remote
 
 	traverse(doc)
 	for _, link := range links {
-		t.Logf("trying to reach asset %v", link)
-		fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)), link)
-		resp, err := client.Get(fullLink)
-		assert.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink)
-		defer resp.Body.Close()
-		assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", fullLink)
+		func() {
+			t.Logf("trying to reach asset %v", link)
+			fullLink := fmt.Sprintf("http://%v/%v", net.JoinHostPort("localhost", strconv.Itoa(guiPort)), link)
+			resp, err := client.Get(fullLink)
+			assert.NoErrorf(t, err, "failed to reach GUI asset at address %s", fullLink)
+			defer resp.Body.Close()
+			assert.Equalf(t, http.StatusOK, resp.StatusCode, "unexpected status code for %s", fullLink)
 
-		body, err := io.ReadAll(resp.Body)
-		// We replace windows line break by linux so the tests pass on every OS
-		bodyContent := strings.ReplaceAll(string(body), "\r\n", "\n")
-		assert.NoErrorf(t, err, "failed to read content of GUI asset at address %s", fullLink)
+			body, err := io.ReadAll(resp.Body)
+			// We replace windows line break by linux so the tests pass on every OS
+			bodyContent := strings.ReplaceAll(string(body), "\r\n", "\n")
+			assert.NoErrorf(t, err, "failed to read content of GUI asset at address %s", fullLink)
 
-		// retrieving the served file in the Agent installation directory, removing the "view/" prefix
-		expectedBody, err := host.ReadFile(path.Join(installPath, "bin", "agent", "dist", "views", strings.TrimLeft(link, "view/")))
-		// We replace windows line break by linux so the tests pass on every OS
-		expectedBodyContent := strings.ReplaceAll(string(expectedBody), "\r\n", "\n")
-		assert.NoErrorf(t, err, "unable to retrieve file %v in the expected served files", link)
+			// retrieving the served file in the Agent installation directory, removing the "view/" prefix
+			expectedBody, err := host.ReadFile(path.Join(installPath, "bin", "agent", "dist", "views", strings.TrimLeft(link, "view/")))
+			// We replace windows line break by linux so the tests pass on every OS
+			expectedBodyContent := strings.ReplaceAll(string(expectedBody), "\r\n", "\n")
+			assert.NoErrorf(t, err, "unable to retrieve file %v in the expected served files", link)
 
-		assert.Equalf(t, expectedBodyContent, bodyContent, "content of the file %v is not the same as expected", link)
+			assert.Equalf(t, expectedBodyContent, bodyContent, "content of the file %v is not the same as expected", link)
+		}()
 	}
 }
 

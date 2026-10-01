@@ -418,10 +418,12 @@ func runFakeGetWarnings() ([]string, error) {
 		if warnPtr == nil {
 			break
 		}
-		defer C.call_free(unsafe.Pointer(warnPtr))
+		func() {
+			defer C.call_free(unsafe.Pointer(warnPtr))
 
-		warn := C.GoString(warnPtr)
-		warnings = append(warnings, warn)
+			warn := C.GoString(warnPtr)
+			warnings = append(warnings, warn)
+		}()
 	}
 
 	return warnings, nil

@@ -370,6 +370,11 @@ linters:
             - []
             - [skipPackageNameChecks: true]
         - name: duplicated-imports
+        - name: defer
+          # only flag `defer` inside loops (the deferred call runs at function
+          # return, not loop-iteration end); other defer sub-checks stay off
+          arguments:
+            - [loop]
     forbidigo:
       forbid:
         - pattern: ^.*\.GetLastError$

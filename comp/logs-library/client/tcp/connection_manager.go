@@ -100,8 +100,8 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 		} else {
 			var dialer net.Dialer
 			dctx, cancel := context.WithTimeout(ctx, connectionTimeout)
-			defer cancel()
 			conn, err = dialer.DialContext(dctx, "tcp", cm.address())
+			cancel()
 		}
 		if err != nil {
 			log.Warn(err)

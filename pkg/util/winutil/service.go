@@ -260,7 +260,7 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 			return fmt.Errorf("could open service %s: %w", depServiceName, err)
 		}
 		depServices = append(depServices, depService)
-		defer depService.Close()
+		defer depService.Close() //nolint:revive // intentional: handles are collected and used after the loop (timeout calc and stop-retry)
 	}
 
 	// extend deadline to account for all services we are trying to stop

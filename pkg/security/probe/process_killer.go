@@ -448,7 +448,7 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 	// Hold the locks until the end of the function to avoid a conflict with HandleProcessExit and FlushPendingReports
 	for _, r := range disarmer.pendingReports {
 		r.Lock()
-		defer r.Unlock()
+		defer r.Unlock() //nolint:revive // intentional: reports stay locked until function return to avoid races with HandleProcessExit/FlushPendingReports
 	}
 
 	// Drop reports that were already resolved (e.g. aborted because all PIDs

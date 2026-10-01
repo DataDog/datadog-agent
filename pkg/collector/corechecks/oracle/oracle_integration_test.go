@@ -384,16 +384,18 @@ func TestLegacyMode(t *testing.T) {
 		"",
 		"only_custom_queries: true",
 	} {
-		c, s := newLegacyCheck(t, config, "")
-		defer c.Teardown()
-		err := c.Run()
-		assert.NoError(t, err)
-		expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)
-		expectedServiceTag := fmt.Sprintf("service:%s", c.config.InstanceConfig.ServiceName)
-		expectedTags := []string{expectedServerTag, expectedServiceTag}
-		host := c.dbHostname
-		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
-		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
+		func() {
+			c, s := newLegacyCheck(t, config, "")
+			defer c.Teardown()
+			err := c.Run()
+			assert.NoError(t, err)
+			expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)
+			expectedServiceTag := fmt.Sprintf("service:%s", c.config.InstanceConfig.ServiceName)
+			expectedTags := []string{expectedServerTag, expectedServiceTag}
+			host := c.dbHostname
+			s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
+			s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, expectedTags, "")
+		}()
 	}
 }
 

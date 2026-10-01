@@ -177,10 +177,12 @@ func (d *tlsDebugger) GetBlockedPathIDs(moduleName, programType string) []PathId
 			continue
 		}
 
-		registry.m.Lock()
-		defer registry.m.Unlock()
+		return func() []PathIdentifier {
+			registry.m.Lock()
+			defer registry.m.Unlock()
 
-		return registry.blocklistByID.Keys()
+			return registry.blocklistByID.Keys()
+		}()
 	}
 
 	return nil
@@ -209,21 +211,23 @@ func (d *tlsDebugger) GetBlockedPathIDsWithSamplePath(moduleName, programType st
 			continue
 		}
 
-		registry.m.Lock()
-		defer registry.m.Unlock()
+		return func() []PathIdentifierWithSamplePath {
+			registry.m.Lock()
+			defer registry.m.Unlock()
 
-		blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
-		for _, pathIdentifier := range registry.blocklistByID.Keys() {
-			entry, ok := registry.blocklistByID.Get(pathIdentifier)
-			if ok {
-				blockedIDsWithSampleFile = append(blockedIDsWithSampleFile, PathIdentifierWithSamplePath{
-					PathIdentifier: pathIdentifier,
-					SamplePath:     entry.Path,
-					Reason:         entry.Reason})
+			blockedIDsWithSampleFile := make([]PathIdentifierWithSamplePath, 0, len(registry.blocklistByID.Keys()))
+			for _, pathIdentifier := range registry.blocklistByID.Keys() {
+				entry, ok := registry.blocklistByID.Get(pathIdentifier)
+				if ok {
+					blockedIDsWithSampleFile = append(blockedIDsWithSampleFile, PathIdentifierWithSamplePath{
+						PathIdentifier: pathIdentifier,
+						SamplePath:     entry.Path,
+						Reason:         entry.Reason})
+				}
 			}
-		}
 
-		return blockedIDsWithSampleFile
+			return blockedIDsWithSampleFile
+		}()
 	}
 
 	return nil
