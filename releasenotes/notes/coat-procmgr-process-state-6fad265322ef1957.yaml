@@ -1,12 +1,10 @@
 ---
 features:
   - |
-    Added ``runtime.procmgr_process_state``, a Cross-Org Agent Telemetry (COAT)
-    gauge reporting the state **dd-procmgr** reports for each managed process.
+    The Agent now reports the state of each process it supervises
+    (``starting``, ``running``, ``crashed``, ``failed``, and so on) as the
+    ``runtime.procmgr_process_state`` metric, tagged by process and state.
 
-    ``runtime.procmgr_process_running`` only distinguishes running from
-    everything else, so a process that is deliberately stopped could not be
-    told apart from one that is crash looping. The new gauge carries the
-    reported state (``starting``, ``running``, ``crashed``, ``failed`` and so
-    on) as a ``state`` tag alongside ``process``, and is only set while procmgr
-    supervises the service.
+    Previously only a boolean ``runtime.procmgr_process_running`` was sent,
+    so a process that was deliberately stopped could not be told apart from
+    one that was crash looping.
