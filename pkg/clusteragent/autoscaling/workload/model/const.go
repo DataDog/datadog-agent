@@ -20,6 +20,8 @@ const (
 
 	// RecommendationIDAnnotation is the annotation key used to store the recommendation ID
 	RecommendationIDAnnotation = "autoscaling.datadoghq.com/rec-id"
+	// RuntimeRecommendationIDAnnotation is the annotation key used to store a hash of the runtime values
+	RuntimeRecommendationIDAnnotation = "autoscaling.datadoghq.com/runtime-rec-id"
 	// AutoscalerIDAnnotation is the annotation key used to store the autoscaler ID
 	AutoscalerIDAnnotation = "autoscaling.datadoghq.com/autoscaler-id"
 	// RecommendationAppliedEventGeneratedAnnotation is an annotation added when even was generated for applied recommendation

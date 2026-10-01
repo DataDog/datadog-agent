@@ -85,7 +85,7 @@ bazel_dep(name = "protobuf", version = "35.1")
 bazel_dep(name = "re.bzl", version = "0.4.1")
 bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_flex", version = "0.4.1")
-bazel_dep(name = "rules_go", version = "0.64.0")
+bazel_dep(name = "rules_go", version = "0.64.1")
 bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
@@ -118,14 +118,11 @@ single_version_override(
     version = "0.2.25",
 )
 
-# Temporary until corresponding PRs (or equivalent) land in a release
+# Temporary until https://github.com/bazel-contrib/rules_go/pull/3977 (or equivalent) lands
 single_version_override(
     module_name = "rules_go",
     patch_strip = 1,
-    patches = [
-        "//bazel/patches:rules_go-cover-workdir-trimpath.patch",  # https://github.com/bazel-contrib/rules_go/pull/4733
-        "//bazel/patches:rules_go-windows-symlink-workaround.patch",  # https://github.com/bazel-contrib/rules_go/pull/3977
-    ],
+    patches = ["//bazel/patches:rules_go-windows-symlink-workaround.patch"],
 )
 
 # Temporary until rules_pkg > 1.2.0 is in BCR
