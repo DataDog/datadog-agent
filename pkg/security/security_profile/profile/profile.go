@@ -98,9 +98,6 @@ type Profile struct {
 	observedRollups bool
 	seededSyscalls  []uint32
 
-	// baseMountNSByCgroup maps a linked workload's cgroup inode to its base mount
-	// namespace, so the namespace can be dropped from the tree's base-namespace set
-	// when the workload is unlinked.
 	baseMountNSByCgroup map[uint64]uint32
 }
 
