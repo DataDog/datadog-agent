@@ -40,7 +40,7 @@ import (
 const (
 	logDir = "var/log"
 
-	// sshSessionCacheSize is the size of the caches holding the SSH sessions parsed from the auth log
+	// sshSessionCacheSize is the size of the cache holding the SSH sessions parsed from the auth log
 	sshSessionCacheSize = 100
 )
 
@@ -94,6 +94,9 @@ type SSHSessionKey struct {
 type SSHSessionValue struct {
 	AuthenticationMethod int
 	PublicKey            string
+	// unresolved is set on sessions for which the authentication log line was never found. It is
+	// used to make sure we delay the events of a given session only once.
+	unresolved bool
 }
 
 // Resolver is used to resolve the user sessions context
@@ -106,9 +109,6 @@ type Resolver struct {
 	sshEnabled       bool
 	sshLogReader     *incrementalFileReader
 	sshSessionParsed *lru.Cache[SSHSessionKey, SSHSessionValue]
-	// sshSessionUnresolved holds the sessions for which the authentication log line was never
-	// found. It is used to make sure we delay the events of a given session only once.
-	sshSessionUnresolved *lru.Cache[SSHSessionKey, struct{}]
 }
 
 // NewResolver returns a new instance of Resolver
@@ -126,9 +126,6 @@ func NewResolver(cacheSize int, sshEnabled bool) (*Resolver, error) {
 	if sshEnabled {
 		if resolver.sshSessionParsed, err = lru.New[SSHSessionKey, SSHSessionValue](sshSessionCacheSize); err != nil {
 			return nil, fmt.Errorf("couldn't create SSH Session cache: %v", err)
-		}
-		if resolver.sshSessionUnresolved, err = lru.New[SSHSessionKey, struct{}](sshSessionCacheSize); err != nil {
-			return nil, fmt.Errorf("couldn't create SSH Session unresolved cache: %v", err)
 		}
 	}
 
@@ -213,7 +210,11 @@ func (r *Resolver) GetSSHSession(key SSHSessionKey) (SSHSessionValue, bool) {
 	if r.sshSessionParsed == nil {
 		return SSHSessionValue{}, false
 	}
-	return r.sshSessionParsed.Get(key)
+	value, ok := r.sshSessionParsed.Get(key)
+	if !ok || value.unresolved {
+		return SSHSessionValue{}, false
+	}
+	return value, true
 }
 
 // SSHSessionsResolvable returns true if the ssh auth log is being tailed. When it is not, nothing
@@ -228,18 +229,20 @@ func (r *Resolver) SSHSessionsResolvable() bool {
 // MarkSSHSessionUnresolved flags a session as unresolvable, so that the events of that session are
 // not delayed anymore while waiting for its authentication log line.
 func (r *Resolver) MarkSSHSessionUnresolved(key SSHSessionKey) {
-	if r.sshSessionUnresolved == nil {
+	if r.sshSessionParsed == nil {
 		return
 	}
-	r.sshSessionUnresolved.Add(key, struct{}{})
+	// don't overwrite a session whose log line was parsed in the meantime
+	r.sshSessionParsed.ContainsOrAdd(key, SSHSessionValue{unresolved: true})
 }
 
 // IsSSHSessionUnresolved returns true if the session was already flagged as unresolvable
 func (r *Resolver) IsSSHSessionUnresolved(key SSHSessionKey) bool {
-	if r.sshSessionUnresolved == nil {
+	if r.sshSessionParsed == nil {
 		return false
 	}
-	return r.sshSessionUnresolved.Contains(key)
+	value, ok := r.sshSessionParsed.Peek(key)
+	return ok && value.unresolved
 }
 
 // Init opens the file and sets the initial offset

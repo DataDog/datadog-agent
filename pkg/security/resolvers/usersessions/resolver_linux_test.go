@@ -122,7 +122,7 @@ func Test_SSHSessionUnresolved(t *testing.T) {
 		resolver, err := NewResolver(64, false)
 		require.NoError(t, err)
 
-		// must not panic nor report anything when the ssh caches are not initialized
+		// must not panic nor report anything when the ssh cache is not initialized
 		resolver.MarkSSHSessionUnresolved(key)
 		assert.False(t, resolver.IsSSHSessionUnresolved(key))
 	})
@@ -135,8 +135,16 @@ func Test_SSHSessionUnresolved(t *testing.T) {
 
 		resolver.MarkSSHSessionUnresolved(key)
 		assert.True(t, resolver.IsSSHSessionUnresolved(key), "session must be flagged")
+		_, ok := resolver.GetSSHSession(key)
+		assert.False(t, ok, "a flagged session must not be reported as resolved")
 
 		other := SSHSessionKey{SSHDPid: "4243", IP: "127.0.0.1", Port: "38835"}
 		assert.False(t, resolver.IsSSHSessionUnresolved(other), "other sessions must not be flagged")
+
+		// the auth log line eventually shows up
+		resolver.sshSessionParsed.Add(key, SSHSessionValue{AuthenticationMethod: 1})
+		assert.False(t, resolver.IsSSHSessionUnresolved(key), "a parsed session must not be flagged anymore")
+		_, ok = resolver.GetSSHSession(key)
+		assert.True(t, ok, "a parsed session must be resolved")
 	})
 }
