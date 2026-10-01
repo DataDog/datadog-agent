@@ -585,11 +585,7 @@ func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any,
 	}
 	apicfg, ok := ddcfgMap["api"]
 	if !ok || apicfg == nil {
-		if !isSiteEmpty {
-			ddcfgMap["api"] = map[string]any{"site": site}
-			return ddcfgMap, nil // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
-		}
-		ddcfgMap["api"] = map[string]any{"site": "datadoghq.com"}
+		ddcfgMap["api"] = map[string]any{"site": site} // api block absent: create it with the site from pkgconfig so Unmarshal builds correct endpoint URLs
 		return ddcfgMap, nil
 
 	}
