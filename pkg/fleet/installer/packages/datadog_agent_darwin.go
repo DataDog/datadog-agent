@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -44,20 +43,17 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	// agentUser and agentGroup are the account the Agent's launchd jobs run as. macOS ships
-	// the daemon group on every system, so only the account is created.
-	agentUser  = "_dd-agent"
-	agentGroup = "daemon"
-
 	// convenienceLinkDir is where the user-facing commands live. /usr/local/bin rather than
 	// /usr/bin: /usr/bin is on the read-only system volume and cannot be written to.
 	convenienceLinkDir = "/usr/local/bin"
 )
 
-// agentLayout is the on-disk layout the hooks create.
+// agentLayout is where the hooks find what they manage on disk. The .dmg's preinstall and
+// postinstall scripts create the account and the install root's directories, with their
+// ownership, modes and access control lists, so the hooks never do.
 //
-// It is parameterised on its root and its owner so the tests can assert the shape against a
-// temporary root as an unprivileged user. Production always uses defaultAgentLayout.
+// It is parameterised on its roots so the tests can run against temporary directories as an
+// unprivileged user. Production always uses defaultAgentLayout.
 type agentLayout struct {
 	// installRoot is the single root everything the Agent owns lives under: the binaries
 	// alongside etc, etc-exp, run and logs. Created once, preserved across every upgrade.
@@ -67,50 +63,16 @@ type agentLayout struct {
 	// packagesRoot is the root of the OCI package repositories the shared installer code keeps.
 	// It sits outside the install root, and macOS stores nothing of its own there.
 	packagesRoot string
-
-	owner string
-	group string
 }
 
 var defaultAgentLayout = agentLayout{
 	installRoot:  filepath.Dir(paths.AgentConfigDir),
 	linkDir:      convenienceLinkDir,
 	packagesRoot: paths.PackagesPath,
-	owner:        agentUser,
-	group:        agentGroup,
 }
 
-func (l agentLayout) etcDir() string    { return filepath.Join(l.installRoot, "etc") }
-func (l agentLayout) etcExpDir() string { return filepath.Join(l.installRoot, "etc-exp") }
-func (l agentLayout) runDir() string    { return filepath.Join(l.installRoot, "run") }
-func (l agentLayout) logDir() string    { return filepath.Join(l.installRoot, "logs") }
-
-// directories are the state directories the Agent needs to function.
-//
-// The install root itself is created without a recursive ownership pass: a recursive pass over it
-// would traverse etc-exp, which rests as a symlink to etc, and so would write through to the
-// stable configuration. etc-exp is the configuration layer's alone.
-func (l agentLayout) directories() file.Directories {
-	return file.Directories{
-		{Path: l.installRoot, Mode: 0755, Owner: l.owner, Group: l.group},
-		{Path: l.etcDir(), Mode: 0755, Owner: l.owner, Group: l.group},
-		{Path: l.runDir(), Mode: 0755, Owner: l.owner, Group: l.group},
-		{Path: filepath.Join(l.runDir(), "ipc"), Mode: 0755, Owner: l.owner, Group: l.group},
-		{Path: l.logDir(), Mode: 0750, Owner: l.owner, Group: l.group},
-	}
-}
-
-// configPermissions are the ownerships enforced on the configuration directory.
-//
-// Every entry is rooted at etc, never at the install root, so no recursive pass can reach etc-exp.
-func (l agentLayout) configPermissions() file.Permissions {
-	return file.Permissions{
-		{Path: ".", Owner: l.owner, Group: l.group, Recursive: true},
-	}
-}
-
-// convenienceLinks are the user-facing commands. They name the install root, which is the same
-// address for the life of the machine, so they never need updating.
+// convenienceLinks are the user-facing commands the .dmg links. They name the install root, which
+// is the same address for the life of the machine, so they never need updating.
 func (l agentLayout) convenienceLinks() map[string]string {
 	return map[string]string{
 		filepath.Join(l.linkDir, "datadog-agent"):     filepath.Join(l.installRoot, "bin", "agent", "agent"),
@@ -145,12 +107,10 @@ func experimentLabels() []string {
 	return labels
 }
 
-// launchdClient and ensureAgentUser are indirected so the hook tests can assert the filesystem
-// layout without launchd and without touching the machine's directory service.
+// launchdClient and launchdJobDir are indirected so the hook tests can run without launchd.
 var (
-	launchdClient   = func() *launchd.Client { return launchd.NewClient(launchd.System) }
-	ensureAgentUser = user.EnsureAgentUserAndGroup
-	launchdJobDir   = launchd.System.Dir()
+	launchdClient = func() *launchd.Client { return launchd.NewClient(launchd.System) }
+	launchdJobDir = launchd.System.Dir()
 )
 
 // agentJobSet is the swappable set, in the system domain. It excludes the installer daemon.
@@ -165,43 +125,6 @@ func stableJob(label string) launchd.Job {
 		PlistPath: filepath.Join(launchdJobDir, label+".plist"),
 		Domain:    launchd.System,
 	}
-}
-
-// installFilesystem creates the state directories and the convenience links.
-//
-// Everything in it is idempotent: it is the hook both install paths run, and it runs again on
-// every upgrade. It never touches etc-exp, which the configuration layer owns alone.
-func installFilesystem(ctx HookContext, layout agentLayout) (err error) {
-	span, ctx := ctx.StartSpan("setup_filesystem")
-	defer func() {
-		span.Finish(err)
-	}()
-
-	// 1. Ensure the service account exists. The group already does.
-	if err = ensureAgentUser(ctx, layout.installRoot); err != nil {
-		return fmt.Errorf("failed to create %s user: %w", layout.owner, err)
-	}
-
-	// 2. Create the state directories.
-	if err = layout.directories().Ensure(ctx); err != nil {
-		return fmt.Errorf("failed to create directories: %w", err)
-	}
-
-	// 3. Enforce configuration ownership. Rooted at etc, so etc-exp is never traversed.
-	if err = layout.configPermissions().Ensure(ctx, layout.etcDir()); err != nil {
-		return fmt.Errorf("failed to set config ownerships: %w", err)
-	}
-
-	// 4. Link the user-facing commands.
-	for link, target := range layout.convenienceLinks() {
-		if err = os.MkdirAll(filepath.Dir(link), 0755); err != nil {
-			return fmt.Errorf("failed to create %s: %w", filepath.Dir(link), err)
-		}
-		if err = file.EnsureSymlink(ctx, target, link); err != nil {
-			return fmt.Errorf("failed to create convenience link %s: %w", link, err)
-		}
-	}
-	return nil
 }
 
 // registerPackageRepository registers the Agent in the OCI package repository the shared installer
@@ -394,43 +317,33 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	return nil
 }
 
-// postInstallDatadogAgent creates the state directories, registers the Agent as a package, and
-// loads the stable job set.
+// postInstallDatadogAgent registers the Agent as a package and loads the stable job set.
+//
+// The Agent reaches macOS only as a .dmg, run directly or wrapped in an OCI package, so those are
+// the only package types it handles.
 func postInstallDatadogAgent(ctx HookContext) error {
-	if ctx.PackageType == PackageTypeOCI {
+	switch ctx.PackageType {
+	case PackageTypeOCI:
 		// The OCI layer wraps a .pkg installer payload rather than raw binaries, mirroring how
 		// datadog_agent_windows.go wraps an MSI: doInstall's Create() call has already moved the
 		// extracted layer into the package repository and flipped stable/experiment to it before
 		// this hook runs, so registerPackageRepository has nothing left to do. What remains is
-		// running the wrapped .pkg, whose own postinstall script performs the filesystem setup
-		// (see installFilesystem) and loads the launchd jobs (see installStableJobs) -- the same
-		// script a real .dmg install runs directly.
+		// running the wrapped .pkg, whose own postinstall script sets up the filesystem and runs
+		// the dmg branch below -- the same script a real .dmg install runs directly.
 		return installWrappedPackage(ctx)
-	}
-	if ctx.PackageType == PackageTypeDMG {
+	case PackageTypeDMG:
 		return postInstallDMG(ctx, defaultAgentLayout)
+	default:
+		return fmt.Errorf("unsupported package type for %s on macOS: %s", ctx.Package, ctx.PackageType)
 	}
-
-	if err := installFilesystem(ctx, defaultAgentLayout); err != nil {
-		return err
-	}
-	if err := registerPackageRepository(ctx, defaultAgentLayout); err != nil {
-		return err
-	}
-	if err := installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
-		return fmt.Errorf("failed to write install info: %w", err)
-	}
-	return installStableJobs(ctx)
 }
 
 // postInstallDMG is the part of the post-install the .dmg's postinstall script delegates to
 // `installer postinst datadog-agent dmg`: registering the Agent as a package and loading the stable
 // job set.
 //
-// The script does its own equivalent of installFilesystem and installinfo.WriteInstallInfo inline,
-// with .dmg-specific ownership (the admin group, the world-writable run/ipc the GUI sockets live
-// in) and install-method logic, so neither runs here: installFilesystem would reset those
-// ownerships and modes.
+// The script creates the account and the directories, with their ownership, modes and access
+// control lists, and writes the install info itself, so none of that happens here.
 //
 // Both steps run even if the other fails, and in this order so the daemon finds the package
 // registered when it starts: a failed registration only disables configuration experiments, and

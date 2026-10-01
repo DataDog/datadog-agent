@@ -11,9 +11,7 @@ import (
 	"context"
 	"errors"
 	"os"
-	"os/user"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -32,23 +30,15 @@ const notLoadedOutput = `Bad request.
 Could not find service "com.datadoghq.agent" in domain for system
 `
 
-// testLayout returns a layout rooted in temporary directories and owned by the user running the
-// test, so the ownership pass the hook performs is permitted without root.
+// testLayout returns a layout rooted in temporary directories.
 func testLayout(t *testing.T) agentLayout {
 	t.Helper()
-
-	current, err := user.Current()
-	require.NoError(t, err)
-	group, err := user.LookupGroupId(current.Gid)
-	require.NoError(t, err)
 
 	root := t.TempDir()
 	return agentLayout{
 		installRoot:  filepath.Join(root, "opt", "datadog-agent"),
 		linkDir:      filepath.Join(root, "usr", "local", "bin"),
 		packagesRoot: filepath.Join(root, "opt", "datadog-packages"),
-		owner:        current.Username,
-		group:        group.Name,
 	}
 }
 
@@ -106,119 +96,9 @@ func TestLoadStableJobEnablesDisabledJobBeforeBootstrap(t *testing.T) {
 }
 
 // stubAgentUser stops the hook reaching the machine's directory service.
-func stubAgentUser(t *testing.T) {
-	t.Helper()
-
-	original := ensureAgentUser
-	ensureAgentUser = func(context.Context, string) error { return nil }
-	t.Cleanup(func() { ensureAgentUser = original })
-}
-
 func testHookContext(t *testing.T) HookContext {
 	t.Helper()
 	return HookContext{Context: context.Background(), Package: agentPackage, PackageType: PackageTypeOCI}
-}
-
-func TestInstallFilesystemCreatesTheStateDirectoriesAndTheLinks(t *testing.T) {
-	stubAgentUser(t)
-	layout := testLayout(t)
-
-	require.NoError(t, installFilesystem(testHookContext(t), layout))
-
-	for _, dir := range []string{
-		layout.installRoot,
-		layout.etcDir(),
-		layout.runDir(),
-		filepath.Join(layout.runDir(), "ipc"),
-		layout.logDir(),
-	} {
-		info, err := os.Stat(dir)
-		require.NoError(t, err, "missing directory %s", dir)
-		assert.True(t, info.IsDir(), "%s is not a directory", dir)
-	}
-
-	// The convenience links name the install root, which is the same address for the life of
-	// the machine, so they never need updating.
-	for link, want := range layout.convenienceLinks() {
-		target, err := os.Readlink(link)
-		require.NoError(t, err, "missing convenience link %s", link)
-		assert.Equal(t, want, target)
-		assert.True(t, strings.HasPrefix(target, layout.installRoot),
-			"convenience link %s points outside the install root", link)
-	}
-}
-
-// TestInstallFilesystemIsIdempotent is the property both install paths rely on: the hook runs on a
-// first install, on every upgrade, and again on a host already in the desired state.
-func TestInstallFilesystemIsIdempotent(t *testing.T) {
-	stubAgentUser(t)
-	layout := testLayout(t)
-	ctx := testHookContext(t)
-
-	require.NoError(t, installFilesystem(ctx, layout))
-
-	// Something the operator left behind in the configuration directory must survive.
-	configFile := filepath.Join(layout.etcDir(), "datadog.yaml")
-	require.NoError(t, os.WriteFile(configFile, []byte("api_key: unchanged\n"), 0640))
-
-	require.NoError(t, installFilesystem(ctx, layout))
-
-	content, err := os.ReadFile(configFile)
-	require.NoError(t, err)
-	assert.Equal(t, "api_key: unchanged\n", string(content))
-}
-
-// TestInstallFilesystemLeavesRestingEtcExpAlone is the constraint the configuration layer imposes
-// on this hook. etc-exp rests as a symlink to etc; a recursive ownership pass that traversed it
-// would write through to the stable configuration, and the hook must not create, remove or
-// dereference it at all.
-func TestInstallFilesystemLeavesRestingEtcExpAlone(t *testing.T) {
-	stubAgentUser(t)
-	layout := testLayout(t)
-	ctx := testHookContext(t)
-
-	require.NoError(t, installFilesystem(ctx, layout))
-
-	// Put the host in the idle state the configuration layer maintains.
-	require.NoError(t, os.Symlink(layout.etcDir(), layout.etcExpDir()))
-	sentinel := filepath.Join(layout.etcDir(), "sentinel.yaml")
-	require.NoError(t, os.WriteFile(sentinel, []byte("sentinel"), 0600))
-	before, err := os.Stat(sentinel)
-	require.NoError(t, err)
-
-	require.NoError(t, installFilesystem(ctx, layout))
-
-	// Still a symlink, still pointing at etc: nothing created it as a real directory and
-	// nothing removed it.
-	info, err := os.Lstat(layout.etcExpDir())
-	require.NoError(t, err)
-	assert.Equal(t, os.ModeSymlink, info.Mode()&os.ModeSymlink,
-		"etc-exp is no longer a symlink")
-	target, err := os.Readlink(layout.etcExpDir())
-	require.NoError(t, err)
-	assert.Equal(t, layout.etcDir(), target)
-
-	// The mode of a file in etc is unchanged, so no pass wrote through the resting symlink.
-	after, err := os.Stat(sentinel)
-	require.NoError(t, err)
-	assert.Equal(t, before.Mode(), after.Mode())
-}
-
-// TestConfigPermissionsAreRootedAtEtc is the structural reason the assertion above holds: every
-// recursive ownership pass is rooted inside etc, never at the install root, whose children
-// include the resting etc-exp symlink.
-func TestConfigPermissionsAreRootedAtEtc(t *testing.T) {
-	layout := testLayout(t)
-	for _, permission := range layout.configPermissions() {
-		assert.False(t, filepath.IsAbs(permission.Path),
-			"config permission %q escapes etc", permission.Path)
-		assert.NotContains(t, permission.Path, "..",
-			"config permission %q escapes etc", permission.Path)
-	}
-	for _, dir := range layout.directories() {
-		assert.NotEqual(t, layout.etcExpDir(), dir.Path,
-			"the hook must not create etc-exp; the configuration layer owns it alone")
-	}
 }
 
 // TestRegisterPackageRepositoryLetsAConfigExperimentStart is the reason the hook registers a
@@ -516,8 +396,7 @@ func TestPostInstallDatadogAgentSkipsRegistrationForAnOCIPackage(t *testing.T) {
 
 // TestPostInstallDMGRegistersAndLoadsWithoutTouchingTheFilesystem covers what
 // `installer postinst datadog-agent dmg` does for the .dmg's postinstall script: it registers the
-// package and loads the stable jobs, but leaves the install root to the script, whose ownerships
-// installFilesystem would reset.
+// package and loads the stable jobs, but leaves the install root to the script.
 func TestPostInstallDMGRegistersAndLoadsWithoutTouchingTheFilesystem(t *testing.T) {
 	stubLaunchd(t)
 	dir := t.TempDir()
@@ -559,6 +438,15 @@ func TestPostInstallDMGLoadsTheJobsWhenRegistrationFails(t *testing.T) {
 
 	for _, label := range stableJobs {
 		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+	}
+}
+
+func TestPostInstallDatadogAgentRejectsOtherPackageTypes(t *testing.T) {
+	for _, packageType := range []PackageType{PackageTypeDEB, PackageTypeRPM, PackageTypeMSI} {
+		ctx := testHookContext(t)
+		ctx.PackageType = packageType
+
+		assert.Error(t, postInstallDatadogAgent(ctx), "package type %s", packageType)
 	}
 }
 
