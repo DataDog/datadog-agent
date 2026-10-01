@@ -38,6 +38,15 @@ variables:
 
 .smp_job_submit:
   - |
+    # TEMPORARY CI ACCELERATION -- remove the --total-samples and
+    # --experiment-name-allow-filter flags below before merging. They exist only
+    # to shorten the SMP feedback loop while the CI reporting flow is reworked.
+    #
+    # --total-samples N sets each replicate's sample window to N seconds (the
+    # backend default is 600); warmup (default 45s, server-side) still applies.
+    # --experiment-name-allow-filter selects experiments by name PREFIX, so
+    # full names must be used to avoid matching siblings (e.g.
+    # "quality_gate_idle" would also match "quality_gate_idle_all_features").
     RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
     job submit \
     --baseline-image ${BASELINE_IMAGE} \
@@ -45,6 +54,8 @@ variables:
     --baseline-sha ${BASELINE_SHA} \
     --comparison-sha ${CI_COMMIT_SHA} \
     --target-config-dir ${CONFIG_DIR} \
+    --total-samples 60 \
+    --experiment-name-allow-filter quality_gate_logs,quality_gate_private_action_runner \
     --submission-metadata submission_metadata \
     --tags ${SMP_TAGS} || {
       exit_code=$?
@@ -275,34 +286,11 @@ single-machine-performance-regression_detector:
     BOT_TOKEN: bot_token
     CONFIG_DIR: test/regression
 
-single-machine-performance-metal-runners-regression_detector:
-  extends:
-    - .single-machine-performance-run_regression_detector
-  when: manual
-  allow_failure: true
-  variables:
-    SMP_TEAM_NAME: metal-runners
-    SMP_API_URL: metal-runners_api_url
-    # Test version
-    SMP_VERSION: dev-pr4916-e24e21f4d
-    BOT_LOGIN: bot_login_metal-runners
-    BOT_TOKEN: bot_token_metal-runners
-    CONFIG_DIR: test/regression/ebpf
-
-single-machine-performance-metal-runners-regression_detector_cfg:
-  extends:
-    - .single-machine-performance-run_regression_detector
-  when: manual
-  allow_failure: true
-  variables:
-    SMP_TEAM_NAME: metal-runners
-    SMP_API_URL: metal-runners_api_url
-    # For testing
-    SMP_VERSION: dev-pr4916-e24e21f4d
-    BOT_LOGIN: bot_login_metal-runners
-    BOT_TOKEN: bot_token_metal-runners
-    RUN_CONFIG_ONLY: "true"
-    CONFIG_DIR: test/regression/ebpf/config-only
+# TEMPORARY CI ACCELERATION -- the two metal-runners jobs are removed while
+# the CI reporting flow is reworked; they are manual jobs that do not run in
+# the automatic pipeline, so removing them only trims the child pipeline's
+# definition. Restore them (and the "metal-runners" link profile work described
+# in PLAN.md) before merging.
 
 
 # Shamelessly adapted from golang_deps_commenter job config in
