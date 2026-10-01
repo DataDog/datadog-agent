@@ -151,9 +151,19 @@ func TestTheTwoVariantsDifferInExactlyFourWays(t *testing.T) {
 			expected := make([]string, 0, len(stable.programArguments))
 			var redirected int
 			for _, argument := range stable.programArguments[1:] {
-				if after, found := strings.CutPrefix(argument, stableConfigDir); found {
-					argument = experimentConfigDir + after
+				// A path is either an argument of its own or the value of a --flag=value one.
+				flag, value, hasFlag := strings.Cut(argument, "=")
+				if !hasFlag {
+					value = argument
+				}
+				if after, found := strings.CutPrefix(value, stableConfigDir); found {
+					value = experimentConfigDir + after
 					redirected++
+				}
+				if hasFlag {
+					argument = flag + "=" + value
+				} else {
+					argument = value
 				}
 				expected = append(expected, argument)
 			}
