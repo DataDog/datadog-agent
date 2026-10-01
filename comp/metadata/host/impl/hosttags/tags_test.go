@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/inventory/systeminfo"
 )
 
 func setupTest(t *testing.T) (model.Config, context.Context) {
@@ -115,6 +116,7 @@ func TestGetWithoutEUDM(t *testing.T) {
 		assert.NotContains(t, tag, "os_version:")
 		assert.NotContains(t, tag, "cpu_model:")
 		assert.NotContains(t, tag, "device_model:")
+		assert.NotContains(t, tag, "serial_number:")
 		assert.NotContains(t, tag, "total_memory_gb:")
 	}
 }
@@ -153,6 +155,7 @@ func TestGetWithEUDM(t *testing.T) {
 			"cpu_model:Apple_M1_Pro",
 			"total_memory_gb:16",
 			"device_model:MacBookPro18,3",
+			"serial_number:TEST123",
 		}
 	}
 
@@ -163,6 +166,7 @@ func TestGetWithEUDM(t *testing.T) {
 	assert.Contains(t, hostTags.System, "cpu_model:Apple_M1_Pro")
 	assert.Contains(t, hostTags.System, "total_memory_gb:16")
 	assert.Contains(t, hostTags.System, "device_model:MacBookPro18,3")
+	assert.Contains(t, hostTags.System, "serial_number:TEST123")
 }
 
 func TestEUDMTagsOnUnsupportedOS(t *testing.T) {
@@ -249,4 +253,24 @@ func TestHostTagsCache(t *testing.T) {
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"foo1:value1"}, hostTags.System)
 	assert.Equal(t, 2, nbCall)
+}
+
+func TestEUDMSystemInfoTags(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		info *systeminfo.SystemInfo
+		want []string
+	}{
+		{name: "unavailable"},
+		{name: "empty", info: &systeminfo.SystemInfo{}},
+		{name: "model only", info: &systeminfo.SystemInfo{Identifier: "MacBookPro18,3"}, want: []string{"device_model:MacBookPro18,3"}},
+		{name: "serial without model", info: &systeminfo.SystemInfo{SerialNumber: "TEST123"}, want: []string{"serial_number:TEST123"}},
+		{name: "model and serial", info: &systeminfo.SystemInfo{Identifier: "MacBookPro18,3", SerialNumber: "TEST123"}, want: []string{"device_model:MacBookPro18,3", "serial_number:TEST123"}},
+		{name: "whitespace serial", info: &systeminfo.SystemInfo{SerialNumber: " \t\r\n "}},
+		{name: "sanitize serial", info: &systeminfo.SystemInfo{SerialNumber: "  TEST 123\tABC  "}, want: []string{"serial_number:TEST_123_ABC"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, eudmSystemInfoTags(tc.info))
+		})
+	}
 }
