@@ -29,8 +29,9 @@ type MountNode struct {
 	MountFlags uint32
 
 	// InBaseNamespace is true when this mount was observed in the workload's base
-	// (first-seen) mount namespace. Mounts seen only in later namespaces (e.g.
-	// after a container restart) have it false.
+	// mount namespace (the container's root/init mount namespace, pinned at seed
+	// time). Mounts seen only in another mount namespace (e.g. after a process
+	// setns'd into a different one) have it false.
 	InBaseNamespace bool
 }
 
@@ -56,19 +57,27 @@ func NewMountNode(mountPoint, mountRoot, filesystem string, mountFlags uint32, g
 	return node
 }
 
+// SetBaseMountNamespaceID pins the workload's base mount namespace inode. The base
+// namespace is the one snapshotted when the profile is first seeded (the seeding
+// workload's mount namespace), so it is set once: a zero nsID or a call made after
+// the base is already set is ignored. This keeps concurrent or restarted instances
+// of the same image from reassigning the base to a later, ephemeral namespace.
+func (at *ActivityTree) SetBaseMountNamespaceID(nsID uint32) {
+	if at.baseMountNamespaceID == 0 && nsID != 0 {
+		at.baseMountNamespaceID = nsID
+	}
+}
+
 // InsertMount inserts a mount into the workload's deduplicated mount table.
 // Mounts observed across different mount namespaces are collapsed into a single
 // union, deduplicating on (mount point, filesystem, mount flags); the
 // mount-namespace inode is only used to flag whether the mount belongs to the
-// base (first-seen) namespace. A matching entry refreshes its mount root
-// (last-writer-wins, so per-run root paths don't grow the table) and bumps its
-// last-seen timestamp (and gains the base flag if seen in the base namespace);
-// a difference in flags is recorded as a new entry. Returns true if a new node
-// was created.
+// base namespace pinned by SetBaseMountNamespaceID. A matching entry refreshes
+// its mount root (last-writer-wins, so per-run root paths don't grow the table)
+// and bumps its last-seen timestamp (and gains the base flag if seen in the base
+// namespace); a difference in flags is recorded as a new entry. Returns true if
+// a new node was created.
 func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesystem string, mountFlags uint32, imageTagID uint64, generationType NodeGenerationType, timestamp time.Time, dryRun bool) bool {
-	if !dryRun && at.baseMountNamespaceID == 0 && nsID != 0 {
-		at.baseMountNamespaceID = nsID
-	}
 	isBase := nsID != 0 && nsID == at.baseMountNamespaceID
 
 	for _, mn := range at.Mounts {

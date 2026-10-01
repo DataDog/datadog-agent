@@ -1186,15 +1186,39 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	return true
 }
 
+func baseMountNamespaceFromEvent(event *model.Event) uint32 {
+	pc := event.ProcessContext
+	if pc == nil {
+		return 0
+	}
+
+	if containerID := pc.ContainerContext.ContainerID; containerID != "" {
+		root := &pc.Process
+		for ancestor := pc.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
+			if ancestor.ContainerContext.ContainerID != containerID {
+				break
+			}
+			root = &ancestor.Process
+		}
+		if root.MntNS != 0 {
+			return root.MntNS
+		}
+	}
+
+	return pc.Process.MntNS
+}
+
 // seedMountsForWorkload seeds a profile's mount table from the mount resolver's
-// current view of the workload's mount namespace. This captures the workload's
-// pre-existing mounts (rootfs, binds set up before the profile existed); later
-// changes come from live mount events.
+// current view of the workload's base mount namespace. This captures the
+// workload's pre-existing mounts (rootfs, binds set up before the profile
+// existed); later changes come from live mount events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, event *model.Event) {
-	nsID := event.ProcessContext.Process.MntNS
+	nsID := baseMountNamespaceFromEvent(event)
 	if nsID == 0 {
 		return
 	}
+
+	secprof.SetBaseMountNamespaceID(nsID)
 
 	var mounts []model.Mount
 	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {

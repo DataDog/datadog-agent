@@ -256,7 +256,7 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 		Tags:             make([]string, len(p.tags)),
 		Tree:             activity_tree.ToProto(p.ActivityTree),
 		SecurityContexts: securityContextsToProto(p.SecurityContexts),
-		Mounts:   activity_tree.MountsToProto(p.ActivityTree),
+		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
 	}
 	copy(pad.Tags, p.tags)
 
@@ -371,7 +371,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		Metadata:         mtdt.ToProto(&p.Metadata),
 		ProfileContexts:  make(map[string]*adprotov1.ProfileContext),
 		Tree:             activity_tree.ToProto(p.ActivityTree),
-		Mounts:          activity_tree.MountsToProto(p.ActivityTree),
+		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
 		Selector:         cgroupModel.WorkloadSelectorToProto(&p.selector),
 		Disabled:         !p.isEnabled,
 		SecurityContexts: securityContextsToProto(p.SecurityContexts),

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
@@ -202,6 +203,61 @@ func TestManagerV2_shouldSendAnomalyDetection(t *testing.T) {
 		p := profile.New()
 		require.True(t, p.Metadata.Start.IsZero())
 		assert.True(t, timeBased(time.Hour).shouldSendAnomalyDetection(p, time.Now()))
+	})
+}
+
+func TestBaseMountNamespaceFromEvent(t *testing.T) {
+	newEntry := func(containerID string, mntns uint32) *model.ProcessCacheEntry {
+		e := model.NewProcessCacheEntry()
+		e.Process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
+		e.Process.MntNS = mntns
+		return e
+	}
+
+	newEvent := func(containerID string, mntns uint32, ancestor *model.ProcessCacheEntry) *model.Event {
+		ev := &model.Event{}
+		ev.BaseEvent.ProcessContext = &model.ProcessContext{}
+		ev.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
+		ev.ProcessContext.Process.MntNS = mntns
+		ev.ProcessContext.Ancestor = ancestor
+		return ev
+	}
+
+	t.Run("nil process context yields zero", func(t *testing.T) {
+		assert.Equal(t, uint32(0), baseMountNamespaceFromEvent(&model.Event{}))
+	})
+
+	t.Run("non-container workload falls back to the event process namespace", func(t *testing.T) {
+		ev := newEvent("", 4242, nil)
+		assert.Equal(t, uint32(4242), baseMountNamespaceFromEvent(ev))
+	})
+
+	t.Run("walks past a setns'd process to the container root namespace", func(t *testing.T) {
+		// host process that spawned the container (breaks the walk)
+		host := newEntry("", 1)
+		// container root (PID 1 in the container) holds the base namespace
+		root := newEntry("c1", 100)
+		root.Ancestor = host
+		// an in-container descendant still in the base namespace
+		mid := newEntry("c1", 100)
+		mid.Ancestor = root
+		// the sampled event that seeds the profile has setns'd into another namespace
+		ev := newEvent("c1", 999, mid)
+
+		assert.Equal(t, uint32(100), baseMountNamespaceFromEvent(ev))
+	})
+
+	t.Run("any sampled event in the workload resolves to the same base", func(t *testing.T) {
+		host := newEntry("", 1)
+		root := newEntry("c1", 100)
+		root.Ancestor = host
+
+		// the root process itself as the seeding event
+		evRoot := newEvent("c1", 100, host)
+		// a deep descendant as the seeding event
+		evDeep := newEvent("c1", 100, root)
+
+		assert.Equal(t, baseMountNamespaceFromEvent(evRoot), baseMountNamespaceFromEvent(evDeep))
 	})
 }
 

@@ -100,12 +100,16 @@ Backend interpretation:
 ## Base namespace
 
 Mounts are collapsed into one flat table, but each entry carries a
-`base_namespace` flag. The **base namespace** is the first mount namespace
-observed for the workload (in practice, the namespace snapshotted when the
-profile is first seeded). A mount has `base_namespace = true` if it was ever
-observed in that base namespace, and `false` if it was only ever seen in a later
-namespace (for example, a mount that appears only after a container restart or
-in a differently-configured instance of the same image).
+`base_namespace` flag. The **base namespace** is pinned deterministically to the
+mount namespace snapshotted when the profile is first seeded (the seeding
+workload's mount namespace), not inferred from whichever mount event happens to
+arrive first. It is set once per profile: concurrent or restarted instances of
+the same image do not reassign it, and after a profile is reloaded from disk it
+is re-pinned from the next workload that seeds it. A mount has
+`base_namespace = true` if it was ever observed in that base namespace, and
+`false` if it was only ever seen in a later namespace (for example, a mount that
+appears only after a container restart or in a differently-configured instance of
+the same image).
 
 Backend interpretation: `base_namespace = true` marks the workload's canonical
 mount topology; `false` entries are deviations observed in other instances of

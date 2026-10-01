@@ -90,5 +90,13 @@ func TestSecurityProfileV2Mounts(t *testing.T) {
 		if len(prof.ActivityTree.Mounts) == 0 {
 			t.Fatal("expected the workload mount table to be seeded, got no mounts")
 		}
+
+		// The workload never setns's, so every mount lives in its base mount
+		// namespace and must be flagged accordingly.
+		for _, mn := range prof.ActivityTree.Mounts {
+			if !mn.InBaseNamespace {
+				t.Fatalf("expected mount %q to be flagged in the base namespace", mn.MountPoint)
+			}
+		}
 	})
 }
