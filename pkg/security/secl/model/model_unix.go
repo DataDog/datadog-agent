@@ -627,8 +627,7 @@ type Mount struct {
 	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
 	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
 	NamespaceInode       uint32   `field:"-"`
-	// MountFlags holds the normalized per-mount attributes (canonical MOUNT_ATTR_* layout, see mount_flags.go).
-	MountFlags uint32 `field:"-"`
+	MountFlags           uint32   `field:"flags"` // SECLDoc[flags] Definition:`Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout)`
 }
 
 // MountEvent represents a mount event
