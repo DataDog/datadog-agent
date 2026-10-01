@@ -13,8 +13,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -104,6 +105,9 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err = writeDeploymentID(incoming, operations.DeploymentID); err != nil {
 		return fmt.Errorf("could not write the deployment ID: %w", err)
 	}
+	if err = tree.Finish(ctx); err != nil {
+		return err
+	}
 	return link.Materialize(incoming)
 }
 
@@ -177,15 +181,31 @@ func readDeploymentID(dir string) (string, error) {
 }
 
 // setFileOwnershipAndPermissions sets the ownership and permissions for a file based on its
-// configFileSpec. If the account doesn't exist (e.g. in tests) or the process doesn't have
-// permission to change ownership, the function logs a warning and continues without failing.
+// configFileSpec, through a handle that refuses to resolve to anything but the file itself. If the
+// account doesn't exist (e.g. in tests) or the process doesn't have permission to change
+// ownership, the function logs a warning and continues without failing.
 func setFileOwnershipAndPermissions(ctx context.Context, root *os.Root, path string, spec *configFileSpec) error {
+	f, err := root.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return fmt.Errorf("error opening %s: %w", path, err)
+	}
+	defer f.Close()
 	if spec.mode != 0 {
-		if err := root.Chmod(path, spec.mode); err != nil {
+		if err := f.Chmod(spec.mode); err != nil {
 			return fmt.Errorf("error setting file permissions for %s: %w", path, err)
 		}
 	}
-	if err := file.Chown(ctx, filepath.Join(root.Name(), path), spec.owner, spec.group); err != nil {
+	uid, err := user.GetUserID(ctx, spec.owner)
+	if err != nil {
+		log.Warnf("error setting file ownership for %s: %v", path, err)
+		return nil
+	}
+	gid, err := user.GetGroupID(ctx, spec.group)
+	if err != nil {
+		log.Warnf("error setting file ownership for %s: %v", path, err)
+		return nil
+	}
+	if err := f.Chown(uid, gid); err != nil {
 		log.Warnf("error setting file ownership for %s: %v", path, err)
 	}
 	return nil
