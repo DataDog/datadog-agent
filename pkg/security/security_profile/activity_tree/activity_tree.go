@@ -191,16 +191,9 @@ type ActivityTree struct {
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
 
-	Mounts []*MountNode
-	// mountIndex maps a mount's dedup key to its node so InsertMount is O(1)
-	// instead of scanning Mounts (seeding a namespace is otherwise quadratic).
+	Mounts     []*MountNode
 	mountIndex map[mountNodeKey]*MountNode
 
-	// baseMountNamespaceIDs is the set of base mount namespace inodes, one per
-	// container linked to the profile (refcounted so instances sharing an inode
-	// balance add/remove). It anchors the InBaseNamespace flag on mount nodes and
-	// is runtime state only (inodes are ephemeral, so they are not persisted; the
-	// set is repopulated as workloads re-link after a reload).
 	baseMountNamespaceIDs map[uint32]int
 
 	imageTagIDs []imageTagEntry
@@ -602,8 +595,6 @@ func isContainerRuntimePrefix(basename string) bool {
 }
 
 // ValidRootProcess returns the process this entry would be rooted on in the tree
-// (walking ancestors with GetNextAncestorBinaryOrArgv0 and skipping container
-// runtime processes via isValidRootNode), or nil if there is none.
 func ValidRootProcess(entry *model.ProcessContext) *model.ProcessContext {
 	var branch []*model.ProcessContext
 	for cur := entry; cur != nil; {
@@ -1155,9 +1146,16 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	}
 	at.ProcessNodes = newProcessNodes
 
+	newMounts := at.Mounts[:0]
 	for _, mn := range at.Mounts {
-		mn.EvictImageTag(imageTagID)
+		if mn.EvictImageTag(imageTagID) {
+			removedBytes += mn.size()
+			delete(at.mountIndex, mountNodeKey{mountPoint: mn.MountPoint, filesystem: mn.Filesystem, mountFlags: mn.MountFlags})
+			continue
+		}
+		newMounts = append(newMounts, mn)
 	}
+	at.Mounts = newMounts
 
 	at.removeImageTag(imageTag)
 	at.Stats.SizeBytes -= removedBytes
