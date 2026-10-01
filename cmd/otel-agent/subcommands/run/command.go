@@ -26,7 +26,6 @@ import (
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -274,7 +273,10 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfigdef.Component, error) {
+		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, h hostnameinterface.Component, _ configsync.Component) (traceconfigdef.Component, error) {
+			if err := setStandaloneTraceHostname(ctx, cfg, h); err != nil {
+				return nil, err
+			}
 			// TODO: this would be much better if we could leverage traceconfig.Module
 			//       Must add a new parameter to traceconfig.Module to handle this.
 			provides, err := traceconfigimpl.NewComponent(traceconfigimpl.Requires{
@@ -311,7 +313,7 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally
 		secretsfx.Module(),
 		// Resolve hostname locally; no core agent to ask
-		hostnameimpl.Module(),
+		fx.Provide(newStandaloneHostname),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
 		// force-disabled in agent_config.go (agent_ipc.config_refresh_interval=0 via
 		// SourceAgentRuntime) so it can't be re-enabled by an env var meant for a

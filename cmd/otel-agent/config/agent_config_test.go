@@ -340,6 +340,21 @@ func (suite *ConfigTestSuite) TestStandaloneModeIgnoresCoreAgentIPCEnvVars() {
 	assert.Equal(t, 0, c.GetInt("agent_ipc.config_refresh_interval"))
 }
 
+// TestStandaloneContainerizedKeepsTraceReceiverDisabled checks that running the
+// standalone image in a Kubernetes pod (DOCKER_DD_AGENT is set by the image) doesn't
+// open the trace-agent HTTP receiver, which would otherwise listen on 0.0.0.0.
+func (suite *ConfigTestSuite) TestStandaloneContainerizedKeepsTraceReceiverDisabled() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("DOCKER_DD_AGENT", "true")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
+
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config.yaml"})
+	require.NoError(t, err)
+
+	assert.False(t, c.GetBool("apm_config.receiver_enabled"))
+}
+
 func (suite *ConfigTestSuite) TestAgentConfigSetAPMFeaturesFromDatadogYaml() {
 	t := suite.T()
 	fileName := "testdata/config_default.yaml"
