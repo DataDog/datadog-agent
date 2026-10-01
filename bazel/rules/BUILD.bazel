@@ -7,11 +7,11 @@ sh_binary(
     args = select({
         "@platforms//os:linux": [
             "--patchelf",
-            "$(location @patchelf)",
+            "$(rootpath @patchelf)",
         ],
         "@platforms//os:macos": [
             "--install-name-tool",
-            "$(location @llvm_toolchain_llvm//:install-name-tool)",
+            "$(rootpath @llvm_toolchain_llvm//:install-name-tool)",
         ],
         "//conditions:default": [],
     }),

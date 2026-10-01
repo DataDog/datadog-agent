@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net"
 	"net/netip"
@@ -466,6 +467,16 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.CapabilitiesMonitoringPeriod = 1 * time.Second
 	}
 
+	// without these capable and netlink_capable hooks, the initial/host user ns capabilities fields stay empty
+	// which reads like a process that uses no capability in this user namespace rather than missing data, so better warn about this
+	if p.config.Probe.CapabilitiesMonitoringEnabled {
+		if missing, err := ddebpf.VerifyKernelFuncs("capable", "netlink_capable"); err != nil {
+			seclog.Warnf("Unable to tell whether capabilities monitoring can report usage of the initial user namespace: %v", err)
+		} else if len(missing) > 0 {
+			seclog.Warnf("Capabilities monitoring cannot report which capabilities were used in the initial user namespace on this kernel: %v not available", slices.Sorted(maps.Keys(missing)))
+		}
+	}
+
 	return nil
 }
 
@@ -502,9 +513,12 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", p.kernelVersion.OsReleasePath))
 		}
 
+		// securityfs may not be mounted explicitly, but can still be reachable through the host root mount
 		securityFSPath := filepath.Join(utilkernel.SysFSRoot(), "kernel/security")
 		if mounted, _ := mountinfo.Mounted(securityFSPath); !mounted {
-			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", securityFSPath))
+			if mounted, _ := mountinfo.Mounted(utilkernel.SecurityFSHostRootPath); !mounted {
+				err = multierror.Append(err, fmt.Errorf("neither %s nor %s seem to be a mountpoint", securityFSPath, utilkernel.SecurityFSHostRootPath))
+			}
 		}
 
 		capsEffective, _, capErr := utils.CapEffCapEprm(p.pid)
@@ -643,7 +657,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
 		if err != nil {
 			return err
 		}
@@ -2105,6 +2119,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// is this thread-safe?
 		event.ProcessCacheEntry.CapsAttempted |= event.CapabilitiesUsage.Attempted
 		event.ProcessCacheEntry.CapsUsed |= event.CapabilitiesUsage.Used
+		event.ProcessCacheEntry.CapsAttemptedHostUserNS |= event.CapabilitiesUsage.AttemptedHostUserNS
+		event.ProcessCacheEntry.CapsUsedHostUserNS |= event.CapabilitiesUsage.UsedHostUserNS
 	case model.PrCtlEventType:
 		if !p.regularUnmarshalEvent(&event.PrCtl, eventType, offset, dataLen, data) {
 			return false
@@ -2539,9 +2555,9 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 func (p *EBPFProbe) isNeededForEventSampling(eventType eval.EventType) bool {
 	switch eventType {
 	case model.FileOpenEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingOpenEnabled
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)
 	case model.ConnectEventType.String():
-		return p.config.RuntimeSecurity.EventSamplingConnectEnabled
+		return p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)
 	}
 	return false
 }
@@ -2558,7 +2574,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 		return p.probe.IsNetworkRawPacketEnabled()
 	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
-	case model.SyscallsEventType.String():
+	case model.SysCtlEventType.String():
 		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
 	case model.OTelProcessCtxEventType.String():
 		return p.config.Probe.SpanTrackingEnabled
@@ -2628,21 +2644,12 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 		activatedProbes = append(activatedProbes, p.onDemandManager.selectProbes())
 	}
 
-	if needRawSyscalls {
+	// Attach raw_syscalls tracepoints once when any consumer needs them.
+	if needRawSyscalls ||
+		(p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
+		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
+		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-	} else {
-		// ActivityDumps
-		if p.config.RuntimeSecurity.ActivityDumpEnabled {
-			if slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType) {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-			}
-		}
-		// SecurityProfiles
-		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-			if slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
-			}
-		}
 	}
 
 	// Print the list of unique probe identification IDs that are registered
@@ -2866,10 +2873,12 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// so we remove all dentry entries belonging to the mountID.
 	p.Resolvers.DentryResolver.DelCacheEntriesForMountID(m.MountID)
 
-	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType && ev.GetEventType() != model.PivotRootEventType {
-		// Resolve mount point
-		if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
-			return fmt.Errorf("failed to set mount point: %w", err)
+	if !m.Detached {
+		// Moved mounts resolve their mount point in InsertMoved
+		if ev.GetEventType() != model.FileMoveMountEventType && ev.GetEventType() != model.PivotRootEventType {
+			if err := p.Resolvers.PathResolver.SetMountPoint(ev, m); err != nil {
+				return fmt.Errorf("failed to set mount point: %w", err)
+			}
 		}
 
 		// Resolve root
@@ -3324,7 +3333,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingOpenEnabled),
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType)),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_rate",
@@ -3336,7 +3345,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_connect_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingConnectEnabled),
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType)),
 		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_connect_rate",
@@ -3351,8 +3360,28 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileSampleRefreshPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
+			Name:  "sample_entry_ttl_ns",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled) * uint64(p.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout.Nanoseconds()),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType)),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_rate",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsRate),
+		},
+		manager.ConstantEditor{
+			Name:  "event_sampling_syscalls_threshold",
+			Value: uint64(p.config.RuntimeSecurity.EventSamplingSyscallsThreshold),
+		},
+		manager.ConstantEditor{
 			Name:  "dynamic_sampling_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingDynamicEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "security_profile_v2_enabled",
+			Value: utils.BoolTouint64(p.config.RuntimeSecurity.SecurityProfileV2Enabled),
 		},
 		manager.ConstantEditor{
 			Name: "ring_buffer_size",
@@ -3456,8 +3485,9 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
 		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
-		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingOpenEnabled,
-		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
+		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
+		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
+		EventSamplingSyscallsEnabled:  p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType),
 		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
@@ -3536,17 +3566,11 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
-	if p.config.RuntimeSecurity.ActivityDumpEnabled {
-		if slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType) {
-			// Add syscall monitor probes
-			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
-		}
-	}
-	if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-		if slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType) {
-			// Add syscall monitor probes
-			p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
-		}
+	// Attach raw_syscalls tracepoints once when any consumer needs them.
+	if (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
+		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)) ||
+		p.config.RuntimeSecurity.EventSamplingEnabledFor(model.SyscallsEventType) {
+		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
 
@@ -3656,6 +3680,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 	if err != nil {
 		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
+	}
+
+	// without these offsets, capability checks made under overridden or foreign credentials pass for the task's own
+	if p.config.Probe.CapabilitiesMonitoringEnabled && (!p.constantOffsets.IsPresent(constantfetch.OffsetNameTaskStructCred) || !p.constantOffsets.IsPresent(constantfetch.OffsetNameTaskStructRealCred)) {
+		seclog.Warnf("The capabilities monitoring feature of CWS requires the task_struct cred and real_cred offsets, setting event_monitoring_config.capabilities_monitoring.enabled to false")
+		p.config.Probe.CapabilitiesMonitoringEnabled = false
 	}
 
 	resolversOpts := resolvers.Opts{
@@ -4177,7 +4207,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
-				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
+				seclog.Infof("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
 		case action.Def.Kill != nil:

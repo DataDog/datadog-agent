@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 const (
@@ -43,13 +44,14 @@ type logCountBucketInterval struct {
 }
 
 type logCountBucketSeries struct {
-	namespace string
-	name      string
-	host      string
-	tags      []string
-	seriesKey uint64
-	context   *observerdef.MetricContext
-	anchor    int64
+	namespace  string
+	name       string
+	host       string
+	tags       tagset.CompositeTags
+	seriesKey  uint64
+	context    observerdef.MetricContext
+	hasContext bool
+	anchor     int64
 	// lastObserved is the latest real log timestamp. Synthetic zero buckets do
 	// not advance it, so storage can evict genuinely idle series first.
 	lastObserved int64
@@ -96,7 +98,7 @@ func (b *materializedLogCountBucketizer) observe(
 	metric observerdef.MetricOutput,
 	host string,
 	timestamp int64,
-	tags []string,
+	tags tagset.CompositeTags,
 	seriesKey uint64,
 ) bool {
 	state := b.series[seriesKey]
@@ -117,9 +119,10 @@ func (b *materializedLogCountBucketizer) observe(
 			namespace:    namespace,
 			name:         metric.Name,
 			host:         host,
-			tags:         append([]string(nil), tags...),
+			tags:         tags,
 			seriesKey:    seriesKey,
 			context:      metric.Context,
+			hasContext:   metric.HasContext,
 			anchor:       timestamp,
 			lastObserved: timestamp,
 			storageRef:   -1,
@@ -128,8 +131,9 @@ func (b *materializedLogCountBucketizer) observe(
 		b.series[seriesKey] = state
 	} else {
 		state.lastObserved = max(state.lastObserved, timestamp)
-		if metric.Context != nil {
+		if metric.HasContext {
 			state.context = metric.Context
+			state.hasContext = true
 		}
 	}
 
@@ -158,7 +162,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 		for _, interval := range state.intervals {
 			nextEnd := interval.firstEnd
 			for nextEnd <= interval.lastEnd && nextEnd <= upTo {
-				result := storage.AddWithKeyAndHost(
+				result := storage.AddWithKeyAndHostComposite(
 					state.namespace,
 					state.name,
 					state.host,
@@ -167,7 +171,7 @@ func (b *materializedLogCountBucketizer) flush(storage *timeSeriesStorage, upTo 
 					state.tags,
 					state.seriesKey,
 				)
-				if state.context != nil && result.Ref >= 0 {
+				if state.hasContext && result.Ref >= 0 {
 					storage.SetContext(result.Ref, state.context)
 				}
 				if result.Ref >= 0 {

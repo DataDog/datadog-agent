@@ -22,7 +22,7 @@ package_metadata(
     ],
     purl = purl_for_generic(
         download_url = "https://github.com/SELinuxProject/selinux/releases/download/{version}/libselinux-{version}.tar.gz",
-        package = "attr",
+        package = "libselinux",
         version = VERSION,
     ),
 )
@@ -80,7 +80,7 @@ cc_shared_library(
     ],
     user_link_flags = [
         "-Wl,-soname=libselinux.so",
-        "-Wl,--version-script=$(location src/libselinux.map)",
+        "-Wl,--version-script=$(execpath src/libselinux.map)",
     ],
     visibility = ["//visibility:public"],
     deps = [

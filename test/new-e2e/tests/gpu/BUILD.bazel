@@ -26,6 +26,7 @@ go_library(
         "//test/e2e-framework/components/datadog/agentparams",
         "//test/e2e-framework/components/datadog/kubernetesagentparams",
         "//test/e2e-framework/components/docker",
+        "//test/e2e-framework/components/kubernetes",
         "//test/e2e-framework/components/kubernetes/nvidia",
         "//test/e2e-framework/components/os",
         "//test/e2e-framework/components/remote",
