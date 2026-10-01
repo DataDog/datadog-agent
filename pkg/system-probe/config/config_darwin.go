@@ -7,7 +7,15 @@
 
 package config
 
-import "github.com/DataDog/datadog-agent/pkg/config/model"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+)
+
+// The Agent's configuration lives under /opt/datadog-agent/etc on macOS, not /etc/datadog-agent.
+func init() {
+	defaultConfigDir = defaultpaths.GetDefaultConfPath()
+}
 
 // eBPFMapPreallocationSupported returns false on non bpf systems.
 func eBPFMapPreallocationSupported() bool {
