@@ -224,10 +224,11 @@ func (s *linuxTestSuite) TestZombieProcessAggregation() {
 		cleanupFixture()
 	})
 	require.NoError(t, s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	s.Env().RemoteHost.MustExecute("mkdir -p " + zombieFixtureStateDir)
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
-		"mkdir -p %[1]s && nohup python3 %[2]s %[1]s >%[1]s/fixture.log 2>&1 </dev/null &",
-		zombieFixtureStateDir,
+		"nohup python3 %[1]s %[2]s >%[2]s/fixture.log 2>&1 </dev/null &",
 		zombieFixtureScriptPath,
+		zombieFixtureStateDir,
 	))
 	parentPID := waitForPID(zombieFixtureStateDir + "/parent.pid")
 
