@@ -7,7 +7,7 @@ use anyhow::Result;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use windows_sys::Win32::Foundation::{
-    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, GetLastError, HANDLE,
+    CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, GENERIC_READ, GetLastError, HANDLE,
     INVALID_HANDLE_VALUE, NO_ERROR, SetLastError, TRUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
@@ -17,8 +17,8 @@ use windows_sys::Win32::Storage::FileSystem::{
 };
 use windows_sys::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, CTRL_BREAK_EVENT, FreeConsole, GenerateConsoleCtrlEvent,
-    GetConsoleCP, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
-    SetConsoleCtrlHandler, SetStdHandle,
+    GetConsoleCP, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE,
+    STD_OUTPUT_HANDLE, SetConsoleCtrlHandler, SetStdHandle,
 };
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -76,7 +76,7 @@ impl InheritSource {
             return Self::None;
         }
         let handle = unsafe { GetStdHandle(kind) };
-        if !survives_console_churn(handle) {
+        if is_console_handle(handle) {
             return Self::Console;
         }
         match duplicate_for_self(handle) {
@@ -151,26 +151,65 @@ fn startup_stdio() -> &'static StartupStdio {
     })
 }
 
-/// True when a duplicate of `handle` is worth keeping, meaning console churn cannot
-/// invalidate it. Only a disk file or a pipe qualifies.
+/// True when `handle` belongs to a console, so that pinning a duplicate of it would be
+/// pinning something `FreeConsole` closes.
 ///
-/// Everything else is treated as console backed, including the character devices that are
-/// not consoles, because the two mistakes do not cost the same: routing a child's output
-/// to the console when it should have gone elsewhere is a misroute, while pinning a
-/// console handle is the dead or recycled handle this module exists to avoid.
+/// `GetConsoleMode` is the question to ask, but it answers only for a handle carrying
+/// `GENERIC_READ`, and a parent is free to hand its child a write-only `CONOUT$`. So a
+/// handle that cannot answer for itself is asked again through a duplicate that can read.
 ///
-/// `GetFileType` is the only test that holds whatever access the handle carries.
-/// `GetConsoleMode` needs `GENERIC_READ`, and a parent is free to hand its child a
-/// write-only `CONOUT$`.
-fn survives_console_churn(handle: HANDLE) -> bool {
-    matches!(
+/// When even that fails the answer is yes, because the two mistakes do not cost the same:
+/// calling a redirection console backed sends a child's output to the console, a
+/// misroute, while calling a console handle redirected is the dead or recycled handle
+/// this module exists to avoid.
+fn is_console_handle(handle: HANDLE) -> bool {
+    // Settles a disk file or a pipe without a duplicate, whatever access it carries.
+    if matches!(
         unsafe { GetFileType(handle) },
         FILE_TYPE_DISK | FILE_TYPE_PIPE
-    )
+    ) {
+        return false;
+    }
+    if console_mode_readable(handle) {
+        return true;
+    }
+    match duplicate_for_self_with_access(handle, GENERIC_READ) {
+        Some(readable) => {
+            let answer = console_mode_readable(readable);
+            unsafe { CloseHandle(readable) };
+            answer
+        }
+        None => true,
+    }
 }
 
-/// A private duplicate of `handle`, or `None` when it cannot be taken.
+fn console_mode_readable(handle: HANDLE) -> bool {
+    let mut mode = 0u32;
+    unsafe { GetConsoleMode(handle, &mut mode) != 0 }
+}
+
+/// A private duplicate of `handle` carrying the same access, or `None` when it cannot be
+/// taken.
 fn duplicate_for_self(handle: HANDLE) -> Option<HANDLE> {
+    let duplicate = duplicate_for_self_with_access(handle, 0);
+    if duplicate.is_none() {
+        log::warn!(
+            "DuplicateHandle(std handle) failed: {}, spawns will not inherit it",
+            std::io::Error::last_os_error()
+        );
+    }
+    duplicate
+}
+
+/// A private duplicate of `handle`. `access` of 0 means the source's own access, which is
+/// what `DUPLICATE_SAME_ACCESS` selects; anything else is checked against the object, so
+/// it can ask for a right the source handle does not carry.
+fn duplicate_for_self_with_access(handle: HANDLE, access: u32) -> Option<HANDLE> {
+    let options = if access == 0 {
+        DUPLICATE_SAME_ACCESS
+    } else {
+        0
+    };
     let mut dup: HANDLE = std::ptr::null_mut();
     let ok = unsafe {
         DuplicateHandle(
@@ -178,19 +217,12 @@ fn duplicate_for_self(handle: HANDLE) -> Option<HANDLE> {
             handle,
             GetCurrentProcess(),
             &mut dup,
+            access,
             0,
-            0,
-            DUPLICATE_SAME_ACCESS,
+            options,
         )
     };
-    if ok == 0 {
-        log::warn!(
-            "DuplicateHandle(std handle) failed: {}, spawns will not inherit it",
-            std::io::Error::last_os_error()
-        );
-        return None;
-    }
-    Some(dup)
+    if ok == 0 { None } else { Some(dup) }
 }
 
 /// The handle an `inherit` spawn should duplicate for `kind`, if any.
@@ -519,7 +551,7 @@ pub fn is_crash_exit(status: &std::process::ExitStatus) -> bool {
 mod tests {
     use super::*;
     use windows_sys::Win32::Foundation::CompareObjectHandles;
-    use windows_sys::Win32::System::Console::{AllocConsole, GetConsoleMode};
+    use windows_sys::Win32::System::Console::AllocConsole;
     use windows_sys::Win32::System::Pipes::CreatePipe;
 
     /// Lives in the lib target rather than `tests/e2e`, which is Linux-only, so
@@ -559,11 +591,17 @@ mod tests {
     }
 
     fn open_nul() -> HANDLE {
+        open_nul_with_access(FILE_GENERIC_READ | FILE_GENERIC_WRITE)
+    }
+
+    /// `NUL` with exactly the access asked for, so a test can hold the write-only
+    /// character device a parent is free to pass down as a child's stdout.
+    fn open_nul_with_access(access: u32) -> HANDLE {
         let nul = wide::null_terminated("NUL");
         let handle = unsafe {
             CreateFileW(
                 nul.as_ptr(),
-                FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+                access,
                 FILE_SHARE_READ | FILE_SHARE_WRITE,
                 std::ptr::null(),
                 OPEN_EXISTING,
@@ -650,11 +688,9 @@ mod tests {
     }
 
     /// Whether a handle this test opened with read access is a console that is still
-    /// alive. Production code cannot ask this way, since `GetConsoleMode` answers only
-    /// for a handle carrying `GENERIC_READ`.
+    /// alive. `GetConsoleMode` fails once `FreeConsole` has closed the console.
     fn is_live_console(handle: HANDLE) -> bool {
-        let mut mode = 0u32;
-        unsafe { GetConsoleMode(handle, &mut mode) != 0 }
+        console_mode_readable(handle)
     }
 
     /// Redirected stdio is pinned: a file or a pipe survives console churn, so the
@@ -760,6 +796,37 @@ mod tests {
         assert!(
             !pinned,
             "a console handle the supervisor cannot read from must not be pinned"
+        );
+    }
+
+    /// A character device that is not a console, `NUL` here, is a redirection like any
+    /// other and console churn cannot touch it. Deciding on `GetFileType` alone would
+    /// lump it in with consoles and send a child's output to the terminal instead, which
+    /// is not what whoever redirected the supervisor asked for.
+    #[test]
+    fn write_only_character_device_is_pinned() {
+        let _lock = console_lock();
+        let slots = StdHandleSlots::capture();
+
+        let nul = open_nul_with_access(FILE_GENERIC_WRITE);
+        set_std_handle(STD_OUTPUT_HANDLE, nul);
+        let source = InheritSource::capture(STD_OUTPUT_HANDLE);
+
+        let resolved = source.resolve();
+        let kept_the_device = resolved
+            .as_ref()
+            .is_some_and(|h| unsafe { CompareObjectHandles(h.raw(), nul) } != 0);
+
+        drop(resolved);
+        slots.restore();
+        if let InheritSource::Pinned(duplicate) = source {
+            close(duplicate);
+        }
+        close(nul);
+
+        assert!(
+            kept_the_device,
+            "a redirection to a character device must be inherited, not reopened as a console"
         );
     }
 
