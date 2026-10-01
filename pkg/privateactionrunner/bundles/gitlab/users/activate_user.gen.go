@@ -39,7 +39,7 @@ func (h *ActivateUserHandler) Run(
 		return nil, err
 	}
 
-	err = git.Users.ActivateUser(inputs.UserId)
+	_, err = git.Users.ActivateUser(inputs.UserId)
 	if err != nil {
 		return nil, err
 	}

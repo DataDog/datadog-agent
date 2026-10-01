@@ -9,6 +9,7 @@ package admission
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -200,6 +201,28 @@ func TestHandleBodyLimits(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandlePassesRequestContextToWebhook(t *testing.T) {
+	s := newTestServer(t)
+	var webhookContext context.Context
+	s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(request *Request) *admiv1.AdmissionResponse {
+		webhookContext = request.Context
+		return &admiv1.AdmissionResponse{Allowed: true}
+	}, nil, nil)
+
+	body := bytes.NewReader([]byte(`{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","request":{"uid":"test-uid"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/injectconfig", body)
+	request.Header.Set("Content-Type", jsonContentType)
+	requestContext, cancel := context.WithCancel(request.Context())
+	request = request.WithContext(requestContext)
+	response := httptest.NewRecorder()
+
+	s.mux.ServeHTTP(response, request)
+	require.NotNil(t, webhookContext)
+	cancel()
+
+	assert.ErrorIs(t, webhookContext.Err(), context.Canceled)
 }
 
 func TestHandleBodyLimitAppliesToEveryRoute(t *testing.T) {

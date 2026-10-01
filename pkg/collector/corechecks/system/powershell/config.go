@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // defaultTimeout is the per-run timeout, in seconds, applied to each cmdlet

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	awsFakeintake "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -26,10 +27,9 @@ import (
 )
 
 const (
-	// minHelmChartVersion is the earliest Datadog chart release that includes PAR split mode
-	// (helm-charts PR #2904). Drop this override once the e2e framework's global HelmVersion
-	// default is bumped to at least this value.
-	minHelmChartVersion = "3.243.0"
+	// minHelmChartVersion is the earliest Datadog chart release that configures both the
+	// Core Agent and PAR sidecar for split mode (helm-charts PRs #2904 and #2918).
+	minHelmChartVersion = "3.245.1"
 
 	systemServiceOverlap        = "par-e2e.service"
 	systemServiceBackendOnly    = "par-e2e-backend-only.service"
@@ -56,6 +56,9 @@ datadog:
 agents:
   useHostNetwork: true
   containers:
+    agent:
+      envDict:
+        DD_PRIVATE_ACTION_RUNNER_URN: "urn:dd:apps:on-prem-runner:us1:42:core-only-runner"
     privateActionRunner:
       envDict:
         DD_HOSTNAME: "par-rshell-e2e"
@@ -89,7 +92,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 			}
 
 			// 2. Provision EC2 VM
-			host, err := ec2.NewVM(awsEnv, name)
+			host, err := ec2.NewVM(awsEnv, name, ec2.WithOS(os.UbuntuKindDefault))
 			if err != nil {
 				return fmt.Errorf("ec2.NewVM: %w", err)
 			}
@@ -121,13 +124,14 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 			}
 
 			// 4. Plant allowed and operator-blocked test data on the Kind node.
-			_, err = host.OS.Runner().Command(
+			plantTestData, err := host.OS.Runner().Command(
 				awsEnv.CommonNamer().ResourceName("plant-testdata"),
 				&command.Args{
 					Create: pulumi.Sprintf(
 						`kind get nodes --name %s | xargs -I{} docker exec {} bash -c "mkdir -p /var/log/par-e2e-allowed /var/log/par-e2e-blocked && echo 'PAR_E2E_VALUE=hello_from_rshell' > /var/log/par-e2e-allowed/testdata.txt && echo 'PAR_E2E_BLOCKED_VALUE=operator_path_must_block' > /var/log/par-e2e-blocked/testdata.txt"`,
 						kindCluster.ClusterName,
 					),
+					Triggers: pulumi.Array{kindCluster.KubeConfig},
 				},
 				utils.PulumiDependsOn(kindCluster),
 			)
@@ -151,6 +155,7 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string, splitEnabled bool) provi
 				kubernetesagentparams.WithClusterName(kindCluster.ClusterName),
 				kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}),
 				kubernetesagentparams.WithHelmChartVersion(minHelmChartVersion),
+				kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(plantTestData)),
 			)
 			if err != nil {
 				return fmt.Errorf("helm.NewKubernetesAgent: %w", err)

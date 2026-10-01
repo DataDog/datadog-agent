@@ -42,7 +42,7 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin-8h"
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations). This study
 # evaluates scorer-produced correlation periods only.
-DETECTORS = ["bocpd", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
+DETECTORS = ["bocpd", "holt_residual", "scanmw", "scanwelch", "tukey_biweight"]
 
 # The testbench applies these shorter warmups for interactive and headless
 # evaluation. Eval-generated configs name every detector, so carry the profile
@@ -72,7 +72,6 @@ EXTRACTORS = [
 # reference configurations regardless of the random seed.
 ANCHOR_COMBOS = [
     {"detectors": ["bocpd"], "correlators": ["anomaly_scorer"]},
-    {"detectors": ["bocpd", "rrcf"], "correlators": ["anomaly_scorer"]},
 ]
 
 
@@ -554,12 +553,6 @@ def _sample_component_params(trial, component: str) -> dict:
             # "recovery_points": trial.suggest_int("bocpd.recovery_points", 3, 40),
         },
         "holt_residual": sample_holt_residual,
-        "rrcf": lambda: {
-            # "num_trees": trial.suggest_int("rrcf.num_trees", 20, 200),
-            # "tree_size": trial.suggest_int("rrcf.tree_size", 64, 512),
-            "shingle_size": trial.suggest_int("rrcf.shingle_size", 1, 16),
-            "threshold_sigma": trial.suggest_float("rrcf.threshold_sigma", 0.5, 6.0),
-        },
         "tukey_biweight": sample_tukey_biweight,
         "log_pattern_extractor": lambda: {
             # "disable_optimizations": trial.suggest_categorical(...),

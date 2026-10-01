@@ -93,6 +93,25 @@ const (
 	IMDSOracleCloudProvider = "oracle"
 )
 
+// CredentialSource identifies the endpoint that served an IMDS event
+type CredentialSource uint32
+
+const (
+	// CredentialSourceUnknown is used when the credential endpoint could not be resolved
+	CredentialSourceUnknown CredentialSource = iota
+	// CredentialSourceIMDS is the cloud provider instance metadata service
+	CredentialSourceIMDS
+	// CredentialSourceEKSPodIdentity is the EKS Pod Identity Agent
+	CredentialSourceEKSPodIdentity
+	// CredentialSourceECS is the ECS task credential endpoint
+	CredentialSourceECS
+)
+
+// String returns the SECL representation of the credential source
+func (cs CredentialSource) String() string {
+	return credentialSourceStrings[cs]
+}
+
 // EventSource is the source of the event
 type EventSource = string
 
@@ -391,6 +410,14 @@ var (
 		"EGRESS":  Egress,
 	}
 
+	// CredentialSourceConstants is the list of supported credential sources
+	// generate_constants:Credential sources,Credential sources are the endpoints that can serve cloud credentials.
+	CredentialSourceConstants = map[string]CredentialSource{
+		"IMDS":             CredentialSourceIMDS,
+		"EKS_POD_IDENTITY": CredentialSourceEKSPodIdentity,
+		"ECS":              CredentialSourceECS,
+	}
+
 	// exitCauseConstants is the list of supported Exit causes
 	exitCauseConstants = map[string]sharedconsts.ExitCause{
 		"EXITED":     sharedconsts.ExitExited,
@@ -484,6 +511,7 @@ var (
 	l3ProtocolStrings          = map[L3Protocol]string{}
 	l4ProtocolStrings          = map[L4Protocol]string{}
 	networkDirectionStrings    = map[NetworkDirection]string{}
+	credentialSourceStrings    = map[CredentialSource]string{}
 	networkProtocolTypeStrings = map[NetworkProtocolType]string{}
 	addressFamilyStrings       = map[uint16]string{}
 	tlsVersionStrings          = map[uint16]string{}
@@ -515,6 +543,8 @@ const (
 	ExitReason
 	// ExecveReason means that the event was sent because an execve syscall was detected on a pid with a dirty cache entry
 	ExecveReason
+	// SampleReason means the event carries a workload-profiles-v2 sample first-hit
+	SampleReason
 )
 
 func (r SyscallDriftEventReason) String() string {
@@ -525,6 +555,8 @@ func (r SyscallDriftEventReason) String() string {
 		return "Execve"
 	case ExitReason:
 		return "Exit"
+	case SampleReason:
+		return "Sample"
 	}
 	return "Unknown"
 }
@@ -581,6 +613,13 @@ func initNetworkDirectionContants() {
 	for k, v := range NetworkDirectionConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 		networkDirectionStrings[v] = k
+	}
+}
+
+func initCredentialSourceConstants() {
+	for k, v := range CredentialSourceConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		credentialSourceStrings[v] = k
 	}
 }
 
@@ -686,6 +725,7 @@ func initConstants() {
 	initL4ProtocolConstants()
 	initNetworkProtocolTypeConstants()
 	initNetworkDirectionContants()
+	initCredentialSourceConstants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()

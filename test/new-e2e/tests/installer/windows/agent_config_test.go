@@ -286,25 +286,27 @@ func (s *testAgentConfigSuite) TestConfigUpgradeNewAgents() {
 
 	// Wait for all services to be running
 	// 30*10 -> 300 seconds (5 minutes)
+	// process-agent and system-probe run under dd-procmgr-service, so their legacy SCM
+	// services stay stopped. The drivers still come up, since system-probe loads them.
 	expectedServices := []string{
 		"datadogagent",
-		"datadog-system-probe",
 		"datadog-security-agent",
-		"datadog-process-agent",
+		"dd-procmgr-service",
 		"ddnpm",
 		"ddprocmon",
 	}
 	retryOpts := []backoff.RetryOption{backoff.WithBackOff(backoff.NewConstantBackOff(30 * time.Second)), backoff.WithMaxTries(10)}
-	err = s.WaitForServicesWithBackoff("Running", expectedServices, retryOpts...)
-	s.Require().NoError(err, "Failed waiting for services to start")
+	assertAgentServicesReady := func() {
+		s.Require().NoError(s.WaitForServicesWithBackoff("Running", expectedServices, retryOpts...), "Failed waiting for services to start")
+		s.Require().NoError(s.WaitForServicesWithBackoff("Stopped", []string{"datadog-process-agent", "datadog-system-probe"}, retryOpts...))
+		s.assertManagedByProcmgr(processAgentProcmgrProcess)
+		s.assertManagedByProcmgr(sysprobeProcmgrProcess)
+	}
+	assertAgentServicesReady()
 
 	// Promote config experiment (restarts the services)
 	s.mustPromoteConfigExperiment(config)
-
-	// Wait for all services to be running
-	// 30*10 -> 300 seconds (5 minutes)
-	err = s.WaitForServicesWithBackoff("Running", expectedServices, retryOpts...)
-	s.Require().NoError(err, "Failed waiting for services to start")
+	assertAgentServicesReady()
 }
 
 // TestRevertsConfigExperimentWhenServiceDies tests that the watchdog will revert

@@ -6,7 +6,7 @@
 use std::ptr;
 
 use anyhow::Result;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INSUFFICIENT_BUFFER, HANDLE};
 use windows_sys::Win32::Security::{
     GetLengthSid, GetTokenInformation, LookupAccountSidW, TOKEN_USER, TokenUser,
 };
@@ -100,7 +100,8 @@ fn lookup_account_display(sid: &mut [u8]) -> Result<String> {
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
-        let _ = LookupAccountSidW(
+        // Call with empty name and domain to retrieve their sizes and allocate them once.
+        if LookupAccountSidW(
             ptr::null(),
             sid_ptr,
             ptr::null_mut(),
@@ -108,7 +109,13 @@ fn lookup_account_display(sid: &mut [u8]) -> Result<String> {
             ptr::null_mut(),
             &mut domain_size,
             &mut sid_type,
-        );
+        ) == 0
+        {
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                anyhow::bail!("LookupAccountSidW(size): {err}");
+            }
+        }
 
         let mut name = vec![0u16; name_size as usize];
         let mut domain = vec![0u16; domain_size as usize];

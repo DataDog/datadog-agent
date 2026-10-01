@@ -1,8 +1,9 @@
 """Tests for dd_collect_dependencies and dd_cc_packaged."""
 
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory_bin_action")
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("@rules_testing//lib:analysis_test.bzl", "analysis_test", "test_suite")
@@ -84,11 +85,13 @@ _tree_artifact = rule(
 # Test 1: a cc_shared_library without a dd_cc_packaged wrapper has no
 # DdPackagingInfo, so dd_collect_dependencies produces empty output.
 def _test_no_packaging_info(name):
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_so",
         deps = [":" + name + "_lib"],
     )
@@ -109,11 +112,13 @@ def _test_no_packaging_info_impl(env, target):
 # Test 2: dd_cc_packaged wrapping a cc_shared_library → the rpath-patched .so
 # appears in the dd_collect_dependencies output.
 def _test_so_collected(name):
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_so",
         deps = [":" + name + "_lib"],
     )
@@ -141,15 +146,18 @@ def _test_so_collected_impl(env, target):
 # Test 3: dd_cc_packaged with installed_files → both the patched .so and the
 # extra installed files (headers) appear in the output.
 def _test_installed_files_collected(name):
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_so",
         deps = [":" + name + "_lib"],
     )
-    pkg_files(
+    util.helper_target(
+        pkg_files,
         name = name + "_hdrs",
         srcs = ["testdata/empty.h"],
         prefix = "include",
@@ -182,15 +190,18 @@ def _test_installed_files_collected_impl(env, target):
 # inner_so carries a header in its installed_files.  Collecting from outer_so
 # must surface that header even though outer_so does not directly reference it.
 def _test_transitive_collected(name):
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_inner_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_inner_so",
         deps = [":" + name + "_inner_lib"],
     )
-    pkg_files(
+    util.helper_target(
+        pkg_files,
         name = name + "_inner_hdrs",
         srcs = ["testdata/empty.h"],
         prefix = "include",
@@ -200,11 +211,13 @@ def _test_transitive_collected(name):
         input = ":" + name + "_inner_so",
         installed_files = [":" + name + "_inner_hdrs"],
     )
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_outer_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_outer_so",
         deps = [":" + name + "_outer_lib"],
         dynamic_deps = [":" + name + "_inner_packaged"],
@@ -233,18 +246,20 @@ def _test_transitive_collected_impl(env, target):
     # inner's header, reached transitively via dynamic_deps → input → dynamic_deps
     outputs.contains_predicate(matching.file_basename_contains("empty.h"))
 
-# Test 5: dd_cc_packaged itself has no default outputs.
+# Test 5: dd_cc_packaged's default outputs are the plain, unpatched input.
 #
 # The {name}_patched and {name}_packaged side-targets must NOT be built when
 # another target simply depends on the dd_cc_packaged rule.  They are only
 # materialised at package time, when dd_collect_dependencies explicitly
 # collects them.
-def _test_packaged_has_no_build_outputs(name):
-    cc_library(
+def _test_packaged_default_outputs_are_unpatched(name):
+    util.helper_target(
+        cc_library,
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_so",
         deps = [":" + name + "_lib"],
     )
@@ -254,12 +269,14 @@ def _test_packaged_has_no_build_outputs(name):
     )
     analysis_test(
         name = name,
-        impl = _test_packaged_has_no_build_outputs_impl,
+        impl = _test_packaged_default_outputs_are_unpatched_impl,
         target = name + "_packaged",
     )
 
-def _test_packaged_has_no_build_outputs_impl(env, target):
-    _outputs_of(env, target).contains_exactly([])
+def _test_packaged_default_outputs_are_unpatched_impl(env, target):
+    outputs = _outputs_of(env, target)
+    outputs.contains_predicate(matching.file_extension_in(["so", "dll", "dylib"]))
+    outputs.not_contains_predicate(matching.file_path_matches("*patched/*"))
 
 # Test 6: dd_cc_packaged forwards the unpatched CcSharedLibraryInfo.
 #
@@ -267,11 +284,13 @@ def _test_packaged_has_no_build_outputs_impl(env, target):
 # receive the original (unpatched) .so, not the rpath-patched copy.  The
 # patched copy is only materialised at package time.
 def _test_packaged_forwards_unpatched_so(name):
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_so",
         deps = [":" + name + "_lib"],
     )
@@ -302,7 +321,8 @@ def _test_packaged_forwards_unpatched_so_impl(env, target):
 # so it cannot appear in dd_collect_dependencies.srcs.  The packaged binary is
 # a top-level artifact collected directly via its DdPackagingInfo.
 def _test_cc_binary_collected(name):
-    cc_binary(
+    util.helper_target(
+        cc_binary,
         name = name + "_bin",
         srcs = ["testdata/main.c"],
     )
@@ -331,11 +351,13 @@ def _test_cc_binary_collected_impl(env, target):
 # must not leak through the binary wrapper — consumers of the binary cannot
 # use it as a dynamic_dep.
 def _test_cc_binary_no_cc_shared_library_info(name):
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_so",
         deps = [":" + name + "_lib"],
     )
@@ -343,7 +365,8 @@ def _test_cc_binary_no_cc_shared_library_info(name):
         name = name + "_so_packaged",
         input = ":" + name + "_so",
     )
-    cc_binary(
+    util.helper_target(
+        cc_binary,
         name = name + "_bin",
         srcs = ["testdata/main.c"],
         dynamic_deps = [":" + name + "_so_packaged"],
@@ -371,15 +394,18 @@ def _test_cc_binary_no_cc_shared_library_info_impl(env, target):
 # PackageFilegroupInfo would be accumulated twice, triggering a duplicate-
 # destination error at pkg_rpm / pkg_deb time.
 def _test_diamond_no_duplicates(name):
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_shared_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_shared_so",
         deps = [":" + name + "_shared_lib"],
     )
-    pkg_files(
+    util.helper_target(
+        pkg_files,
         name = name + "_shared_hdrs",
         srcs = ["testdata/empty.h"],
         prefix = "include",
@@ -390,11 +416,13 @@ def _test_diamond_no_duplicates(name):
         installed_files = [":" + name + "_shared_hdrs"],
     )
 
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_left_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_left_so",
         deps = [":" + name + "_left_lib"],
         dynamic_deps = [":" + name + "_shared_packaged"],
@@ -404,11 +432,13 @@ def _test_diamond_no_duplicates(name):
         input = ":" + name + "_left_so",
     )
 
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_right_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_right_so",
         deps = [":" + name + "_right_lib"],
         dynamic_deps = [":" + name + "_shared_packaged"],
@@ -418,11 +448,13 @@ def _test_diamond_no_duplicates(name):
         input = ":" + name + "_right_so",
     )
 
-    cc_library(
+    util.helper_target(
+        cc_library,
         name = name + "_top_lib",
         srcs = ["testdata/empty.c"],
     )
-    cc_shared_library(
+    util.helper_target(
+        cc_shared_library,
         name = name + "_top_so",
         deps = [":" + name + "_top_lib"],
         dynamic_deps = [
@@ -456,16 +488,19 @@ def _test_diamond_no_duplicates_impl(env, target):
 # Test 10: installed_executables treats the dict value as a prefix for both
 # files and TreeArtifacts, so artifacts land under prefix/basename.
 def _test_installed_executables_use_prefix(name):
-    cc_binary(
+    util.helper_target(
+        cc_binary,
         name = name + "_bin",
         srcs = ["testdata/main.c"],
     )
-    native.genrule(
+    util.helper_target(
+        native.genrule,
         name = name + "_file",
         outs = ["installed_executable_file"],
         cmd = "touch $@",
     )
-    _tree_artifact(
+    util.helper_target(
+        _tree_artifact,
         name = name + "_tree",
     )
     dd_cc_packaged(
@@ -489,6 +524,166 @@ def _test_installed_executables_use_prefix_impl(env, target):
         "share/tree_dir",
     ])
 
+# Test 11: a cc_import pointed at a dd_cc_packaged target, mirroring
+# rtloader_dynamic's real _rtloader_shared bridge, surfaces DdPackagingInfo
+# through the aspect's shared_library edge.
+def _test_cc_import_reaches_packaged(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    util.helper_target(
+        cc_import,
+        name = name + "_import",
+        shared_library = ":" + name + "_packaged",
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_import"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_cc_import_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_cc_import_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
+# Test 12: transitive collection through Go rule edges, ending at a real
+# cc_import bridge (mirroring rtloader_dynamic's real shape) rather than a
+# fake stand-in.
+#
+# go_bin --[embed]--> go_lib_a --[deps]--> go_lib_b --[cdeps]--> bridge (cc_library)
+#   --[deps]--> import (cc_import) --[shared_library]--> packaged (dd_cc_packaged)
+def _test_go_chain_reaches_packaged(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    util.helper_target(
+        cc_import,
+        name = name + "_import",
+        shared_library = ":" + name + "_packaged",
+    )
+    util.helper_target(
+        cc_library,
+        name = name + "_bridge",
+        deps = [":" + name + "_import"],
+    )
+    util.helper_target(
+        go_library,
+        name = name + "_go_lib_b",
+        srcs = ["testdata/empty.go"],
+        cgo = True,
+        importpath = "example.com/dd_packaging_test_go_chain_b",
+        cdeps = [":" + name + "_bridge"],
+    )
+    util.helper_target(
+        go_library,
+        name = name + "_go_lib_a",
+        srcs = ["testdata/main.go"],
+        importpath = "example.com/" + name + "/a",
+        deps = [":" + name + "_go_lib_b"],
+    )
+    util.helper_target(
+        go_binary,
+        name = name + "_go_bin",
+        embed = [":" + name + "_go_lib_a"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_go_bin"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_go_chain_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_go_chain_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
+# Test 13: a plain cc_library's data attr pointed at a dd_cc_packaged target,
+# mirroring rtloader_dynamic's data = [":three_pkg"] wiring, surfaces
+# DdPackagingInfo through the aspect's data edge.
+def _test_data_reaches_packaged(name):
+    util.helper_target(
+        cc_library,
+        name = name + "_lib",
+        srcs = ["testdata/empty.c"],
+    )
+    util.helper_target(
+        cc_shared_library,
+        name = name + "_so",
+        deps = [":" + name + "_lib"],
+    )
+    util.helper_target(
+        pkg_files,
+        name = name + "_hdrs",
+        srcs = ["testdata/empty.h"],
+        prefix = "include",
+    )
+    dd_cc_packaged(
+        name = name + "_packaged",
+        input = ":" + name + "_so",
+        installed_files = [":" + name + "_hdrs"],
+    )
+    util.helper_target(
+        cc_library,
+        name = name + "_consumer",
+        data = [":" + name + "_packaged"],
+    )
+    util.helper_target(
+        dd_collect_dependencies,
+        name = name + "_subject",
+        srcs = [":" + name + "_consumer"],
+    )
+    analysis_test(
+        name = name,
+        impl = _test_data_reaches_packaged_impl,
+        target = name + "_subject",
+    )
+
+def _test_data_reaches_packaged_impl(env, target):
+    _outputs_of(env, target).contains_predicate(matching.file_basename_contains("empty.h"))
+
 # ── Suite ────────────────────────────────────────────────────────────────────
 
 def dd_packaging_test_suite(name):
@@ -499,11 +694,14 @@ def dd_packaging_test_suite(name):
             _test_so_collected,
             _test_installed_files_collected,
             _test_transitive_collected,
-            _test_packaged_has_no_build_outputs,
+            _test_packaged_default_outputs_are_unpatched,
             _test_packaged_forwards_unpatched_so,
             _test_cc_binary_collected,
             _test_cc_binary_no_cc_shared_library_info,
             _test_diamond_no_duplicates,
             _test_installed_executables_use_prefix,
+            _test_cc_import_reaches_packaged,
+            _test_go_chain_reaches_packaged,
+            _test_data_reaches_packaged,
         ],
     )

@@ -18,7 +18,7 @@
 .agent_build_common:
   extends: [ .bazel:defs:cache:omnibus-transition ]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:
@@ -59,17 +59,35 @@
   variables:
     FLAVOR: fips
 
+.agent_recorder_flavor:
+  variables:
+    FLAVOR: recorder
+
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
   extends: [.agent_build_common, .agent_build_x86, .agent_base_flavor]
   rules:
     - when: on_success
 
+datadog-agent-7-x64-recorder:
+  extends: [.agent_build_common, .agent_build_x86, .agent_recorder_flavor]
+  rules:
+    - if: '$CI_COMMIT_BRANCH && ($ANOMALY_DETECTION_RECORDER != null || $RUN_ALL_BUILDS == "true" || $DEPLOY_AGENT == "true")'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH'
+      when: manual
+      allow_failure: true
+    - when: never
+
 # build Agent 7 binaries for arm64
 datadog-agent-7-arm64:
   extends: [.agent_build_common, .agent_build_arm64, .agent_base_flavor]
   rules:
     - when: on_success
+
+datadog-agent-7-arm64-recorder:
+  extends: [.agent_build_common, .agent_build_arm64, .agent_recorder_flavor]
+  rules: !reference [datadog-agent-7-x64-recorder, rules]
 
 # build Agent 7 binaries for x86_64 with FIPS
 datadog-agent-7-x64-fips:
@@ -141,7 +159,7 @@ iot-agent-armhf:
   extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_deps"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:
@@ -177,7 +195,7 @@ dogstatsd-arm64:
   extends: .bazel:defs:cache:omnibus-transition
   needs: ["go_deps"]
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
     - when: on_success
   stage: package_build
   script:

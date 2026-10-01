@@ -8,6 +8,8 @@
 package model
 
 import (
+	"fmt"
+	"regexp"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -15,6 +17,19 @@ import (
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 )
+
+// goMemLimitPattern matches the GOMEMLIMIT format accepted by the Go runtime:
+// a non-negative integer with an optional IEC binary suffix (B, KiB, MiB, GiB, TiB)
+// or the special value "off". This mirrors parseByteCount in the Go runtime (src/runtime/string.go).
+var goMemLimitPattern = regexp.MustCompile(`^([0-9]+([KMGT]iB|B)?|off)$`)
+
+// ValidateGoMemLimit returns an error if value is not a valid GOMEMLIMIT string.
+func ValidateGoMemLimit(value string) error {
+	if !goMemLimitPattern.MatchString(value) {
+		return fmt.Errorf("invalid GOMEMLIMIT value %q: must be a non-negative integer with optional IEC suffix (B, KiB, MiB, GiB, TiB) or \"off\"", value)
+	}
+	return nil
+}
 
 // ScalingValues represents the scaling values (horizontal and vertical) for a target
 type ScalingValues struct {
@@ -69,10 +84,10 @@ type VerticalScalingValues struct {
 	// Timestamp is the time at which the data was generated
 	Timestamp time.Time `json:"timestamp"`
 
-	// ResourcesHash is the hash of containerResources
+	// ResourcesHash is the hash of ContainerResources
 	ResourcesHash string `json:"resources_hash"`
 
-	// ContainerResources holds the resources for a container
+	// ContainerResources holds the resources for a container, including optional runtime configuration (e.g. GOMEMLIMIT)
 	ContainerResources []datadoghqcommon.DatadogPodAutoscalerContainerResources `json:"container_resources"`
 }
 
@@ -101,6 +116,11 @@ func (v *VerticalScalingValues) DeepCopy() *VerticalScalingValues {
 				cp.Limits = make(corev1.ResourceList, len(cr.Limits))
 				for k, q := range cr.Limits {
 					cp.Limits[k] = q.DeepCopy()
+				}
+			}
+			if cr.Runtime != nil {
+				cp.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+					Gomemlimit: cr.Runtime.Gomemlimit,
 				}
 			}
 			out.ContainerResources[i] = cp

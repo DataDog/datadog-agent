@@ -43,7 +43,7 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
 		IMDSEvents:     make(map[IMDSInfo]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
-		Syscalls:       make([]*SyscallNode, 0, len(pan.SyscallNodes)),
+		Syscalls:       make(map[int]*SyscallNode, len(pan.SyscallNodes)),
 		NodeBase:       NewNodeBase(),
 		NetworkDevices: make(map[model.NetworkDeviceContext]*NetworkDeviceNode, len(pan.NetworkDevices)),
 		Capabilities:   make([]*CapabilityNode, 0, len(pan.CapabilityNodes)),
@@ -88,7 +88,8 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 	}
 
 	for _, sysc := range pan.SyscallNodes {
-		ppan.Syscalls = append(ppan.Syscalls, protoDecodeSyscallNode(sysc, getIDFromImageTag))
+		syscallNode := protoDecodeSyscallNode(sysc, getIDFromImageTag)
+		ppan.Syscalls[syscallNode.Syscall] = syscallNode
 	}
 
 	for _, networkDevice := range pan.NetworkDevices {
@@ -494,6 +495,30 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode, getIDFromImageTag func(strin
 		}
 
 		socketNode.Bind = append(socketNode.Bind, psn)
+	}
+
+	for _, connectNode := range sn.GetConnect() {
+		cn := &ConnectNode{
+			MatchedRules: make([]*model.MatchedRule, 0, len(connectNode.MatchedRules)),
+			Port:         uint16(connectNode.Port),
+			IP:           connectNode.Ip,
+			Protocol:     uint16(connectNode.Protocol),
+			NodeBase:     NewNodeBase(),
+		}
+
+		if connectNode.NodeBase != nil {
+			for tag, imageTagTimes := range connectNode.NodeBase.Seen {
+				firstSeen := ProtoDecodeTimestamp(imageTagTimes.FirstSeen)
+				lastSeen := ProtoDecodeTimestamp(imageTagTimes.LastSeen)
+				cn.RecordWithTimestamps(getIDFromImageTag(tag), firstSeen, lastSeen)
+			}
+		}
+
+		for _, rule := range connectNode.MatchedRules {
+			cn.MatchedRules = append(cn.MatchedRules, protoDecodeProtoMatchedRule(rule))
+		}
+
+		socketNode.Connect = append(socketNode.Connect, cn)
 	}
 
 	return socketNode

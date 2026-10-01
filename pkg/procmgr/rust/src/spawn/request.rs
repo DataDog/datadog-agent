@@ -5,17 +5,15 @@
 
 use anyhow::{Context, Result};
 use log::info;
+use std::ffi::OsString;
 use std::path::PathBuf;
-use tokio::process::Command;
 
 use crate::config::ProcessConfig;
 use crate::env::{expand_env_vars, parse_environment_file, try_expand_env_vars};
 
-use super::stdio::{StdioSetting, parse_stdio_setting, to_command_stdio};
+use super::stdio::{StdioSetting, parse_stdio_setting};
 
 pub(crate) struct SpawnRequest {
-    #[cfg(windows)]
-    process_name: String,
     command: String,
     args: Vec<String>,
     env: Vec<(String, String)>,
@@ -25,40 +23,32 @@ pub(crate) struct SpawnRequest {
 }
 
 impl SpawnRequest {
-    #[cfg(windows)]
     pub(crate) fn command(&self) -> &str {
         &self.command
     }
 
-    #[cfg(windows)]
     pub(crate) fn args(&self) -> &[String] {
         &self.args
     }
 
-    #[cfg(windows)]
     pub(crate) fn env(&self) -> &[(String, String)] {
         &self.env
     }
 
-    #[cfg(windows)]
     pub(crate) fn working_dir(&self) -> Option<&PathBuf> {
         self.working_dir.as_ref()
     }
 
-    #[cfg(windows)]
     pub(crate) fn stdout_setting(&self) -> &StdioSetting {
         &self.stdout_setting
     }
 
-    #[cfg(windows)]
     pub(crate) fn stderr_setting(&self) -> &StdioSetting {
         &self.stderr_setting
     }
 
     pub(crate) fn from_config(process_name: &str, config: &ProcessConfig) -> Result<Self> {
         Ok(Self {
-            #[cfg(windows)]
-            process_name: process_name.to_string(),
             command: expand_env_vars(&config.command),
             args: config.args.iter().map(|a| expand_env_vars(a)).collect(),
             env: collect_env(process_name, config)?,
@@ -70,30 +60,17 @@ impl SpawnRequest {
             stderr_setting: parse_stdio_setting(&config.stderr),
         })
     }
-
-    pub(crate) fn to_command(&self, stdout_inheritable: bool, stderr_inheritable: bool) -> Command {
-        let mut cmd = Command::new(&self.command);
-        cmd.args(&self.args);
-        cmd.env_clear();
-        #[cfg(windows)]
-        {
-            crate::platform::apply_child_baseline_env(&mut cmd);
-            crate::platform::apply_legacy_scm_env(&mut cmd, &self.process_name);
-        }
-        for (k, v) in &self.env {
-            cmd.env(k, v);
-        }
-        if let Some(dir) = &self.working_dir {
-            cmd.current_dir(dir);
-        }
-        cmd.stdout(to_command_stdio(&self.stdout_setting, stdout_inheritable));
-        cmd.stderr(to_command_stdio(&self.stderr_setting, stderr_inheritable));
-        cmd
-    }
 }
 
 fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String, String)>> {
-    let mut env = Vec::new();
+    // Parent environment inheritance is opt-in so host-managed children stay isolated.
+    let prefixes = env_list("DD_PM_INHERIT_ENV_PREFIXES");
+    let exact_names = env_list("DD_PM_INHERIT_ENV_NAMES");
+    let mut env = if prefixes.is_empty() && exact_names.is_empty() {
+        Vec::new()
+    } else {
+        collect_inherited_env(std::env::vars_os(), &prefixes, &exact_names)
+    };
 
     if let Some(ref raw_path) = config.environment_file {
         let raw_path = expand_env_vars(raw_path);
@@ -126,4 +103,107 @@ fn collect_env(process_name: &str, config: &ProcessConfig) -> Result<Vec<(String
     }
 
     Ok(env)
+}
+
+fn collect_inherited_env(
+    vars: impl IntoIterator<Item = (OsString, OsString)>,
+    prefixes: &[String],
+    exact_names: &[String],
+) -> Vec<(String, String)> {
+    vars.into_iter()
+        .filter_map(|(name, value)| {
+            let name = name.into_string().ok()?;
+            let matches = prefixes.iter().any(|prefix| name.starts_with(prefix))
+                || exact_names.contains(&name);
+            if !matches {
+                return None;
+            }
+            Some((name, value.into_string().ok()?))
+        })
+        .collect()
+}
+
+fn env_list(name: &str) -> Vec<String> {
+    std::env::var(name)
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+#[cfg(all(test, unix))]
+mod inherited_env_tests {
+    use super::collect_inherited_env;
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    #[test]
+    fn inherited_env_skips_non_unicode_entries() {
+        let vars = [
+            (OsString::from_vec(vec![0xff]), OsString::from("value")),
+            (OsString::from("DD_BAD"), OsString::from_vec(vec![0xff])),
+            (OsString::from("DD_GOOD"), OsString::from("value")),
+        ];
+
+        assert_eq!(
+            collect_inherited_env(vars, &["DD_".to_string()], &[]),
+            vec![("DD_GOOD".to_string(), "value".to_string())]
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ProcessConfig;
+
+    #[test]
+    fn from_config_collects_environment_file_vars() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "EXIT_CODE=42\n").unwrap();
+
+        let config = ProcessConfig {
+            environment_file: Some(env_file.to_str().unwrap().to_string()),
+            ..Default::default()
+        };
+
+        let request = SpawnRequest::from_config("envfile", &config).unwrap();
+        assert!(
+            request
+                .env
+                .iter()
+                .any(|(k, v)| k == "EXIT_CODE" && v == "42"),
+            "environment_file vars must be included in spawn env: {:?}",
+            request.env
+        );
+    }
+
+    #[test]
+    fn from_config_env_overrides_environment_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let env_file = dir.path().join("env");
+        std::fs::write(&env_file, "MY_VAR=from_file\n").unwrap();
+
+        let config = ProcessConfig {
+            environment_file: Some(env_file.to_str().unwrap().to_string()),
+            env: [("MY_VAR".to_string(), "overridden".to_string())]
+                .into_iter()
+                .collect(),
+            ..Default::default()
+        };
+
+        let request = SpawnRequest::from_config("override", &config).unwrap();
+        assert_eq!(
+            request
+                .env
+                .iter()
+                .rev()
+                .find(|(k, _)| k == "MY_VAR")
+                .map(|(_, v)| v.as_str()),
+            Some("overridden")
+        );
+    }
 }

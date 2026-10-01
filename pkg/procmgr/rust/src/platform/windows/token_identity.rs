@@ -4,12 +4,15 @@
 // Copyright 2026-present Datadog, Inc.
 
 use std::ptr;
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-use windows_sys::Win32::Security::{
-    EqualSid, GetLengthSid, GetTokenInformation, TOKEN_USER, TokenUser,
-};
 #[cfg(test)]
-use windows_sys::Win32::Security::{IsWellKnownSid, LookupAccountSidW, WinLocalSystemSid};
+use windows_sys::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+#[cfg(test)]
+use windows_sys::Win32::Security::LookupAccountSidW;
+use windows_sys::Win32::Security::{
+    EqualSid, GetLengthSid, GetTokenInformation, IsWellKnownSid, TOKEN_USER, TokenUser,
+    WinLocalSystemSid,
+};
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 pub(crate) struct WinHandle(HANDLE);
@@ -37,14 +40,6 @@ impl Drop for WinHandle {
     }
 }
 
-#[cfg(test)]
-use super::local_account::is_local_account;
-#[cfg(test)]
-use super::local_agent_account::AccountName;
-#[cfg(test)]
-use super::wide;
-
-#[cfg(test)]
 pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool> {
     if token.is_null() {
         return Err(std::io::Error::new(
@@ -84,6 +79,13 @@ pub(crate) fn token_user_is_local_system(token: HANDLE) -> std::io::Result<bool>
 
     Ok(unsafe { IsWellKnownSid(sid, WinLocalSystemSid) != 0 })
 }
+
+#[cfg(test)]
+use super::local_account::is_local_account;
+#[cfg(test)]
+use super::local_agent_account::AccountName;
+#[cfg(test)]
+use super::wide;
 
 #[cfg(test)]
 pub(crate) fn current_process_account_display() -> std::io::Result<String> {
@@ -150,7 +152,8 @@ fn lookup_account_display(sid: &[u8]) -> std::io::Result<AccountName> {
         let mut name_size = 0u32;
         let mut domain_size = 0u32;
         let mut sid_type = 0i32;
-        let _ = LookupAccountSidW(
+        // Call with empty name and domain to retrieve their sizes and allocate them once.
+        if LookupAccountSidW(
             ptr::null(),
             sid_ptr,
             ptr::null_mut(),
@@ -158,7 +161,13 @@ fn lookup_account_display(sid: &[u8]) -> std::io::Result<AccountName> {
             ptr::null_mut(),
             &mut domain_size,
             &mut sid_type,
-        );
+        ) == 0
+        {
+            let err = std::io::Error::last_os_error();
+            if err.raw_os_error() != Some(ERROR_INSUFFICIENT_BUFFER as i32) {
+                return Err(err);
+            }
+        }
 
         let mut name = vec![0u16; name_size as usize];
         let mut domain = vec![0u16; domain_size as usize];

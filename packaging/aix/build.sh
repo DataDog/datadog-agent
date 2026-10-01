@@ -20,9 +20,9 @@
 # once AGENT_VERSION and AGENT_BUILD are both available.
 # Package filename: datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff
 #
-# AGENT_SRC is resolved by env.sh: it walks up from the script directory until
-# it finds a .git ancestor (so this build.sh must live inside a checkout of
-# the datadog-agent repo).
+# AGENT_SRC is resolved by env.sh as the nearest .git ancestor of the current
+# directory, so this build.sh must be run from within a checkout of the
+# datadog-agent repo.
 # All intermediate artifacts go under /opt/dd-build/.
 
 set -eu
@@ -145,7 +145,6 @@ else
 fi
 
 # Report the output artifact
-BFF_PATH="$BUILD_DIR/datadog-agent-${AGENT_VERSION}-${AGENT_BUILD}.aix.ppc64.bff"
 BUILD_END=$(date '+%Y-%m-%dT%H:%M:%S')
 
 log "=== Build complete ==="

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-use std::time::Duration;
-
 use anyhow::Result;
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 use windows_sys::Win32::System::Threading::{
@@ -49,14 +47,6 @@ pub(crate) fn terminate_process_by_pid(pid: u32) -> Result<()> {
         }
     }
     Ok(())
-}
-
-pub(crate) fn wait_for_process_exit(
-    handle: HANDLE,
-    timeout: Duration,
-) -> Result<ProcessWaitOutcome> {
-    let timeout_ms = u32::try_from(timeout.as_millis()).unwrap_or(WAIT_INFINITE);
-    wait_for_process_exit_ms(handle, timeout_ms)
 }
 
 pub(crate) fn wait_for_process_exit_ms(

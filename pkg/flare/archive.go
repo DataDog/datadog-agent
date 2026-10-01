@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -90,6 +90,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 		flaretypes.NewFiller(getUlimitData),
 		flaretypes.NewFiller(getSvmonData),
+		flaretypes.NewFiller(provideCertificateSources),
 	}
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){

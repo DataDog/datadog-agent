@@ -39,6 +39,32 @@ func ParseReplicaSetForPodName(name string) string {
 	return removeKubernetesNameSuffix(name)
 }
 
+// ResolvePodRootOwner resolves a pod's direct owner to its root workload owner.
+// ReplicaSets are resolved to Deployments or Argo Rollouts, and Jobs created by
+// CronJobs are resolved to their CronJob.
+func ResolvePodRootOwner(ownerKind, ownerName string, podLabels map[string]string) (string, string) {
+	switch ownerKind {
+	case ReplicaSetKind:
+		// Argo Rollouts manage ReplicaSets named like Deployment ones (`<owner>-<hash>`),
+		// so the rollout pod label is the only way to tell the two apart here. A real
+		// Rollout always sets a non-empty hash, so an empty value is not one.
+		rootName := ParseDeploymentForReplicaSet(ownerName)
+		if rootName == "" {
+			return ownerKind, ownerName
+		}
+		if podLabels[ArgoRolloutLabelKey] != "" {
+			return RolloutKind, rootName
+		}
+		return DeploymentKind, rootName
+	case JobKind:
+		if cronJobName, _ := ParseCronJobForJob(ownerName); cronJobName != "" {
+			return CronJobKind, cronJobName
+		}
+	}
+
+	return ownerKind, ownerName
+}
+
 // ParseCronJobForJob gets the cronjob name from a job,
 // or returns an empty string if no parent cronjob is found.
 // https://github.com/kubernetes/kubernetes/blob/b4e3bd381bd4d7c0db1959341b39558b45187345/pkg/controller/cronjob/utils.go#L156
