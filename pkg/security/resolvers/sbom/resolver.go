@@ -106,6 +106,33 @@ func newData(report []sbomtypes.PackageWithInstalledFiles, usrMerged bool) *Data
 	}
 }
 
+// keepUsage copies onto the packages of d the usage recorded in prev on the
+// packages of the same name, whatever their version. The usage of a name prev
+// lists twice, once for each architecture or for builds installed side by
+// side, combines both.
+func (d *Data) keepUsage(prev *Data) {
+	prev.mu.RLock()
+	recorded := make(map[string]sbomtypes.Package, len(prev.packages))
+	for _, pkg := range prev.packages {
+		usage := recorded[pkg.Name]
+		if pkg.LastAccess.After(usage.LastAccess) {
+			usage.LastAccess = pkg.LastAccess
+		}
+		usage.SuidBit = usage.SuidBit || pkg.SuidBit
+		usage.AccessedByRoot = usage.AccessedByRoot || pkg.AccessedByRoot
+		recorded[pkg.Name] = usage
+	}
+	prev.mu.RUnlock()
+
+	for i := range d.packages {
+		if usage, ok := recorded[d.packages[i].Name]; ok {
+			d.packages[i].LastAccess = usage.LastAccess
+			d.packages[i].SuidBit = usage.SuidBit
+			d.packages[i].AccessedByRoot = usage.AccessedByRoot
+		}
+	}
+}
+
 // SBOM defines an SBOM
 type SBOM struct {
 	sync.RWMutex
@@ -205,6 +232,8 @@ type Resolver struct {
 	hostRootDevice uint64
 	hostRootInode  uint64
 	hostSBOM       *SBOM
+	// walkProcesses calls its argument on every process the probe knows of.
+	walkProcesses func(func(*model.ProcessCacheEntry))
 
 	sbomGenerations       *atomic.Uint64
 	failedSBOMGenerations *atomic.Uint64
@@ -281,19 +310,10 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(ctx context.Context) error {
 	if r.cfg.SBOMResolverHostEnabled {
-		// The host packages are read through the root of init, as those of a
-		// container are read through the root of one of its processes.
-		hostRoot := utils.ProcRootPath(1)
-
 		r.hostSBOM = NewSBOM("", nil, "")
-
-		report, err := r.generateSBOM(hostRoot)
-		if err != nil {
+		if err := r.scanHost(); err != nil {
 			return err
 		}
-		r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
-		r.hostSBOM.setReport(report)
-		r.hostSBOM.state.Store(computedState)
 	}
 
 	go func() {
@@ -321,7 +341,8 @@ func (r *Resolver) Start(ctx context.Context) error {
 	return nil
 }
 
-// RefreshSBOM regenerates a SBOM for a container
+// RefreshSBOM regenerates the SBOM of a container, or the SBOM of the host for
+// the empty container ID
 func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	if sbom := r.getSBOM(containerID); sbom != nil {
 		seclog.Debugf("Refreshing SBOM for container %s", containerID)
@@ -355,8 +376,16 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 // initial scan, so without this reset the refresh re-scan is discarded and the
 // runtime properties are never recomputed. The SBOM of a workload deleted while
 // its refresh waited stays stopped, and the cached data of its image stays for
-// the other containers of the image.
+// the other containers of the image. The host SBOM, outside the workloads, is
+// scanned again in place.
 func (r *Resolver) refreshScan(sbom *SBOM) {
+	if sbom.ContainerID == "" {
+		if err := r.scanHost(); err != nil {
+			seclog.Warnf("Failed to refresh the host SBOM: %v", err)
+		}
+		return
+	}
+
 	r.sbomsLock.Lock()
 	defer r.sbomsLock.Unlock()
 	sbom.Lock()
@@ -369,6 +398,60 @@ func (r *Resolver) refreshScan(sbom *SBOM) {
 	r.removeSBOMData(sbom.workloadKey)
 	sbom.state.Store(pendingState)
 	r.triggerScan(sbom)
+}
+
+// scanHost indexes the packages installed on the host into the host SBOM and
+// forwards the result. A package the previous index held under the same name
+// keeps the usage recorded on it, so a daemon seen running before the scan
+// still counts, and so does a daemon its upgrade restarted, whose start was
+// recorded on the build the upgrade replaced. The host resolves against the
+// previous index until the scan is over.
+func (r *Resolver) scanHost() error {
+	// The host packages are read through the root of init, as those of a
+	// container are read through the root of one of its processes.
+	hostRoot := utils.ProcRootPath(1)
+
+	report, err := r.generateSBOM(hostRoot)
+	if err != nil {
+		return err
+	}
+
+	r.hostSBOM.Lock()
+	rescan := r.hostSBOM.IsComputed()
+	// A package scanner that fails finds no package, and the index then
+	// still holds the packages of the host.
+	if rescan && len(report) == 0 {
+		r.hostSBOM.Unlock()
+		return errors.New("no package found on the host")
+	}
+	previous := r.hostSBOM.data
+	r.hostSBOM.usrMerged = isUsrMerged(hostRoot)
+	r.hostSBOM.setReport(report)
+	r.hostSBOM.data.keepUsage(previous)
+	r.hostSBOM.state.Store(computedState)
+	r.triggerForwarding(r.hostSBOM)
+	r.hostSBOM.Unlock()
+
+	// A package manager runs the scripts of a package before it exits, so
+	// the daemon of a new package may start before the scan, when its files
+	// have no entry in the index. The processes running on the host are then
+	// recorded against the new index. At start the probe replays them all.
+	if rescan && r.walkProcesses != nil {
+		r.walkProcesses(func(entry *model.ProcessCacheEntry) {
+			if entry.ContainerContext.ContainerID == "" && entry.ExitTime.IsZero() {
+				r.ResolvePackage(&entry.ProcessContext, &entry.FileEvent)
+			}
+		})
+	}
+
+	return nil
+}
+
+// SetProcessWalker sets walk, which calls its argument on every process the
+// probe knows of, for the scans of the host packages to record the processes
+// running on the host.
+func (r *Resolver) SetProcessWalker(walk func(func(*model.ProcessCacheEntry))) {
+	r.walkProcesses = walk
 }
 
 func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {

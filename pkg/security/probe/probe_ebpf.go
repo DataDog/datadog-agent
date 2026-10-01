@@ -4213,7 +4213,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ProcessContext.Process.ContainerContext.ContainerID)
 
-		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && (len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0 || p.config.RuntimeSecurity.SBOMResolverHostEnabled):
 			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
 				seclog.Infof("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
