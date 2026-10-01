@@ -9,11 +9,11 @@ load("//packages/rules:package_naming.bzl", "package_name_variables")
 
 # kwargs is mandatory for macros, even if you don't use it.
 # buildifier: disable=unused-variable
-def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, homepage, license, maintainer, out, package, package_file_name, postinst, postrm, preinst, prerm, priority, recommends, section, version, **kwargs):
+def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, homepage, license, maintainer, out, package_file_name, postinst, postrm, preinst, prerm, priority, product_name, recommends, section, version, **kwargs):
     variables_name = "%s_vars_" % name
     package_name_variables(
         name = variables_name,
-        product_name = package,
+        product_name = product_name,
     )
 
     sums_out = "%s_md5sums_out_" % name
@@ -37,7 +37,7 @@ def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, ho
         maintainer = maintainer or "Datadog Packages <package@datadoghq.com>",
         md5sums = ":" + sums_out,
         out = out,
-        package = package,
+        package = "{product_name}",
         package_file_name = package_file_name,
         package_variables = ":" + variables_name,
         postinst = postinst,
@@ -59,6 +59,11 @@ dd_pkg_deb = macro(
         "installed_size": None,
         "installed_size_file": None,
         "md5sums": None,
+        "package": None,
         "package_variables": None,
+        "product_name": attr.string(
+            doc = "Unflavored product name. The flavor is added to it to form the package name.",
+            mandatory = True,
+        ),
     },
 )
