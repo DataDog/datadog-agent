@@ -1793,12 +1793,18 @@ func BenchmarkGetFDCount(b *testing.B) {
 	probe := getProbe()
 	defer probe.Close()
 
+	var files []*os.File
+	defer func() {
+		for _, f := range files {
+			f.Close()
+		}
+	}()
 	for i := 0; i < 100; i++ {
 		f, err := os.Open("/proc/self/comm")
 		if err != nil {
 			b.Fatal(err)
 		}
-		defer f.Close() //nolint:revive // intentional: all opened FDs must stay open until after the benchmark loop below
+		files = append(files, f)
 	}
 
 	b.Run("self_proc", func(b *testing.B) {

@@ -530,12 +530,19 @@ func TestActivityDumps(t *testing.T) {
 
 		// then, launch enough docker instances to reach the testActivityDumpTracedCgroupsCount
 		var startedDumps []*activityDumpIdentifier
+		var dockerInstances []*dockerCmdWrapper
+		// docker instances must stay running until the end of the subtest
+		defer func() {
+			for _, dockerInstance := range dockerInstances {
+				dockerInstance.stop()
+			}
+		}()
 		for i := 0; i < testActivityDumpTracedCgroupsCount; i++ {
 			dockerInstance, dump, err := test.StartADockerGetDump()
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer dockerInstance.stop() //nolint:revive // intentional: docker instances must stay running until the end of the subtest
+			dockerInstances = append(dockerInstances, dockerInstance)
 			startedDumps = append(startedDumps, dump)
 		}
 

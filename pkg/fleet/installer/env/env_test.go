@@ -459,8 +459,7 @@ func TestAgentUserVars(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.envVars {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key) //nolint:revive // intentional: env set in loop is read by FromEnv after the loop; unset must run at test end
+				t.Setenv(key, value)
 			}
 			result := FromEnv()
 			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
