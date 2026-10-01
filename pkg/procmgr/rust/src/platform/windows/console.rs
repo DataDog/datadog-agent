@@ -288,39 +288,40 @@ mod tests {
         TerminateProcess, WaitForSingleObject,
     };
 
-    fn open_nul() -> HANDLE {
-        let nul = wide::null_terminated("NUL");
-        let handle = unsafe {
-            CreateFileW(
-                nul.as_ptr(),
-                FILE_GENERIC_READ | FILE_GENERIC_WRITE,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                std::ptr::null(),
-                OPEN_EXISTING,
-                FILE_ATTRIBUTE_NORMAL,
-                std::ptr::null_mut(),
-            )
-        };
-        assert!(
-            handle != INVALID_HANDLE_VALUE && !handle.is_null(),
-            "CreateFileW(NUL) failed: {}",
-            std::io::Error::last_os_error()
-        );
-        handle
+    fn slot_values() -> [usize; 3] {
+        CONSOLE_STD_HANDLES.map(|(kind, _)| unsafe { GetStdHandle(kind) } as usize)
     }
 
-    /// Throwaway for AGENTRUN-1504. Answers whether `FreeConsole` leaves closed handle
-    /// values in the std slots on this Windows image, which is the premise of the
-    /// inherit/h2 diagnosis. Not a product invariant.
+    fn set_slots(handle: HANDLE) {
+        for (kind, _) in CONSOLE_STD_HANDLES {
+            assert_ne!(
+                unsafe { SetStdHandle(kind, handle) },
+                0,
+                "SetStdHandle({kind}) failed: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+
+    /// Throwaway for AGENTRUN-1504, not a product invariant. Passing means the premise of
+    /// the inherit/h2 diagnosis holds on this image.
     ///
-    /// Forces the console-less state the SCM case uses, puts a known live NUL in every
-    /// slot, then runs the same AttachConsole/FreeConsole churn as a graceful stop. A
-    /// failure means the slots hold closed values Windows can recycle onto a later named
-    /// pipe. A pass means this image does not leave that residue, so the diagnosis is wrong.
+    /// Reproduces the SCM shape the supervisor actually runs in: no console, and std slots
+    /// left unset. That second half matters, and an earlier version of this probe got it
+    /// wrong by seeding the slots with a live NUL first. `AttachConsole` only populates
+    /// slots that are not already set, so seeding them kept the console handles out and the
+    /// probe passed without testing anything.
+    ///
+    /// Three outcomes, each distinguishable from the failure message:
+    ///   - slots unset after AttachConsole: the mechanism cannot start, diagnosis dead
+    ///   - slots cleared or still live after FreeConsole: no reusable residue, diagnosis dead
+    ///   - slots keep their values and those values are dead: diagnosis holds, and Windows
+    ///     is free to hand those values to the next named pipe the supervisor opens
     #[test]
-    fn probe_freeconsole_leaves_closed_handles_in_std_slots() {
+    fn probe_attach_then_free_console_leaves_dead_handles_in_std_slots() {
         let _lock = console_lock();
         let had_console = has_console();
+        let original = slot_values();
 
         if had_console {
             leave_console();
@@ -330,15 +331,9 @@ mod tests {
             "could not enter the console-less state the SCM case uses"
         );
 
-        let nul = open_nul();
-        for (kind, _) in CONSOLE_STD_HANDLES {
-            assert_ne!(
-                unsafe { SetStdHandle(kind, nul) },
-                0,
-                "SetStdHandle({kind}) failed: {}",
-                std::io::Error::last_os_error()
-            );
-        }
+        // Unset, which is how a service starts and the only state AttachConsole fills in.
+        set_slots(std::ptr::null_mut());
+        let after_clear = slot_values();
 
         // Own console so AttachConsole has something to attach to. CREATE_NO_WINDOW
         // children used by managed spawns are attachable too, but a dedicated console
@@ -380,17 +375,12 @@ mod tests {
         }
         let attach_err = std::io::Error::last_os_error();
         assert!(attached, "AttachConsole({pid}) failed: {attach_err}");
+        let after_attach = slot_values();
 
         // The FreeConsole under test. Same call ChildConsoleGuard makes on drop.
         leave_console();
-
-        let mut stale = Vec::new();
-        for (kind, _) in CONSOLE_STD_HANDLES {
-            let handle = unsafe { GetStdHandle(kind) };
-            if !handle.is_null() && handle != INVALID_HANDLE_VALUE && !std_handle_live(kind) {
-                stale.push((kind, handle as usize));
-            }
-        }
+        let after_free = slot_values();
+        let live_after_free = CONSOLE_STD_HANDLES.map(|(kind, _)| std_handle_live(kind));
 
         unsafe {
             let _ = TerminateProcess(process.hProcess, 1);
@@ -399,24 +389,46 @@ mod tests {
             CloseHandle(process.hThread);
         }
 
-        // Put this process back so sibling tests keep a usable console.
-        if had_console && unsafe { AttachConsole(ATTACH_PARENT_PROCESS) } != 0 {
-            for (kind, device) in CONSOLE_STD_HANDLES {
-                if !std_handle_live(kind) {
-                    rebind_std_handle(kind, device);
+        // Put this process back so sibling tests keep usable output.
+        if had_console {
+            if unsafe { AttachConsole(ATTACH_PARENT_PROCESS) } != 0 {
+                for (kind, device) in CONSOLE_STD_HANDLES {
+                    if !std_handle_live(kind) {
+                        rebind_std_handle(kind, device);
+                    }
                 }
             }
-        }
-        unsafe {
-            CloseHandle(nul);
+        } else {
+            for ((kind, _), value) in CONSOLE_STD_HANDLES.iter().zip(original) {
+                unsafe { SetStdHandle(*kind, value as HANDLE) };
+            }
         }
 
+        let observations = format!(
+            "after_clear={after_clear:?} after_attach={after_attach:?} \
+             after_free={after_free:?} live_after_free={live_after_free:?}"
+        );
+
         assert!(
-            stale.is_empty(),
-            "FreeConsole left closed handle values in the std slots: {stale:?}. \
-             Windows can reuse those values for a later named pipe, which is the \
-             AGENTRUN-1504 inherit/h2 mechanism. Empty means the diagnosis is wrong \
-             on this image."
+            after_attach.iter().any(|&h| h != 0),
+            "AttachConsole left every std slot unset, so a graceful stop cannot put a \
+             console handle there at all and the inherit mechanism never starts. \
+             {observations}"
+        );
+
+        let dead_residue: Vec<(u32, usize)> = CONSOLE_STD_HANDLES
+            .iter()
+            .zip(after_free)
+            .zip(live_after_free)
+            .filter(|((_, handle), live)| *handle != 0 && !live)
+            .map(|(((kind, _), handle), _)| (*kind, handle))
+            .collect();
+
+        assert!(
+            !dead_residue.is_empty(),
+            "FreeConsole left no dead handle values behind, so there is nothing for \
+             Windows to recycle onto a later named pipe and the AGENTRUN-1504 mechanism \
+             does not exist on this image. {observations}"
         );
     }
 }
