@@ -66,11 +66,12 @@ func TestTargetMutatorSourcePrecedence(t *testing.T) {
 			wantSSI:      true,
 		},
 		{
-			name: "RC wins over static",
+			name: "RC wins over GPU and static",
 			entries: []injectionSourceEntry{
 				{name: injectionSourceAnnotation, source: stubInjectionSource{sourceResult{action: sourcePass}}},
 				{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: stubInjectionSource{sourceResult{action: sourcePass}}},
 				{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: stubInjectionSource{injectPlanResult("remote")}},
+				{name: injectionSourceGPU, determinesSSIMode: true, source: stubInjectionSource{injectPlanResult("gpu")}},
 				{name: injectionSourceStatic, determinesSSIMode: true, source: stubInjectionSource{injectPlanResult("static")}},
 			},
 			wantPlanName: "remote",
@@ -78,13 +79,14 @@ func TestTargetMutatorSourcePrecedence(t *testing.T) {
 			wantSSI:      true,
 		},
 		{
-			name: "RC abstention falls through to static",
+			name: "RC pass falls through to GPU before static",
 			entries: []injectionSourceEntry{
 				{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: stubInjectionSource{sourceResult{action: sourcePass}}},
+				{name: injectionSourceGPU, determinesSSIMode: true, source: stubInjectionSource{injectPlanResult("gpu")}},
 				{name: injectionSourceStatic, determinesSSIMode: true, source: stubInjectionSource{injectPlanResult("static")}},
 			},
-			wantPlanName: "static",
-			wantSource:   injectionSourceStatic,
+			wantPlanName: "gpu",
+			wantSource:   injectionSourceGPU,
 			wantSSI:      true,
 		},
 		{
@@ -145,6 +147,7 @@ apm_config:
 		injectionSourceAnnotation,
 		injectionSourceDatadogInstrumentation,
 		injectionSourceRemoteConfig,
+		injectionSourceGPU,
 		injectionSourceStatic,
 		injectionSourceInjectAll,
 	}
