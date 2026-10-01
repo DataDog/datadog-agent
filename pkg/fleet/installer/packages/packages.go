@@ -40,6 +40,7 @@ type hooks struct {
 	postStartConfigExperiment   packageHook
 	preStopConfigExperiment     packageHook
 	postPromoteConfigExperiment packageHook
+	resumeConfigExperiment      packageHook
 
 	preInstallExtension  packageHook
 	preRemoveExtension   packageHook
@@ -62,6 +63,7 @@ type Hooks interface {
 	PostStartConfigExperiment(ctx context.Context, pkg string) error
 	PreStopConfigExperiment(ctx context.Context, pkg string) error
 	PostPromoteConfigExperiment(ctx context.Context, pkg string) error
+	ResumeConfigExperiment(ctx context.Context, pkg string) error
 
 	PreInstallExtension(ctx context.Context, pkg string, extension string) error
 	PreRemoveExtension(ctx context.Context, pkg string, extension string) error
@@ -139,6 +141,11 @@ func (h *hooksCLI) PreStopConfigExperiment(ctx context.Context, pkg string) erro
 // PostPromoteConfigExperiment calls the post-promote-config-experiment hook for the package.
 func (h *hooksCLI) PostPromoteConfigExperiment(ctx context.Context, pkg string) error {
 	return h.callHook(ctx, false, pkg, "postPromoteConfigExperiment", PackageTypeOCI, false, nil, "")
+}
+
+// ResumeConfigExperiment calls the resume-config-experiment hook for the package.
+func (h *hooksCLI) ResumeConfigExperiment(ctx context.Context, pkg string) error {
+	return h.callHook(ctx, false, pkg, "resumeConfigExperiment", PackageTypeOCI, false, nil, "")
 }
 
 // PreInstallExtension calls the pre-install-extension hook for the package.
@@ -363,6 +370,8 @@ func getHook(pkg string, name string) packageHook {
 		return h.preStopConfigExperiment
 	case "postPromoteConfigExperiment":
 		return h.postPromoteConfigExperiment
+	case "resumeConfigExperiment":
+		return h.resumeConfigExperiment
 	case "preInstallExtension":
 		return h.preInstallExtension
 	case "preRemoveExtension":
