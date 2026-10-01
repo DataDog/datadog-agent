@@ -186,7 +186,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
         u8 value = 1;
         bpf_map_update_elem(&kernel_thread_pids, &pid, &value, BPF_ANY);
         if (syscall) {
-            pop_syscall(EVENT_FORK);
+            goto pop_and_exit;
         }
         return 0;
     }
@@ -202,8 +202,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
 
     // if this is a thread, leave
     if (syscall->fork.is_thread) {
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     u64 ts = bpf_ktime_get_ns();
@@ -212,8 +211,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // by the tail-called fill_span_and_send program.
     struct process_event_t *event = SPAN_FILL_EVENT(struct process_event_t, EVENT_FORK);
     if (event == NULL) {
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     event->pid_entry.fork_timestamp = ts;
@@ -229,8 +227,7 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     if (IS_KTHREADD(ppid)) {
         u8 value = 1;
         bpf_map_update_elem(&kernel_thread_pids, &pid, &value, BPF_ANY);
-        pop_syscall(EVENT_FORK);
-        return 0;
+        goto pop_and_exit;
     }
 
     // sched::sched_process_fork is triggered from the parent process, update the pid / tid to the child value.
@@ -292,6 +289,8 @@ int __attribute__((always_inline)) sched_process_fork_common(void *ctx, u32 pid,
     // fill_span_and_send program matching this caller's program type.
     span_fill_tail_call(ctx, prog_type);
 
+pop_and_exit:
+    pop_syscall(EVENT_FORK);
     return 0;
 }
 
@@ -857,18 +856,13 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
         fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (fork_entry == NULL) {
-            // should never happen, ignore
-            pop_current_or_impersonated_exec_syscall();
-            bpf_map_delete_elem(&exec_pid_transfer, &tgid);
-            return 0;
+            goto pop_and_exit;
         }
     }
 
     struct process_event_t *event = new_process_event(0);
     if (event == NULL) {
-        pop_current_or_impersonated_exec_syscall();
-        bpf_map_delete_elem(&exec_pid_transfer, &tgid);
-        return 0;
+        goto pop_and_exit;
     }
 
     // copy proc_cache data
@@ -906,14 +900,14 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // Through symlink
     event->is_through_symlink = syscall->exec.is_through_symlink;
 
-    pop_current_or_impersonated_exec_syscall();
-    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
-
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);
 
     unregister_span_context();
 
+pop_and_exit:
+    pop_current_or_impersonated_exec_syscall();
+    bpf_map_delete_elem(&exec_pid_transfer, &tgid);
     return 0;
 }
 
