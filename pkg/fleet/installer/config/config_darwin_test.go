@@ -143,6 +143,28 @@ func TestWriteExperimentPublishesAPatchedCopy(t *testing.T) {
 	assertNoScratchLeftBehind(t, dirs)
 }
 
+func TestWriteExperimentDoesNotFollowDeploymentIDSymlink(t *testing.T) {
+	dirs := newTestDirectories(t)
+	sentinel := filepath.Join(t.TempDir(), "sentinel")
+	require.NoError(t, os.WriteFile(sentinel, []byte("untouched"), 0600))
+	idPath := filepath.Join(dirs.StablePath, deploymentIDFile)
+	require.NoError(t, os.Remove(idPath))
+	require.NoError(t, os.Symlink(sentinel, idPath))
+
+	require.NoError(t, dirs.WriteExperiment(context.Background(), mergePatch("experiment-1", `{"log_level":"debug"}`)))
+
+	content, err := os.ReadFile(sentinel)
+	require.NoError(t, err)
+	assert.Equal(t, "untouched", string(content), "deployment metadata must not overwrite a copied link's target")
+	info, err := os.Lstat(filepath.Join(dirs.ExperimentPath, deploymentIDFile))
+	require.NoError(t, err)
+	assert.True(t, info.Mode().IsRegular())
+	content, err = os.ReadFile(filepath.Join(dirs.ExperimentPath, deploymentIDFile))
+	require.NoError(t, err)
+	assert.Equal(t, "experiment-1", string(content))
+	assertNoScratchLeftBehind(t, dirs)
+}
+
 // TestWriteExperimentLeavesNoTraceWhenItFails is the property the copy-then-publish order exists
 // for: everything that can fail happens in the scratch directory, so a failure is invisible.
 func TestWriteExperimentLeavesNoTraceWhenItFails(t *testing.T) {
