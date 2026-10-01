@@ -1066,9 +1066,8 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 
 	// Link this workload to the profile (tracks in profile.Instances)
 	workload := m.getOrCreateWorkload(event, selector, workloadID)
-	if m.linkWorkloadToProfile(secprof, workload) {
-		m.seedMountsForWorkload(secprof, workload, event)
-	}
+	m.linkWorkloadToProfile(secprof, workload)
+	m.seedMountsForWorkload(secprof, workload, event)
 
 	// Check if profile has reached max size. V2 uses its own knob evaluated against the
 	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
@@ -1163,11 +1162,10 @@ func (m *ManagerV2) getOrCreateWorkload(event *model.Event, selector cgroupModel
 	}
 }
 
-// linkWorkloadToProfile adds a workload to a profile's Instances if not already
-// tracked. It returns true when the workload was newly linked.
-func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) bool {
+// linkWorkloadToProfile adds a workload to a profile's Instances if not already tracked.
+func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.Workload) {
 	if workload == nil {
-		return false
+		return
 	}
 
 	prof.InstancesLock.Lock()
@@ -1177,39 +1175,44 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 	workloadID := workload.GetWorkloadID()
 	for _, w := range prof.Instances {
 		if w.GetWorkloadID() == workloadID {
-			return false
+			return
 		}
 	}
 
 	prof.Instances = append(prof.Instances, workload)
 
 	m.resolveAndSaveSecurityContext(prof, workload.GCroupCacheEntry.GetContainerID())
-	return true
 }
 
-func baseMountNamespaceFromEvent(event *model.Event) uint32 {
+// baseMountNamespaceFromEvent returns the mount namespace to treat as the workload's base,
+// and whether that value is authoritative. It is authoritative when it comes from the
+// process the tree would root the workload on; otherwise it falls back to the event's own
+// namespace, which is only a guess because the event may come from a process that setns'd.
+func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 	pc := event.ProcessContext
 	if pc == nil {
-		return 0
+		return 0, false
 	}
 
 	if root := activity_tree.FindRootProcess(pc); root != nil && root.Process.MntNS != 0 {
-		return root.Process.MntNS
+		return root.Process.MntNS, true
 	}
 
-	return pc.Process.MntNS
+	return pc.Process.MntNS, false
 }
 
 // seedMountsForWorkload seeds a profile's mount table with the workload's
 // pre-existing mounts from its base mount namespace. Later changes come from
 // live mount events.
 func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *tags.Workload, event *model.Event) {
-	nsID := baseMountNamespaceFromEvent(event)
-	if nsID == 0 {
+	if workload == nil {
 		return
 	}
 
-	secprof.AddBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID)
+	nsID, authoritative := baseMountNamespaceFromEvent(event)
+	if nsID == 0 || !secprof.PinBaseMountNamespace(workload.GCroupCacheEntry.GetCGroupInode(), nsID, authoritative) {
+		return
+	}
 
 	var mounts []model.Mount
 	m.resolvers.MountResolver.IterateNamespace(nsID, func(mnt *model.Mount) {
