@@ -106,7 +106,9 @@ func TestInsertMountBaseNamespaceFlag(t *testing.T) {
 	tagID := at.GetOrInsertImageTag("img:v1")
 	now := time.Unix(0, 1000)
 
-	// first namespace seen becomes the base namespace
+	// the base namespace is pinned explicitly (from the seeding workload)
+	at.SetBaseMountNamespaceID(testNsA)
+
 	at.InsertMount(testNsA, "/base", "/", "ext4", 0, tagID, Runtime, now, false)
 	// a mount seen only in a later namespace is not part of the base
 	at.InsertMount(testNsB, "/late", "/", "ext4", 0, tagID, Runtime, now, false)
@@ -122,6 +124,39 @@ func TestInsertMountBaseNamespaceFlag(t *testing.T) {
 	// re-observing the late mount in the base namespace upgrades its flag
 	require.False(t, at.InsertMount(testNsA, "/late", "/", "ext4", 0, tagID, Runtime, now, false))
 	assert.True(t, late.InBaseNamespace)
+}
+
+func TestInsertMountNoBaseNamespacePinned(t *testing.T) {
+	at := newMountTestTree()
+	tagID := at.GetOrInsertImageTag("img:v1")
+	now := time.Unix(0, 1000)
+
+	// with no base namespace pinned, mounts are never flagged as base regardless
+	// of insertion order (the base is no longer inferred from the first mount)
+	at.InsertMount(testNsA, "/data", "/", "ext4", 0, tagID, Runtime, now, false)
+	require.Len(t, at.Mounts, 1)
+	assert.False(t, at.Mounts[0].InBaseNamespace)
+}
+
+func TestSetBaseMountNamespaceIDIsSetOnce(t *testing.T) {
+	at := newMountTestTree()
+	tagID := at.GetOrInsertImageTag("img:v1")
+	now := time.Unix(0, 1000)
+
+	at.SetBaseMountNamespaceID(testNsA)
+	// a later call (e.g. a second instance of the same image) must not reassign it
+	at.SetBaseMountNamespaceID(testNsB)
+
+	at.InsertMount(testNsA, "/base", "/", "ext4", 0, tagID, Runtime, now, false)
+	at.InsertMount(testNsB, "/other", "/", "ext4", 0, tagID, Runtime, now, false)
+
+	base := findMount(at, "/base", 0)
+	require.NotNil(t, base)
+	assert.True(t, base.InBaseNamespace)
+
+	other := findMount(at, "/other", 0)
+	require.NotNil(t, other)
+	assert.False(t, other.InBaseNamespace)
 }
 
 func TestInsertMountDryRun(t *testing.T) {
@@ -158,6 +193,7 @@ func TestMountsProtoRoundTrip(t *testing.T) {
 	first := time.Unix(0, 1000)
 	last := time.Unix(0, 5000)
 
+	src.SetBaseMountNamespaceID(testNsA)
 	src.InsertMount(testNsA, "/", "/", "overlay", 0, tagID, Snapshot, first, false)
 	src.Mounts[0].RecordWithTimestamps(tagID, first, last)
 	src.InsertMount(testNsA, "/proc", "/", "proc", model.MountAttrReadOnly|model.MountAttrNoExec, tagID, Runtime, first, false)

@@ -472,7 +472,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 	m.NamespaceInode = binary.NativeEndian.Uint32(data[52:56])
 	m.MountFlags = NormalizeMountFlagsFromVFS(binary.NativeEndian.Uint32(data[56:60]))
-	// data[60:64] is the struct's trailing padding to 8-byte alignment.
+	// data[60:64] - padding
 	return 96, nil
 }
 

@@ -342,6 +342,14 @@ func (p *Profile) Insert(event *model.Event, insertMissingProcesses bool, imageT
 	return p.ActivityTree.Insert(event, insertMissingProcesses, imageTag, generationType, resolvers)
 }
 
+// SetBaseMountNamespaceID pins the workload's base mount namespace inode (set once)
+func (p *Profile) SetBaseMountNamespaceID(nsID uint32) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.ActivityTree.SetBaseMountNamespaceID(nsID)
+}
+
 // InsertMount inserts a mount into the profile's deduplicated mount table
 func (p *Profile) InsertMount(mnt *model.Mount, imageTag string, generationType activity_tree.NodeGenerationType, timestamp time.Time) bool {
 	p.Lock()

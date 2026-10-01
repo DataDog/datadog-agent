@@ -191,15 +191,12 @@ type ActivityTree struct {
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
 
-	// Mounts holds the workload's deduplicated mount table: a flat union of every
-	// mount observed across all mount namespaces seen for the workload. It is
-	// append-only (entries are never removed on unmount). Each node records
-	// whether it was observed in the base (first-seen) mount namespace.
 	Mounts []*MountNode
 
-	// baseMountNamespaceID is the first mount namespace inode observed for the
-	// workload. It anchors the InBaseNamespace flag on mount nodes and is runtime
-	// state only (the inode is ephemeral, so it is not persisted).
+	// baseMountNamespaceID is the mount namespace inode snapshotted when the profile
+	// was first seeded. It anchors the InBaseNamespace flag on mount nodes and is
+	// runtime state only (the inode is ephemeral, so it is not persisted; it is
+	// re-pinned from the seeding workload on the next seed after a reload).
 	baseMountNamespaceID uint32
 
 	imageTagIDs []imageTagEntry
