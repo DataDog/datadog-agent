@@ -1194,6 +1194,13 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "visible": {
                     "type": "boolean",
                     "description": "Mount is not visible in the VFS tree"
+                },
+                "flags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Normalized per-mount attribute flags"
                 }
             },
             "additionalProperties": false,
@@ -4427,6 +4434,13 @@ Workload Protection events for Linux systems have the following JSON schema:
         "visible": {
             "type": "boolean",
             "description": "Mount is not visible in the VFS tree"
+        },
+        "flags": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Normalized per-mount attribute flags"
         }
     },
     "additionalProperties": false,
@@ -4457,6 +4471,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source.path_error` | Mount source path error |
 | `detached` | Mount is not attached to the VFS tree |
 | `visible` | Mount is not visible in the VFS tree |
+| `flags` | Normalized per-mount attribute flags |
 
 | References |
 | ---------- |

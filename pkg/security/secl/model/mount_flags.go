@@ -16,7 +16,6 @@ import (
 // into this layout so the same mount always yields the same value regardless of
 // the source that observed it. The values are declared as literals rather than
 // pulled from golang.org/x/sys/unix so the package builds on every platform.
-// See pkg/security/security_profile/workload_mounts.md.
 const (
 	MountAttrReadOnly    = uint32(0x00000001)
 	MountAttrNoSUID      = uint32(0x00000002)
@@ -63,6 +62,28 @@ func NormalizeMountFlagsFromVFS(mntFlags uint32) uint32 {
 // canonical per-mount attribute bitmask.
 func NormalizeMountFlagsFromAttr(attr uint64) uint32 {
 	return uint32(attr) & mountAttrMask
+}
+
+// MountFlagsStrings returns the canonical option names set in the normalized
+// per-mount attribute bitmask.
+func MountFlagsStrings(flags uint32) []string {
+	var out []string
+	if flags&MountAttrReadOnly != 0 {
+		out = append(out, "ro")
+	}
+	if flags&MountAttrNoSUID != 0 {
+		out = append(out, "nosuid")
+	}
+	if flags&MountAttrNoDev != 0 {
+		out = append(out, "nodev")
+	}
+	if flags&MountAttrNoExec != 0 {
+		out = append(out, "noexec")
+	}
+	if flags&MountAttrNoSymFollow != 0 {
+		out = append(out, "nosymfollow")
+	}
+	return out
 }
 
 // NormalizeMountFlagsFromOptions converts a comma-separated procfs mountinfo
