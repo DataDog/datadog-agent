@@ -32,17 +32,30 @@ const (
 	parLegacySCMServiceName   = "datadog-agent-action"
 )
 
+type parSplitProcmgrWindowsSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
 type parProcmgrWindowsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-type parMonolithProcmgrWindowsSuite struct {
-	e2e.BaseSuite[environments.Host]
+func TestPARSplitManagedByProcmgrWindows(t *testing.T) {
+	t.Parallel()
+	config := paridentity.GenerateTestPrivateActionRunnerConfig(t)
+	e2e.Run(t, &parSplitProcmgrWindowsSuite{}, e2e.WithProvisioner(
+		awshost.ProvisionerNoFakeIntake(
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
+			),
+		),
+	))
 }
 
 func TestPARManagedByProcmgrWindows(t *testing.T) {
 	t.Parallel()
-	config := paridentity.GenerateTestPrivateActionRunnerConfig(t)
+	config := paridentity.GenerateTestMonolithicPrivateActionRunnerConfig(t)
 	e2e.Run(t, &parProcmgrWindowsSuite{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
@@ -53,24 +66,11 @@ func TestPARManagedByProcmgrWindows(t *testing.T) {
 	))
 }
 
-func TestPARMonolithManagedByProcmgrWindows(t *testing.T) {
-	t.Parallel()
-	config := paridentity.GenerateTestMonolithicPrivateActionRunnerConfig(t)
-	e2e.Run(t, &parMonolithProcmgrWindowsSuite{}, e2e.WithProvisioner(
-		awshost.ProvisionerNoFakeIntake(
-			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault), ec2.WithInternetAccess()),
-				ec2.WithAgentOptions(agentparams.WithAgentConfig(config)),
-			),
-		),
-	))
-}
-
-func (s *parProcmgrWindowsSuite) TestPARControlSupervisedByProcmgrAndLegacySCMStopped() {
+func (s *parSplitProcmgrWindowsSuite) TestPARControlSupervisedByProcmgrAndLegacySCMStopped() {
 	assertPARSupervisedByProcmgr(s.T(), s.Env().RemoteHost, parControlProcessName, parControlConfigFileName)
 }
 
-func (s *parMonolithProcmgrWindowsSuite) TestPARMonolithSupervisedByProcmgrAndLegacySCMStopped() {
+func (s *parProcmgrWindowsSuite) TestPARSupervisedByProcmgrAndLegacySCMStopped() {
 	assertPARSupervisedByProcmgr(s.T(), s.Env().RemoteHost, parMonolithProcessName, parMonolithConfigFileName)
 }
 

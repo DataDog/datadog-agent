@@ -53,7 +53,7 @@ const (
 	privateActionRunnerConfigStage = "/tmp/private-action-runner-e2e-datadog.yaml"
 )
 
-func generateTestPrivateActionRunnerConfig(t *testing.T) string {
+func generateTestSplitPrivateActionRunnerConfig(t *testing.T) string {
 	urn, privateKey := GenerateTestRunnerIdentity(t)
 	return fmt.Sprintf(`private_action_runner:
   enabled: true
@@ -68,20 +68,20 @@ func generateTestPrivateActionRunnerConfig(t *testing.T) string {
 `, urn, privateKey, runCommandAction)
 }
 
-type linuxPrivateActionRunnerEnabledSuite struct {
+type linuxPrivateActionRunnerSplitSuite struct {
 	e2e.BaseSuite[environments.Host]
 
 	privilegedSigningKey testSigningKey
 }
 
-type linuxPrivateActionRunnerMonolithSuite struct {
+type linuxPrivateActionRunnerEnabledSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
+func TestLinuxPrivateActionRunnerSplitSuite(t *testing.T) {
 	t.Parallel()
-	config := generateTestPrivateActionRunnerConfig(t)
-	suite := &linuxPrivateActionRunnerEnabledSuite{
+	config := generateTestSplitPrivateActionRunnerConfig(t)
+	suite := &linuxPrivateActionRunnerSplitSuite{
 		privilegedSigningKey: generateTestSigningKey(t, privilegedRshellKeyID+"-"+uuid.NewString()),
 	}
 	e2e.Run(t, suite, e2e.WithProvisioner(
@@ -98,10 +98,10 @@ func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	))
 }
 
-func TestLinuxPrivateActionRunnerMonolithSuite(t *testing.T) {
+func TestLinuxPrivateActionRunnerEnabledSuite(t *testing.T) {
 	t.Parallel()
 	config := GenerateTestMonolithicPrivateActionRunnerConfig(t)
-	e2e.Run(t, &linuxPrivateActionRunnerMonolithSuite{}, e2e.WithProvisioner(
+	e2e.Run(t, &linuxPrivateActionRunnerEnabledSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
 				scenec2.WithEC2InstanceOptions(scenec2.WithOS(e2eos.Ubuntu2404E2E)),
@@ -130,7 +130,7 @@ func stagePrivateActionRunnerConfig(configContent string) func(*aws.Environment,
 // TestPrivilegedRshellEndToEnd verifies the complete deployed privilege boundary:
 // package permissions, systemd socket activation, TUF-authenticated task signing,
 // selective elevation from dd-agent to root, and helper idle reactivation.
-func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
+func (s *linuxPrivateActionRunnerSplitSuite) TestPrivilegedRshellEndToEnd() {
 	host := s.Env().RemoteHost
 	client := s.Env().FakeIntake.Client()
 
@@ -178,13 +178,6 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	s.Require().NoError(client.FlushPAR())
 	s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id)
 	s.T().Cleanup(func() { s.deleteRCConfig(runnerKeysRCProduct, s.privilegedSigningKey.id) })
-	s.Require().NoError(client.RCAddConfig(
-		strconv.FormatInt(testRunnerOrgID, 10),
-		runnerKeysRCProduct,
-		s.privilegedSigningKey.id,
-		s.privilegedSigningKey.id,
-		s.privilegedSigningKey.config,
-	))
 	setPARTaskSigningKey(s.T(), client, s.privilegedSigningKey)
 
 	// Enqueuing work starts the split-mode executor. Re-publish the key while
@@ -231,7 +224,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivilegedRshellEndToEnd() {
 	s.Require().Equal(privilegedRshellSecret+"\n", reactivated.Outputs["stdout"])
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) installPrivilegedRshellFixture() {
+func (s *linuxPrivateActionRunnerSplitSuite) installPrivilegedRshellFixture() {
 	rootJSON, err := e2efakeintake.RCRootJSON()
 	s.Require().NoError(err)
 	policy, err := json.Marshal(struct {
@@ -265,12 +258,12 @@ func (s *linuxPrivateActionRunnerEnabledSuite) installPrivilegedRshellFixture() 
 	_, _ = host.Execute("rm -f " + privilegedRshellPolicyStage + ".secret")
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) runPrivilegedRshellTaskWithID(command string) (string, *api.PARTaskResult) {
+func (s *linuxPrivateActionRunnerSplitSuite) runPrivilegedRshellTaskWithID(command string) (string, *api.PARTaskResult) {
 	taskID := s.enqueuePrivilegedRshellTask(command)
 	return taskID, s.waitForPrivilegedRshellTask(taskID)
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) enqueuePrivilegedRshellTask(command string) string {
+func (s *linuxPrivateActionRunnerSplitSuite) enqueuePrivilegedRshellTask(command string) string {
 	taskID := uuid.New().String()
 	err := s.Env().FakeIntake.Client().EnqueuePARTask(taskID, runCommandAction, map[string]interface{}{
 		"command":              command,
@@ -283,13 +276,13 @@ func (s *linuxPrivateActionRunnerEnabledSuite) enqueuePrivilegedRshellTask(comma
 	return taskID
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) waitForPrivilegedRshellTask(taskID string) *api.PARTaskResult {
+func (s *linuxPrivateActionRunnerSplitSuite) waitForPrivilegedRshellTask(taskID string) *api.PARTaskResult {
 	result, err := s.Env().FakeIntake.Client().GetPARTaskResult(taskID, 2*time.Minute)
 	s.Require().NoError(err)
 	return result
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) deleteRCConfig(product, configID string) {
+func (s *linuxPrivateActionRunnerSplitSuite) deleteRCConfig(product, configID string) {
 	configs, err := s.Env().FakeIntake.Client().RCListConfigs()
 	s.Require().NoError(err)
 	for _, config := range configs {
@@ -300,7 +293,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) deleteRCConfig(product, configID 
 	}
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) waitForSystemdUnitState(unit, state string, timeout time.Duration) {
+func (s *linuxPrivateActionRunnerSplitSuite) waitForSystemdUnitState(unit, state string, timeout time.Duration) {
 	s.T().Helper()
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().RemoteHost.Execute("sudo systemctl is-active " + unit + " || true")
@@ -309,7 +302,7 @@ func (s *linuxPrivateActionRunnerEnabledSuite) waitForSystemdUnitState(unit, sta
 	}, timeout, time.Second, "%s should become %s", unit, state)
 }
 
-func (s *linuxPrivateActionRunnerEnabledSuite) assertPrivilegedHelperUIDs() {
+func (s *linuxPrivateActionRunnerSplitSuite) assertPrivilegedHelperUIDs() {
 	host := s.Env().RemoteHost
 	pid := strings.TrimSpace(host.MustExecute(
 		"sudo systemctl show --property MainPID --value " + privilegedRshellServiceUnit,
@@ -345,34 +338,40 @@ func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerEnabledHos
 	}, 5*time.Minute, 10*time.Second, "Private Action Runner enabled host tag did not reach fakeintake")
 }
 
-func (s *linuxPrivateActionRunnerMonolithSuite) TestPrivateActionRunnerStartsWhenEnabled() {
+func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerStartsWhenEnabled() {
 	host := s.Env().RemoteHost
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
 
+	// Start the private action runner service
 	_, err := svcManager.Start(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
+	// Verify the service is running
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
 		assert.NoError(c, statusErr)
 		assert.Contains(c, status, "active")
 	}, 2*time.Minute, 5*time.Second, "private action runner service should be active when enabled")
 
+	// Verify the process is running
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pids, pidErr := process.FindPID(host, "privateactionrunner")
 		assert.NoError(c, pidErr)
 		assert.NotEmpty(c, pids, "privateactionrunner process should be running")
 	}, 2*time.Minute, 5*time.Second, "privateactionrunner process should be running when enabled")
 
+	// Verify the log file exists
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, "sudo test -f "+privateActionRunnerLogFile)
 	}, 2*time.Minute, 5*time.Second, "private action runner log file should exist")
 
+	// Verify log contains startup message
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		host.MustExecuteOn(c, fmt.Sprintf("sudo grep -i %q %s", privateActionRunnerStartedLogLine, privateActionRunnerLogFile))
 	}, 2*time.Minute, 5*time.Second, "private action runner log should contain the started message")
 
+	// Wait for the Core Agent to report the AP_RUNNER_KEYS client in its backend requests.
 	client := s.Env().FakeIntake.Client()
 	stats, err := client.RCStats()
 	s.Require().NoError(err)
@@ -390,22 +389,25 @@ func (s *linuxPrivateActionRunnerMonolithSuite) TestPrivateActionRunnerStartsWhe
 	}, 30*time.Second, time.Second, "private action runner log should report the keys manager ready")
 }
 
-func (s *linuxPrivateActionRunnerMonolithSuite) TestPrivateActionRunnerServiceRestart() {
+func (s *linuxPrivateActionRunnerEnabledSuite) TestPrivateActionRunnerServiceRestart() {
 	host := s.Env().RemoteHost
 	svcManager := common.GetServiceManager(host)
 	s.Require().NotNil(svcManager)
 
 	PushFakeRunnerKeysConfig(s.T(), s.Env().FakeIntake.Client())
 
+	// Ensure service is started
 	_, err := svcManager.Start(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
+	// Wait for service to be running
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
 		assert.NoError(c, statusErr)
 		assert.Contains(c, status, "active")
 	}, 2*time.Minute, 5*time.Second)
 
+	// Get the original PID
 	var originalPID int
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pids, pidErr := process.FindPID(host, "privateactionrunner")
@@ -416,15 +418,18 @@ func (s *linuxPrivateActionRunnerMonolithSuite) TestPrivateActionRunnerServiceRe
 		}
 	}, 2*time.Minute, 5*time.Second)
 
+	// Restart the service
 	_, err = svcManager.Restart(privateActionRunnerServiceName)
 	s.Require().NoError(err)
 
+	// Verify service is running again
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		status, statusErr := svcManager.Status(privateActionRunnerServiceName)
 		assert.NoError(c, statusErr)
 		assert.Contains(c, status, "active")
 	}, 2*time.Minute, 5*time.Second, "private action runner should be active after restart")
 
+	// Verify we have a new PID (service actually restarted)
 	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		pids, pidErr := process.FindPID(host, "privateactionrunner")
 		assert.NoError(c, pidErr)

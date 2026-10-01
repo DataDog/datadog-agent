@@ -45,8 +45,8 @@ func GenerateTestRunnerIdentity(t *testing.T) (urn string, privateKeyB64 string)
 	return testRunnerURN, base64.RawURLEncoding.EncodeToString(jwkJSON)
 }
 
-// GenerateTestPrivateActionRunnerConfig returns datadog.yaml snippet with PAR enabled
-// and a valid test identity so the runner can start without self-enrollment.
+// GenerateTestPrivateActionRunnerConfig returns datadog.yaml with PAR enabled
+// and no split-mode override, so tests exercise the product default.
 func GenerateTestPrivateActionRunnerConfig(t *testing.T) string {
 	t.Helper()
 	urn, privateKeyB64 := GenerateTestRunnerIdentity(t)
