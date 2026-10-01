@@ -9,6 +9,7 @@ package nodefilter
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -49,6 +50,17 @@ func (s *podStore) Add(obj interface{}) error {
 		return fmt.Errorf("nodefilter pod store: unsupported object type %T", obj)
 	}
 
+	s.wlmetaStore.Notify(s.track(pod))
+
+	return nil
+}
+
+// track records the entities pod yields and returns the events that bring
+// workloadmeta up to date with it: a Set for the pod and each of its
+// containers, and an Unset for each container it no longer reports. Such a
+// container (the runtime recreated it under a new ID, e.g. on restart) never
+// goes through Delete, since the pod itself never disappears.
+func (s *podStore) track(pod *corev1.Pod) []workloadmeta.CollectorEvent {
 	events := parsePod(pod, s.collectEphemeralContainers)
 	entityIDs := entityIDsFromEvents(events)
 
@@ -57,14 +69,7 @@ func (s *podStore) Add(obj interface{}) error {
 	s.seen[pod.UID] = entityIDs
 	s.mu.Unlock()
 
-	// A container that disappeared between two updates of the same pod (the
-	// runtime recreated it under a new ID, e.g. on restart) never goes
-	// through Delete, since the pod itself never disappears: unset it here.
-	events = append(events, unsetEventsForEntityIDs(removedEntityIDs(previousEntityIDs, entityIDs))...)
-
-	s.wlmetaStore.Notify(events)
-
-	return nil
+	return append(events, unsetEventsForEntityIDs(removedEntityIDs(previousEntityIDs, entityIDs))...)
 }
 
 // Update notifies the workloadmeta store with EventTypeSet events for the pod
@@ -104,35 +109,30 @@ func (s *podStore) Replace(list []interface{}, _ string) error {
 		log.Warnf("%s found no pods on node %q, not even the agent's own, so telemetry won't get Kubernetes tags: set one of the environment variables listed in otelcollector.standalone.node_from_env_var to the pod's spec.nodeName through the downward API", componentName, s.nodeName)
 	}
 
-	seenNow := make(map[types.UID][]workloadmeta.EntityID, len(list))
 	var events []workloadmeta.CollectorEvent
+	listed := make(map[types.UID]struct{}, len(list))
 
+	// A pod that survived the replace may have lost containers (e.g. restarted
+	// under a new ID), which track unsets.
 	for _, obj := range list {
 		pod, ok := obj.(*corev1.Pod)
 		if !ok {
 			return fmt.Errorf("nodefilter pod store: unsupported object type %T", obj)
 		}
 
-		podEvents := parsePod(pod, s.collectEphemeralContainers)
-		seenNow[pod.UID] = entityIDsFromEvents(podEvents)
-		events = append(events, podEvents...)
+		listed[pod.UID] = struct{}{}
+		events = append(events, s.track(pod)...)
 	}
 
+	// A pod missing from the list is gone, along with its containers.
 	s.mu.Lock()
-	seenBefore := s.seen
-	s.seen = seenNow
-	s.mu.Unlock()
-
-	for uid, previousEntityIDs := range seenBefore {
-		currentEntityIDs, stillPresent := seenNow[uid]
-		if !stillPresent {
-			events = append(events, unsetEventsForEntityIDs(previousEntityIDs)...)
-			continue
+	for uid, entityIDs := range s.seen {
+		if _, ok := listed[uid]; !ok {
+			events = append(events, unsetEventsForEntityIDs(entityIDs)...)
+			delete(s.seen, uid)
 		}
-		// The pod itself survived the replace, but one of its containers may
-		// not have (e.g. restarted under a new ID): unset those too.
-		events = append(events, unsetEventsForEntityIDs(removedEntityIDs(previousEntityIDs, currentEntityIDs))...)
 	}
+	s.mu.Unlock()
 
 	s.wlmetaStore.Notify(events)
 
@@ -157,22 +157,9 @@ func entityIDsFromEvents(events []workloadmeta.CollectorEvent) []workloadmeta.En
 // current, e.g. a container an updated pod no longer reports because the
 // runtime recreated it under a new ID.
 func removedEntityIDs(previous, current []workloadmeta.EntityID) []workloadmeta.EntityID {
-	if len(previous) == 0 {
-		return nil
-	}
-
-	currentSet := make(map[workloadmeta.EntityID]struct{}, len(current))
-	for _, entityID := range current {
-		currentSet[entityID] = struct{}{}
-	}
-
-	var removed []workloadmeta.EntityID
-	for _, entityID := range previous {
-		if _, ok := currentSet[entityID]; !ok {
-			removed = append(removed, entityID)
-		}
-	}
-	return removed
+	return slices.DeleteFunc(slices.Clone(previous), func(entityID workloadmeta.EntityID) bool {
+		return slices.Contains(current, entityID)
+	})
 }
 
 func unsetEventsForEntityIDs(entityIDs []workloadmeta.EntityID) []workloadmeta.CollectorEvent {
