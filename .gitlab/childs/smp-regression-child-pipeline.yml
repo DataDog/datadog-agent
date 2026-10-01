@@ -38,15 +38,11 @@ variables:
 
 .smp_job_submit:
   - |
-    # TEMPORARY CI ACCELERATION -- remove the --total-samples and
-    # --experiment-name-allow-filter flags below before merging. They exist only
-    # to shorten the SMP feedback loop while the CI reporting flow is reworked.
-    #
-    # --total-samples N sets each replicate's sample window to N seconds (the
-    # backend default is 600); warmup (default 45s, server-side) still applies.
-    # --experiment-name-allow-filter selects experiments by name PREFIX, so
-    # full names must be used to avoid matching siblings (e.g.
-    # "quality_gate_idle" would also match "quality_gate_idle_all_features").
+    # Run every Agent quality gate at the production 600-second sample window.
+    # The shortened run had no missed_bytes series for quality_gate_logs.
+    # Warmup (default 45s, server-side) still applies.
+    # TEMPORARY CI ITERATION SCOPE -- the allow filter matches name prefixes.
+    # Remove it before merging to restore non-quality-gate experiments too.
     RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE} \
     job submit \
     --baseline-image ${BASELINE_IMAGE} \
@@ -54,8 +50,8 @@ variables:
     --baseline-sha ${BASELINE_SHA} \
     --comparison-sha ${CI_COMMIT_SHA} \
     --target-config-dir ${CONFIG_DIR} \
-    --total-samples 60 \
-    --experiment-name-allow-filter quality_gate_logs,quality_gate_private_action_runner \
+    --total-samples 600 \
+    --experiment-name-allow-filter quality_gate_ \
     --submission-metadata submission_metadata \
     --tags ${SMP_TAGS} || {
       exit_code=$?
