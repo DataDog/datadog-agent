@@ -86,10 +86,9 @@ managed by **Bazel**.
 
 **Add the eBPF CO-RE program** in the check's `c/runtime/BUILD.bazel` using
 `ebpf_program_suite` (see existing targets in
-`pkg/collector/corechecks/ebpf/c/runtime/BUILD.bazel`). Then:
-1. Add the target to `_BAZEL_EBPF_CORE_TARGETS` in `tasks/system_probe.py`
-   (needed for the copy step that stages `.o` files).
-2. Add it to the `all_ebpf_programs` filegroup in `pkg/ebpf/BUILD.bazel`.
+`pkg/collector/corechecks/ebpf/c/runtime/BUILD.bazel`). Then add the target
+to the `co_re_objects` group in `pkg/ebpf/BUILD.bazel`, which both the invoke
+staging step and the system-probe package use.
 
 **Add runtime compilation support** by creating a `runtime_compilation_bundle`
 target in `pkg/ebpf/bytecode/BUILD.bazel`:
@@ -103,10 +102,8 @@ runtime_compilation_bundle(
     src_c = "//pkg/collector/corechecks/ebpf/c/runtime:<check-name>-kern.c",
 )
 ```
-Then add the `_flat` target to `_BAZEL_RUNTIME_FLAT_TARGETS` in
-`tasks/system_probe.py` and both the `_flat` and `_verify_test` targets to the
-convenience targets in `pkg/ebpf/BUILD.bazel` (`all_ebpf_programs` and
-`verify_generated_files` respectively).
+Then add the `_flat` target to `runtime_sources` and the `_verify_test` target
+to `verify_generated_files`, both in `pkg/ebpf/BUILD.bazel`.
 
 **Add CGO type generation** by creating a `cgo_godefs` target in the check's
 `BUILD.bazel`:
