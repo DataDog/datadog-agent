@@ -46,6 +46,10 @@ const (
 	testAzureAppServiceInstanceID = "example-instance"
 	testAzureFunctionsInstanceID  = "example-functions-instance"
 	testServiceInstanceID         = "example-service-instance"
+
+	// testAttributeAzureAppServiceInstanceID is the Go detector's App Service
+	// instance key. The mapping must ignore it.
+	testAttributeAzureAppServiceInstanceID = "azure.app_service.instance.id"
 )
 
 func TestSourceFromAttrs(t *testing.T) {
@@ -131,25 +135,24 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure App Service",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
-				string(conventions.ServiceNameKey):    testAzureAppServiceName,
-				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
-				attributeAzureResourceGroupName:       testAzureResourceGroup,
-				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
-				attributeServiceInstanceID:            testServiceInstanceID,
-				string(conventions.HostIDKey):         testHostID,
+				string(conventions.CloudPlatformKey):     cloudPlatformAzureAppService,
+				string(conventions.ServiceNameKey):       testAzureAppServiceName,
+				string(conventions.CloudAccountIDKey):    testAzureSubscriptionID,
+				attributeAzureResourceGroupName:          testAzureResourceGroup,
+				testAttributeAzureAppServiceInstanceID:   testAzureAppServiceInstanceID,
+				string(conventions.ServiceInstanceIDKey): testServiceInstanceID,
+				string(conventions.HostIDKey):            testHostID,
 			}),
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureAppServiceKind,
-				Identifier: testAzureAppServiceInstanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				Identifier: testAzureAppServiceName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
-					Primary: testAzureAppServiceInstanceID,
+					Primary: testAzureAppServiceName,
 					Dimensions: map[string]string{
 						"name":            testAzureAppServiceName,
 						"subscription_id": testAzureSubscriptionID,
 						"resource_group":  testAzureResourceGroup,
-						"instance":        testAzureAppServiceInstanceID,
 					},
 				},
 			},
@@ -157,47 +160,44 @@ func TestSourceFromAttrs(t *testing.T) {
 		{
 			name: "Azure App Service legacy platform spelling",
 			attrs: testutils.NewAttributeMap(map[string]string{
-				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppServiceLegacy,
-				string(conventions.ServiceNameKey):    testAzureAppServiceName,
-				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
-				attributeAzureResourceGroupName:       testAzureResourceGroup,
-				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
+				string(conventions.CloudPlatformKey):   cloudPlatformAzureAppServiceLegacy,
+				string(conventions.ServiceNameKey):     testAzureAppServiceName,
+				string(conventions.CloudAccountIDKey):  testAzureSubscriptionID,
+				attributeAzureResourceGroupName:        testAzureResourceGroup,
+				testAttributeAzureAppServiceInstanceID: testAzureAppServiceInstanceID,
 			}),
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureAppServiceKind,
-				Identifier: testAzureAppServiceInstanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				Identifier: testAzureAppServiceName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
-					Primary: testAzureAppServiceInstanceID,
+					Primary: testAzureAppServiceName,
 					Dimensions: map[string]string{
 						"name":            testAzureAppServiceName,
 						"subscription_id": testAzureSubscriptionID,
 						"resource_group":  testAzureResourceGroup,
-						"instance":        testAzureAppServiceInstanceID,
 					},
 				},
 			},
 		},
 		{
-			name: "Azure App Service service instance fallback",
+			name: "Azure App Service without instance attributes",
 			attrs: testutils.NewAttributeMap(map[string]string{
 				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
 				string(conventions.ServiceNameKey):    testAzureAppServiceName,
 				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
 				attributeAzureResourceGroupName:       testAzureResourceGroup,
-				attributeServiceInstanceID:            testServiceInstanceID,
 			}),
 			ok: true,
 			src: source.Source{
 				Kind:       source.AzureAppServiceKind,
-				Identifier: testServiceInstanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				Identifier: testAzureAppServiceName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 				SourceIdentifier: source.SourceIdentifier{
-					Primary: testServiceInstanceID,
+					Primary: testAzureAppServiceName,
 					Dimensions: map[string]string{
 						"name":            testAzureAppServiceName,
 						"subscription_id": testAzureSubscriptionID,
 						"resource_group":  testAzureResourceGroup,
-						"instance":        testServiceInstanceID,
 					},
 				},
 			},
@@ -466,14 +466,13 @@ func TestSourceFromAttrs(t *testing.T) {
 func TestAzureFunctionsSource(t *testing.T) {
 	want := source.Source{
 		Kind:       source.AzureFunctionsKind,
-		Identifier: testAzureFunctionsInstanceID, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		Identifier: testAzureFunctionsName, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		SourceIdentifier: source.SourceIdentifier{
-			Primary: testAzureFunctionsInstanceID,
+			Primary: testAzureFunctionsName,
 			Dimensions: map[string]string{
 				"name":            testAzureFunctionsName,
 				"subscription_id": testAzureSubscriptionID,
 				"resource_group":  testAzureResourceGroup,
-				"instance":        testAzureFunctionsInstanceID,
 			},
 		},
 	}
@@ -592,7 +591,6 @@ func TestAzureFunctionsSourceRequiresBillingIdentity(t *testing.T) {
 		string(conventions.ServiceNameKey),
 		string(conventions.CloudAccountIDKey),
 		attributeAzureResourceGroupName,
-		string(semconv143.FaaSInstanceKey),
 	}
 
 	for _, required := range requiredAttributes {
@@ -633,17 +631,16 @@ func TestAzureAppServiceSourceRequiresBillingIdentity(t *testing.T) {
 		string(conventions.ServiceNameKey),
 		string(conventions.CloudAccountIDKey),
 		attributeAzureResourceGroupName,
-		attributeAzureAppServiceInstanceID,
 	}
 
 	for _, missing := range requiredAttributes {
 		t.Run("missing "+missing, func(t *testing.T) {
 			attrs := map[string]string{
-				string(conventions.CloudPlatformKey):  cloudPlatformAzureAppService,
-				string(conventions.ServiceNameKey):    testAzureAppServiceName,
-				string(conventions.CloudAccountIDKey): testAzureSubscriptionID,
-				attributeAzureResourceGroupName:       testAzureResourceGroup,
-				attributeAzureAppServiceInstanceID:    testAzureAppServiceInstanceID,
+				string(conventions.CloudPlatformKey):   cloudPlatformAzureAppService,
+				string(conventions.ServiceNameKey):     testAzureAppServiceName,
+				string(conventions.CloudAccountIDKey):  testAzureSubscriptionID,
+				attributeAzureResourceGroupName:        testAzureResourceGroup,
+				testAttributeAzureAppServiceInstanceID: testAzureAppServiceInstanceID,
 			}
 			delete(attrs, missing)
 

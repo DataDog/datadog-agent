@@ -240,7 +240,7 @@ require (
 	github.com/aws/karpenter-provider-aws v1.9.0
 	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/bazelbuild/rules_go v0.63.0
-	github.com/beevik/ntp v1.5.0
+	github.com/beevik/ntp v1.6.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
@@ -615,7 +615,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.52.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.56.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.43.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.10.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.38.0 // indirect
@@ -667,7 +667,7 @@ require (
 	github.com/digitalocean/godo v1.196.0 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
-	github.com/docker/cli v29.8.1+incompatible // indirect
+	github.com/docker/cli v29.8.2+incompatible // indirect
 	github.com/docker/docker v29.3.1+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
