@@ -304,6 +304,13 @@ class TestOmnibusInstall(unittest.TestCase):
         omnibus.bundle_install_omnibus(self.mock_ctx)
         self.assertEqual(len(self.mock_ctx.run.mock_calls), 1)
 
+    def test_ffi_yajl_build_flags(self):
+        self.mock_ctx.set_result_for('run', 'bundle install', Result())
+        omnibus.bundle_install_omnibus(self.mock_ctx, env={'FOO': 'bar'})
+        env = self.mock_ctx.run.mock_calls[0].kwargs['env']
+        self.assertEqual(env['FOO'], 'bar')
+        self.assertEqual(env['BUNDLE_BUILD__FFI___YAJL'], '--with-cflags=-std=gnu17')
+
     def test_failure(self):
         self.mock_ctx.set_result_for('run', 'bundle install', Result(exited=1))
         with self.assertRaises(UnexpectedExit):
@@ -364,6 +371,25 @@ class TestRpathEdit(unittest.TestCase):
         assert mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True) in call_list
         assert mock.call('objdump -x some/file | grep "RPATH"', warn=True, hide=True) in call_list
         assert mock.call('patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file') in call_list
+
+    def test_rpath_edit_preserves_installer_only(self):
+        self.mock_ctx.set_result_for(
+            'run',
+            r"find some/path -type f -exec file --mime-type \{\} \+",
+            Result("some/installer:application/x-executable\nsome/file:application/x-executable"),
+        )
+        self.mock_ctx.set_result_for('run', 'objdump -x some/file | grep "RPATH"', Result("some/path/embedded/lib"))
+        self.mock_ctx.set_result_for(
+            'run', 'patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file', Result()
+        )
+
+        omnibus.rpath_edit(self.mock_ctx, "some/path", "some/other/path", preserve_rpath="some/installer")
+
+        assert self.mock_ctx.run.mock_calls == [
+            mock.call('find some/path -type f -exec file --mime-type \\{\\} \\+', hide=True),
+            mock.call('objdump -x some/file | grep "RPATH"', warn=True, hide=True),
+            mock.call('patchelf --force-rpath --set-rpath \\$ORIGIN/other/path/embedded/lib some/file'),
+        ]
 
     def test_rpath_edit_macos(self):
         self.mock_ctx.set_result_for(
