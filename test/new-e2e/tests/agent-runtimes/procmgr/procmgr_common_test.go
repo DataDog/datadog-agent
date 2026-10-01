@@ -77,8 +77,8 @@ func (s *baseProcmgrSuite) requireCLI() {
 
 // stopShouldTakeLessThan bounds a dd-procmgr stop of a test fixture. Linux's
 // exits on the signal; Windows' ignores it and is pinned to a 10s stop_timeout,
-// so this leaves room for that plus the force kill. A stop that runs past this
-// is one the daemon never escalated.
+// so this leaves room for that, the force kill after it, and a retry in
+// between. A stop that runs past this is one the daemon never escalated.
 const stopShouldTakeLessThan = 20 * time.Second
 
 // retryCLIAction runs a mutating dd-procmgr command until it succeeds.
@@ -88,21 +88,22 @@ const stopShouldTakeLessThan = 20 * time.Second
 // and, with MustExecute, the whole test with it. alreadyDone is the daemon's
 // refusal when a retry finds the work done, which is a success here.
 //
-// Returns how long the attempt that settled it took, so a caller can hold the
-// daemon to a duration as well as an outcome.
+// Returns how long the action took to settle across every attempt, so a caller
+// can hold the daemon to a duration as well as an outcome. Timing the last
+// attempt alone would let a retry report only the tail of the work: a transport
+// fault halfway through a slow stop would leave the retry measuring what was
+// left of it, which is the one case this helper exists to tolerate.
 func (s *baseProcmgrSuite) retryCLIAction(action, procName, alreadyDone string) time.Duration {
 	s.T().Helper()
-	var elapsed time.Duration
+	start := time.Now()
 	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
-		start := time.Now()
 		out, err := s.Env().RemoteHost.Execute(s.platform.cliCmd(action + " " + procName))
-		elapsed = time.Since(start)
 		if err == nil || strings.Contains(err.Error(), alreadyDone) {
 			return
 		}
 		assert.NoError(ct, err, "%s %s: %s", action, procName, out)
 	}, 60*time.Second, 2*time.Second)
-	return elapsed
+	return time.Since(start)
 }
 
 // ---------------------------------------------------------------------------
