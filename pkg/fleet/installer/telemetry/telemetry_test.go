@@ -762,8 +762,7 @@ func TestCrossProcessRoundTrip_ServiceAndPriority(t *testing.T) {
 	// Simulated child process: reads env vars, starts its own span.
 	for _, kv := range envVars {
 		parts := strings.SplitN(kv, "=", 2)
-		os.Setenv(parts[0], parts[1])
-		defer os.Unsetenv(parts[0]) //nolint:revive // intentional: env is read by StartSpanFromEnv after the loop; unset must run at test end
+		t.Setenv(parts[0], parts[1])
 	}
 	child, _ := StartSpanFromEnv(context.Background(), "child")
 	child.Finish(nil)
@@ -791,8 +790,7 @@ func TestCrossProcessRoundTrip_DropPropagatesViaPriorityEnv(t *testing.T) {
 	// Child reads env — inherits traceID=dropTraceID AND priority=0.
 	for _, kv := range envVars {
 		parts := strings.SplitN(kv, "=", 2)
-		os.Setenv(parts[0], parts[1])
-		defer os.Unsetenv(parts[0]) //nolint:revive // intentional: env is read by StartSpanFromEnv after the loop; unset must run at test end
+		t.Setenv(parts[0], parts[1])
 	}
 	child, _ := StartSpanFromEnv(context.Background(), "child")
 	child.Finish(nil)

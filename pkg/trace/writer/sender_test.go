@@ -265,9 +265,12 @@ func TestSender(t *testing.T) {
 			newTestServer(),
 			newTestServer(),
 		}
-		for _, server := range servers {
-			defer server.Close() //nolint:revive // intentional: test servers must keep listening until after sendPayloads runs below
-		}
+		// test servers must keep listening until after sendPayloads runs below
+		defer func() {
+			for _, server := range servers {
+				server.Close()
+			}
+		}()
 
 		senders := make([]*sender, 3)
 		for i := range 3 {

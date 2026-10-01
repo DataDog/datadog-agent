@@ -445,11 +445,18 @@ func (p *ProcessKiller) killPendingForDisarmer(disarmer *ruleDisarmer, now time.
 		return
 	}
 
-	// Hold the locks until the end of the function to avoid a conflict with HandleProcessExit and FlushPendingReports
-	for _, r := range disarmer.pendingReports {
+	// Hold the locks until the end of the function to avoid a conflict with HandleProcessExit and FlushPendingReports.
+	// lockedReports is captured separately because disarmer.pendingReports is mutated below.
+	lockedReports := make([]*KillActionReport, len(disarmer.pendingReports))
+	copy(lockedReports, disarmer.pendingReports)
+	for _, r := range lockedReports {
 		r.Lock()
-		defer r.Unlock() //nolint:revive // intentional: reports stay locked until function return to avoid races with HandleProcessExit/FlushPendingReports
 	}
+	defer func() {
+		for _, r := range lockedReports {
+			r.Unlock()
+		}
+	}()
 
 	// Drop reports that were already resolved (e.g. aborted because all PIDs
 	// exited before the warmup period elapsed). Without this, updateKillActionReport

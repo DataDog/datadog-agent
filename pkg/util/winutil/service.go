@@ -254,13 +254,20 @@ func doStopServiceWithDependencies(manager *mgr.Mgr, service *mgr.Service,
 		callback.afterDependentsEnumeration()
 	}
 	var depServices []*mgr.Service
+	// Close all opened dependent-service handles on return. Registered before the
+	// open loop so partially opened handles are still closed if an OpenService fails
+	// mid-loop. Handles are also used after the loop (timeout calc and stop-retry).
+	defer func() {
+		for _, depService := range depServices {
+			depService.Close()
+		}
+	}()
 	for _, depServiceName := range depServiceNames {
 		depService, err := OpenService(manager, depServiceName, windows.SERVICE_STOP|windows.SERVICE_QUERY_STATUS)
 		if err != nil {
 			return fmt.Errorf("could open service %s: %w", depServiceName, err)
 		}
 		depServices = append(depServices, depService)
-		defer depService.Close() //nolint:revive // intentional: handles are collected and used after the loop (timeout calc and stop-retry)
 	}
 
 	// extend deadline to account for all services we are trying to stop

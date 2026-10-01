@@ -236,9 +236,13 @@ func (w *darwinDirectoryWatcher) reportError(err error) {
 // startStream creates and starts the native FSEvents stream for the requested paths.
 func (w *darwinDirectoryWatcher) startStream(paths []string) error {
 	cPaths := make([]*C.char, len(paths))
+	defer func() {
+		for _, p := range cPaths {
+			C.free(unsafe.Pointer(p))
+		}
+	}()
 	for index, path := range paths {
 		cPaths[index] = C.CString(path)
-		defer C.free(unsafe.Pointer(cPaths[index])) //nolint:revive // intentional: cPaths is passed to the C call after the loop; free must run after that call
 	}
 
 	var errorMessage *C.char
