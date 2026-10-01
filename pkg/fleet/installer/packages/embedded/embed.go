@@ -83,6 +83,9 @@ var PARExecutorWindowsProcmgrConfig string
 //go:embed tmpl/gen/windows/datadog-agent-par-control.yaml
 var PARControlWindowsProcmgrConfig string
 
+//go:embed tmpl/gen/windows
+var windowsProcmgrConfigs embed.FS
+
 // UnitType is the type of systemd unit.
 type UnitType string
 

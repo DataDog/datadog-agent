@@ -83,6 +83,42 @@ var migratableServices = []MigratableService{
 		},
 		LegacyWindowsService: "datadog-system-probe",
 	},
+	{
+		// Combined Private Action Runner. Still a legacy systemd/SCM unit on hosts that have
+		// not split it into par-control + action-executor under dd-procmgrd.
+		ID:                 "action",
+		ProcmgrProcessName: "datadog-agent-action",
+		ProcmgrConfigFile:  "datadog-agent-action.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/privateactionrunner",
+			"bin/agent/privateactionrunner",
+		},
+		LegacySystemdUnits: []string{
+			"datadog-agent-action.service",
+			"datadog-agent-action-exp.service",
+		},
+		LegacyWindowsService: "datadog-agent-action",
+	},
+	{
+		// On-demand executor spawned by par-control. Procmgr-native: no legacy unit owns it.
+		ID:                 "action-executor",
+		ProcmgrProcessName: "datadog-agent-action-executor",
+		ProcmgrConfigFile:  "datadog-agent-action-executor.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/privateactionrunner",
+			"bin/agent/privateactionrunner",
+		},
+	},
+	{
+		// PAR control plane. Procmgr-native: no legacy unit owns it.
+		ID:                 "par-control",
+		ProcmgrProcessName: "datadog-agent-par-control",
+		ProcmgrConfigFile:  "datadog-agent-par-control.yaml",
+		InstallMarkerRels: []string{
+			"embedded/bin/par-control",
+			"bin/agent/par-control",
+		},
+	},
 }
 
 func serviceByID(id string) (MigratableService, bool) {
@@ -92,4 +128,15 @@ func serviceByID(id string) (MigratableService, bool) {
 		}
 	}
 	return MigratableService{}, false
+}
+
+// ProcmgrConfigFiles returns the processes.d basenames the catalog tracks. Callers that ship
+// processes.d entries (the installer embeds) use this to assert every shipped config is
+// registered, so a new migration cannot land silently without COAT and flare coverage.
+func ProcmgrConfigFiles() []string {
+	out := make([]string, 0, len(migratableServices))
+	for _, service := range migratableServices {
+		out = append(out, service.ProcmgrConfigFile)
+	}
+	return out
 }

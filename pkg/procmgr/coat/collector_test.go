@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -237,6 +238,75 @@ func TestCollectProcessProcmgrRunning(t *testing.T) {
 	assert.True(t, service.Installed)
 	assert.True(t, service.ProcmgrConfigured)
 	assert.Equal(t, ProcessStateRunning, service.ProcmgrState)
+	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
+}
+
+// Catalog entries must name the same process the processes.d basename implies. A mismatch would
+// leave management_mode stuck at none even when dd-procmgrd is supervising the service.
+func TestMigratableServicesProcessNameMatchesConfigFile(t *testing.T) {
+	for _, service := range migratableServices {
+		want := strings.TrimSuffix(service.ProcmgrConfigFile, ".yaml")
+		assert.Equal(t, want, service.ProcmgrProcessName,
+			"service %q: ProcmgrProcessName must be the processes.d basename without .yaml", service.ID)
+		assert.NotEmpty(t, service.ProcmgrConfigFile)
+		assert.NotEmpty(t, service.InstallMarkerRels, "service %q needs an install marker", service.ID)
+	}
+}
+
+func TestCollectActionProcmgrRunning(t *testing.T) {
+	action, ok := serviceByID("action")
+	require.True(t, ok)
+
+	root := t.TempDir()
+	marker := installMarkerForTest(t, root, action, 0)
+	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
+	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, action.ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
+		processes: map[string]ProcessSnapshot{
+			action.ProcmgrProcessName: {Name: action.ProcmgrProcessName, State: ProcessStateRunning},
+		},
+	})
+
+	service := serviceSnapshotByID(t, collector.Collect(context.Background()), "action")
+	assert.True(t, service.Installed)
+	assert.True(t, service.ProcmgrConfigured)
+	assert.Equal(t, ProcessStateRunning, service.ProcmgrState)
+	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
+}
+
+func TestCollectPARControlProcmgrRunningWithoutLegacyUnit(t *testing.T) {
+	control, ok := serviceByID("par-control")
+	require.True(t, ok)
+
+	root := t.TempDir()
+	marker := installMarkerForTest(t, root, control, 0)
+	require.NoError(t, os.MkdirAll(filepath.Dir(marker), 0o755))
+	require.NoError(t, os.WriteFile(marker, []byte("bin"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, processesDirRel), 0o755))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(root, processesDirRel, control.ProcmgrConfigFile),
+		[]byte("cfg"),
+		0o644,
+	))
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true, RunningProcesses: 1},
+		processes: map[string]ProcessSnapshot{
+			control.ProcmgrProcessName: {Name: control.ProcmgrProcessName, State: ProcessStateRunning},
+		},
+	})
+
+	service := serviceSnapshotByID(t, collector.Collect(context.Background()), "par-control")
+	assert.True(t, service.Installed)
+	assert.True(t, service.ProcmgrConfigured)
 	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
 }
 
