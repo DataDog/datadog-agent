@@ -218,11 +218,8 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
 
     fill_mount_fields(syscall, &event->mountfields);
 
-    // EVENT_OPEN_TREE is released by HOOK_SYSCALL_EXIT(open_tree) and other mount hooks still
-    // peek it until then, so only the fsmount entry is released here
-    if (syscall->type == EVENT_FSMOUNT) {
-        pop_syscall(EVENT_FSMOUNT);
-    }
+    // only pop EVENT_FSMOUNT, the other mount types are released by another exit hook
+    pop_syscall(EVENT_FSMOUNT);
 
     struct proc_cache_t *entry = fill_process_context(&event->process);
     fill_cgroup_context(entry, &event->cgroup);
