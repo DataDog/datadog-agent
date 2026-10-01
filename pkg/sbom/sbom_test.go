@@ -69,3 +69,27 @@ func TestIsEnriched(t *testing.T) {
 		})
 	}
 }
+
+// TestSetHostUsageKeepsLatest checks that a host report the sbom check has yet
+// to take gives way to the next one, so the check reads the latest report and
+// the remote SBOM collector goes on at once.
+func TestSetHostUsageKeepsLatest(t *testing.T) {
+	older := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{component("bash")}}
+	newer := &cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{component("openssl")}}
+
+	SetHostUsage(older)
+	SetHostUsage(newer)
+
+	select {
+	case got := <-HostUsage():
+		assert.Same(t, newer, got)
+	default:
+		t.Fatal("no host report to take")
+	}
+
+	select {
+	case got := <-HostUsage():
+		t.Errorf("host report %v left behind", got)
+	default:
+	}
+}

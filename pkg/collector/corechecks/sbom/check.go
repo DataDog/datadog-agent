@@ -231,6 +231,8 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processHostScanResult(scanResult)
+		case usage := <-sbom.HostUsage():
+			c.processor.processHostUsage(usage)
 		case scanResult, ok := <-procfsSbomChan:
 			if !ok {
 				return nil

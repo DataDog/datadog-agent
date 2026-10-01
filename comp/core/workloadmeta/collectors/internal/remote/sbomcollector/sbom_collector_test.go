@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -438,4 +439,46 @@ func TestWorkloadmetaEventFromSBOMEventSet_BadInput(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, event.Entity)
 	})
+
+	t.Run("invalid protobuf data for the host", func(t *testing.T) {
+		msg := &sbompb.SBOMMessage{
+			Kind: sbompkg.HostKind,
+			Data: []byte{0xff, 0xff, 0xff, 0xff},
+		}
+		event, err := workloadmetaEventFromSBOMEventSet(store, msg)
+		assert.Error(t, err)
+		assert.Nil(t, event.Entity)
+
+		select {
+		case usage := <-sbompkg.HostUsage():
+			t.Errorf("host report %v handed to the sbom check", usage)
+		default:
+		}
+	})
+}
+
+// TestWorkloadmetaEventFromSBOMEventSet_HostHandedOff checks that the report of
+// the host goes to the sbom check, which merges it into the host SBOM, and
+// yields an empty workloadmeta event, as the host SBOM stays out of
+// workloadmeta.
+func TestWorkloadmetaEventFromSBOMEventSet_HostHandedOff(t *testing.T) {
+	data, err := proto.Marshal(&cyclonedx_v1_4.Bom{Components: []*cyclonedx_v1_4.Component{
+		component("bash", "5.2.26-6.el10", prop(sbomutil.LastAccessProperty, "1700000000")),
+	}})
+	require.NoError(t, err)
+
+	event, err := workloadmetaEventFromSBOMEventSet(newFakeStore(), &sbompb.SBOMMessage{Kind: sbompkg.HostKind, Data: data})
+	require.NoError(t, err)
+	assert.Nil(t, event.Entity)
+
+	select {
+	case usage := <-sbompkg.HostUsage():
+		require.Len(t, usage.Components, 1)
+		assert.Equal(t, "bash", usage.Components[0].Name)
+		v, ok := findProp(usage.Components[0], sbomutil.LastAccessProperty)
+		assert.True(t, ok)
+		assert.Equal(t, "1700000000", v)
+	default:
+		t.Fatal("the host report was not handed to the sbom check")
+	}
 }

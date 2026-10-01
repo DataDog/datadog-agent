@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Runtime usage enrichment covers the host SBOM. With ``sbom.enabled``,
+    ``sbom.host.enabled`` and ``sbom.enrichment.usage.enabled`` set, the OS
+    packages of the host SBOM carry ``LastSeenRunning``, ``HasSetSuidBit``
+    and ``RunningAsRoot``, from the processes system-probe observes on the
+    host. The host scan after a change in usage sends the SBOM in full.
+fixes:
+  - |
+    CWS package fields such as ``process.file.package.name`` resolve on host
+    files again when ``runtime_security_config.sbom.host.enabled`` is set.

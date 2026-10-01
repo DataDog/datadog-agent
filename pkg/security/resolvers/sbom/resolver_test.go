@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -462,5 +463,118 @@ func TestRefreshScanKeepsStoppedSBOM(t *testing.T) {
 	}
 	if _, ok := dataCache.Get("image:tag"); !ok {
 		t.Errorf("the deleted workload dropped the cached data of its image")
+	}
+}
+
+// failingWorkloadmeta answers every container lookup with an error, as the
+// store answers for an unknown ID.
+type failingWorkloadmeta struct {
+	workloadmeta.Component
+}
+
+func (failingWorkloadmeta) GetContainer(id string) (*workloadmeta.Container, error) {
+	return nil, fmt.Errorf("container %q not found", id)
+}
+
+// newHostSBOMResolver returns a resolver whose host SBOM is computed and holds
+// util-linux, the owner of /usr/bin/su. Its forwarder waits an hour, so tests
+// call forward themselves.
+func newHostSBOMResolver(t *testing.T) *Resolver {
+	t.Helper()
+
+	r := &Resolver{
+		Notifier: utils.NewNotifier[Event, *sbompkg.ScanResult](),
+		cfg: &config.RuntimeSecurityConfig{
+			SBOMResolverEnrichmentInterval: time.Minute,
+			SBOMResolverForwardInterval:    time.Hour,
+		},
+		pendingFileEvents: newPendingFileEvents(t),
+		wmeta:             failingWorkloadmeta{},
+	}
+
+	r.hostSBOM = NewSBOM("", nil, "")
+	r.hostSBOM.setReport([]sbomtypes.PackageWithInstalledFiles{{
+		Package:        sbomtypes.Package{Name: "util-linux", Version: "2.40.4"},
+		InstalledFiles: []string{"/usr/bin/su"},
+	}})
+	r.hostSBOM.state.Store(computedState)
+	t.Cleanup(r.hostSBOM.stop)
+
+	return r
+}
+
+// hostAccess returns a root process with an empty container ID running
+// /usr/bin/su, setuid, as the host runs it.
+func hostAccess() (*model.ProcessContext, *model.FileEvent) {
+	file := &model.FileEvent{}
+	file.SetPathnameStr("/usr/bin/su")
+	file.Mode = 04755
+	return &model.ProcessContext{}, file
+}
+
+// TestResolvePackageRecordsHostUsage checks that a process with an empty
+// container ID resolves against the host SBOM and records its usage there, as a
+// process of a container does against the SBOM of its container.
+func TestResolvePackageRecordsHostUsage(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	pc, file := hostAccess()
+	pkg := r.ResolvePackage(pc, file)
+	if pkg == nil || pkg.Name != "util-linux" {
+		t.Fatalf("package = %+v, want util-linux", pkg)
+	}
+	if pkg.LastAccess.IsZero() || !pkg.SuidBit || !pkg.AccessedByRoot {
+		t.Errorf("package = %+v, want last access and both sticky properties set", pkg)
+	}
+}
+
+// TestResolvePackageWithoutHostSBOM checks that ResolvePackage returns nil for a
+// host process while the host SBOM is off, and leaves the queue of pending
+// accesses empty.
+func TestResolvePackageWithoutHostSBOM(t *testing.T) {
+	r := newPendingFileEventsResolver(t)
+
+	pc, file := hostAccess()
+	if pkg := r.ResolvePackage(pc, file); pkg != nil {
+		t.Errorf("package = %+v, want none without a host SBOM", pkg)
+	}
+	if r.pendingFileEvents.Len() != 0 {
+		t.Errorf("the host access was queued")
+	}
+}
+
+// TestHostForwardingSkipsImageSBOM checks that the report of the host goes out
+// at once. A container report waits for the Trivy SBOM of its image, while the
+// core agent keeps the report of the host for its next host scan. Here every
+// workloadmeta lookup fails, so a host report that waited on an image SBOM
+// would wait forever.
+func TestHostForwardingSkipsImageSBOM(t *testing.T) {
+	r := newHostSBOMResolver(t)
+
+	var reports []*sbompkg.ScanResult
+	if err := r.RegisterListener(SBOMComputed, func(result *sbompkg.ScanResult) {
+		reports = append(reports, result)
+	}); err != nil {
+		t.Fatalf("RegisterListener: %v", err)
+	}
+
+	pc, file := hostAccess()
+	r.ResolvePackage(pc, file)
+
+	if r.forward(r.hostSBOM) {
+		t.Errorf("the host report waits to be forwarded again")
+	}
+	if len(reports) != 1 {
+		t.Fatalf("%d host reports forwarded, want 1", len(reports))
+	}
+	if id := reports[0].RequestID; id != "" {
+		t.Errorf("request ID = %q, want the empty ID of the host", id)
+	}
+	components := reports[0].Report.ToCycloneDX().GetComponents()
+	if len(components) != 1 {
+		t.Fatalf("report holds %d components, want 1", len(components))
+	}
+	if seen, _ := propertyValue(components[0], LastAccessProperty); seen == "0" || seen == "" {
+		t.Errorf("%s = %q, want util-linux seen running", LastAccessProperty, seen)
 	}
 }

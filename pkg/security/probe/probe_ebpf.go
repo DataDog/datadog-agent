@@ -1230,15 +1230,23 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 
 	// handle sbom resolution
 	if p.Resolvers.SBOMResolver != nil {
-		if !event.ProcessContext.Process.ContainerContext.IsNull() {
+		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
 			} else if event.GetEventType() == model.FileOpenEventType {
-				// force resolution of the file path
-				p.fieldHandlers.ResolveFilePath(event, &event.Open.File)
+				// Resolve the path on a copy of the file, which keeps the error of a
+				// path the SBOM resolver fails to resolve off the event: the v1
+				// profiles skip an event carrying an error, and the probe monitor
+				// reports it as an abnormal path.
+				file := event.Open.File
+				if !file.IsPathnameStrResolved && len(file.PathnameStr) == 0 {
+					if path, _, _, _, err := p.Resolvers.PathResolver.ResolveFullFilePath(&file.FileFields, &event.PIDContext); err == nil {
+						file.SetPathnameStr(path)
+					}
+				}
 
 				// NOTE(safchain) pass the file path & the required metadata to the resolver instead of the file event
-				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Open.File)
+				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &file)
 			}
 		}
 	}

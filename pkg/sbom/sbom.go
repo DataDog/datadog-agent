@@ -26,7 +26,8 @@ const (
 // Names of the CycloneDX component properties added by the runtime enrichment
 // of a SBOM, describing how the package was seen being used at runtime. They
 // are declared here so that the producer (the runtime security SBOM resolver),
-// the merger (the remote SBOM collector) and the consumers agree on them.
+// the mergers (the remote SBOM collector for images, the sbom check for the
+// host) and the consumers agree on them.
 const (
 	LastAccessProperty    = "LastSeenRunning" // LastAccessProperty holds the last time the package was seen running, as a unix timestamp
 	HasSetSuidBitProperty = "HasSetSuidBit"   // HasSetSuidBitProperty reports whether one of the package files has the setuid bit set
@@ -55,6 +56,35 @@ func IsEnriched(bom *cyclonedx_v1_4.Bom) bool {
 	}
 
 	return false
+}
+
+// HostKind is the kind of the runtime usage report that system-probe forwards
+// for the host. The report of a container carries the workloadmeta container
+// kind.
+const HostKind = "host"
+
+// hostUsage holds the latest runtime usage report of the host, on its way from
+// the remote SBOM collector, which receives it, to the sbom check, which merges
+// it into the host SBOM.
+var hostUsage = make(chan *cyclonedx_v1_4.Bom, 1)
+
+// SetHostUsage hands bom, a runtime usage report of the host, to the sbom
+// check. It replaces a report the check has yet to take, since every report
+// covers all the host packages.
+func SetHostUsage(bom *cyclonedx_v1_4.Bom) {
+	for {
+		select {
+		case hostUsage <- bom:
+			return
+		case <-hostUsage:
+		}
+	}
+}
+
+// HostUsage returns the channel delivering the runtime usage reports of the
+// host to the sbom check.
+func HostUsage() <-chan *cyclonedx_v1_4.Bom {
+	return hostUsage
 }
 
 // ErrScanNotSupported reports that a scan can never succeed for the given image
