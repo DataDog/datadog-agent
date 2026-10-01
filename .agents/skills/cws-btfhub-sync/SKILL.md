@@ -53,8 +53,8 @@ gh pr list --search "CWS: sync BTFHub constants" --state open --json number,base
 ```
 
 From the list, select the <number> that has the baseRefName equal to this feature branch and
-merge it directly (`gh pr merge <number> --merge`); feature branches carry no protection rule,
-so this needs no approval.
+merge it directly (`gh pr merge <number> --squash`, the repository refuses merge commits);
+feature branches carry no protection rule, so this needs no approval.
 
 Confirm the merged commit touches `constantfetch/constants_amd64.json` and `constants_arm64.json`
 and that your new offset names appear in the diff.
