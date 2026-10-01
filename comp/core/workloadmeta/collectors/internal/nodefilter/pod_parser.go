@@ -37,10 +37,14 @@ const (
 
 // parsePod builds the workloadmeta events for a single pod: one
 // KubernetesPod entity, plus one Container entity per (init/ephemeral)
-// container that the runtime has already created. Only the fields consumed
-// by the tagger (comp/core/tagger/collectors) are populated. Ephemeral
-// containers are only parsed when collectEphemeralContainers is set, mirroring
-// the kubelet collector's own include_ephemeral_containers gate.
+// container that the runtime has already created. It populates the fields the
+// tagger reads (comp/core/tagger/collectors) and a few basic ones the other
+// pod collectors set too (readiness, node name, host IP and network,
+// timestamps), but not everything the kubelet collector does: security
+// contexts, volumes, tolerations, conditions, container statuses, and resource
+// requests and limits other than GPU vendors. Ephemeral containers are only
+// parsed when collectEphemeralContainers is set, mirroring the kubelet
+// collector's own include_ephemeral_containers gate.
 func parsePod(pod *corev1.Pod, collectEphemeralContainers bool) []workloadmeta.CollectorEvent {
 	podID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesPod,
