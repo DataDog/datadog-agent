@@ -27,6 +27,7 @@ COMMON_TAGS = set([
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = set([
+    "anomalydetection_recorder",  # development-only recorder image
     "bundle_installer",
     "clusterchecks",
     "consul",
@@ -66,7 +67,6 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
-    "wmi",
     "zk",
     "zlib",
     "zstd",
@@ -131,6 +131,9 @@ AGENT_TAGS = set([
     "zstd",
     "cel",
 ])
+
+# The recorder flavor is the base Agent with the recorder build marker.
+AGENT_RECORDER_TAGS = AGENT_TAGS.union(set(["anomalydetection_recorder"]))
 
 # AGENT_HEROKU_TAGS lists the tags for Heroku agent build
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
@@ -316,9 +319,6 @@ AIX_EXCLUDED_TAGS = set([
     "systemprobechecks",
     "trivy",
 ])
-
-# List of tags to always add when building on Windows
-WINDOWS_INCLUDED_TAGS = set(["wmi"])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDED_TAGS = set([
