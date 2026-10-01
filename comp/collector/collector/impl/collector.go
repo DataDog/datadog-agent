@@ -225,25 +225,23 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		return emptyID, fmt.Errorf("a check with ID %s is already running", ch.ID())
 	}
 
-	if err := c.scheduler.Enter(ch); err != nil {
-		return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
-	}
-
-	if check.IsShadow(ch) {
-		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
-		c.runner.AddShadowWorker()
-	} else if ch.Interval() == 0 {
-		// Track the total number of checks running in order to have an appropriate number of workers
-		c.checkInstances++
-		// Adding a temporary runner for long running check in case the
-		// number of runners is lower than the number of long running
-		// checks.
-		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
-		c.runner.AddWorker()
+	if ch.Interval() == 0 {
+		c.log.Infof("Starting a dedicated runner for the '%s' interval-zero check", ch)
+		if err := c.runner.RunOneShot(ch); err != nil {
+			return emptyID, fmt.Errorf("unable to run the check: %s", err)
+		}
 	} else {
-		// Track the total number of checks running in order to have an appropriate number of workers
-		c.checkInstances++
-		c.runner.UpdateNumWorkers(c.checkInstances)
+		if err := c.scheduler.Enter(ch); err != nil {
+			return emptyID, fmt.Errorf("unable to schedule the check: %s", err)
+		}
+		if check.IsShadow(ch) {
+			c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
+			c.runner.AddShadowWorker()
+		} else {
+			// Only regular checks contribute to the size of the shared worker pool.
+			c.checkInstances++
+			c.runner.UpdateNumWorkers(c.checkInstances)
+		}
 	}
 
 	c.checks[ch.ID()] = ch

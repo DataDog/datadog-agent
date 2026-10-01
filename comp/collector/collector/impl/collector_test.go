@@ -9,13 +9,16 @@ package collectorimpl
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector/impl/internal/middleware"
@@ -31,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
+	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -98,6 +102,30 @@ type oneTimeTestCheck struct {
 }
 
 func (c *oneTimeTestCheck) Interval() time.Duration { return 0 }
+
+func TestCompletedOneTimeChecksDoNotGrowWorkerPool(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		suite := &CollectorTestSuite{}
+		suite.SetT(t)
+		suite.SetupTest()
+		defer suite.TearDownTest()
+		synctest.Wait()
+		baseline := expvars.GetWorkerCount()
+		for i := 0; i < 50; i++ {
+			ch := &oneTimeTestCheck{TestCheck: NewCheckUnique(checkid.ID(fmt.Sprintf("one-shot:%d", i)), "TestCheck")}
+			// Returning immediately exercises completion before RunCheck returns.
+			close(ch.stop)
+			id, err := suite.c.RunCheck(ch)
+			require.NoError(t, err)
+			synctest.Wait()
+			require.Equal(t, baseline, expvars.GetWorkerCount())
+			require.Zero(t, suite.c.checkInstances)
+			// Worker cleanup must not depend on the config being unscheduled.
+			require.Contains(t, suite.c.checks, id)
+			require.NoError(t, suite.c.StopCheck(id))
+		}
+	})
+}
 
 // ChecksList is a sort.Interface so we can use the Sort function
 type ChecksList []checkid.ID

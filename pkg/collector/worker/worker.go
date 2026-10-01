@@ -169,9 +169,12 @@ func (w *Worker) Run(ctx context.Context) {
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
 	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
-	defer utilizationTracker.Stop()
 
-	startUtilizationUpdater(w.Name, utilizationTracker)
+	updaterDone := startUtilizationUpdater(w.Name, utilizationTracker)
+	defer func() {
+		utilizationTracker.Stop()
+		<-updaterDone
+	}()
 	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
 	defer cancel()
 
@@ -187,6 +190,13 @@ func (w *Worker) Run(ctx context.Context) {
 		// Add check to tracker if it's not already running
 		if !w.checksTracker.AddCheck(check) {
 			checkLogger.Debug("Check is already running, skipping execution...")
+			continue
+		}
+		// Shutdown cancels ctx before inspecting the running-check tracker.
+		// Checking after registration ensures a check is either stopped by the
+		// runner or skipped here, even when its worker starts during shutdown.
+		if ctx.Err() != nil {
+			w.checksTracker.DeleteCheck(check.ID())
 			continue
 		}
 
@@ -292,14 +302,16 @@ func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
+func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) <-chan struct{} {
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
 		Utilization: 0.0,
 	})
 
 	workerUtilization.Set(0, name)
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for value := range ut.Output {
 			expvars.SetWorkerStats(name, &expvars.WorkerStats{
 				Utilization: value,
@@ -308,7 +320,9 @@ func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTrac
 			workerUtilization.Set(value, name)
 		}
 		expvars.DeleteWorkerStats(name)
+		workerUtilization.Delete(name)
 	}()
+	return done
 }
 
 func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration) func() {

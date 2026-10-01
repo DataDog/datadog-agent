@@ -48,6 +48,7 @@ type Runner struct {
 	id                  int                           // Globally unique identifier for the Runner
 	workers             map[int]*worker.Worker        // Workers currrently under this Runner's management
 	shadowWorkers       map[int]*worker.Worker        // Shadow workers currently under this Runner's management
+	oneShotWorkers      map[int]*worker.Worker        // Dedicated workers that exit after their interval-zero check
 	workersLock         sync.Mutex                    // Lock to prevent concurrent worker changes
 	isStaticWorkerCount bool                          // Flag indicating if numWorkers is dynamically updated
 	pendingChecksChan   chan check.Check              // The channel where checks come from
@@ -77,6 +78,7 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component) *R
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
 		shadowWorkers:       make(map[int]*worker.Worker),
+		oneShotWorkers:      make(map[int]*worker.Worker),
 		isStaticWorkerCount: numWorkers != 0,
 		pendingChecksChan:   make(chan check.Check),
 		shadowChecksChan:    make(chan check.Check),
@@ -127,15 +129,32 @@ func (r *Runner) ensureMinWorkers(desiredNumWorkers int) {
 	)
 }
 
-// AddWorker adds a single worker to the runner.
-func (r *Runner) AddWorker() {
+// RunOneShot runs an interval-zero check on a dedicated worker. The worker exits
+// when the check finishes, including when execution is skipped or panics.
+// Long-running checks retain their own worker without occupying the regular pool.
+func (r *Runner) RunOneShot(ch check.Check) error {
 	r.workersLock.Lock()
 	defer r.workersLock.Unlock()
 
-	worker, err := r.newWorker(r.pendingChecksChan, false)
-	if err == nil {
-		r.workers[worker.ID] = worker
+	if !r.isRunning.Load() {
+		return fmt.Errorf("runner %d is not running", r.id)
 	}
+	if ch.Interval() != 0 {
+		return fmt.Errorf("check %s is not an interval-zero check", ch.ID())
+	}
+
+	// Closing a queue containing just this check lets Worker.Run clean up all
+	// its resources as soon as execution finishes. Do not use the shared queue:
+	// another worker could consume the check and leave this worker idle forever.
+	queue := make(chan check.Check, 1)
+	queue <- ch
+	close(queue)
+	w, err := r.newWorker(queue, check.IsShadow(ch))
+	if err != nil {
+		return err
+	}
+	r.oneShotWorkers[w.ID] = w
+	return nil
 }
 
 // AddShadowWorker adds a single shadow worker to the runner.
@@ -151,6 +170,9 @@ func (r *Runner) AddShadowWorker() {
 
 // newWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker(pendingChecksChan chan check.Check, isShadowWorker bool) (*worker.Worker, error) {
+	if !r.isRunning.Load() {
+		return nil, fmt.Errorf("runner %d is not running", r.id)
+	}
 	watchdogWarningTimeout := pkgconfigsetup.Datadog().GetDuration("check_watchdog_warning_timeout")
 
 	newWorker := worker.NewWorker
@@ -173,23 +195,21 @@ func (r *Runner) newWorker(pendingChecksChan chan check.Check, isShadowWorker bo
 		return nil, err
 	}
 
-	go func() {
-		defer r.removeWorker(worker.ID, isShadowWorker)
+	r.stopWG.Go(func() {
+		defer r.removeWorker(worker.ID)
 
 		worker.Run(r.ctx)
-	}()
+	})
 
 	return worker, nil
 }
 
-func (r *Runner) removeWorker(id int, isShadowWorker bool) {
+func (r *Runner) removeWorker(id int) {
 	r.workersLock.Lock()
 	defer r.workersLock.Unlock()
 
-	if isShadowWorker {
-		delete(r.shadowWorkers, id)
-		return
-	}
+	delete(r.oneShotWorkers, id)
+	delete(r.shadowWorkers, id)
 	delete(r.workers, id)
 }
 
@@ -222,7 +242,11 @@ func (r *Runner) UpdateNumWorkers(numChecks int64) {
 // Stop closes the pending channel so all workers will exit their loop and terminate
 // All publishers to the pending channel need to have stopped before Stop is called
 func (r *Runner) Stop() {
+	// Serialize worker creation with shutdown so no worker can be added after
+	// Stop starts waiting for worker goroutines.
+	r.workersLock.Lock()
 	if !r.isRunning.CompareAndSwap(true, false) {
+		r.workersLock.Unlock()
 		log.Debugf("Runner %d already stopped, nothing to do here...", r.id)
 		return
 	}
@@ -235,6 +259,7 @@ func (r *Runner) Stop() {
 	log.Infof("Runner %d is shutting down...", r.id)
 	close(r.pendingChecksChan)
 	close(r.shadowChecksChan)
+	r.workersLock.Unlock()
 
 	// Stop running checks
 	r.checksTracker.WithRunningChecks(func(runningChecks map[checkid.ID]check.Check) {

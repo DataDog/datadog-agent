@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -201,6 +204,46 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 	wg.Wait()
 
 	AssertAsyncWorkerCount(t, 0)
+}
+
+func TestWorkerCleansUpUtilizationBeforeReturning(t *testing.T) {
+	configmock.New(t)
+	expvars.Reset()
+	synctest.Test(t, func(t *testing.T) {
+		queue := make(chan check.Check)
+		ch := newCheck(t, "one-shot:123", false, nil)
+		ch.longRunning = true
+		w, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 1, 123456,
+			queue, tracker.NewRunningChecksTracker(), func(checkid.ID) bool { return true }, 0)
+		require.NoError(t, err)
+		hasWorkerMetric := func() bool {
+			metrics, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+			require.NoError(t, err)
+			for _, family := range metrics {
+				for _, metric := range family.GetMetric() {
+					for _, label := range metric.GetLabel() {
+						if label.GetName() == "worker_name" && label.GetValue() == w.Name {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}
+		done := make(chan struct{})
+		go func() {
+			w.Run(context.Background())
+			close(done)
+		}()
+		synctest.Wait()
+		require.True(t, hasWorkerMetric())
+		queue <- ch
+		close(queue)
+		<-done
+		require.Equal(t, 1, ch.RunCount())
+		require.Zero(t, expvars.GetWorkerCount())
+		require.False(t, hasWorkerMetric())
+	})
 }
 
 func TestWorkerName(t *testing.T) {

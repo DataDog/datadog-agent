@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -174,19 +175,169 @@ func TestNewRunner(t *testing.T) {
 	r.GetChan() <- newCheck(t, "mycheck:123", false, nil)
 }
 
-func TestRunnerAddWorker(t *testing.T) {
+type oneShotTestCheck struct {
+	*testCheck
+	release     chan struct{}
+	stopOnce    sync.Once
+	haSupported bool
+}
+
+type standbyHaAgent struct {
+	haagentmock.Component
+}
+
+func (standbyHaAgent) Enabled() bool  { return true }
+func (standbyHaAgent) IsActive() bool { return false }
+
+func (c *oneShotTestCheck) Interval() time.Duration { return 0 }
+func (c *oneShotTestCheck) IsHASupported() bool     { return c.haSupported }
+func (c *oneShotTestCheck) Stop() {
+	c.testCheck.Stop()
+	if c.release != nil {
+		c.stopOnce.Do(func() { close(c.release) })
+	}
+}
+
+func TestRunnerOneShotWorkersExit(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 1)
+	synctest.Test(t, func(t *testing.T) {
+		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+		defer r.Stop()
+		for i := 0; i < 100; i++ {
+			ch := &oneShotTestCheck{testCheck: newCheck(t, fmt.Sprintf("one-shot:%d", i), false, nil)}
+			require.NoError(t, r.RunOneShot(ch))
+			synctest.Wait()
+			require.Equal(t, 1, ch.RunCount())
+			require.Empty(t, r.oneShotWorkers)
+			require.Len(t, r.workers, 1)
+			require.Equal(t, 1, expvars.GetWorkerCount())
+		}
+	})
+}
 
-	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
-	require.NotNil(t, r)
-	defer r.Stop()
+func TestRunnerOneShotWorkersDoNotAffectPoolSizing(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", 0)
+	synctest.Test(t, func(t *testing.T) {
+		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+		defer r.Stop()
+		release := make(chan struct{})
+		defer func() {
+			select {
+			case <-release:
+			default:
+				close(release)
+			}
+		}()
+		for i := 0; i < 8; i++ {
+			ch := &oneShotTestCheck{testCheck: newCheck(t, fmt.Sprintf("long-running:%d", i), false, func(checkid.ID) { <-release })}
+			require.NoError(t, r.RunOneShot(ch))
+		}
+		synctest.Wait()
+		require.Len(t, r.oneShotWorkers, 8)
+		r.UpdateNumWorkers(11)
+		synctest.Wait()
+		require.Len(t, r.workers, 10)
+		require.Equal(t, 18, expvars.GetWorkerCount())
 
-	r.AddWorker()
-	r.AddWorker()
-	r.AddWorker()
+		regular := newCheck(t, "regular:123", false, nil)
+		r.GetChan() <- regular
+		synctest.Wait()
+		require.Equal(t, 1, regular.RunCount())
 
-	assertAsyncWorkerCount(t, 4)
+		close(release)
+		synctest.Wait()
+		require.Empty(t, r.oneShotWorkers)
+		require.Len(t, r.workers, 10)
+		require.Equal(t, 10, expvars.GetWorkerCount())
+	})
+}
+
+func TestRunnerOneShotWorkerCleanup(t *testing.T) {
+	for _, outcome := range []string{"error", "panic", "HA standby", "already running", "shadow"} {
+		t.Run(outcome, func(t *testing.T) {
+			mockConfig := testSetUp(t)
+			mockConfig.SetInTest("check_runners", 1)
+			synctest.Test(t, func(t *testing.T) {
+				ha := haagentmock.NewMockHaAgent()
+				ch := &oneShotTestCheck{testCheck: newCheck(t, "one-shot:123", outcome == "error", nil)}
+				var toRun check.Check = ch
+				r := NewRunner(aggregator.NewNoOpSenderManager(), ha)
+				defer r.Stop()
+				switch outcome {
+				case "panic":
+					ch.runFunc = func(checkid.ID) { panic("test panic") }
+				case "HA standby":
+					r.haAgent = standbyHaAgent{}
+					ch.haSupported = true
+				case "already running":
+					require.True(t, r.checksTracker.AddCheck(ch))
+					defer r.checksTracker.DeleteCheck(ch.ID())
+				case "shadow":
+					toRun = check.NewShadowCheck(ch, 0)
+				}
+				require.NoError(t, r.RunOneShot(toRun))
+				synctest.Wait()
+				require.Empty(t, r.oneShotWorkers)
+				require.Empty(t, r.shadowWorkers)
+				require.Len(t, r.workers, 1)
+				require.Equal(t, 1, expvars.GetWorkerCount())
+				if outcome == "HA standby" || outcome == "already running" {
+					require.Zero(t, ch.RunCount())
+				} else if outcome == "panic" {
+					require.EqualValues(t, 1, expvars.GetErrorsCount())
+				} else {
+					require.Equal(t, 1, ch.RunCount())
+				}
+			})
+		})
+	}
+}
+
+func TestRunnerStopOneShotWorkers(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", 1)
+	synctest.Test(t, func(t *testing.T) {
+		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+		defer r.Stop()
+		ch := &oneShotTestCheck{testCheck: newCheck(t, "long-running:123", false, nil), release: make(chan struct{})}
+		ch.runFunc = func(checkid.ID) { <-ch.release }
+		require.NoError(t, r.RunOneShot(ch))
+		synctest.Wait()
+		require.Len(t, r.oneShotWorkers, 1)
+		require.NoError(t, r.StopCheck(ch.ID()))
+		synctest.Wait()
+		require.Empty(t, r.oneShotWorkers)
+		require.Equal(t, 1, expvars.GetWorkerCount())
+
+		ch = &oneShotTestCheck{testCheck: newCheck(t, "long-running:456", false, nil), release: make(chan struct{})}
+		ch.runFunc = func(checkid.ID) { <-ch.release }
+		require.NoError(t, r.RunOneShot(ch))
+		synctest.Wait()
+		r.Stop()
+		require.True(t, ch.IsStopped())
+		require.Empty(t, r.oneShotWorkers)
+		require.Empty(t, r.workers)
+		require.Zero(t, expvars.GetWorkerCount())
+		require.Error(t, r.RunOneShot(ch))
+	})
+}
+
+func TestRunnerStopBeforeOneShotStarts(t *testing.T) {
+	mockConfig := testSetUp(t)
+	mockConfig.SetInTest("check_runners", 1)
+	synctest.Test(t, func(t *testing.T) {
+		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
+		ch := &oneShotTestCheck{testCheck: newCheck(t, "one-shot:123", false, nil)}
+		// Model cancellation before this worker starts without relying on goroutine order.
+		r.cancel()
+		require.NoError(t, r.RunOneShot(ch))
+		r.Stop()
+		require.Zero(t, ch.RunCount())
+		require.Empty(t, r.oneShotWorkers)
+		require.Zero(t, expvars.GetWorkerCount())
+	})
 }
 
 func TestRunnerStaticUpdateNumWorkers(t *testing.T) {

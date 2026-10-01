@@ -38,6 +38,8 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/haagent/impl",
         "//comp/haagent/mock",
         "//pkg/aggregator",
