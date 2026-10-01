@@ -5,7 +5,7 @@
     - !reference [.except_light_pipeline]
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
   extends:
     - .windows_docker_default
     - .bazel:defs:cache:windows
@@ -79,7 +79,7 @@ tests_windows-x64:
 
 .tests_windows_sysprobe:
   stage: source_test
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
   script:
     - $ErrorActionPreference = "Stop"
@@ -111,7 +111,7 @@ tests_windows-x64:
 
 .tests_windows_secagent:
   stage: source_test
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
   extends: [.windows_docker_default, .bazel:defs:cache:windows]
   variables:
     GIT_DEPTH: 0  # Full history: security-agent.e2e-prepare-win embeds git merge-base

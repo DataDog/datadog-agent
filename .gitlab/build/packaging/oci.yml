@@ -175,6 +175,7 @@
 agent_oci:
   extends: .package_oci
   needs:
+    - "setup_agent_version"
     - "datadog-agent-oci-x64-a7"
     - "datadog-agent-oci-arm64-a7"
     - "datadog-agent-oci-x64-a7-fips"
@@ -197,6 +198,7 @@ installer_oci:
   extends: .package_oci
   needs:
     [
+      "setup_agent_version",
       "installer-arm64-oci",
       "installer-amd64-oci",
       "installer-fips-arm64-oci",
@@ -209,6 +211,7 @@ installer_oci:
 ddot_oci:
   extends: .package_oci
   needs:
+    - "setup_agent_version"
     - "datadog-otel-agent-x64"
     - "datadog-otel-agent-arm64"
     - "go_tools_deps"
