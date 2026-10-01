@@ -181,7 +181,7 @@ func (suite *CheckTestSuite) TestCheckRunMatchesSpecForPhysicalDevices() {
 		gpuConfig := gpuspec.GPUConfig{Architecture: archName, DeviceMode: gpuspec.DeviceModePhysical, Capabilities: capabilities, NVLinkLinkCount: nvlinkLinkCount}
 		validationOptions := gpuspec.ValidationOptions{
 			WorkloadActive: false,
-			IgnoreMetrics:  map[string]bool{"fan_speed": true, "memory.temperature": true}, // not all devices have fans or memory temperature sensors
+			IgnoreMetrics:  map[string]bool{"fan_speed": true, "memory.temperature": true, "retired_pages": true}, // not all devices have fans, memory temperature sensors, or dynamic page retirement (Kepler to Turing datacenter GPUs only)
 		}
 		t.Run("gpu="+deviceUUID, func(t *testing.T) {
 			gpu.ValidateEmittedMetricsAgainstSpec(t, specs, gpuConfig, deviceMetrics, nil, validationOptions)

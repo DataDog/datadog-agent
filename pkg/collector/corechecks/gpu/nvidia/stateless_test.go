@@ -1175,6 +1175,116 @@ func TestNeedsRecoverySampleUnsupported(t *testing.T) {
 	require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device))
 }
 
+func TestRetiredPagesSample(t *testing.T) {
+	mockDevice := setupMockDevice(t,
+		testutil.WithArchitecture("volta"),
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetRetiredPages_v2Func = func(cause nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+				switch cause {
+				case nvml.PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS:
+					return []uint64{0x1000, 0x2000, 0x3000}, []uint64{0, 0, 0}, nvml.SUCCESS
+				case nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR:
+					return []uint64{0x4000}, []uint64{0}, nvml.SUCCESS
+				default:
+					return nil, nil, nvml.ERROR_NOT_SUPPORTED
+				}
+			}
+		}),
+	)
+
+	tests := []struct {
+		cause         nvml.PageRetirementCause
+		expectedValue float64
+	}{
+		{cause: nvml.PAGE_RETIREMENT_CAUSE_MULTIPLE_SINGLE_BIT_ECC_ERRORS, expectedValue: 3},
+		{cause: nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR, expectedValue: 1},
+	}
+
+	for _, tt := range tests {
+		causeName := pageRetirementCauseToName[tt.cause]
+		t.Run(causeName, func(t *testing.T) {
+			samplesOut, _, err := retiredPagesSample(mockDevice, tt.cause, causeName)
+			require.NoError(t, err)
+			require.Len(t, samplesOut, 1)
+
+			metric := requireMetrics(t, samplesOut)[0]
+			require.Equal(t, "retired_pages", metric.Name)
+			require.Equal(t, metrics.GaugeType, metric.Type)
+			require.Equal(t, tt.expectedValue, metric.Value)
+			require.Equal(t, []string{"cause:" + causeName}, metric.Tags())
+		})
+	}
+}
+
+func TestRetiredPagesSampleArchitectureSupport(t *testing.T) {
+	// Dynamic page retirement is supported from Kepler to Turing; Ampere and newer
+	// replace it with row remapping. Do not override GetRetiredPages_v2Func here, or
+	// we would bypass the mock condition under test.
+	tests := []struct {
+		archName  string
+		supported bool
+	}{
+		{archName: "fermi", supported: false},
+		{archName: "kepler", supported: true},
+		{archName: "maxwell", supported: true},
+		{archName: "pascal", supported: true},
+		{archName: "volta", supported: true},
+		{archName: "turing", supported: true},
+		{archName: "ampere", supported: false},
+		{archName: "hopper", supported: false},
+		{archName: "ada", supported: false},
+		{archName: "blackwell", supported: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.archName, func(t *testing.T) {
+			device := setupMockDevice(t, testutil.WithArchitecture(tt.archName))
+
+			for cause, causeName := range pageRetirementCauseToName {
+				samplesOut, _, err := retiredPagesSample(device, cause, causeName)
+				if !tt.supported {
+					require.Error(t, err)
+					require.True(t, safenvml.IsAPIUnsupportedOnDevice(err, device), "cause %s should be unsupported", causeName)
+					continue
+				}
+
+				require.NoError(t, err, "cause %s should be supported", causeName)
+				require.Len(t, samplesOut, 1)
+				require.Equal(t, 0.0, requireMetrics(t, samplesOut)[0].Value)
+			}
+		})
+	}
+}
+
+func TestRetiredPagesAPIsRegistered(t *testing.T) {
+	mockDevice := setupMockDevice(t,
+		testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetRetiredPages_v2Func = func(cause nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
+				if cause == nvml.PAGE_RETIREMENT_CAUSE_DOUBLE_BIT_ECC_ERROR {
+					return []uint64{0x1000, 0x2000}, []uint64{0, 0}, nvml.SUCCESS
+				}
+				return []uint64{0x3000}, []uint64{0}, nvml.SUCCESS
+			}
+		}),
+	)
+
+	apis := createStatelessAPIs(&CollectorDependencies{})
+	for causeName, expectedValue := range map[string]float64{
+		"multiple_single_bit": 1,
+		"double_bit":          2,
+	} {
+		api := findAPICallByName(t, apis, "retired_pages."+causeName)
+		samplesOut, _, err := api.Handler(mockDevice, 0)
+		require.NoError(t, err)
+		require.Len(t, samplesOut, 1)
+
+		metric := requireMetrics(t, samplesOut)[0]
+		require.Equal(t, "retired_pages", metric.Name)
+		require.Equal(t, expectedValue, metric.Value)
+		require.Equal(t, []string{"cause:" + causeName}, metric.Tags())
+	}
+}
+
 func findAPICallByName(t *testing.T, apis []apiCallInfo, name string) apiCallInfo {
 	t.Helper()
 	for _, api := range apis {
