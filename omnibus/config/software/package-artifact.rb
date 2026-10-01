@@ -49,13 +49,12 @@ build do
 
   if project.name == "installer"
     # The README depends on the type of package being built, so it must be
-    # generated during packaging, not building. //packages/installer:install_readme
-    # picks the right variant based on the host-distribution bazel flag.
+    # generated during packaging, not building the tarballs. When we eliminate
+    # the tarball intermediary, we can fold this into the .deb/.rpm target.
     host_distribution = ""
     if not Omnibus::Config.host_distribution().nil?
       host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
     end
-    command "bazel run #{omnibazel_flags} #{host_distribution} -- //packages/installer:install_readme --destdir=#{install_dir}",
-       :live_stream => Omnibus.logger.live_stream(:info)
+    command "bazel run #{omnibazel_flags} #{host_distribution} -- //packages/installer:install_readme --destdir=#{install_dir}"
   end
 end
