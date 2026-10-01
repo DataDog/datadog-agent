@@ -149,10 +149,13 @@ func (c *Check) checkPreemptionEvents(sender sender.Sender) {
 			log.Debugf("Preemption detection disabled, cloud provider: %s, error: %s", c.cloudProvider, err)
 			return
 		}
-		// The healthy no-active-notice 404 must not count toward backoff.
+		// A healthy no-active-notice 404 means IMDS answered, so it clears
+		// the counter rather than just skipping the increment.
 		if metadataLookupFailure(err) {
 			c.metadataFailures++
 			c.metadataLastAttempt = time.Now()
+		} else {
+			c.metadataFailures = 0
 		}
 		log.Tracef("Preemption detection returned an error (usually expected), cloud provider: %s, error: %s", c.cloudProvider, err)
 		return
