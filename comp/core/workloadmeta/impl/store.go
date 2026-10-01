@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
@@ -746,40 +747,62 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 }
 
 func (w *workloadmeta) startCandidates(ctx context.Context) bool {
+	// Snapshot the candidates so Start() (which can block on slow network
+	// probes, e.g. an unreachable kubelet) runs concurrently for every
+	// candidate instead of one at a time. Each goroutine below does its own
+	// bookkeeping as soon as its own Start() returns, so a slow collector
+	// cannot delay firstCollectorReady from closing on a faster one's
+	// success.
+	w.collectorMut.RLock()
+	candidates := make(map[string]wmdef.Collector, len(w.candidates))
+	for id, c := range w.candidates {
+		candidates[id] = c
+	}
+	w.collectorMut.RUnlock()
+
+	var wg sync.WaitGroup
+	for id, c := range candidates {
+		wg.Add(1)
+		go func(id string, c wmdef.Collector) {
+			defer wg.Done()
+			err := c.Start(ctx, w)
+
+			w.collectorMut.Lock()
+			defer w.collectorMut.Unlock()
+
+			// Leave candidates that returned a retriable error to be
+			// re-started in the next tick
+			if err != nil && retry.IsErrWillRetry(err) {
+				w.log.Debugf("workloadmeta collector %q could not start, but will retry. error: %s", id, err)
+				return
+			}
+
+			// Store successfully started collectors for future reference
+			if err == nil {
+				w.log.Infof("workloadmeta collector %q started successfully", id)
+				w.collectors[id] = c
+
+				w.pullsMut.Lock()
+				w.pulls[id] = &pullInfo{interval: resolveCollectorPullInterval(c)}
+				w.pullsMut.Unlock()
+
+				w.firstCollectorReadyOnce.Do(func() {
+					close(w.firstCollectorReady)
+				})
+			} else {
+				w.log.Infof("workloadmeta collector %q could not start. error: %s", id, err)
+			}
+
+			// Remove non-retriable and successfully started collectors
+			// from the list of candidates so they're not retried in the
+			// next tick
+			delete(w.candidates, id)
+		}(id, c)
+	}
+	wg.Wait()
+
 	w.collectorMut.Lock()
 	defer w.collectorMut.Unlock()
-
-	for id, c := range w.candidates {
-		err := c.Start(ctx, w)
-
-		// Leave candidates that returned a retriable error to be
-		// re-started in the next tick
-		if err != nil && retry.IsErrWillRetry(err) {
-			w.log.Debugf("workloadmeta collector %q could not start, but will retry. error: %s", id, err)
-			continue
-		}
-
-		// Store successfully started collectors for future reference
-		if err == nil {
-			w.log.Infof("workloadmeta collector %q started successfully", id)
-			w.collectors[id] = c
-
-			w.pullsMut.Lock()
-			w.pulls[id] = &pullInfo{interval: resolveCollectorPullInterval(c)}
-			w.pullsMut.Unlock()
-
-			w.firstCollectorReadyOnce.Do(func() {
-				close(w.firstCollectorReady)
-			})
-		} else {
-			w.log.Infof("workloadmeta collector %q could not start. error: %s", id, err)
-		}
-
-		// Remove non-retriable and successfully started collectors
-		// from the list of candidates so they're not retried in the
-		// next tick
-		delete(w.candidates, id)
-	}
 	if w.collectorsInitialized == wmdef.CollectorsNotStarted {
 		w.collectorsInitialized = wmdef.CollectorsStarting
 	}

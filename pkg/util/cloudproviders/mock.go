@@ -15,6 +15,7 @@ import (
 // Mock setup mocks for the function 'DetectCloudProvider', 'GetSource' and 'GetHostID'
 func Mock(t *testing.T, cloudProviderName string, accountIDCallback string, source string, hostID string) {
 	origDetectors := cloudProviderDetectors
+	origResolutionOrder := cloudProviderDetectorResolutionOrder
 	origGetSource := sourceDetectors
 	orighostIDDetectors := hostIDDetectors
 	origHostCCRIDDecectors := hostCCRIDDetectors
@@ -22,19 +23,21 @@ func Mock(t *testing.T, cloudProviderName string, accountIDCallback string, sour
 
 	t.Cleanup(func() {
 		cloudProviderDetectors = origDetectors
+		cloudProviderDetectorResolutionOrder = origResolutionOrder
 		sourceDetectors = origGetSource
 		hostIDDetectors = orighostIDDetectors
 		hostCCRIDDetectors = origHostCCRIDDecectors
 		hostInstanceTypeDetectors = origInstanceTypeDetectors
 	})
 
-	cloudProviderDetectors = []cloudProviderDetector{
-		{
+	cloudProviderDetectors = map[string]cloudProviderDetector{
+		cloudProviderName: {
 			name:              cloudProviderName,
 			callback:          func(context.Context) bool { return true },
 			accountIDCallback: func(context.Context) (string, error) { return accountIDCallback, nil },
 		},
 	}
+	cloudProviderDetectorResolutionOrder = []string{cloudProviderName}
 	sourceDetectors = map[string]func() string{
 		cloudProviderName: func() string { return source },
 	}

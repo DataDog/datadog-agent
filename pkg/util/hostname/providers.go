@@ -15,6 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,6 +35,9 @@ var (
 		initialDelay:      defaultInitialDelay,
 		recurringInterval: defaultRecurringInterval,
 	}
+
+	// for testing purposes
+	detectCloudProviderDMI = cloudproviders.DetectCloudProviderDMI
 )
 
 func init() {
@@ -145,21 +152,34 @@ var (
 // * OS hostname
 // * EC2
 func getProviderCatalog(legacyHostnameResolution bool) []provider {
-	providerCatalog := []provider{
-		configProvider,
-		hostnameFileProvider,
-		fargateProvider,
-		gceProvider,
-		azureProvider,
-		fqdnProvider,
-		containerProvider,
-		osProvider,
+	// worst case: config, hostnameFile, fargate, gce, azure, fqdn, container, os, ec2
+	const maxProviders = 9
+
+	providerCatalog := make([]provider, 0, maxProviders)
+	providerCatalog = append(providerCatalog, configProvider, hostnameFileProvider, fargateProvider)
+
+	// DMI can positively identify a handful of cloud providers (EC2, GCE, Azure, OCI) without making
+	// a network call. Once it does, there's no point also probing the others' metadata
+	// endpoints, since a host can't be on two clouds at once, and those probes would otherwise
+	// block on a network timeout. If DMI can't tell (on-prem, or an unsupported cloud provider
+	// like Oracle, Alibaba, ...), every provider below is kept.
+	dmiCloudProvider := detectCloudProviderDMI()
+
+	if dmiCloudProvider == "" || dmiCloudProvider == gce.CloudProviderName {
+		providerCatalog = append(providerCatalog, gceProvider)
+	}
+	if dmiCloudProvider == "" || dmiCloudProvider == azure.CloudProviderName {
+		providerCatalog = append(providerCatalog, azureProvider)
 	}
 
-	if legacyHostnameResolution {
-		providerCatalog = append(providerCatalog, ec2LegacyResolutionProvider)
-	} else {
-		providerCatalog = append(providerCatalog, ec2Provider)
+	providerCatalog = append(providerCatalog, fqdnProvider, containerProvider, osProvider)
+
+	if dmiCloudProvider == "" || dmiCloudProvider == ec2.CloudProviderName {
+		if legacyHostnameResolution {
+			providerCatalog = append(providerCatalog, ec2LegacyResolutionProvider)
+		} else {
+			providerCatalog = append(providerCatalog, ec2Provider)
+		}
 	}
 
 	return providerCatalog
