@@ -235,8 +235,8 @@ func TestLaunchdAgentAndSysprobeSelectSameConfigVariant(t *testing.T) {
 				require.GreaterOrEqual(t, len(plist.Args), 4)
 				assert.Equal(t, []string{"run", "-c", etcDir}, plist.Args[1:4])
 				if label == "com.datadoghq.agent" {
-					require.GreaterOrEqual(t, len(plist.Args), 6)
-					assert.Equal(t, []string{"--sysprobecfgpath", etcDir}, plist.Args[4:6],
+					require.GreaterOrEqual(t, len(plist.Args), 5)
+					assert.Equal(t, "--sysprobecfgpath="+etcDir+"/system-probe.yaml", plist.Args[4],
 						"the Agent loads system-probe config separately from its main config")
 				}
 			}
