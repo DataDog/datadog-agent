@@ -72,6 +72,12 @@ datadog-agent-7-x64:
 datadog-agent-7-x64-recorder:
   extends: [.agent_build_common, .agent_build_x86, .agent_recorder_flavor]
   rules:
+    # TEMPORARY CI ACCELERATION: dropped on the fast-iteration branch. The
+    # arm64 recorder shares this rules block and needs the arm64 builds
+    # (system-probe, btfs) that are disabled there, and a needs-missing job
+    # breaks pipeline creation even when manual.
+    - if: $CI_COMMIT_BRANCH == "greg/speedup-ci-light-smp"
+      when: never
     - if: '$CI_COMMIT_BRANCH && ($ANOMALY_DETECTION_RECORDER != null || $RUN_ALL_BUILDS == "true" || $DEPLOY_AGENT == "true")'
       when: on_success
     - if: '$CI_COMMIT_BRANCH'
