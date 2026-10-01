@@ -12,9 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 )
 
-//go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/shared-libraries.c pkg/ebpf/bytecode/build/runtime/shared-libraries.c pkg/ebpf/c pkg/network/ebpf/c/runtime pkg/network/ebpf/c
-//go:generate $GOPATH/bin/integrity pkg/ebpf/bytecode/build/runtime/shared-libraries.c pkg/ebpf/bytecode/runtime/shared-libraries.go runtime
-
 func getRuntimeCompiledSharedLibraries(config *ebpf.Config) (runtime.CompiledOutput, error) {
 	return runtime.SharedLibraries.Compile(config, getCFlags(config))
 }
