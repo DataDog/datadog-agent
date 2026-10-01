@@ -34,6 +34,16 @@ const PreemptionEventType = "HostPreemption"
 // PreemptionRiskEventType is the event type for rebalance recommendation events
 const PreemptionRiskEventType = "HostPreemptionRisk"
 
+// After this many consecutive failed IMDS lookups, the check only retries
+// once per preemptionFailureBackoff instead of on every run: on hosts where
+// IMDS can never answer (e.g. hop-limited containers), every-run lookups
+// each block a collector slot for the metadata timeout doing work that
+// cannot succeed (#55269).
+const (
+	preemptionFailureThreshold = 4
+	preemptionFailureBackoff   = 60 * time.Second
+)
+
 // Check collects host information from cloud provider metadata services
 type Check struct {
 	core.CheckBase
@@ -43,6 +53,9 @@ type Check struct {
 	terminationTime       time.Time
 	rebalanceNoticeTime   time.Time
 	preemptionUnsupported bool // Set to true when preemption detection is not supported or instance is not preemptible
+
+	preemptionFailures    int       // consecutive transient preemption-lookup failures
+	preemptionLastAttempt time.Time // time of the last preemption lookup
 }
 
 // For testing purposes
@@ -102,16 +115,28 @@ func (c *Check) checkPreemptionEvents(sender sender.Sender) {
 		return
 	}
 
+	// After repeated transient failures (e.g. IMDS unreachable from a
+	// hop-limited container), retry at most once per backoff window instead
+	// of on every check run.
+	if c.preemptionFailures >= preemptionFailureThreshold && time.Since(c.preemptionLastAttempt) < preemptionFailureBackoff {
+		log.Tracef("Skipping preemption detection, %d consecutive failures, backing off until %s", c.preemptionFailures, c.preemptionLastAttempt.Add(preemptionFailureBackoff))
+		return
+	}
+
+	c.preemptionLastAttempt = time.Now()
 	terminationTime, err := getPreemptionTerminationFn(ctx, c.cloudProvider)
 	if err != nil {
 		// Check if we should stop polling for preemption events
 		if errors.Is(err, cloudproviders.ErrNotPreemptible) || errors.Is(err, cloudproviders.ErrPreemptionUnsupported) {
 			c.preemptionUnsupported = true
 			log.Debugf("Preemption detection disabled, cloud provider: %s, error: %s", c.cloudProvider, err)
+			return
 		}
+		c.preemptionFailures++
 		log.Tracef("Preemption detection returned an error (usually expected), cloud provider: %s, error: %s", c.cloudProvider, err)
 		return
 	}
+	c.preemptionFailures = 0
 
 	// Store termination time to avoid emitting duplicate events
 	c.terminationTime = terminationTime
