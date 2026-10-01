@@ -50,14 +50,16 @@ pub(super) fn map_stdio_setting(
     }
 }
 
-/// Inherit resolves against the handles pinned at supervisor startup, never against a
-/// live `GetStdHandle`: see `StartupStdio` for why reading the slot here can hand the
-/// child a handle that now belongs to something else entirely.
+/// Inherit resolves against the stdio the supervisor had at startup, never against a live
+/// `GetStdHandle`: see `InheritSource` for why reading the slot here can hand the child a
+/// handle that now belongs to something else entirely.
 fn map_stdio_inherit(kind: u32) -> Result<MappedStdioHandle> {
-    let Some(source) = super::super::startup_std_handle(kind) else {
+    let Some(source) = super::super::inherit_std_handle(kind) else {
         return MappedStdioHandle::nul();
     };
-    Ok(MappedStdioHandle(duplicate_inheritable_handle(source)?))
+    Ok(MappedStdioHandle(duplicate_inheritable_handle(
+        source.raw(),
+    )?))
 }
 
 pub(super) fn map_stdio_handle_nul() -> Result<MappedStdioHandle> {
@@ -207,9 +209,10 @@ mod tests {
     use std::path::PathBuf;
     use windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE;
 
-    /// A spawn resolves `inherit` against the handles pinned at supervisor startup.
-    /// Reading the std slot at spawn time instead is how a child ends up owning a handle
-    /// Windows has since reassigned, which is what `StartupStdio` exists to prevent, so
+    /// A spawn resolves `inherit` against the stdio the supervisor had at startup, never
+    /// against whatever the std slot holds now: that is how a child ends up owning a
+    /// handle Windows has since reassigned. Which startup stdio this process has decides
+    /// the arm taken (see `InheritSource`), and neither one may be the replaced slot, so
     /// this asserts on object identity rather than on the handle value.
     #[test]
     fn inherit_ignores_a_std_slot_replaced_after_startup() {

@@ -33,7 +33,7 @@ pub(crate) use child_env::{baseline_env_vars_for_spawn, merge_env_overrides};
 #[cfg(test)]
 pub(crate) use console::caller_console_state;
 pub(crate) use console::console_lock;
-pub(crate) use console::startup_std_handle;
+pub(crate) use console::inherit_std_handle;
 pub use console::{
     capture_startup_stdio, is_crash_exit, last_signal, send_force_kill, send_graceful_stop,
 };

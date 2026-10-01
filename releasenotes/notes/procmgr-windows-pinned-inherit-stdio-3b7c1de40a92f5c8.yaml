@@ -2,9 +2,9 @@
 fixes:
   - |
     On Windows, **dd-procmgrd** now resolves a ``stdout: inherit`` or
-    ``stderr: inherit`` process configuration against the standard handles it
-    owned at startup, instead of reading them again at spawn time, and restores
-    its standard handle slots after stopping a supervised process gracefully.
+    ``stderr: inherit`` process configuration against the stdio it had at
+    startup, instead of reading its standard handle slots again at spawn time,
+    and restores those slots after stopping a supervised process gracefully.
     Stopping a process gracefully attaches the supervisor to that process's
     console and detaches again, which left closed console handles in the
     supervisor's standard handle slots. Because Windows reuses handle values, a
