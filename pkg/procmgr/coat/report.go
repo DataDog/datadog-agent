@@ -219,6 +219,11 @@ func scrubProcessArgs(processes []ProcessSnapshot, opts ScrubOptions) {
 // joins the argv on spaces, and its unquoted-value pattern stops at the first space, so a value like
 // "secret with spaces" would keep everything after "secret". Element boundaries are known here, and
 // throwing them away loses information that cannot be recovered.
+//
+// A second pass then scrubs secret sequences buried inside a single element (a shell "-c" payload,
+// for example). Classification only looks at text before the element's first delimiter, so without
+// that pass a credential later in the same string would reach the flare. The pass still does not
+// join across elements, so space-bearing values that are separate argv entries stay intact.
 func redactSecretValues(args []string, patterns []procutil.DataScrubberPattern) {
 	// Classified up front, because redacting rewrites the element after a flag. Classifying as the
 	// rewriting goes along would read a placeholder where a flag used to be: in
@@ -258,6 +263,35 @@ func redactSecretValues(args []string, patterns []procutil.DataScrubberPattern) 
 			wasValue[i+1] = true
 		}
 	}
+
+	for i := range args {
+		if wasValue[i] {
+			continue
+		}
+		args[i] = scrubSecretSequences(args[i], patterns)
+	}
+}
+
+// scrubSecretSequences redacts secret flag/value pairs that sit inside a single argv element rather
+// than spanning two. The same regexes process-agent uses, applied to one string so a shell "-c"
+// payload is scrubbed without joining neighbouring elements.
+//
+// Unquoted values still stop at the first space, which is the same limit ScrubCommand has: a
+// space-bearing secret buried inside a compound argument can leave the tail after that space. That
+// is accepted here because catching the common case (no spaces in the value) is what the flare was
+// missing, and joining to do better would reopen the separate-element leak this file exists to close.
+func scrubSecretSequences(s string, patterns []procutil.DataScrubberPattern) string {
+	lower := strings.ToLower(s)
+	for _, pattern := range patterns {
+		if !strings.Contains(lower, pattern.FastCheck) {
+			continue
+		}
+		if pattern.Re.MatchString(s) {
+			s = pattern.Re.ReplaceAllString(s, "${key}${delimiter}"+redactedValue)
+			lower = strings.ToLower(s)
+		}
+	}
+	return s
 }
 
 // argument is one argv element, split and classified before any redaction rewrites it.

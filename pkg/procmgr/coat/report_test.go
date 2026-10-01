@@ -390,6 +390,32 @@ func TestScrubProcessArgsHandlesFlagSpellingsAndDelimiters(t *testing.T) {
 			args: []string{"--password leaked-by-space"},
 			want: []string{"--password " + wantRedacted},
 		},
+		{
+			// Classification only looks at text before the first delimiter of an element, so a
+			// secret buried later in the same string (a shell "-c" payload, a joined mini cmdline)
+			// would otherwise reach the flare. The in-element pass catches it without joining
+			// neighbouring argv entries.
+			name: "secret buried inside a shell -c payload",
+			args: []string{"-c", "exec worker --password hunter2"},
+			want: []string{"-c", "exec worker --password " + wantRedacted},
+		},
+		{
+			name: "hyphenated secret buried inside a compound argument",
+			args: []string{"-c", "run --api-key leaked-key-value"},
+			want: []string{"-c", "run --api-key " + wantRedacted},
+		},
+		{
+			name: "secret buried in a single-token mini cmdline",
+			args: []string{"worker --password hunter2"},
+			want: []string{"worker --password " + wantRedacted},
+		},
+		{
+			// Space-bearing values that are their own argv element still redacted whole: the
+			// in-element pass must not join across boundaries and re-open that leak.
+			name: "separate space-bearing secret still redacted whole after the compound pass",
+			args: []string{"--password", "secret with spaces", "--config", `C:\Program Files\Datadog\datadog.yaml`},
+			want: []string{"--password", wantRedacted, "--config", `C:\Program Files\Datadog\datadog.yaml`},
+		},
 	}
 
 	for _, test := range tests {
@@ -411,6 +437,14 @@ func TestScrubProcessArgsHonoursOperatorSettings(t *testing.T) {
 		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
 
 		assert.Equal(t, []string{"--passphrase", wantRedacted}, processes[0].Args)
+	})
+
+	t.Run("a declared word buried in a compound argument is still redacted", func(t *testing.T) {
+		processes := []ProcessSnapshot{{Args: []string{"-c", "start --PASSPHRASE s3cret"}}}
+
+		scrubProcessArgs(processes, ScrubOptions{CustomSensitiveWords: []string{"PASSPHRASE"}})
+
+		assert.Equal(t, []string{"-c", "start --PASSPHRASE " + wantRedacted}, processes[0].Args)
 	})
 
 	t.Run("a declared wildcard matches a prefixed flag", func(t *testing.T) {
