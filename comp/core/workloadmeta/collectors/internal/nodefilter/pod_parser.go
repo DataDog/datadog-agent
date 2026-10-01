@@ -9,6 +9,7 @@ package nodefilter
 
 import (
 	stdErrors "errors"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -331,15 +332,11 @@ func findContainerSpec(name string, specs []corev1.Container) *corev1.Container 
 // refs) since those require calls this collector does not make, and
 // filtering out variables not in the configured allow-list.
 func extractEnvFromSpec(envSpec []corev1.EnvVar) map[string]string {
-	envSpec = slices.DeleteFunc(slices.Clone(envSpec), func(v corev1.EnvVar) bool {
-		return v.ValueFrom != nil
-	})
-
 	env := make(map[string]string)
 	mappingFunc := expansion.MappingFuncFor(env)
 
 	for _, e := range envSpec {
-		if !containers.EnvVarFilterFromConfig().IsIncluded(e.Name) {
+		if e.ValueFrom != nil || !containers.EnvVarFilterFromConfig().IsIncluded(e.Name) {
 			continue
 		}
 
@@ -400,6 +397,9 @@ func extractResizePolicy(spec *corev1.Container) workloadmeta.ContainerResizePol
 	return policy
 }
 
+// gpuVendorsFromContainers returns the GPU vendors the containers' limits ask
+// for, sorted so that an unchanged pod always yields the same GPUVendorList
+// instead of whatever order map iteration happens to produce.
 func gpuVendorsFromContainers(containerSpecLists ...[]corev1.Container) []string {
 	unique := make(map[string]struct{})
 	for _, specs := range containerSpecLists {
@@ -410,9 +410,11 @@ func gpuVendorsFromContainers(containerSpecLists ...[]corev1.Container) []string
 		}
 	}
 
-	return sortedKeys(unique)
+	return slices.Sorted(maps.Keys(unique))
 }
 
+// gpuVendorsFromLimits returns the GPU vendors the resource limits ask for,
+// sorted like gpuVendorsFromContainers.
 func gpuVendorsFromLimits(limits corev1.ResourceList) []string {
 	unique := make(map[string]struct{})
 	for resourceName := range limits {
@@ -421,17 +423,5 @@ func gpuVendorsFromLimits(limits corev1.ResourceList) []string {
 		}
 	}
 
-	return sortedKeys(unique)
-}
-
-// sortedKeys returns the set's members in a stable order, so an unchanged pod
-// always yields the same GPUVendorList instead of whatever order map
-// iteration happens to produce.
-func sortedKeys(set map[string]struct{}) []string {
-	keys := make([]string, 0, len(set))
-	for key := range set {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-	return keys
+	return slices.Sorted(maps.Keys(unique))
 }

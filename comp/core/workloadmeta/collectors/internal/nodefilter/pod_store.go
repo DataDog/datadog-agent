@@ -10,7 +10,6 @@ package nodefilter
 import (
 	"fmt"
 	"slices"
-	"sync"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -29,7 +28,9 @@ type podStore struct {
 	nodeName                   string
 	collectEphemeralContainers bool
 
-	mu   sync.Mutex
+	// seen needs no lock: the reflector calls the store's methods one at a
+	// time, from the goroutine that lists and watches, and nothing else reads
+	// it. Unlike kubeapiserver's reflectorStore, this store has no HasSynced.
 	seen map[types.UID][]workloadmeta.EntityID
 }
 
@@ -64,10 +65,8 @@ func (s *podStore) track(pod *corev1.Pod) []workloadmeta.CollectorEvent {
 	events := parsePod(pod, s.collectEphemeralContainers)
 	entityIDs := entityIDsFromEvents(events)
 
-	s.mu.Lock()
 	previousEntityIDs := s.seen[pod.UID]
 	s.seen[pod.UID] = entityIDs
-	s.mu.Unlock()
 
 	return append(events, unsetEventsForEntityIDs(removedEntityIDs(previousEntityIDs, entityIDs))...)
 }
@@ -86,10 +85,8 @@ func (s *podStore) Delete(obj interface{}) error {
 		return fmt.Errorf("nodefilter pod store: unsupported object type %T", obj)
 	}
 
-	s.mu.Lock()
 	entityIDs := s.seen[pod.UID]
 	delete(s.seen, pod.UID)
-	s.mu.Unlock()
 
 	s.wlmetaStore.Notify(unsetEventsForEntityIDs(entityIDs))
 
@@ -128,7 +125,6 @@ func (s *podStore) Replace(list []interface{}, _ string) error {
 	// listed pod still yields them: the mirror pod of a static pod that the
 	// kubelet recreated has a new UID, but yields the same entities.
 	var goneEntityIDs []workloadmeta.EntityID
-	s.mu.Lock()
 	for uid, entityIDs := range s.seen {
 		if _, ok := listed[uid]; !ok {
 			goneEntityIDs = append(goneEntityIDs, entityIDs...)
@@ -138,7 +134,6 @@ func (s *podStore) Replace(list []interface{}, _ string) error {
 	for _, entityIDs := range s.seen {
 		goneEntityIDs = removedEntityIDs(goneEntityIDs, entityIDs)
 	}
-	s.mu.Unlock()
 	events = append(events, unsetEventsForEntityIDs(goneEntityIDs)...)
 
 	s.wlmetaStore.Notify(events)
