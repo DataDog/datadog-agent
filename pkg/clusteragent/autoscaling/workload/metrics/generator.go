@@ -303,6 +303,17 @@ func GeneratePodAutoscalerMetrics(internal *model.PodAutoscalerInternal) metrics
 		Tags:  baseTags,
 	})
 
+	// Replica count pinned by the force-replicas annotation. Only emitted while a count is pinned, so
+	// that the many autoscalers without it do not each send a series.
+	if replicas, forced := internal.ForcedReplicas(); forced {
+		metrics = append(metrics, metricsstore.StructuredMetric{
+			Name:  metricPrefix + ".force_replicas",
+			Type:  metricsstore.MetricTypeGauge,
+			Value: float64(replicas),
+			Tags:  baseTags,
+		})
+	}
+
 	// 3. DPA apply mode
 	metrics = appendApplyModeMetrics(metrics, internal, baseTags)
 

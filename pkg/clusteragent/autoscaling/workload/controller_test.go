@@ -1377,6 +1377,16 @@ func TestGetActiveScalingSourcesOpsAnnotations(t *testing.T) {
 			"like stale recommendations with the fallback disabled: no local values, so current values are held")
 	})
 
+	t.Run("force-replicas does not change source selection", func(t *testing.T) {
+		dpai := staleMainFreshFallback.Build()
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceReplicasAnnotationKey: "28"})
+
+		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
+		require.NotNil(t, horizontalSource)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, *horizontalSource,
+			"the pinned count is applied by the horizontal controller on top of the recommendations (see TestHorizontalControllerForceReplicas)")
+	})
+
 	t.Run("force-fallback wins over fresh product values", func(t *testing.T) {
 		dpai := model.FakePodAutoscalerInternal{
 			Namespace:         "default",
