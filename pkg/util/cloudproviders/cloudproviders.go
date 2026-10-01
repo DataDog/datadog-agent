@@ -37,37 +37,79 @@ type cloudProviderDetector struct {
 	accountIDCallback func(context.Context) (string, error)
 }
 
-var cloudProviderDetectors = []cloudProviderDetector{
-	{name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIDCallback: ec2.GetAccountID},
-	{name: gce.CloudProviderName, callback: gce.IsRunningOn, accountIDCallback: gce.GetProjectID},
-	{name: azure.CloudProviderName, callback: azure.IsRunningOn, accountIDCallback: azure.GetSubscriptionID},
-	{name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
-	{name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
-	{name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
-	{name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
+var cloudProviderDetectors = map[string]cloudProviderDetector{
+	ec2.CloudProviderName:     {name: ec2.CloudProviderName, callback: ec2.IsRunningOn, accountIDCallback: ec2.GetAccountID},
+	gce.CloudProviderName:     {name: gce.CloudProviderName, callback: gce.IsRunningOn, accountIDCallback: gce.GetProjectID},
+	azure.CloudProviderName:   {name: azure.CloudProviderName, callback: azure.IsRunningOn, accountIDCallback: azure.GetSubscriptionID},
+	alibaba.CloudProviderName: {name: alibaba.CloudProviderName, callback: alibaba.IsRunningOn},
+	tencent.CloudProviderName: {name: tencent.CloudProviderName, callback: tencent.IsRunningOn},
+	oracle.CloudProviderName:  {name: oracle.CloudProviderName, callback: oracle.IsRunningOn},
+	ibm.CloudProviderName:     {name: ibm.CloudProviderName, callback: ibm.IsRunningOn},
 }
 
-// DetectCloudProvider detects the cloud provider where the agent is running in order:
+var cloudProviderDetectorResolutionOrder = []string{
+	ec2.CloudProviderName,
+	gce.CloudProviderName,
+	azure.CloudProviderName,
+	alibaba.CloudProviderName,
+	tencent.CloudProviderName,
+	oracle.CloudProviderName,
+	ibm.CloudProviderName,
+}
+
+// DetectCloudProviderDMI detects the cloud provider using only DMI information, without making
+// any network call. It only supports the cloud providers that implement DMI-based detection
+// (EC2, GCE, Azure, Oracle Cloud); other providers require DetectCloudProvider's network calls.
+func DetectCloudProviderDMI() string {
+	switch {
+	case ec2.IsRunningOnDMI():
+		return ec2.CloudProviderName
+	case gce.IsRunningOnDMI():
+		return gce.CloudProviderName
+	case azure.IsRunningOnDMI():
+		return azure.CloudProviderName
+	case oracle.IsRunningOnDMI():
+		return oracle.CloudProviderName
+	default:
+		return ""
+	}
+}
+
+// DetectCloudProvider detects the cloud provider where the agent is running in order. It first
+// tries DetectCloudProviderDMI, which is network-free and therefore much faster; only when DMI
+// can't tell us the cloud provider do we fall back to the network-based detectors.
 func DetectCloudProvider(ctx context.Context, collectAccountID bool) (string, string) {
-	for _, cloudDetector := range cloudProviderDetectors {
+	if name := DetectCloudProviderDMI(); name != "" {
+		log.Infof("Cloud provider %s detected via DMI", name)
+		return name, detectCloudProviderAccountID(ctx, name, collectAccountID, cloudProviderDetectors[name].accountIDCallback)
+	}
+
+	for _, name := range cloudProviderDetectorResolutionOrder {
+		cloudDetector := cloudProviderDetectors[name]
 		if cloudDetector.callback(ctx) {
 			log.Infof("Cloud provider %s detected", cloudDetector.name)
-
-			// fetch the account ID for this cloud provider
-			if collectAccountID && cloudDetector.accountIDCallback != nil {
-				accountID, err := cloudDetector.accountIDCallback(ctx)
-				if err != nil {
-					log.Debugf("Could not detect cloud provider account ID: %v", err)
-				} else if accountID != "" {
-					log.Infof("Detecting cloud provider account ID from %s: %+q", cloudDetector.name, accountID)
-					return cloudDetector.name, accountID
-				}
-			}
-			return cloudDetector.name, ""
+			return cloudDetector.name, detectCloudProviderAccountID(ctx, cloudDetector.name, collectAccountID, cloudDetector.accountIDCallback)
 		}
 	}
 	log.Info("No cloud provider detected")
 	return "", ""
+}
+
+// detectCloudProviderAccountID fetches the account ID for the given cloud provider, if requested
+// and supported.
+func detectCloudProviderAccountID(ctx context.Context, name string, collectAccountID bool, accountIDCallback func(context.Context) (string, error)) string {
+	if !collectAccountID || accountIDCallback == nil {
+		return ""
+	}
+	accountID, err := accountIDCallback(ctx)
+	if err != nil {
+		log.Debugf("Could not detect cloud provider account ID: %v", err)
+		return ""
+	}
+	if accountID != "" {
+		log.Infof("Detecting cloud provider account ID from %s: %+q", name, accountID)
+	}
+	return accountID
 }
 
 type cloudProviderNTPDetector struct {
@@ -75,18 +117,41 @@ type cloudProviderNTPDetector struct {
 	callback func(context.Context) []string
 }
 
-// GetCloudProviderNTPHosts detects the cloud provider where the agent is running in order and returns its NTP host name.
+var cloudProviderNTPDetectors = map[string]cloudProviderNTPDetector{
+	ec2.CloudProviderName:     {name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
+	gce.CloudProviderName:     {name: gce.CloudProviderName, callback: gce.GetNTPHosts},
+	azure.CloudProviderName:   {name: azure.CloudProviderName, callback: azure.GetNTPHosts},
+	alibaba.CloudProviderName: {name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
+	tencent.CloudProviderName: {name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
+	oracle.CloudProviderName:  {name: oracle.CloudProviderName, callback: oracle.GetNTPHosts},
+}
+
+var cloudProviderNTPDetectorResolutionOrder = []string{
+	ec2.CloudProviderName,
+	gce.CloudProviderName,
+	azure.CloudProviderName,
+	alibaba.CloudProviderName,
+	tencent.CloudProviderName,
+	oracle.CloudProviderName,
+}
+
+// GetCloudProviderNTPHosts detects the cloud provider where the agent is running and returns its
+// NTP host name. If the cloud provider can be positively identified from DMI information, only
+// that provider's NTP detector is queried, to avoid wasting calls on endpoints known not to apply
+// to this host; the other providers are only probed as a fallback if that direct attempt fails.
 func GetCloudProviderNTPHosts(ctx context.Context) []string {
-	detectors := []cloudProviderNTPDetector{
-		{name: ec2.CloudProviderName, callback: ec2.GetNTPHosts},
-		{name: gce.CloudProviderName, callback: gce.GetNTPHosts},
-		{name: azure.CloudProviderName, callback: azure.GetNTPHosts},
-		{name: alibaba.CloudProviderName, callback: alibaba.GetNTPHosts},
-		{name: tencent.CloudProviderName, callback: tencent.GetNTPHosts},
-		{name: oracle.CloudProviderName, callback: oracle.GetNTPHosts},
+	if provider := DetectCloudProviderDMI(); provider != "" {
+		if detector, ok := cloudProviderNTPDetectors[provider]; ok {
+			if cloudNTPServers := detector.callback(ctx); cloudNTPServers != nil {
+				log.Infof("Detected %s cloud provider environment with NTP server(s) at %+q", detector.name, cloudNTPServers)
+				return cloudNTPServers
+			}
+			log.Debugf("GetCloudProviderNTPHosts: could not retrieve NTP hosts from DMI-detected provider %s, falling back to probing all providers", provider)
+		}
 	}
 
-	for _, cloudNTPDetector := range detectors {
+	for _, name := range cloudProviderNTPDetectorResolutionOrder {
+		cloudNTPDetector := cloudProviderNTPDetectors[name]
 		if cloudNTPServers := cloudNTPDetector.callback(ctx); cloudNTPServers != nil {
 			log.Infof("Detected %s cloud provider environment with NTP server(s) at %+q", cloudNTPDetector.name, cloudNTPServers)
 			return cloudNTPServers
@@ -99,6 +164,13 @@ func GetCloudProviderNTPHosts(ctx context.Context) []string {
 type cloudProviderAliasesDetector struct {
 	name       string
 	isCloudEnv bool
+	// dmiDetectable marks cloud metadata detectors whose provider can be
+	// positively identified via DMI. Once DMI identifies a provider, detectors
+	// with dmiDetectable set for any other provider are skipped; all other
+	// detectors (config, cloudfoundry, kubelet, kubernetes) always run
+	// alongside it, since they either aren't cloud environments or can't be
+	// distinguished from DMI information alone.
+	dmiDetectable bool
 	// requiresKubelet marks detectors that route through the shared kubelet
 	// client singleton. Cluster Checks Runners are Deployment replicas, not
 	// DaemonSets, so they are never colocated with a node's kubelet and can
@@ -121,18 +193,18 @@ func getValidHostAliases(_ context.Context) ([]string, error) {
 	return aliases, nil
 }
 
-var hostAliasesDetectors = []cloudProviderAliasesDetector{
-	{name: "config", callback: getValidHostAliases},
-	{name: alibaba.CloudProviderName, isCloudEnv: true, callback: alibaba.GetHostAliases},
-	{name: ec2.CloudProviderName, isCloudEnv: true, callback: ec2.GetHostAliases},
-	{name: azure.CloudProviderName, isCloudEnv: true, callback: azure.GetHostAliases},
-	{name: gce.CloudProviderName, isCloudEnv: true, callback: gce.GetHostAliases},
-	{name: cloudfoundry.CloudProviderName, isCloudEnv: true, callback: cloudfoundry.GetHostAliases},
-	{name: "kubelet", requiresKubelet: true, callback: kubelet.GetHostAliases},
-	{name: tencent.CloudProviderName, isCloudEnv: true, callback: tencent.GetHostAliases},
-	{name: oracle.CloudProviderName, isCloudEnv: true, callback: oracle.GetHostAliases},
-	{name: ibm.CloudProviderName, isCloudEnv: true, callback: ibm.GetHostAliases},
-	{name: kubernetes.CloudProviderName, requiresKubelet: true, callback: kubernetes.GetHostAliases},
+var hostAliasesDetectors = map[string]cloudProviderAliasesDetector{
+	"config":                       {name: "config", callback: getValidHostAliases},
+	alibaba.CloudProviderName:      {name: alibaba.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: alibaba.GetHostAliases},
+	ec2.CloudProviderName:          {name: ec2.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: ec2.GetHostAliases},
+	azure.CloudProviderName:        {name: azure.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: azure.GetHostAliases},
+	gce.CloudProviderName:          {name: gce.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: gce.GetHostAliases},
+	cloudfoundry.CloudProviderName: {name: cloudfoundry.CloudProviderName, isCloudEnv: true, callback: cloudfoundry.GetHostAliases},
+	"kubelet":                      {name: "kubelet", requiresKubelet: true, callback: kubelet.GetHostAliases},
+	tencent.CloudProviderName:      {name: tencent.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: tencent.GetHostAliases},
+	oracle.CloudProviderName:       {name: oracle.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: oracle.GetHostAliases},
+	ibm.CloudProviderName:          {name: ibm.CloudProviderName, isCloudEnv: true, dmiDetectable: true, callback: ibm.GetHostAliases},
+	kubernetes.CloudProviderName:   {name: kubernetes.CloudProviderName, requiresKubelet: true, callback: kubernetes.GetHostAliases},
 }
 
 var (
@@ -140,17 +212,17 @@ var (
 	hostAliasLogOnce = true
 )
 
-// GetHostAliases returns the hostname aliases and the name of the possible cloud providers
-func GetHostAliases(ctx context.Context) ([]string, string) {
+// runHostAliasesDetectors runs the given host alias detectors concurrently and aggregates their
+// results. Cloud providers endpoints can take a few seconds to answer, so we're using a WaitGroup
+// to call all of them concurrently since GetHostAliases is called during the agent startup and is
+// blocking.
+func runHostAliasesDetectors(ctx context.Context, detectors map[string]cloudProviderAliasesDetector, isCLCRunner bool) ([]string, string) {
 	aliases := []string{}
 	cloudprovider := ""
-	isCLCRunner := helper.IsCLCRunner(configsetup.Datadog())
 
-	// cloud providers endpoints can take a few seconds to answer. We're using a WaitGroup to call all of them
-	// concurrently since GetHostAliases is called during the agent startup and is blocking.
 	var wg sync.WaitGroup
 
-	for _, hostAliasesDetector := range hostAliasesDetectors {
+	for _, hostAliasesDetector := range detectors {
 		if isCLCRunner && hostAliasesDetector.requiresKubelet {
 			// Skip probing the kubelet client singleton: it can never succeed on a
 			// CCR and would otherwise trigger its exponential-backoff retrier and
@@ -184,6 +256,34 @@ func GetHostAliases(ctx context.Context) ([]string, string) {
 	wg.Wait()
 
 	return utilsort.UniqInPlace(aliases), cloudprovider
+}
+
+// GetHostAliases returns the hostname aliases and the name of the possible cloud providers. If the
+// cloud provider can be positively identified from DMI information, only that provider's alias
+// detector is probed alongside the ones that aren't DMI-detectable (config, cloudfoundry, kubelet,
+// kubernetes), so we're not stuck waiting on some irrelevant cloud provider's slow negative-case
+// timeout; the full set of detectors is only probed as a fallback if that direct attempt doesn't
+// yield a cloud provider.
+func GetHostAliases(ctx context.Context) ([]string, string) {
+	isCLCRunner := helper.IsCLCRunner(configsetup.Datadog())
+
+	if provider := DetectCloudProviderDMI(); provider != "" {
+		scoped := make(map[string]cloudProviderAliasesDetector, len(hostAliasesDetectors))
+		for name, detector := range hostAliasesDetectors {
+			if !detector.dmiDetectable || detector.name == provider {
+				scoped[name] = detector
+			}
+		}
+
+		aliases, cloudprovider := runHostAliasesDetectors(ctx, scoped, isCLCRunner)
+		if cloudprovider != "" {
+			log.Debugf("GetHostAliases: could not retrieve host aliases from DMI-detected provider %s, falling back to probing all providers", provider)
+			return aliases, cloudprovider
+		}
+		return aliases, cloudprovider
+	}
+
+	return runHostAliasesDetectors(ctx, hostAliasesDetectors, isCLCRunner)
 }
 
 type cloudProviderCCRIDDetector func(context.Context) (string, error)
@@ -269,14 +369,30 @@ func GetInstanceType(ctx context.Context, detectedCloud string) string {
 	return ""
 }
 
-// GetPublicIPv4 returns the public IPv4 from different providers
+var publicIPv4Providers = map[string]func(context.Context) (string, error){
+	ec2.CloudProviderName:   ec2.GetPublicIPv4,
+	gce.CloudProviderName:   gce.GetPublicIPv4,
+	azure.CloudProviderName: azure.GetPublicIPv4,
+}
+
+// GetPublicIPv4 returns the public IPv4 from different providers. If the cloud provider can be
+// positively identified from DMI information, only that provider's metadata endpoint is queried
+// first, to avoid wasting calls on endpoints known not to apply to this host; the other providers
+// are only probed as a fallback if that direct attempt fails.
 func GetPublicIPv4(ctx context.Context) (string, error) {
-	publicIPProvider := map[string]func(context.Context) (string, error){
-		ec2.CloudProviderName:   ec2.GetPublicIPv4,
-		gce.CloudProviderName:   gce.GetPublicIPv4,
-		azure.CloudProviderName: azure.GetPublicIPv4,
+	if provider := DetectCloudProviderDMI(); provider != "" {
+		if fetcher, ok := publicIPv4Providers[provider]; ok {
+			publicIPv4, err := fetcher(ctx)
+			if err == nil {
+				log.Debugf("%s public IP: %s", provider, publicIPv4)
+				return publicIPv4, nil
+			}
+			log.Debugf("Could not fetch %s public IPv4: %s, falling back to probing all providers", provider, err)
+			return "", errors.New("No public IPv4 address found")
+		}
 	}
-	for name, fetcher := range publicIPProvider {
+
+	for name, fetcher := range publicIPv4Providers {
 		publicIPv4, err := fetcher(ctx)
 		if err == nil {
 			log.Debugf("%s public IP: %s", name, publicIPv4)

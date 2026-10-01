@@ -56,8 +56,15 @@ func GetMetaFromCache(ctx context.Context, conf model.Reader, hostname hostnamei
 func getMeta(ctx context.Context, conf model.Reader, hostnameComp hostnameinterface.Component) *Meta {
 	osHostname, _ := os.Hostname()
 	tzname, _ := time.Now().Zone()
-	ec2Hostname, _ := ec2.GetHostname(ctx)
-	instanceID, _ := ec2.GetInstanceID(ctx)
+
+	var ec2Hostname, instanceID string
+	// EC2Hostname and InstanceID only apply to EC2; skip probing its metadata
+	// endpoint entirely when DMI positively identifies a different cloud
+	// provider, since the call is then guaranteed not to apply to this host.
+	if provider := cloudproviders.DetectCloudProviderDMI(); provider == "" || provider == ec2.CloudProviderName {
+		ec2Hostname, _ = ec2.GetHostname(ctx)
+		instanceID, _ = ec2.GetInstanceID(ctx)
+	}
 
 	var agentHostname string
 

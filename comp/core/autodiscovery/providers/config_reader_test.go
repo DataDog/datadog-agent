@@ -233,6 +233,41 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Equal(t, configs[0].Name, "baz")
 }
 
+// TestReadConfigFilesErrorClearing checks that when multiple files share an
+// integration name, a later valid file clears an earlier file's recorded
+// error (and vice versa: a later invalid file's error survives), both within
+// a single `<integration>.d/` directory and across two independent top-level
+// entries. See errorAction/applyErrorAction in config_reader.go.
+func TestReadConfigFilesErrorClearing(t *testing.T) {
+	ResetReader([]string{"testdata/errorclearing"})
+
+	configs, errs, err := ReadConfigFiles(GetAll)
+	require.Nil(t, err)
+
+	names := map[string]bool{}
+	for _, c := range configs {
+		names[c.Name] = true
+	}
+
+	// cleared.d/1.yaml (invalid) sets an error, then cleared.d/2.yaml (valid,
+	// processed after in the same directory) clears it: the config is
+	// returned and no error is recorded for the name.
+	require.True(t, names["cleared"], "valid file's config should be returned")
+	require.NotContains(t, errs, "cleared", "later valid file should clear the earlier error")
+
+	// notcleared.d/1.yaml (valid) clears nothing yet, then notcleared.d/2.yaml
+	// (invalid, processed last) sets the error: it should survive.
+	// Note: config still exists for the integration since notcleared.d/1.yaml was valid
+	require.True(t, names["notcleared"], "valid file's config should be returned")
+	require.Contains(t, errs, "notcleared", "later invalid file's error should not be erased")
+
+	// Same ordering guarantee across two different top-level entries handled
+	// by the worker pool (not just within one directory) - results are still
+	// merged back in original, deterministic entry order.
+	require.True(t, names["siblingcleared"])
+	require.NotContains(t, errs, "siblingcleared")
+}
+
 func TestReadConfigFilesCache(t *testing.T) {
 	testFileContent := `
 init_config:
