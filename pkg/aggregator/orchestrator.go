@@ -8,8 +8,8 @@
 package aggregator
 
 // Orchestrator Explorer is enabled by default but
-// the forwarder is only created if the orchestrator
+// the forwarder is only created if the kubeapiserver
 // build tag exists
 
-// orchestratorForwarderSupport shows if the orchestrator build tag is enabled
+// orchestratorForwarderSupport shows if the kubeapiserver build tag is enabled
 const orchestratorForwarderSupport = true
