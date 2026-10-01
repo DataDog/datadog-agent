@@ -16,8 +16,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,37 +24,31 @@ const (
 	defaultClusterIDMap = "datadog-cluster-id"
 )
 
-// GetKubeSystemUID returns the UID of the kube-system namespace from the cluster
+// getKubeSystemUID returns the UID of the kube-system namespace from the cluster
 // We use it as the cluster ID so that even if the configmap is removed
 // the new one should get the same ID.
-func GetKubeSystemUID(coreClient corev1.CoreV1Interface) (string, error) {
-	svc, err := coreClient.Namespaces().Get(context.TODO(), "kube-system", metav1.GetOptions{})
+func getKubeSystemUID(ctx context.Context, coreClient corev1.CoreV1Interface) (string, error) {
+	svc, err := coreClient.Namespaces().Get(ctx, "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
 	return string(svc.UID), nil
 }
 
-// GetOrCreateClusterID generates a cluster ID and persists it to a ConfigMap.
-// It first checks if the CM exists, in which case it uses the ID it contains
-// It thus requires get, create, and update perms on configmaps in the cluster-agent's namespace
-func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
-	cacheClusterIDKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
-	x, found := cache.Cache.Get(cacheClusterIDKey)
-	if found {
-		return x.(string), nil
-	}
-
+// ResolveClusterID reads the cluster ID from a ConfigMap, and persists it when it
+// is missing. It requires get, create, and update permissions on ConfigMaps in the
+// Cluster Agent namespace. Callers own retries and caching.
+func ResolveClusterID(ctx context.Context, coreClient corev1.CoreV1Interface) (string, error) {
 	myNS := namespace.GetMyNamespace()
 
-	cm, err := coreClient.ConfigMaps(myNS).Get(context.TODO(), defaultClusterIDMap, metav1.GetOptions{})
+	cm, err := coreClient.ConfigMaps(myNS).Get(ctx, defaultClusterIDMap, metav1.GetOptions{})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			log.Errorf("Cannot retrieve ConfigMap %s/%s: %s", myNS, defaultClusterIDMap, err)
 			return "", err
 		}
-		// the config map doesn't exist yet, generate a UUID and persist it
-		clusterID, err := GetKubeSystemUID(coreClient)
+		// The ConfigMap is absent; persist the stable kube-system namespace UID.
+		clusterID, err := getKubeSystemUID(ctx, coreClient)
 		if err != nil {
 			log.Errorf("Failed getting the kube-system namespace: %v", err)
 			return "", err
@@ -70,34 +62,34 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 				"id": clusterID,
 			},
 		}
-		_, err = coreClient.ConfigMaps(myNS).Create(context.TODO(), cm, metav1.CreateOptions{})
+		_, err = coreClient.ConfigMaps(myNS).Create(ctx, cm, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Cannot create ConfigMap %s/%s: %s", myNS, defaultClusterIDMap, err)
 			return "", err
 		}
-		cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 		return clusterID, nil
 	}
 
 	// config map exists, use its content or update it if the content doesn't look right
 	clusterID, found := cm.Data["id"]
 	if found && len([]byte(clusterID)) == 36 {
-		cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 		return clusterID, nil
 	}
 
 	log.Warnf("Content of ConfigMap %s/%s doesn't look like a cluster ID, updating it", myNS, defaultClusterIDMap)
-	clusterID, err = GetKubeSystemUID(coreClient)
+	clusterID, err = getKubeSystemUID(ctx, coreClient)
 	if err != nil {
 		log.Errorf("Failed getting the kube-system namespace: %v", err)
 		return "", err
 	}
+	if cm.Data == nil {
+		cm.Data = make(map[string]string)
+	}
 	cm.Data["id"] = clusterID
-	_, err = coreClient.ConfigMaps(myNS).Update(context.TODO(), cm, metav1.UpdateOptions{})
+	_, err = coreClient.ConfigMaps(myNS).Update(ctx, cm, metav1.UpdateOptions{})
 	if err != nil {
 		log.Errorf("Failed to update ConfigMap %s/%s with correct cluster ID: %s", myNS, defaultClusterIDMap, err)
 		return "", err
 	}
-	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
 	return clusterID, nil
 }

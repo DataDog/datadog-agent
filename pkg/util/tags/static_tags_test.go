@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -27,7 +28,7 @@ func TestStaticTags(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetInTest("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetInTest("tags", []string{})
-		staticTags := GetStaticTags(context.Background(), mockConfig)
+		staticTags := GetStaticTags(context.Background(), mockConfig, "")
 		assert.Equal(t, map[string][]string{
 			"some":              {"tag"},
 			"another":           {"tag"},
@@ -41,7 +42,7 @@ func TestStaticTags(t *testing.T) {
 		mockConfig.SetInTest("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetInTest("tags", []string{})
 		defer mockConfig.SetInTest("extra_tags", []string{})
-		staticTags := GetStaticTags(context.Background(), mockConfig)
+		staticTags := GetStaticTags(context.Background(), mockConfig, "")
 		assert.Equal(t, map[string][]string{
 			"some":              {"tag"},
 			"extra":             {"tag"},
@@ -53,7 +54,7 @@ func TestStaticTags(t *testing.T) {
 	t.Run("cluster name already set", func(t *testing.T) {
 		mockConfig.SetInTest("tags", []string{"kube_cluster_name:foo"})
 		defer mockConfig.SetInTest("tags", []string{})
-		staticTags := GetStaticTags(context.Background(), mockConfig)
+		staticTags := GetStaticTags(context.Background(), mockConfig, "")
 		assert.Equal(t, map[string][]string{
 			"eks_fargate_node":  {"eksnode"},
 			"kube_cluster_name": {"foo"},
@@ -72,7 +73,7 @@ func TestStaticTagsSlice(t *testing.T) {
 		mockConfig.SetInTest("provider_kind", "gke-autopilot")
 		defer mockConfig.SetInTest("provider_kind", "")
 
-		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig, nil)
 		assert.ElementsMatch(t, []string{"provider_kind:gke-autopilot"}, staticTags)
 	})
 
@@ -81,7 +82,7 @@ func TestStaticTagsSlice(t *testing.T) {
 	t.Run("just tags", func(t *testing.T) {
 		mockConfig.SetInTest("tags", []string{"some:tag", "another:tag", "nocolon"})
 		defer mockConfig.SetInTest("tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig, nil)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"some:tag",
@@ -96,7 +97,7 @@ func TestStaticTagsSlice(t *testing.T) {
 		mockConfig.SetInTest("extra_tags", []string{"extra:tag", "missingcolon"})
 		defer mockConfig.SetInTest("tags", []string{})
 		defer mockConfig.SetInTest("extra_tags", []string{})
-		staticTags := GetStaticTagsSlice(context.Background(), mockConfig)
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig, nil)
 		assert.ElementsMatch(t, []string{
 			"nocolon",
 			"missingcolon",
@@ -104,6 +105,16 @@ func TestStaticTagsSlice(t *testing.T) {
 			"extra:tag",
 			"eks_fargate_node:eksnode",
 			"kube_distribution:eks",
+		}, staticTags)
+	})
+
+	t.Run("cluster id", func(t *testing.T) {
+		resolver := clusteridresolvermock.NewResolved("cluster-id")
+		staticTags := GetStaticTagsSlice(context.Background(), mockConfig, resolver)
+		assert.ElementsMatch(t, []string{
+			"eks_fargate_node:eksnode",
+			"kube_distribution:eks",
+			"orch_cluster_id:cluster-id",
 		}, staticTags)
 	})
 }

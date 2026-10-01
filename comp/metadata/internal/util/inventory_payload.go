@@ -186,6 +186,20 @@ func (i *InventoryPayload) MetadataProvider() runnerdef.Provider {
 	return runnerdef.NewProvider(nil)
 }
 
+// MetadataProviderWhenReady is similar to MetadataProvider, but the runner does not
+// collect a payload before ready returns true. Flares and endpoints do not wait.
+func (i *InventoryPayload) MetadataProviderWhenReady(ready func() bool) runnerdef.Provider {
+	if !i.Enabled {
+		return runnerdef.NewProvider(nil)
+	}
+	return runnerdef.NewProvider(func(ctx context.Context) time.Duration {
+		if !ready() {
+			return i.MinInterval
+		}
+		return i.collect(ctx)
+	})
+}
+
 // collect is the callback expected by the metadata runner.Provider. It will send a new payload and return the next
 // interval to be called.
 func (i *InventoryPayload) collect(_ context.Context) time.Duration {

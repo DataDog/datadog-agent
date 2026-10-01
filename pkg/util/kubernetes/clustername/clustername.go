@@ -23,12 +23,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
+	// ClusterIDEnv is the environment variable that overrides the cluster ID.
+	ClusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
+	// clusterIDLength is the length of a UUID in text form.
+	clusterIDLength = 36
 )
 
 // The cluster name can be up to 40 characters with the following restrictions:
@@ -194,32 +198,55 @@ func ResetClusterName() {
 	resetClusterName(defaultClusterNameData)
 }
 
-// GetClusterID looks for an env variable which should contain the cluster ID.
-// This variable should come from a configmap, created by the cluster-agent.
-// This function is meant for the node-agent to call (cluster-agent should call GetOrCreateClusterID)
+// IsValidClusterID reports whether id has the format of a cluster ID.
+func IsValidClusterID(id string) bool {
+	return len(id) == clusterIDLength
+}
+
+// SetClusterID caches a resolved cluster ID for GetClusterID. It lets legacy
+// callers of GetClusterID use the ID of clusteridresolver.Component.
+func SetClusterID(id string) {
+	cache.Cache.Set(cache.BuildAgentKey(constants.ClusterIDCacheKey), id, cache.NoExpiration)
+}
+
+// GetClusterID returns the cached Kubernetes cluster ID. Cluster Agents resolve
+// it directly through Kubernetes, independently of leadership. Other agents use
+// DD_ORCHESTRATOR_CLUSTER_ID when present, otherwise the Cluster Agent API.
+// Only successful lookups are cached.
+// Deprecated: inject clusteridresolver.Component instead.
 func GetClusterID() (string, error) {
 	cacheClusterIDKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
 		return cachedClusterID.(string), nil
 	}
 
-	// in older setups the cluster ID was exposed as an env var from a configmap created by the cluster agent
-	clusterID, found := os.LookupEnv(clusterIDEnv)
-	if !found {
-		log.Debugf("Cluster ID env variable %s is missing, calling the Cluster Agent", clusterIDEnv)
+	var clusterID string
+	var err error
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		// Never call the Cluster Agent service from a Cluster Agent: the local
+		// Kubernetes client can resolve the ID even before any replica is ready.
+		clusterID, err = getClusterAgentClusterID()
+	} else if envClusterID, found := os.LookupEnv(ClusterIDEnv); found {
+		// Older setups expose the ID from the Cluster Agent's ConfigMap.
+		clusterID = envClusterID
+	} else {
+		log.Debugf("Cluster ID env variable %s is missing, calling the Cluster Agent", ClusterIDEnv)
 
 		dcaClient, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
 			return "", err
 		}
-		clusterID, err = dcaClient.GetKubernetesClusterID()
+		clusterID, err = dcaClient.GetKubernetesClusterID(context.TODO())
 		if err != nil {
 			return "", err
 		}
 		log.Debugf("Cluster ID retrieved from the Cluster Agent, set to %s", clusterID)
 	}
+	if err != nil {
+		return "", err
+	}
 
-	if len(clusterID) != 36 {
+	if !IsValidClusterID(clusterID) {
 		err := fmt.Errorf("Unexpected value for Cluster ID: %s, ignoring it", clusterID)
 		return "", err
 	}

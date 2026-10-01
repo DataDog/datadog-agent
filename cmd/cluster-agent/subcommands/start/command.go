@@ -37,6 +37,7 @@ import (
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -124,7 +125,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
@@ -203,8 +203,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					status.NewInformationProvider(admissionpkg.Provider{}),
 					status.NewInformationProvider(endpointsStatus.Provider{}),
 					status.NewInformationProvider(pkgclusterchecks.Provider{}),
-					status.NewInformationProvider(orchestratorStatus.Provider{}),
 				),
+				fx.Provide(func(resolver clusteridresolver.Component) status.InformationProvider {
+					return status.NewInformationProvider(orchestratorStatus.Provider{ClusterIDResolver: resolver})
+				}),
 				fx.Provide(func(config config.Component, hostname hostnameinterface.Component) status.HeaderInformationProvider {
 					return status.NewHeaderInformationProvider(hostnameStatus.NewProvider(config, hostname))
 				}),
@@ -308,6 +310,7 @@ func start(log log.Component,
 	autoscalingGate *autoscalinggate.Gate,
 	serviceTemplateStore *instrumentationhandlers.ServiceCheckTemplateStore,
 	refreshTaggerGlobalTags option.Option[func(context.Context)],
+	clusterIDResolver clusteridresolver.Component,
 	helmactions helmactions.Component,
 	kubeActions kubeactionscomp.Component,
 ) error {
@@ -319,8 +322,10 @@ func start(log log.Component,
 	mainCtx, mainCtxCancel := pkgcommon.GetMainCtxCancel()
 	defer mainCtxCancel()
 
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+	// The shared main context is canceled during component shutdown, after the
+	// signal wait below. Observe signals separately to interrupt startup waits.
+	signalCtx, stopSignals := signal.NotifyContext(mainCtx, os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
 
 	// Starting Cluster Agent sequence
 	// Initialization order is important for multiple reasons, see comments
@@ -383,18 +388,31 @@ func start(log log.Component,
 	})
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
+	if err := api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagnoseComp, dcametadataComp, clusterChecksMetadataComp, telemetry, clusterIDResolver); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
 	// Getting connection to APIServer, it's done before Hostname resolution
 	// as hostname resolution may call APIServer
 	pkglog.Info("Waiting to obtain APIClient connection")
-	apiCl, err := apiserver.WaitForAPIClient(mainCtx) // make sure we can connect to the apiserver
+	apiCl, err := apiserver.WaitForAPIClient(signalCtx) // make sure we can connect to the apiserver
 	if err != nil {
 		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
 	}
 	pkglog.Infof("Got APIClient connection")
+
+	// Collection waits for the injected resolver. Its asynchronous lifecycle
+	// keeps probes and diagnostic endpoints available while Kubernetes retries.
+	clusterID, err := clusterIDResolver.WaitForID(signalCtx)
+	if err != nil {
+		return fmt.Errorf("could not resolve Kubernetes cluster ID during startup: %w", err)
+	}
+	if refreshTags, ok := refreshTaggerGlobalTags.Get(); ok {
+		refreshTags(signalCtx)
+	}
+	if err := signalCtx.Err(); err != nil {
+		return err
+	}
 
 	// Get hostname as aggregator requires hostname
 	hname, err := hostname.Get(mainCtx)
@@ -446,19 +464,6 @@ func start(log log.Component,
 	}
 
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
-	// Generate and persist a cluster ID
-	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
-	// so we store it in a configmap that we try and read before generating a new one.
-	clusterID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
-	if err != nil {
-		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
-	}
-	if clusterID != "" {
-		// Tagger may have computed static global tags before the cluster ID was available.
-		if refreshTags, ok := refreshTaggerGlobalTags.Get(); ok {
-			refreshTags(mainCtx)
-		}
-	}
 	if clusterName == "" {
 		if config.GetBool("autoscaling.workload.enabled") || config.GetBool("autoscaling.cluster.enabled") {
 			return errors.New("Failed to start: autoscaling is enabled but no cluster name detected, exiting")
@@ -488,9 +493,7 @@ func start(log log.Component,
 		if env := config.GetString("cluster_agent.tracing.env"); env != "" {
 			opts = append(opts, tracer.WithEnv(env))
 		}
-		if clusterID != "" {
-			opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
-		}
+		opts = append(opts, tracer.WithGlobalTag("cluster_id", clusterID))
 		if err := tracer.Start(opts...); err != nil {
 			return fmt.Errorf("failed to start APM tracing: %w", err)
 		}
@@ -549,7 +552,7 @@ func start(log log.Component,
 	common.LoadComponents(ac, config)
 
 	// Set up check collector
-	registerChecks(wmeta, taggerComp, config)
+	registerChecks(wmeta, taggerComp, config, clusterIDResolver)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
 
 	// start the autoconfig, this will immediately run any configured check
@@ -665,7 +668,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("private_action_runner.enabled") {
-		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
+		drain, err := startPrivateActionRunner(mainCtx, config, hostnameGetter, clusterIDResolver, rcClient, le, log, taggerComp, tracerouteComp, eventPlatform, ipc, demultiplexer, helmactions, kubeActions)
 		if err != nil {
 			log.Errorf("Cannot start private action runner: %v", err)
 		} else {
@@ -752,7 +755,7 @@ func start(log log.Component,
 	pkglog.Infof("All components started. Cluster Agent now running.")
 
 	// Block here until we receive the interrupt signal
-	<-signalCh
+	<-signalCtx.Done()
 
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
@@ -849,6 +852,7 @@ func startPrivateActionRunner(
 	ctx context.Context,
 	config config.Component,
 	hostnameGetter hostnameinterface.Component,
+	clusterIDResolver clusteridresolver.Component,
 	rcClient *rcclient.Client,
 	le *leaderelection.LeaderEngine,
 	log log.Component,
@@ -876,7 +880,7 @@ func startPrivateActionRunner(
 		metricsClient = &ddgostatsd.NoOpClient{}
 	}
 
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha, ka)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, clusterIDResolver, rcClient, log, tagger, tracerouteComp, eventPlatform, ipc, metricsClient, ha, ka)
 	if err != nil {
 		return nil, err
 	}
@@ -901,10 +905,6 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 		pkglog.Warn("cluster-name won't be set for remote-config client")
 	}
 
-	if clusterID == "" {
-		pkglog.Warn("Error retrieving cluster ID: cluster-id won't be set for remote-config client")
-	}
-
 	rcClient, err := rcclient.NewClient(rcService,
 		rcclient.WithAgent("cluster-agent", version.AgentVersion),
 		rcclient.WithCluster(clusterName, clusterID),
@@ -919,9 +919,9 @@ func initializeRemoteConfigClient(rcService rccomp.Component, config config.Comp
 	return rcClient, nil
 }
 
-func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg config.Component) {
+func registerChecks(wlm workloadmeta.Component, tagger tagger.Component, cfg config.Component, resolver clusteridresolver.Component) {
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
-	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, nil, resolver)) // wmeta is not used in KSM when running from cluster-agent, so we can pass nil here
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger))
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(wlm, cfg, tagger, resolver))
 }

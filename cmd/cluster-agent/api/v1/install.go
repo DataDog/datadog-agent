@@ -11,20 +11,20 @@ package v1
 import (
 	"net/http"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 )
 
 // InstallMetadataEndpoints registers endpoints for metadata
-func InstallMetadataEndpoints(r *http.ServeMux, w workloadmeta.Component) {
+func InstallMetadataEndpoints(r *http.ServeMux, w workloadmeta.Component, resolver clusteridresolver.Component) {
 	log.Debug("Registering metadata endpoints")
 	if pkgconfigsetup.Datadog().GetBool("cloud_foundry") {
 		installCloudFoundryMetadataEndpoints(r)
 	} else {
-		installKubernetesMetadataEndpoints(r, w)
+		installKubernetesMetadataEndpoints(r, w, resolver)
 	}
 }
 

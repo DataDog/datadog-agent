@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -23,12 +24,8 @@ import (
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-
-	"k8s.io/client-go/kubernetes"
 )
 
 type stats struct {
@@ -39,7 +36,7 @@ type stats struct {
 }
 
 // GetStatus returns status info for the orchestrator explorer.
-func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]interface{} {
+func GetStatus(ctx context.Context, clusterIDResolver clusteridresolver.Component) map[string]interface{} {
 	status := make(map[string]interface{})
 	if !pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") {
 		status["Disabled"] = "The orchestrator explorer is not enabled on the Cluster Agent"
@@ -51,8 +48,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 		return status
 	}
 
-	// get cluster uid
-	clusterID, err := common.GetOrCreateClusterID(apiCl.CoreV1())
+	clusterID, err := clusterIDResolver.GetID()
 	if err != nil {
 		status["ClusterIDError"] = err.Error()
 	} else {
@@ -217,7 +213,9 @@ func setSkippedResourcesInformationDCAMode(status map[string]interface{}) {
 }
 
 // Provider provides the functionality to populate the status output
-type Provider struct{}
+type Provider struct {
+	ClusterIDResolver clusteridresolver.Component
+}
 
 //go:embed status_templates
 var templatesFS embed.FS
@@ -233,15 +231,15 @@ func (Provider) Section() string {
 }
 
 // JSON populates the status map
-func (Provider) JSON(_ bool, stats map[string]interface{}) error {
-	populateStatus(stats)
+func (p Provider) JSON(_ bool, stats map[string]interface{}) error {
+	p.populateStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
-func (Provider) Text(_ bool, buffer io.Writer) error {
-	return status.RenderText(templatesFS, "orchestrator.tmpl", buffer, getStatusInfo())
+func (p Provider) Text(_ bool, buffer io.Writer) error {
+	return status.RenderText(templatesFS, "orchestrator.tmpl", buffer, p.getStatusInfo())
 }
 
 // HTML renders the html output
@@ -249,23 +247,16 @@ func (Provider) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
 
-func populateStatus(stats map[string]interface{}) {
-	apiCl, apiErr := apiserver.GetAPIClient()
-
+func (p Provider) populateStatus(stats map[string]interface{}) {
 	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") {
-		if apiErr != nil {
-			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
-		} else {
-			orchestratorStats := GetStatus(context.TODO(), apiCl.Cl)
-			stats["orchestrator"] = orchestratorStats
-		}
+		stats["orchestrator"] = GetStatus(context.TODO(), p.ClusterIDResolver)
 	}
 }
 
-func getStatusInfo() map[string]interface{} {
+func (p Provider) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
-	populateStatus(stats)
+	p.populateStatus(stats)
 
 	return stats
 }

@@ -731,7 +731,7 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 	ca, err := GetClusterAgentClient()
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	clusterID, err := ca.GetKubernetesClusterID()
+	clusterID, err := ca.GetKubernetesClusterID(suite.T().Context())
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "94e43011-177b-11ea-a4fe-42010a8401d2", clusterID)
 }
@@ -943,4 +943,32 @@ func (suite *clusterAgentSuite) TestInitHTTPClientConcurrent() {
 		})
 	}
 	wg.Wait()
+}
+
+func TestGetKubernetesClusterIDCancelsRequest(t *testing.T) {
+	started, canceled := make(chan struct{}), make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/api/v1/cluster/id", r.URL.Path)
+		close(started)
+		<-r.Context().Done()
+		close(canceled)
+	}))
+	defer server.Close()
+	client := &DCAClient{clusterAgentAPIEndpoint: server.URL, clusterAgentAPIClient: server.Client()}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() { _, err := client.GetKubernetesClusterID(ctx); result <- err }()
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("ID request did not start")
+	}
+	cancel()
+	require.ErrorIs(t, <-result, context.Canceled)
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ID request was not canceled")
+	}
 }

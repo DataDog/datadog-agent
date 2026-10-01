@@ -16,6 +16,7 @@ go_library(
         "//cmd/otel-agent/config",
         "//cmd/otel-agent/subcommands",
         "//comp/core/agenttelemetry/fx",
+        "//comp/core/clusteridresolver/fx",
         "//comp/core/config",
         "//comp/core/configsync/def",
         "//comp/core/configsync/fx",

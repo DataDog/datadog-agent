@@ -11,11 +11,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/workloadmeta/def",
         "//pkg/config/env",
-        "//pkg/util/flavor",
-        "//pkg/util/kubernetes/apiserver",
-        "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
@@ -35,6 +33,7 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/core/clusteridresolver/mock",
         "//comp/core/config",
         "//comp/core/log/mock",
         "//comp/core/workloadmeta/def",
@@ -42,7 +41,6 @@ dd_agent_go_test(
         "//comp/core/workloadmeta/mock",
         "//comp/def",
         "//pkg/config/env",
-        "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver/common/namespace",
         "@com_github_stretchr_testify//assert",
     ],

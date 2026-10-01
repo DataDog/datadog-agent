@@ -20,12 +20,6 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		uberfx.Supply(kubeactions.Params{}), // default; callers can override with their own fx.Supply higher up
-		// *apiserver.APIClient is provided by the sibling helmactions module in the
-		// same kubeactions bundle (comp/kubeactions/bundle.go). We consume that
-		// shared provider instead of registering our own, because fx rejects two
-		// providers of the same type. That provider yields nil when the private
-		// action runner is disabled, so NewComponent tolerates a nil APIClient.
-
 		fxutil.ProvideComponentConstructor(
 			kubeactionsimpl.NewComponent,
 		),

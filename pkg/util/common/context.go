@@ -21,8 +21,9 @@ var (
 	once sync.Once
 )
 
-// GetMainCtxCancel will return the main context and cancel function and populate them
-// the main context can only be populated once
+// GetMainCtxCancel returns the shared main context and its cancellation function,
+// initialized on the first call. It does not register signal handlers; callers
+// control when the context is canceled.
 func GetMainCtxCancel() (context.Context, context.CancelFunc) {
 	once.Do(func() {
 		mainCtx, mainCtxCancel = context.WithCancel(context.Background())

@@ -213,7 +213,7 @@ func (f *FakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (t
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
+func (f *FakeDCAClient) GetKubernetesClusterID(context.Context) (string, error) {
 	panic("implement me")
 }
 

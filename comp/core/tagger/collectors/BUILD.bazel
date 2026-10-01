@@ -14,6 +14,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/collectors",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/tagger/common",
         "//comp/core/tagger/def",
@@ -52,6 +53,7 @@ dd_agent_go_test(
     ],
     embed = [":collectors"],
     deps = [
+        "//comp/core/clusteridresolver/mock",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
@@ -65,7 +67,6 @@ dd_agent_go_test(
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/discovery/tracermetadata/model",
-        "//pkg/util/cache",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes",

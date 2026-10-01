@@ -60,6 +60,7 @@ go_library(
         "//comp/core/autodiscovery/fx",
         "//comp/core/autodiscovery/providers/datasecurity",
         "//comp/core/autodiscovery/providers/datastreams",
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/configfilesdiscovery/fx",
         "//comp/core/configstream/fx",

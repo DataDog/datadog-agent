@@ -92,14 +92,6 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
 	}
 
-	clusterIDTagValue, err := clustername.GetClusterID()
-	if err != nil {
-		log.Warnf("Failed to get cluster ID: %v", err)
-	}
-	if clusterIDTagValue != "" {
-		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
-	}
-
 	// These options will almost always be empty
 	d.excludedChecks = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks"))
 	d.excludedChecksFromDispatching = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks_from_dispatching"))

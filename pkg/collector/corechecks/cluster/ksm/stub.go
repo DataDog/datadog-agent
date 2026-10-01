@@ -9,6 +9,7 @@
 package ksm
 
 import (
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -21,6 +22,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory(_ tagger.Component, _ workloadmeta.Component) option.Option[func() check.Check] {
+func Factory(_ tagger.Component, _ workloadmeta.Component, _ clusteridresolver.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }

@@ -8,6 +8,7 @@
 package clusteragentimpl
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -49,10 +51,11 @@ func getClusterAgentComp(t *testing.T) *datadogclusteragent {
 	cfg := setupClusterAgentConfig(t)
 
 	r := Requires{
-		Log:        l,
-		Config:     cfg,
-		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameimpl.NewHostnameService(),
+		Log:               l,
+		Config:            cfg,
+		Serializer:        serializermock.NewMetricSerializer(t),
+		Hostname:          hostnameimpl.NewHostnameService(),
+		ClusterIDResolver: clusteridresolvermock.New(),
 	}
 
 	comp := NewComponent(r).Comp
@@ -91,4 +94,27 @@ func TestWritePayload(t *testing.T) {
 	err = json.Unmarshal(body, &p)
 	require.NoError(t, err)
 	assertClusterAgentPayload(t, p.Metadata)
+}
+
+func TestPayloadReadsResolvedClusterID(t *testing.T) {
+	comp := getClusterAgentComp(t)
+	resolver := clusteridresolvermock.New()
+	comp.clusterIDResolver = resolver
+	before := comp.getPayload().(*Payload)
+	assert.Empty(t, before.ClusterID)
+	assert.NotEmpty(t, before.Metadata["cluster_id_error"])
+	const id = "226430c6-5e57-11ea-91d5-42010a8400c6"
+	resolver.SetID(id)
+	after := comp.getPayload().(*Payload)
+	assert.Equal(t, id, after.ClusterID)
+	assert.Empty(t, after.Metadata["cluster_id_error"])
+}
+
+func TestMetadataSubmissionWaitsForClusterID(t *testing.T) {
+	comp := getClusterAgentComp(t)
+	resolver := clusteridresolvermock.New()
+	comp.clusterIDResolver = resolver
+	provider := comp.MetadataProviderWhenReady(comp.hasClusterID)
+	require.NotNil(t, provider.Callback)
+	assert.Equal(t, comp.MinInterval, provider.Callback(context.Background()))
 }

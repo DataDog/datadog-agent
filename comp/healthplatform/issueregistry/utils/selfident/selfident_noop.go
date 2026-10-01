@@ -8,6 +8,7 @@
 package selfident
 
 import (
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
@@ -28,6 +29,11 @@ type SelfIdent struct{}
 // ignored, to keep the same signature as the Kubernetes implementation.
 func New(workloadmeta.Component) *SelfIdent {
 	return &SelfIdent{}
+}
+
+// NewWithResolver returns a no-op instance without Kubernetes support.
+func NewWithResolver(wmeta workloadmeta.Component, _ clusteridresolver.Component) *SelfIdent {
+	return New(wmeta)
 }
 
 // DeploymentID always returns "" without Kubernetes support.

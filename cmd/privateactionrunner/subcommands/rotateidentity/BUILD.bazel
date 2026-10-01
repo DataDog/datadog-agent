@@ -9,6 +9,7 @@ go_library(
     deps = [
         "//cmd/privateactionrunner/command",
         "//comp/core",
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameimpl",
@@ -30,6 +31,7 @@ dd_agent_go_test(
     embed = [":rotateidentity"],
     deps = [
         "//cmd/privateactionrunner/command",
+        "//comp/core/clusteridresolver/mock",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",

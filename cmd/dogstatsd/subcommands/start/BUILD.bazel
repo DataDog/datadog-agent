@@ -9,6 +9,7 @@ go_library(
     deps = [
         "//comp/aggregator/demultiplexer/def",
         "//comp/aggregator/demultiplexer/impl",
+        "//comp/core/clusteridresolver/fx",
         "//comp/core/config",
         "//comp/core/delegatedauth/fx",
         "//comp/core/healthprobe/def",

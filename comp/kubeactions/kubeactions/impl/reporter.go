@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"time"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -42,18 +43,18 @@ type ActionResultEvent struct {
 // the Event Platform. It is lifted from the remote-config implementation so PAR
 // handlers can emit received / progress / executed events in a single call.
 type resultReporter struct {
-	epForwarder eventplatform.Forwarder
-	clusterName string
-	clusterID   string
+	epForwarder       eventplatform.Forwarder
+	clusterName       string
+	clusterIDResolver clusteridresolver.Component
 }
 
 // newResultReporter creates a resultReporter. epForwarder may be nil, in which
 // case reporting is skipped (and logged).
-func newResultReporter(epForwarder eventplatform.Forwarder, clusterName, clusterID string) *resultReporter {
+func newResultReporter(epForwarder eventplatform.Forwarder, clusterName string, clusterIDResolver clusteridresolver.Component) *resultReporter {
 	return &resultReporter{
-		epForwarder: epForwarder,
-		clusterName: clusterName,
-		clusterID:   clusterID,
+		epForwarder:       epForwarder,
+		clusterName:       clusterName,
+		clusterIDResolver: clusterIDResolver,
 	}
 }
 
@@ -78,13 +79,14 @@ func (r *resultReporter) report(report kubeactions.ActionReport, evpEventType, s
 		return
 	}
 
+	clusterID, _ := r.clusterIDResolver.GetID()
 	event := ActionResultEvent{
 		ActionID:          report.ActionID,
 		OrgID:             report.OrgID,
 		EventType:         evpEventType,
 		Status:            status,
 		ActionType:        report.ActionType,
-		ClusterID:         r.clusterID,
+		ClusterID:         clusterID,
 		ResourceID:        report.ResourceID,
 		RequestedBy:       report.RequestedBy,
 		Timestamp:         ts.Format(time.RFC3339),

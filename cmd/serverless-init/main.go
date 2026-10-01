@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	clusteridresolverfx "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
@@ -323,6 +324,7 @@ func main() {
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
+		clusteridresolverfx.Module(),
 		localTaggerFx.Module(),
 		healthprobeFx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),

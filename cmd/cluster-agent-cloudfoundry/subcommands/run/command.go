@@ -22,6 +22,7 @@ import (
 	"code.cloudfoundry.org/bbs"
 	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
@@ -35,6 +36,7 @@ import (
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	adfx "github.com/DataDog/datadog-agent/comp/core/autodiscovery/fx"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
@@ -71,14 +73,12 @@ import (
 	dcametadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	clusterchecksmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/fx"
-
 	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	clusterchecksHandler "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
-
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -89,8 +89,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"go.uber.org/fx"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent-cloudfoundry' command.
@@ -177,6 +175,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(
+	clusterIDResolver clusteridresolver.Component,
 	config config.Component,
 	log log.Component,
 	taggerComp tagger.Component,
@@ -239,7 +238,7 @@ func run(
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
-	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
+	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp, clusterChecksMetadataComp, telemetry, clusterIDResolver); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 

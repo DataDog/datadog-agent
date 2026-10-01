@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -268,7 +269,7 @@ func (p *Pipeline) Stop() {
 }
 
 // NewPipelineFromAgentConfig creates a new pipeline from the given agent configuration, metric serializer and logs channel. It returns
-// any potential failure.
+// any potential failure. clusterIDResolver can be nil.
 func NewPipelineFromAgentConfig(
 	cfg config.Component,
 	s serializer.MetricSerializer,
@@ -276,8 +277,9 @@ func NewPipelineFromAgentConfig(
 	tagger tagger.Component,
 	hostname hostnameinterface.Component,
 	telemetry telemetry.Component,
+	clusterIDResolver clusteridresolver.Component,
 ) (*Pipeline, error) {
-	pcfg, err := FromAgentConfig(cfg)
+	pcfg, err := FromAgentConfig(cfg, clusterIDResolver)
 	if err != nil {
 		pipelineError.Store(fmt.Errorf("config error: %w", err))
 		return nil, pipelineError.Load()

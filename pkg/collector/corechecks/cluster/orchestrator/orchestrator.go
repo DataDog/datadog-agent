@@ -14,6 +14,7 @@ import (
 	"math/rand"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/atomic"
 	"go.yaml.in/yaml/v3"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
@@ -23,9 +24,8 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 
-	model "github.com/DataDog/agent-payload/v5/process"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -40,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -87,6 +86,7 @@ type OrchestratorCheck struct {
 	tagger                      tagger.Component
 	stopCh                      chan struct{}
 	clusterID                   string
+	clusterIDResolver           clusteridresolver.Component
 	groupID                     *atomic.Int32
 	isCLCRunner                 bool
 	apiClient                   *apiserver.APIClient
@@ -121,18 +121,20 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance, c
 }
 
 // Factory creates a new check factory
-func Factory(wlm workloadmeta.Component, cfg configcomp.Component, tagger tagger.Component) option.Option[func() check.Check] {
-	return option.New(func() check.Check { return newCheck(cfg, wlm, tagger) })
+func Factory(wlm workloadmeta.Component, cfg configcomp.Component, tagger tagger.Component, resolver clusteridresolver.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check { return newCheck(cfg, wlm, tagger, resolver) })
 }
 
-func newCheck(cfg configcomp.Component, wlm workloadmeta.Component, tagger tagger.Component) check.Check {
-	return newOrchestratorCheck(
+func newCheck(cfg configcomp.Component, wlm workloadmeta.Component, tagger tagger.Component, resolver clusteridresolver.Component) check.Check {
+	check := newOrchestratorCheck(
 		core.NewCheckBase(CheckName),
 		&OrchestratorInstance{},
 		cfg,
 		wlm,
 		tagger,
 	)
+	check.clusterIDResolver = resolver
+	return check
 }
 
 // Interval returns the scheduling time for the check.
@@ -186,7 +188,7 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 		return err
 	}
 
-	o.clusterID, err = clustername.GetClusterID()
+	o.clusterID, err = o.clusterIDResolver.GetID()
 	if err != nil {
 		return err
 	}

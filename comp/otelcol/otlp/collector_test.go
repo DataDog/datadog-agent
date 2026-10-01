@@ -101,7 +101,7 @@ func TestStartPipelineFromConfig(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, nil)
 			require.NoError(t, err)
 			if testInstance.err == "" {
 				AssertSuccessfulRun(t, pcfg)

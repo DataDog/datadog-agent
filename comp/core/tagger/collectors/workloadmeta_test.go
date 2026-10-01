@@ -19,6 +19,7 @@ import (
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -32,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -1084,7 +1084,7 @@ func TestHandleKubePod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 			collector.staticTags = tt.staticTags
 			collector.initK8sResourcesMetaAsTags(tt.k8sResourcesLabelsAsTags, tt.k8sResourcesAnnotationsAsTags)
 
@@ -1218,7 +1218,7 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetInTest("kubernetes_persistent_volume_claims_as_tags", false)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 			collector.staticTags = tt.staticTags
 
 			actual := collector.handleKubePod(workloadmeta.Event{
@@ -1364,7 +1364,7 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 			collector.staticTags = tt.staticTags
 
 			actual := collector.handleKubePod(workloadmeta.Event{
@@ -1448,7 +1448,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
@@ -1478,7 +1478,7 @@ func TestHandleKubeKueueQueue(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
 	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -1531,7 +1531,7 @@ func TestHandleKubeKueueQueueMetadataAsTags(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("kubernetes_resources_labels_as_tags", `{"localqueues.kueue.x-k8s.io": {"team": "team"}}`)
 	cfg.SetInTest("kubernetes_resources_annotations_as_tags", `{"localqueues.kueue.x-k8s.io": {"owner": "+owner"}}`)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	actual := collector.handleKubeKueueQueue(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -1577,7 +1577,7 @@ func TestHandleKubeKueueResourceFlavor(t *testing.T) {
 	))
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	tests := []struct {
 		name               string
@@ -1743,7 +1743,7 @@ func TestHandleKubeKueueWorkload(t *testing.T) {
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 	collector.initK8sResourcesMetaAsTags(
 		map[string]map[string]string{
 			kubernetes.KueueWorkloadResourceName + "." + kubernetes.KueueGroupName: {
@@ -1838,7 +1838,7 @@ func TestHandleKubeKueueWorkloadClusterQueueFromLocalQueue(t *testing.T) {
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	actual := collector.handleKubeKueueWorkload(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -1948,7 +1948,7 @@ func TestKueueWorkloadResourceFlavorTagsPropagateToPodContainers(t *testing.T) {
 			})
 
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type: workloadmeta.EventTypeSet,
@@ -2037,7 +2037,7 @@ func TestKueueWorkloadResourceFlavorTagsWithoutPodSetPropagateAllFlavors(t *test
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	actual := collector.handleKubePod(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -2102,7 +2102,7 @@ func TestKueueWorkloadFallbackToPodQueueLabels(t *testing.T) {
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	actual := collector.handleKubePod(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -2183,7 +2183,7 @@ func TestKueueWorkloadMissingPodSetAssignmentSkipsResourceFlavorTags(t *testing.
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	actual := collector.handleKubePod(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -2252,7 +2252,7 @@ func TestKueueQueueEntityTagsPropagateToPodContainers(t *testing.T) {
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 	store.Set(&workloadmeta.KubernetesKueueQueue{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesKueueQueue,
@@ -2325,7 +2325,7 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	actual := collector.handleKubePod(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
@@ -2382,7 +2382,7 @@ func TestDynamoGraphDeploymentTagPropagatesToPodAndContainer(t *testing.T) {
 		},
 	})
 
-	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil, nil)
 	tagInfos := collector.handleKubePod(workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubernetesPod{
@@ -2486,7 +2486,7 @@ func TestHandleKubeCRD(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 			actual := collector.handleCRD(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -2625,7 +2625,7 @@ func TestHandleKubeDeployment(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
@@ -2917,7 +2917,7 @@ func TestHandleECSTask(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.SetInTest("ecs_collect_resource_tags_ec2", true)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 			actual := collector.handleECSTask(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -3631,7 +3631,7 @@ func TestHandleContainer(t *testing.T) {
 				}
 			}
 
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 			collector.staticTags = tt.staticTags
 
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags, tt.imageAnnotationsAsTags)
@@ -3828,7 +3828,7 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 
 			wmeta.Set(&test.container)
 
-			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil)
+			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil, nil)
 
 			if test.container.Owner != nil && test.parentInStore {
 				switch test.container.Owner.Kind {
@@ -4013,7 +4013,7 @@ func TestHandleContainer_ImageAnnotationTags_IsComplete(t *testing.T) {
 			wmeta.Set(image)
 			wmeta.Set(&test.container)
 
-			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil)
+			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil, nil)
 			collector.initContainerMetaAsTags(nil, nil, imageAnnotationsAsTags)
 
 			// Register the parent's completeness in the collector.
@@ -4282,7 +4282,7 @@ func TestHandleContainerImage(t *testing.T) {
 				store.Set(container)
 			}
 
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -4518,7 +4518,7 @@ func TestHandleGPU(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil, nil)
 
 			actual := collector.handleGPU(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -4576,7 +4576,7 @@ func TestHandleDelete(t *testing.T) {
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	collector.handleKubePod(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -4622,7 +4622,7 @@ func TestHandleDeleteContainerImageAnnotations(t *testing.T) {
 
 	cfg := configmock.New(t)
 	cfg.SetInTest("container_image_annotations_as_tags", map[string]string{"foo": "bar"})
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, nil, nil, nil)
 
 	expected := []*types.TagInfo{
 		{
@@ -4666,7 +4666,7 @@ func TestHandleDeleteKubernetesNode(t *testing.T) {
 	))
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	expected := []*types.TagInfo{
 		{
@@ -4778,7 +4778,7 @@ func TestHandleKubeNode(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
 			cfg := configmock.New(t)
-			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 			collector.initK8sResourcesMetaAsTags(test.k8sResourcesLabelsAsTags, test.k8sResourcesAnnotationsAsTags)
 
@@ -4827,7 +4827,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh})
+	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), fakeStore, &fakeProcessor{collectorCh}, nil)
 	collector.children = map[types.EntityID]map[types.EntityID]struct{}{
 		// Notice that here we set the container that belonged to the pod
 		// but that no longer exists
@@ -4882,7 +4882,7 @@ func TestNoGlobalTags(t *testing.T) {
 	mockConfig.SetInTest("cluster_checks.extra_tags", []string{"cluster:tag"})
 	mockConfig.SetInTest("orchestrator_explorer.extra_tags", []string{"orch:tag"})
 
-	wmetaCollector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, fakeProcessor)
+	wmetaCollector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, fakeProcessor, nil)
 	wmetaCollector.collectStaticGlobalTags(context.Background(), mockConfig)
 
 	close(collectorCh)
@@ -4916,7 +4916,7 @@ func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
 	mockConfig := configmock.New(t)
 	tagInfosCh := make(chan []*types.TagInfo, 10)
 
-	wmetaCollector := NewWorkloadMetaCollector(context.TODO(), mockConfig, nil, &fakeProcessor{tagInfosCh})
+	wmetaCollector := NewWorkloadMetaCollector(context.TODO(), mockConfig, nil, &fakeProcessor{tagInfosCh}, nil)
 	wmetaCollector.collectStaticGlobalTags(context.TODO(), mockConfig)
 
 	tagInfos := <-tagInfosCh
@@ -4962,23 +4962,20 @@ func TestRefreshGlobalTags(t *testing.T) {
 	t.Cleanup(func() { flavor.SetFlavor(recordFlavor) })
 	flavor.SetFlavor(flavor.ClusterAgent)
 
-	clusterIDCacheKey := cache.BuildAgentKey("orchestratorClusterID")
-	cache.Cache.Delete(clusterIDCacheKey)
-	t.Cleanup(func() { cache.Cache.Delete(clusterIDCacheKey) })
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "")
+	resolver := clusteridresolvermock.New()
 
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("tags", []string{"some:tag"})
 	collectorCh := make(chan []*types.TagInfo, 10)
 
-	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh})
+	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, nil, &fakeProcessor{collectorCh}, resolver)
 
 	firstTagInfos := <-collectorCh
 	firstEvent := findStaticSourceEvent(t, firstTagInfos)
 	assert.False(t, hasOrchClusterIDTag(firstEvent, "87654321-4321-4321-4321-210987654321"))
 	assert.Contains(t, firstEvent.LowCardTags, "some:tag")
 
-	t.Setenv("DD_ORCHESTRATOR_CLUSTER_ID", "87654321-4321-4321-4321-210987654321")
+	resolver.SetID("87654321-4321-4321-4321-210987654321")
 	collector.collectStaticGlobalTags(context.Background(), mockConfig)
 
 	secondTagInfos := <-collectorCh
@@ -5003,7 +5000,7 @@ func TestRefreshGlobalTags_ConcurrentWithEventProcessing(t *testing.T) {
 	))
 
 	collectorCh := make(chan []*types.TagInfo, 1000)
-	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, fakeStore, &fakeProcessor{collectorCh})
+	collector := NewWorkloadMetaCollector(context.Background(), mockConfig, fakeStore, &fakeProcessor{collectorCh}, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -5225,7 +5222,7 @@ func TestHandleProcess(t *testing.T) {
 	})
 
 	cfg := configmock.New(t)
-	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil, nil)
 
 	tests := []struct {
 		name            string

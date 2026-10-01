@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -60,17 +61,22 @@ func HashAPIKey(apiKey string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// clusterIDTimeout limits the wait for the cluster ID of the Cluster Agent.
+const clusterIDTimeout = 30 * time.Second
+
 // GetAgentIdentifier returns the identifier for the current agent.
 // Hostname is always populated. For the cluster agent, OrchClusterID is also populated (required).
-func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Component) (*AgentIdentifier, error) {
+func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Component, clusterIDResolver clusteridresolver.Component) (*AgentIdentifier, error) {
 	hostname, err := hostnameGetter.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
 	agentIdentifier := &AgentIdentifier{Hostname: hostname}
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		orchClusterID, err := clustername.GetClusterID()
-		if err != nil || orchClusterID == "" {
+		waitCtx, cancel := context.WithTimeout(ctx, clusterIDTimeout)
+		defer cancel()
+		orchClusterID, err := clusterIDResolver.WaitForID(waitCtx)
+		if err != nil {
 			return nil, fmt.Errorf("failed to get orchestrator cluster ID for cluster agent: %w", err)
 		}
 		agentIdentifier.OrchClusterID = orchClusterID

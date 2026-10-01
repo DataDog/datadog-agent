@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/status",
         "//pkg/clusteragent/clusterchecks",
         "//pkg/config/setup",
@@ -17,10 +18,7 @@ go_library(
         "//pkg/orchestrator/config",
         "//pkg/orchestrator/model",
         "//pkg/util/hostname",
-        "//pkg/util/kubernetes/apiserver",
-        "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/kubernetes/clustername",
-        "@io_k8s_client_go//kubernetes",
     ],
 )

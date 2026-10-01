@@ -43,7 +43,8 @@ Sub-package roles:
 
 ### Consuming healthplatform components from other code
 
-**From an Fx component** — add the interface to your `Requires` struct; Fx injects it automatically:
+**From a component using the modern constructor adapter** — add the interface
+to a plain `Requires` struct; the adapter handles Fx injection:
 
 ```go
 import (
@@ -52,7 +53,6 @@ import (
 )
 
 type Requires struct {
-    fx.In
     // ... your other deps
     HPRunner runnerdef.Component  // call runner.Run(source, fn) to report via a HealthCheckFunc
     HPStore  storedef.Component   // call store.ReportIssue(issue) for direct reporting (Path B)

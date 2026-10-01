@@ -10,6 +10,7 @@
 package commonchecks
 
 import (
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -30,9 +31,9 @@ import (
 
 // RegisterChecks registers the checks that can run in the Cluster Agent
 func RegisterChecks(store workloadmeta.Component, _ workloadfilter.Component, tagger tagger.Component, cfg config.Component,
-	_ telemetry.Component, _ rcclient.Component, _ flare.Component, _ snmpscanmanager.Component, _ traceroute.Component, _ option.Option[networkconfigmanagement.Component]) {
+	_ telemetry.Component, _ rcclient.Component, _ flare.Component, _ snmpscanmanager.Component, _ traceroute.Component, _ option.Option[networkconfigmanagement.Component], resolver clusteridresolver.Component) {
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
-	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store, resolver))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger, resolver))
 }

@@ -12,6 +12,7 @@ import (
 	"context"
 	"time"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -62,9 +63,10 @@ type Requires struct {
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component
 
-	Tagger    tagger.Component
-	Hostname  hostnameinterface.Component
-	Telemetry telemetry.Component
+	Tagger            tagger.Component
+	Hostname          hostnameinterface.Component
+	Telemetry         telemetry.Component
+	ClusterIDResolver clusteridresolver.Component
 }
 
 // Provides specifics the types returned by the constructor
@@ -77,18 +79,19 @@ type Provides struct {
 }
 
 type collectorImpl struct {
-	col            *otlp.Pipeline
-	config         config.Component
-	log            log.Component
-	serializer     serializer.MetricSerializer
-	logsAgent      option.Option[logsagentpipeline.Component]
-	inventoryAgent inventoryagent.Component
-	tagger         tagger.Component
-	client         ipc.HTTPClient
-	clientTimeout  time.Duration
-	ctx            context.Context
-	hostname       hostnameinterface.Component
-	telemetry      telemetry.Component
+	col               *otlp.Pipeline
+	config            config.Component
+	log               log.Component
+	serializer        serializer.MetricSerializer
+	logsAgent         option.Option[logsagentpipeline.Component]
+	inventoryAgent    inventoryagent.Component
+	tagger            tagger.Component
+	client            ipc.HTTPClient
+	clientTimeout     time.Duration
+	ctx               context.Context
+	hostname          hostnameinterface.Component
+	telemetry         telemetry.Component
+	clusterIDResolver clusteridresolver.Component
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -104,7 +107,7 @@ func (c *collectorImpl) start(context.Context) error {
 		}
 	}
 	var err error
-	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger, c.hostname, c.telemetry)
+	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger, c.hostname, c.telemetry, c.clusterIDResolver)
 	if err != nil {
 		// failure to start the OTLP component shouldn't fail startup
 		c.log.Errorf("Error creating the OTLP ingest pipeline: %v", err)
@@ -140,17 +143,18 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	collector := &collectorImpl{
-		client:         reqs.Client,
-		clientTimeout:  time.Duration(timeoutSeconds) * time.Second,
-		config:         reqs.Config,
-		log:            reqs.Log,
-		serializer:     reqs.Serializer,
-		logsAgent:      reqs.LogsAgent,
-		inventoryAgent: reqs.InventoryAgent,
-		tagger:         reqs.Tagger,
-		ctx:            context.Background(),
-		hostname:       reqs.Hostname,
-		telemetry:      reqs.Telemetry,
+		client:            reqs.Client,
+		clientTimeout:     time.Duration(timeoutSeconds) * time.Second,
+		config:            reqs.Config,
+		log:               reqs.Log,
+		serializer:        reqs.Serializer,
+		logsAgent:         reqs.LogsAgent,
+		inventoryAgent:    reqs.InventoryAgent,
+		tagger:            reqs.Tagger,
+		ctx:               context.Background(),
+		hostname:          reqs.Hostname,
+		telemetry:         reqs.Telemetry,
+		clusterIDResolver: reqs.ClusterIDResolver,
 	}
 
 	reqs.Lc.Append(compdef.Hook{

@@ -8,16 +8,15 @@
 package selfident
 
 import (
+	"context"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -45,7 +44,8 @@ const (
 // SelfIdent resolves and caches the agent's own DaemonSet UID (deployment_id)
 // and cluster id, for use as health-issue identity discriminators.
 type SelfIdent struct {
-	wmeta workloadmeta.Component
+	wmeta    workloadmeta.Component
+	resolver clusteridresolver.Component
 
 	resolveMu    sync.Mutex
 	deploymentID atomic.Pointer[string]
@@ -79,6 +79,13 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 		s.deploymentID.Store(&empty)
 		s.clusterID.Store(&empty)
 	}
+	return s
+}
+
+// NewWithResolver shares cluster identity resolution with the injected component.
+func NewWithResolver(wmeta workloadmeta.Component, resolver clusteridresolver.Component) *SelfIdent {
+	s := New(wmeta)
+	s.resolver = resolver
 	return s
 }
 
@@ -133,12 +140,25 @@ func (s *SelfIdent) IssueDiscriminator() string {
 // of being stuck with an empty id after a transient startup outage — the same
 // guarantee DeploymentID gives a transient workloadmeta miss.
 //
-// lookup() takes no context and can't be cancelled, so the retry loop runs in
+// With an injected component, callers share its worker and wait using a
+// deadline. The following compatibility path is for standalone callers.
+// Its lookup() takes no context and can't be cancelled, so the retry loop runs in
 // a single shared resolver goroutine that callers wait on with a deadline: a
 // caller past the deadline returns "" without waiting for a slow lookup, and
 // concurrent callers share one retry budget. The resolver self-terminates
 // after the budget, so a lookup outliving its caller is bounded, not leaked.
 func (s *SelfIdent) ClusterID() string {
+	if s.resolver != nil && env.IsFeaturePresent(env.Kubernetes) {
+		if id, err := s.resolver.GetID(); err == nil {
+			return id
+		}
+		// Preserve the existing short startup opportunity without creating another
+		// lookup goroutine or retry loop. The component owns resolution and shutdown.
+		ctx, cancel := context.WithTimeout(context.Background(), s.clusterResolveTimeout)
+		defer cancel()
+		id, _ := s.resolver.WaitForID(ctx)
+		return id
+	}
 	if cached := s.clusterID.Load(); cached != nil {
 		return *cached
 	}
@@ -188,21 +208,12 @@ func (s *SelfIdent) startClusterResolve() <-chan struct{} {
 	return done
 }
 
-// resolveClusterID retries the flavor-appropriate cluster id lookup a bounded
-// number of times, caching a successful result for the process lifetime and
-// leaving the cache untouched on failure so a later caller retries.
+// resolveClusterID retries the cluster id lookup a bounded number of times,
+// caching a successful result for the process lifetime and leaving the cache
+// untouched on failure so a later caller retries.
 func (s *SelfIdent) resolveClusterID() {
-	// clustername.GetClusterID() is node-agent-only: on the Cluster Agent it
-	// targets an endpoint meant for node→DCA calls, broken when the DCA calls
-	// itself, so the Cluster Agent resolves its own id like
-	// comp/metadata/clusteragent does.
-	lookup := nodeAgentClusterIDFunc
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		lookup = clusterAgentClusterIDFunc
-	}
-
 	for attempt := 0; ; attempt++ {
-		id, err := lookup()
+		id, err := clusterIDFunc()
 		if err == nil {
 			s.clusterID.Store(&id)
 			return
@@ -215,24 +226,10 @@ func (s *SelfIdent) resolveClusterID() {
 	}
 }
 
-// nodeAgentClusterIDFunc/clusterAgentClusterIDFunc are the per-flavor cluster
-// id lookups used by ClusterID, overridable in tests so dispatch can be
-// verified without a real Cluster Agent or Kubernetes API server.
-var (
-	nodeAgentClusterIDFunc    = clustername.GetClusterID
-	clusterAgentClusterIDFunc = clusterAgentOwnClusterID
-)
-
-// clusterAgentOwnClusterID resolves the cluster id from the Cluster Agent's
-// own Kubernetes API client, mirroring
-// comp/metadata/clusteragent/impl/cluster_agent.go's getClusterID.
-func clusterAgentOwnClusterID() (string, error) {
-	cl, err := apiserver.GetAPIClient()
-	if err != nil {
-		return "", err
-	}
-	return apiservercommon.GetOrCreateClusterID(cl.Cl.CoreV1())
-}
+// clusterIDFunc is the cluster id lookup used by ClusterID. It selects the
+// source from the flavor. Tests override it to run without a real Cluster
+// Agent or Kubernetes API server.
+var clusterIDFunc = clustername.GetClusterID
 
 // resolveDeploymentID makes one resolution attempt. definitive is true when
 // the caller can cache the result permanently (no workloadmeta, no resolvable

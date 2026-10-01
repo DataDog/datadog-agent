@@ -119,6 +119,12 @@ Package agenttelemetry implements a component to generate Agent telemetry
 
 Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
+### [comp/core/clusteridresolver](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/clusteridresolver)
+
+*Datadog Team*: container-platform
+
+Package clusteridresolver provides the Kubernetes cluster identity.
+
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
 *Datadog Team*: fleet-automation

@@ -15,6 +15,7 @@ package core
 import (
 	"go.uber.org/fx"
 
+	clusteridresolverfx "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
@@ -54,6 +55,7 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 		// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
 		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
 		config.Module(),
+		clusteridresolverfx.Module(),
 		fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
 		logfx.Module(),
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),

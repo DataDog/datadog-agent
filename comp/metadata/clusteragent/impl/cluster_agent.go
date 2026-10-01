@@ -15,14 +15,15 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusteragent "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -30,15 +31,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
-	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payloa d
@@ -58,20 +56,20 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 
 // Requires defines the dependencies for the clusteragent metadata component
 type Requires struct {
-	Log        log.Component
-	Config     config.Component
-	Serializer serializer.MetricSerializer
-	Hostname   hostnameinterface.Component
+	Log               log.Component
+	Config            config.Component
+	Serializer        serializer.MetricSerializer
+	Hostname          hostnameinterface.Component
+	ClusterIDResolver clusteridresolver.Component
 }
 
 type datadogclusteragent struct {
 	util.InventoryPayload
-	log          log.Component
-	conf         config.Component
-	clustername  string
-	clusterid    string
-	clusteridErr string
-	metadata     map[string]interface{}
+	log               log.Component
+	conf              config.Component
+	clustername       string
+	clusterIDResolver clusteridresolver.Component
+	metadata          map[string]interface{}
 }
 
 // Provides defines the output of the clusteragent metadata component
@@ -87,17 +85,12 @@ func NewComponent(deps Requires) Provides {
 		hname = ""
 	}
 	clname := clustername.GetClusterName(context.Background(), hname)
-	clid, clidErr := getClusterID()
 	dca := &datadogclusteragent{
-		log:          deps.Log,
-		conf:         deps.Config,
-		clustername:  clname,
-		clusterid:    clid,
-		clusteridErr: "",
-		metadata:     make(map[string]interface{}),
-	}
-	if clidErr != nil {
-		dca.clusteridErr = clidErr.Error()
+		log:               deps.Log,
+		conf:              deps.Config,
+		clustername:       clname,
+		clusterIDResolver: deps.ClusterIDResolver,
+		metadata:          make(map[string]interface{}),
 	}
 	dca.initMetadata()
 	if deps.Config.GetBool("enable_cluster_agent_metadata_collection") {
@@ -107,15 +100,27 @@ func NewComponent(deps Requires) Provides {
 	}
 	return Provides{
 		Comp:             dca,
-		MetadataProvider: dca.MetadataProvider(),
+		MetadataProvider: dca.MetadataProviderWhenReady(dca.hasClusterID),
 	}
 }
 
+// hasClusterID delays backend submission until the ID is resolved. Diagnostic
+// payloads can show an unresolved ID.
+func (dca *datadogclusteragent) hasClusterID() bool {
+	_, err := dca.clusterIDResolver.GetID()
+	return err == nil
+}
+
 func (dca *datadogclusteragent) getPayload() marshaler.JSONMarshaler {
+	clusterID, err := dca.clusterIDResolver.GetID()
+	dca.metadata["cluster_id_error"] = ""
+	if err != nil {
+		dca.metadata["cluster_id_error"] = err.Error()
+	}
 
 	return &Payload{
 		Clustername: dca.clustername,
-		ClusterID:   dca.clusterid,
+		ClusterID:   clusterID,
 		Timestamp:   time.Now().UnixNano(),
 		Metadata:    dca.getMetadata(),
 		UUID:        uuid.GetUUID(),
@@ -133,7 +138,6 @@ func (dca *datadogclusteragent) initMetadata() {
 		toolVersion = install.ToolVersion
 		installerVersion = install.InstallerVersion
 	}
-	dca.metadata["cluster_id_error"] = dca.clusteridErr
 	dca.metadata["install_method_tool"] = tool
 	dca.metadata["install_method_tool_version"] = toolVersion
 	dca.metadata["install_method_installer_version"] = installerVersion
@@ -231,16 +235,6 @@ func (dca *datadogclusteragent) getMetadata() map[string]interface{} {
 	dca.getConfigs(dca.metadata)
 	dca.getFeatureConfigs()
 	return dca.metadata
-}
-
-func getClusterID() (string, error) {
-	cl, err := as.GetAPIClient()
-	if err != nil {
-		return "", err
-	}
-	coreCl := cl.Cl.CoreV1().(*corev1.CoreV1Client)
-	// get clusterID
-	return common.GetOrCreateClusterID(coreCl)
 }
 
 // WritePayloadAsJSON writes the payload as JSON to the response writer. It is used by cluster-agent metadata endpoint.

@@ -22,6 +22,7 @@ import (
 
 	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -81,18 +82,19 @@ func splitDeploymentSupported(goos string, containerized, fipsEnabled, processMa
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	Config        config.Component
-	Log           log.Component
-	Lifecycle     compdef.Lifecycle
-	Shutdowner    compdef.Shutdowner
-	RcClient      rcclient.Component
-	KeysManager   taskverifier.KeysManager
-	Hostname      hostname.Component
-	Tagger        tagger.Component
-	Traceroute    traceroute.Component
-	EventPlatform eventplatform.Component
-	IPC           ipc.Component
-	Statsd        statsdcomp.Component
+	Config            config.Component
+	Log               log.Component
+	Lifecycle         compdef.Lifecycle
+	Shutdowner        compdef.Shutdowner
+	RcClient          rcclient.Component
+	KeysManager       taskverifier.KeysManager
+	Hostname          hostname.Component
+	Tagger            tagger.Component
+	Traceroute        traceroute.Component
+	EventPlatform     eventplatform.Component
+	IPC               ipc.Component
+	Statsd            statsdcomp.Component
+	ClusterIDResolver clusteridresolver.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -101,14 +103,15 @@ type Provides struct {
 }
 
 type PrivateActionRunner struct {
-	coreConfig     model.ReaderWriter
-	hostnameGetter hostnameinterface.Component
-	rcClient       pkgrcclient.Client
-	logger         log.Component
-	tagger         tagger.Component
-	traceroute     traceroute.Component
-	eventPlatform  eventplatform.Component
-	ipc            ipc.Component
+	coreConfig        model.ReaderWriter
+	hostnameGetter    hostnameinterface.Component
+	clusterIDResolver clusteridresolver.Component
+	rcClient          pkgrcclient.Client
+	logger            log.Component
+	tagger            tagger.Component
+	traceroute        traceroute.Component
+	eventPlatform     eventplatform.Component
+	ipc               ipc.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
 	metricsClient     statsdclient.ClientInterface
@@ -166,7 +169,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, reqs.ClusterIDResolver, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -191,7 +194,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, reqs.ClusterIDResolver, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -210,6 +213,7 @@ func NewPrivateActionRunner(
 	_ context.Context,
 	coreConfig model.ReaderWriter,
 	hostnameGetter hostnameinterface.Component,
+	clusterIDResolver clusteridresolver.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
 	taggerComp tagger.Component,
@@ -221,23 +225,24 @@ func NewPrivateActionRunner(
 	ka kubeactions.Component,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
-		coreConfig:     coreConfig,
-		hostnameGetter: hostnameGetter,
-		rcClient:       rcClient,
-		logger:         logger,
-		tagger:         taggerComp,
-		traceroute:     tracerouteComp,
-		eventPlatform:  eventPlatform,
-		ipc:            ipcComp,
-		metricsClient:  metricsClient,
-		startChan:      make(chan struct{}),
-		ha:             ha,
-		ka:             ka,
+		coreConfig:        coreConfig,
+		hostnameGetter:    hostnameGetter,
+		clusterIDResolver: clusterIDResolver,
+		rcClient:          rcClient,
+		logger:            logger,
+		tagger:            taggerComp,
+		traceroute:        tracerouteComp,
+		eventPlatform:     eventPlatform,
+		ipc:               ipcComp,
+		metricsClient:     metricsClient,
+		startChan:         make(chan struct{}),
+		ha:                ha,
+		ka:                ka,
 	}, nil
 }
 
 func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
-	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, p.hostnameGetter)
+	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, p.hostnameGetter, p.clusterIDResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent identifier: %w", err)
 	}

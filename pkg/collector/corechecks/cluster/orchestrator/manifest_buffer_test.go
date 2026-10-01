@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -217,7 +218,7 @@ func getManifestBuffer(t *testing.T) *ManifestBuffer {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeTagger.SetGlobalTags([]string{"tag:low"}, []string{"tag:orch"}, []string{"tag:high"}, []string{"tag:std"})
 
-	orchCheck := newCheck(cfg, mockStore, fakeTagger).(*OrchestratorCheck)
+	orchCheck := newCheck(cfg, mockStore, fakeTagger, clusteridresolvermock.NewResolved(testClusterID)).(*OrchestratorCheck)
 
 	// Configure the check properly to get ExtraTags set
 	mockSenderManager := mocksender.CreateDefaultDemultiplexer(t)

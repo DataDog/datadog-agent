@@ -7,6 +7,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/tags",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/tagger/tags",
         "//pkg/config/env",
@@ -14,7 +15,6 @@ go_library(
         "//pkg/util/fargate",
         "//pkg/util/flavor",
         "//pkg/util/kubernetes/cloudprovider",
-        "//pkg/util/kubernetes/clusterinfo",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
     ],
@@ -25,6 +25,7 @@ dd_agent_go_test(
     srcs = ["static_tags_test.go"],
     embed = [":tags"],
     deps = [
+        "//comp/core/clusteridresolver/mock",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/util/flavor",

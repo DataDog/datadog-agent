@@ -86,7 +86,7 @@ type DCAClientInterface interface {
 	PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
-	GetKubernetesClusterID() (string, error)
+	GetKubernetesClusterID(ctx context.Context) (string, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
 	SupportsNamespaceMetadataCollection() bool
@@ -506,12 +506,15 @@ func (c *DCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]
 	return metadataNames, nil
 }
 
-// GetKubernetesClusterID queries the datadog cluster agent to get the Kubernetes cluster ID
-// Prefer calling clustername.GetClusterID which has a cached response
-func (c *DCAClient) GetKubernetesClusterID() (string, error) {
+// GetKubernetesClusterID queries the datadog cluster agent to get the Kubernetes cluster ID.
+// Prefer clusteridresolver.Component, which caches the response.
+func (c *DCAClient) GetKubernetesClusterID(ctx context.Context) (string, error) {
 	var clusterID string
-	err := c.doJSONQuery(context.TODO(), "api/v1/cluster/id", "GET", nil, &clusterID, false)
+	err := c.doJSONQuery(ctx, "api/v1/cluster/id", "GET", nil, &clusterID, false)
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", ctx.Err()
+		}
 		return "", err
 	}
 	return clusterID, nil

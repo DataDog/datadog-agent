@@ -131,7 +131,7 @@ func (f *FakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (t
 	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
 }
 
-func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
+func (f *FakeDCAClient) GetKubernetesClusterID(context.Context) (string, error) {
 	return f.ClusterID, f.ClusterIDErr
 }
 

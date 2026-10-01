@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -28,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
@@ -55,7 +54,7 @@ apply the new identity.`,
 	return []*cobra.Command{cmd}
 }
 
-func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
+func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component, clusterIDResolver clusteridresolver.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
@@ -66,22 +65,10 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 	}
 
 	// Match the running agent's hostname so ShouldReenroll keeps the rotated identity.
-	hostnameVal, err := hostnameComp.Get(ctx)
+	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, hostnameComp, clusterIDResolver)
 	if err != nil {
-		return fmt.Errorf("failed to get hostname: %w", err)
+		return fmt.Errorf("failed to get agent identifier: %w", err)
 	}
-
-	// clustername.GetClusterID would call the DCA HTTP client (no cross-node TLS in one-shot).
-	apiClient, err := apiserver.GetAPIClient()
-	if err != nil {
-		return fmt.Errorf("failed to get Kubernetes client: %w", err)
-	}
-	orchClusterID, err := common.GetOrCreateClusterID(apiClient.Cl.CoreV1())
-	if err != nil {
-		return fmt.Errorf("failed to get cluster ID: %w", err)
-	}
-
-	agentIdentifier := &enrollment.AgentIdentifier{Hostname: hostnameVal, OrchClusterID: orchClusterID}
 
 	result, err := enrollment.Enroll(ctx, cfg, agentIdentifier)
 	if err != nil {

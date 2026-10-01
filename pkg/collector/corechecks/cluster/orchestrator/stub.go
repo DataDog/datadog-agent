@@ -9,6 +9,7 @@
 package orchestrator
 
 import (
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -22,6 +23,6 @@ const (
 )
 
 // Factory creates a new check factory
-func Factory(workloadmeta.Component, configcomp.Component, tagger.Component) option.Option[func() check.Check] {
+func Factory(workloadmeta.Component, configcomp.Component, tagger.Component, clusteridresolver.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }

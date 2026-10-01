@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -50,7 +51,7 @@ Restart the Private Action Runner process to apply the new identity.`,
 	return []*cobra.Command{cmd}
 }
 
-func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
+func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component, clusterIDResolver clusteridresolver.Component) error {
 	ctx := context.Background()
 
 	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
@@ -58,7 +59,7 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 	}
 
 	// Match the running agent's hostname so ShouldReenroll keeps the rotated identity.
-	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, hostnameComp)
+	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, hostnameComp, clusterIDResolver)
 	if err != nil {
 		return fmt.Errorf("failed to get agent identifier: %w", err)
 	}

@@ -13,6 +13,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/commonchecks",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/flare",
         "//comp/core/tagger/def",

@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
@@ -26,7 +27,6 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
-
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
@@ -71,8 +71,8 @@ type clusterChecksImpl struct {
 	conf config.Component
 
 	// Cluster identification
-	clustername string
-	clusterID   string
+	clustername       string
+	clusterIDResolver clusteridresolver.Component
 
 	// Cluster checks handler
 	clusterHandler *pkgclusterchecks.Handler
@@ -80,9 +80,10 @@ type clusterChecksImpl struct {
 
 // Requires defines the dependencies for the clusterchecks metadata component
 type Requires struct {
-	Log        log.Component
-	Conf       config.Component
-	Serializer serializer.MetricSerializer
+	Log               log.Component
+	Conf              config.Component
+	Serializer        serializer.MetricSerializer
+	ClusterIDResolver clusteridresolver.Component
 }
 
 // Provides defines the output of the clusterchecks metadata component
@@ -95,18 +96,13 @@ type Provides struct {
 func NewComponent(deps Requires) Provides {
 	// Get cluster identification
 	clusterName := clustername.GetClusterName(context.TODO(), "")
-	clusterID, err := clustername.GetClusterID()
-	if err != nil {
-		deps.Log.Debugf("Error retrieving cluster ID: %v", err)
-		clusterID = "" // Handle error gracefully like clusteragent
-	}
 
 	cc := &clusterChecksImpl{
-		log:            deps.Log,
-		conf:           deps.Conf,
-		clustername:    clusterName,
-		clusterID:      clusterID,
-		clusterHandler: nil, // Will be set later via SetClusterHandler
+		log:               deps.Log,
+		conf:              deps.Conf,
+		clustername:       clusterName,
+		clusterIDResolver: deps.ClusterIDResolver,
+		clusterHandler:    nil, // Will be set later via SetClusterHandler
 	}
 
 	// Initialize inventory payload - we're always in cluster agent when this is compiled
@@ -120,7 +116,7 @@ func NewComponent(deps Requires) Provides {
 
 	return Provides{
 		Comp:     cc,
-		Provider: cc.MetadataProvider(),
+		Provider: cc.MetadataProviderWhenReady(cc.hasClusterID),
 	}
 }
 
@@ -176,13 +172,13 @@ func (cc *clusterChecksImpl) getPayload() *Payload {
 		return nil
 	}
 
-	// Note: We intentionally generate payloads even when clustername or clusterID are empty
-	// for visibility in flares/endpoints, but getPayloadAsMarshaler() will return nil
-	// to prevent sending to backend when both identifiers are missing. Flares report is using
-	// getAsJSON.
+	// Payloads can have an empty clustername or clusterID, for visibility in
+	// flares and endpoints. hasClusterID prevents backend submission until the ID
+	// is resolved.
+	clusterID, _ := cc.clusterIDResolver.GetID()
 	payload := &Payload{
 		Clustername:                   cc.clustername,
-		ClusterID:                     cc.clusterID,
+		ClusterID:                     clusterID,
 		Timestamp:                     time.Now().UnixNano(),
 		ClusterCheckMetadata:          make(map[string][]metadata),
 		ClusterCheckStatus:            make(map[string]interface{}),
@@ -203,14 +199,13 @@ func (cc *clusterChecksImpl) getPayloadAsMarshaler() marshaler.JSONMarshaler {
 	if payload == nil {
 		return nil
 	}
-
-	// Don't send to backend if we have no cluster identification
-	if payload.Clustername == "" && payload.ClusterID == "" {
-		cc.log.Debug("No cluster name or cluster ID available, skipping backend submission")
-		return nil
-	}
-
 	return payload
+}
+
+// hasClusterID delays backend submission until the ID is resolved.
+func (cc *clusterChecksImpl) hasClusterID() bool {
+	_, err := cc.clusterIDResolver.GetID()
+	return err == nil
 }
 
 // MetadataProvider returns the metadata provider for cluster checks (delegating to InventoryPayload)

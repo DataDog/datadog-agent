@@ -18,6 +18,7 @@ import (
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cast"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
@@ -41,7 +42,8 @@ func portToUint(v int) (port uint, err error) {
 }
 
 // FromAgentConfig builds a pipeline configuration from an Agent configuration.
-func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
+// clusterIDResolver can be nil.
+func FromAgentConfig(cfg config.Reader, clusterIDResolver clusteridresolver.Component) (PipelineConfig, error) {
 	var errs []error
 
 	proxyEnabled := cfg.GetBool(coreconfig.DataPlaneOTLPProxyEnabled)
@@ -102,7 +104,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog().GetString("apm_config.receiver_port"))
 	}
 
-	tags := strings.Join(tagutil.GetStaticTagsSlice(context.TODO(), cfg), ",")
+	tags := strings.Join(tagutil.GetStaticTagsSlice(context.TODO(), cfg, clusterIDResolver), ",")
 	if tags != "" {
 		metricsConfigMap["tags"] = tags
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -34,7 +35,7 @@ func TestRun_DisabledPAR(t *testing.T) {
 	})
 	hostnameComp, _ := hostnamemock.NewMock("test-host")
 
-	err := run(logmock.New(t), cfg, hostnameComp)
+	err := run(logmock.New(t), cfg, hostnameComp, clusteridresolvermock.New())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "private_action_runner.enabled is false")

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -36,11 +37,13 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -71,11 +74,12 @@ type datadogConfig struct {
 type localTagger struct {
 	sync.RWMutex
 
-	tagStore      *tagstore.TagStore
-	workloadStore workloadmeta.Component
-	log           log.Component
-	cfg           config.Component
-	collector     *collectors.WorkloadMetaCollector
+	tagStore                 *tagstore.TagStore
+	workloadStore            workloadmeta.Component
+	log                      log.Component
+	cfg                      config.Component
+	collector                *collectors.WorkloadMetaCollector
+	clusterIDPublicationDone chan struct{}
 
 	datadogConfig              datadogConfig
 	tlmUDPOriginDetectionError coretelemetry.Counter
@@ -88,11 +92,12 @@ type localTagger struct {
 type Requires struct {
 	compdef.In
 
-	Lc           compdef.Lifecycle
-	Config       config.Component
-	Log          log.Component
-	WorkloadMeta workloadmeta.Component
-	Telemetry    coretelemetry.Component
+	Lc                compdef.Lifecycle
+	Config            config.Component
+	Log               log.Component
+	WorkloadMeta      workloadmeta.Component
+	Telemetry         coretelemetry.Component
+	ClusterIDResolver clusteridresolver.Component
 }
 
 // Provides contains the fields provided by the tagger constructor.
@@ -113,6 +118,24 @@ func NewComponent(req Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
+	var liveness, startup *health.Handle
+	var healthOnce sync.Once
+	var healthErr error
+	taggerInstance.clusterIDPublicationDone = make(chan struct{})
+	if req.ClusterIDResolver != nil && flavor.GetFlavor() == flavor.ClusterAgent {
+		if _, err := req.ClusterIDResolver.GetID(); !errors.Is(err, clusteridresolver.ErrDisabled) {
+			liveness = health.RegisterLiveness("cluster-id-global-tags")
+			startup = health.RegisterStartup("cluster-id-global-tags")
+		}
+	}
+	closeHealth := func() error {
+		healthOnce.Do(func() {
+			if liveness != nil {
+				healthErr = errors.Join(liveness.Deregister(), startup.Deregister())
+			}
+		})
+		return healthErr
+	}
 	req.Log.Info("Tagger is created")
 	req.Lc.Append(compdef.Hook{OnStart: func(context.Context) error {
 		// Main context passed to components, consistent with the one used in the WorkloadMeta component.
@@ -125,18 +148,39 @@ func NewComponent(req Requires) (Provides, error) {
 			taggerInstance.cfg,
 			taggerInstance.workloadStore,
 			taggerInstance.tagStore,
+			req.ClusterIDResolver,
 		)
 
 		// Start the TagStore and the WorkloadMeta collector.
 		go taggerInstance.tagStore.Run(taggerInstance.ctx)
 		go taggerInstance.collector.Run(taggerInstance.ctx)
+		if req.ClusterIDResolver != nil {
+			go func() {
+				defer close(taggerInstance.clusterIDPublicationDone)
+				if _, err := req.ClusterIDResolver.WaitForID(taggerInstance.ctx); err != nil {
+					return
+				}
+				taggerInstance.RefreshGlobalTags(taggerInstance.ctx)
+				if taggerInstance.ctx.Err() == nil {
+					if err := closeHealth(); err != nil {
+						req.Log.Warnf("Could not release cluster ID tag publication health checks: %v", err)
+					}
+				}
+			}()
+		} else {
+			close(taggerInstance.clusterIDPublicationDone)
+		}
 
 		return nil
-	}})
-	req.Lc.Append(compdef.Hook{OnStop: func(context.Context) error {
+	}, OnStop: func(ctx context.Context) error {
 		// Stop the tagger.
 		taggerInstance.cancel()
-		return nil
+		select {
+		case <-taggerInstance.clusterIDPublicationDone:
+			return closeHealth()
+		case <-ctx.Done():
+			return errors.Join(ctx.Err(), closeHealth())
+		}
 	}})
 
 	return Provides{

@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -89,6 +90,9 @@ type dependencies struct {
 	Hostname        hostnameinterface.Component
 	FilterList      filterlist.Component
 	OfflineReporter offlinereporter.Component
+	// ClusterIDResolver adds orch_cluster_id to the static tags on EKS Fargate.
+	// Tests do not provide it.
+	ClusterIDResolver clusteridresolver.Component `optional:"true"`
 }
 
 // Provides defines the output of the dogstatsd server component.
@@ -143,6 +147,7 @@ type dsdServer struct {
 	histToDist              bool
 	histToDistPrefix        string
 	extraTags               []string
+	clusterIDResolver       clusteridresolver.Component
 	Debug                   serverdebug.Component
 	filterList              filterlist.Component
 
@@ -209,7 +214,7 @@ func initTelemetry() {
 
 // NewComponent creates a new dogstatsd server component.
 func NewComponent(deps dependencies) Provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList, deps.ClusterIDResolver)
 	s.offlineReporter = deps.OfflineReporter
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
@@ -226,7 +231,7 @@ func NewComponent(deps dependencies) Provides {
 	}
 }
 
-func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *dsdServer {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component, clusterIDResolver clusteridresolver.Component) *dsdServer {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -257,12 +262,6 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	histToDistPrefix := cfg.GetString("histogram_copy_to_distribution_prefix")
 
 	extraTags := cfg.GetStringSlice("dogstatsd_tags")
-
-	// if the server is running in a context where static tags are required, add those
-	// to extraTags.
-	if staticTags := tagutil.GetStaticTagsSlice(context.TODO(), cfg); staticTags != nil {
-		extraTags = append(extraTags, staticTags...)
-	}
 	sort.UniqInPlace(extraTags)
 
 	infraTagger := infratags.NewTagger(cfg)
@@ -306,6 +305,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		histToDist:              histToDist,
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
+		clusterIDResolver:       clusterIDResolver,
 		eolTerminationUDP:       eolTerminationUDP,
 		eolTerminationUDS:       eolTerminationUDS,
 		eolTerminationNamedPipe: eolTerminationNamedPipe,
@@ -383,7 +383,14 @@ func (s *dsdServer) startHook(context context.Context) error {
 	return nil
 }
 
-func (s *dsdServer) start(context.Context) error {
+func (s *dsdServer) start(ctx context.Context) error {
+	// Add the static tags here and not in the constructor: the cluster ID
+	// resolver starts before this hook, thus the wait for the ID can succeed.
+	if staticTags := tagutil.GetStaticTagsSlice(ctx, s.config, s.clusterIDResolver); staticTags != nil {
+		s.extraTags = append(s.extraTags, staticTags...)
+		sort.UniqInPlace(s.extraTags)
+	}
+
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 

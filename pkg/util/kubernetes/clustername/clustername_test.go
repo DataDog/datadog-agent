@@ -7,12 +7,18 @@ package clustername
 
 import (
 	"context"
+	"errors"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestGetClusterName(t *testing.T) {
@@ -103,27 +109,95 @@ func TestGetClusterNameCLCRunner(t *testing.T) {
 }
 
 func TestGetClusterID(t *testing.T) {
+	clearClusterIDCache(t)
 	// missing env
 	cid, err := GetClusterID()
 	assert.Empty(t, cid)
 	assert.NotNil(t, err)
 
 	// too short
-	t.Setenv(clusterIDEnv, "foo")
+	t.Setenv(ClusterIDEnv, "foo")
 	cid, err = GetClusterID()
 	assert.Empty(t, cid)
 	assert.NotNil(t, err)
 
 	// too long
-	t.Setenv(clusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a44444444")
+	t.Setenv(ClusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a44444444")
 	cid, err = GetClusterID()
 	assert.Empty(t, cid)
 	assert.NotNil(t, err)
 
 	// just right
 	testID := "d801b2b1-4811-11ea-8618-121d4d0938a3"
-	t.Setenv(clusterIDEnv, testID)
+	t.Setenv(ClusterIDEnv, testID)
 	cid, err = GetClusterID()
 	assert.Equal(t, testID, cid)
 	assert.Nil(t, err)
+}
+
+func clearClusterIDCache(t *testing.T) {
+	t.Helper()
+	key := cache.BuildAgentKey(constants.ClusterIDCacheKey)
+	cache.Cache.Delete(key)
+	t.Cleanup(func() { cache.Cache.Delete(key) })
+}
+
+func TestGetClusterIDClusterAgentUsesKubernetes(t *testing.T) {
+	configmock.New(t)
+	flavor.SetTestFlavor(t, flavor.ClusterAgent)
+	previousLookup := getClusterAgentClusterID
+	t.Cleanup(func() { getClusterAgentClusterID = previousLookup })
+
+	const expectedID = "226430c6-5e57-11ea-91d5-42010a8400c6"
+	for _, envID := range []string{"", "invalid", "d801b2b1-4811-11ea-8618-121d4d0938a3"} {
+		t.Run(envID, func(t *testing.T) {
+			clearClusterIDCache(t)
+			t.Setenv(ClusterIDEnv, envID)
+			if envID == "" {
+				require.NoError(t, os.Unsetenv(ClusterIDEnv))
+			}
+			lookups := 0
+			getClusterAgentClusterID = func() (string, error) {
+				lookups++
+				return expectedID, nil
+			}
+
+			id, err := GetClusterID()
+			require.NoError(t, err)
+			assert.Equal(t, expectedID, id)
+			assert.Equal(t, 1, lookups)
+
+			id, err = GetClusterID()
+			require.NoError(t, err)
+			assert.Equal(t, expectedID, id)
+			assert.Equal(t, 1, lookups, "successful Kubernetes IDs must be cached")
+		})
+	}
+}
+
+func TestGetClusterIDClusterAgentRetriesKubernetesFailure(t *testing.T) {
+	clearClusterIDCache(t)
+	configmock.New(t)
+	flavor.SetTestFlavor(t, flavor.ClusterAgent)
+	previousLookup := getClusterAgentClusterID
+	t.Cleanup(func() { getClusterAgentClusterID = previousLookup })
+	// A valid node-Agent override must not hide a DCA Kubernetes failure.
+	t.Setenv(ClusterIDEnv, "d801b2b1-4811-11ea-8618-121d4d0938a3")
+	lookupError := errors.New("Kubernetes unavailable")
+	lookups := 0
+	getClusterAgentClusterID = func() (string, error) {
+		lookups++
+		if lookups == 1 {
+			return "", lookupError
+		}
+		return "226430c6-5e57-11ea-91d5-42010a8400c6", nil
+	}
+
+	id, err := GetClusterID()
+	require.ErrorIs(t, err, lookupError)
+	assert.Empty(t, id)
+	id, err = GetClusterID()
+	require.NoError(t, err)
+	assert.Equal(t, "226430c6-5e57-11ea-91d5-42010a8400c6", id)
+	assert.Equal(t, 2, lookups)
 }

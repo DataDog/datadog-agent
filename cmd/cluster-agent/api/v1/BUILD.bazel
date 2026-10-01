@@ -19,6 +19,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/clusteragent",
@@ -30,13 +31,11 @@ go_library(
         "//pkg/util/clusteragent",
         "//pkg/util/grpc",
         "//pkg/util/kubernetes/apiserver",
-        "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/controllers",
         "//pkg/util/log",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/ext",
         "@com_github_datadog_dd_trace_go_v2//ddtrace/tracer",
         "@io_k8s_apimachinery//pkg/util/sets",
-        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
     ],
 )
 
@@ -59,6 +58,7 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core",
+        "//comp/core/clusteridresolver/mock",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx-mock",

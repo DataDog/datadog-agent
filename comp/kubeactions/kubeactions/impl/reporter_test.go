@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -60,7 +61,7 @@ func decodeEvent(t *testing.T, payload []byte) ActionResultEvent {
 
 func TestResultReporter_ReportReceived(t *testing.T) {
 	fwd := &fakeForwarder{}
-	r := newResultReporter(fwd, "my-cluster", "cluster-id")
+	r := newResultReporter(fwd, "my-cluster", clusteridresolvermock.NewResolved("cluster-id"))
 
 	r.ReportReceived(sampleReport())
 
@@ -81,7 +82,7 @@ func TestResultReporter_ReportReceived(t *testing.T) {
 
 func TestResultReporter_ReportProgress(t *testing.T) {
 	fwd := &fakeForwarder{}
-	r := newResultReporter(fwd, "my-cluster", "cluster-id")
+	r := newResultReporter(fwd, "my-cluster", clusteridresolvermock.NewResolved("cluster-id"))
 
 	r.ReportProgress(sampleReport(), "halfway there")
 
@@ -94,7 +95,7 @@ func TestResultReporter_ReportProgress(t *testing.T) {
 
 func TestResultReporter_ReportResult(t *testing.T) {
 	fwd := &fakeForwarder{}
-	r := newResultReporter(fwd, "my-cluster", "cluster-id")
+	r := newResultReporter(fwd, "my-cluster", clusteridresolvermock.NewResolved("cluster-id"))
 
 	r.ReportResult(sampleReport(), kubeactions.ExecutionResult{
 		Status:   kubeactions.StatusFailed,
@@ -111,10 +112,24 @@ func TestResultReporter_ReportResult(t *testing.T) {
 }
 
 func TestResultReporter_NilForwarderIsSafe(t *testing.T) {
-	r := newResultReporter(nil, "my-cluster", "cluster-id")
+	r := newResultReporter(nil, "my-cluster", clusteridresolvermock.NewResolved("cluster-id"))
 	assert.NotPanics(t, func() {
 		r.ReportReceived(sampleReport())
 		r.ReportProgress(sampleReport(), "msg")
 		r.ReportResult(sampleReport(), kubeactions.ExecutionResult{Status: kubeactions.StatusSuccess})
 	})
+}
+
+func TestResultReporterUsesResolvedClusterID(t *testing.T) {
+	fwd := &fakeForwarder{}
+	resolver := clusteridresolvermock.New()
+	reporter := newResultReporter(fwd, "my-cluster", resolver)
+	reporter.ReportReceived(sampleReport())
+	require.Len(t, fwd.events, 1)
+	assert.Empty(t, decodeEvent(t, fwd.events[0].payload).ClusterID)
+	const id = "226430c6-5e57-11ea-91d5-42010a8400c6"
+	resolver.SetID(id)
+	reporter.ReportProgress(sampleReport(), "working")
+	require.Len(t, fwd.events, 2)
+	assert.Equal(t, id, decodeEvent(t, fwd.events[1].payload).ClusterID)
 }

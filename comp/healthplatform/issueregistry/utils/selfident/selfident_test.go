@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -22,7 +23,6 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
@@ -224,9 +224,8 @@ func TestClusterID_BlocksUpToRetryBudget(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
 	synctest.Test(t, func(t *testing.T) {
-		stubClusterIDFuncs(t,
+		stubClusterIDFunc(t,
 			func() (string, error) { return "", errors.New("cluster agent unreachable") },
-			func() (string, error) { return "", errors.New("unused") },
 		)
 
 		s := New(nil)
@@ -263,12 +262,11 @@ func TestClusterID_BlockedLookupDoesNotBlockCallerBeyondTimeout(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		release := make(chan struct{})
-		stubClusterIDFuncs(t,
+		stubClusterIDFunc(t,
 			func() (string, error) {
 				<-release // block as a hung Cluster Agent/API server call would
 				return "node-agent-id", nil
 			},
-			func() (string, error) { return "", errors.New("unused") },
 		)
 
 		s := New(nil)
@@ -297,9 +295,8 @@ func TestClusterID_CachesSuccessfulResolution(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
 	var calls int
-	stubClusterIDFuncs(t,
+	stubClusterIDFunc(t,
 		func() (string, error) { calls++; return "node-agent-id", nil },
-		func() (string, error) { return "", errors.New("unused") },
 	)
 
 	s := New(nil)
@@ -317,7 +314,7 @@ func TestClusterID_FailedResolutionIsNotCachedPermanently(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
 
 	var calls int
-	stubClusterIDFuncs(t,
+	stubClusterIDFunc(t,
 		func() (string, error) {
 			calls++
 			if calls == 1 {
@@ -325,7 +322,6 @@ func TestClusterID_FailedResolutionIsNotCachedPermanently(t *testing.T) {
 			}
 			return "node-agent-id", nil
 		},
-		func() (string, error) { return "", errors.New("unused") },
 	)
 
 	s := New(nil)
@@ -336,72 +332,22 @@ func TestClusterID_FailedResolutionIsNotCachedPermanently(t *testing.T) {
 	assert.Equal(t, "node-agent-id", s.ClusterID(), "a later call must retry rather than replay the stale empty result")
 }
 
-// stubClusterIDFuncs overrides the node-agent/cluster-agent cluster id
-// lookups for the duration of the test, restoring the real functions on
-// cleanup.
-func stubClusterIDFuncs(t *testing.T, nodeAgent, clusterAgent func() (string, error)) {
+// stubClusterIDFunc overrides the cluster id lookup for the duration of the
+// test, restoring the real function on cleanup.
+func stubClusterIDFunc(t *testing.T, lookup func() (string, error)) {
 	t.Helper()
-	origNodeAgent, origClusterAgent := nodeAgentClusterIDFunc, clusterAgentClusterIDFunc
-	nodeAgentClusterIDFunc, clusterAgentClusterIDFunc = nodeAgent, clusterAgent
-	t.Cleanup(func() {
-		nodeAgentClusterIDFunc, clusterAgentClusterIDFunc = origNodeAgent, origClusterAgent
-	})
+	orig := clusterIDFunc
+	clusterIDFunc = lookup
+	t.Cleanup(func() { clusterIDFunc = orig })
 }
 
-// TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup verifies that on the
-// Cluster Agent flavor, ClusterID dispatches to the Cluster-Agent-specific
-// lookup rather than the node-agent-only clustername.GetClusterID (broken when
-// the DCA calls it on itself).
-func TestClusterID_ClusterAgentFlavorUsesClusterAgentLookup(t *testing.T) {
-	origFlavor := flavor.GetFlavor()
-	flavor.SetFlavor(flavor.ClusterAgent)
-	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
-
+func TestClusterIDUsesInjectedResolver(t *testing.T) {
 	env.SetFeatures(t, env.Kubernetes)
-	stubClusterIDFuncs(t,
-		func() (string, error) { return "node-agent-id", nil },
-		func() (string, error) { return "cluster-agent-id", nil },
-	)
-
-	s := New(nil)
-	assert.Equal(t, "cluster-agent-id", s.ClusterID())
-}
-
-// TestClusterID_NonClusterAgentFlavorUsesNodeAgentLookup verifies that a
-// non-Cluster-Agent flavor (e.g. the node agent) keeps using
-// clustername.GetClusterID rather than the Cluster-Agent-specific lookup.
-func TestClusterID_NonClusterAgentFlavorUsesNodeAgentLookup(t *testing.T) {
-	origFlavor := flavor.GetFlavor()
-	flavor.SetFlavor(flavor.DefaultAgent)
-	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
-
-	env.SetFeatures(t, env.Kubernetes)
-	stubClusterIDFuncs(t,
-		func() (string, error) { return "node-agent-id", nil },
-		func() (string, error) { return "cluster-agent-id", nil },
-	)
-
-	s := New(nil)
-	assert.Equal(t, "node-agent-id", s.ClusterID())
-}
-
-// TestClusterID_ClusterAgentFlavorLookupError verifies that an error from the
-// Cluster-Agent-specific lookup (e.g. apiserver.GetAPIClient failing) is
-// retried and ultimately settles on empty, the same as the node-agent path.
-func TestClusterID_ClusterAgentFlavorLookupError(t *testing.T) {
-	origFlavor := flavor.GetFlavor()
-	flavor.SetFlavor(flavor.ClusterAgent)
-	t.Cleanup(func() { flavor.SetFlavor(origFlavor) })
-
-	env.SetFeatures(t, env.Kubernetes)
-	stubClusterIDFuncs(t,
-		func() (string, error) { return "node-agent-id", nil },
-		func() (string, error) { return "", errors.New("api server unreachable") },
-	)
-
-	s := New(nil)
-	s.resolveRetries = 1
-	s.resolveRetryDelay = time.Millisecond
-
-	assert.Empty(t, s.ClusterID())
+	resolver := clusteridresolvermock.New()
+	self := NewWithResolver(nil, resolver)
+	self.clusterResolveTimeout = 0
+	assert.Empty(t, self.ClusterID())
+	const id = "226430c6-5e57-11ea-91d5-42010a8400c6"
+	resolver.SetID(id)
+	assert.Equal(t, id, self.ClusterID())
 }

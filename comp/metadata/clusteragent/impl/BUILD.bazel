@@ -10,6 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
@@ -24,7 +25,6 @@ go_library(
         "//pkg/util/flavor",
         "//pkg/util/http",
         "//pkg/util/installinfo",
-        "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/apiserver/leaderelection",
         "//pkg/util/kubernetes/clustername",
@@ -32,7 +32,6 @@ go_library(
         "//pkg/util/uuid",
         "//pkg/version",
         "@in_yaml_go_yaml_v3//:yaml",
-        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
     ],
 )
 
@@ -49,6 +48,7 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/core/clusteridresolver/mock",
         "//comp/core/config",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/mock",

@@ -10,6 +10,7 @@
 package commonchecks
 
 import (
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -82,6 +83,7 @@ import (
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component],
+	resolver clusteridresolver.Component,
 ) {
 	telemetryForMode := telemetryProviderForLoadMode(telemetry)
 
@@ -109,7 +111,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	// Flavor specific checks
 	corecheckLoader.RegisterCheck(load.CheckName, load.Factory())
 	corecheckLoader.RegisterCheck(kubernetesapiserver.CheckName, kubernetesapiserver.Factory(tagger))
-	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store))
+	corecheckLoader.RegisterCheck(ksm.CheckName, ksm.Factory(tagger, store, resolver))
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubeletconfig.CheckName, kubeletconfig.Factory(store, cfg, tagger))
@@ -141,7 +143,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
-	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
+	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger, resolver))
 	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, filterStore, tagger, telemetry))
 	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, filterStore, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, filterStore, tagger, telemetry))

@@ -226,7 +226,7 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, nil)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
@@ -700,7 +700,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			}
 			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, nil)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
@@ -767,7 +767,7 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, nil)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
@@ -910,7 +910,7 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		t.Run(testInstance.path, func(t *testing.T) {
 			cfg, err := testutil.LoadConfig(t, "./testdata/"+testInstance.path)
 			require.NoError(t, err)
-			pcfg, err := FromAgentConfig(cfg)
+			pcfg, err := FromAgentConfig(cfg, nil)
 			if err != nil || testInstance.err != "" {
 				assert.Equal(t, testInstance.err, err.Error())
 				return
@@ -936,7 +936,7 @@ func TestADPOTLPProxyOverridesEndpoints(t *testing.T) {
 
 	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 	require.NoError(t, err)
-	pcfg, err := FromAgentConfig(cfg)
+	pcfg, err := FromAgentConfig(cfg, nil)
 	require.NoError(t, err)
 
 	receiverConfig := pcfg.OTLPReceiverConfig
@@ -949,7 +949,7 @@ func TestADPOTLPProxyOverridesEndpoints(t *testing.T) {
 func TestADPOTLPProxyEmptyEndpointError(t *testing.T) {
 	cfg, err := testutil.LoadConfig(t, "./testdata/adp_proxy_empty_grpc.yaml")
 	require.NoError(t, err)
-	_, err = FromAgentConfig(cfg)
+	_, err = FromAgentConfig(cfg, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrProxyGRPCEndpointNotConfigured)
 }
@@ -961,7 +961,7 @@ func TestADPOTLPProxyEndpointCollisionError(t *testing.T) {
 
 	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
 	require.NoError(t, err)
-	_, err = FromAgentConfig(cfg)
+	_, err = FromAgentConfig(cfg, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrProxyGRPCEndpointCollision)
 }

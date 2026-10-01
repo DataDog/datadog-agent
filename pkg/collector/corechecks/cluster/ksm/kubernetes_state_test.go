@@ -2030,7 +2030,6 @@ func TestKSMCheckInitTags(t *testing.T) {
 	type fields struct {
 		instance    *KSMConfig
 		clusterName string
-		clusterID   string
 	}
 	tests := []struct {
 		name         string
@@ -2079,16 +2078,6 @@ func TestKSMCheckInitTags(t *testing.T) {
 			},
 			expected: []string{"check:tag1", "check:tag2", "kube_cluster_name:clustername"},
 		},
-		{
-			name:         "with cluster id",
-			tagsInConfig: nil,
-			fields: fields{
-				instance:    &KSMConfig{},
-				clusterName: "clustername",
-				clusterID:   "clusterid",
-			},
-			expected: []string{"kube_cluster_name:clustername", "orch_cluster_id:clusterid"},
-		},
 	}
 
 	for _, tt := range tests {
@@ -2099,7 +2088,6 @@ func TestKSMCheckInitTags(t *testing.T) {
 			k := &KSMCheck{
 				instance:            tt.fields.instance,
 				clusterNameTagValue: tt.fields.clusterName,
-				clusterIDTagValue:   tt.fields.clusterID,
 				agentConfig:         conf,
 			}
 

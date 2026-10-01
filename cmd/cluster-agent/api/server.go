@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v2/series"
 	"github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -43,7 +44,6 @@ import (
 	dcametadata "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/def"
 	clusterchecksmetadata "github.com/DataDog/datadog-agent/comp/metadata/clusterchecks/def"
 	apiMiddleware "github.com/DataDog/datadog-agent/pkg/api/middleware"
-
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -59,7 +59,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, telemetry telemetry.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, ipc ipc.Component, diagnoseComponent diagnose.Component, dcametadataComp dcametadata.Component, clusterChecksMetadataComp clusterchecksmetadata.Component, telemetry telemetry.Component, clusterIDResolver clusteridresolver.Component) error {
 	// create the root HTTP router
 	router = http.NewServeMux()
 	apiRouter = http.NewServeMux()
@@ -69,7 +69,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 	agent.SetupHandlers(router, w, ac, statusComponent, settings, taggerComp, diagnoseComponent, dcametadataComp, clusterChecksMetadataComp, ipc)
 
 	// API V1 Metadata APIs
-	v1.InstallMetadataEndpoints(apiRouter, w)
+	v1.InstallMetadataEndpoints(apiRouter, w, clusterIDResolver)
 
 	// API V1 Language Detection APIs
 	languagedetection.InstallLanguageDetectionEndpoints(ctx, apiRouter, w, cfg)

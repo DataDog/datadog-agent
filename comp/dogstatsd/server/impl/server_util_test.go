@@ -158,7 +158,7 @@ func fulfillDepsWithInactiveServerAndParams(t *testing.T, cfg map[string]interfa
 		fx.Provide(func() offlinereporter.Component { return offlinereportermock.Mock(t) }),
 	))
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList, nil)
 
 	return deps, s
 }

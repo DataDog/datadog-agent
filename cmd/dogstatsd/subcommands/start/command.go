@@ -20,6 +20,7 @@ import (
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	clusteridresolverfx "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
@@ -155,6 +156,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		eventplatformfx.Module(eventplatform.NewDisabledParams()),
 		eventplatformreceiverimpl.Module(),
 		hostnameimpl.Module(),
+		clusteridresolverfx.Module(),
 		localTaggerfx.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.

@@ -10,9 +10,11 @@ package v1
 import (
 	"net/http"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func installCloudFoundryMetadataEndpoints(_ *http.ServeMux) {}
 
-func installKubernetesMetadataEndpoints(_ *http.ServeMux, _ workloadmeta.Component) {}
+func installKubernetesMetadataEndpoints(_ *http.ServeMux, _ workloadmeta.Component, _ clusteridresolver.Component) {
+}

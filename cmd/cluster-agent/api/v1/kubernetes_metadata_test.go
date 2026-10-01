@@ -14,17 +14,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/dd-trace-go/v2/ddtrace/mocktracer"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 )
 
 const testNode = "test_node"
@@ -409,9 +411,9 @@ func TestGetClusterID_SpanCreation(t *testing.T) {
 	mt := mocktracer.Start()
 	defer mt.Stop()
 
-	// getClusterID calls as.GetAPIClient which will fail without a real apiserver.
-	// This tests the error path, which still verifies span creation.
-	handler := http.HandlerFunc(getClusterID)
+	// An unresolved resolver still produces the expected error trace.
+	resolver := clusteridresolvermock.New()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { getClusterID(w, r, resolver) })
 
 	req := httptest.NewRequest("GET", "/cluster/id", nil)
 	rec := httptest.NewRecorder()
@@ -501,4 +503,17 @@ func TestGetNodeInfo_SpanCreation(t *testing.T) {
 	assert.Equal(t, testNode, span.Tag("node_name"))
 	// No node entity in the store, so the cache lookup fails and the span captures the error
 	assert.NotNil(t, span.Tag("error.message"))
+}
+
+func TestGetClusterIDReadsResolverState(t *testing.T) {
+	resolver := clusteridresolvermock.New()
+	before := httptest.NewRecorder()
+	getClusterID(before, httptest.NewRequest(http.MethodGet, "/cluster/id", nil), resolver)
+	require.Equal(t, http.StatusInternalServerError, before.Code)
+	const id = "226430c6-5e57-11ea-91d5-42010a8400c6"
+	resolver.SetID(id)
+	after := httptest.NewRecorder()
+	getClusterID(after, httptest.NewRequest(http.MethodGet, "/cluster/id", nil), resolver)
+	require.Equal(t, http.StatusOK, after.Code)
+	assert.JSONEq(t, `"`+id+`"`, after.Body.String())
 }

@@ -30,6 +30,7 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/kubetags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -338,6 +339,7 @@ type KSMCheck struct {
 	isCLCRunner                bool
 	isRunningOnNodeAgent       bool
 	clusterIDTagValue          string
+	clusterIDResolver          clusteridresolver.Component
 	clusterNameTagValue        string
 	clusterNameRFC1123         string
 	metricNamesMapper          map[string]string
@@ -399,9 +401,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// Retrieve cluster name
 	k.getClusterName()
-
-	// Retrieve the ClusterID from the cluster-agent
-	k.getClusterID()
 
 	// Initialize global tags and check tags
 	k.initTags()
@@ -866,6 +865,13 @@ func shouldDropForMetadata(name string) bool {
 
 // Run runs the KSM check
 func (k *KSMCheck) Run() error {
+	// Resolution is asynchronous, thus add the ID tag when it becomes available.
+	if k.clusterIDTagValue == "" && k.clusterIDResolver != nil {
+		if id, err := k.clusterIDResolver.GetID(); err == nil {
+			k.clusterIDTagValue = id
+			k.instance.Tags = append(k.instance.Tags, tags.OrchClusterID+":"+id)
+		}
+	}
 	if err := k.initRetry.TriggerRetry(); err != nil {
 		return err.LastTryError
 	}
@@ -901,8 +907,8 @@ func (k *KSMCheck) Run() error {
 	}
 
 	// Normally the sender is kept for the lifetime of the check.
-	// But as `SetCheckCustomTags` is cheap and `k.instance.Tags` is immutable
-	// It's fast and safe to set it after we get the sender.
+	// SetCheckCustomTags is cheap; refresh it on each run so a newly resolved
+	// cluster ID is included before sending any metrics.
 	sender.SetCheckCustomTags(k.instance.Tags)
 
 	// Do not fallback to the Agent hostname if the hostname corresponding to the KSM metric is unknown
@@ -1322,26 +1328,12 @@ func (k *KSMCheck) getClusterName() {
 	}
 }
 
-func (k *KSMCheck) getClusterID() {
-	clusterID, err := clustername.GetClusterID()
-	if err != nil {
-		log.Warnf("Error retrieving the cluster ID: %s", err)
-		return
-	}
-	k.clusterIDTagValue = clusterID
-}
-
 // initTags avoids keeping a nil Tags field in the check instance
 // Sets the kube_cluster_name tag for all metrics.
-// Sets the orch_cluster_id tag for all metrics.
 // Adds the global user-defined tags from the Agent config.
 func (k *KSMCheck) initTags() {
 	if k.clusterNameTagValue != "" {
 		k.instance.Tags = append(k.instance.Tags, tags.KubeClusterName+":"+k.clusterNameTagValue)
-	}
-
-	if k.clusterIDTagValue != "" {
-		k.instance.Tags = append(k.instance.Tags, tags.OrchClusterID+":"+k.clusterIDTagValue)
 	}
 
 	if !k.instance.DisableGlobalTags {
@@ -1442,14 +1434,12 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 }
 
 // Factory creates a new check factory
-func Factory(tagger tagger.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
-	return option.New(func() check.Check {
-		return newCheck(tagger, wmeta)
-	})
+func Factory(tagger tagger.Component, wmeta workloadmeta.Component, resolver clusteridresolver.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check { return newCheck(tagger, wmeta, resolver) })
 }
 
-func newCheck(tagger tagger.Component, wmeta workloadmeta.Component) check.Check {
-	return newKSMCheck(
+func newCheck(tagger tagger.Component, wmeta workloadmeta.Component, resolver clusteridresolver.Component) check.Check {
+	check := newKSMCheck(
 		core.NewCheckBase(CheckName),
 		&KSMConfig{
 			LabelsMapper: make(map[string]string),
@@ -1459,6 +1449,8 @@ func newCheck(tagger tagger.Component, wmeta workloadmeta.Component) check.Check
 		tagger,
 		wmeta,
 	)
+	check.clusterIDResolver = resolver
+	return check
 }
 
 // KubeStateMetricsFactoryWithParam is used only by test/benchmarks/kubernetes_state

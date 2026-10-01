@@ -77,7 +77,7 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 	))
 
 	fl := filterlistimpl.NewFilterList(deps.Log, deps.Config, deps.Telemetry)
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, fl)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, fl, nil)
 
 	err := s.start(context.TODO())
 	require.NoError(t, err)

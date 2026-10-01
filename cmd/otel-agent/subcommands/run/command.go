@@ -21,6 +21,7 @@ import (
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
+	clusteridresolverfx "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
@@ -319,6 +320,7 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
 		// Local workloadmeta-backed tagger so the infraattributes processor can enrich
 		// spans with K8s tags (pod, namespace, deployment, ...) without a core agent
+		clusteridresolverfx.Module(),
 		taggerfx.Module(),
 	)
 }

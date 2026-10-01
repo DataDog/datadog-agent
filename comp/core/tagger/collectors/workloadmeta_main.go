@@ -12,6 +12,7 @@ import (
 
 	"github.com/gobwas/glob"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -55,10 +56,11 @@ var CollectorPriorities = make(map[string]types.CollectorPriority)
 // WorkloadMetaCollector collects tags from the metadata in the workloadmeta
 // store.
 type WorkloadMetaCollector struct {
-	store        workloadmeta.Component
-	cfg          config.Component
-	children     map[types.EntityID]map[types.EntityID]struct{}
-	tagProcessor taggerdef.Processor
+	store             workloadmeta.Component
+	cfg               config.Component
+	children          map[types.EntityID]map[types.EntityID]struct{}
+	tagProcessor      taggerdef.Processor
+	clusterIDResolver clusteridresolver.Component
 
 	containerEnvAsTags              map[string]string
 	containerLabelsAsTags           map[string]string
@@ -118,7 +120,11 @@ func (c *WorkloadMetaCollector) Run(ctx context.Context) {
 }
 
 func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, datadogConfig config.Component) {
-	staticTags := tagutil.GetStaticTags(ctx, datadogConfig)
+	clusterID := ""
+	if c.clusterIDResolver != nil {
+		clusterID, _ = c.clusterIDResolver.GetID()
+	}
+	staticTags := tagutil.GetStaticTags(ctx, datadogConfig, clusterID)
 	// staticTags could be nil if no static tags are configured so we copy to
 	// existing non-nil map. That simplifies code down below.
 	maps.Copy(c.staticTags, staticTags)
@@ -136,6 +142,9 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 	globalEnvTags := tagutil.GetClusterAgentStaticTags(ctx, datadogConfig)
 
 	tagList := taglist.NewTagList()
+	if clusterID != "" {
+		tagList.AddLow(tags.OrchClusterID, clusterID)
+	}
 
 	for _, tags := range []map[string][]string{c.staticTags, globalEnvTags} {
 		for tagKey, valueList := range tags {
@@ -214,10 +223,12 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 	}
 }
 
-// NewWorkloadMetaCollector returns a new WorkloadMetaCollector.
-func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p taggerdef.Processor) *WorkloadMetaCollector {
+// NewWorkloadMetaCollector returns a new WorkloadMetaCollector. The resolver
+// can be nil; then the global tags do not include the cluster ID.
+func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store workloadmeta.Component, p taggerdef.Processor, resolver clusteridresolver.Component) *WorkloadMetaCollector {
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
+		clusterIDResolver:                 resolver,
 		store:                             store,
 		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),

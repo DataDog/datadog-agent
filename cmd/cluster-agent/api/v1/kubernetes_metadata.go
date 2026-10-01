@@ -13,18 +13,18 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
-func installKubernetesMetadataEndpoints(r *http.ServeMux, wmeta workloadmeta.Component) {
+func installKubernetesMetadataEndpoints(r *http.ServeMux, wmeta workloadmeta.Component, resolver clusteridresolver.Component) {
 	r.HandleFunc("GET /annotations/node/{nodeName}", api.WithTelemetryWrapper(
 		"getNodeAnnotations",
 		func(w http.ResponseWriter, r *http.Request) { getNodeAnnotations(w, r, wmeta) },
@@ -42,7 +42,7 @@ func installKubernetesMetadataEndpoints(r *http.ServeMux, wmeta workloadmeta.Com
 	))
 	r.HandleFunc("GET /tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) }))
 	r.HandleFunc("GET /metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) }))
-	r.HandleFunc("GET /cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID))
+	r.HandleFunc("GET /cluster/id", api.WithTelemetryWrapper("getClusterID", func(w http.ResponseWriter, r *http.Request) { getClusterID(w, r, resolver) }))
 	r.HandleFunc("GET /uid/node/{nodeName}", api.WithTelemetryWrapper("getNodeUID", func(w http.ResponseWriter, r *http.Request) { getNodeUID(w, r, wmeta) }))
 }
 
@@ -433,28 +433,17 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 // getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
 //
 //nolint:revive // TODO(CINT) Fix revive linter
-func getClusterID(w http.ResponseWriter, r *http.Request) {
+func getClusterID(w http.ResponseWriter, r *http.Request, resolver clusteridresolver.Component) {
 	var spanErr error
 	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.cluster_id",
 		tracer.ResourceName("clusterID"),
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
-	// As HTTP query handler, we do not retry getting the APIServer
-	// Client will have to retry query in case of failure
-	cl, err := as.GetAPIClient()
+	// Resolution and retries belong to the component; requests only read its state.
+	clusterID, err := resolver.GetID()
 	if err != nil {
-		log.Errorf("Can't create client to query the API Server: %v", err) //nolint:errcheck
-		spanErr = err
-		api.SetSpanError(w, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	coreCl := cl.Cl.CoreV1().(*corev1.CoreV1Client)
-	// get clusterID
-	clusterID, err := apicommon.GetOrCreateClusterID(coreCl)
-	if err != nil {
-		log.Errorf("Failed to generate or retrieve the cluster ID: %v", err) //nolint:errcheck
+		log.Debugf("Cluster ID is not available yet: %v", err)
 		spanErr = err
 		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

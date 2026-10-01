@@ -12,6 +12,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/hostname/hostnameinterface/def",
         "//pkg/config/model",
         "//pkg/config/setup",

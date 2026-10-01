@@ -19,6 +19,7 @@ go_library(
         "//cmd/cluster-agent/api/v2/series",
         "//comp/api/grpcserver/helpers",
         "//comp/core/autodiscovery/def",
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/diagnose/def",
         "//comp/core/ipc/def",

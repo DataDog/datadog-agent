@@ -25,6 +25,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/api/api/def",
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",

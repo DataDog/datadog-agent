@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
@@ -39,11 +40,12 @@ import (
 
 // Requires defines the dependencies for the health-platform component
 type Requires struct {
-	Lifecycle compdef.Lifecycle
-	Config    config.Component
-	Log       log.Component
-	Telemetry telemetry.Component
-	Hostname  hostnameinterface.Component
+	Lifecycle         compdef.Lifecycle
+	Config            config.Component
+	Log               log.Component
+	Telemetry         telemetry.Component
+	Hostname          hostnameinterface.Component
+	ClusterIDResolver clusteridresolver.Component `optional:"true"`
 	// Workloadmeta resolves this agent's own DaemonSet/cluster identity (see
 	// selfident). Optional because only selfident's kubeapiserver build reads
 	// it: on flavors without that tag (iot, heroku, the cloudfoundry cluster
@@ -284,7 +286,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		telemetry:        reqs.Telemetry,
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
-		selfIdent:        selfident.New(reqs.Workloadmeta),
+		selfIdent:        selfident.NewWithResolver(reqs.Workloadmeta, reqs.ClusterIDResolver),
 
 		issues:       make(map[string]*storedIssue),
 		issuesByName: make(map[string][]string),

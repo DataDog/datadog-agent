@@ -18,6 +18,7 @@ import (
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -152,6 +153,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			traceroute traceroute.Component,
 			healthplatformComp healthplatformdef.Component,
 			ncmComp option.Option[networkconfigmanagement.Component],
+			clusterIDResolver clusteridresolver.Component,
 
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
@@ -182,6 +184,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				traceroute,
 				healthplatformComp,
 				ncmComp,
+				clusterIDResolver,
 			)
 			if err != nil {
 				return err

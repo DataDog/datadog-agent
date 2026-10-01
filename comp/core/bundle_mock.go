@@ -20,6 +20,8 @@ import (
 
 	"go.uber.org/fx"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
+	clusteridresolvermock "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/mock"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -42,6 +44,7 @@ func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		fxutil.ProvideOptional[sysprobeconfig.Component](),
 		mocktelemetry.Module(),
 		fx.Provide(delegatedauthmock.New),
+		fx.Provide(func() clusteridresolver.Component { return clusteridresolvermock.New() }),
 	)
 }
 

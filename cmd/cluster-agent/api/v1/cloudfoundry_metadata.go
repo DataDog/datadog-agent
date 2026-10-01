@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	clusteridresolver "github.com/DataDog/datadog-agent/comp/core/clusteridresolver/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -55,7 +56,8 @@ func installCloudFoundryMetadataEndpoints(r *http.ServeMux) {
 	}
 }
 
-func installKubernetesMetadataEndpoints(r *http.ServeMux, w workloadmeta.Component) {}
+func installKubernetesMetadataEndpoints(r *http.ServeMux, w workloadmeta.Component, _ clusteridresolver.Component) {
+}
 
 // getCFAppsMetadataForNode is only used when the node agent hits the DCA for the list of cloudfoundry applications tags
 // It return a list of tags for each application that can be directly used in the tagger

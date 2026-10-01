@@ -20,6 +20,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/tagger/def",

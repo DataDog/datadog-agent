@@ -17,6 +17,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/clusteridresolver/def",
         "//comp/core/config",
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
@@ -24,8 +25,6 @@ go_library(
         "//comp/forwarder/eventplatform/def",
         "//comp/kubeactions/kubeactions/def",
         "//pkg/logs/message",
-        "//pkg/util/kubernetes/apiserver",
-        "//pkg/util/kubernetes/apiserver/common",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/log",
         "//pkg/util/scrubber",
@@ -37,7 +36,6 @@ go_library(
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_client_go//dynamic",
         "@io_k8s_client_go//kubernetes",
-        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
     ],
 )
 
@@ -61,6 +59,7 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//comp/core/clusteridresolver/mock",
         "//comp/forwarder/eventplatform/def",
         "//comp/kubeactions/kubeactions/def",
         "//pkg/logs/message",
