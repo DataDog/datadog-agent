@@ -24,8 +24,7 @@
             <string>run</string>
             <string>-c</string>
             <string>/opt/datadog-agent/etc-exp</string>
-            <string>--sysprobecfgpath</string>
-            <string>/opt/datadog-agent/etc-exp</string>
+            <string>--sysprobecfgpath=/opt/datadog-agent/etc-exp/system-probe.yaml</string>
             <string>-p</string>
             <string>/opt/datadog-agent/run/agent.pid</string>
         </array>
