@@ -462,6 +462,29 @@ func TestCollectLeavesTimeForTheServiceSweepWhenTheDaemonHangs(t *testing.T) {
 		"the daemon calls get the collection budget less the reserve, so a hung daemon cannot starve the service sweep")
 }
 
+// The fleet daemon polls Collect with a two-second deadline, equal to serviceSweepReserve. Subtracting
+// the full reserve from that budget would expire the daemon calls on arrival, so every procmgr-managed
+// service would report unknown even when dd-procmgrd is healthy. The carve-out must not apply when
+// the caller has given us no more time than the reserve itself.
+func TestCollectKeepsDaemonBudgetWhenCallerGaveOnlyTheReserve(t *testing.T) {
+	client := &deadlineRecordingClient{}
+	collector := NewCollectorWithClient(t.TempDir(), client)
+
+	// Same budget pkg/fleet/daemon/ddot_state.go uses.
+	parent, cancel := context.WithTimeout(context.Background(), serviceSweepReserve)
+	defer cancel()
+	parentDeadline, ok := parent.Deadline()
+	require.True(t, ok)
+
+	collector.Collect(parent)
+
+	require.True(t, client.hasDeadline, "collection must bound every call it makes")
+	assert.False(t, client.deadline.Before(time.Now()),
+		"the daemon calls must not be expired on arrival when the caller budget equals the reserve")
+	assert.WithinDuration(t, parentDeadline, client.deadline, serviceSweepReserve/4,
+		"with a budget no larger than the reserve the daemon calls keep the caller's full deadline")
+}
+
 func TestCollectDaemonReachableListFails(t *testing.T) {
 	root := setupDDOTInstallFixture(t)
 

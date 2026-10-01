@@ -686,6 +686,25 @@ func TestDaemonCallsLeaveTimeForTheServiceSweep(t *testing.T) {
 		serviceSweepReserve/4)
 }
 
+// When the remaining budget is no larger than the reserve, carving it out would leave the daemon
+// calls already expired. Prefer giving them the full budget over failing every RPC on arrival.
+func TestDaemonPhaseSkipsReserveWhenBudgetIsNoLargerThanReserve(t *testing.T) {
+	parent, cancel := context.WithTimeout(context.Background(), serviceSweepReserve)
+	defer cancel()
+	parentDeadline, ok := parent.Deadline()
+	require.True(t, ok)
+
+	daemon, cancelDaemon := daemonPhaseContext(parent)
+	defer cancelDaemon()
+
+	daemonDeadline, ok := daemon.Deadline()
+	require.True(t, ok, "the daemon calls still inherit the caller's deadline")
+	assert.WithinDuration(t, parentDeadline, daemonDeadline, time.Millisecond,
+		"the reserve must not be subtracted when it would consume the whole budget")
+	assert.False(t, daemonDeadline.Before(time.Now()),
+		"the daemon calls must still have time left when the caller budget equals the reserve")
+}
+
 // blockingClient answers nothing until the context it was given is done, standing in for a
 // dd-procmgrd that has stopped responding. It records the budget it was handed so a test can assert
 // on what collection passed down rather than on how long the call took to return.
@@ -722,9 +741,11 @@ func TestReportYieldsAReportWhenTheCallerIsAlmostOutOfTime(t *testing.T) {
 	require.True(t, client.hasDeadline, "collection must bound every call it makes")
 	assert.True(t, client.deadline.Before(callerDeadline),
 		"collection must stop before the caller does, or there is no time left to write the file")
-	assert.WithinDuration(t, callerDeadline.Add(-flareWriteMargin-serviceSweepReserve), client.deadline,
-		serviceSweepReserve/4,
-		"the daemon calls get the collection budget less the reserve, so a hung daemon cannot starve the service sweep")
+	assert.False(t, client.deadline.After(time.Now()),
+		"with less than the write margin left the collection budget is already spent on arrival")
+	// The reserve is not carved from an already-spent budget: that would only move an expired
+	// deadline further into the past. Short-budget reserve behaviour is covered by
+	// TestDaemonPhaseSkipsReserveWhenBudgetIsNoLargerThanReserve.
 	assert.Error(t, client.errOnEntry,
 		"with less than the write margin left there is no time to collect, so the budget is already spent on arrival")
 	assert.NotEmpty(t, report.DaemonError, "the report has to say why it is empty")
