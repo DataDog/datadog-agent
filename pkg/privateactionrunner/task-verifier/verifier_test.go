@@ -35,15 +35,16 @@ func (m *staticKeysManager) GetKey(id string) (types.DecodedKey, *types.Director
 }
 func (m *staticKeysManager) WaitForReady() {}
 
-func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
+func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKeyAndMapsSignedTaskFields(t *testing.T) {
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	pbTask := &privateactionspb.PrivateActionTask{
-		OrgId:          42,
-		TaskId:         "task-id",
-		Inputs:         &structpb.Struct{},
-		ConnectionInfo: &privateactionspb.ConnectionInfo{RunnerId: "runner-id"},
-		ExpirationTime: timestamppb.New(time.Now().Add(time.Minute)),
+		OrgId:                   42,
+		TaskId:                  "task-id",
+		Inputs:                  &structpb.Struct{},
+		ConnectionInfo:          &privateactionspb.ConnectionInfo{RunnerId: "runner-id"},
+		ExpirationTime:          timestamppb.New(time.Now().Add(time.Minute)),
+		AuthoredScriptExecution: &privateactionspb.AuthoredScriptExecution{},
 	}
 	data, err := proto.Marshal(pbTask)
 	require.NoError(t, err)
@@ -72,6 +73,7 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 	assert.Equal(t, types.KeyTypeED25519, got.Data.Attributes.VerificationKey.KeyType)
 	assert.Contains(t, got.Data.Attributes.VerificationKey.PEM, "BEGIN PUBLIC KEY")
 	assert.Equal(t, directorProof, got.Data.Attributes.VerificationKey.DirectorProof)
+	assert.NotNil(t, got.Data.Attributes.AuthoredScriptExecution)
 }
 
 func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
@@ -100,6 +102,24 @@ func TestMapPbTaskToStructMapsRemoteActionPolicyFields(t *testing.T) {
 	require.NotNil(t, remoteAction)
 	assert.Equal(t, []string{"rshell:cat"}, remoteAction.AllowedCommands)
 	assert.Equal(t, []string{"/host/var/log"}, remoteAction.AllowedPaths)
+}
+
+func TestMapPbTaskToStructMapsAuthoredScriptExecutionMarker(t *testing.T) {
+	marker := &privateactionspb.AuthoredScriptExecution{}
+	task := &privateactionspb.PrivateActionTask{
+		ActionName:              "pull",
+		BundleId:                "com.datadoghq.helm",
+		OrgId:                   42,
+		TaskId:                  "task-id",
+		Inputs:                  &structpb.Struct{},
+		AuthoredScriptExecution: marker,
+	}
+
+	got := mapPbTaskToStruct(task)
+
+	assert.Equal(t, "task-id", got.Data.ID)
+	assert.Equal(t, "pull", got.Data.Attributes.Name)
+	assert.Same(t, marker, got.Data.Attributes.AuthoredScriptExecution)
 }
 
 func TestMapPbTaskToStructEmptyRemoteActionPolicyFields(t *testing.T) {
