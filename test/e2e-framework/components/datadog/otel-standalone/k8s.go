@@ -73,9 +73,11 @@ func WithName(name string) AppOption {
 // access to everything the kubelet and nodefilter workloadmeta collectors and
 // the k8sobjects receiver may need (including the kubelet API via
 // nodes/proxy). Use it to run the otel-agent with only the permissions a given
-// mode documents.
+// mode documents. The last call wins, and a call with no rules grants none.
 func WithClusterRoleRules(rules ...rbacv1.PolicyRuleInput) AppOption {
-	return func(o *appConfig) { o.clusterRoleRules = append(o.clusterRoleRules, rules...) }
+	// Copy into a non-nil array: K8sAppDefinition only falls back to the
+	// defaults on nil, so an empty rule set must stay empty.
+	return func(o *appConfig) { o.clusterRoleRules = append(rbacv1.PolicyRuleArray{}, rules...) }
 }
 
 // WithExtraEnvVars appends env vars to the otel-agent container.
