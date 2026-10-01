@@ -61,7 +61,6 @@ go_library(
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/packages/launchd",
-            "//pkg/fleet/installer/packages/user",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:ios": [
@@ -70,7 +69,6 @@ go_library(
             "//pkg/fleet/installer/packages/embedded",
             "//pkg/fleet/installer/packages/file",
             "//pkg/fleet/installer/packages/launchd",
-            "//pkg/fleet/installer/packages/user",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [

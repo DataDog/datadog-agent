@@ -36,7 +36,7 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:darwin": [
-            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/user",
             "//pkg/fleet/installer/symlink",
             "//pkg/util/log",
         ],
@@ -62,7 +62,7 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:ios": [
-            "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/user",
             "//pkg/fleet/installer/symlink",
             "//pkg/util/log",
         ],

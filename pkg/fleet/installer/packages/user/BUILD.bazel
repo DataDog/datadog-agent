@@ -18,10 +18,6 @@ go_library(
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
         ],
-        "@rules_go//go/platform:darwin": [
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-        ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
@@ -31,10 +27,6 @@ go_library(
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:illumos": [
-            "//pkg/fleet/installer/telemetry",
-            "//pkg/util/log",
-        ],
-        "@rules_go//go/platform:ios": [
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
         ],
