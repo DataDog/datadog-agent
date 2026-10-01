@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,11 +35,12 @@ import (
 )
 
 const (
-	agentTaskTimeout        = 5 * time.Minute
-	failoverMetricsSetting  = "multi_region_failover.failover_metrics"
-	failoverLogsSetting     = "multi_region_failover.failover_logs"
-	failoverAPMSetting      = "multi_region_failover.failover_apm"
-	metricsAllowlistSetting = "multi_region_failover.metric_allowlist"
+	agentTaskTimeout            = 5 * time.Minute
+	failoverMetricsSetting      = "multi_region_failover.failover_metrics"
+	failoverLogsSetting         = "multi_region_failover.failover_logs"
+	failoverAPMSetting          = "multi_region_failover.failover_apm"
+	metricsAllowlistSetting     = "multi_region_failover.metric_allowlist"
+	logsServiceAllowlistSetting = "multi_region_failover.logs_service_allowlist"
 )
 
 type rcClient struct {
@@ -191,9 +193,10 @@ func (rc *rcClient) start() error {
 // If a setting is not set via any config, it will fallback if the source was RC.
 func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var enableLogs, enableMetrics, enableAPM *bool
-	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth, metricsAllowlistCfgPth string
-	var isAllowlistConfigured bool
+	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth, metricsAllowlistCfgPth, logsServiceAllowlistCfgPth string
+	var isAllowlistConfigured, isLogsServiceAllowlistConfigured bool
 	allowedMetrics := make(map[string]struct{})
+	allowedServices := make(map[string]struct{})
 
 	for cfgPath, update := range updates {
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
@@ -209,7 +212,8 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil &&
 			mrfUpdate.FailoverLogs == nil &&
 			mrfUpdate.FailoverAPM == nil &&
-			mrfUpdate.MetricsAllowlist == nil) {
+			mrfUpdate.MetricsAllowlist == nil &&
+			mrfUpdate.LogsServiceAllowlist == nil) {
 			continue
 		}
 
@@ -234,6 +238,16 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 			metricsAllowlistCfgPth = cfgPath
 			for _, metric := range mrfUpdate.MetricsAllowlist {
 				allowedMetrics[metric] = struct{}{}
+			}
+		}
+
+		// As with the configuration file, an empty logs service allowlist does not filter:
+		// every log is forwarded while logs failover is enabled.
+		if mrfUpdate.LogsServiceAllowlist != nil {
+			isLogsServiceAllowlistConfigured = true
+			logsServiceAllowlistCfgPth = cfgPath
+			for _, service := range mrfUpdate.LogsServiceAllowlist {
+				allowedServices[service] = struct{}{}
 			}
 		}
 	}
@@ -262,6 +276,29 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		}
 	}
 
+	// The logs service allowlist is set before the logs failover setting is applied, and only removed
+	// after it, so that logs failover is never enabled with the fallback allowlist (empty by default,
+	// which forwards every log) while switching between the two.
+	if isLogsServiceAllowlistConfigured {
+		allowlist := make([]string, 0, len(allowedServices))
+		for service := range allowedServices {
+			allowlist = append(allowlist, service)
+		}
+		slices.Sort(allowlist)
+
+		err := rc.applyMRFRuntimeSetting(logsServiceAllowlistSetting, allowlist, logsServiceAllowlistCfgPth, applyStateCallback)
+		if err != nil {
+			pkglog.Errorf("Multi-Region Failover failed to apply new logs service allowlist : %s", err)
+			applyStateCallback(logsServiceAllowlistCfgPth, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			return
+		}
+		pkglog.Infof("Received remote update for Multi-Region Failover configuration: logs service allowlist updated (%d services)", len(allowlist))
+		applyStateCallback(logsServiceAllowlistCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+	}
+
 	if enableLogs != nil {
 		err := rc.applyMRFRuntimeSetting(failoverLogsSetting, *enableLogs, enableLogsCfgPth, applyStateCallback)
 		if err != nil {
@@ -283,6 +320,14 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		pkgconfigsetup.Datadog().UnsetForSource(failoverLogsSetting, model.SourceRC)
 		if mrfFailoverLogsSource == model.SourceRC {
 			pkglog.Infof("Falling back to `%s: %t`", failoverLogsSetting, pkgconfigsetup.Datadog().GetBool(failoverLogsSetting))
+		}
+	}
+
+	if !isLogsServiceAllowlistConfigured {
+		mrfLogsServiceAllowlistSource := pkgconfigsetup.Datadog().GetSource(logsServiceAllowlistSetting)
+		pkgconfigsetup.Datadog().UnsetForSource(logsServiceAllowlistSetting, model.SourceRC)
+		if mrfLogsServiceAllowlistSource == model.SourceRC {
+			pkglog.Infof("Falling back to `%s: %v`", logsServiceAllowlistSetting, pkgconfigsetup.Datadog().GetStringSlice(logsServiceAllowlistSetting))
 		}
 	}
 

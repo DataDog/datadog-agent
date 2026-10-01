@@ -8,11 +8,15 @@ package processor
 import (
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -344,6 +348,57 @@ func TestGetHostname(t *testing.T) {
 	}
 	m := message.NewMessage([]byte("hello"), nil, "", 0)
 	assert.Equal(t, "testHostnameFromEnvVar", p.GetHostname(m))
+}
+
+func TestFailoverConfigUpdateDoesNotBlock(t *testing.T) {
+	cfg := configmock.New(t)
+	// Not started, like a processor stopped by a pipeline restart: nothing consumes its config updates.
+	p := New(cfg, make(chan *message.Message), make(chan *message.Message), nil, JSONEncoder, nil, nil, metrics.NewNoopPipelineMonitor(""), "")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		cfg.Set(configMRFServiceAllowlist, []string{"web"}, pkgconfigmodel.SourceRC)
+		cfg.Set(configMRFFailoverLogs, true, pkgconfigmodel.SourceRC)
+		cfg.Set(configMRFServiceAllowlist, []string{"web", "api"}, pkgconfigmodel.SourceRC)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("config updates blocked on a processor that does not consume them")
+	}
+
+	// Only the latest failover config is pending
+	assert.Len(t, p.configChan, 1)
+	conf := <-p.configChan
+	assert.True(t, conf.isFailoverActive)
+	assert.Equal(t, map[string]struct{}{"web": {}, "api": {}}, conf.failoverServiceAllowlist)
+}
+
+func TestFilterMRFMessages(t *testing.T) {
+	web := sources.NewLogSource("web", &config.LogsConfig{Service: "web"})
+	api := sources.NewLogSource("api", &config.LogsConfig{Service: "api"})
+
+	tests := []struct {
+		name      string
+		allowlist map[string]struct{}
+		wantWeb   bool
+		wantAPI   bool
+	}{
+		{name: "empty allowlist forwards every service", wantWeb: true, wantAPI: true},
+		{name: "allowlist forwards listed services only", allowlist: map[string]struct{}{"web": {}}, wantWeb: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &Processor{failoverConfig: failoverConfig{isFailoverActive: true, failoverServiceAllowlist: tt.allowlist}}
+			webMsg := newMessage([]byte("hello"), web, "")
+			apiMsg := newMessage([]byte("hello"), api, "")
+			p.filterMRFMessages(webMsg)
+			p.filterMRFMessages(apiMsg)
+			assert.Equal(t, tt.wantWeb, webMsg.IsMRFAllow)
+			assert.Equal(t, tt.wantAPI, apiMsg.IsMRFAllow)
+		})
+	}
 }
 
 // helpers
