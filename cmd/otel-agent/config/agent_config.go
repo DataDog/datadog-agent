@@ -571,7 +571,6 @@ func getDDExporterConfig(cfg *confmap.Conf, pkgconfig pkgconfigmodel.Reader) (*d
 func setSiteIfEmpty(ddcfg any, pkgconfig pkgconfigmodel.Reader) (map[string]any, error) {
 	// Validate that site is configured in pkgconfig
 	site := strings.TrimSpace(pkgconfig.GetString("site"))
-	isSiteEmpty := site == ""
 	if site == "" {
 		site = constants.DefaultSite
 	}
