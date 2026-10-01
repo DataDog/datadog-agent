@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
@@ -55,10 +56,16 @@ func setupHostnameTest(t *testing.T, tc testCase) {
 		osHostname = os.Hostname
 		fqdnHostname = getSystemFQDN
 		osHostnameUsable = isOSHostnameUsable
+		detectCloudProviderDMI = cloudproviders.DetectCloudProviderDMI
 
 		// erase cache
 		cache.Cache.Delete(cache.BuildAgentKey("hostname"))
 	})
+	// DMI data on the test machine itself is not representative of the scenario under test, so by
+	// default assume it's inconclusive. Test cases exercising DMI-based provider filtering override
+	// this explicitly.
+	detectCloudProviderDMI = func() string { return "" }
+
 	cfg := configmock.New(t)
 
 	if tc.configHostname {
