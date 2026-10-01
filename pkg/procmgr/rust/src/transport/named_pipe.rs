@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 use anyhow::{Context as _, Result};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use std::ffi::{OsStr, OsString};
 use std::future::Future;
 use std::io;
@@ -15,7 +15,9 @@ use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
-use windows_sys::Win32::Foundation::HANDLE;
+use windows_sys::Win32::Foundation::{
+    ERROR_BROKEN_PIPE, ERROR_NO_DATA, ERROR_OPERATION_ABORTED, ERROR_PIPE_NOT_CONNECTED, HANDLE,
+};
 
 use super::accept_backoff::{AcceptBackoff, Retry};
 use crate::platform::{create_pipe_server, pipe_client_may_mutate};
@@ -81,13 +83,46 @@ impl tonic::transport::server::Connected for NamedPipeIo {
     }
 }
 
+/// Whether an error just means the client is no longer there.
+///
+/// A `dd-procmgr` process that exits mid-call produces these, as does closing the pipe
+/// during shutdown, so they are routine. `ERROR_BROKEN_PIPE` on a read never arrives
+/// here because tokio reports it as a clean end of file, but a write can still see it.
+fn is_peer_gone(e: &io::Error) -> bool {
+    if let Some(code) = e.raw_os_error() {
+        return matches!(
+            code as u32,
+            ERROR_BROKEN_PIPE | ERROR_NO_DATA | ERROR_PIPE_NOT_CONNECTED | ERROR_OPERATION_ABORTED
+        );
+    }
+    matches!(
+        e.kind(),
+        io::ErrorKind::BrokenPipe | io::ErrorKind::NotConnected
+    )
+}
+
+/// Report a connection error that tonic would otherwise keep to itself: it logs these at
+/// trace level, so a pipe failing under an in-flight call leaves nothing in the daemon
+/// log to explain the failure the caller sees.
+fn log_io_error(op: &str, e: &io::Error) {
+    if is_peer_gone(e) {
+        debug!("named pipe {op} ended: {e}");
+    } else {
+        warn!("named pipe {op} failed: {e}");
+    }
+}
+
 impl AsyncRead for NamedPipeIo {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut ReadBuf<'_>,
     ) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.pipe).poll_read(cx, buf)
+        let poll = Pin::new(&mut self.pipe).poll_read(cx, buf);
+        if let Poll::Ready(Err(e)) = &poll {
+            log_io_error("read", e);
+        }
+        poll
     }
 }
 
@@ -97,11 +132,19 @@ impl AsyncWrite for NamedPipeIo {
         cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        Pin::new(&mut self.pipe).poll_write(cx, buf)
+        let poll = Pin::new(&mut self.pipe).poll_write(cx, buf);
+        if let Poll::Ready(Err(e)) = &poll {
+            log_io_error("write", e);
+        }
+        poll
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.pipe).poll_flush(cx)
+        let poll = Pin::new(&mut self.pipe).poll_flush(cx);
+        if let Poll::Ready(Err(e)) = &poll {
+            log_io_error("flush", e);
+        }
+        poll
     }
 
     fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -228,5 +271,44 @@ fn log_retry(op: &str, pipe_name: &OsStr, e: &io::Error, retry: &Retry) {
             "named pipe {op} failed on {name}: {e:?}; retrying in {:?}",
             retry.delay
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_INVALID_HANDLE};
+
+    #[test]
+    fn a_peer_that_went_away_is_not_worth_a_warning() {
+        for code in [
+            ERROR_BROKEN_PIPE,
+            ERROR_NO_DATA,
+            ERROR_PIPE_NOT_CONNECTED,
+            ERROR_OPERATION_ABORTED,
+        ] {
+            let e = io::Error::from_raw_os_error(code as i32);
+            assert!(
+                is_peer_gone(&e),
+                "{code} should read as a departed peer: {e}"
+            );
+        }
+    }
+
+    #[test]
+    fn anything_else_from_the_os_is_worth_a_warning() {
+        for code in [ERROR_ACCESS_DENIED, ERROR_INVALID_HANDLE] {
+            let e = io::Error::from_raw_os_error(code as i32);
+            assert!(!is_peer_gone(&e), "{code} should stay loud: {e}");
+        }
+    }
+
+    #[test]
+    fn an_error_carrying_no_os_code_is_judged_by_its_kind() {
+        let gone = io::Error::new(io::ErrorKind::BrokenPipe, "wrapped by a layer above");
+        assert!(is_peer_gone(&gone));
+
+        let other = io::Error::new(io::ErrorKind::InvalidData, "wrapped by a layer above");
+        assert!(!is_peer_gone(&other));
     }
 }
