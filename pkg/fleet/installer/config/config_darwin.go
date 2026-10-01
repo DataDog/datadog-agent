@@ -101,10 +101,32 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err = operations.Apply(ctx, incoming); err != nil {
 		return err
 	}
-	if err = os.WriteFile(filepath.Join(incoming, deploymentIDFile), []byte(operations.DeploymentID), 0640); err != nil {
+	if err = writeDeploymentID(incoming, operations.DeploymentID); err != nil {
 		return fmt.Errorf("could not write the deployment ID: %w", err)
 	}
 	return link.Materialize(incoming)
+}
+
+// writeDeploymentID replaces copied metadata without following a link supplied by the
+// configuration tree. Exclusive creation also rejects a link raced into place after removal.
+func writeDeploymentID(dir, id string) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := root.Remove(deploymentIDFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	file, err := root.OpenFile(deploymentIDFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0640)
+	if err != nil {
+		return err
+	}
+	if _, err := file.WriteString(id); err != nil {
+		_ = file.Close()
+		return err
+	}
+	return file.Close()
 }
 
 // PromoteExperiment makes the deployed experiment the stable configuration.
