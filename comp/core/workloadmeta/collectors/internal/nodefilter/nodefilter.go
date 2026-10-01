@@ -279,13 +279,7 @@ func newAPIClient(cfg config.Component) (kubernetes.Interface, error) {
 			return nil, err
 		}
 
-		if !cfg.GetBool("kubernetes_apiserver_tls_verify") {
-			clientConfig.TLSClientConfig.Insecure = true
-		}
-
-		if customCAPath := cfg.GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
-			clientConfig.TLSClientConfig.CAFile = customCAPath
-		}
+		applyTLSSettings(cfg, clientConfig)
 	} else {
 		clientConfig, err = clientcmd.BuildConfigFromFlags("", cfgPath)
 		if err != nil {
@@ -303,6 +297,19 @@ func newAPIClient(cfg config.Component) (kubernetes.Interface, error) {
 	clientConfig.UserAgent = fmt.Sprintf("datadog-%s/%s", strings.ReplaceAll(flavor.GetFlavor(), "_", "-"), version.AgentVersion)
 
 	return kubernetes.NewForConfig(clientConfig)
+}
+
+// applyTLSSettings configures how clientConfig, built from the pod's service
+// account, verifies the API server's certificate, as
+// pkg/util/kubernetes/apiserver/apiserver.go does for its own clients.
+func applyTLSSettings(cfg config.Component, clientConfig *rest.Config) {
+	if !cfg.GetBool("kubernetes_apiserver_tls_verify") {
+		clientConfig.TLSClientConfig.Insecure = true
+	}
+
+	if customCAPath := cfg.GetString("kubernetes_apiserver_ca_path"); customCAPath != "" {
+		clientConfig.TLSClientConfig.CAFile = customCAPath
+	}
 }
 
 // Pull is a no-op: the reflector started in Start pushes events
