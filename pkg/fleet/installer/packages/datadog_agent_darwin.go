@@ -506,16 +506,28 @@ func preRemoveDatadogAgent(ctx HookContext) error {
 // A watcher that fails to launch is treated the same as a failed start: an experiment running
 // with no process watching its deadline or its exit is exactly the gap this feature exists to
 // close, so it is reverted rather than left running unsupervised.
-func postStartConfigExperimentDatadogAgent(ctx HookContext) error {
-	if err := (configExperiment{jobs: agentJobSet()}).Start(ctx); err != nil {
+//
+// Every failure hands the Agent back to the stable job set, so the experiment configuration
+// directory the installer published is discarded with it: the installer returns the error without
+// removing it, and left in place it would have the failed experiment reported as running.
+func postStartConfigExperimentDatadogAgent(ctx HookContext) (err error) {
+	defer func() {
+		if err == nil {
+			return
+		}
+		if discardErr := discardExperimentConfig(ctx); discardErr != nil {
+			err = fmt.Errorf("%w, and %w", err, discardErr)
+		}
+	}()
+	if err = (configExperiment{jobs: agentJobSet()}).Start(ctx); err != nil {
 		return err
 	}
-	if err := launchConfigExperimentWatcher(ctx); err != nil {
-		log.Errorf("could not launch the configuration experiment watcher, reverting: %v", err)
+	if watcherErr := launchConfigExperimentWatcher(ctx); watcherErr != nil {
+		log.Errorf("could not launch the configuration experiment watcher, reverting: %v", watcherErr)
 		if revertErr := (configExperiment{jobs: agentJobSet()}).Stop(context.WithoutCancel(ctx)); revertErr != nil {
-			return fmt.Errorf("watcher failed to launch (%w) and the experiment could not be reverted: %w", err, revertErr)
+			return fmt.Errorf("watcher failed to launch (%w) and the experiment could not be reverted: %w", watcherErr, revertErr)
 		}
-		return fmt.Errorf("watcher failed to launch, experiment reverted: %w", err)
+		return fmt.Errorf("watcher failed to launch, experiment reverted: %w", watcherErr)
 	}
 	return nil
 }

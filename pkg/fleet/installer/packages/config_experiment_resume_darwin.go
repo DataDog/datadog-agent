@@ -25,6 +25,8 @@ import (
 // was mid-flight with nothing currently watching it, so the experiment job set and its watcher
 // are re-established here. A present, expired deadline means the unsupervised window was already
 // exceeded before the daemon got a chance to resume it, so the experiment is reverted instead.
+// No deadline at all, but an experiment configuration directory still deployed, is reverted too
+// (see revertOrphanedExperiment).
 func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
 	present, err := deadline.Present()
@@ -32,7 +34,7 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 		return fmt.Errorf("resume: could not check experiment deadline presence: %w", err)
 	}
 	if !present {
-		return nil
+		return revertOrphanedExperiment(ctx)
 	}
 
 	expired, err := deadline.Expired(configExperimentDeadlineWindow)
@@ -59,6 +61,27 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 			return fmt.Errorf("watcher failed to relaunch (%w) and the experiment could not be reverted: %w", err, revertErr)
 		}
 		return fmt.Errorf("watcher failed to relaunch, experiment reverted: %w", err)
+	}
+	return nil
+}
+
+// revertOrphanedExperiment reverts an experiment configuration directory that is deployed with no
+// deadline beside it. Start writes the deadline before touching any job, and restoreStable clears
+// it before anything else, so this is a host whose previous daemon died either after the installer
+// published the directory but before the experiment job set ever started, or partway through a
+// deliberate stop. Either way nothing will ever resume the experiment, yet the directory alone
+// would have the daemon report it as the running configuration indefinitely.
+func revertOrphanedExperiment(ctx HookContext) error {
+	state, err := configExperimentDirs.GetState()
+	if err != nil {
+		return fmt.Errorf("resume: could not read the configuration state: %w", err)
+	}
+	if state.ExperimentDeploymentID == "" {
+		return nil
+	}
+	log.Warnf("resume: configuration experiment %s is deployed with no deadline, reverting", state.ExperimentDeploymentID)
+	if err := revertExperiment(ctx); err != nil {
+		return fmt.Errorf("resume: %w", err)
 	}
 	return nil
 }

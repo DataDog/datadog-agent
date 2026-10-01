@@ -757,3 +757,48 @@ func openMethodGate(d *daemonImpl) {
 	}
 	d.gate = gate
 }
+
+// TestStartResumesConfigExperimentsBeforeTheFirstStateRefresh pins the startup order: resuming may
+// revert or re-establish a configuration experiment, so refreshing first would report whatever was
+// left on disk by the previous daemon rather than the configuration the Agent is running.
+func TestStartResumesConfigExperimentsBeforeTheFirstStateRefresh(t *testing.T) {
+	var mu sync.Mutex
+	var order []string
+	record := func(call string) func(mock.Arguments) {
+		return func(mock.Arguments) {
+			mu.Lock()
+			defer mu.Unlock()
+			order = append(order, call)
+		}
+	}
+
+	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("ResumeConfigExperiments", mock.Anything).Run(record("resume")).Return(nil)
+	pm.On("ConfigAndPackageStates", mock.Anything).Run(record("refresh")).Return(&repository.PackageStates{
+		States:       map[string]repository.State{},
+		ConfigStates: map[string]repository.State{},
+	}, nil)
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+	secretsPubKey, secretsPrivKey, err := box.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	daemon := newDaemon(
+		&remoteConfig{client: newTestRemoteConfigClient(t)},
+		func(_ *env.Env) installer.Installer { return pm },
+		&env.Env{RemoteUpdates: true},
+		taskDB,
+		30*time.Second,
+		1*time.Hour,
+		secretsPubKey,
+		secretsPrivKey,
+	)
+	require.NoError(t, daemon.Start(context.Background()))
+	defer daemon.Stop(context.Background())
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.GreaterOrEqual(t, len(order), 2)
+	assert.Equal(t, []string{"resume", "refresh"}, order[:2])
+}

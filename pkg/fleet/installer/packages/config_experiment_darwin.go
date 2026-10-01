@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
@@ -41,6 +42,23 @@ var configExperimentRestoreBackoff = 2 * time.Second
 // not a constant, so tests can point it at a temporary file instead of the real, root-owned run
 // directory — the same indirection launchdJobDir uses for job definitions.
 var configExperimentDeadlinePath = filepath.Join(paths.RunPath, "experiment-deadline")
+
+// configExperimentDirs are the Agent's stable and experiment configuration directories, the same
+// pair the installer's own config.Directories manages. A package-level var for the same reason as
+// configExperimentDeadlinePath: tests point it at a temporary state root.
+var configExperimentDirs = config.Directories{StablePath: paths.AgentConfigDir, ExperimentPath: paths.AgentConfigDirExp}
+
+// discardExperimentConfig puts the experiment configuration path back to resting on the stable
+// one. The daemon's state refresh reports whatever that path holds as the running configuration,
+// so any path that hands the Agent back to the stable job set without going through the
+// installer's RemoveConfigExperiment must call this too, or the reverted experiment would keep
+// being reported as running.
+func discardExperimentConfig(ctx context.Context) error {
+	if err := configExperimentDirs.RemoveExperiment(context.WithoutCancel(ctx)); err != nil {
+		return fmt.Errorf("could not discard the experiment configuration directory: %w", err)
+	}
+	return nil
+}
 
 // configExperiment swaps the Agent between its stable and its experiment launchd job set.
 //
