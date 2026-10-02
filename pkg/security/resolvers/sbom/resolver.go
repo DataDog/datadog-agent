@@ -147,20 +147,24 @@ func (s *SBOM) setReport(pkgs []sbomtypes.PackageWithInstalledFiles) {
 }
 
 func (s *SBOM) stop() {
+	// change the state so that already queued sbom won't be handled, and so
+	// that the callbacks of its debouncers still to run return at once
+	s.state.Store(stoppedState)
+
+	// Stopping a debouncer waits for its running callback, and the callbacks
+	// take the locks the callers of stop hold, so the debouncers are left to
+	// stop once these are released.
 	if s.refresher != nil {
-		s.refresher.Stop()
+		go s.refresher.Stop()
 
 		// don't forget to set the refresher to nil otherwise it generates a memleak
 		s.refresher = nil
 	}
 
 	if s.forwarder != nil {
-		s.forwarder.Stop()
+		go s.forwarder.Stop()
 		s.forwarder = nil
 	}
-
-	// change the state so that already queued sbom won't be handled
-	s.state.Store(stoppedState)
 }
 
 // NewSBOM returns a new empty instance of SBOM
@@ -348,16 +352,22 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 // full re-scan. The state is reset to pending because analyzeWorkload drops any
 // SBOM not in the pending state: a workload is left in the computed state by its
 // initial scan, so without this reset the refresh re-scan is discarded and the
-// runtime properties are never recomputed.
+// runtime properties are never recomputed. The SBOM of a workload deleted while
+// its refresh waited stays stopped, and the cached data of its image stays for
+// the other containers of the image.
 func (r *Resolver) refreshScan(sbom *SBOM) {
-	r.removeSBOMData(sbom.workloadKey)
-
 	r.sbomsLock.Lock()
+	defer r.sbomsLock.Unlock()
 	sbom.Lock()
+	defer sbom.Unlock()
+
+	if sbom.state.Load() == stoppedState {
+		return
+	}
+
+	r.removeSBOMData(sbom.workloadKey)
 	sbom.state.Store(pendingState)
 	r.triggerScan(sbom)
-	sbom.Unlock()
-	r.sbomsLock.Unlock()
 }
 
 func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
@@ -402,70 +412,87 @@ func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*wo
 // triggerForwarding triggers the forwarding debouncer to send updated SBOM with LastAccess to remote collector
 // This function assumes sbom is already locked by the caller
 func (r *Resolver) triggerForwarding(sbom *SBOM) {
-	// Create forwarder debouncer on demand
+	// Create forwarder debouncer on demand. Its callback re-arms the debouncer
+	// it holds, as stop clears sbom.forwarder while the callback may still run.
 	if sbom.forwarder == nil {
-		sbom.forwarder = debouncer.New(
+		var forwarder *debouncer.Debouncer
+		forwarder = debouncer.New(
 			r.cfg.SBOMResolverForwardInterval, func() {
-				// Forward current SBOM data with LastAccess to remote collector
-				sbom.Lock()
-				defer sbom.Unlock()
-
-				if sbom.status == workloadmeta.Pending || sbom.status == "" {
-					imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
-					if err != nil || imageSBOM == nil {
-						seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
-					} else {
-						sbom.status = imageSBOM.Status
-					}
+				if r.forward(sbom) {
+					forwarder.Call()
 				}
-
-				if sbom.status == workloadmeta.Pending || sbom.status == "" {
-					// Retry until the image's Trivy SBOM is ready: an idle workload may
-					// produce no further file accesses to re-trigger forwarding, and the
-					// overlayfs scan can take several minutes. Bound the total wait so a
-					// permanently-pending image (e.g. container image SBOM collection
-					// disabled) stops re-arming instead of looping forever.
-					sbom.forwardRetryCount++
-					if time.Duration(sbom.forwardRetryCount)*r.cfg.SBOMResolverForwardInterval > maxForwardWait {
-						seclog.Warnf("Giving up forwarding SBOM for container '%s': image SBOM still pending after %s", sbom.ContainerID, maxForwardWait)
-						return
-					}
-					sbom.forwarder.Call()
-					return
-				}
-				sbom.forwardRetryCount = 0
-
-				if sbom.data == nil || len(sbom.data.packages) == 0 {
-					return
-				}
-
-				seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
-
-				// Snapshot the package metadata: the forwarded report outlives the
-				// lock and the backing slice keeps being mutated (LastAccess) at runtime.
-				// Take the Data lock because *Data is shared across SBOMs via the data
-				// cache, so the SBOM lock alone does not protect the packages slice.
-				sbom.data.mu.RLock()
-				packages := make([]sbomtypes.Package, len(sbom.data.packages))
-				copy(packages, sbom.data.packages)
-				sbom.data.mu.RUnlock()
-
-				// Create SBOM report and notify listeners
-				packagesReport := NewPackagesReport(packages, sbom.ContainerID)
-				scanResult := &sbompkg.ScanResult{
-					Report:           packagesReport,
-					CreatedAt:        time.Now(),
-					GenerationMethod: "security-agent",
-					RequestID:        string(sbom.ContainerID),
-				}
-				r.Notifier.NotifyListeners(SBOMComputed, scanResult)
 			},
 		)
-		sbom.forwarder.Start()
+		forwarder.Start()
+		sbom.forwarder = forwarder
 	}
 
 	// Trigger the debouncer (will execute after 5 seconds of inactivity)
 	sbom.forwarder.Call()
+}
+
+// forward hands the current SBOM data with LastAccess to the listeners, which
+// send it to the remote collector, and reports whether to forward it again
+// later, as it does while the Trivy SBOM of the image is pending. It returns at
+// once for a stopped SBOM.
+func (r *Resolver) forward(sbom *SBOM) bool {
+	sbom.Lock()
+	defer sbom.Unlock()
+
+	if sbom.state.Load() == stoppedState {
+		return false
+	}
+
+	if sbom.status == workloadmeta.Pending || sbom.status == "" {
+		imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
+		if err != nil || imageSBOM == nil {
+			seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
+		} else {
+			sbom.status = imageSBOM.Status
+		}
+	}
+
+	if sbom.status == workloadmeta.Pending || sbom.status == "" {
+		// Retry until the image's Trivy SBOM is ready: an idle workload may
+		// produce no further file accesses to re-trigger forwarding, and the
+		// overlayfs scan can take several minutes. Bound the total wait so a
+		// permanently-pending image (e.g. container image SBOM collection
+		// disabled) stops re-arming instead of looping forever.
+		sbom.forwardRetryCount++
+		if time.Duration(sbom.forwardRetryCount)*r.cfg.SBOMResolverForwardInterval > maxForwardWait {
+			seclog.Warnf("Giving up forwarding SBOM for container '%s': image SBOM still pending after %s", sbom.ContainerID, maxForwardWait)
+			return false
+		}
+		return true
+	}
+	sbom.forwardRetryCount = 0
+
+	if sbom.data == nil || len(sbom.data.packages) == 0 {
+		return false
+	}
+
+	seclog.Debugf("Forwarding SBOM with LastAccess for container %s (%d packages)", sbom.ContainerID, len(sbom.data.packages))
+
+	// Snapshot the package metadata: the forwarded report outlives the
+	// lock and the backing slice keeps being mutated (LastAccess) at runtime.
+	// Take the Data lock because *Data is shared across SBOMs via the data
+	// cache, so the SBOM lock alone does not protect the packages slice.
+	sbom.data.mu.RLock()
+	packages := make([]sbomtypes.Package, len(sbom.data.packages))
+	copy(packages, sbom.data.packages)
+	sbom.data.mu.RUnlock()
+
+	// Create SBOM report and notify listeners
+	packagesReport := NewPackagesReport(packages, sbom.ContainerID)
+	scanResult := &sbompkg.ScanResult{
+		Report:           packagesReport,
+		CreatedAt:        time.Now(),
+		GenerationMethod: "security-agent",
+		RequestID:        string(sbom.ContainerID),
+	}
+	r.Notifier.NotifyListeners(SBOMComputed, scanResult)
+
+	return false
 }
 
 // generateSBOM calls the collector to generate the SBOM of a sbom
