@@ -562,6 +562,81 @@ func TestResumeRevertsAnExperimentDeployedWithNoDeadline(t *testing.T) {
 	}
 }
 
+// TestParseWatcherPIDs pins which processes resume stops as a surviving watcher: only root-owned
+// processes running exactly the installer's watcher command, and never the caller itself. A shell
+// or pgrep whose command line merely contains the watcher's arguments must not match.
+func TestParseWatcherPIDs(t *testing.T) {
+	ps := strings.Join([]string{
+		"    1     0 /sbin/launchd",
+		"  101     0 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent watchConfigExperiment",
+		"  102   450 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent watchConfigExperiment",
+		"  103     0 /bin/sh -c pgrep -f package-command datadog-agent watchConfigExperiment",
+		"  104     0 /usr/bin/pgrep -f package-command datadog-agent watchConfigExperiment",
+		"  105     0 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent otherCommand",
+		"  106     0 /opt/datadog-agent/embedded/bin/installer package-command other-package watchConfigExperiment",
+		"  107     0 /opt/datadog-agent/embedded/bin/installer run -c /opt/datadog-agent/etc",
+		"  108     0 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent watchConfigExperiment",
+		"  notapid 0 /opt/datadog-agent/embedded/bin/installer package-command datadog-agent watchConfigExperiment",
+		"",
+	}, "\n")
+
+	assert.Equal(t, []int{101, 108}, parseWatcherPIDs(ps, 999))
+	assert.Equal(t, []int{101}, parseWatcherPIDs(ps, 108), "the caller must never be matched")
+	assert.Empty(t, parseWatcherPIDs("", 999))
+}
+
+// TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs covers a daemon restart in the middle of
+// an experiment. The previous watcher outlives the daemon and is armed on the experiment pids, so
+// when resume bounces the experiment jobs it would see them terminate, take that for a crash and
+// revert the experiment under the resume. It has to be gone before the first job is touched.
+func TestResumeStopsTheSurvivingWatcherBeforeTouchingTheJobs(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+
+	var stopped int
+	launchctlCallsAtStop := -1
+	original := stopSurvivingWatchers
+	stopSurvivingWatchers = func(context.Context) error {
+		stopped++
+		launchctlCallsAtStop = len(*calls)
+		return nil
+	}
+	t.Cleanup(func() { stopSurvivingWatchers = original })
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Equal(t, 1, stopped, "the previous watcher should be stopped exactly once")
+	assert.Zero(t, launchctlCallsAtStop, "resume touched launchd before it stopped the previous watcher")
+	assert.Equal(t, 1, *watcherCalls, "a new watcher should supervise the resumed experiment")
+	assert.NotEmpty(t, launchctlCalls(*calls, "kickstart"), "the experiment jobs were not started")
+	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs), "the resumed experiment must stay deployed")
+}
+
+// TestResumeStillResumesWhenTheWatcherCannotBeStopped pins that failing to find or stop the
+// previous watcher is not fatal: resuming with a stale watcher at worst reverts the experiment,
+// which is safe, whereas giving up would leave the experiment unsupervised.
+func TestResumeStillResumesWhenTheWatcherCannotBeStopped(t *testing.T) {
+	stubLaunchd(t)
+	stubJobDir(t)
+	path := stubDeadlinePath(t)
+	watcherCalls := stubConfigExperimentWatcher(t)
+	dirs := stubConfigExperimentDirs(t)
+	deployExperimentConfig(t, dirs)
+	require.NoError(t, launchd.Deadline{Path: path}.Write(configExperimentDeadlineWindow))
+
+	original := stopSurvivingWatchers
+	stopSurvivingWatchers = func(context.Context) error { return errors.New("injected failure") }
+	t.Cleanup(func() { stopSurvivingWatchers = original })
+
+	require.NoError(t, resumeConfigExperimentDatadogAgent(testHookContext(t)))
+	assert.Equal(t, 1, *watcherCalls)
+	assert.Equal(t, "experiment-1", experimentDeploymentID(t, dirs))
+}
+
 // TestResumeLeavesARestingHostAlone pins the common case: no deadline and no experiment means
 // nothing to recover, so resume must not touch any job.
 func TestResumeLeavesARestingHostAlone(t *testing.T) {

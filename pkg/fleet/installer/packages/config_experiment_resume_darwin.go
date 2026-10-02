@@ -10,6 +10,13 @@ package packages
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,6 +55,12 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	}
 
 	log.Infof("resume: configuration experiment still within its deadline, resuming supervision")
+	// A daemon restart does not take the previous watcher with it: it is a detached process. It is
+	// still armed on the pids Resume is about to bounce, so it would read their termination as a
+	// crash and revert the experiment under the resume. Stop it first; a new one is launched below.
+	if err := stopSurvivingWatchers(ctx); err != nil {
+		log.Warnf("resume: could not stop the previous watcher, resuming anyway: %v", err)
+	}
 	if err := (configExperiment{jobs: agentJobSet()}).Resume(ctx); err != nil {
 		log.Errorf("resume: could not resume the configuration experiment job set, reverting: %v", err)
 		if _, revertErr := revertExperimentIfStillPending(ctx, deadline, token, "experiment could not be resumed"); revertErr != nil {
@@ -84,4 +97,62 @@ func revertOrphanedExperiment(ctx HookContext) error {
 		return fmt.Errorf("resume: %w", err)
 	}
 	return nil
+}
+
+// watcherStopTimeout bounds how long stopSurvivingWatchers waits for a watcher to exit after
+// SIGTERM before it is killed.
+const watcherStopTimeout = 5 * time.Second
+
+// stopSurvivingWatchers terminates the watcher processes a previous run of the daemon left
+// behind, and waits for them to exit. A var so tests can observe when resume calls it.
+//
+// The watchers are found by listing processes, and only root-owned processes running exactly the
+// watcher command are matched.
+var stopSurvivingWatchers = func(ctx context.Context) error {
+	out, err := exec.CommandContext(ctx, "/bin/ps", "-ax", "-o", "pid=,uid=,command=").Output()
+	if err != nil {
+		return fmt.Errorf("could not list processes: %w", err)
+	}
+	for _, pid := range parseWatcherPIDs(string(out), os.Getpid()) {
+		log.Infof("resume: stopping the previous experiment watcher (pid %d)", pid)
+		_ = syscall.Kill(pid, syscall.SIGTERM)
+		stopped := time.Now().Add(watcherStopTimeout)
+		for time.Now().Before(stopped) && syscall.Kill(pid, 0) == nil {
+			time.Sleep(100 * time.Millisecond)
+		}
+		if syscall.Kill(pid, 0) == nil {
+			log.Warnf("resume: the previous experiment watcher (pid %d) ignored SIGTERM, killing it", pid)
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+		}
+	}
+	return nil
+}
+
+// parseWatcherPIDs returns the pids of the root-owned experiment watcher processes in the output
+// of `ps -ax -o pid=,uid=,command=`, other than self.
+//
+// The command line must be exactly the installer binary followed by the three arguments
+// launchConfigExperimentWatcher passes it, so another process whose command line merely contains
+// that text -- a shell or pgrep looking for the watcher -- is never matched.
+func parseWatcherPIDs(ps string, self int) []int {
+	var pids []int
+	for _, line := range strings.Split(ps, "\n") {
+		fields := strings.Fields(line)
+		// pid, uid, then the installer binary and its three arguments.
+		if len(fields) != 6 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil || pid == self {
+			continue
+		}
+		if fields[1] != "0" || filepath.Base(fields[2]) != "installer" {
+			continue
+		}
+		if fields[3] != "package-command" || fields[4] != agentPackage || fields[5] != watchConfigExperimentCommand {
+			continue
+		}
+		pids = append(pids, pid)
+	}
+	return pids
 }
