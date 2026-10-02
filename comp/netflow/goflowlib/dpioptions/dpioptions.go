@@ -8,55 +8,38 @@
 package dpioptions
 
 import (
-	"slices"
+	"bytes"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/producer"
 
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
 )
 
-// destinations of the application fields collected from options records
-const (
-	applicationID          = "application_id"
-	applicationName        = "application_name"
-	applicationDescription = "application_description"
-	category               = "category"
-	subCategory            = "sub_category"
-	applicationGroup       = "application_group"
-	p2pTechnology          = "p2p_technology"
-	tunnelTechnology       = "tunnel_technology"
-	encryptedTechnology    = "encrypted_technology"
-	trafficClass           = "traffic_class"
-	businessRelevance      = "business_relevance"
-	applicationSet         = "application_set"
-	applicationFamily      = "application_family"
-)
-
-var applicationMappings = map[uint16]config.Mapping{
-	ipfixFieldApplicationID:          {Field: ipfixFieldApplicationID, Type: common.Integer, Destination: applicationID, Endian: common.BigEndian, MatchPen: true},
-	ipfixFieldApplicationName:        stringMapping(ipfixFieldApplicationName, applicationName, 0),
-	ipfixFieldApplicationDescription: stringMapping(ipfixFieldApplicationDescription, applicationDescription, 0),
-
-	// Cisco NBAR's `option application-attributes`
-	ciscoFieldApplicationCategory:          stringMapping(ciscoFieldApplicationCategory, category, ciscoPEN),
-	ciscoFieldApplicationSubCategory:       stringMapping(ciscoFieldApplicationSubCategory, subCategory, ciscoPEN),
-	ciscoFieldApplicationGroup:             stringMapping(ciscoFieldApplicationGroup, applicationGroup, ciscoPEN),
-	ipfixFieldP2PTechnology:                stringMapping(ipfixFieldP2PTechnology, p2pTechnology, 0),
-	ipfixFieldTunnelTechnology:             stringMapping(ipfixFieldTunnelTechnology, tunnelTechnology, 0),
-	ipfixFieldEncryptedTechnology:          stringMapping(ipfixFieldEncryptedTechnology, encryptedTechnology, 0),
-	ciscoFieldApplicationTrafficClass:      stringMapping(ciscoFieldApplicationTrafficClass, trafficClass, ciscoPEN),
-	ciscoFieldApplicationBusinessRelevance: stringMapping(ciscoFieldApplicationBusinessRelevance, businessRelevance, ciscoPEN),
-	ciscoFieldApplicationSet:               stringMapping(ciscoFieldApplicationSet, applicationSet, ciscoPEN),
-	ciscoFieldApplicationFamily:            stringMapping(ciscoFieldApplicationFamily, applicationFamily, ciscoPEN),
+// fieldKey identifies an options record field by its enterprise number and field number
+type fieldKey struct {
+	pen   uint32 // 0 for IANA fields
+	field uint16
 }
 
-// stringMapping maps a string field of the given enterprise number (0 for IANA fields)
-func stringMapping(field uint16, destination string, pen uint32) config.Mapping {
-	return config.Mapping{Field: field, Type: common.String, Destination: destination, MatchPen: true, Pen: pen}
+var applicationIDKey = fieldKey{field: ipfixFieldApplicationID}
+
+// stringFields sets the application attribute carried by each string field of the application table records
+var stringFields = map[fieldKey]func(app *dpi.Application, value string){
+	{field: ipfixFieldApplicationName}:        func(app *dpi.Application, v string) { app.Name = v },
+	{field: ipfixFieldApplicationDescription}: func(app *dpi.Application, v string) { app.Description = v },
+
+	// Cisco NBAR's `option application-attributes`
+	{pen: ciscoPEN, field: ciscoFieldApplicationCategory}:          func(app *dpi.Application, v string) { app.Category = v },
+	{pen: ciscoPEN, field: ciscoFieldApplicationSubCategory}:       func(app *dpi.Application, v string) { app.SubCategory = v },
+	{pen: ciscoPEN, field: ciscoFieldApplicationGroup}:             func(app *dpi.Application, v string) { app.ApplicationGroup = v },
+	{field: ipfixFieldP2PTechnology}:                               func(app *dpi.Application, v string) { app.P2PTechnology = v },
+	{field: ipfixFieldTunnelTechnology}:                            func(app *dpi.Application, v string) { app.TunnelTechnology = v },
+	{field: ipfixFieldEncryptedTechnology}:                         func(app *dpi.Application, v string) { app.EncryptedTechnology = v },
+	{pen: ciscoPEN, field: ciscoFieldApplicationTrafficClass}:      func(app *dpi.Application, v string) { app.TrafficClass = v },
+	{pen: ciscoPEN, field: ciscoFieldApplicationBusinessRelevance}: func(app *dpi.Application, v string) { app.BusinessRelevance = v },
+	{pen: ciscoPEN, field: ciscoFieldApplicationSet}:               func(app *dpi.Application, v string) { app.ApplicationSet = v },
+	{pen: ciscoPEN, field: ciscoFieldApplicationFamily}:            func(app *dpi.Application, v string) { app.ApplicationFamily = v },
 }
 
 // DecodeApplications decodes the applications announced in the options records of an IPFIX packet
@@ -80,31 +63,31 @@ func DecodeApplications(msgDec interface{}) []dpi.Application {
 }
 
 func decodeApplication(record netflow.OptionsDataRecord) (dpi.Application, bool) {
-	fields := additionalfields.ConvertNetFlowDataSet(slices.Concat(record.ScopesValues, record.OptionsValues), applicationMappings)
-	id, _ := fields[applicationID].(uint64)
-	if id == 0 {
-		return dpi.Application{}, false
+	var app dpi.Application
+	for _, values := range [][]netflow.DataField{record.ScopesValues, record.OptionsValues} {
+		for _, df := range values {
+			v, ok := df.Value.([]byte)
+			if !ok {
+				continue
+			}
+			key := optionsFieldKey(df)
+			if key == applicationIDKey {
+				var id uint64
+				if producer.DecodeUNumber(v, &id) == nil {
+					app.ID = id
+				}
+			} else if set, ok := stringFields[key]; ok {
+				set(&app, string(bytes.Trim(v, "\x00"))) // removing null padding
+			}
+		}
 	}
-	return dpi.Application{
-		ID:          id,
-		Name:        stringField(fields, applicationName),
-		Description: stringField(fields, applicationDescription),
-		Metadata: dpi.Metadata{
-			Category:            stringField(fields, category),
-			SubCategory:         stringField(fields, subCategory),
-			ApplicationGroup:    stringField(fields, applicationGroup),
-			P2PTechnology:       stringField(fields, p2pTechnology),
-			TunnelTechnology:    stringField(fields, tunnelTechnology),
-			EncryptedTechnology: stringField(fields, encryptedTechnology),
-			TrafficClass:        stringField(fields, trafficClass),
-			BusinessRelevance:   stringField(fields, businessRelevance),
-			ApplicationSet:      stringField(fields, applicationSet),
-			ApplicationFamily:   stringField(fields, applicationFamily),
-		},
-	}, true
+	return app, app.ID != 0
 }
 
-func stringField(fields common.AdditionalFields, destination string) string {
-	s, _ := fields[destination].(string)
-	return s
+func optionsFieldKey(df netflow.DataField) fieldKey {
+	if !df.PenProvided {
+		return fieldKey{field: df.Type}
+	}
+	// goflow2 leaves the enterprise bit (0x8000) set on options template fields
+	return fieldKey{pen: df.Pen, field: df.Type &^ 0x8000}
 }

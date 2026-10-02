@@ -39,8 +39,7 @@ func mapAdditionalField(additionalFields common.AdditionalFields, v []byte, cfg 
 	}
 }
 
-// ConvertNetFlowDataSet collects the fields of a record using the given config
-func ConvertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping) common.AdditionalFields {
+func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]config.Mapping) common.AdditionalFields {
 	additionalFields := make(common.AdditionalFields)
 
 	for i := range record {
@@ -51,7 +50,7 @@ func ConvertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 			continue
 		}
 
-		mappingConfig, ok := lookupMapping(fieldsConfig, df)
+		mappingConfig, ok := fieldsConfig[df.Type]
 		if !ok {
 			continue
 		}
@@ -62,26 +61,10 @@ func ConvertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 	return additionalFields
 }
 
-func lookupMapping(fieldsConfig map[uint16]config.Mapping, df netflow.DataField) (config.Mapping, bool) {
-	fieldType := df.Type
-	if df.PenProvided {
-		// IPFIX enterprise fields: goflow strips the enterprise bit (0x8000) from data template fields but not options template fields. 
-		fieldType &^= 0x8000
-	}
-	mappingConfig, ok := fieldsConfig[fieldType]
-	if !ok {
-		return mappingConfig, false
-	}
-	if mappingConfig.MatchPen && (df.PenProvided != (mappingConfig.Pen != 0) || df.Pen != mappingConfig.Pen) {
-		return mappingConfig, false
-	}
-	return mappingConfig, true
-}
-
 func searchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
 	var setsAdditionalFields []common.AdditionalFields
 	for _, record := range dataRecords {
-		additionalFields := ConvertNetFlowDataSet(record.Values, fieldsConfig)
+		additionalFields := convertNetFlowDataSet(record.Values, fieldsConfig)
 		if additionalFields != nil {
 			setsAdditionalFields = append(setsAdditionalFields, additionalFields)
 		}

@@ -54,10 +54,6 @@ type Mapping struct {
 	Destination string            `mapstructure:"destination"`
 	Endian      common.EndianType `mapstructure:"endianness"`
 	Type        common.FieldType  `mapstructure:"type"`
-
-	// Only set by built-in mappings: user mappings match the field number whatever its enterprise number
-	MatchPen bool   `mapstructure:"-"`
-	Pen      uint32 `mapstructure:"-"` // enterprise number, 0 for IANA fields
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.

@@ -41,7 +41,7 @@ var builtInBiflowMappings = map[uint16]config.Mapping{
 
 // Used to map the applicationId of flows through additional fields, resolved at flush time by the dpi cache.
 var builtInDPIMappings = map[uint16]config.Mapping{
-	95: {Field: 95, Type: common.Integer, Destination: dpi.ApplicationIDField, Endian: common.BigEndian, MatchPen: true},
+	95: {Field: 95, Type: common.Integer, Destination: dpi.ApplicationIDField, Endian: common.BigEndian},
 }
 
 // StateNetFlow holds a NetflowV9/IPFIX producer

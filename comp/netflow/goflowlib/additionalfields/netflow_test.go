@@ -6,13 +6,11 @@
 package additionalfields
 
 import (
-	"testing"
-
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"testing"
 )
 
 func makeSampleNetflowPacket(fields []netflow.DataField) netflow.NFv9Packet {
@@ -202,37 +200,4 @@ func Test_DecodeUNumberWithEndianness(t *testing.T) {
 			assert.Equal(t, tt.expected, out)
 		})
 	}
-}
-
-func Test_ConvertNetFlowDataSet_enterpriseNumbers(t *testing.T) {
-	fieldsConfig := map[uint16]config.Mapping{
-		95: {Destination: "iana_95", Type: common.Integer, MatchPen: true},
-		12: {Destination: "cisco_12", Type: common.String, MatchPen: true, Pen: 9},
-		30: {Destination: "any_30", Type: common.Integer},
-	}
-
-	fields := ConvertNetFlowDataSet([]netflow.DataField{
-		{Type: 95, PenProvided: true, Pen: 9, Value: []byte{2}}, // enterprise field sharing the IANA number
-		{Type: 95, Value: []byte{1}},
-		{Type: 12, PenProvided: true, Pen: 12345, Value: []byte("other")},          // same number, other enterprise
-		{Type: 0x8000 | 12, PenProvided: true, Pen: 9, Value: []byte("cisco\x00")}, // options fields keep the enterprise bit
-		{Type: 30, PenProvided: true, Pen: 12345, Value: []byte{3}},
-	}, fieldsConfig)
-	assert.Equal(t, common.AdditionalFields{
-		"iana_95":  uint64(1),
-		"cisco_12": "cisco",
-		"any_30":   uint64(3),
-	}, fields, "mappings with MatchPen only match their enterprise number, others match any enterprise number")
-}
-
-func Test_ConvertNetFlowDataSet_netflow9HighFieldTypes(t *testing.T) {
-	fieldsConfig := map[uint16]config.Mapping{
-		33002: {Destination: "fw_ext_event", Type: common.Integer},
-		234:   {Destination: "ingress_vrf_id", Type: common.Integer},
-	}
-
-	fields := ConvertNetFlowDataSet([]netflow.DataField{
-		{Type: 33002, Value: []byte{7}}, // NetFlow v9 fields have no enterprise bit, so 33002 is not 0x8000 | 234
-	}, fieldsConfig)
-	assert.Equal(t, common.AdditionalFields{"fw_ext_event": uint64(7)}, fields)
 }
