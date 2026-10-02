@@ -15,6 +15,7 @@ import (
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
 	com_datadoghq_gitlab_customattributes "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/customattributes"
@@ -62,7 +63,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) *Registry {
+func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.gitlab.branches":                      com_datadoghq_gitlab_branches.NewGitlabBranches(),
@@ -93,7 +94,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.kubernetes.apps":                      com_datadoghq_kubernetes_apps.NewKubernetesApps(),
 			"com.datadoghq.kubernetes.batch":                     com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":                      com_datadoghq_kubernetes_core.NewKubernetesCore(),
-			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
+			"com.datadoghq.kubernetes.customresources":           com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration.KubernetesAllowedCustomResources),
 			"com.datadoghq.kubernetes.discovery":                 com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.kubernetes.kubeactions":               com_datadoghq_kubernetes_kubeactions.NewKubernetesKubeActions(ka),
 			"com.datadoghq.kubernetes.networking":                com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
@@ -105,7 +106,7 @@ func NewRegistry(configuration *config.Config, traceroute traceroute.Component, 
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),
 		},
-	}
+	}, nil
 }
 
 func (r *Registry) GetBundle(fqn string) types.Bundle {

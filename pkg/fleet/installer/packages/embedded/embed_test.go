@@ -128,3 +128,11 @@ func serviceNames(entries []fs.DirEntry) []string {
 	}
 	return names
 }
+
+func TestShippedProcmgrConfigFilesListsEmbeds(t *testing.T) {
+	shipped, err := ShippedProcmgrConfigFiles()
+	require.NoError(t, err)
+	require.NotEmpty(t, shipped)
+	assert.Contains(t, shipped, "datadog-agent-ddot.yaml")
+	assert.Contains(t, shipped, "datadog-agent-par-control.yaml")
+}

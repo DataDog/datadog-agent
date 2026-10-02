@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -20,23 +21,27 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist               map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
-	Allowlist                      []string
-	AllowIMDSEndpoint              bool
-	RShellAllowedPaths             []string
-	RShellAllowedCommands          []string
-	RShellAllowedSystemServices    map[string][]string
-	RShellDisableDetailedTelemetry bool
-	RShellPrivilegedEnabled        bool
-	RShellPrivilegedSocket         string
-	DDHost                         string
-	DDApiHost                      string
-	Modes                          []modes.Mode
-	OrgId                          int64
-	PrivateKey                     *ecdsa.PrivateKey
-	RunnerId                       string
-	Urn                            string
-	Tags                           []observability.Tag
+	ActionsAllowlist                   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	Allowlist                          []string
+	AllowIMDSEndpoint                  bool
+	KubernetesAllowedCustomResources   []string
+	RShellAllowedPaths                 []string
+	RShellAllowedCommands              []string
+	RShellAllowedSystemServices        map[string][]string
+	RShellDisableDetailedTelemetry     bool
+	RShellPrivilegedEnabled            bool
+	RShellPrivilegedSocket             string
+	RShellPrivilegedElevatableCommands []string
+	RShellAllowedCommandsConfigured    bool
+	RShellAllowedPathsConfigured       bool
+	DDHost                             string
+	DDApiHost                          string
+	Modes                              []modes.Mode
+	OrgId                              int64
+	PrivateKey                         *ecdsa.PrivateKey
+	RunnerId                           string
+	Urn                                string
+	Tags                               []observability.Tag
 
 	// RemoteConfig related fields
 	DatadogSite string
@@ -67,7 +72,8 @@ type Config struct {
 
 	OpmsExtraHeaders map[string]string
 
-	MetricsClient statsd.ClientInterface
+	MetricsClient   statsd.ClientInterface
+	AgentHTTPClient *http.Client
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {

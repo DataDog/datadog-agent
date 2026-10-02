@@ -7,7 +7,6 @@ package installtest
 
 import (
 	"strconv"
-	"time"
 
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -15,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -108,6 +106,11 @@ func (s *testSubServicesOptsSuite) TestProcessEnabled() {
 
 	// dd-procmgr supervises process-agent, so the legacy service stays Stopped regardless of processEnabled.
 	s.testServiceState("datadog-process-agent", false)
+	// Only the enabled case is asserted: container_collection defaults keep the procmgr gate open
+	// even with processEnabled=false, so whether process-agent stays up then depends on the host.
+	if tc.processEnabled {
+		s.testProcmgrProcessRunning("datadog-agent-process")
+	}
 }
 
 func (s *testSubServicesOptsSuite) TestAPMEnabled() {
@@ -124,15 +127,13 @@ func (s *testSubServicesOptsSuite) TestAPMEnabled() {
 }
 
 func (s *testSubServicesOptsSuite) testServiceState(serviceName string, running bool) {
-	vm := s.Env().RemoteHost
+	state := "Stopped"
+	if running {
+		state = "Running"
+	}
+	windowsCommon.AssertServiceState(s.T(), s.Env().RemoteHost, serviceName, state)
+}
 
-	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		status, err := windowsCommon.GetServiceStatus(vm, serviceName)
-		require.NoError(c, err)
-		if running {
-			assert.Equal(c, "Running", status, "%s should be running", serviceName)
-		} else {
-			assert.Equal(c, "Stopped", status, "%s should be stopped", serviceName)
-		}
-	}, 1*time.Minute, 1*time.Second, "%s should be in the expected state", serviceName)
+func (s *testSubServicesOptsSuite) testProcmgrProcessRunning(processName string) {
+	windowsAgent.AssertProcmgrProcessRunning(s.T(), s.Env().RemoteHost, processName)
 }
