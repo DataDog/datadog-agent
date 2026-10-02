@@ -76,8 +76,6 @@ Write tests so they can be retried _without reprovisioning the host_: clean up g
 
 Our custom retry logic retries tests on _the same infra_ when possible, making retries faster and more reliable. Otherwise it falls back to an expensive "full test retry" that reprovisions the infra, costing extra time and reliability.
 
-In a testify suite, capture `t := s.T()` before registering a cleanup and use that `t` inside the closure. Cleanups run after testify has restored the suite's `T` to the parent, so `s.T()` read inside one reports against the parent test: the failure output then shows every subtest green next to a red suite, pointing at nothing. For the same reason a cleanup must not call `FailNow`, which rules out `require` and `s.Require()`: use `assert` or `t.Errorf`.
-
 ## Using the framework
 The framework in `test/e2e-framework` handles and abstracts most provisioning and setup logic.
 When writing a new test, ALWAYS check whether a framework helper already handles the provisioning.
