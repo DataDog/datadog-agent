@@ -30,6 +30,10 @@ else
       #!/usr/bin/env bash
       set -eu
       cd "#{repo_root}"
+      if [ "${1:-}" = "run" ] || [ "${1:-}" = "build" ]; then
+        echo "skyframe summary before: $*" >&2
+        "#{bazel}" dump --skyframe=summary >&2 || true
+      fi
       exec "#{bazel}" "$@"
     SH
     File.chmod(0755, shim)
