@@ -823,31 +823,36 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningVersions := map[string]string{
 		"datadog-agent": version.AgentPackageVersion,
 	}
+	runningConfigVersions := map[string]string{
+		"datadog-agent": d.env.ConfigID,
+	}
 	var ddotProcessState string
 	if _, ok := configAndPackageStates.States["datadog-agent"]; ok {
 		ddotProcessState = d.ddotProcessState(ctx)
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
-		configState := configAndPackageStates.ConfigStates[pkg]
-		// The currently running config version is whatever config is active on disk for this
-		// package right now (experiment takes precedence over stable), not d.env.ConfigID: that
-		// field is only a startup-time snapshot of the agent's own config_id and is never updated
-		// for the lifetime of the daemon process, so it goes stale as soon as a config experiment
-		// starts or is promoted without a daemon restart.
-		runningConfigVersion := configState.Stable
-		if configState.HasExperiment() {
-			runningConfigVersion = configState.Experiment
-		}
-		if runningConfigVersion == "" {
-			runningConfigVersion = d.env.ConfigID
+		runningConfigVersion := runningConfigVersions[pkg]
+		// d.env.ConfigID is read once at daemon startup. Linux and Windows restart the daemon
+		// with the experiment's configuration, so it stays accurate there. The macOS daemon has
+		// no experiment variant and keeps running across a config experiment, so there the
+		// running version is whatever is active on disk (experiment over stable).
+		if runtime.GOOS == "darwin" {
+			configState := configAndPackageStates.ConfigStates[pkg]
+			runningConfigVersion = configState.Stable
+			if configState.HasExperiment() {
+				runningConfigVersion = configState.Experiment
+			}
+			if runningConfigVersion == "" {
+				runningConfigVersion = d.env.ConfigID
+			}
 		}
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
 			ExperimentVersion:       s.Experiment,
-			StableConfigVersion:     configState.Stable,
-			ExperimentConfigVersion: configState.Experiment,
+			StableConfigVersion:     configAndPackageStates.ConfigStates[pkg].Stable,
+			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersion,
 			HeartbeatTimestamp:      uint64(time.Now().Unix()),
