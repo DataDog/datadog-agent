@@ -186,23 +186,32 @@ func (a *darwinPrefixAssembler) add(seq uint32, payload []byte) bool {
 	if len(payload) == 0 || a.truncated {
 		return false
 	}
+	stored := 0
+	for _, segment := range a.segments {
+		stored += len(segment.data)
+	}
 	for index := range a.segments {
 		if a.segments[index].seq == seq {
-			if len(payload) > len(a.segments[index].data) {
-				a.segments[index].data = append(a.segments[index].data[:0], payload...)
-				return true
+			existing := len(a.segments[index].data)
+			if len(payload) <= existing {
+				return false
 			}
-			return false
+			if remaining := darwinPrefixLimit - (stored - existing); len(payload) > remaining {
+				a.truncated = true
+				if remaining <= existing {
+					return false
+				}
+				payload = payload[:remaining]
+			}
+			a.segments[index].data = append(a.segments[index].data[:0], payload...)
+			return true
 		}
 	}
 	if len(a.segments) >= darwinSegmentLimit {
 		a.truncated = true
 		return false
 	}
-	total := len(payload)
-	for _, segment := range a.segments {
-		total += len(segment.data)
-	}
+	total := stored + len(payload)
 	if total > darwinPrefixLimit {
 		remaining := darwinPrefixLimit - (total - len(payload))
 		if remaining <= 0 {

@@ -62,6 +62,39 @@ func TestDarwinPrefixAssemblerReordersAndMergesOverlap(t *testing.T) {
 	require.Equal(t, "hello world!", string(assembler.bytes()))
 }
 
+func TestDarwinPrefixAssemblerReplacementRespectsLimit(t *testing.T) {
+	const half = darwinPrefixLimit / 2
+	storedBytes := func(assembler *darwinPrefixAssembler) int {
+		total := 0
+		for _, segment := range assembler.segments {
+			total += len(segment.data)
+		}
+		return total
+	}
+
+	t.Run("clamped", func(t *testing.T) {
+		var assembler darwinPrefixAssembler
+		require.True(t, assembler.add(0, make([]byte, half/2)))
+		require.True(t, assembler.add(half, make([]byte, half)))
+
+		require.True(t, assembler.add(0, make([]byte, half+half/2)))
+		require.Equal(t, darwinPrefixLimit, storedBytes(&assembler))
+		require.Len(t, assembler.segments[0].data, half)
+		require.True(t, assembler.truncated)
+	})
+
+	t.Run("full", func(t *testing.T) {
+		var assembler darwinPrefixAssembler
+		require.True(t, assembler.add(0, make([]byte, half)))
+		require.True(t, assembler.add(half, make([]byte, half)))
+
+		require.False(t, assembler.add(0, make([]byte, half+half/2)))
+		require.Equal(t, darwinPrefixLimit, storedBytes(&assembler))
+		require.Len(t, assembler.segments[0].data, half)
+		require.True(t, assembler.truncated)
+	})
+}
+
 // TestDarwinPacketAnalyzerClassifiesOnlyWhenPrefixGrows skips classify on ACKs
 // after the HTTP prefix has already been accepted.
 func TestDarwinPacketAnalyzerClassifiesOnlyWhenPrefixGrows(t *testing.T) {
