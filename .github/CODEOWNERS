@@ -449,6 +449,7 @@
 /comp/networkpath @DataDog/network-path
 /comp/otelcol @DataDog/opentelemetry-agent
 /comp/process @DataDog/container-experiences
+/comp/procmgr @DataDog/agent-runtimes
 /comp/remote-config @DataDog/remote-config
 /comp/snmptraps @DataDog/network-device-monitoring-core
 /comp/systray @DataDog/windows-products

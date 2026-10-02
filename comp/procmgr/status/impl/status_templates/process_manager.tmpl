@@ -30,11 +30,11 @@
       {{- if .LastExitCode }} last_exit_code={{ .LastExitCode }}{{ end }}
       {{- if .LastSignal }} last_signal={{ .LastSignal }}{{ end }}
   {{- end }}
+
+  Tip: Full scrubbed argv is in flare file procmgr/state.json.
   {{- else }}
     (none)
   {{- end }}
-
-  Tip: Full scrubbed argv is in flare file procmgr/state.json.
 
   Services
   {{ printDashes "Services" "-" }}

@@ -128,6 +128,9 @@ func TestStatusKeepsSectionWhenDaemonUnreachable(t *testing.T) {
 	out := text.String()
 	assert.Contains(t, out, "Daemon Error: connect to dd-procmgrd: file does not exist")
 	assert.Contains(t, out, "Reachable: false")
+	assert.Contains(t, out, "(none)")
+	assert.NotContains(t, out, "procmgr/state.json",
+		"the pointer to the flare for full argv only makes sense when there are processes to detail")
 }
 
 func TestStatusShowsProcmgrAndSystemdManagementModes(t *testing.T) {
