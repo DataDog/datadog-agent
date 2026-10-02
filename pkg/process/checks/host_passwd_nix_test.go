@@ -36,6 +36,17 @@ func TestLookupHostUserSkipsInvalidRowsAndUsesFirstMatch(t *testing.T) {
 	assert.Nil(t, lookupHostUser("43"))
 }
 
+func TestLookupHostUserZeroUID(t *testing.T) {
+	dir := t.TempDir()
+	writePasswd(t, dir, "empty:x::4::/:/bin/sh\nfirst:x:000:4::/:/bin/sh\nsecond:x:0:5::/:/bin/sh\n")
+	t.Setenv("HOST_ETC", dir)
+
+	u := lookupHostUser("0")
+	require.NotNil(t, u)
+	assert.Equal(t, "first", u.Username)
+	assert.Equal(t, "0", u.Uid)
+}
+
 func TestLookupHostUserStopsAfterMatch(t *testing.T) {
 	dir := t.TempDir()
 	// A matching record must not be discarded because an unreadable record
