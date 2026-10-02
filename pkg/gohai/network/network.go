@@ -32,13 +32,21 @@ type networkInterface interface {
 
 // realNetworkInterface wraps net.Interface to implement networkInterface
 type realNetworkInterface struct {
-	iface net.Interface
+	iface     net.Interface
+	addresses interfaceAddresses
+}
+
+type interfaceAddresses struct {
+	addrs []net.Addr
+	err   error
 }
 
 func (r *realNetworkInterface) GetName() string                   { return r.iface.Name }
 func (r *realNetworkInterface) GetFlags() net.Flags               { return r.iface.Flags }
 func (r *realNetworkInterface) GetHardwareAddr() net.HardwareAddr { return r.iface.HardwareAddr }
-func (r *realNetworkInterface) Addrs() ([]net.Addr, error)        { return r.iface.Addrs() }
+func (r *realNetworkInterface) Addrs() ([]net.Addr, error) {
+	return r.addresses.addrs, r.addresses.err
+}
 
 // interfacesProvider is a function type that returns network interfaces.
 // This allows for mocking in tests.
@@ -50,9 +58,13 @@ func defaultGetInterfaces() ([]networkInterface, error) {
 	if err != nil {
 		return nil, err
 	}
+	addresses, err := loadInterfaceAddresses(ifaces)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]networkInterface, len(ifaces))
 	for i := range ifaces {
-		result[i] = &realNetworkInterface{iface: ifaces[i]}
+		result[i] = &realNetworkInterface{iface: ifaces[i], addresses: addresses[ifaces[i].Index]}
 	}
 	return result, nil
 }
@@ -90,16 +102,20 @@ type Info struct {
 
 // CollectInfo collects the network information.
 func CollectInfo() (*Info, error) {
-	info, err := getNetworkInfo()
+	ifaces, err := getInterfaces()
+	if err != nil {
+		return nil, err
+	}
+	info, err := getNetworkInfo(ifaces)
 	if err != nil {
 		return nil, err
 	}
 
-	interfaces, err := getMultiNetworkInfo()
-	if err == nil && len(interfaces) > 0 {
+	interfaces := getMultiNetworkInfo(ifaces)
+	if len(interfaces) > 0 {
 		info.Interfaces = interfaces
 	}
-	return info, err
+	return info, nil
 }
 
 func ifacesToJSON(ifaces []Interface) (interface{}, []string) {
@@ -150,12 +166,8 @@ func (netInfo *Info) AsJSON() (interface{}, []string, error) {
 	return ret, warnings, nil
 }
 
-func getMultiNetworkInfo() ([]Interface, error) {
+func getMultiNetworkInfo(ifaces []networkInterface) []Interface {
 	multiNetworkInfo := []Interface{}
-	ifaces, err := getInterfaces()
-	if err != nil {
-		return multiNetworkInfo, err
-	}
 
 	for _, iface := range ifaces {
 		name := iface.GetName()
@@ -197,16 +209,10 @@ func getMultiNetworkInfo() ([]Interface, error) {
 		multiNetworkInfo = append(multiNetworkInfo, _iface)
 	}
 
-	return multiNetworkInfo, nil
+	return multiNetworkInfo
 }
 
-func externalIpv6Address() (string, error) {
-	ifaces, err := getInterfaces()
-
-	if err != nil {
-		return "", err
-	}
-
+func externalIpv6Address(ifaces []networkInterface) (string, error) {
 	for _, iface := range ifaces {
 		flags := iface.GetFlags()
 		if flags&net.FlagUp == 0 || flags&net.FlagLoopback != 0 {
@@ -243,12 +249,7 @@ func externalIpv6Address() (string, error) {
 	return "", nil
 }
 
-func externalIPAddress() (string, error) {
-	ifaces, err := getInterfaces()
-	if err != nil {
-		return "", err
-	}
-
+func externalIPAddress(ifaces []networkInterface) (string, error) {
 	for _, iface := range ifaces {
 		flags := iface.GetFlags()
 		if flags&net.FlagUp == 0 || flags&net.FlagLoopback != 0 {
@@ -281,13 +282,7 @@ func externalIPAddress() (string, error) {
 	return "", errors.New("not connected to the network")
 }
 
-func macAddress() (string, error) {
-	ifaces, err := getInterfaces()
-
-	if err != nil {
-		return "", err
-	}
-
+func macAddress(ifaces []networkInterface) (string, error) {
 	for _, iface := range ifaces {
 		flags := iface.GetFlags()
 		if flags&net.FlagUp == 0 || flags&net.FlagLoopback != 0 {
@@ -315,18 +310,18 @@ func macAddress() (string, error) {
 	return "", errors.New("not connected to the network")
 }
 
-func getNetworkInfo() (*Info, error) {
-	macaddress, err := macAddress()
+func getNetworkInfo(ifaces []networkInterface) (*Info, error) {
+	macaddress, err := macAddress(ifaces)
 	if err != nil {
 		return nil, err
 	}
 
-	ipAddress, err := externalIPAddress()
+	ipAddress, err := externalIPAddress(ifaces)
 	if err != nil {
 		return nil, err
 	}
 
-	ipAddressV6, err := externalIpv6Address()
+	ipAddressV6, err := externalIpv6Address(ifaces)
 	if err != nil {
 		return nil, err
 	}
