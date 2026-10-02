@@ -193,10 +193,9 @@ func (rc *rcClient) start() error {
 // If a setting is not set via any config, it will fallback if the source was RC.
 func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var enableLogs, enableMetrics, enableAPM *bool
-	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth, metricsAllowlistCfgPth string
-	var isMetricsAllowlistConfigured bool
-	// Configs setting the logs allowlist; empty when the setting falls back.
-	var logsServiceAllowlistCfgPths []string
+	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
+	// Configs setting an allowlist. Empty when none does, in which case the setting falls back.
+	var metricsAllowlistCfgPths, logsServiceAllowlistCfgPths []string
 	allowedMetrics := make(map[string]struct{})
 	allowedServices := make(map[string]struct{})
 
@@ -249,8 +248,7 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		// The allowlists of all configs are merged. As with the configuration file, an empty allowlist
 		// does not filter: every metric, or every log, is forwarded while the matching failover is enabled.
 		if mrfUpdate.MetricsAllowlist != nil {
-			isMetricsAllowlistConfigured = true
-			metricsAllowlistCfgPth = cfgPath
+			metricsAllowlistCfgPths = append(metricsAllowlistCfgPths, cfgPath)
 			for _, metric := range mrfUpdate.MetricsAllowlist {
 				allowedMetrics[metric] = struct{}{}
 			}
@@ -264,12 +262,18 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		}
 	}
 
-	// Metrics retain their existing flag-first ordering; their allowlist is applied below.
-	if !rc.applyMRFFailoverFlag(failoverMetricsSetting, "metrics", enableMetrics, enableMetricsCfgPth, reportApplyStatus) {
-		return
-	}
+	// A failed write stops its pair (see applyMRFFailover) but not the other pairs: the settings are
+	// independent, and the error is reported on the configs that contributed to the failed setting.
+	rc.applyMRFFailover(mrfFailoverUpdate{
+		what:              "metrics",
+		flagSetting:       failoverMetricsSetting,
+		enable:            enableMetrics,
+		enableCfgPath:     enableMetricsCfgPth,
+		allowlistSetting:  metricsAllowlistSetting,
+		allowed:           allowedMetrics,
+		allowlistCfgPaths: metricsAllowlistCfgPths,
+	}, reportApplyStatus)
 
-	// A failed logs write stops its pair, but unrelated settings can still apply.
 	rc.applyMRFFailover(mrfFailoverUpdate{
 		what:              "logs",
 		flagSetting:       failoverLogsSetting,
@@ -280,23 +284,7 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		allowlistCfgPaths: logsServiceAllowlistCfgPths,
 	}, reportApplyStatus)
 
-	if !rc.applyMRFFailoverFlag(failoverAPMSetting, "apm", enableAPM, enableAPMCfgPth, reportApplyStatus) {
-		return
-	}
-
-	if isMetricsAllowlistConfigured {
-		var allowlist []string
-		for metric := range allowedMetrics {
-			allowlist = append(allowlist, metric)
-		}
-		if err := rc.applyMRFRuntimeSetting(metricsAllowlistSetting, allowlist, reportApplyStatus, metricsAllowlistCfgPth); err != nil {
-			pkglog.Errorf("Multi-Region Failover failed to apply new metrics allowlist : %s", err)
-			return
-		}
-		pkglog.Infof("Received remote update for Multi-Region Failover configuration: metrics allowlist updated")
-	} else {
-		rc.unsetMRFRuntimeSetting(metricsAllowlistSetting)
-	}
+	rc.applyMRFFailoverFlag(failoverAPMSetting, "apm", enableAPM, enableAPMCfgPth, reportApplyStatus)
 }
 
 // mrfFailoverUpdate is the update to apply to a failover flag and to the allowlist that goes with it.
