@@ -62,7 +62,7 @@ const (
 
 // isEnabled checks if the private action runner is enabled in the configuration
 func isEnabled(cfg config.Component) bool {
-	return cfg.GetBool(privateactionrunner.PAREnabled)
+	return cfg.GetBool(privateactionrunner.Enabled)
 }
 
 func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
@@ -142,7 +142,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 	if splitDeploymentEnabled(
-		reqs.Config.GetBool(privateactionrunner.PARSplitEnabled),
+		reqs.Config.GetBool(privateactionrunner.SplitEnabled),
 		configenv.IsContainerized(),
 		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
 	) {
@@ -250,8 +250,8 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
-		p.coreConfig.Set(privateactionrunner.PARPrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(privateactionrunner.PARUrn, persistedIdentity.URN, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.PrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.URN, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
 	cfg, err := parconfig.FromDDConfig(p.coreConfig, p.metricsClient)
@@ -259,15 +259,15 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, err
 	}
 
-	canSelfEnroll := p.coreConfig.GetBool(privateactionrunner.PARSelfEnroll)
+	canSelfEnroll := p.coreConfig.GetBool(privateactionrunner.SelfEnroll)
 	if cfg.IdentityIsIncomplete() && canSelfEnroll {
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
 		if err != nil {
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
-		p.coreConfig.Set(privateactionrunner.PARPrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(privateactionrunner.PARUrn, updatedCfg.Urn, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.PrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
+		p.coreConfig.Set(privateactionrunner.URN, updatedCfg.Urn, model.SourceAgentRuntime)
 		cfg = updatedCfg
 	} else if cfg.IdentityIsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
@@ -328,7 +328,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}
 	p.executorServer.SetControlPlaneConfig(snapshot, tlsConfig.Certificates[0].Certificate[0])
 
-	socketPath := p.coreConfig.GetString(privateactionrunner.PARExecutorSocketPath)
+	socketPath := p.coreConfig.GetString(privateactionrunner.ExecutorSocketPath)
 	lis, err := executor.Listen(socketPath)
 	if err != nil {
 		cancel()
@@ -341,7 +341,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	if cfg != nil && cfg.TaskTimeoutSeconds != nil {
 		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
 	}
-	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.PARIdleTimeoutSeconds))
+	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(privateactionrunner.IdleTimeoutSeconds))
 	if cfg == nil {
 		idleTimeout = time.Minute
 	}
@@ -371,8 +371,8 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
 func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
-	if !p.coreConfig.GetBool(privateactionrunner.PAREnabled) || !splitDeploymentEnabled(
-		p.coreConfig.GetBool(privateactionrunner.PARSplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
+	if !p.coreConfig.GetBool(privateactionrunner.Enabled) || !splitDeploymentEnabled(
+		p.coreConfig.GetBool(privateactionrunner.SplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
 	) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -591,7 +591,7 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
 	apiKey := p.coreConfig.GetString("api_key")
-	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.PARApiKeyOnlyEnrollment)
+	apiKeyOnlyEnrollment := p.coreConfig.GetBool(privateactionrunner.APIKeyOnlyEnrollment)
 
 	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {
 		return nil, fmt.Errorf("invalid api_key: %w", err)

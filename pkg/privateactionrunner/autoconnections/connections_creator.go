@@ -36,10 +36,10 @@ func CreateConnectionsIfEnabled(
 	enrollmentResult *enrollment.Result,
 	tagsProvider TagsProvider,
 ) {
-	if cfg.GetBool(par.PARApiKeyOnlyEnrollment) {
+	if cfg.GetBool(par.APIKeyOnlyEnrollment) {
 		return
 	}
-	if cfg.GetBool(par.PARSkipConnectionCreation) {
+	if cfg.GetBool(par.SkipConnectionCreation) {
 		return
 	}
 

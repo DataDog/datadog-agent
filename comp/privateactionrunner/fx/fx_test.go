@@ -18,7 +18,7 @@ import (
 
 func TestNewKeysManagerProvidesRCListener(t *testing.T) {
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		privateactionrunner.PAREnabled: true,
+		privateactionrunner.Enabled: true,
 	})
 
 	provides := newKeysManager(cfg)

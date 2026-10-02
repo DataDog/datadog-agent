@@ -35,7 +35,7 @@ func Module() fxutil.Module {
 		// action runner is disabled, so a disabled PAR (or a unit test) never blocks
 		// on apiserver reachability.
 		uberfx.Provide(func(cfg config.Component) (*apiserver.APIClient, error) {
-			if !cfg.GetBool(privateactionrunner.PAREnabled) {
+			if !cfg.GetBool(privateactionrunner.Enabled) {
 				return nil, nil
 			}
 			return apiserver.WaitForAPIClient(context.Background())

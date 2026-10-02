@@ -39,14 +39,14 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
-	encodedPrivateKey := config.GetString(par.PARPrivateKey)
-	urn := config.GetString(par.PARUrn)
+	encodedPrivateKey := config.GetString(par.PrivateKey)
+	urn := config.GetString(par.URN)
 
 	var privateKey *ecdsa.PrivateKey
 	if encodedPrivateKey != "" {
 		jwk, err := util.Base64ToJWK(encodedPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode %s: %w", par.PARPrivateKey, err)
+			return nil, fmt.Errorf("failed to decode %s: %w", par.PrivateKey, err)
 		}
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
@@ -64,12 +64,12 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	var taskTimeoutSeconds *int32
-	if v := config.GetInt32(par.PARTaskTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(par.TaskTimeoutSeconds); v != 0 {
 		taskTimeoutSeconds = &v
 	}
 
 	httpTimeout := defaultHTTPClientTimeout
-	if v := config.GetInt32(par.PARHttpTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(par.HTTPTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
 	agentHTTPClient := &http.Client{
@@ -83,7 +83,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		WaitBeforeRetry:                    waitBeforeRetry,
 		LoopInterval:                       loopInterval,
 		OpmsRequestTimeout:                 opmsRequestTimeout,
-		RunnerPoolSize:                     config.GetInt32(par.PARTaskConcurrency),
+		RunnerPoolSize:                     config.GetInt32(par.TaskConcurrency),
 		HealthCheckInterval:                healthCheckInterval,
 		HttpServerReadTimeout:              defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:             defaultHTTPServerWriteTimeout,
@@ -99,19 +99,19 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		MetricsClient:                      metricsClient,
 		AgentHTTPClient:                    agentHTTPClient,
 		ActionsAllowlist:                   makeActionsAllowlist(config),
-		Allowlist:                          config.GetStringSlice(par.PARHttpAllowlist),
-		AllowIMDSEndpoint:                  config.GetBool(par.PARHttpAllowImdsEndpoint),
+		Allowlist:                          config.GetStringSlice(par.HTTPAllowlist),
+		AllowIMDSEndpoint:                  config.GetBool(par.HTTPAllowIMDSEndpoint),
 		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
 		RShellAllowedCommands:              rshellAllowedCommands(config),
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
-		RShellDisableDetailedTelemetry:     config.GetBool(par.PARRestrictedShellDisableDetailedTelemetry),
-		RShellPrivilegedEnabled:            config.GetBool(par.PARRestrictedShellPrivilegedEnabled),
-		RShellPrivilegedSocket:             config.GetString(par.PARRestrictedShellPrivilegedSocket),
+		RShellDisableDetailedTelemetry:     config.GetBool(par.RestrictedShellDisableDetailedTelemetry),
+		RShellPrivilegedEnabled:            config.GetBool(par.RestrictedShellPrivilegedEnabled),
+		RShellPrivilegedSocket:             config.GetString(par.RestrictedShellPrivilegedSocket),
 		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
-		RShellAllowedCommandsConfigured:    config.IsConfigured(par.PARRestrictedShellAllowedCommands),
-		RShellAllowedPathsConfigured:       config.IsConfigured(par.PARRestrictedShellAllowedPaths),
-		OpmsExtraHeaders:                   config.GetStringMapString(par.PAROpmsExtraHeaders),
+		RShellAllowedCommandsConfigured:    config.IsConfigured(par.RestrictedShellAllowedCommands),
+		RShellAllowedPathsConfigured:       config.IsConfigured(par.RestrictedShellAllowedPaths),
+		OpmsExtraHeaders:                   config.GetStringMapString(par.OPMSExtraHeaders),
 		DDHost:                             ddHost,
 		DDApiHost:                          "api." + ddSite,
 		Modes:                              []modes.Mode{modes.ModePull},
@@ -127,17 +127,17 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 // resource actions can distinguish compatibility mode from an explicit
 // empty-list deny-all policy.
 func kubernetesAllowedCustomResources(config config.Component) []string {
-	if !config.IsConfigured(par.PARKubernetesAllowedCustomResources) {
+	if !config.IsConfigured(par.KubernetesAllowedCustomResources) {
 		return nil
 	}
-	return config.GetStringSlice(par.PARKubernetesAllowedCustomResources)
+	return config.GetStringSlice(par.KubernetesAllowedCustomResources)
 }
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
-	actionFqns := config.GetStringSlice(par.PARActionsAllowlist)
+	actionFqns := config.GetStringSlice(par.ActionsAllowlist)
 
-	if config.GetBool(par.PARDefaultActionsEnabled) {
+	if config.GetBool(par.DefaultActionsEnabled) {
 		if flavor.GetFlavor() == flavor.ClusterAgent {
 			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
 		} else {
@@ -181,25 +181,25 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // For a command to be executed by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed commands list. (intersection operation)
 func rshellAllowedCommands(config config.Component) []string {
-	commands := config.GetStringSlice(par.PARRestrictedShellAllowedCommands)
-	warnUnnamespacedCommands(par.PARRestrictedShellAllowedCommands, commands)
+	commands := config.GetStringSlice(par.RestrictedShellAllowedCommands)
+	warnUnnamespacedCommands(par.RestrictedShellAllowedCommands, commands)
 	return commands
 }
 
 // Nil means unset; a configured empty map is the explicit deny-all policy.
 func rshellAllowedSystemServices(config config.Component) map[string][]string {
-	if !config.IsConfigured(par.PARRestrictedShellAllowedSystemServices) {
+	if !config.IsConfigured(par.RestrictedShellAllowedSystemServices) {
 		return nil
 	}
-	return config.GetStringMapStringSlice(par.PARRestrictedShellAllowedSystemServices)
+	return config.GetStringMapStringSlice(par.RestrictedShellAllowedSystemServices)
 }
 
 func rshellElevatableCommands(config config.Component) []string {
-	if !config.IsConfigured(par.PARRestrictedShellPrivilegedElevatableCommands) {
+	if !config.IsConfigured(par.RestrictedShellPrivilegedElevatableCommands) {
 		return nil
 	}
-	commands := config.GetStringSlice(par.PARRestrictedShellPrivilegedElevatableCommands)
-	warnUnnamespacedCommands(par.PARRestrictedShellPrivilegedElevatableCommands, commands)
+	commands := config.GetStringSlice(par.RestrictedShellPrivilegedElevatableCommands)
+	warnUnnamespacedCommands(par.RestrictedShellPrivilegedElevatableCommands, commands)
 	return commands
 }
 
@@ -226,7 +226,7 @@ func warnUnnamespacedCommands(key string, commands []string) {
 // For a path to be accessible by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed paths list. (intersection operation)
 func rshellAllowedPaths(config config.Component) []string {
-	paths := config.GetStringSlice(par.PARRestrictedShellAllowedPaths)
+	paths := config.GetStringSlice(par.RestrictedShellAllowedPaths)
 	warnBackslashPaths(paths)
 	warnNonDirectoryPaths(paths)
 	return paths
@@ -236,7 +236,7 @@ func warnBackslashPaths(paths []string) {
 	for _, p := range paths {
 		if strings.ContainsRune(p, '\\') {
 			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend rule",
-				par.PARRestrictedShellAllowedPaths, p)
+				par.RestrictedShellAllowedPaths, p)
 		}
 	}
 }
@@ -246,7 +246,7 @@ func warnNonDirectoryPaths(paths []string) {
 		info, err := os.Stat(p)
 		if err == nil && !info.IsDir() {
 			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
-				par.PARRestrictedShellAllowedPaths, p)
+				par.RestrictedShellAllowedPaths, p)
 		}
 	}
 }

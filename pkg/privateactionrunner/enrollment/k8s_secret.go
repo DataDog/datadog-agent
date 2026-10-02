@@ -273,7 +273,7 @@ func getKubeClient() (kubernetes.Interface, error) {
 }
 
 func getSecretName(cfg configModel.Reader) string {
-	if secretName := cfg.GetString(par.PARIdentitySecretName); secretName != "" {
+	if secretName := cfg.GetString(par.IdentitySecretName); secretName != "" {
 		return secretName
 	}
 	return defaultSecretName

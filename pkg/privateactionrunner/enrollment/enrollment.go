@@ -170,7 +170,7 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 		ddSite = "datadoghq.com"
 	}
 	apiKey := cfg.GetString("api_key")
-	extraHeaders := cfg.GetStringMapString(par.PAROpmsExtraHeaders)
+	extraHeaders := cfg.GetStringMapString(par.OPMSExtraHeaders)
 
 	runnerNamePrefix := agentIdentifier.Hostname
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -181,7 +181,7 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 		}
 	}
 
-	if cfg.GetBool(par.PARApiKeyOnlyEnrollment) {
+	if cfg.GetBool(par.APIKeyOnlyEnrollment) {
 		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
 	}
 	appKey := cfg.GetString("app_key")

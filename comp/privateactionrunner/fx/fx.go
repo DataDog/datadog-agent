@@ -54,7 +54,7 @@ type keysManagerProvides struct {
 func newKeysManager(cfg config.Component) keysManagerProvides {
 	manager, callback := taskverifier.NewKeyManagerWithCallback()
 	var listener rctypes.RCListener
-	if callback != nil && cfg.GetBool(privateactionrunner.PAREnabled) {
+	if callback != nil && cfg.GetBool(privateactionrunner.Enabled) {
 		listener = rctypes.RCListener{
 			state.ProductActionPlatformRunnerKeys: callback,
 		}

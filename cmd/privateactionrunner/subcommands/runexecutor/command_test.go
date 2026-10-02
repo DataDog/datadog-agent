@@ -68,9 +68,9 @@ private_action_runner:
 		config.Module(), secretsnoop.Module(), delegatedauthnoop.Module(),
 		fx.Supply(params.configParams()),
 	)
-	require.Equal(t, params.executorSocket, cfg.GetString(par.PARExecutorSocketPath))
+	require.Equal(t, params.executorSocket, cfg.GetString(par.ExecutorSocketPath))
 	require.Equal(t, params.ipcCertFile, cfg.GetString("ipc_cert_file_path"))
-	require.Equal(t, model.SourceCLI, cfg.GetSource(par.PARExecutorSocketPath))
+	require.Equal(t, model.SourceCLI, cfg.GetSource(par.ExecutorSocketPath))
 	require.Equal(t, model.SourceCLI, cfg.GetSource("ipc_cert_file_path"))
 	require.Equal(t, 9, cfg.GetInt("private_action_runner.task_concurrency"))
 }

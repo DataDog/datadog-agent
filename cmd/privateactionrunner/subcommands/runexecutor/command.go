@@ -49,7 +49,7 @@ type cliParams struct {
 func (p *cliParams) configParams() config.Params {
 	options := []func(*config.Params){config.WithExtraConfFiles(p.ExtraConfFilePath)}
 	if p.executorSocket != "" {
-		options = append(options, config.WithCLIOverride(privateactionrunner.PARExecutorSocketPath, p.executorSocket))
+		options = append(options, config.WithCLIOverride(privateactionrunner.ExecutorSocketPath, p.executorSocket))
 	}
 	if p.ipcCertFile != "" {
 		options = append(options, config.WithCLIOverride("ipc_cert_file_path", p.ipcCertFile))
@@ -69,7 +69,7 @@ func runExecutor(ctx context.Context, params *cliParams) error {
 		}),
 		fx.Supply(core.BundleParams{
 			ConfigParams: params.configParams(),
-			LogParams:    log.ForDaemon(command.LoggerName, par.PARLogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
+			LogParams:    log.ForDaemon(command.LoggerName, par.LogFile, defaultpaths.GetDefaultPrivateActionRunnerLogFile())}),
 		core.Bundle(core.WithSecrets()),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{

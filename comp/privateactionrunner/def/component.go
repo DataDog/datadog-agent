@@ -25,16 +25,16 @@ var ErrSplitDeployment = errors.New("private action runner is running in split d
 // Duplicated from pkg/privateactionrunner/config.go because comp/
 // packages cannot import pkg/ packages (depguard rule).
 const (
-	PAREnabled                = "private_action_runner.enabled"
-	PARSelfEnroll             = "private_action_runner.self_enroll"
-	PARApiKeyOnlyEnrollment   = "private_action_runner.api_key_only_enrollment"
-	PARSkipConnectionCreation = "private_action_runner.skip_connection_creation"
-	PARPrivateKey             = "private_action_runner.private_key"
-	PARUrn                    = "private_action_runner.urn"
-	PARActionsAllowlist       = "private_action_runner.actions_allowlist"
-	PARDefaultActionsEnabled  = "private_action_runner.default_actions_enabled"
-	PARIdleTimeoutSeconds     = "private_action_runner.idle_timeout_seconds"
+	Enabled                = "private_action_runner.enabled"
+	SelfEnroll             = "private_action_runner.self_enroll"
+	APIKeyOnlyEnrollment   = "private_action_runner.api_key_only_enrollment"
+	SkipConnectionCreation = "private_action_runner.skip_connection_creation"
+	PrivateKey             = "private_action_runner.private_key"
+	URN                    = "private_action_runner.urn"
+	ActionsAllowlist       = "private_action_runner.actions_allowlist"
+	DefaultActionsEnabled  = "private_action_runner.default_actions_enabled"
+	IdleTimeoutSeconds     = "private_action_runner.idle_timeout_seconds"
 
-	PARExecutorSocketPath = "private_action_runner.executor.socket_path"
-	PARSplitEnabled       = "private_action_runner.split_enabled"
+	ExecutorSocketPath = "private_action_runner.executor.socket_path"
+	SplitEnabled       = "private_action_runner.split_enabled"
 )

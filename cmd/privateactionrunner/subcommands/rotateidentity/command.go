@@ -53,7 +53,7 @@ Restart the Private Action Runner process to apply the new identity.`,
 func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
-	if !cfg.GetBool(par.PAREnabled) {
+	if !cfg.GetBool(par.Enabled) {
 		return errors.New("private_action_runner.enabled is false - set it to true before rotating the identity")
 	}
 
