@@ -41,7 +41,7 @@ else
           echo "end of modified files" >&2
         fi
         rc=0
-        "#{bazel}" "$@" || rc=$?
+        "#{bazel}" "$1" --announce_rc "${@:2}" || rc=$?
         echo "skyframe summary after: $*" >&2
         "#{bazel}" dump --skyframe=summary >&2 || true
         touch "$marker"
