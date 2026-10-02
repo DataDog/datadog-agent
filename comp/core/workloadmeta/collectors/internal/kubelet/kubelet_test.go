@@ -59,6 +59,24 @@ func TestDisabledCLCRunner(t *testing.T) {
 	assert.True(t, pkgerrors.IsDisabled(err))
 }
 
+// TestDisabledNodefilter verifies that this collector steps aside for the
+// nodefilter collector whenever the configuration selects nodefilter
+// (otel-agent running in DDOT standalone mode, without the kubelet collector
+// opt-out).
+func TestDisabledNodefilter(t *testing.T) {
+	pkgconfigenv.SetFeatures(t, pkgconfigenv.Kubernetes)
+
+	c := &collector{
+		id:                collectorID,
+		catalog:           workloadmeta.NodeAgent,
+		nodefilterEnabled: func() bool { return true },
+	}
+
+	err := c.Start(context.Background(), nil)
+	require.Error(t, err)
+	assert.True(t, pkgerrors.IsDisabled(err))
+}
+
 func TestPodParser(t *testing.T) {
 	creationTimestamp := time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC)
 	startTime := creationTimestamp.Add(time.Minute)

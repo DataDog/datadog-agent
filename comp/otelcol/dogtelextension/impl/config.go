@@ -73,6 +73,24 @@ type Config struct {
 	// KubernetesHTTPSKubeletPort is the kubelet HTTPS port. 0 uses the agent
 	// default (10250).
 	KubernetesHTTPSKubeletPort int `mapstructure:"kubernetes_https_kubelet_port"`
+
+	// UseKubeletCollector opts standalone otel-agent back out of the
+	// nodefilter workloadmeta collector (a node-scoped K8s API-server pod
+	// watch) and back onto the kubelet collector for K8s tag enrichment.
+	// Pointer so that nil ("not set") is distinguishable from an explicit
+	// false, leaving the DD agent default (nodefilter, i.e. false) intact
+	// when the field is absent.
+	UseKubeletCollector *bool `mapstructure:"use_kubelet_collector"`
+	// NodeFromEnvVar lists, comma-separated, the environment variables the
+	// nodefilter workloadmeta collector reads the local node's name from, the
+	// first one that is set winning. It extends the k8sattributesprocessor's
+	// own "node_from_env_var" filter config, which takes a single name. Maps
+	// to the "otelcollector.standalone.node_from_env_var" DD agent config key,
+	// whose default (K8S_NODE_NAME, DD_KUBERNETES_KUBELET_NODENAME and
+	// OTEL_K8S_NODE_NAME) covers the names the OTel Helm chart and the Datadog
+	// Helm chart and Operator populate via the Kubernetes downward API. Only
+	// needs setting here to read the node name from other env vars.
+	NodeFromEnvVar string `mapstructure:"node_from_env_var"`
 }
 
 // Validate validates the configuration

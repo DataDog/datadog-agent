@@ -59,6 +59,20 @@ properties:
     node_type: setting
     type: string
     default: ''
+  standalone:
+    node_type: section
+    type: object
+    properties:
+      node_from_env_var:
+        node_type: setting
+        type: string
+        default: K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME
+        comment: comma-separated names of the environment variables the nodefilter workloadmeta collector reads the local node's name from, the first one that is set winning; extends k8sattributesprocessor's own node_from_env_var filter config, which takes a single name
+      use_kubelet_collector:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: opt out of the nodefilter workloadmeta collector and fall back to kubelet in DDOT standalone mode
   submit_dummy_metadata:
     node_type: setting
     type: boolean

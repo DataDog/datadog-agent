@@ -27,6 +27,9 @@ properties:
   metadata_interval:
     description: MetadataInterval is the metadata collection interval, in seconds. 0 uses the agent default (1800).
     type: integer
+  node_from_env_var:
+    description: NodeFromEnvVar lists, comma-separated, the environment variables the nodefilter workloadmeta collector reads the local node's name from, the first one that is set winning. It extends the k8sattributesprocessor's own "node_from_env_var" filter config, which takes a single name. Maps to the "otelcollector.standalone.node_from_env_var" DD agent config key, whose default (K8S_NODE_NAME, DD_KUBERNETES_KUBELET_NODENAME and OTEL_K8S_NODE_NAME) covers the names the OTel Helm chart and the Datadog Helm chart and Operator populate via the Kubernetes downward API. Only needs setting here to read the node name from other env vars.
+    type: string
   secret_backend_arguments:
     description: SecretBackendArguments are extra CLI arguments passed to the secret resolver binary.
     type: array
@@ -56,3 +59,7 @@ properties:
   tagger_server_port:
     description: TaggerServerPort is the port the tagger server binds to. 0 auto-assigns.
     type: integer
+  use_kubelet_collector:
+    description: UseKubeletCollector opts standalone otel-agent back out of the nodefilter workloadmeta collector (a node-scoped K8s API-server pod watch) and back onto the kubelet collector for K8s tag enrichment. Pointer so that nil ("not set") is distinguishable from an explicit false, leaving the DD agent default (nodefilter, i.e. false) intact when the field is absent.
+    x-pointer: true
+    type: boolean
