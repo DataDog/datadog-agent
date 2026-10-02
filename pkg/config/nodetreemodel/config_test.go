@@ -1729,18 +1729,43 @@ func TestUpdateShadowedByHigherSource(t *testing.T) {
 	config.SetDefault("a", 0)
 	config.BuildSchema()
 
+	config.Set("a", 1, model.SourceFile)
 	config.Set("a", 10, model.SourceCLI)
 	assert.False(t, config.Update("a", model.SourceSecret, func(current interface{}) (interface{}, bool) {
-		// The callback sees the resolved value, not the secret layer.
-		assert.Equal(t, 10, current)
+		// The callback never sees a layer above the one it writes.
+		assert.Equal(t, 1, current)
 		return current.(int) + 1, true
 	}))
 	assert.Equal(t, 10, config.GetInt("a"))
 
-	// The write still landed in the secret layer.
+	// The write landed in the secret layer, derived from the file layer rather than a copy of CLI's.
 	config.UnsetForSource("a", model.SourceCLI)
-	assert.Equal(t, 11, config.GetInt("a"))
+	assert.Equal(t, 2, config.GetInt("a"))
 	assert.Equal(t, model.SourceSecret, config.GetSource("a"))
+}
+
+func TestUpdateReadsOwnLayerElseClosestBelow(t *testing.T) {
+	config := NewNodeTreeConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+	config.SetDefault("a", 0)
+	config.BuildSchema()
+
+	seen := func(source model.Source) interface{} {
+		var got interface{}
+		config.Update("a", source, func(current interface{}) (interface{}, bool) {
+			got = current
+			return nil, false
+		})
+		return got
+	}
+
+	assert.Equal(t, 0, seen(model.SourceSecret), "only the default is set")
+
+	config.Set("a", 1, model.SourceFile)
+	config.Set("a", 2, model.SourceConfigPostInit)
+	config.Set("a", 3, model.SourceAgentRuntime)
+	assert.Equal(t, 2, seen(model.SourceConfigPostInit), "source's own value")
+	assert.Equal(t, 2, seen(model.SourceSecret), "empty source falls back to the closest layer below")
+	assert.Equal(t, 1, seen(model.SourceFile), "file sees itself, not higher layers")
 }
 
 func TestUpdateUnknownKeySkipsCallback(t *testing.T) {

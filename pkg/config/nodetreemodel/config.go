@@ -269,7 +269,7 @@ func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, u
 	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
 	if update != nil {
 		var apply bool
-		newValue, apply = update(copyIfNeeded(previousValue))
+		newValue, apply = update(copyIfNeeded(c.valueAtOrBelowSource(strings.ToLower(key), source)))
 		if !apply {
 			return false
 		}
@@ -475,6 +475,23 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 		}
 	}
 	return nil, ErrNotFound
+}
+
+// valueAtOrBelowSource returns source's own value for key, or else the closest lower layer's, so an
+// Update never builds on a layer above the one it writes. Must be called with the lock held.
+func (c *ntmConfig) valueAtOrBelowSource(key string, source model.Source) interface{} {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		// Not a writable layer (e.g. SourceSchema); the write fails later anyway.
+		return nil
+	}
+	if leaf := c.leafAtPathFromNode(key, tree); leaf != missingLeaf {
+		return leaf.Get()
+	}
+	if node, err := c.findPreviousSourceNode(key, source); err == nil {
+		return node.Get()
+	}
+	return nil
 }
 
 // UnsetForSource unsets a config entry for a given source
