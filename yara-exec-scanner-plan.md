@@ -291,6 +291,18 @@ Sizes are relative: S ≈ a few days, M ≈ 1–2 weeks, L ≈ several weeks (mo
 
 **Status (2026-10-01):** M1 was folded into M2: the pipeline was wired with the stand-in engine, then validated directly with the real libyara engine on a local Lima VM (Ubuntu 24.04 arm64, real eBPF, system-probe standalone). Passed: marked ELF (1 scan, then identity hits), `#!` script, same content at a 2nd path (sha hit), rewrite in place (rescan), 2,000-exec storm (no rescans), exec in a container (match with container ID); ~97% of execs skipped without any read. M3 is blocked on push access to the repo; M4 not started.
 
+### Staging validation (2026-10-02)
+
+The full agent stack (system-probe `--yara` + security-agent, both built from this
+branch at the same commit) was run in a local Lima VM with a **staging** (`datad0g.com`)
+API key and CWS enabled. A YARA exec match produced a `yara_malware` CWS custom event
+that was **delivered to the staging backend and visible in the Datadog app** (CWS events,
+`@agent.rule_id:yara_malware`) — the first true end-to-end run (eBPF exec → scan → match
+→ custom event → security-agent forwarder → staging intake → UI). Notes: the core `agent`
+binary was not needed (a dev-build rtloader shared lib is absent; the security-agent
+forwards CWS events itself); runtime security must be enabled in the config the
+security-agent reads (`datadog.yaml`), not only in `system-probe.yaml`.
+
 ### Dry-run findings (to address before a pilot)
 
 - [ ] **Known-bad content isn't re-reported.** The sha256 set remembers "scanned", not the verdict, so the same malware under a new path, container or identity runs without an alert. Cache the matches per sha256 and report again on a hit, without rescanning.
