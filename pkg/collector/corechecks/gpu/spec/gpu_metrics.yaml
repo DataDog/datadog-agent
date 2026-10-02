@@ -2244,6 +2244,36 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  retired_pages:
+    metadata:
+      metric_type: gauge
+      description: >-
+        Number of GPU memory pages retired, or pending retirement, after a
+        double-bit ECC error or multiple single-bit ECC errors, as reported
+        by NVML. Pending retirements take effect after the next driver
+        reload. A growing count can indicate degrading GPU memory. Tagged
+        by retirement cause (multiple_single_bit or double_bit). Only for
+        datacenter GPUs from Kepler to Turing.
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - cause
+    validator:
+      range:
+        min: 0
+        max: 1000000
+    support:
+      unsupported_architectures:
+        - fermi
+        - ampere
+        - hopper
+        - ada
+        - blackwell
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   slowdown_temperature:
     metadata:
       metric_type: gauge
