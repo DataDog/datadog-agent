@@ -55,9 +55,6 @@ func OpenControl() (*Control, error) {
 		return nil, openErr
 	}
 	unix.CloseOnExec(fd)
-	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, receiveBufferSize); err != nil {
-		return cleanup(fmt.Errorf("set nstat receive buffer: %w", err))
-	}
 
 	var info unix.CtlInfo
 	if len(controlName)+1 > len(info.Name) {
@@ -69,6 +66,11 @@ func OpenControl() (*Control, error) {
 	}
 	if err := unix.Connect(fd, &unix.SockaddrCtl{ID: info.Id}); err != nil {
 		return cleanup(fmt.Errorf("connect nstat control: %w", err))
+	}
+	// Connecting resets the buffer to the control's registered size (8 KiB),
+	// which a burst of source events overflows, silently dropping them.
+	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, receiveBufferSize); err != nil {
+		return cleanup(fmt.Errorf("set nstat receive buffer: %w", err))
 	}
 	if err := unix.SetNonblock(fd, true); err != nil {
 		return cleanup(fmt.Errorf("set nstat control non-blocking: %w", err))

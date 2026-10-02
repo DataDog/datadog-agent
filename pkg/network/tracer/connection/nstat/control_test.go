@@ -10,10 +10,25 @@ package nstat
 import (
 	"encoding/binary"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
+
+func TestOpenControlKeepsReceiveBufferSize(t *testing.T) {
+	if os.Getenv("RUN_NSTAT_FUNCTIONAL_TEST") != "1" {
+		t.Skip("set RUN_NSTAT_FUNCTIONAL_TEST=1 to exercise the private kernel control")
+	}
+	control, err := OpenControl()
+	require.NoError(t, err)
+	defer control.Close()
+
+	size, err := unix.GetsockoptInt(control.fd, unix.SOL_SOCKET, unix.SO_RCVBUF)
+	require.NoError(t, err)
+	require.Equal(t, receiveBufferSize, size)
+}
 
 func TestEncodeAddAllSources(t *testing.T) {
 	request := encodeAddAllSources(17, ProviderTCPKernel)
