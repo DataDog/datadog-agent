@@ -1,0 +1,23 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "4.5.8"
+
+http_archive(
+    name = "libyara",
+    files = {
+        "BUILD.bazel": "//deps/libyara:overlay/libyara.BUILD.bazel",
+    },
+    patch_strip = 1,
+    patches = [
+        # Makes the always-on tests, pe and console modules optional, so that the overlay
+        # can leave them out (see overlay/libyara.BUILD.bazel).
+        "//deps/libyara:module_list.patch",
+        # Renames libyara's strlcpy/strlcat fallbacks to yr_*, so that they don't clash
+        # with libpcap's strlcpy when both are linked into system-probe.
+        "//deps/libyara:strlcpy-prefix.patch",
+    ],
+    # GitHub tag archive; same sha256 as Homebrew's yara 4.5.8 formula
+    sha256 = "c322414975ff6f701149856613afdcd92a7e6939c284c798ae3c85618197efaa",
+    strip_prefix = "yara-{version}".format(version = VERSION),
+    url = "https://github.com/VirusTotal/yara/archive/refs/tags/v{version}.tar.gz".format(version = VERSION),
+)

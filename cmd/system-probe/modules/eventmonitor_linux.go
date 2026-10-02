@@ -10,6 +10,7 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/yara"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
@@ -54,5 +55,22 @@ func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor, config *netcon
 	}
 	monitor.InitializeEventConsumer(consumer)
 	log.Info("USM process monitoring consumer initialized")
+	return nil
+}
+
+// createYaraExecConsumer registers the YARA exec scanner when it is enabled. On error nothing is
+// registered, and the caller must carry on without it.
+func createYaraExecConsumer(evm *eventmonitor.EventMonitor) error {
+	cfg := yara.NewConfig()
+	if !cfg.Enabled {
+		return nil
+	}
+
+	p, err := yara.NewExecScanner(evm, cfg)
+	if err != nil {
+		return err
+	}
+	log.Infof("event monitoring yara exec consumer initialized: rules_dir=%s rules_version=%s workers=%d queue_size=%d max_file_size=%d",
+		cfg.RulesDir, p.RulesVersion(), cfg.Workers, cfg.QueueSize, cfg.MaxFileSize)
 	return nil
 }

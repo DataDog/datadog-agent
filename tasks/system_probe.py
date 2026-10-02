@@ -20,7 +20,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from tasks.build_tags import SYSTEM_PROBE_YARA_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
@@ -182,6 +182,13 @@ def get_libpcap_cgo_flags(ctx):
     }
 
 
+def build_libyara(ctx):
+    """Build libyara with Bazel and install it as a static library in the agent dev directory."""
+    embedded_path = get_embedded_path(ctx)
+    assert embedded_path, "Failed to find embedded path"
+    bazel("run", "--", "@libyara//:install", f"--destdir={embedded_path}")
+
+
 @task
 def build(
     ctx,
@@ -194,9 +201,12 @@ def build(
     static=False,
     fips_mode=False,
     glibc=True,
+    yara=False,
 ):
     """
     Build the system-probe
+
+    Pass --yara to link the libyara engine into the YARA exec scanner (opt-in, Linux only).
     """
     if not is_macos:
         build_object_files(ctx)
@@ -212,6 +222,7 @@ def build(
         static=static,
         fips_mode=fips_mode,
         glibc=glibc,
+        yara=yara,
     )
 
 
@@ -239,6 +250,7 @@ def build_sysprobe_binary(
     fips_mode=False,
     static=False,
     glibc=True,
+    yara=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
 
@@ -273,6 +285,16 @@ def build_sysprobe_binary(
                 env[k] += f" {v}"
             else:
                 env[k] = v
+
+    if yara and not is_windows and not is_macos:
+        build_libyara(ctx)
+        # go-yara links libyara through pkg-config by default; yara_no_pkg_config makes it use
+        # -lyara, found in the embedded lib directory (the same one as libpcap's)
+        build_tags.extend(SYSTEM_PROBE_YARA_TAGS)
+        build_tags.append("yara_no_pkg_config")
+        if "pcap" not in build_tags:
+            for k, v in get_libpcap_cgo_flags(ctx).items():
+                env[k] = f"{env[k]} {v}" if k in env else v
 
     if os.path.exists(binary):
         os.remove(binary)

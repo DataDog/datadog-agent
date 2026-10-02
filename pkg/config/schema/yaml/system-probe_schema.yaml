@@ -1323,6 +1323,65 @@ properties:
             env_vars:
             - DD_EVENT_MONITORING_CONFIG_SYSCALLS_MONITOR_ENABLED
             - DD_RUNTIME_SECURITY_CONFIG_SYSCALLS_MONITOR_ENABLED
+      yara:
+        node_type: section
+        type: object
+        description: Experimental scanning of executed files with YARA rules, once per
+          distinct file content.
+        comment: Proof of concept, see pkg/eventmonitor/consumers/yara.
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: Enables the YARA exec scanner. Enabling it also enables the event
+              monitor module.
+          rules_dir:
+            node_type: setting
+            type: string
+            default: ''
+            description: Directory of YARA rule files compiled at startup. Scanning stays
+              off when unset.
+          chan_size:
+            node_type: setting
+            type: integer
+            default: 500
+            description: Size of the channel the event monitor uses to send exec events to
+              the scanner. Events are dropped when it is full.
+          workers:
+            node_type: setting
+            type: integer
+            default: 2
+            description: Number of concurrent YARA scans.
+          queue_size:
+            node_type: setting
+            type: integer
+            default: 64
+            description: Number of pending scans before new scans are dropped.
+          max_file_size:
+            node_type: setting
+            type: integer
+            default: 67108864
+            description: Size in bytes above which executed files are not scanned.
+          scan_timeout:
+            node_type: setting
+            type: string
+            default: 10s
+            format: duration
+            description: Time limit for scanning a single file.
+          identity_cache_size:
+            node_type: setting
+            type: integer
+            default: 20000
+            description: Number of file identities (mount ID, inode, ctime) remembered to
+              skip files that were already checked.
+          recheck_ttl:
+            node_type: setting
+            type: string
+            default: 24h
+            format: duration
+            description: Time after which a known file identity is read and hashed again,
+              even if it hasn't changed.
   gpu_monitoring:
     node_type: section
     title: System Probe GPU Monitoring module
