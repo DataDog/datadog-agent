@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	tlstags "github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
 )
 
 const (
@@ -42,9 +43,7 @@ type darwinPacketAnalysis struct {
 
 type darwinPacketFlowState struct {
 	direction network.ConnectionDirection
-
-	hasMaxSeq bool
-	maxSeq    uint32
+	sentSeq   ebpfless.SentSeqTracker
 
 	sawSyn           bool
 	sawSynAck        bool
@@ -105,7 +104,10 @@ func (a *darwinPacketAnalyzer) process(cookie uint64, outgoing bool, captureTrun
 
 	accepted := false
 	if outgoing {
-		state.observeOutgoingSequence(tcp)
+		nextSeq := ebpfless.CalcNextSeq(tcp, uint16(len(tcp.Payload)))
+		if _, _, retransmit := state.sentSeq.Observe(tcp.Seq, nextSeq); retransmit {
+			state.retransmits++
+		}
 		accepted = state.outgoingPrefix.add(tcp.Seq, tcp.Payload)
 	} else {
 		accepted = state.incomingPrefix.add(tcp.Seq, tcp.Payload)
@@ -143,22 +145,6 @@ func (a *darwinPacketAnalyzer) remove(cookie uint64) {
 	delete(a.flows, cookie)
 }
 
-func (s *darwinPacketFlowState) observeOutgoingSequence(tcp *layers.TCP) {
-	next := tcp.Seq + uint32(len(tcp.Payload))
-	if tcp.SYN || tcp.FIN {
-		next++
-	}
-	if next == tcp.Seq {
-		return
-	}
-	if !s.hasMaxSeq || darwinSeqBefore(s.maxSeq, next) {
-		s.hasMaxSeq = true
-		s.maxSeq = next
-		return
-	}
-	s.retransmits++
-}
-
 func (s *darwinPacketFlowState) classify() {
 	s.classifyCount++
 	for _, prefix := range [][]byte{s.outgoingPrefix.bytes(), s.incomingPrefix.bytes()} {
@@ -166,10 +152,6 @@ func (s *darwinPacketFlowState) classify() {
 		s.protocolStack.MergeWith(stack)
 		s.tlsTags.MergeWith(tags)
 	}
-}
-
-func darwinSeqBefore(left, right uint32) bool {
-	return int32(left-right) < 0
 }
 
 type darwinPrefixSegment struct {
@@ -234,16 +216,16 @@ func (a *darwinPrefixAssembler) bytes() []byte {
 	}
 	segments := append([]darwinPrefixSegment(nil), a.segments...)
 	sort.Slice(segments, func(i, j int) bool {
-		return darwinSeqBefore(segments[i].seq, segments[j].seq)
+		return ebpfless.IsSeqBefore(segments[i].seq, segments[j].seq)
 	})
 	result := append([]byte(nil), segments[0].data...)
 	next := segments[0].seq + uint32(len(segments[0].data))
 	for _, segment := range segments[1:] {
-		if darwinSeqBefore(next, segment.seq) {
+		if ebpfless.IsSeqBefore(next, segment.seq) {
 			break
 		}
 		overlap := uint32(0)
-		if darwinSeqBefore(segment.seq, next) {
+		if ebpfless.IsSeqBefore(segment.seq, next) {
 			overlap = next - segment.seq
 		}
 		if overlap < uint32(len(segment.data)) {
