@@ -29,11 +29,11 @@ import (
 // (see revertOrphanedExperiment).
 func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
-	present, err := deadline.Present()
+	token, err := deadline.Read()
 	if err != nil {
-		return fmt.Errorf("resume: could not check experiment deadline presence: %w", err)
+		return fmt.Errorf("resume: could not read experiment deadline: %w", err)
 	}
-	if !present {
+	if token == "" {
 		return revertOrphanedExperiment(ctx)
 	}
 
@@ -43,14 +43,14 @@ func resumeConfigExperimentDatadogAgent(ctx HookContext) error {
 	}
 	if expired {
 		log.Warnf("resume: configuration experiment deadline already expired before the daemon could resume it, reverting")
-		_, err := revertExperimentIfStillPending(ctx, deadline, "experiment deadline expired before the daemon could resume it")
+		_, err := revertExperimentIfStillPending(ctx, deadline, token, "experiment deadline expired before the daemon could resume it")
 		return err
 	}
 
 	log.Infof("resume: configuration experiment still within its deadline, resuming supervision")
 	if err := (configExperiment{jobs: agentJobSet()}).Resume(ctx); err != nil {
 		log.Errorf("resume: could not resume the configuration experiment job set, reverting: %v", err)
-		if _, revertErr := revertExperimentIfStillPending(ctx, deadline, "experiment could not be resumed"); revertErr != nil {
+		if _, revertErr := revertExperimentIfStillPending(ctx, deadline, token, "experiment could not be resumed"); revertErr != nil {
 			return fmt.Errorf("resume failed (%w) and the experiment could not be reverted: %w", err, revertErr)
 		}
 		return fmt.Errorf("resume failed, experiment reverted: %w", err)

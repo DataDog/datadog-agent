@@ -28,11 +28,12 @@ type Deadline struct {
 	Path string
 }
 
-// Write persists a deadline of now+window. The write goes to a temporary file in the same
-// directory and is renamed into place, matching the convention Job.Write uses for job
-// definitions, so a reader never observes a partially written deadline.
+// Write persists a deadline of now+window, to the nanosecond so that no two writes persist the
+// same value (see Read). The write goes to a temporary file in the same directory and is renamed
+// into place, matching the convention Job.Write uses for job definitions, so a reader never
+// observes a partially written deadline.
 func (d Deadline) Write(window time.Duration) error {
-	deadline := time.Now().Add(window).Format(time.RFC3339)
+	deadline := time.Now().Add(window).Format(time.RFC3339Nano)
 	path := d.Path
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp")
 	if err != nil {
@@ -83,6 +84,20 @@ func (d Deadline) Present() (bool, error) {
 		return false, fmt.Errorf("could not stat deadline file: %w", err)
 	}
 	return true, nil
+}
+
+// Read returns the deadline exactly as persisted, or "" when the file is absent. No two Writes
+// persist the same value, so it also identifies the experiment the deadline bounds: a process that
+// read it earlier can tell its own experiment apart from one started since.
+func (d Deadline) Read() (string, error) {
+	raw, err := os.ReadFile(d.Path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("could not read deadline file: %w", err)
+	}
+	return strings.TrimSpace(string(raw)), nil
 }
 
 // Expired reports whether the deadline has passed, is unparseable, or is implausibly far in the

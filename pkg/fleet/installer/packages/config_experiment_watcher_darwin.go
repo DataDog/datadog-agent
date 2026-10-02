@@ -34,17 +34,29 @@ const (
 
 // watchExperiment runs in a detached process, launched by postStartConfigExperimentDatadogAgent
 // after a configuration experiment has started successfully. It supervises the experiment job
-// set for as long as the deadline file (configExperimentDeadlinePath) exists, reverting to the
-// stable set if every experiment job exits or if the deadline expires.
+// set for as long as the deadline file (configExperimentDeadlinePath) still holds the deadline it
+// read on start, reverting to the stable set if an experiment job exits abnormally or if the
+// deadline expires.
 //
 // A deliberate stop or promote (configExperiment.restoreStable) clears the deadline file before
 // touching any job, which is this design's only signal between the two processes: there is no
-// way to send this process a message, so every event handler below re-checks the file's
-// presence immediately before acting, and treats an already-cleared file as "someone else is
-// already handling this" rather than a crash to revert.
+// way to send this process a message, so every event handler below re-checks the file
+// immediately before acting, and treats a cleared or rewritten file as "this experiment is over,
+// someone else is handling it" rather than a crash to revert. The same check on every tick is
+// what lets this process exit after a stop whose jobs all exited cleanly, which delivers no event
+// it acts on.
 func watchExperiment(ctx context.Context) error {
 	deadline := launchd.Deadline{Path: configExperimentDeadlinePath}
 	jobs := agentJobSet()
+
+	token, err := deadline.Read()
+	if err != nil {
+		return fmt.Errorf("watcher: could not read experiment deadline: %w", err)
+	}
+	if token == "" {
+		// Stopped or promoted before this process got to run: nothing left to supervise.
+		return nil
+	}
 
 	pids, exited, err := resolveExperimentPids(ctx, jobs)
 	if err != nil {
@@ -56,14 +68,14 @@ func watchExperiment(ctx context.Context) error {
 		// one caught mid-watch: revert immediately rather than silently leaving an
 		// unsupervised, already-dead experiment in place.
 		reason := fmt.Sprintf("experiment job %s exited before the watcher could observe it (status %d)", exited.Label, exited.LastExitStatus)
-		_, err := revertExperimentIfStillPending(ctx, deadline, reason)
+		_, err := revertExperimentIfStillPending(ctx, deadline, token, reason)
 		return err
 	}
 	if len(pids) == 0 {
 		// Every job in the set failed to come up at all within the startup grace period,
 		// and none of them recorded an exit either -- Kickstart was accepted but nothing
 		// ever ran. Treat that as a failed launch, same as a crash.
-		_, err := revertExperimentIfStillPending(ctx, deadline, "experiment never started")
+		_, err := revertExperimentIfStillPending(ctx, deadline, token, "experiment never started")
 		return err
 	}
 
@@ -100,18 +112,24 @@ func watchExperiment(ctx context.Context) error {
 				continue
 			}
 			reason := fmt.Sprintf("experiment pid %d exited (status %d)", ev.Pid, ev.Status)
-			_, err := revertExperimentIfStillPending(ctx, deadline, reason)
+			_, err := revertExperimentIfStillPending(ctx, deadline, token, reason)
 			if err != nil {
 				return err
 			}
 			// Whether this call reverted or found the deadline already cleared by a
 			// deliberate stop/promote, the experiment this watcher was supervising is no
-			// longer pending -- staying alive any longer would leave an orphan process
-			// whose later, delayed exit events could race a *different* experiment that
-			// later reuses the same shared deadline file (the file carries no per-
-			// experiment identity), reverting it by mistake.
+			// longer pending, so there is nothing left for this process to do.
 			return nil
 		case <-ticker.C:
+			current, err := deadline.Read()
+			if err != nil {
+				log.Errorf("watcher: could not read experiment deadline: %v", err)
+				continue
+			}
+			if current != token {
+				// Stopped, promoted, or replaced by a newer experiment with its own watcher.
+				return nil
+			}
 			expired, err := deadline.Expired(configExperimentDeadlineWindow)
 			if err != nil {
 				log.Errorf("watcher: could not check experiment deadline: %v", err)
@@ -120,7 +138,7 @@ func watchExperiment(ctx context.Context) error {
 			if !expired {
 				continue
 			}
-			if _, err := revertExperimentIfStillPending(ctx, deadline, "experiment deadline expired"); err != nil {
+			if _, err := revertExperimentIfStillPending(ctx, deadline, token, "experiment deadline expired"); err != nil {
 				return err
 			}
 			return nil
@@ -191,9 +209,10 @@ func exitedCleanly(status int) bool {
 	return ws.Exited() && ws.ExitStatus() == 0
 }
 
-// revertExperimentIfStillPending reverts to the stable job set unless the deadline file has
-// already been cleared by a deliberate stop or promote, in which case that path owns the
-// outcome and this call is a no-op. Reports whether it reverted.
+// revertExperimentIfStillPending reverts to the stable job set unless the deadline file no longer
+// holds token: cleared by a deliberate stop or promote, in which case that path owns the outcome,
+// or rewritten by a newer experiment that is not this caller's to revert. Either way this call is
+// a no-op. Reports whether it reverted.
 //
 // A deliberate stop or promote, driven by the daemon, also discards or promotes the experiment
 // configuration directory itself (RemoveConfigExperiment's i.config.RemoveExperiment, called
@@ -201,12 +220,12 @@ func exitedCleanly(status int) bool {
 // to its installer/db state, but the directory swap it still owes is a plain filesystem
 // operation -- restoring the experiment link to resting -- so revertExperiment does it directly
 // (see discardExperimentConfig).
-func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadline, reason string) (bool, error) {
-	present, err := deadline.Present()
+func revertExperimentIfStillPending(ctx context.Context, deadline launchd.Deadline, token string, reason string) (bool, error) {
+	current, err := deadline.Read()
 	if err != nil {
-		return false, fmt.Errorf("watcher: could not check deadline presence: %w", err)
+		return false, fmt.Errorf("watcher: could not read experiment deadline: %w", err)
 	}
-	if !present {
+	if current != token {
 		return false, nil
 	}
 	log.Warnf("watcher: reverting configuration experiment: %s", reason)

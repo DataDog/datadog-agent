@@ -51,6 +51,34 @@ func TestDeadlineClearIsIdempotent(t *testing.T) {
 	require.NoError(t, d.Clear())
 }
 
+// TestDeadlineReadIdentifiesEachWrite pins what the watcher relies on to tell its own experiment
+// from a later one: Read is empty once cleared, and two writes never persist the same value.
+func TestDeadlineReadIdentifiesEachWrite(t *testing.T) {
+	d := testDeadline(t)
+
+	token, err := d.Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+
+	require.NoError(t, d.Write(time.Hour))
+	first, err := d.Read()
+	require.NoError(t, err)
+	assert.NotEmpty(t, first)
+	expired, err := d.Expired(2 * time.Hour)
+	require.NoError(t, err)
+	assert.False(t, expired, "a freshly written deadline must parse as unexpired")
+
+	require.NoError(t, d.Write(time.Hour))
+	second, err := d.Read()
+	require.NoError(t, err)
+	assert.NotEqual(t, first, second)
+
+	require.NoError(t, d.Clear())
+	token, err = d.Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+}
+
 func TestDeadlineExpiredCases(t *testing.T) {
 	t.Run("missing file is not expired", func(t *testing.T) {
 		d := testDeadline(t)
