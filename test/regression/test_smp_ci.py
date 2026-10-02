@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import convert_old_report_to_v1 as converter
+import temp_upgrade_smp_report_to_v1 as converter
 import smp_ci
 
 ROOT = Path(__file__).resolve().parents[2]

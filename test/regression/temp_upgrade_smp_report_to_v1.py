@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Best-effort generation of report.v1.json from an unversioned report.json.
 
+Reference source: report-parity-experiments/temp_upgrade_smp_report_to_v1.py.
+The Agent and Saluki CI converters are byte-for-byte copies of this file.
+Make changes in the reference, then copy it to the team-local filenames.
+Conversion uses JSON only, never rendered Markdown or PR-comment baselines.
+
 Both files are emitted by consignor-report from the same Builder state:
 - report.json:     Builder::into_json     (services/consignor/src/report.rs)
 - report.v1.json:  Builder::into_json_v1 (services/consignor/src/report/json_v1.rs)
@@ -13,8 +18,8 @@ What is derivable from report.json:
     is_regression maps to is_significant_change)
   - bounds_checks, comparison variant only, aggregated per check name
     (pass_count / total_count / min_observed / max_observed)
-    Empty checks are retained with zero counts so Agent quality gates fail
-    when the legacy report has no comparison data.
+    Empty comparison checks are retained with zero counts, so missing
+    quality-gate data does not disappear during conversion.
   - erratic (goal row first, else first bounds check, else False)
 - failed_replicates (from failed_replicates.executions; buckets sorted by
   replicate index; list stable-sorted by experiment then variant)
@@ -27,12 +32,14 @@ What report.json does NOT contain (placeholders emitted):
   on the check name; can be wrong when name and series differ
 - quantile_checks -> [] (cairn quantile results are not serialized at all)
 - analysis_errors -> []
+- historical reports without failed_replicates -> [] with a warning; the
+  missing failure modes, retry counts, and dead/retried status cannot be inferred
 - experiments whose only data was a no-optimization-goal row, quantile rows,
   or analysis errors: they never appear in report.json and are omitted.
 
 Usage:
-  convert_old_report_to_v1.py report.json [--output PATH] [--force]
-  convert_old_report_to_v1.py DIR_OR_REPORT... --compare
+  temp_upgrade_smp_report_to_v1.py report.json [--output PATH] [--force]
+  temp_upgrade_smp_report_to_v1.py DIR_OR_REPORT... --compare
 
 --compare generates in memory and diffs against the existing report.v1.json
 next to each input, classifying differences into known gaps vs unexpected.
@@ -86,12 +93,11 @@ def detect_unit(name: str) -> str:
         return "bytes_per_second"
     return "none"
 
-
 def goal_token(goal: str) -> str:
     if goal in GOAL_TOKENS:
         return GOAL_TOKENS[goal]
     # fallback: CamelCase -> snake_case
-    token = "@" + re.sub(r"(?<!^)(?=[A-Z])", "_", goal).lower()
+    token = re.sub(r"(?<!^)(?=[A-Z])", "_", goal).lower()
     print(f"warning: unknown optimization goal {goal!r}, token {token!r}", file=sys.stderr)
     return token
 
@@ -125,8 +131,8 @@ def build_optimization_goal(raw: dict) -> dict:
 def build_bounds_check(name: str, raw: dict) -> dict | None:
     """Aggregate one report.json bounds check into a v1 BoundsCheck.
 
-    Retain empty comparison results with zero counts. The native v1 serializer
-    omits these checks, but keeping them lets Agent CI detect missing gate data.
+    Retain empty comparison results with zero counts. Native v1 omits these
+    checks, but preserving the legacy check lets CI detect missing gate data.
     """
     if raw.get("bounds_check_type") != "bounds":
         print(f"warning: skipping non-bounds check {name!r}", file=sys.stderr)
@@ -192,7 +198,10 @@ def build_failed_replicates(raw: dict) -> list:
                 file=sys.stderr,
             )
             continue
-        reps = [{"replicate_index": r["replicate_idx"], "count": r["count"]} for r in exe.get("replicates", [])]
+        reps = [
+            {"replicate_index": r["replicate_idx"], "count": r["count"]}
+            for r in exe.get("replicates", [])
+        ]
         reps.sort(key=lambda r: r["replicate_index"])
         rows.append(
             {
@@ -215,8 +224,16 @@ def convert(report: dict) -> dict:
     if not job_info or not time_range:
         raise ValueError("report.json is missing job_info or time_range")
 
+    if "failed_replicates" not in report:
+        print(
+            f"warning: {report['job_id']}: report.json did not serialize failed_replicates; "
+            "v1 uses [] because failure details are unavailable, not because no failures occurred",
+            file=sys.stderr,
+        )
+
     experiments = [
-        build_experiment(name, report["experiments"][name]) for name in sorted(report.get("experiments") or {})
+        build_experiment(name, report["experiments"][name])
+        for name in sorted(report.get("experiments") or {})
     ]
 
     return {
@@ -230,7 +247,9 @@ def convert(report: dict) -> dict:
             "tolerances": {
                 "p_value": job_info["p_value"],
                 "effect_size": job_info["effect_size"],
-                "coefficient_of_variation_limit": job_info["coefficient_of_variation_limit"],
+                "coefficient_of_variation_limit": job_info[
+                    "coefficient_of_variation_limit"
+                ],
             },
         },
         "experiments": experiments,
@@ -285,7 +304,8 @@ def diff_v1(generated: dict, expected: dict) -> tuple[list, list]:
             for field in ("lower_bound", "upper_bound", "pass_count", "total_count", "min_observed", "max_observed"):
                 if gk[field] != ek[field]:
                     unexpected.append(
-                        f"experiments/{name}/bounds_checks/{cname}/{field}: {gk[field]!r} != {ek[field]!r}"
+                        f"experiments/{name}/bounds_checks/{cname}/{field}: "
+                        f"{gk[field]!r} != {ek[field]!r}"
                     )
         if g["quantile_checks"] != e["quantile_checks"]:
             known.append(f"experiments/{name}/quantile_checks: not present in report.json")

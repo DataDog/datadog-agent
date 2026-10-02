@@ -205,7 +205,7 @@ variables:
           datadog-ci tag --level job --tags smp_failure_mode:"report-conversion"
           exit 1
         fi
-        python3 test/regression/convert_old_report_to_v1.py outputs/report.json --force || {
+        python3 test/regression/temp_upgrade_smp_report_to_v1.py outputs/report.json --force || {
           exit_code=$?
           datadog-ci tag --level job --tags smp_failure_mode:"report-conversion"
           exit "$exit_code"

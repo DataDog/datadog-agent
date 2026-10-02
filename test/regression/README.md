@@ -50,7 +50,7 @@ The structure of each case is as follows:
 
 The SMP backend computes analysis data. After `smp job sync`, CI uses
 `report.v1.json` for local rendering and policy decisions. When the backend
-only supplies legacy `report.json`, `convert_old_report_to_v1.py` converts it
+only supplies legacy `report.json`, `temp_upgrade_smp_report_to_v1.py` converts it
 first. The wrapper assumes the v1 input conforms to its report schema; it does
 not duplicate schema validation.
 
@@ -116,7 +116,7 @@ From the repository root:
 mkdir -p /tmp/smp-report
 
 # Skip this conversion step when you already have report.v1.json.
-python3 test/regression/convert_old_report_to_v1.py report.json \
+python3 test/regression/temp_upgrade_smp_report_to_v1.py report.json \
   --output /tmp/smp-report/report.v1.json --force
 
 python3 test/regression/smp_ci.py \

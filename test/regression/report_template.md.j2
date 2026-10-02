@@ -106,7 +106,6 @@ Job ID: {{ job.id }}
 Baseline: {{ job.baseline_sha }}
 Comparison: {{ job.comparison_sha }}
 {%- if shas_are_shas(job.baseline_sha, job.comparison_sha) %}
-
 [Diff]({{ job.baseline_sha }}...{{ job.comparison_sha }})
 {%- endif %}
 
