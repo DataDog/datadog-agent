@@ -902,10 +902,6 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 
 	// Create APIs for retired memory pages, one per retirement cause.
 	for cause, causeName := range pageRetirementCauseToName {
-		// Handlers close over these values and run after the loop finishes, so rebind
-		// each range variable to preserve the values for this API.
-		cause := cause
-		causeName := causeName
 		apis = append(apis, apiCallInfo{
 			Name: "retired_pages." + causeName,
 			Handler: func(device ddnvml.Device, _ uint64) ([]Sample, uint64, error) {
