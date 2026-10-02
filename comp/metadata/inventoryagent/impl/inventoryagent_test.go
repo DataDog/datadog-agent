@@ -27,6 +27,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -41,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -55,6 +57,7 @@ type testDeps struct {
 	Serializer     serializer.MetricSerializer
 	IPCClient      ipc.HTTPClient
 	Hostname       hostnameinterface.Component
+	Capabilities   *iainterface.Capabilities `optional:"true"`
 }
 
 func makeRequires(deps testDeps) Requires {
@@ -65,10 +68,11 @@ func makeRequires(deps testDeps) Requires {
 		Serializer:     deps.Serializer,
 		IPCClient:      deps.IPCClient,
 		Hostname:       deps.Hostname,
+		Capabilities:   deps.Capabilities,
 	}
 }
 
-func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
+func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any, options ...fx.Option) Provides {
 	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
@@ -81,6 +85,7 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 			hostnameimpl.MockModule(),
+			fx.Options(options...),
 		)),
 	)
 }
@@ -110,6 +115,125 @@ func TestGetPayload(t *testing.T) {
 	assert.True(t, payload.Timestamp > startTime)
 	assert.Equal(t, "hostname-for-test", payload.Hostname)
 	assert.Equal(t, 1234, payload.Metadata["test"])
+}
+
+func TestCapabilitiesCrossProcessEnrichment(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		capabilities *iainterface.Capabilities
+		wantFetches  int
+	}{
+		{name: "absent capabilities", wantFetches: 1},
+		{name: "zero capabilities", capabilities: &iainterface.Capabilities{}, wantFetches: 1},
+		{name: "serverless capabilities", capabilities: iainterface.NewServerlessCapabilities(nil)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			originalSecurity, originalProcess := fetchSecurityConfig, fetchProcessConfig
+			originalTrace, originalSystemProbe := fetchTraceConfig, fetchSystemProbeConfig
+			t.Cleanup(func() {
+				fetchSecurityConfig, fetchProcessConfig = originalSecurity, originalProcess
+				fetchTraceConfig, fetchSystemProbeConfig = originalTrace, originalSystemProbe
+			})
+			fetches := map[string]int{}
+			fetcher := func(name, remoteConfig string) func(pkgconfigmodel.Reader, ipc.HTTPClient) (string, error) {
+				return func(_ pkgconfigmodel.Reader, _ ipc.HTTPClient) (string, error) {
+					fetches[name]++
+					return remoteConfig, nil
+				}
+			}
+			fetchSecurityConfig = fetcher("security", "compliance_config:\n  enabled: true")
+			fetchProcessConfig = fetcher("process", "process_config:\n  process_collection:\n    enabled: true")
+			fetchTraceConfig = fetcher("trace", "apm_config:\n  enabled: true")
+			fetchSystemProbeConfig = fetcher("system-probe", "network_config:\n  enabled: true")
+
+			var options []fx.Option
+			if tt.capabilities != nil {
+				options = append(options, fx.Supply(tt.capabilities))
+			}
+			if tt.wantFetches == 0 {
+				options = append(options, fx.Decorate(func(ipc.HTTPClient) ipc.HTTPClient { return nil }))
+			}
+			p := getProvides(t, map[string]any{"inventories_configuration_enabled": true}, nil, options...)
+			ia := p.Comp.(*inventoryagent)
+			ia.Set("resource_id", "test-resource")
+			payload := ia.getPayload().(*Payload)
+
+			assert.Equal(t, version.AgentVersion, payload.Metadata["agent_version"])
+			assert.Equal(t, ia.conf.StartTime().UnixMilli(), payload.Metadata["agent_startup_time_ms"])
+			assert.Equal(t, flavor.GetFlavor(), payload.Metadata["flavor"])
+			assert.Equal(t, "test-resource", payload.Metadata["resource_id"])
+			assert.Equal(t, uuid.GetUUID(), payload.UUID)
+			assert.Contains(t, payload.Metadata, "full_configuration")
+			for name, field := range map[string]string{
+				"security":     "feature_cspm_enabled",
+				"process":      "feature_process_enabled",
+				"trace":        "feature_apm_enabled",
+				"system-probe": "feature_networks_enabled",
+			} {
+				assert.Equal(t, tt.wantFetches, fetches[name], name)
+				if tt.wantFetches == 0 {
+					assert.NotContains(t, payload.Metadata, field)
+				} else {
+					assert.Equal(t, true, payload.Metadata[field], field)
+				}
+			}
+		})
+	}
+}
+
+func TestCapabilitiesPayloadUUID(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		withResolver bool
+		resolvedUUID string
+	}{
+		{name: "nil resolver"},
+		{name: "empty override", withResolver: true},
+		{name: "override", withResolver: true, resolvedUUID: "process-uuid"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			originalGetUUID := uuid.GetUUID
+			t.Cleanup(func() { uuid.GetUUID = originalGetUUID })
+			hostUUIDCalls := 0
+			uuid.GetUUID = func() string {
+				hostUUIDCalls++
+				return "host-uuid"
+			}
+			resolvedUUID := tt.resolvedUUID
+			resolverCalls := 0
+			var resolver func() string
+			if tt.withResolver {
+				resolver = func() string {
+					resolverCalls++
+					return resolvedUUID
+				}
+			}
+			p := getProvides(t, nil, nil, fx.Supply(iainterface.NewServerlessCapabilities(resolver)))
+			ia := p.Comp.(*inventoryagent)
+			first := ia.getPayload().(*Payload)
+			if resolvedUUID == "" {
+				assert.Equal(t, "host-uuid", first.UUID)
+				assert.Equal(t, 1, hostUUIDCalls)
+			} else {
+				assert.Equal(t, resolvedUUID, first.UUID)
+				assert.Zero(t, hostUUIDCalls)
+			}
+			resolvedUUID = "next-instance-uuid"
+			second := ia.getPayload().(*Payload)
+			if tt.withResolver {
+				assert.Equal(t, resolvedUUID, second.UUID)
+				assert.Equal(t, 2, resolverCalls)
+				if tt.resolvedUUID == "" {
+					assert.Equal(t, 1, hostUUIDCalls)
+				} else {
+					assert.Zero(t, hostUUIDCalls)
+				}
+			} else {
+				assert.Equal(t, "host-uuid", second.UUID)
+				assert.Equal(t, 2, hostUUIDCalls)
+			}
+		})
+	}
 }
 
 func TestInitDataErrorInstallInfo(t *testing.T) {
