@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "observability",
     srcs = [
+        "authtag.go",
         "logging.go",
         "telemetry.go",
         "utils.go",
@@ -21,12 +22,14 @@ go_library(
 dd_agent_go_test(
     name = "observability_test",
     srcs = [
+        "authtag_test.go",
         "logging_test.go",
         "telemetry_test.go",
         "utils_test.go",
     ],
     embed = [":observability"],
     deps = [
+        "//comp/core/ipc/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/mock",
         "//pkg/util/fxutil",
