@@ -378,9 +378,9 @@ func TestFoldspaceFactoryPick(t *testing.T) {
 		secretsnoopimpl.NewComponent().Comp,
 	)
 	p := providerImpl.(*provider)
-	require.NotNil(t, p.foldspaceDriver)
+	require.NotNil(t, p.foldspaceGroup)
 	assert.False(t, p.foldspaceDualShip)
-	_, ok := p.sender.(*foldspace.Driver)
+	_, ok := p.sender.(*foldspace.DriverGroup)
 	assert.True(t, ok)
 }
 
@@ -418,8 +418,72 @@ func TestFoldspaceDualShipKeepsHTTPSender(t *testing.T) {
 		secretsnoopimpl.NewComponent().Comp,
 	)
 	p := providerImpl.(*provider)
-	require.NotNil(t, p.foldspaceDriver)
+	require.NotNil(t, p.foldspaceGroup)
 	assert.True(t, p.foldspaceDualShip)
-	_, ok := p.sender.(*foldspace.Driver)
+	_, ok := p.sender.(*foldspace.DriverGroup)
 	assert.False(t, ok)
+}
+
+// Stateful encoding parallelizes only by running parallel cores, so each pipeline
+// gets its own driver and each driver its own core: a Core admits one ingest
+// caller at a time, so sharing one across pipelines would serialize their
+// stateful encoding behind a single ingest loop.
+func TestFoldspaceDriverPerPipeline(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("logs_config.foldspace.enabled", true)
+	cfg.SetInTest("logs_config.foldspace.dual_ship", true)
+	cfg.SetInTest("logs_config.foldspace.max_inflight_payloads", 16)
+	cfg.SetInTest("logs_config.foldspace.pipeline_depth", 8)
+	cfg.SetInTest("logs_config.message_channel_size", 10)
+
+	orig := newFoldspaceCore
+	var cores int
+	newFoldspaceCore = func(_ *foldspace.DestinationConfig) (foldspace.Core, error) {
+		cores++
+		return foldspace.NewFakeCore(foldspace.FakeCoreConfig{Classes: []foldspace.SenderClass{foldspace.Reliable}}), nil
+	}
+	defer func() { newFoldspaceCore = orig }()
+
+	main := config.NewMockEndpointWithOptions(map[string]interface{}{"host": "localhost", "port": 443, "use_ssl": false})
+	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{main}, map[string]interface{}{"use_http": true})
+	endpoints.Main = main
+
+	const pipelines = 4
+	providerImpl := NewProvider(
+		pipelines,
+		&sender.NoopSink{},
+		&diagnostic.BufferedMessageReceiver{},
+		nil,
+		endpoints,
+		&client.DestinationsContext{},
+		statusinterface.NewStatusProviderMock(),
+		nil,
+		cfg,
+		compressionfx.NewMockCompressor(),
+		false,
+		false,
+		secretsnoopimpl.NewComponent().Comp,
+	)
+	p := providerImpl.(*provider)
+	require.NotNil(t, p.foldspaceGroup)
+
+	assert.Equal(t, pipelines, cores, "one core per pipeline")
+
+	drivers := p.foldspaceGroup.Drivers()
+	require.Len(t, drivers, pipelines)
+
+	// Distinct drivers, each with its own tap onto its own ingest, prove they are
+	// not aliases of one another, which is what lets the pipelines encode
+	// concurrently.
+	taps := make(map[any]struct{}, pipelines)
+	for _, d := range drivers {
+		taps[d.Tap()] = struct{}{}
+	}
+	assert.Len(t, taps, pipelines, "each driver owns its own ingest")
+
+	// One monitor backs the whole group, so the provider still reports a single
+	// set of component snapshots.
+	for _, d := range drivers {
+		assert.Same(t, p.foldspaceGroup.PipelineMonitor(), d.PipelineMonitor())
+	}
 }
