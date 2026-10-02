@@ -569,32 +569,128 @@ func TestOnTaskUpdate_MatchesMonitorCopyWhenNoOriginalIsKnown(t *testing.T) {
 	assert.NotContains(t, parseInstance(t, changes.Schedule[0]), "data_observability")
 }
 
-func TestOnTaskUpdate_DigestIsUniquePerTask(t *testing.T) {
+// taskUpdateAt builds a task config like taskUpdate, created at createdAt and expiring 600s after
+// testNow.
+func taskUpdateAt(t *testing.T, taskID, host string, createdAt int64) (string, state.RawConfig) {
+	t.Helper()
+	payload := buildTaskPayload(taskID, host, testNow.Unix()+600)
+	payload.Task.CreatedAt = createdAt
+	return rcPath(taskConfigID(taskID)), taskRawConfig(t, payload)
+}
+
+func scheduledTaskIDs(t *testing.T, configs []integration.Config) []string {
+	t.Helper()
+	ids := make([]string, 0, len(configs))
+	for _, cfg := range configs {
+		ids = append(ids, parseInstance(t, cfg)["do_task"].(map[string]any)["task_id"].(string))
+	}
+	return ids
+}
+
+func TestOnTaskUpdate_TasksForOneDatabaseRunOneAtATime(t *testing.T) {
 	base := mysqlBaseConfig()
 	c, _ := newTaskTestComponent(t, []integration.Config{base})
-	firstPath, firstRaw := taskUpdate(t, testTaskID, testMySQLHost)
-	secondPath, secondRaw := taskUpdate(t, testOtherTaskID, testMySQLHost)
+	// The other task was created first, so it runs first.
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
 
 	statuses, _ := collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses[firstPath].State)
+	assert.Equal(t, state.ApplyStateUnacknowledged, statuses[secondPath].State, "a waiting task is not applied yet")
+	started := drainTaskChanges(c)
+	assert.Equal(t, []string{testOtherTaskID}, scheduledTaskIDs(t, started.Schedule))
+
+	// The first task's config leaves the snapshot: its check is unscheduled and the second task starts.
+	statuses, _ = collectStatuses(c, map[string]state.RawConfig{secondPath: secondRaw})
 	assert.Equal(t, state.ApplyStateAcknowledged, statuses[secondPath].State)
-
-	changes := drainTaskChanges(c)
-	require.Len(t, changes.Schedule, 2, "two tasks for the same instance run as two checks")
-	digests := map[string]bool{base.Digest(): true}
-	for _, cfg := range changes.Schedule {
-		assert.False(t, digests[cfg.Digest()], "digest collision")
-		digests[cfg.Digest()] = true
-	}
-
-	// Removing one task unschedules only that task's check.
-	_, _ = collectStatuses(c, map[string]state.RawConfig{secondPath: secondRaw})
-	gone := drainTaskChanges(c)
-	require.Len(t, gone.Unschedule, 1)
-	doTask := parseInstance(t, gone.Unschedule[0])["do_task"].(map[string]any)
-	assert.Equal(t, testTaskID, doTask["task_id"])
+	next := drainTaskChanges(c)
+	assert.Equal(t, []string{testOtherTaskID}, scheduledTaskIDs(t, next.Unschedule))
+	assert.Equal(t, []string{testTaskID}, scheduledTaskIDs(t, next.Schedule))
+	assert.NotEqual(t, started.Schedule[0].Digest(), next.Schedule[0].Digest(), "each task runs as its own check")
 }
 
+func TestOnTaskChecksPolled_NextTaskStartsWhenTheCheckHasRun(t *testing.T) {
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
+	statuses, _ := collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+	drainTaskChanges(c)
+
+	finished := map[string]bool{}
+	c.finishedTaskChecks = func() map[string]bool { return finished }
+
+	c.onTaskChecksPolled()
+	idle := drainTaskChanges(c)
+	assert.True(t, idle.IsEmpty(), "nothing starts while the first check hasn't run")
+
+	finished[taskConfigID(testOtherTaskID)] = true
+	c.onTaskChecksPolled()
+
+	changes := drainTaskChanges(c)
+	assert.Empty(t, changes.Unschedule, "a finished check stays scheduled until its config is removed")
+	assert.Equal(t, []string{testTaskID}, scheduledTaskIDs(t, changes.Schedule))
+	assert.Equal(t, state.ApplyStateAcknowledged, statuses[secondPath].State, "reported through the latest RC callback")
+}
+
+func TestOnTaskUpdate_TasksForDifferentDatabasesRunTogether(t *testing.T) {
+	other := mysqlBaseConfig()
+	other.Source = "file:/etc/datadog-agent/conf.d/mysql.d/other.yaml"
+	other.Instances = []integration.Data{integration.Data("host: other.internal\nport: 3306\ndata_observability:\n  enabled: true\n")}
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig(), other})
+	firstPath, firstRaw := taskUpdate(t, testTaskID, testMySQLHost)
+	secondPath, secondRaw := taskUpdate(t, testOtherTaskID, "other.internal")
+
+	_, _ = collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+
+	assert.ElementsMatch(t, []string{testTaskID, testOtherTaskID}, scheduledTaskIDs(t, drainTaskChanges(c).Schedule))
+}
+
+func TestOnTaskUpdate_QueuedTaskThatExpiredFailsInsteadOfStarting(t *testing.T) {
+	c, forwarder := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
+	_, _ = collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+	drainTaskChanges(c)
+
+	c.now = func() time.Time { return testNow.Add(601 * time.Second) }
+	statuses, _ := collectStatuses(c, map[string]state.RawConfig{secondPath: secondRaw})
+
+	assert.Equal(t, state.ApplyStateError, statuses[secondPath].State)
+	assert.Empty(t, drainTaskChanges(c).Schedule)
+	events := forwarder.sent()
+	require.Len(t, events, 1)
+	assert.Equal(t, testTaskID, events[0]["task_id"])
+	assert.Equal(t, taskErrorKindExpired, events[0]["error_kind"])
+}
+
+func TestOnTaskUpdate_QueuedTaskRemovedBeforeStartingNeverRuns(t *testing.T) {
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	firstPath, firstRaw := taskUpdateAt(t, testOtherTaskID, testMySQLHost, testNow.Unix()-20)
+	secondPath, secondRaw := taskUpdateAt(t, testTaskID, testMySQLHost, testNow.Unix()-10)
+	_, _ = collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw, secondPath: secondRaw})
+	drainTaskChanges(c)
+
+	_, _ = collectStatuses(c, map[string]state.RawConfig{firstPath: firstRaw})
+	removed := drainTaskChanges(c)
+	assert.True(t, removed.IsEmpty(), "a task that never started has no check to unschedule")
+
+	_, _ = collectStatuses(c, map[string]state.RawConfig{})
+	gone := drainTaskChanges(c)
+	assert.Equal(t, []string{testOtherTaskID}, scheduledTaskIDs(t, gone.Unschedule))
+	assert.Empty(t, gone.Schedule)
+}
+
+func TestTaskConfigIDOfInstance_ReadsTheBuiltCheckConfig(t *testing.T) {
+	// The collector poll finds a task's check by the config ID in its instance.
+	c, _ := newTaskTestComponent(t, []integration.Config{mysqlBaseConfig()})
+	path, raw := taskUpdate(t, testTaskID, testMySQLHost)
+	_, _ = collectStatuses(c, map[string]state.RawConfig{path: raw})
+	scheduled := drainTaskChanges(c).Schedule
+	require.Len(t, scheduled, 1)
+
+	assert.Equal(t, taskConfigID(testTaskID), taskConfigIDOfInstance(string(scheduled[0].Instances[0])))
+	assert.Empty(t, taskConfigIDOfInstance("host: db.internal\n"))
+}
 func TestFindMatchingConfig_NeverPicksTaskChecks(t *testing.T) {
 	base := mysqlBaseConfig()
 	c, _ := newTaskTestComponent(t, []integration.Config{base})
