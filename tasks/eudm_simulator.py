@@ -216,7 +216,7 @@ def _capture_api_reader(installed):
 
 
 def _valid_metric_schedules(capability):
-    """Match protocol-3 fixed check families and positive nanosecond durations."""
+    """Match protocol-4 fixed check families and positive nanosecond durations."""
     schedules = capability.get("metric_schedules")
     if not isinstance(schedules, list) or not 1 <= len(schedules) <= len(_CAPTURE_METRIC_FAMILIES):
         return False
@@ -253,7 +253,7 @@ def _wait_for_capture_apis(read, commit, timeout=120):
                 status = read(role)
                 producer = status.get("producer", {})
                 if (
-                    status.get("protocol_version") != 3
+                    status.get("protocol_version") != 4
                     or producer.get("role") != role
                     or producer.get("commit") != commit
                     or not producer.get("instance_id")
@@ -272,11 +272,13 @@ def _wait_for_capture_apis(read, commit, timeout=120):
                 missing.add(role)
         if not missing:
             print(
-                "Installed core and Process Agent expose capture protocol 3 with all required macOS streams "
+                "Installed core and Process Agent expose capture protocol 4 with all required macOS streams "
                 "and metric check cadences."
             )
             if hardware_available:
-                print("Host system information will be included automatically; collection runs hourly.")
+                print(
+                    "Capture will collect fresh host system information once at startup; its regular hourly schedule stays unchanged."
+                )
             return
         time.sleep(1)
     raise Exit(
@@ -350,5 +352,5 @@ def install(ctx, prepare_only=False, race=False, commit=None):
             ctx.run(join_command(["sudo", "/bin/sh", str(script)]), pty=True, echo=True)
     _wait_for_capture_apis(read, commit)
     print(
-        "Capture with: ./bin/eudm-simulator/eudm-simulator capture --cfgpath /opt/datadog-agent/etc/datadog.yaml --timeout 70m --output /private/tmp/eudm-macos-baseline"
+        "Capture with: ./bin/eudm-simulator/eudm-simulator capture --cfgpath /opt/datadog-agent/etc/datadog.yaml --duration 35m --output /private/tmp/eudm-macos-baseline"
     )

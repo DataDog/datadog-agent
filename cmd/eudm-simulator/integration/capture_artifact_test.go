@@ -225,7 +225,11 @@ func TestArtifactTypedFixtures(t *testing.T) {
 	for _, platform := range []string{"macos", "windows"} {
 		t.Run(platform, func(t *testing.T) {
 			fixture := replayFixture(t, platform)
-			for _, sample := range fixture.Samples {
+			for _, ref := range fixture.Manifest.Samples {
+				sample, err := fixture.Decode(ref)
+				if err != nil {
+					t.Fatal(err)
+				}
 				if sample.Connections == nil {
 					continue
 				}

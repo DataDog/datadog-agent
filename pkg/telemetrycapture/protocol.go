@@ -11,7 +11,7 @@ import "time"
 
 const (
 	// ProtocolVersion identifies the producer/coordinator IPC contract.
-	ProtocolVersion = 3
+	ProtocolVersion = 4
 	// MaxRecords includes unfinished observations and unacknowledged records.
 	MaxRecords = 256
 	// MaxBytes is the capture-owned memory budget in each producer.

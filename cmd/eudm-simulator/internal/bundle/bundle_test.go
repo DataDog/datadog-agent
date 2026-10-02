@@ -130,7 +130,7 @@ func TestBundleRoundTripAndPlatformIndependence(t *testing.T) {
 			if written.Digest != loaded.Digest || loaded.Manifest.Profile.OS != platform || loaded.Manifest.Samples[1].Offset != 15*time.Second {
 				t.Fatal("bundle identity, platform, or cadence lost")
 			}
-			series := loaded.Samples[loaded.Manifest.Samples[0].File].Metrics
+			series := decodeSample(t, loaded, loaded.Manifest.Samples[0]).Metrics
 			if len(series) != 1 || series[0].Source != metrics.MetricSourceCPU || series[0].Points[0].Ts != -0.125 {
 				t.Fatal("typed metric source or relative timestamp lost")
 			}
@@ -254,12 +254,50 @@ func TestNativeSoftwareSourceIsNotRestrictedToKnownCollectors(t *testing.T) {
 		if ref.Stream != schema.Software {
 			continue
 		}
-		value := loaded.Samples[ref.File].Software
+		value := decodeSample(t, loaded, ref).Software
 		value.Metadata.Software[0].Source = "enterprise_catalog"
 		writeBundleFile(t, dir, loaded, ref.File, value)
 	}
 	writeManifest(t, dir, loaded.Manifest)
 	if _, err := Load(dir, strings.Repeat("a", 40)); err != nil {
 		t.Fatalf("native software source was rejected: %v", err)
+	}
+}
+
+func decodeSample(t *testing.T, loaded *Loaded, ref SampleRef) *telemetry.Sample {
+	t.Helper()
+	sample, err := loaded.Decode(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sample
+}
+
+func TestDecodeReturnsOwnedSamplesWithoutRetainingDecodedCache(t *testing.T) {
+	_, loaded := fixture(t, "macos")
+	ref := loaded.Manifest.Samples[0]
+	before := string(loaded.Files[ref.File])
+	first := decodeSample(t, loaded, ref)
+	first.Metrics[0].Name = "changed"
+	first.Metrics[0].Points[0].Value++
+	second := decodeSample(t, loaded, ref)
+	if second.Metrics[0].Name != "system.cpu.user" || second.Metrics[0].Points[0].Value != 5 || string(loaded.Files[ref.File]) != before {
+		t.Fatal("one owned decode changed the stored bytes or a later decode")
+	}
+	ref.File = "missing.json"
+	if _, err := loaded.Decode(ref); err == nil {
+		t.Fatal("missing file decoded successfully")
+	}
+}
+
+func TestDecodeSupportsMetadataOnlyChunkInsideCompleteGroup(t *testing.T) {
+	dir, original, index := fixtureProcessGroup(t)
+	loaded, err := Load(dir, original.Manifest.CaptureTool.Commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sample := decodeSample(t, loaded, loaded.Manifest.Samples[index])
+	if len(sample.Processes.Processes) != 0 || sample.Processes.GroupSize != 2 {
+		t.Fatal("metadata-only chunk in a complete group was not preserved")
 	}
 }

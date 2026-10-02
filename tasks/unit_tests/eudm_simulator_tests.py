@@ -119,7 +119,7 @@ class TestInstall(unittest.TestCase):
         self.assertNotIn("trace-agent", self.script)
         self.ready.assert_called_once()
         self.print.assert_any_call(
-            "Capture with: ./bin/eudm-simulator/eudm-simulator capture --cfgpath /opt/datadog-agent/etc/datadog.yaml --timeout 70m --output /private/tmp/eudm-macos-baseline"
+            "Capture with: ./bin/eudm-simulator/eudm-simulator capture --cfgpath /opt/datadog-agent/etc/datadog.yaml --duration 35m --output /private/tmp/eudm-macos-baseline"
         )
 
     def test_failed_privilege_request_does_not_claim_readiness(self):
@@ -235,7 +235,7 @@ class TestReadiness(unittest.TestCase):
                 {"family": "battery", "cadence": 300_000_000_000},
             ]
         return {
-            "protocol_version": 3,
+            "protocol_version": 4,
             "producer": {"role": role, "commit": commit, "instance_id": "opaque"},
             "capabilities": capabilities,
         }
@@ -266,7 +266,9 @@ class TestReadiness(unittest.TestCase):
                     eudm._wait_for_capture_apis(read, COMMIT)
                 sleep.assert_not_called()
                 output = "\n".join(call.args[0] for call in printed.call_args_list)
-                self.assertEqual("Host system information will be included automatically" in output, available)
+                self.assertEqual(
+                    "Capture will collect fresh host system information once at startup" in output, available
+                )
 
     def test_unavailable_stream_fails_without_echoing_response(self):
         def read(role):
@@ -293,7 +295,7 @@ class TestReadiness(unittest.TestCase):
     def test_previous_capture_protocol_requires_reinstallation(self):
         def read(role):
             value = self.status(role)
-            value["protocol_version"] = 2
+            value["protocol_version"] = 3
             return value
 
         with patch.object(eudm.time, "monotonic", side_effect=[0, 0, 2]), patch.object(eudm.time, "sleep"):

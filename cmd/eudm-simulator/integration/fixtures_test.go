@@ -48,12 +48,16 @@ func TestGenerateCaptureFixtures(t *testing.T) {
 }
 func generateFixture(t *testing.T, platform, outputDirectory string) {
 	t.Helper()
+	generateFixtureDuration(t, platform, outputDirectory, 5*time.Minute+time.Second)
+}
+
+func generateFixtureDuration(t *testing.T, platform, outputDirectory string, captureDuration time.Duration) {
+	t.Helper()
 	directory := filepath.Join(outputDirectory, platform)
 	if err := os.MkdirAll(filepath.Dir(directory), 0700); err != nil {
 		t.Fatal(err)
 	}
 	metricCadences := map[string]time.Duration{"cpu": 15 * time.Second, "memory": 15 * time.Second, "wlan": 15 * time.Second, "network": 15 * time.Second, "battery": 5 * time.Minute}
-	const captureDuration = 5*time.Minute + time.Second
 	w, err := bundle.NewWriter(directory, bundle.Manifest{CaptureTool: bundle.BuildIdentity{Version: "7.85.0-fixture", Commit: fixtureCommit}, SessionID: "synthetic-fixture-session", MetricCadences: metricCadences})
 	if err != nil {
 		t.Fatal(err)
@@ -155,8 +159,7 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		}
 		return &model.Process{Pid: pid, CreateTime: -60000, Command: &model.Command{Comm: name, Exe: exe, Args: []string{exe, "--profile=work"}}, User: &model.ProcessUser{Name: "fixture-user"}, Cpu: &model.CPUStat{TotalPct: cpu, UserPct: cpu * .75, SystemPct: cpu * .25, NumThreads: 2}, Memory: &model.MemoryStat{Rss: rss, Vms: 2 * rss}, IoStat: &model.IOStat{ReadRate: 5, WriteRate: 9}, Tags: []string{"team:desktop", "interactive"}}
 	}
-	for cycle := 0; cycle < 2; cycle++ {
-		offset := time.Duration(cycle) * 10 * time.Second
+	for cycle, offset := 0, time.Duration(0); offset < captureDuration; cycle, offset = cycle+1, offset+10*time.Second {
 		proc := &model.CollectorProc{HostName: "capture-host", NetworkId: "network-" + strings.Repeat("4", 32), GroupId: int32(cycle + 1), GroupSize: 1, Info: &model.SystemInfo{Uuid: "00000000-0000-4000-8000-000000000001", Os: &model.OSInfo{Name: osname, Version: "15.6"}, TotalMemory: 16 << 30, Cpus: []*model.CPUInfo{{Cores: 4}}}, Processes: []*model.Process{process(100, chrome, 8, 300<<20), process(300, background, 3, 100<<20)}}
 		proc.Hints = &model.CollectorProc_HintMask{HintMask: 1}
 		if platform == "windows" {
@@ -184,12 +187,17 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		save(schema.Connections, offset, conn)
 	}
 	host := &telemetry.HostMetadata{Hostname: "capture-host", UUID: "00000000-0000-4000-8000-000000000001", AgentVersion: "7.85.0-fixture", AgentFlavor: "agent", OS: hostOS, HostTags: map[string][]string{"system": {"infra_mode:end_user_device"}, "gcp": {"team:desktop", "interactive"}}}
-	save(schema.HostMetadata, 0, host)
+	for offset := time.Duration(0); offset < captureDuration; offset += cadences[schema.HostMetadata] {
+		save(schema.HostMetadata, offset, host)
+	}
 	agentInventory := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(250 * time.Millisecond), Agent: &tc.AgentInventoryMetadata{
 		AgentVersion: host.AgentVersion, PackageVersion: "7.85.0-fixture", Flavor: "agent", InfrastructureMode: "end_user_device", AgentStartupTimeMS: -60000,
 		FeatureProcessEnabled: true, FeatureNetworksEnabled: true,
 	}}
-	save(schema.AgentInventory, 0, agentInventory)
+	for offset := time.Duration(0); offset < captureDuration; offset += cadences[schema.AgentInventory] {
+		agentInventory.Timestamp = int64(offset + 250*time.Millisecond)
+		save(schema.AgentInventory, offset, agentInventory)
+	}
 	inventoryOS := osname
 	if platform == "windows" {
 		inventoryOS = "Microsoft Windows 11 Pro"
@@ -199,7 +207,10 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		MemoryTotalKb: 16 << 20, KernelName: osname, OS: inventoryOS, OSVersion: "15.6", AgentVersion: host.AgentVersion,
 		IPAddress: "10.0.0.1", MacAddress: "02:00:00:00:00:02",
 	}}
-	save(schema.HostInventory, 0, hostInventory)
+	for offset := time.Duration(0); offset < captureDuration; offset += cadences[schema.HostInventory] {
+		hostInventory.Timestamp = int64(offset + 500*time.Millisecond)
+		save(schema.HostInventory, offset, hostInventory)
+	}
 	systemInfo := &tc.Inventory{Hostname: host.Hostname, UUID: host.UUID, Timestamp: int64(5250 * time.Millisecond), SystemInfo: &tc.HostSystemInfoMetadata{
 		Manufacturer: "Apple Inc.", ModelNumber: "Mac16,5", SerialNumber: "FIXTURE-SERIAL-001",
 		ModelName: "MacBook Pro", ChassisType: "Laptop", Identifier: "Mac16,5",
@@ -210,7 +221,10 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 		systemInfo.SystemInfo.ModelName = "ThinkPad X1 Carbon Gen 11"
 		systemInfo.SystemInfo.Identifier = "21HMCTO1WW"
 	}
-	save(schema.HostSystemInfo, 5*time.Second, systemInfo)
+	for offset := 5 * time.Second; offset < captureDuration; offset += cadences[schema.HostSystemInfo] {
+		systemInfo.Timestamp = int64(offset + 250*time.Millisecond)
+		save(schema.HostSystemInfo, offset, systemInfo)
+	}
 	kind := "app"
 	if platform == "windows" {
 		kind = "desktop"
@@ -224,7 +238,9 @@ func generateFixture(t *testing.T, platform, outputDirectory string) {
 	if platform == "windows" {
 		sw.Metadata.Software = append(sw.Metadata.Software, software.Entry{DisplayName: "SentinelOne", Version: "23.4.2", Source: "desktop", Status: "installed"})
 	}
-	save(schema.Software, 0, sw)
+	for offset := time.Duration(0); offset < captureDuration; offset += cadences[schema.Software] {
+		save(schema.Software, offset, sw)
+	}
 	sort.Strings(profile.ProcessNames)
 	sort.Strings(profile.SoftwareNames)
 	var producers []bundle.Producer

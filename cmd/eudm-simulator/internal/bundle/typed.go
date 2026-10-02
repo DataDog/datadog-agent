@@ -41,7 +41,6 @@ func checkGroup(groups map[cycleKey]*typedGroupEvidence, ref SampleRef, id, size
 // validateTyped reconciles the manifest's evidence claims with actual decoded
 // samples. Digests alone prove integrity, not the presence of usable telemetry.
 func (b *Loaded) validateTyped() error {
-	b.Samples = make(map[string]*telemetry.Sample, len(b.Manifest.Samples))
 	names := map[string]map[string]bool{
 		"metric_names": {}, "process_names": {}, "software_names": {}, "connection_selectors": {},
 	}
@@ -88,11 +87,7 @@ func (b *Loaded) validateTyped() error {
 		}
 	}
 	for _, ref := range b.Manifest.Samples {
-		decode := telemetry.Decode
-		if ref.ChunkCount > 1 {
-			decode = telemetry.DecodeGroupChunk
-		}
-		sample, err := decode(ref.Stream, b.Files[ref.File])
+		sample, err := b.Decode(ref)
 		if err != nil {
 			return fmt.Errorf("sample %q (%s): %w", ref.File, ref.Stream, err)
 		}
@@ -147,7 +142,7 @@ func (b *Loaded) validateTyped() error {
 			if err := checkUUID(value.UUID); err != nil {
 				return err
 			}
-			if value.Timestamp > int64(b.Manifest.Duration) {
+			if value.Timestamp >= int64(b.Manifest.Duration) {
 				return errors.New("inventory timestamp lies outside the capture duration")
 			}
 			if value.Agent != nil {
@@ -208,7 +203,6 @@ func (b *Loaded) validateTyped() error {
 				names["software_names"][software.DisplayName] = true
 			}
 		}
-		b.Samples[ref.File] = sample
 	}
 	for _, group := range groups {
 		if group.records == 0 {
@@ -250,7 +244,11 @@ func (b *Loaded) validateMetricCoverage() error {
 		if ref.Stream != schema.Metrics {
 			continue
 		}
-		for _, serie := range b.Samples[ref.File].Metrics {
+		sample, err := b.Decode(ref)
+		if err != nil {
+			return err
+		}
+		for _, serie := range sample.Metrics {
 			family := tc.MetricFamily(serie.Name)
 			if cycles[family] == nil {
 				return errors.New("metric evidence lacks a scheduled family cadence")

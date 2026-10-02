@@ -102,3 +102,75 @@ func TestInventoryShutdownCannotReadvertiseLateSubmission(t *testing.T) {
 		})
 	}
 }
+
+func TestFreshHardwareCapturePreservesOrdinarySchedule(t *testing.T) {
+	i, m, _ := captureInventoryProvider(t)
+	i.ConfigureCapture(m, telemetrycapture.HostSystemInfo)
+	i.MinInterval, i.MaxInterval = time.Hour, time.Hour
+	var payloads []*scheduledInventory
+	i.getPayload = func() marshaler.JSONMarshaler {
+		p := &scheduledInventory{}
+		payloads = append(payloads, p)
+		return p
+	}
+	m.SetHostSystemInfoCollector(i.CollectHostSystemInfoForCapture)
+	s := i.serializer.(*serializermock.MetricSerializer)
+	s.On("SendMetadata", mock.Anything).Return(nil).Once()
+	require.Equal(t, time.Hour, i.collect(context.Background()))
+	last, created, firstDelay := i.LastCollect, i.createdAt, i.firstRunDelay
+	i.Refresh()
+	control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "fresh-hardware-session"}
+	_, err := m.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.HostSystemInfo}})
+	require.NoError(t, err)
+	_, err = m.Activate(control)
+	require.NoError(t, err)
+	s.On("SendMetadata", mock.Anything).Run(func(args mock.Arguments) {
+		p := args.Get(0).(*scheduledInventory)
+		require.NotSame(t, payloads[0], p, "request reused a cached payload")
+		at, cadence := p.CaptureInventorySchedule()
+		require.False(t, at.Before(m.Status().ActivatedAt))
+		require.Equal(t, time.Hour, cadence)
+	}).Return(nil).Once()
+	for range 2 {
+		_, err = m.RequestHostSystemInfo(context.Background(), control)
+		require.NoError(t, err)
+	}
+	require.Len(t, payloads, 2)
+	require.Equal(t, last, i.LastCollect)
+	require.True(t, i.RefreshTriggered(), "fresh capture consumed the normal refresh")
+	require.Equal(t, created, i.createdAt)
+	require.Equal(t, firstDelay, i.firstRunDelay)
+	require.Equal(t, time.Hour, i.MinInterval)
+	require.Equal(t, time.Hour, i.MaxInterval)
+	// The normal pending refresh still runs on the normal provider callback.
+	s.On("SendMetadata", mock.Anything).Return(nil).Once()
+	require.Equal(t, time.Hour, i.collect(context.Background()))
+	require.Len(t, payloads, 3)
+	require.False(t, i.RefreshTriggered())
+}
+
+func TestFreshHardwareCancelledOrStoppedBeforeSubmit(t *testing.T) {
+	for _, shutdown := range []bool{false, true} {
+		i, m, _ := captureInventoryProvider(t)
+		i.ConfigureCapture(m, telemetrycapture.HostSystemInfo)
+		i.captureReady(true)
+		m.SetHostSystemInfoCollector(i.CollectHostSystemInfoForCapture)
+		control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "fresh-hardware-session"}
+		_, err := m.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.HostSystemInfo}})
+		require.NoError(t, err)
+		_, err = m.Activate(control)
+		require.NoError(t, err)
+		ctx, cancel := context.WithCancel(context.Background())
+		i.getPayload = func() marshaler.JSONMarshaler {
+			if shutdown {
+				i.StopCapture()
+			} else {
+				cancel()
+			}
+			return &scheduledInventory{}
+		}
+		require.Error(t, i.CollectHostSystemInfoForCapture(ctx, control))
+		cancel()
+		i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata", mock.Anything)
+	}
+}

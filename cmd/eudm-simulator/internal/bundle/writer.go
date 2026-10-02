@@ -28,9 +28,15 @@ type Writer struct {
 	directory string
 	manifest  Manifest
 	closed    bool
+	bytes     int64
+	maxBytes  int64
 }
 
 func NewWriter(directory string, manifest Manifest) (*Writer, error) {
+	return newWriterWithLimit(directory, manifest, MaxBundleBytes)
+}
+
+func newWriterWithLimit(directory string, manifest Manifest, maxBytes int64) (*Writer, error) {
 	if !validBuild(manifest.CaptureTool) || !opaqueIDPattern.MatchString(manifest.SessionID) {
 		return nil, errors.New("capture writer requires a valid tool build and session identity")
 	}
@@ -43,7 +49,7 @@ func NewWriter(directory string, manifest Manifest) (*Writer, error) {
 	manifest.Files = map[string]string{}
 	manifest.Producers = cloneProducers(manifest.Producers)
 	manifest.MetricCadences = maps.Clone(manifest.MetricCadences)
-	return &Writer{directory: directory, manifest: manifest}, nil
+	return &Writer{directory: directory, manifest: manifest, maxBytes: maxBytes}, nil
 }
 
 // Append preserves a logical cycle's producer identity, sequence, and ordered
@@ -64,6 +70,7 @@ func (w *Writer) Append(ref SampleRef, sample any) error {
 	prefix := fmt.Sprintf("sample-%06d", len(w.manifest.Samples))
 	ref.File = prefix + ".json"
 	if err := w.write(ref.File, data); err != nil {
+		w.closed = true // Failed persistence can never leave a complete bundle.
 		return err
 	}
 	w.manifest.Samples = append(w.manifest.Samples, ref)
@@ -74,9 +81,13 @@ func (w *Writer) write(name string, data []byte) error {
 	if len(data) > maxFileBytes {
 		return errors.New("capture bundle file exceeds size limit")
 	}
+	if int64(len(data)) > w.maxBytes-w.bytes {
+		return fmt.Errorf("capture bundle sample byte limit exceeded (%d bytes)", w.maxBytes)
+	}
 	if err := writeExclusive(filepath.Join(w.directory, name), data); err != nil {
 		return err
 	}
+	w.bytes += int64(len(data))
 	w.manifest.Files[name] = schema.Digest(data)
 	return nil
 }
@@ -193,7 +204,7 @@ func (w *Writer) CompleteContext(ctx context.Context, duration time.Duration, pr
 	if err != nil {
 		return nil, err
 	}
-	loaded, err = Load(w.directory, w.manifest.CaptureTool.Commit)
+	loaded, err = loadWithLimit(w.directory, w.manifest.CaptureTool.Commit, w.maxBytes)
 	if err == nil {
 		err = ctx.Err()
 	}

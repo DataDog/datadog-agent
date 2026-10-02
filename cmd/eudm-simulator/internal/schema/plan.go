@@ -17,13 +17,14 @@ import (
 
 // BundleRef records content identity, never a replay-host-specific path.
 type BundleRef struct {
-	Digest            string  `json:"digest"`
-	CaptureToolCommit string  `json:"capture_tool_commit"`
-	Profile           Profile `json:"profile"`
+	Digest            string        `json:"digest"`
+	CaptureToolCommit string        `json:"capture_tool_commit"`
+	Duration          time.Duration `json:"duration_ns"`
+	Profile           Profile       `json:"profile"`
 }
 
 // RunPlanVersion identifies the in-memory single-baseline execution contract.
-const RunPlanVersion = 5
+const RunPlanVersion = 6
 
 // RunPlan holds in-memory execution metadata. Each run creates it directly from
 // the scenario and baseline; Execute establishes Start after startup completes.
@@ -75,6 +76,16 @@ func (p *RunPlan) Validate(s *Scenario, scenarioDigest, commit string) error {
 	}
 	if !digestPattern.MatchString(p.Bundle.Digest) || p.Bundle.CaptureToolCommit != commit {
 		return errors.New("bundle digest or capture tool commit mismatch; recapture with this replay revision")
+	}
+	if p.Bundle.Duration <= 0 {
+		return errors.New("bundle requires a positive recording duration; recapture with this replay revision")
+	}
+	var duration time.Duration
+	for _, phase := range s.Phases {
+		duration += phase.Duration.Duration
+	}
+	if duration > p.Bundle.Duration {
+		return fmt.Errorf("scenario requires %s of recorded telemetry, but the bundle contains %s; recapture with --duration at least %s", duration, p.Bundle.Duration, duration)
 	}
 	for _, group := range s.Fleet {
 		if err := s.ValidateEvidence(group, p.Bundle.Profile); err != nil {

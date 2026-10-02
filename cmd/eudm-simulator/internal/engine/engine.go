@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"runtime"
 	"slices"
@@ -28,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
-	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
 const (
@@ -70,7 +68,7 @@ type device struct {
 	ordinal   int
 	id        *identity.Map
 	capture   *bundle.Loaded
-	timelines map[schema.Stream][]*timeline
+	timelines map[schema.Stream]*timeline
 	wireless  *identity.Wireless
 }
 type prepared struct {
@@ -88,25 +86,7 @@ func Validate(request Request) error { _, err := prepare(request); return err }
 // bundle loader has already verified complete, nonempty logical groups; an
 // individual chunk in those groups may legitimately contain only metadata.
 func decodeCapturedSample(b *bundle.Loaded, ref bundle.SampleRef) (*telemetry.Sample, error) {
-	if ref.ChunkCount > 1 {
-		return telemetry.DecodeGroupChunk(ref.Stream, b.Files[ref.File])
-	}
-	return telemetry.Decode(ref.Stream, b.Files[ref.File])
-}
-
-// Decode always owns the sample before a family filter or overlay mutates it.
-func decodeTimelineSample(b *bundle.Loaded, ref bundle.SampleRef, family string) (*telemetry.Sample, error) {
-	sample, err := decodeCapturedSample(b, ref)
-	if err != nil || family == "" {
-		return sample, err
-	}
-	sample.Metrics = slices.DeleteFunc(sample.Metrics, func(serie *metrics.Serie) bool {
-		return telemetrycapture.MetricFamily(serie.Name) != family
-	})
-	if len(sample.Metrics) == 0 {
-		return nil, errors.New("captured metric cycle lacks its scheduled family")
-	}
-	return sample, nil
+	return b.Decode(ref)
 }
 
 func prepare(request Request) (*prepared, error) {
@@ -120,31 +100,32 @@ func prepare(request Request) (*prepared, error) {
 	if b == nil || !reflect.DeepEqual(b.Ref(), request.Plan.Bundle) {
 		return nil, errors.New("baseline bundle differs from run plan")
 	}
+	duration := durationOf(request.Scenario)
 	for name, digest := range b.Manifest.Files {
 		if schema.Digest(b.Files[name]) != digest {
 			return nil, errors.New("verified bundle bytes changed before replay")
 		}
 	}
-	baseline := make([]*telemetry.Sample, 0, len(b.Manifest.Samples))
+	baseline := identity.NewBaseline()
 	for _, ref := range b.Manifest.Samples {
 		sample, err := decodeCapturedSample(b, ref)
 		if err != nil {
 			return nil, fmt.Errorf("invalid captured %s sample: %w", ref.Stream, err)
 		}
-		baseline = append(baseline, sample)
+		baseline.Observe(sample)
 	}
 	aps, err := accesspoint.New(request.Scenario, request.Plan.RunID, request.Plan.Seed)
 	if err != nil {
 		return nil, err
 	}
-	p := &prepared{request: request, duration: durationOf(request.Scenario), accessPoints: aps, report: report.New(request.Plan, request.Scenario, runtime.GOOS)}
+	p := &prepared{request: request, duration: duration, accessPoints: aps, report: report.New(request.Plan, request.Scenario, runtime.GOOS)}
 	ordinal := 0
 	for _, group := range request.Scenario.Fleet {
-		timelines := map[schema.Stream][]*timeline{}
+		timelines := map[schema.Stream]*timeline{}
 		var streams []schema.Stream
 		for _, stream := range streamOrder {
 			if slices.Contains(b.Manifest.Profile.Streams, stream) {
-				timeline, err := makeTimelines(b, stream, p.duration)
+				timeline, err := makeTimeline(b, stream, p.duration)
 				if err != nil {
 					return nil, fmt.Errorf("cohort %q: %w", group.Group, err)
 				}
@@ -166,20 +147,13 @@ func prepare(request Request) (*prepared, error) {
 			return nil, err
 		}
 		for j := 0; j < group.Count; j++ {
-			id := identity.New(request.Plan.RunID, request.Plan.Seed, group.Group, ordinal, baseline...)
+			id := identity.NewWithBaseline(request.Plan.RunID, request.Plan.Seed, group.Group, ordinal, baseline)
 			d := &device{group: group, ordinal: ordinal, id: id, capture: b, timelines: timelines, wireless: wireless}
 			p.devices = append(p.devices, d)
 			p.report.AddDevice(ordinal, id.Hostname, group.Group, b.Digest, streams)
 			for _, stream := range streams {
 				counts := p.report.Ledger[ordinal].Streams[stream]
-				for _, timeline := range timelines[stream] {
-					// Metrics count completed family collections, including families
-					// originally observed in the same serializer flush.
-					if math.MaxUint64-counts.Expected < uint64(timeline.count) {
-						return nil, errors.New("expected delivery count overflows")
-					}
-					counts.Expected += uint64(timeline.count)
-				}
+				counts.Expected = uint64(timelines[stream].count)
 			}
 			ordinal++
 		}
@@ -253,9 +227,6 @@ func (s schedule) Less(i, j int) bool {
 	if s[i].stream != s[j].stream {
 		return s[i].stream < s[j].stream
 	}
-	if s[i].timeline != nil && s[j].timeline != nil {
-		return s[i].timeline.family < s[j].timeline.family
-	}
 	return false
 }
 func (s schedule) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
@@ -285,7 +256,7 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 	pending := schedule{}
 	for _, d := range p.devices {
 		for _, stream := range streamOrder {
-			for _, t := range d.timelines[stream] {
+			if t := d.timelines[stream]; t != nil {
 				_, offset := t.at(0)
 				heap.Push(&pending, job{device: d, timeline: t, stream: stream, offset: offset, rank: d.ordinal})
 			}
@@ -412,26 +383,31 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job) error {
 	}
 	d := work.device
 	c, _ := work.timeline.at(work.ordinal)
-	processCycle, processOrdinal := d.timelines[schema.Processes][0].nearest(work.offset)
+	processCycle, processOrdinal := d.timelines[schema.Processes].nearest(work.offset)
+	if work.stream == schema.Processes {
+		processCycle, processOrdinal = c, work.ordinal
+	}
 	var baseline []*model.CollectorProc
-	for _, ref := range processCycle.refs {
-		decoded, err := decodeCapturedSample(d.capture, ref)
-		if err != nil {
-			return err
+	if (work.stream == schema.Processes || work.stream == schema.Metrics) && len(p.request.Scenario.Phases[phase].Processes[d.group.Group]) != 0 {
+		for _, ref := range processCycle.refs {
+			decoded, err := decodeCapturedSample(d.capture, ref)
+			if err != nil {
+				return err
+			}
+			baseline = append(baseline, decoded.Processes)
 		}
-		baseline = append(baseline, decoded.Processes)
 	}
 	context := overlay.Context{Scenario: p.request.Scenario, Group: d.group, Seed: p.request.Plan.Seed, DeviceOrdinal: d.ordinal, PhaseIndex: phase, Elapsed: elapsed, Stream: work.stream, SampleOrdinal: work.ordinal, ProcessSampleOrdinal: processOrdinal, BaselineProcesses: baseline}
 	samples := make([]*telemetry.Sample, 0, len(c.refs))
 	for _, ref := range c.refs {
-		sample, err := decodeTimelineSample(d.capture, ref, work.timeline.family)
+		sample, err := decodeCapturedSample(d.capture, ref)
 		if err != nil {
 			return err
 		}
 		if err := overlay.Apply(context, sample); err != nil {
 			return err
 		}
-		rebase(sample, p.request.Plan.Start, work.offset-ref.Offset, work.ordinal, len(c.refs))
+		rebase(sample, p.request.Plan.Start, work.ordinal, len(c.refs))
 		if err := d.id.Apply(sample, d.group, d.wireless); err != nil {
 			return err
 		}
@@ -440,17 +416,16 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job) error {
 	return out.Send(ctx, at, work.stream, samples)
 }
 
-func rebase(sample *telemetry.Sample, start time.Time, shift time.Duration, cycle int64, chunks int) {
+func rebase(sample *telemetry.Sample, start time.Time, cycle int64, chunks int) {
 	if inventory := sample.Inventory; inventory != nil {
-		delta := start.UnixNano() + int64(shift)
-		inventory.Timestamp += delta
+		inventory.Timestamp += start.UnixNano()
 		if inventory.Agent != nil {
 			inventory.Agent.AgentStartupTimeMS += start.UnixMilli()
 		}
 	}
 	for _, series := range sample.Metrics {
 		for i := range series.Points {
-			series.Points[i].Ts += float64(start.UnixNano())/1e9 + shift.Seconds()
+			series.Points[i].Ts += float64(start.UnixNano()) / 1e9
 		}
 	}
 	if process := sample.Processes; process != nil {

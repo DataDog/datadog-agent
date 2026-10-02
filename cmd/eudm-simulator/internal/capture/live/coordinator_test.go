@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
 	tc "github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
+
+const testCaptureDuration = 30 * time.Millisecond
 
 var testOptions = coordinatorOptions{requestTimeout: 200 * time.Millisecond, readinessPoll: time.Millisecond, recordPoll: time.Millisecond, heartbeat: 2 * time.Millisecond, cleanupTimeout: 200 * time.Millisecond}
 
@@ -45,6 +48,7 @@ type managerClient struct {
 	lateRecord      bool
 	alterFirstRead  func(*Batch)
 	panicOperation  string
+	lastCollectedAt time.Time
 }
 
 func (c *managerClient) Role() string { return c.role }
@@ -73,25 +77,14 @@ func (c *managerClient) Prepare(_ context.Context, request tc.PrepareRequest) (t
 }
 func (c *managerClient) Activate(_ context.Context, control tc.Control) (tc.Status, error) {
 	status, err := c.manager.Activate(control)
-	if err == nil && !c.noRecords {
-		if c.staleRecord {
-			c.emit(c.selected[0], status.ActivatedAt.Add(-time.Second))
-		}
-		for _, stream := range c.selected {
-			count := 1
-			if stream == tc.Metrics || stream == tc.Processes || stream == tc.Connections {
-				count = 2
-			}
-			for range count {
-				c.emit(stream, time.Now())
-			}
-		}
-	}
 	status.ActivatedAt = status.ActivatedAt.Add(c.activationSkew)
 	if err == nil && c.lostActivate {
 		return tc.Status{}, ErrUnavailable
 	}
 	return status, err
+}
+func (c *managerClient) RequestHostSystemInfo(ctx context.Context, control tc.Control) (tc.Status, error) {
+	return c.manager.RequestHostSystemInfo(ctx, control)
 }
 func (c *managerClient) Heartbeat(_ context.Context, control tc.Control) (tc.Status, error) {
 	c.heartbeats.Add(1)
@@ -105,11 +98,31 @@ func (c *managerClient) Heartbeat(_ context.Context, control tc.Control) (tc.Sta
 }
 func (c *managerClient) Records(_ context.Context, request tc.ReadRequest) (Batch, error) {
 	n := c.reads.Add(1)
+	if c.panicOperation == "records-always" && n == 1 {
+		// Leave an actual accepted sequence behind the failed IPC reader so
+		// cleanup must remain unacknowledged rather than stopping empty.
+		c.emit(c.selected[0], time.Now())
+	}
 	if c.panicOperation == "records-always" || (c.panicOperation == "records" && n == 1) {
 		panic("private panic sentinel")
 	}
 	if c.disconnected && n == 1 {
 		return Batch{}, ErrUnavailable
+	}
+	if n == 1 && !c.noRecords && c.manager.Status().State == tc.Active {
+		if c.staleRecord {
+			c.emit(c.selected[0], c.manager.Status().ActivatedAt.Add(-time.Second))
+		}
+		for _, stream := range c.selected {
+			count := 1
+			if stream == tc.Metrics || stream == tc.Processes || stream == tc.Connections {
+				count = 2
+			}
+			for range count {
+				c.lastCollectedAt = time.Now()
+				c.emit(stream, c.lastCollectedAt)
+			}
+		}
 	}
 	batch, err := c.manager.Read(request)
 	if err != nil {
@@ -128,7 +141,7 @@ func (c *managerClient) Records(_ context.Context, request tc.ReadRequest) (Batc
 func (c *managerClient) Stop(ctx context.Context, control tc.Control) (tc.Status, error) {
 	n := c.stops.Add(1)
 	if n == 1 && c.lateRecord {
-		reservation := c.manager.Begin(c.selected[0], time.Now(), time.Second, 4096)
+		reservation := c.manager.Begin(c.selected[0], c.lastCollectedAt, time.Second, 4096)
 		if reservation != nil {
 			go func() {
 				time.Sleep(5 * time.Millisecond)
@@ -164,10 +177,22 @@ func testPayload(stream tc.Stream) tc.Payload {
 		return tc.Payload{Inventory: &tc.Inventory{Hostname: "test-host", UUID: "test-uuid", Timestamp: time.Now().UnixNano(), Agent: &tc.AgentInventoryMetadata{AgentVersion: "7.85.0", Flavor: "agent", InfrastructureMode: "end_user_device"}}}
 	case tc.HostInventory:
 		return tc.Payload{Inventory: &tc.Inventory{Hostname: "test-host", UUID: "test-uuid", Timestamp: time.Now().UnixNano(), Host: &tc.HostInventoryMetadata{AgentVersion: "7.85.0", OS: "Darwin", MemoryTotalKb: 8 << 20}}}
+	case tc.HostSystemInfo:
+		return tc.Payload{Inventory: &tc.Inventory{Hostname: "test-host", UUID: "test-uuid", Timestamp: time.Now().UnixNano(), SystemInfo: &tc.HostSystemInfoMetadata{Manufacturer: "Example", ModelName: "Laptop"}}}
 	case tc.Software:
 		return tc.Payload{Software: &tc.Message{Body: []byte("test snapshot"), Timestamp: time.Now().UnixNano()}}
 	default:
-		return tc.Payload{Chunks: []tc.Chunk{{Body: []byte("test complete group")}}}
+		var message model.MessageBody = &model.CollectorProc{HostName: "test-host", GroupId: 27, GroupSize: 1}
+		if stream == tc.Connections {
+			message = &model.CollectorConnections{HostName: "test-host", GroupId: 27, GroupSize: 1}
+		}
+		body, err := processapi.EncodePayload(message)
+		if err != nil {
+			panic(err)
+		}
+		return tc.Payload{Chunks: []tc.Chunk{{Body: body, Headers: map[string]string{
+			headers.HostHeader: "test-host", headers.RequestIDHeader: strconv.Itoa(27 << 14),
+		}}}}
 	}
 }
 
@@ -259,7 +284,7 @@ func runTestCapture(t *testing.T, platform string, clients []Client, sink Sink) 
 	t.Helper()
 	ctx, done := context.WithTimeout(context.Background(), time.Second)
 	defer done()
-	return run(ctx, platform, clients, sink, testOptions)
+	return run(ctx, platform, clients, sink, testCaptureDuration, testOptions)
 }
 
 func assertDisarmed(t *testing.T, producers []*managerClient) {
@@ -282,7 +307,7 @@ func TestCoordinatorCompleteDrainsAllAcceptedSequences(t *testing.T) {
 			if !sink.finished || len(sink.final) != len(producers) {
 				t.Fatal("missing finalized producers")
 			}
-			if sink.counts[tc.Metrics] != 2 || sink.counts[tc.Processes] != 3 {
+			if sink.counts[tc.Metrics] != 2 || sink.counts[tc.Processes] != 2 {
 				t.Fatal("stale or draining records counted incorrectly")
 			}
 			for _, p := range producers {
@@ -303,7 +328,7 @@ func TestCoordinatorRequiresInventoryReadiness(t *testing.T) {
 			producers[0].manager.Unregister(missing)
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 			defer cancel()
-			err := run(ctx, "macos", clients, sink, testOptions)
+			err := run(ctx, "macos", clients, sink, testCaptureDuration, testOptions)
 			if err == nil || !strings.Contains(err.Error(), string(missing)+"=unavailable") {
 				t.Fatal("capture accepted a producer without required inventory readiness")
 			}
@@ -453,7 +478,7 @@ func TestCoordinatorFailureDisarmsEveryAttemptedProducer(t *testing.T) {
 func TestCoordinatorHeartbeatsContinueDuringEvidenceWork(t *testing.T) {
 	clients, producers, sink := newCoordinatorFixture(t, "macos")
 	sink.acceptDelay = 5 * time.Millisecond
-	if err := runTestCapture(t, "macos", clients, sink); err != nil {
+	if err := run(context.Background(), "macos", clients, sink, 100*time.Millisecond, testOptions); err != nil {
 		t.Fatal(err)
 	}
 	for _, producer := range producers {
@@ -511,7 +536,7 @@ func TestCoordinatorBoundsCycleHistory(t *testing.T) {
 	for i := range maxSessionCycles {
 		p.cycles[uint64(i+100)] = true
 	}
-	_, err = readRound(context.Background(), []*producer{p}, control, sink, false, testOptions)
+	_, err = readRound(context.Background(), []*producer{p}, control, Session{Origin: active.ActivatedAt, Duration: testCaptureDuration}, sink, false, testOptions)
 	if err == nil || !strings.Contains(err.Error(), "session cycle limit") || len(p.cycles) != maxSessionCycles || p.cursor != 0 {
 		t.Fatal("coordinator retained unbounded session history")
 	}
@@ -522,7 +547,7 @@ func TestCoordinatorTimeoutReportsMissingCoverageAndCleansUp(t *testing.T) {
 	producers[1].noRecords = true
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
-	err := run(ctx, "macos", clients, sink, testOptions)
+	err := run(ctx, "macos", clients, sink, time.Second, testOptions)
 	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "effective cadences") {
 		t.Fatalf("missing incomplete coverage detail: %v", err)
 	}
@@ -558,7 +583,7 @@ func TestCoordinatorMissingStreamAndPermanentDiscoveryErrors(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 			defer cancel()
-			err := run(ctx, "macos", clients, sink, testOptions)
+			err := run(ctx, "macos", clients, sink, testCaptureDuration, testOptions)
 			if kind == "transient unavailable" {
 				if err != nil || !sink.finished {
 					t.Fatalf("transient readiness did not recover: %v", err)
@@ -611,4 +636,193 @@ func TestCoordinatorRejectsChangedMetricSchedules(t *testing.T) {
 		t.Fatal("changed collection schedule was silently recorded")
 	}
 	assertDisarmed(t, producers)
+}
+
+// windowClient advances only when the coordinator's injected wait advances the
+// clock. It emits complete rounds after minimum coverage and keeps one final
+// in-window process observation pending until stop/drain.
+type windowClient struct {
+	mu               sync.Mutex
+	status           tc.Status
+	activation       time.Time
+	selected         []tc.Stream
+	now              func() time.Time
+	end              time.Time
+	reads            int
+	missingProcesses bool
+	pending          *tc.Record
+}
+
+func (c *windowClient) Role() string { return c.status.Producer.Role }
+func (c *windowClient) Capabilities(context.Context) (tc.Status, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.status, nil
+}
+func (c *windowClient) Prepare(_ context.Context, request tc.PrepareRequest) (tc.Status, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.selected = slices.Clone(request.Streams)
+	c.status.SessionID, c.status.State = request.SessionID, tc.Prepared
+	return c.status, nil
+}
+func (c *windowClient) Activate(context.Context, tc.Control) (tc.Status, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.status.State, c.status.ActivatedAt = tc.Active, c.activation
+	return c.status, nil
+}
+func (c *windowClient) RequestHostSystemInfo(context.Context, tc.Control) (tc.Status, error) {
+	return tc.Status{}, tc.ErrState
+}
+func (c *windowClient) Heartbeat(context.Context, tc.Control) (tc.Status, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.status, nil
+}
+func (c *windowClient) record(stream tc.Stream, collected, observed time.Time) tc.Record {
+	c.status.FinalSequence++
+	return tc.Record{ProtocolVersion: tc.ProtocolVersion, Producer: c.status.Producer, SessionID: c.status.SessionID,
+		Sequence: c.status.FinalSequence, CycleID: c.status.FinalSequence, Stream: stream,
+		CollectedAt: collected, ObservedAt: observed, Cadence: time.Second, Payload: testPayload(stream)}
+}
+func (c *windowClient) Records(_ context.Context, request tc.ReadRequest) (Batch, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.status.Acknowledged = request.Cursor
+	var records []tc.Record
+	if c.status.State == tc.Active {
+		c.reads++
+		at := c.now()
+		if c.reads == 1 && c.status.Producer.Role == "core-agent" {
+			records = append(records, c.record(tc.Metadata, at.Add(-time.Nanosecond), at),
+				c.record(tc.Metadata, at, c.end))
+		}
+		for _, stream := range c.selected {
+			if stream != tc.Processes || !c.missingProcesses {
+				records = append(records, c.record(stream, at, at))
+			}
+		}
+	} else if c.pending != nil {
+		records = append(records, *c.pending)
+		c.pending = nil
+	}
+	if c.status.State == tc.Stopping && c.status.Acknowledged == c.status.FinalSequence {
+		c.status.State = tc.Stopped
+	}
+	return Batch{Status: c.status, Records: records}, nil
+}
+func (c *windowClient) Stop(context.Context, tc.Control) (tc.Status, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.status.State == tc.Active {
+		c.status.State, c.status.StoppedAt = tc.Stopping, c.now()
+		if c.status.Producer.Role == "process-agent" && !c.missingProcesses {
+			record := c.record(tc.Processes, c.end.Add(-time.Nanosecond), c.end.Add(-time.Nanosecond))
+			c.pending = &record
+		}
+	}
+	if c.status.Acknowledged == c.status.FinalSequence {
+		c.status.State = tc.Stopped
+	}
+	return c.status, nil
+}
+
+func TestCoordinatorRecordsWholeRequestedInterval(t *testing.T) {
+	for _, missingProcesses := range []bool{false, true} {
+		t.Run("missing_processes="+strconv.FormatBool(missingProcesses), func(t *testing.T) {
+			_, producers, sink := newCoordinatorFixture(t, "macos")
+			origin, duration := time.Now(), 2*time.Second
+			var clock atomic.Int64
+			clock.Store(origin.UnixNano())
+			now := func() time.Time { return time.Unix(0, clock.Load()) }
+			options := testOptions
+			options.now, options.recordPoll, options.heartbeat = now, 500*time.Millisecond, time.Hour
+			options.wait = func(ctx context.Context, delay time.Duration) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if now().Before(origin.Add(duration)) {
+					clock.Add(int64(delay))
+				}
+				return nil
+			}
+			var clients []Client
+			for i, producer := range producers {
+				activation := origin
+				if i == 0 {
+					activation = activation.Add(-500 * time.Millisecond)
+				}
+				clients = append(clients, &windowClient{status: producer.manager.Status(), activation: activation,
+					now: now, end: origin.Add(duration), missingProcesses: missingProcesses})
+			}
+			err := run(context.Background(), "macos", clients, sink, duration, options)
+			if missingProcesses {
+				if err == nil || !strings.Contains(err.Error(), "interval ended with incomplete coverage") || !strings.Contains(err.Error(), "effective cadences") || sink.finished {
+					t.Fatalf("incomplete duration capture finalized: %v", err)
+				}
+			} else if err != nil || !sink.finished {
+				t.Fatalf("duration capture failed: %v", err)
+			}
+			if !sink.session.Origin.Equal(origin) || sink.session.Duration != duration {
+				t.Fatal("capture did not use the latest activation and requested duration")
+			}
+			if !now().Equal(origin.Add(duration)) {
+				t.Fatal("capture stopped before the complete interval or extended its recording window")
+			}
+			for _, stream := range []tc.Stream{tc.Metrics, tc.Metadata, tc.AgentInventory, tc.HostInventory, tc.Software} {
+				if sink.counts[stream] != 4 {
+					t.Fatalf("%s retained %d cycles; want every in-window cycle", stream, sink.counts[stream])
+				}
+			}
+			if !missingProcesses && sink.counts[tc.Processes] != 5 {
+				t.Fatal("final in-window group was not drained")
+			}
+			for _, client := range clients {
+				status, _ := client.Capabilities(context.Background())
+				if status.State != tc.Stopped || status.Acknowledged != status.FinalSequence || !status.StoppedAt.Equal(origin.Add(duration)) {
+					t.Fatal("duration capture left a producer armed or unacknowledged")
+				}
+			}
+		})
+	}
+}
+
+func TestCoordinatorRequestsFreshHardwareAfterAllParticipantsActivate(t *testing.T) {
+	for _, fails := range []bool{false, true} {
+		clients, producers, sink := newCoordinatorFixture(t, "macos")
+		core := producers[0].manager
+		if err := core.Register(tc.Capability{Stream: tc.HostSystemInfo, Cadence: time.Hour}); err != nil {
+			t.Fatal(err)
+		}
+		var calls atomic.Int32
+		core.SetHostSystemInfoCollector(func(context.Context, tc.Control) error {
+			calls.Add(1)
+			if sink.session.ID == "" {
+				return errors.New("writer not started")
+			}
+			for _, producer := range producers {
+				if !producer.manager.Enabled() {
+					return errors.New("producer not armed")
+				}
+			}
+			if fails {
+				return errors.New("hardware unavailable")
+			}
+			producers[0].emit(tc.HostSystemInfo, time.Now())
+			return nil
+		})
+		err := runTestCapture(t, "macos", clients, sink)
+		if fails {
+			if err == nil || sink.finished {
+				t.Fatal("failed fresh hardware collection finalized")
+			}
+		} else if err != nil || !sink.finished || sink.counts[tc.HostSystemInfo] != 2 {
+			t.Fatalf("fresh and naturally scheduled hardware observations not retained: %v", err)
+		}
+		if calls.Load() != 1 {
+			t.Fatal("capture did not request hardware exactly once")
+		}
+		assertDisarmed(t, producers)
+	}
 }

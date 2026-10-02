@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -20,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/accesspoint"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/report"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 	"github.com/bazelbuild/rules_go/go/runfiles"
 )
 
@@ -129,6 +130,21 @@ func shippedRequest(t *testing.T, name string) Request {
 	var scenario schema.Scenario
 	if err := schema.DecodeStrict(data, &scenario); err != nil {
 		t.Fatal(err)
+	}
+	// Exercise the shipped fleets and phase overlays within the real synthetic
+	// recording. Scale only this test's clock and monitor windows, never the
+	// recorded offsets or manifest duration.
+	available := captures[scenario.Fleet[0].OS].Manifest.Duration - time.Second
+	total := durationOf(&scenario)
+	if total > available {
+		scale := func(d time.Duration) time.Duration {
+			return time.Duration(float64(d) * float64(available) / float64(total))
+		}
+		for i := range scenario.Phases {
+			scenario.Phases[i].Duration.Duration = scale(scenario.Phases[i].Duration.Duration)
+		}
+		scenario.MonitorWindow.Duration = scale(scenario.MonitorWindow.Duration)
+		scenario.VisibilityDelay.Duration = scale(scenario.VisibilityDelay.Duration)
 	}
 	return requestFor(t, &scenario, schema.Digest(data), captures[scenario.Fleet[0].OS])
 }
@@ -339,21 +355,20 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 		if device.BundleDigest != capture.Digest {
 			t.Fatal("device did not use the shared baseline")
 		}
-		for stream, cadence := range capture.Manifest.Cadences {
-			// Fixtures use uniform non-metric cadences; hardware arrives at 5s.
+		for stream := range capture.Manifest.Cadences {
+			// Count only original collections, including singleton inventories.
 			// Assert actual timestamps, not just counters reported by the engine.
 			var expected []time.Duration
-			first := time.Duration(0)
-			if stream == schema.HostSystemInfo {
-				first = 5 * time.Second
-			}
-			for at := first; at < duration; at += cadence {
-				expected = append(expected, at)
-			}
-			if stream == schema.Metrics {
-				expected = expectedMetricOffsets(t, capture, duration)
+			seenCycles := map[string]bool{}
+			for _, ref := range capture.Manifest.Samples {
+				key := fmt.Sprintf("%s/%d", ref.ProducerID, ref.CycleID)
+				if ref.Stream == stream && ref.Offset < duration && !seenCycles[key] {
+					expected = append(expected, ref.Offset)
+					seenCycles[key] = true
+				}
 			}
 			actual := seen[device.Hostname][stream]
+			slices.Sort(expected)
 			slices.Sort(actual)
 			if !slices.Equal(actual, expected) {
 				t.Fatalf("%s %s cadence differs: got %d cycles, want %d", device.Hostname, stream, len(actual), len(expected))
@@ -372,49 +387,6 @@ func assertCompleteCadences(t *testing.T, request Request, result *report.Report
 			}
 		}
 	}
-}
-
-// Derive expectations directly from the typed evidence, independently of the
-// scheduler. Each original producer/cycle contributes once to each family.
-func expectedMetricOffsets(t *testing.T, b *bundle.Loaded, duration time.Duration) []time.Duration {
-	t.Helper()
-	families := map[string]map[string]time.Duration{}
-	for _, ref := range b.Manifest.Samples {
-		if ref.Stream != schema.Metrics {
-			continue
-		}
-		sample, err := telemetry.Decode(ref.Stream, b.Files[ref.File])
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, serie := range sample.Metrics {
-			family := telemetrycapture.MetricFamily(serie.Name)
-			if families[family] == nil {
-				families[family] = map[string]time.Duration{}
-			}
-			families[family][fmt.Sprintf("%s/%d", ref.ProducerID, ref.CycleID)] = ref.Offset
-		}
-	}
-	var expected []time.Duration
-	for family, cycles := range families {
-		var offsets []time.Duration
-		for _, offset := range cycles {
-			offsets = append(offsets, offset)
-		}
-		slices.Sort(offsets)
-		cadence := b.Manifest.MetricCadences[family]
-		if cadence <= 0 {
-			t.Fatal("fixture lacks a metric family cadence")
-		}
-		period := offsets[len(offsets)-1] - offsets[0] + cadence
-		for _, offset := range offsets {
-			for at := offset; at < duration; at += period {
-				expected = append(expected, at)
-			}
-		}
-	}
-	slices.Sort(expected)
-	return expected
 }
 
 func TestEveryShippedFleetRunsAtNativeCadence(t *testing.T) {
@@ -441,6 +413,181 @@ func TestEveryShippedFleetRunsAtNativeCadence(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestShippedDurationsRequireLongerRecordings(t *testing.T) {
+	for _, name := range []string{"healthy-macos", "healthy-windows", "application-update-regression-macos", "windows-security-agent-regression", "vpn-degradation-windows", "wifi-degradation-macos"} {
+		t.Run(name, func(t *testing.T) {
+			request := shippedRequest(t, name)
+			data, err := os.ReadFile(testFile(t, "scenarios/"+name+".yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(data), "REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR") {
+				data = []byte(strings.ReplaceAll(string(data), "REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR", request.Bundle.Manifest.Profile.ConnectionSelectors[0]))
+			}
+			if err := schema.DecodeStrict(data, request.Scenario); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := schema.NewPlan(request.Scenario, schema.Digest(data), fixtureCommit, 1, request.Plan.Start, request.Bundle.Ref()); err == nil || !strings.Contains(err.Error(), "recapture") {
+				t.Fatalf("new plan accepted a shipped scenario with a short recording: %v", err)
+			}
+			if err := Validate(request); err == nil || !strings.Contains(err.Error(), "recapture") || !strings.Contains(err.Error(), request.Bundle.Manifest.Duration.String()) {
+				t.Fatalf("shipped scenario accepted a short recording: %v", err)
+			}
+		})
+	}
+}
+
+func TestRecordedSoftwareObservationsTrackProcessRegressionAndRecovery(t *testing.T) {
+	for _, scenario := range []string{"application-update-regression-macos", "windows-security-agent-regression"} {
+		t.Run(scenario, func(t *testing.T) {
+			r := shippedRequest(t, scenario)
+			for i := range r.Scenario.Fleet {
+				r.Scenario.Fleet[i].Count, r.Scenario.Fleet[i].BaselineVariance = 1, 0
+			}
+			app := r.Scenario.Phases[1].Software["rollout"][0]
+			processDef := r.Scenario.Phases[2].Processes["rollout"][0]
+			onset := r.Scenario.Phases[0].Duration.Duration
+			recovery := onset + r.Scenario.Phases[1].Duration.Duration + r.Scenario.Phases[2].Duration.Duration
+			var softwareRef bundle.SampleRef
+			var sequence uint64
+			for _, ref := range r.Bundle.Manifest.Samples {
+				sequence = max(sequence, ref.Sequence, ref.CycleID)
+				if ref.Stream == schema.Software && ref.Offset == 0 {
+					softwareRef = ref
+				}
+			}
+			baseline, err := r.Bundle.Decode(softwareRef)
+			if err != nil {
+				t.Fatal(err)
+			}
+			baselineVersion := ""
+			for _, entry := range baseline.Software.Metadata.Software {
+				if entry.DisplayName == app.Name {
+					baselineVersion = entry.Version
+				}
+			}
+			if baselineVersion == "" || baselineVersion == app.Version {
+				t.Fatal("fixture needs a distinct healthy application version")
+			}
+			// These are additional synthetic observations inside this recording,
+			// not repeated replay output or a fabricated longer manifest window.
+			for _, offset := range []time.Duration{onset, recovery} {
+				data, err := telemetry.Encode(baseline.Software)
+				if err != nil {
+					t.Fatal(err)
+				}
+				sequence++
+				ref := softwareRef
+				ref.Offset, ref.CycleID, ref.Sequence = offset, sequence, sequence
+				ref.File = fmt.Sprintf("observed-software-%d.json", sequence)
+				r.Bundle.Files[ref.File], r.Bundle.Manifest.Files[ref.File] = data, schema.Digest(data)
+				r.Bundle.Manifest.Samples = append(r.Bundle.Manifest.Samples, ref)
+			}
+			r.Bundle.Manifest.Cadences[schema.Software] = onset
+			r = requestFor(t, r.Scenario, r.Plan.ScenarioDigest, r.Bundle)
+			delivery := &recordingDelivery{start: r.Plan.Start, retainPayload: true}
+			result, err := Run(context.Background(), r, Options{Workers: 2, QueueCapacity: 1, Clock: &advancingClock{now: r.Plan.Start}, Delivery: delivery})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertCompleteCadences(t, r, result, delivery)
+			groups := map[string]string{}
+			for _, device := range result.Ledger {
+				groups[device.Hostname] = device.Cohort
+			}
+			seen := map[string]int{}
+			for _, record := range delivery.records {
+				if record.Stream != schema.Software && record.Stream != schema.Processes {
+					continue
+				}
+				phase, _ := phaseAt(r.Scenario, record.Offset)
+				group := groups[record.Host]
+				var chunks []json.RawMessage
+				if err := json.Unmarshal([]byte(record.Payload), &chunks); err != nil {
+					t.Fatal(err)
+				}
+				changed := group == "rollout" && (phase == 1 || phase == 2)
+				for _, data := range chunks {
+					value, err := telemetry.Decode(record.Stream, data)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if record.Stream == schema.Software {
+						want := baselineVersion
+						if changed {
+							want = app.Version
+						}
+						found := false
+						for _, entry := range value.Software.Metadata.Software {
+							if entry.DisplayName == app.Name {
+								found = entry.Version == want
+							}
+						}
+						if !found {
+							t.Fatalf("%s software phase %d did not preserve/change/restore the observed version", group, phase)
+						}
+					} else {
+						var original *model.CollectorProc
+						for _, ref := range r.Bundle.Manifest.Samples {
+							if ref.Stream == schema.Processes && ref.Offset == record.Offset {
+								captured, err := r.Bundle.Decode(ref)
+								if err != nil {
+									t.Fatal(err)
+								}
+								original = captured.Processes
+								break
+							}
+						}
+						gotCPU, gotMemory, gotPath := processResources(value.Processes, processDef.Name)
+						wantCPU, wantMemory, wantPath := processResources(original, processDef.Name)
+						if changed && phase == 2 {
+							wantCPU, wantMemory = processDef.CPU.Steady.Value, uint64(processDef.Memory.Steady.Value*(1<<20))
+						}
+						if (!changed || phase == 2) && (math.Abs(gotCPU-wantCPU) > 1e-5 || gotMemory != wantMemory) {
+							t.Fatalf("%s process phase %d lost the expected resource change/recovery", group, phase)
+						}
+						if changed && app.Name == "SentinelOne" {
+							if !strings.Contains(gotPath, app.Version) {
+								t.Fatal("process path and changed software version disagree")
+							}
+						} else if !changed && gotPath != wantPath {
+							t.Fatal("healthy or recovery process path differs from its recorded observation")
+						}
+					}
+					seen[fmt.Sprintf("%s/%s/%d", group, record.Stream, phase)]++
+				}
+			}
+			for _, group := range []string{"rollout", "comparison"} {
+				for _, key := range []string{"software/0", "software/1", "software/3", "processes/0", "processes/2", "processes/3"} {
+					if seen[group+"/"+key] == 0 {
+						t.Fatalf("missing observed replay coverage for %s/%s", group, key)
+					}
+				}
+			}
+		})
+	}
+}
+
+func processResources(payload *model.CollectorProc, name string) (float64, uint64, string) {
+	if payload == nil || payload.Info == nil {
+		return 0, 0, ""
+	}
+	var cpus, cpu float64
+	var memory uint64
+	var path string
+	for _, topology := range payload.Info.Cpus {
+		cpus += float64(topology.Cores)
+	}
+	for _, process := range payload.Processes {
+		if process.Command != nil && process.Command.Comm == name {
+			cpu += float64(process.Cpu.TotalPct)
+			memory += process.Memory.Rss
+			path = process.Command.Exe
+		}
+	}
+	return cpu / cpus, memory, path
 }
 
 func TestSharedBaselineReplayDeterministicAcrossWorkersAndMapOrder(t *testing.T) {
@@ -584,6 +731,47 @@ func TestExecuteDoesNotRequireAFuturePlannedStart(t *testing.T) {
 	}
 }
 
+func TestRecordingTooShortFailsBeforeDeliveryOrReportCreation(t *testing.T) {
+	request := sharedBaselineRequest(t)
+	available := request.Bundle.Manifest.Duration
+	required := available + time.Second
+	request.Scenario.Phases[0].Duration.Duration = required
+	sink := &recordingDelivery{start: request.Plan.Start}
+	clock := &advancingClock{now: request.Plan.Start}
+	result, err := Run(context.Background(), request, Options{Workers: 1, QueueCapacity: 1, Clock: clock, Delivery: sink})
+	if err == nil || !strings.Contains(err.Error(), required.String()) || !strings.Contains(err.Error(), available.String()) || !strings.Contains(err.Error(), "recapture") {
+		t.Fatalf("missing required/available duration and recapture guidance: %v", err)
+	}
+	if result != nil || sink.calls != 0 || sink.waits != 0 || !clock.Now().Equal(request.Plan.Start) {
+		t.Fatal("insufficient recording reached scheduling or delivery")
+	}
+	path := filepath.Join(t.TempDir(), "report.json")
+	if err := Execute(context.Background(), request, ExecutionOptions{ReportPath: path}); err == nil || !strings.Contains(err.Error(), "recapture") {
+		t.Fatalf("execution did not reject the short recording before credential setup: %v", err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("short recording created output: %v", err)
+	}
+}
+
+func TestPreflightUsesObservedProcessesWithinTheirReplayPhase(t *testing.T) {
+	request := shippedRequest(t, "application-update-regression-macos")
+	// Chrome need not exist in the first healthy collection to be overlaid in
+	// later onset collections. A Cartesian comparison of all cycles rejects it.
+	rewriteFixtureSamples(t, request, schema.Processes, func(s *telemetry.Sample, index int) {
+		if index == 0 {
+			for _, process := range s.Processes.Processes {
+				if process.Command != nil && process.Command.Comm == "Google Chrome" {
+					process.Command.Comm = "Earlier Native Application"
+				}
+			}
+		}
+	})
+	if err := Validate(request); err != nil {
+		t.Fatalf("preflight compared an overlay against an unrelated process observation: %v", err)
+	}
+}
+
 func rewriteFixtureSamples(t *testing.T, request Request, stream schema.Stream, mutate func(*telemetry.Sample, int)) {
 	t.Helper()
 	capture := request.Bundle
@@ -642,8 +830,22 @@ func TestSemanticPreflightRejectsUnproducibleFleetBeforeDelivery(t *testing.T) {
 			})
 		}},
 		{"selector-missing-in-one-cycle", "vpn-degradation-windows", "lacks required", func(t *testing.T, r Request) {
+			target, index := -1, 0
+			for _, ref := range r.Bundle.Manifest.Samples {
+				if ref.Stream == schema.Connections {
+					phase, _ := phaseAt(r.Scenario, ref.Offset)
+					if len(r.Scenario.Phases[phase].Connections["vpn-path"]) != 0 {
+						target = index
+						break
+					}
+					index++
+				}
+			}
+			if target < 0 {
+				t.Fatal("fixture lacks a connection cycle during the declared overlay")
+			}
 			rewriteFixtureSamples(t, r, schema.Connections, func(s *telemetry.Sample, index int) {
-				if index == 1 {
+				if index == target {
 					s.Connections.Connections[0].Raddr.Port++
 				}
 			})

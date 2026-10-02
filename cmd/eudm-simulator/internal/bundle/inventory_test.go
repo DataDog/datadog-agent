@@ -70,7 +70,7 @@ func TestInventoryBundleReconcilesIdentityBuildAndHardware(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir, loaded := fixture(t, "macos")
 			ref := loaded.Manifest.Samples[slices.IndexFunc(loaded.Manifest.Samples, func(ref SampleRef) bool { return ref.Stream == test.stream })]
-			value := telemetrycapture.CloneInventory(loaded.Samples[ref.File].Inventory)
+			value := telemetrycapture.CloneInventory(decodeSample(t, loaded, ref).Inventory)
 			test.mutate(value)
 			writeBundleFile(t, dir, loaded, ref.File, value)
 			writeManifest(t, dir, loaded.Manifest)
@@ -82,13 +82,13 @@ func TestInventoryBundleReconcilesIdentityBuildAndHardware(t *testing.T) {
 	t.Run("native OS case and optional architecture", func(t *testing.T) {
 		dir, loaded := fixture(t, "macos")
 		ref := loaded.Manifest.Samples[slices.IndexFunc(loaded.Manifest.Samples, func(ref SampleRef) bool { return ref.Stream == schema.HostInventory })]
-		value := telemetrycapture.CloneInventory(loaded.Samples[ref.File].Inventory)
+		value := telemetrycapture.CloneInventory(decodeSample(t, loaded, ref).Inventory)
 		value.Host.OS, value.Host.CPUArchitecture = "Darwin", ""
 		// Native hardware inventory reports KiB, while process evidence reports bytes.
 		loaded.Manifest.Profile.MemoryBytes += 511
 		for _, ref := range loaded.Manifest.Samples {
 			if ref.Stream == schema.Processes {
-				process := loaded.Samples[ref.File].Processes
+				process := decodeSample(t, loaded, ref).Processes
 				process.Info.TotalMemory += 511
 				writeBundleFile(t, dir, loaded, ref.File, process)
 			}

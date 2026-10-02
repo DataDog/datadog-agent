@@ -119,6 +119,9 @@ func (c *httpClient) Activate(ctx context.Context, request tc.Control) (tc.Statu
 func (c *httpClient) Heartbeat(ctx context.Context, request tc.Control) (tc.Status, error) {
 	return c.control(ctx, "heartbeat", request)
 }
+func (c *httpClient) RequestHostSystemInfo(ctx context.Context, request tc.Control) (tc.Status, error) {
+	return c.control(ctx, "host-system-info", request)
+}
 func (c *httpClient) Stop(ctx context.Context, request tc.Control) (tc.Status, error) {
 	return c.control(ctx, "stop", request)
 }

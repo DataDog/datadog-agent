@@ -44,13 +44,16 @@ func (m *Manifest) validateProvenance() (map[schema.Stream]int, error) {
 	if !validBuild(m.CaptureTool) || !opaqueIDPattern.MatchString(m.SessionID) {
 		return nil, errors.New("invalid capture-tool or session identity; recapture")
 	}
+	if m.Duration <= 0 {
+		return nil, errors.New("capture requires a positive recorded duration")
+	}
 	if len(m.Producers) == 0 || len(m.Producers) > 3 {
 		return nil, errors.New("capture requires a participating producer inventory")
 	}
 	producers := map[string]Producer{}
 	roles := map[string]bool{}
 	owners := map[schema.Stream]string{}
-	var firstStart, lastStart time.Duration
+	var lastStart time.Duration
 	for i, producer := range m.Producers {
 		if !opaqueIDPattern.MatchString(producer.InstanceID) || producers[producer.InstanceID].InstanceID != "" || roles[producer.Role] ||
 			!validBuild(BuildIdentity{Version: producer.Version, Commit: producer.Commit}) || producer.ProtocolVersion != tc.ProtocolVersion {
@@ -59,13 +62,10 @@ func (m *Manifest) validateProvenance() (map[schema.Stream]int, error) {
 		if !producer.Stopped || producer.Failures != 0 || producer.Drops != 0 || producer.FinalSequence == 0 || producer.FinalSequence != producer.AcknowledgedSequence {
 			return nil, errors.New("capture producer lacks complete stopped and drained acknowledgement")
 		}
-		if producer.StartOffset < 0 || producer.StopOffset < producer.StartOffset || producer.StopOffset > m.Duration {
+		if producer.StartOffset < -5*time.Second || producer.StartOffset > 0 || producer.StopOffset < m.Duration {
 			return nil, errors.New("invalid acknowledged producer boundaries")
 		}
-		if i == 0 || producer.StartOffset < firstStart {
-			firstStart = producer.StartOffset
-		}
-		if producer.StartOffset > lastStart {
+		if i == 0 || producer.StartOffset > lastStart {
 			lastStart = producer.StartOffset
 		}
 		if len(producer.Streams) == 0 {
@@ -79,8 +79,8 @@ func (m *Manifest) validateProvenance() (map[schema.Stream]int, error) {
 		}
 		producers[producer.InstanceID], roles[producer.Role] = producer, true
 	}
-	if lastStart-firstStart > 5*time.Second {
-		return nil, errors.New("capture producer activation spread exceeds five seconds")
+	if lastStart != 0 {
+		return nil, errors.New("capture origin must match the final producer activation")
 	}
 	if len(owners) != len(m.Profile.Streams) {
 		return nil, errors.New("capture stream inventory differs from producer participation")
@@ -94,7 +94,7 @@ func (m *Manifest) validateProvenance() (map[schema.Stream]int, error) {
 		if !ok || owners[ref.Stream] != ref.ProducerID || ref.CycleID == 0 || ref.Sequence == 0 || ref.Sequence > producer.FinalSequence {
 			return nil, errors.New("sample has invalid producer, cycle, or sequence evidence")
 		}
-		if ref.Offset < producer.StartOffset || ref.Offset > producer.StopOffset || ref.ChunkCount <= 0 || ref.ChunkCount > len(m.Samples) || ref.ChunkIndex < 0 || ref.ChunkIndex >= ref.ChunkCount {
+		if ref.Offset < 0 || ref.Offset >= m.Duration || ref.ChunkCount <= 0 || ref.ChunkCount > len(m.Samples) || ref.ChunkIndex < 0 || ref.ChunkIndex >= ref.ChunkCount {
 			return nil, errors.New("sample lies outside producer boundaries or its complete group")
 		}
 		if ref.Stream != schema.Processes && ref.Stream != schema.Connections && (ref.ChunkIndex != 0 || ref.ChunkCount != 1) {

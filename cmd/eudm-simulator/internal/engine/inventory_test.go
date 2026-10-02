@@ -13,22 +13,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-func TestInventoryReplayAdvancesSnapshotsWithoutRestartingAgent(t *testing.T) {
+func TestInventoryReplayRebasesObservedSnapshotsWithoutRestartingAgent(t *testing.T) {
 	start := time.Date(2026, 10, 1, 12, 0, 0, 123456789, time.UTC)
-	const capturedAt = int64(5*time.Second + 987654321)
 	const startupMS = -123456
-	for _, shift := range []time.Duration{0, 10 * time.Minute, 30 * time.Minute} {
+	for _, capturedAt := range []int64{int64(5*time.Second + 987654321), int64(10*time.Minute + 123456789), int64(30 * time.Minute)} {
 		for _, agent := range []bool{false, true} {
 			value := &telemetrycapture.Inventory{Timestamp: capturedAt}
 			if agent {
 				value.Agent = &telemetrycapture.AgentInventoryMetadata{AgentStartupTimeMS: startupMS}
 			}
-			rebase(&telemetry.Sample{Inventory: value}, start, shift, 1, 1)
-			if value.Timestamp != start.UnixNano()+capturedAt+int64(shift) {
-				t.Fatal("inventory timestamp lost captured offset, fractional time, or replay cycle shift")
+			rebase(&telemetry.Sample{Inventory: value}, start, 1, 1)
+			if value.Timestamp != start.UnixNano()+capturedAt {
+				t.Fatal("inventory timestamp lost its captured offset or fractional time")
 			}
 			if agent && value.Agent.AgentStartupTimeMS != start.UnixMilli()+startupMS {
-				t.Fatal("repeated inventory changed the Agent startup time")
+				t.Fatal("a later observation changed the Agent startup time")
 			}
 		}
 	}

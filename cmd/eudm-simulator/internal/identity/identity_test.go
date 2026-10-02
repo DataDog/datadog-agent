@@ -115,7 +115,9 @@ func TestIdentityChangesOnlyDeviceIdentity(t *testing.T) {
 
 func TestLocalIdentityMapIsImmutableAcrossStreamsAndDevices(t *testing.T) {
 	baseline := fixture()
-	m := New(run, 9, "fleet", 2, baseline)
+	observed := NewBaseline()
+	observed.Observe(baseline)
+	m := NewWithBaseline(run, 9, "fleet", 2, observed)
 	want := fixture()
 	if err := m.Apply(want, schema.GroupDef{}, nil); err != nil {
 		t.Fatal(err)
@@ -138,7 +140,7 @@ func TestLocalIdentityMapIsImmutableAcrossStreamsAndDevices(t *testing.T) {
 		t.Fatal("baseline mutated")
 	}
 	other := fixture()
-	second := New(run, 9, "fleet", 3, baseline)
+	second := NewWithBaseline(run, 9, "fleet", 3, observed)
 	if err := second.Apply(other, schema.GroupDef{}, nil); err != nil {
 		t.Fatal(err)
 	}

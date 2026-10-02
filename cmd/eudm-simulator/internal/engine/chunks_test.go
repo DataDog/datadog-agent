@@ -27,6 +27,7 @@ func TestReplayPreservesEmptyChunksWithinCompleteGroups(t *testing.T) {
 		Digest: schema.Digest([]byte("complete-groups-with-empty-chunks")),
 		Files:  map[string][]byte{},
 		Manifest: bundle.Manifest{
+			Duration:    10 * time.Second,
 			CaptureTool: bundle.BuildIdentity{Version: "7.85.0", Commit: fixtureCommit},
 			Profile: schema.Profile{OS: "windows", Architecture: "amd64", MemoryBytes: 8 << 30,
 				Streams: []schema.Stream{schema.Metrics, schema.HostMetadata, schema.Processes, schema.Connections, schema.Software, schema.AgentInventory, schema.HostInventory}},

@@ -51,7 +51,7 @@ func NewEvidence(directory, platform, architecture string, tool bundle.BuildIden
 }
 
 func (e *Evidence) Start(ctx context.Context, session Session) error {
-	if e.writer != nil || e.closed || session.Origin.IsZero() || len(session.Participants) == 0 ||
+	if e.writer != nil || e.closed || session.Origin.IsZero() || session.Duration <= 0 || len(session.Participants) == 0 ||
 		(e.profile.OS != "macos" && e.profile.OS != "windows") || (e.profile.Architecture != "amd64" && e.profile.Architecture != "arm64") {
 		return errors.New("invalid evidence capture session")
 	}
@@ -64,13 +64,15 @@ func (e *Evidence) Start(ctx context.Context, session Session) error {
 	e.metricCadences = map[string]time.Duration{}
 	e.metricOffsets = map[string][]time.Duration{}
 	owners := map[tc.Stream]bool{}
+	latestActivation := false
 	for _, participant := range session.Participants {
 		status := participant.Status
 		if status.ProtocolVersion != tc.ProtocolVersion || status.SessionID != session.ID || status.State != tc.Active ||
-			status.ActivatedAt.Before(session.Origin) || status.ActivatedAt.Sub(session.Origin) > 5*time.Second || len(participant.Streams) == 0 ||
+			status.ActivatedAt.After(session.Origin) || session.Origin.Sub(status.ActivatedAt) > 5*time.Second || len(participant.Streams) == 0 ||
 			e.participants[status.Producer.InstanceID].Status.Producer.InstanceID != "" {
 			return errors.New("invalid evidence producer activation")
 		}
+		latestActivation = latestActivation || status.ActivatedAt.Equal(session.Origin)
 		for _, stream := range participant.Streams {
 			mapped := evidenceStream(stream)
 			if mapped == "" || owners[stream] {
@@ -96,6 +98,9 @@ func (e *Evidence) Start(ctx context.Context, session Session) error {
 			}
 		}
 		e.participants[status.Producer.InstanceID] = participant
+	}
+	if !latestActivation {
+		return errors.New("evidence origin must match the latest producer activation")
 	}
 	e.normalizer = capture.NewNormalizer()
 	var err error
@@ -148,7 +153,7 @@ func (e *Evidence) Accept(ctx context.Context, record tc.Record) (err error) {
 		record.CollectedAt.IsZero() || record.ObservedAt.Before(record.CollectedAt) || record.Cadence <= 0 {
 		return errors.New("invalid evidence record provenance")
 	}
-	if record.CollectedAt.Before(participant.Status.ActivatedAt) {
+	if record.CollectedAt.Before(e.session.Origin) || !record.ObservedAt.Before(e.session.Origin.Add(e.session.Duration)) {
 		return nil
 	}
 	stream := evidenceStream(record.Stream)
@@ -211,9 +216,6 @@ func (e *Evidence) metrics(record tc.Record, ref bundle.SampleRef) (bool, error)
 	if err != nil {
 		return false, errors.New("invalid normalized metric evidence")
 	}
-	if !e.retainCycle(ref.Stream, ref.Offset) {
-		return false, nil
-	}
 	if err := e.writer.Append(ref, typed); err != nil {
 		return false, err
 	}
@@ -264,9 +266,6 @@ func (e *Evidence) metadata(record tc.Record, ref bundle.SampleRef) (bool, error
 	if err := e.validateSample(ref.Stream, clean); err != nil {
 		return false, err
 	}
-	if !e.retainCycle(ref.Stream, ref.Offset) {
-		return false, nil
-	}
 	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
 	}
@@ -288,9 +287,6 @@ func (e *Evidence) inventory(record tc.Record, ref bundle.SampleRef) (bool, erro
 	}
 	if err := e.validateSample(ref.Stream, clean); err != nil {
 		return false, err
-	}
-	if !e.retainCycle(ref.Stream, ref.Offset) {
-		return false, nil
 	}
 	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
@@ -315,9 +311,6 @@ func (e *Evidence) software(record tc.Record, ref bundle.SampleRef) (bool, error
 	if err := e.validateSample(ref.Stream, clean); err != nil {
 		return false, err
 	}
-	if !e.retainCycle(ref.Stream, ref.Offset) {
-		return false, nil
-	}
 	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
 	}
@@ -335,7 +328,6 @@ func (e *Evidence) group(record tc.Record, ref bundle.SampleRef) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	retain := e.retainCycle(ref.Stream, ref.Offset)
 	clean := make([]model.MessageBody, 0, len(messages))
 	total := 0
 	for _, message := range messages {
@@ -369,9 +361,6 @@ func (e *Evidence) group(record tc.Record, ref bundle.SampleRef) (bool, error) {
 		}
 	}
 	if total == 0 {
-		return false, nil
-	}
-	if !retain {
 		return false, nil
 	}
 	ref.ChunkCount = len(clean)
@@ -432,16 +421,6 @@ func (e *Evidence) validateSample(stream schema.Stream, value any) error {
 	return nil
 }
 
-// Retain metric flushes throughout capture so slow check families are not lost.
-// The session timeout and cycle limit bound retention; other streams retain
-// their minimum usable coverage while still validating all accepted records.
-func (e *Evidence) retainCycle(stream schema.Stream, offset time.Duration) bool {
-	if stream == schema.HostMetadata || stream == schema.AgentInventory || stream == schema.HostInventory || stream == schema.HostSystemInfo || stream == schema.Software {
-		return len(e.offsets[stream]) == 0
-	}
-	return (stream == schema.Metrics || len(e.offsets[stream]) < 2) && !slices.Contains(e.offsets[stream], offset)
-}
-
 func (e *Evidence) observedCadence(stream schema.Stream) time.Duration {
 	offsets := slices.Clone(e.offsets[stream])
 	slices.Sort(offsets)
@@ -481,7 +460,7 @@ func (e *Evidence) Coverage() (bool, string) {
 
 func (e *Evidence) Finish(ctx context.Context, statuses []tc.Status, ended time.Time) (err error) {
 	defer e.Close()
-	if e.closed || e.writer == nil || ended.Before(e.session.Origin) {
+	if e.closed || e.writer == nil || ended.Before(e.session.Origin.Add(e.session.Duration)) {
 		return errors.New("evidence session cannot finalize")
 	}
 	if err := ctx.Err(); err != nil {
@@ -499,7 +478,7 @@ func (e *Evidence) Finish(ctx context.Context, statuses []tc.Status, ended time.
 		participant, ok := e.participants[status.Producer.InstanceID]
 		if !ok || seen[status.Producer.InstanceID] || status.Producer != participant.Status.Producer || status.ProtocolVersion != tc.ProtocolVersion ||
 			status.SessionID != e.session.ID || status.State != tc.Stopped || !status.ActivatedAt.Equal(participant.Status.ActivatedAt) ||
-			status.StoppedAt.Before(status.ActivatedAt) || status.StoppedAt.After(ended) || status.FinalSequence != status.Acknowledged || status.Failures != 0 || status.Drops != 0 {
+			status.StoppedAt.Before(e.session.Origin.Add(e.session.Duration)) || status.StoppedAt.After(ended) || status.FinalSequence != status.Acknowledged || status.Failures != 0 || status.Drops != 0 {
 			return errors.New("invalid evidence producer stopped acknowledgement")
 		}
 		seen[status.Producer.InstanceID] = true
@@ -523,7 +502,7 @@ func (e *Evidence) Finish(ctx context.Context, statuses []tc.Status, ended time.
 	if err := e.writer.SetProducers(producers); err != nil {
 		return err
 	}
-	_, err = e.writer.CompleteContext(ctx, ended.Sub(e.session.Origin), e.profile, e.cadences)
+	_, err = e.writer.CompleteContext(ctx, e.session.Duration, e.profile, e.cadences)
 	return err
 }
 

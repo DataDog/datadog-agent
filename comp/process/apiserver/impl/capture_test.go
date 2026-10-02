@@ -72,11 +72,11 @@ func TestCaptureRoutesValidateProtocolDrainAndShutdown(t *testing.T) {
 	var initial telemetrycapture.Status
 	require.NoError(t, json.Unmarshal(request(http.MethodGet, "capabilities", "", http.StatusOK), &initial))
 	require.Empty(t, initial.Capabilities)
-	control := `{"protocol_version":3,"session_id":"process-api-session"}`
-	prepare := `{"protocol_version":3,"session_id":"process-api-session","streams":["processes"]}`
+	control := `{"protocol_version":4,"session_id":"process-api-session"}`
+	prepare := `{"protocol_version":4,"session_id":"process-api-session","streams":["processes"]}`
 	request(http.MethodPost, "prepare", prepare, http.StatusConflict)
 	require.NoError(t, m.Register(telemetrycapture.Capability{Stream: telemetrycapture.Processes, Cadence: time.Second}))
-	for _, body := range []string{`{`, `{"protocol_version":1,"session_id":"process-api-session","streams":["processes"]}`, `{"protocol_version":99,"session_id":"process-api-session","streams":["processes"]}`, `{"protocol_version":3,"session_id":"process-api-session","streams":["processes"],"unexpected":"fixture-sensitive"}`} {
+	for _, body := range []string{`{`, `{"protocol_version":1,"session_id":"process-api-session","streams":["processes"]}`, `{"protocol_version":99,"session_id":"process-api-session","streams":["processes"]}`, `{"protocol_version":4,"session_id":"process-api-session","streams":["processes"],"unexpected":"fixture-sensitive"}`} {
 		result := request(http.MethodPost, "prepare", body, http.StatusBadRequest)
 		require.NotContains(t, string(result), "fixture-sensitive")
 	}
@@ -93,10 +93,10 @@ func TestCaptureRoutesValidateProtocolDrainAndShutdown(t *testing.T) {
 	require.NoError(t, json.Unmarshal(request(http.MethodPost, "records", control, http.StatusOK), &batch))
 	require.Len(t, batch.Records, 1)
 	require.Equal(t, uint64(1), batch.Records[0].Sequence)
-	request(http.MethodPost, "records", `{"protocol_version":3,"session_id":"process-api-session","cursor":2}`, http.StatusBadRequest)
+	request(http.MethodPost, "records", `{"protocol_version":4,"session_id":"process-api-session","cursor":2}`, http.StatusBadRequest)
 	request(http.MethodPost, "stop", control, http.StatusOK)
 	require.Equal(t, telemetrycapture.Stopping, m.Status().State)
-	request(http.MethodPost, "records", `{"protocol_version":3,"session_id":"process-api-session","cursor":1}`, http.StatusOK)
+	request(http.MethodPost, "records", `{"protocol_version":4,"session_id":"process-api-session","cursor":1}`, http.StatusOK)
 	request(http.MethodPost, "stop", control, http.StatusOK)
 	require.Equal(t, telemetrycapture.Stopped, m.Status().State)
 	m.Close()

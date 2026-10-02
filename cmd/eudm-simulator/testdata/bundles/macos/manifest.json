@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "capture_tool": {
     "version": "7.85.0-fixture",
     "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -11,7 +11,7 @@
       "instance_id": "synthetic-core-agent",
       "version": "7.85.0-fixture",
       "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "protocol_version": 3,
+      "protocol_version": 4,
       "streams": [
         "metrics",
         "host_metadata",
@@ -22,8 +22,8 @@
       ],
       "start_offset_ns": 0,
       "stop_offset_ns": 301000000000,
-      "final_sequence": 26,
-      "acknowledged_sequence": 26,
+      "final_sequence": 27,
+      "acknowledged_sequence": 27,
       "stopped": true,
       "failures": 0,
       "drops": 0
@@ -33,15 +33,15 @@
       "instance_id": "synthetic-process-agent",
       "version": "7.85.0-fixture",
       "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      "protocol_version": 3,
+      "protocol_version": 4,
       "streams": [
         "processes",
         "connections"
       ],
       "start_offset_ns": 0,
       "stop_offset_ns": 301000000000,
-      "final_sequence": 4,
-      "acknowledged_sequence": 4,
+      "final_sequence": 62,
+      "acknowledged_sequence": 62,
       "stopped": true,
       "failures": 0,
       "drops": 0
@@ -366,6 +366,586 @@
       "file": "sample-000024.json"
     },
     {
+      "stream": "processes",
+      "offset_ns": 20000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 5,
+      "sequence": 5,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000025.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 20000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 6,
+      "sequence": 6,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000026.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 30000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 7,
+      "sequence": 7,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000027.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 30000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 8,
+      "sequence": 8,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000028.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 40000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 9,
+      "sequence": 9,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000029.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 40000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 10,
+      "sequence": 10,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000030.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 50000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 11,
+      "sequence": 11,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000031.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 50000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 12,
+      "sequence": 12,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000032.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 60000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 13,
+      "sequence": 13,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000033.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 60000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 14,
+      "sequence": 14,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000034.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 70000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 15,
+      "sequence": 15,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000035.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 70000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 16,
+      "sequence": 16,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000036.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 80000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 17,
+      "sequence": 17,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000037.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 80000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 18,
+      "sequence": 18,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000038.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 90000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 19,
+      "sequence": 19,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000039.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 90000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 20,
+      "sequence": 20,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000040.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 100000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 21,
+      "sequence": 21,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000041.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 100000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 22,
+      "sequence": 22,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000042.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 110000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 23,
+      "sequence": 23,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000043.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 110000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 24,
+      "sequence": 24,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000044.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 120000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 25,
+      "sequence": 25,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000045.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 120000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 26,
+      "sequence": 26,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000046.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 130000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 27,
+      "sequence": 27,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000047.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 130000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 28,
+      "sequence": 28,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000048.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 140000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 29,
+      "sequence": 29,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000049.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 140000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 30,
+      "sequence": 30,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000050.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 150000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 31,
+      "sequence": 31,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000051.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 150000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 32,
+      "sequence": 32,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000052.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 160000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 33,
+      "sequence": 33,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000053.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 160000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 34,
+      "sequence": 34,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000054.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 170000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 35,
+      "sequence": 35,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000055.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 170000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 36,
+      "sequence": 36,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000056.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 180000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 37,
+      "sequence": 37,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000057.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 180000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 38,
+      "sequence": 38,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000058.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 190000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 39,
+      "sequence": 39,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000059.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 190000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 40,
+      "sequence": 40,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000060.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 200000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 41,
+      "sequence": 41,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000061.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 200000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 42,
+      "sequence": 42,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000062.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 210000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 43,
+      "sequence": 43,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000063.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 210000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 44,
+      "sequence": 44,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000064.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 220000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 45,
+      "sequence": 45,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000065.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 220000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 46,
+      "sequence": 46,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000066.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 230000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 47,
+      "sequence": 47,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000067.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 230000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 48,
+      "sequence": 48,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000068.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 240000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 49,
+      "sequence": 49,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000069.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 240000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 50,
+      "sequence": 50,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000070.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 250000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 51,
+      "sequence": 51,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000071.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 250000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 52,
+      "sequence": 52,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000072.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 260000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 53,
+      "sequence": 53,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000073.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 260000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 54,
+      "sequence": 54,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000074.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 270000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 55,
+      "sequence": 55,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000075.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 270000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 56,
+      "sequence": 56,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000076.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 280000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 57,
+      "sequence": 57,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000077.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 280000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 58,
+      "sequence": 58,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000078.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 290000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 59,
+      "sequence": 59,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000079.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 290000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 60,
+      "sequence": 60,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000080.json"
+    },
+    {
+      "stream": "processes",
+      "offset_ns": 300000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 61,
+      "sequence": 61,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000081.json"
+    },
+    {
+      "stream": "connections",
+      "offset_ns": 300000000000,
+      "producer_id": "synthetic-process-agent",
+      "cycle_id": 62,
+      "sequence": 62,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000082.json"
+    },
+    {
       "stream": "host_metadata",
       "offset_ns": 0,
       "producer_id": "synthetic-core-agent",
@@ -373,47 +953,57 @@
       "sequence": 22,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000025.json"
+      "file": "sample-000083.json"
     },
     {
-      "stream": "agent_inventory",
-      "offset_ns": 0,
+      "stream": "host_metadata",
+      "offset_ns": 300000000000,
       "producer_id": "synthetic-core-agent",
       "cycle_id": 23,
       "sequence": 23,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000026.json"
+      "file": "sample-000084.json"
     },
     {
-      "stream": "host_inventory",
+      "stream": "agent_inventory",
       "offset_ns": 0,
       "producer_id": "synthetic-core-agent",
       "cycle_id": 24,
       "sequence": 24,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000027.json"
+      "file": "sample-000085.json"
     },
     {
-      "stream": "host_system_info",
-      "offset_ns": 5000000000,
+      "stream": "host_inventory",
+      "offset_ns": 0,
       "producer_id": "synthetic-core-agent",
       "cycle_id": 25,
       "sequence": 25,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000028.json"
+      "file": "sample-000086.json"
     },
     {
-      "stream": "software",
-      "offset_ns": 0,
+      "stream": "host_system_info",
+      "offset_ns": 5000000000,
       "producer_id": "synthetic-core-agent",
       "cycle_id": 26,
       "sequence": 26,
       "chunk_index": 0,
       "chunk_count": 1,
-      "file": "sample-000029.json"
+      "file": "sample-000087.json"
+    },
+    {
+      "stream": "software",
+      "offset_ns": 0,
+      "producer_id": "synthetic-core-agent",
+      "cycle_id": 27,
+      "sequence": 27,
+      "chunk_index": 0,
+      "chunk_count": 1,
+      "file": "sample-000088.json"
     }
   ],
   "files": {
@@ -442,11 +1032,70 @@
     "sample-000022.json": "2a23c00fe14106ac560a67f3286facc2177167acdd55ac3ef9512bbb164d37c7",
     "sample-000023.json": "42b6c00e73d2d8deb755d8133600a3a7908133d7759156bb94018a286ce6c5f6",
     "sample-000024.json": "a1c8d6b3e6a9b26788199553e09093002a946884ff3ccb4779936e2ee03bb7d4",
-    "sample-000025.json": "8d3e38079259e937b8e3a10336cb65b689bd9fdaafe269e628e36c333c8d9d02",
-    "sample-000026.json": "48092a0d3d20766a5c929ea6b025975398b057d07a1bd8a7f8afda0a4a0414c4",
-    "sample-000027.json": "f7cebeb1c6f7334482f03996e7d27afc2bfa52eb0695a2366700ae419599acaf",
-    "sample-000028.json": "9b5ab938848b93850af26a483ff0ca7b2c2553f9d4d031f5035c143f49530c7d",
-    "sample-000029.json": "ebddbc41b7db38728038c126bb55f84cfec5e7c0439d709d95d06f1dd47626ca"
+    "sample-000025.json": "d83c3ffbd8e08ef0315292b88fc7a8b8b19bcee6feb17453ace2e69e63cbcc7e",
+    "sample-000026.json": "673a8535c174773789994e17e61523e1a070e9565877f8f8da9fb02b9a01f241",
+    "sample-000027.json": "3b1e186ef2efdd1f67b0e8edc994d3bc24bf26092159c9a3246fb729fac1b20e",
+    "sample-000028.json": "42affcb7a836f402c7070134b461f764feea932a8a429a9d61950403e8801eec",
+    "sample-000029.json": "e910d3c28b42643c12afb557d46a0ba004eaf10203dc77b3a758d9b9e2f3ab42",
+    "sample-000030.json": "04f154ec25c60d1659831b307ab577cb2a64eb489ed6048c090b599a370a3ffa",
+    "sample-000031.json": "b6d07a08f4387d2bb7abeafbedea78a677a6baf53aac8af0e40e294e9ba07ad1",
+    "sample-000032.json": "0befa7c59ee37f99f918c3224bbaf9a8c5d065a02a09abaa61a2c5a79f58a2e2",
+    "sample-000033.json": "895c57bd04170643b8ab171090dbdd3f5424092f224577c0827b46010bc803c8",
+    "sample-000034.json": "74b58e256ff27264485b55164f50ebacf740b9c27a16d2c0ee021873cce45544",
+    "sample-000035.json": "c786a8174c94168e6a94f58378a14cb0ab55be02c26575cd4720834b840298ea",
+    "sample-000036.json": "e1529350d3d09ce5e5a9603d563a609e734f2bd5ab2663679afed1b5ded5c370",
+    "sample-000037.json": "52ba8a0bc54670df7f23b5a6215ed9730da9539c509a58214bff5231a62813f3",
+    "sample-000038.json": "9e29f520be3a7f09181d0b701f60977de07adb609829c2754049637b2360b4c4",
+    "sample-000039.json": "6a9a9b0c04b5214e0cac1b74f3c00360f70d23c408339f93a13729671e9b4aae",
+    "sample-000040.json": "b0fc3dfaf286bbb126316caa16a3d517c5a66219f0aba58e476b9f80794f6f28",
+    "sample-000041.json": "3b468841c1f55d2ef657d60504fdbe861928f34fd9f18d4c7df4a0353514e91e",
+    "sample-000042.json": "1e509566a5d23db8a45847a37c9e5931811c7a3798ee86fb0b44225bab3d1b53",
+    "sample-000043.json": "792757f424b53cebfc9214ec370fdb40b57db7359aad8d6e3faeaa7b62c5b9bf",
+    "sample-000044.json": "e1cdf521f9d424398348d5157b54f38f2f631712b1695929861da1c7641491c6",
+    "sample-000045.json": "8f685e916c8be47804c4b5ff11997b51c9cb4c1c2007bc95b58111ba0e18261e",
+    "sample-000046.json": "0e8ee31e442ae16ec57887081160432773da38296c9497c6ff533bb74a48da20",
+    "sample-000047.json": "24f203f51d014e67bc1ab598753521be04789ce0ceb5d4bb98f1e5ccfdc17ec9",
+    "sample-000048.json": "e0a96fd55152365f8d9656eddd62c3d52f110b3f6e09141d48e08515ce67c044",
+    "sample-000049.json": "ab7ae4a2cb57943521be703e328990122b9b0734d89ef28d58fab7c44f01621c",
+    "sample-000050.json": "dbfef8b11bbeb688a3536ea922a2fface4f1f40696615d33151d9fa8655cdc18",
+    "sample-000051.json": "fe8ca3ec70f68b2d9087c1f56daf4dea834e9c2fb8afe7352b30e0ab4f207bf7",
+    "sample-000052.json": "9e05b275d9349f3a797f3ff59b68c0e50747e6e06e99522eff8cd0118ef3d89c",
+    "sample-000053.json": "2d046df78e2c78231d4bb6d9336d16ff19c21565bd87300f716dd99de3186956",
+    "sample-000054.json": "02c0431fef1aa060f65866f1c039c9c0eb4e97976de18c6fdacf1ae793ca48d5",
+    "sample-000055.json": "8c770ebf430ef48f0e02a5b2ce60d1c5ba51b0b91afe37a631494a078512f3a1",
+    "sample-000056.json": "7ed835ff20f839e668a6fcd1d9cc52dbbfc5a8b8d5b652139b8e616c249b49ac",
+    "sample-000057.json": "35844ba9e16e62bda69141652390352e09aee217bcc5957d30a25479c00ab927",
+    "sample-000058.json": "415804f8b3a929df68959fa7082c8f17812529b91480817ca8e79128ea926850",
+    "sample-000059.json": "65c8834d21f87e6e22127816633fbceaaa4b85fb746aa69263f8fa346b0b1a3c",
+    "sample-000060.json": "3e23b719d435a32356e2b61c85335a9ba679c2d6d02796c08fb59f94d3073272",
+    "sample-000061.json": "a584c3df0a65a124eca36409e44712d8fa03784f7be5129c2c102cd9ed1f9723",
+    "sample-000062.json": "8e472de49827e2513297204e944f5c8ee309f84422e6fd8beb02f9c210003e30",
+    "sample-000063.json": "ffff800592a75cea44205d164b7a24e388bff0cc49cbf88df3f475e53dcd76bd",
+    "sample-000064.json": "cc5cb30999739ec2de0459c59ec4955cb883e9e6d93ed512a78e23102f654bd9",
+    "sample-000065.json": "0a0bf86f7a6b75349e9ba941c9de25633987c9dc3d0e4cf5626f4bc609b0a70c",
+    "sample-000066.json": "bc3780d256ee84e8f1e15bc88beef9e7c3e78819b68c72ac11784ed1c200743c",
+    "sample-000067.json": "204df1f890bf1c0a599b2551aa4eacd4bb1887b3aa0549a0babcb19490eaac35",
+    "sample-000068.json": "785f99665d9fca3520893b9cf026a457075abab4f623126906ed4a8e49f75387",
+    "sample-000069.json": "d9f356b2abccb8061b1f80c66cf34bd7a6da836cb8c6e3832e29149a72c29cce",
+    "sample-000070.json": "35cb8d37ffc8f37a128c9810fe05a918b0e4ff849fccf28768d44a22bafd731a",
+    "sample-000071.json": "b031ef8f40ab9c7d4e2223e109d4d889b4098c767ebd59384e60b929f3e18a9d",
+    "sample-000072.json": "c2b2a8486e7ce0005ef8b7068dead52966e0e873f03c20da2f3d1ee36bd9f8a0",
+    "sample-000073.json": "2276c10e3448cc2b13a5200602d0da529f9eafa6f958dc46ebe2ee2c29892219",
+    "sample-000074.json": "085607ec984f7456ae314ab9d9798ead9d0c88e18649225669d04762faae78cd",
+    "sample-000075.json": "49310755341e70979f42f346bf7fd0581da124dc3d19c3a1a6d616378eab7e74",
+    "sample-000076.json": "93f969be133ff1ad2cd1daf94d9eaed42187ca5988292a26326554121cc77917",
+    "sample-000077.json": "649a98c24789a9b0732830a974331d2235fd69b20b52e33e242a738b1c718378",
+    "sample-000078.json": "c07c76a762fdc0dc22a1fe916d0aa09c458c9d067475a735eb8a663daa16e8d0",
+    "sample-000079.json": "e2c4e19d8cb94ff6d1cd8f7679c57b25e5b458c91307ecedf3bddb71eaf43366",
+    "sample-000080.json": "08fa842f63aeb7481fd11534c8ebbfb2badce90d4935732bf9186e8bef358fe2",
+    "sample-000081.json": "3da9305ef371acce9cf450cbe79ddd65224e67f7fd064970abaef5bc34840c13",
+    "sample-000082.json": "67887980b92bfaf003eaf1b78eda82e271f3d779839a769073d516e8e3bef9eb",
+    "sample-000083.json": "8d3e38079259e937b8e3a10336cb65b689bd9fdaafe269e628e36c333c8d9d02",
+    "sample-000084.json": "8d3e38079259e937b8e3a10336cb65b689bd9fdaafe269e628e36c333c8d9d02",
+    "sample-000085.json": "48092a0d3d20766a5c929ea6b025975398b057d07a1bd8a7f8afda0a4a0414c4",
+    "sample-000086.json": "f7cebeb1c6f7334482f03996e7d27afc2bfa52eb0695a2366700ae419599acaf",
+    "sample-000087.json": "9b5ab938848b93850af26a483ff0ca7b2c2553f9d4d031f5035c143f49530c7d",
+    "sample-000088.json": "ebddbc41b7db38728038c126bb55f84cfec5e7c0439d709d95d06f1dd47626ca"
   },
   "complete": true
 }

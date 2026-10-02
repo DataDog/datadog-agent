@@ -35,7 +35,7 @@ func healthy(t *testing.T) *Scenario {
 }
 
 func baselineRef(platform string) BundleRef {
-	return BundleRef{Digest: Digest([]byte(platform)), CaptureToolCommit: strings.Repeat("a", 40), Profile: Profile{OS: platform, Architecture: "arm64", Streams: []Stream{Metrics, HostMetadata, AgentInventory, HostInventory, Processes, Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Chrome"}, SoftwareNames: []string{"Google Chrome"}}}
+	return BundleRef{Digest: Digest([]byte(platform)), CaptureToolCommit: strings.Repeat("a", 40), Duration: time.Hour, Profile: Profile{OS: platform, Architecture: "arm64", Streams: []Stream{Metrics, HostMetadata, AgentInventory, HostInventory, Processes, Software}, MetricNames: []string{"system.cpu.user"}, ProcessNames: []string{"Chrome"}, SoftwareNames: []string{"Google Chrome"}}}
 }
 
 func TestSingleBaselinePlanRoundTrip(t *testing.T) {
@@ -84,6 +84,8 @@ func TestPlanRejectsMissingAndIncompatibleEvidence(t *testing.T) {
 		mutate func(*Scenario, *BundleRef)
 	}{
 		{"missing baseline", func(_ *Scenario, r *BundleRef) { *r = BundleRef{} }},
+		{"missing duration", func(_ *Scenario, r *BundleRef) { r.Duration = 0 }},
+		{"short recording", func(_ *Scenario, r *BundleRef) { r.Duration = 19 * time.Minute }},
 		{"OS mismatch", func(_ *Scenario, r *BundleRef) { r.Profile.OS = "windows" }},
 		{"incompatible second group", func(s *Scenario, _ *BundleRef) { s.Fleet[1].OS = "windows" }},
 		{"missing stream", func(_ *Scenario, r *BundleRef) { r.Profile.Streams = []Stream{Metrics} }},
@@ -257,5 +259,15 @@ func TestProcessEvidenceRequiresReconciliationMetrics(t *testing.T) {
 	s.Phases[0].Metrics = map[string]map[string]Pattern{"mac": {"system.cpu.user": {Steady: &SteadyPattern{Value: 5}}}}
 	if err := s.ValidateEvidence(s.Fleet[0], profile); err == nil {
 		t.Fatal("accepted conflicting host/process resource overlays")
+	}
+}
+
+func TestPlanAcceptsExactRecordingDuration(t *testing.T) {
+	s := healthy(t)
+	s.Fleet[1].OS = "macos"
+	baseline := baselineRef("macos")
+	baseline.Duration = 20 * time.Minute
+	if _, err := NewPlan(s, Digest([]byte(healthyYAML)), baseline.CaptureToolCommit, 1, time.Now(), baseline); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -27,6 +27,7 @@ import (
 type CaptureRequest struct {
 	Directory  string
 	ConfigPath string
+	Duration   time.Duration
 }
 
 // ReplayRequest owns all verified bytes before delivery can start.
@@ -46,8 +47,7 @@ type Runtime struct {
 	Replay  func(context.Context, ReplayRequest) error
 }
 
-// Allow the long-term host-metadata cadence before reporting missing coverage.
-const captureTimeout = 35 * time.Minute
+const captureSetupGrace = 5 * time.Minute
 
 // MakeCommand constructs the standalone feature-branch command.
 func MakeCommand(runtime Runtime) *cobra.Command {
@@ -58,20 +58,28 @@ func MakeCommand(runtime Runtime) *cobra.Command {
 		if request.Directory == "" {
 			return errors.New("capture requires --output")
 		}
+		if request.Duration <= 0 || request.Duration > 2*time.Hour {
+			return errors.New("capture requires --duration greater than zero and at most 2h")
+		}
 		if err := captureSupported(); err != nil {
 			return err
 		}
 		if runtime.Capture == nil {
 			return errors.New("live capture coordinator is unavailable in this build")
 		}
-		if timeout <= 0 || timeout > 2*time.Hour {
-			return errors.New("capture --timeout must be positive and at most 2h")
+		deadline := timeout
+		if !cmd.Flags().Changed("timeout") {
+			deadline = request.Duration + captureSetupGrace
 		}
-		ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+		if deadline <= request.Duration || deadline > 2*time.Hour+captureSetupGrace {
+			return errors.New("capture --timeout must exceed --duration and be at most 2h5m")
+		}
+		ctx, cancel := context.WithTimeout(cmd.Context(), deadline)
 		defer cancel()
 		return runtime.Capture(ctx, request)
 	}}
-	capture.Flags().DurationVar(&timeout, "timeout", captureTimeout, "Maximum wait for normal collection (up to 2h; hourly hardware inventory may need 70m)")
+	capture.Flags().DurationVar(&request.Duration, "duration", 0, "Required recording duration (up to 2h; must cover the scenario and required collection schedules)")
+	capture.Flags().DurationVar(&timeout, "timeout", 0, "Overall deadline including setup and cleanup (default: duration plus 5m; maximum 2h5m)")
 	capture.Flags().StringVar(&request.Directory, "output", "", "New telemetry bundle directory")
 	capture.Flags().StringVar(&request.ConfigPath, "cfgpath", "", "Installed Agent configuration file or directory (capture APIs and authentication only)")
 	root.AddCommand(capture)

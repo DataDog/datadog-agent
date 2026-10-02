@@ -35,10 +35,7 @@ type Map struct {
 	Hostname, UUID, ClientMAC, RunTag string
 	runID, scope                      string
 	valid                             bool
-	hosts                             map[string]bool
-	localIPs                          map[netip.Addr]bool
-	localMACs                         map[string]bool
-	primaryMAC                        string
+	*Baseline
 }
 
 var runPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
@@ -46,16 +43,27 @@ var runPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 // New derives a device identity and discovers local addresses from captured
 // samples before replay workers start. Baselines are never modified.
 func New(runID string, seed uint64, cohort string, ordinal int, baseline ...*telemetry.Sample) *Map {
+	observed := NewBaseline()
+	for _, sample := range baseline {
+		observed.Observe(sample)
+	}
+	return NewWithBaseline(runID, seed, cohort, ordinal, observed)
+}
+
+// NewWithBaseline reuses compact identity evidence without retaining or
+// rescanning decoded telemetry for each simulated device. The baseline must
+// not be changed after it is shared with replay workers.
+func NewWithBaseline(runID string, seed uint64, cohort string, ordinal int, baseline *Baseline) *Map {
+	if baseline == nil {
+		baseline = NewBaseline()
+	}
 	scope := string(hash(runID, strconv.FormatUint(seed, 10), cohort, strconv.Itoa(ordinal)))
 	m := &Map{runID: runID, scope: scope, valid: runPattern.MatchString(runID) && ordinal >= 0,
-		hosts: map[string]bool{}, localIPs: map[netip.Addr]bool{}, localMACs: map[string]bool{}}
+		Baseline: baseline}
 	m.Hostname = "eudm-" + runID + "-" + strconv.FormatInt(int64(ordinal), 36)
 	m.UUID = uuid(hash(scope, "host"))
 	m.ClientMAC = mac(hash(scope, "client"))
 	m.RunTag = "eudm_run_id:" + runID
-	for _, sample := range baseline {
-		m.observeLocal(sample)
-	}
 	return m
 }
 
@@ -176,8 +184,8 @@ func (m *Map) Apply(sample *telemetry.Sample, group schema.GroupDef, wireless *W
 		// Standalone callers can provide one sample without shared baselines.
 		// Keep the map immutable when several streams invoke Apply concurrently.
 		local := *m
-		local.hosts, local.localIPs, local.localMACs = map[string]bool{}, map[netip.Addr]bool{}, map[string]bool{}
-		local.observeLocal(sample)
+		local.Baseline = NewBaseline()
+		local.Observe(sample)
 		m = &local
 	}
 	if wireless != nil {

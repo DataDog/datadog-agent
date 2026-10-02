@@ -24,9 +24,10 @@ ENRICHMENT**: EUDM still showed blank OS/hardware fields and `noagent`, while
 Fleet showed the correct Agent version. See the [live verification record](#inventory-discovery-fix-2026-10-01).
 The earlier schema-2 run omitted the separate Agent inventory payload required
 for discovery. Schema 4 added schedules and coverage for every running supported metric check
-family, including battery. Current schema 6 keeps those streams and schedules and preserves native telemetry
-values instead of anonymizing them. It stores typed samples only, without
-regenerated requests or routing proofs, and requires producer capture protocol 3. The historical live results below
+family, including battery. Current schema 7 keeps those streams and native telemetry values, records every
+complete observation in an explicit duration, and replays the recording without
+looping. It stores typed samples only, without regenerated requests or routing
+proofs. Protocol 4 adds one fresh host-system-info submission at capture start. The historical live results below
 predate this simplification; they are not a new live acceptance result.
 macOS also captures connections when Process Agent advertises them. Reinstall the updated producers and
 recapture; an older bundle cannot supply the missing evidence.
@@ -87,7 +88,7 @@ and system-probe services with the normal network driver.
 
 Capture and replay binaries must have the same exact stamped commit, recorded as
 `capture_tool.commit`. Producing Agents may use different commits, but must
-support capture protocol 3 and advertise metric check schedules. Installation and its restart happen before the
+support capture protocol 4 and advertise metric check schedules. Installation and its restart happen before the
 observation window; capture itself never starts, restarts, or replaces services.
 
 Use a healthy device with the applications, hardware, and wireless interfaces
@@ -108,14 +109,14 @@ On macOS, for example:
 ```sh
 ./bin/eudm-simulator/eudm-simulator capture \
   --cfgpath /opt/datadog-agent/etc/datadog.yaml \
-  --timeout 70m \
+  --duration 35m \
   --output /private/tmp/eudm-macos-baseline
 ```
 
 On Windows, from PowerShell:
 
 ```powershell
-.\bin\eudm-simulator\eudm-simulator.exe capture --cfgpath C:\ProgramData\Datadog\datadog.yaml --output C:\Temp\eudm-windows-baseline
+.\bin\eudm-simulator\eudm-simulator.exe capture --duration 35m --cfgpath C:\ProgramData\Datadog\datadog.yaml --output C:\Temp\eudm-windows-baseline
 ```
 
 `--cfgpath` is capture-only and accepts an installed configuration file or its
@@ -132,35 +133,44 @@ sending is active; otherwise it uses the Process Agent connection owner only
 when that producer advertises readiness. The Windows live acceptance gate must
 exercise direct sending. Do not disable it to make capture work.
 
-The output parent must exist and the output directory must be new. Capture has
-a 35-minute timeout and stops after two nonempty observations of each advertised
-metric check family, two process cycles, two cycles from any selected connection
-producer, one legacy host-metadata sample, one Agent inventory, one host inventory,
-and one complete software snapshot. A battery check running every five minutes
-must be observed twice; two fast serializer flushes do not satisfy that coverage.
-All metric flushes during capture are retained. Replay gives each family its own
-timeline using the observed gaps and advertised check interval. Other repeated
-streams use distinct observed cycles; singleton streams retain their actual
-producer schedule. Covered non-metric streams retain only their minimum cycles
-while later records continue through validation and acknowledgement.
+The output parent must exist and the output directory must be new. `--duration`
+is required, must be greater than zero, and cannot exceed two hours. Recording
+starts when every selected producer has activated, and retains every complete
+observation collected in that window. Capture does not finish early after minimum
+coverage. `--timeout` is an overall deadline for setup, recording, and completion:
+it defaults to the duration plus five minutes, must exceed the duration, and
+cannot exceed two hours five minutes.
 
-A running `host_system_info` provider adds the manufacturer, model, device type,
-and native serial-number payload. It normally runs hourly, so use
-`--timeout 70m` to cover that wait. The default remains 35 minutes; an override
-must be positive and at most two hours. Capture never forces hardware collection.
-Replay must last beyond the first captured hardware offset; a short scenario
-that cannot reach it fails validation. The macOS host-enrichment probe now runs
-70 minutes to cover this hourly stream; the historical 35-minute runs below
-used the earlier probe.
+Successful coverage requires two nonempty observations of each advertised metric
+check family, two process cycles, two cycles from any selected connection producer,
+one legacy host-metadata sample, one Agent inventory, one host inventory, and one
+complete software snapshot. A battery check running every five minutes must be
+observed twice; two fast serializer flushes do not satisfy that coverage. If the
+window ends without the required evidence, capture fails and reports missing
+streams and effective cadences. It does not extend the recording silently.
 
-Metadata, inventory, or software schedules can exceed the timeout. In that case,
-the command reports missing coverage and effective cadences. It does not force collection,
-seed from cached endpoints, or change configuration. A profile describes observed
-evidence; overlays cannot introduce absent metrics, processes, software, or
-connections. Capture another suitable device to expand the available profile.
+An advertised `host_system_info` provider receives one request for a fresh
+manufacturer, model, device type, and serial-number collection after activation.
+The running Agent submits it through normal delivery, and its tee records the
+result. This avoids waiting for the hourly timer; the regular hourly schedule is
+unchanged. All other collections continue on their normal schedules. Cached
+endpoints never substitute for observed submissions, and configuration stays
+unchanged.
+
+Capture at least as long as the scenario you intend to replay: both enrichment
+probes run for 35 minutes, while the longest shipped incident scenarios need
+a 60-minute recording. Replay
+uses recorded offsets once, without repeating cycles or filling gaps. A shorter
+scenario must still reach the first sample of every selected stream and metric
+family. If a required ordinary metadata/software interval exceeds the chosen
+window, recapture for longer within the two-hour limit; missing evidence is not
+manufactured.
 
 Each selected producer acknowledges preparation and activation. Activation spread
-must be at most five seconds. Producers use bounded queues and a 30-second lease,
+must be at most five seconds. The recording origin is the latest activation;
+producer start offsets are in `[-5s, 0]`, and only sample offsets in
+`[0, duration)` are retained. Every producer stop acknowledgement must reach at
+least the recorded duration; subsequent cleanup does not extend it. Producers use bounded queues and a 30-second lease,
 renewed every five seconds. Capture overflow, coordinator loss, or normalization
 failure leaves normal submission running. On completion or failure, the command
 attempts stop and drain using an independent bounded cleanup context. Success
@@ -168,16 +178,25 @@ requires every final sequence to be consumed and every stopped acknowledgement
 to arrive without failures or drops. An interrupted or failed directory without
 a valid `COMPLETE` cannot be replayed; retry into a new directory.
 
-Native typed samples are persisted. Schema-6 `manifest.json` records
+Native typed samples are persisted. Schema-7 `manifest.json` records
 `capture_tool`, session and producer identities, producer versions/commits and
 protocol, acknowledged boundaries, final sequences, explicit cycles and chunk
 order, profile, cadences, and file digests. Host metadata and Agent inventory
-retain the producing Agent version. Inventory copies use fixed allowlists and
-contain no Agent configuration or credentials. Collection and Agent startup
+retain the producing Agent version. Inventory copies retain native telemetry while excluding Agent configuration,
+credentials, and remote-management identities. Collection and Agent startup
 timestamps are stored relative to capture start, then rebased to the replay
 clock. Metrics retain source enums and fractional relative timestamps.
 Capture does not regenerate requests or retain destination/serialization proofs;
 replay tests inspect outgoing Agent payloads with an in-memory recorder.
+
+Stored sample files are capped at 1 GiB in total, with 64 MiB per file and a
+4 MiB manifest limit. A limit failure leaves no valid `COMPLETE`; it does not
+truncate the recording. Bundles are uncompressed. Replay keeps verified encoded
+bytes, decodes owned samples as needed, and shares compact local-identity sets
+instead of retaining decoded copies of the whole bundle for every device.
+An estimate from the older sanitized macOS bundle was about 135 MiB/hour, mostly
+processes; native values and busier devices can require more space. This is not a
+guaranteed duration capacity, and many small chunks can reach the manifest limit.
 
 `COMPLETE` contains the manifest digest. Copy the whole directory unchanged to
 the replay host. Earlier schemas require reinstallation of compatible producers
@@ -204,11 +223,11 @@ $bundle = Join-Path $eudmRoot 'windows-baseline'
 $scenario = 'cmd/eudm-simulator/testdata/probes/host-enrichment-windows.yaml'
 $env:DD_SITE = 'datad0g.com'
 
-& $eudm capture --output $bundle
+& $eudm capture --duration 35m --output $bundle
 if ($LASTEXITCODE -ne 0) { throw 'Capture failed; inspect missing-stream error' }
 ```
 
-If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 3 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
+If the local branch does not exist, use `git switch --track origin/focus/create-eudm-simulator` on the first checkout. Use a new bundle directory for a new capture. To reuse an existing compatible bundle, skip the `capture` command; never overwrite an earlier capture. Build capture/replay binaries at the same commit; installed producers must support protocol 4 and record their own build identities. Use separate runs and matching baselines for Windows and macOS scenarios.
 
 Before the next block, obtain the intended staging organization's API key through your credential workflow and expose it as `DD_API_KEY` in this process. To check the scenario without sending telemetry, optionally run `& $eudm validate --scenario $scenario --bundle $bundle`; this needs no API key.
 
@@ -308,8 +327,8 @@ before exiting.
 Each invocation creates a fresh run ID even when the scenario, bundle, and seed
 are unchanged. Its phase clock starts after validation and setup.
 
-Replay loads the baseline bundle before submission and never starts native
-collectors on its host. Captured offsets and cadences drive each stream; every
+Replay rejects a scenario longer than the bundle before submission and never
+starts native collectors on its host. Captured offsets drive each stream once; every
 cohort shares the run's phase clock. Worker count controls concurrency, and
 full queues apply backpressure across the entire declared fleet. The runner
 internally uses eight workers and a queue capacity of 128, with up to five
@@ -389,8 +408,8 @@ metric, Agent inventory, host inventory, and host metadata views. A recording fi
 real-device capture.
 
 1. Select the matching two-device host-enrichment probe. Adjust its
-   35-minute phase before running if the staging visibility delay
-   requires a longer observation period.
+   phase before running if the staging visibility delay requires a longer
+   observation period, and capture at least that total duration.
 2. Replay it through the common Agent serializer/forwarder adapters into two
    distinct cloned identities. Save the complete delivery report and the opaque
    run selector.
@@ -513,12 +532,15 @@ on both capture devices, and recapture the baselines before the next runs.
 | Build dependencies or Windows native libraries missing | Use the repository's configured platform build environment. Native Windows build is an outstanding acceptance step; record the exact build failure rather than claiming the macOS result covers it. |
 | Capture deadline reports missing connections | Verify the advertised connection owner, driver/network collection, configured local API address, and active TCP traffic. Use capture `--cfgpath` for API/authentication locations; direct-send configuration stays unchanged. |
 | Capture has no `COMPLETE` marker | It did not finish required coverage. Preserve its error for diagnosis and recapture into a new directory; do not manufacture a completion marker. |
-| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 3 is supported. |
-| Legacy schema-1 or schema-2 bundle | Reinstall compatible producers and recapture to observe Agent and host inventories; do not relabel an old manifest. |
+| Capture-tool commit mismatch | Rebuild capture and replay binaries from one exact commit and recapture. Producer commits may differ when protocol 4 is supported. |
+| Earlier bundle schema | Reinstall protocol-4 producers and recapture using an explicit duration for schema 7; do not relabel an old manifest. |
 | Capture reports missing Agent/host inventory capability | Install the updated core Agent and verify normal inventory collection is enabled; neither cached inventory endpoints nor host tags substitute for an observed inventory. |
 | Capture API unavailable or incompatible | Install compatible producing builds before the session and verify enabled streams. Capture cannot add the APIs to an older running service. |
 | IPC authentication failure | Check read access to existing token/certificate artifacts and capture `--cfgpath`; the command will not create credentials. |
-| Capture timed out waiting for coverage | Inspect missing streams and effective cadences. Long configured intervals may exceed 35 minutes; do not force collection or substitute cache data. |
+| Recording ends without coverage | Inspect missing streams and effective cadences. Choose a longer `--duration` within the two-hour limit; other than the startup hardware request, collections retain their normal schedules. Cached data does not satisfy coverage. |
+| Scenario exceeds bundle duration | Recapture for at least the scenario duration, or shorten the scenario. Replay does not repeat samples. |
+| Scenario ends before a stream/family first sample | Lengthen the scenario within the recorded duration so every selected stream and metric family is represented. |
+| Bundle byte/file/manifest limit | Capture failed without truncating data. Native sample sizes and chunk counts determine capacity; preserve the error and use a shorter recording and scenario. |
 | Digest/checksum mismatch or unsafe file layout | Copy the whole original bundle as regular files without modifying bytes. Do not edit JSON, normalize line endings, substitute symlinks, or recalculate checksums to hide corruption. |
 | Missing application/process/metric/selector, or absent from a later cycle | The bundle does not support the overlay. Keep the needed process/connection active while recapturing, or select another healthy device. Inventory presence in the manifest alone is not sufficient. |
 | Cohort OS does not match the baseline | Every cohort uses the same capture and must match its OS. Use separate Windows and macOS scenarios and runs. |
@@ -532,11 +554,53 @@ on both capture devices, and recapture the baselines before the next runs.
 | AP evidence stays degraded during recovery | Endpoint overlays reset to captured values, but omitted AP metrics carry forward. Explicitly restore AP values in the recovery phase. |
 | Delivery succeeded, but devices/issue/Bits result are missing | Follow the staging proof gates above and record the backend/monitor/permission dependency. HTTP acceptance is not product acceptance. |
 | Traffic table is populated, but network summary percentages are blank | The EUDM summary reads a closed 30-minute bucket with an additional 30-minute delay. A new replay may need up to an hour to enter that window; inspect the live traffic table separately. |
-| Battery/traffic appear before CPU, IP, or hardware fields | Replay preserves captured stream offsets. Legacy host metadata supplies CPU/IP enrichment; advertised hourly host-system-info supplies manufacturer/model/serial. Check each stream's delivered count and allow for downstream enrichment. |
+| Battery/traffic appear before CPU, IP, or hardware fields | Replay preserves captured stream offsets. Legacy host metadata supplies CPU/IP enrichment; the fresh host-system-info submission supplies manufacturer/model/serial. Check each stream's delivered count and allow for downstream enrichment. |
 
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
+
+### October 2, 2026: complete recording windows and startup hardware request
+
+Schema 7 records all complete in-window observations for the explicit
+`capture --duration`; replay never loops and rejects a longer scenario before
+delivery. Protocol 4 adds one authenticated fresh host-system-info submission
+after all producers activate, without resetting the provider's regular hourly
+schedule. The macOS host-enrichment probe again lasts 35 minutes.
+
+The following local verification passed on macOS:
+
+```sh
+dda inv test --targets=./cmd/eudm-simulator/...,./comp/process/apiserver/impl --build-exclude=python --race --timeout=300
+dda inv test --targets=./pkg/telemetrycapture,./comp/metadata/internal/util,./comp/metadata/hostsysteminfo/impl,./cmd/eudm-simulator/internal/capture/live --build-exclude=python --race
+dda inv invoke-unit-tests.run --tests=eudm_simulator
+dda inv linter.go --targets=./cmd/eudm-simulator,./comp/metadata/internal/util,./comp/metadata/hostsysteminfo/impl,./comp/process/apiserver/impl --build-exclude=python --run-on=darwin
+dda inv linter.go --module=pkg/telemetrycapture --build-exclude=python --run-on=darwin
+dda inv linter.python
+dda inv eudm-simulator.install --prepare-only
+```
+
+The full simulator/API run reported 457 test entries, with only the two opt-in
+artifact-audit/fixture-generation tests skipped. Fixture generation ran separately;
+both checked-in bundles have 89 samples spanning 301 seconds. A temporary
+65-minute synthetic recording exercises observed inventory and metric timing
+without extending or looping the checked-in fixtures. Focused hardware/session
+race suites reported 149 passing entries; all 24 installer tests passed. Core
+Agent, Process Agent, and simulator builds and runtime checks passed.
+
+Tests cover whole-window retention, exact duration rejection, mixed-family metric
+batches sent once, software/process regression and recovery, shared compact
+identity evidence, aggregate bundle-size limits, hardware request authentication,
+idempotence, failure, cancellation, and unchanged periodic scheduling. An initial
+reader-panic cleanup test failed because its updated producer fixture had queued
+no records; it now enqueues an accepted record before the injected persistent
+read failure and verifies the outstanding acknowledgement remains incomplete.
+
+No installed services changed during these checks. Protocol-4 installation,
+fresh schema-7 capture, and staging product verification remain unverified.
+Windows live verification remains deferred; prior live results below describe
+older formats and cannot satisfy these gates.
+
 
 ### Native telemetry fidelity, 2026-10-02
 

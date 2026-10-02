@@ -1,0 +1,1 @@
+{"agentVersion":"7.85.0-fixture","uuid":"00000000-0000-4000-8000-000000000001","internalHostname":"capture-host","os":"win32","agent-flavor":"agent","python":"","fips_mode":false,"fips_proxy_enabled":false,"meta":null,"host-tags":{"gcp":["team:desktop","interactive"],"system":["infra_mode:end_user_device"]}}

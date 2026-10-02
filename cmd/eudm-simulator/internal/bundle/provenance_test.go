@@ -41,10 +41,17 @@ func TestRejectIncompleteOrUnsafeProvenance(t *testing.T) {
 		{"acknowledged unseen sequence", func(m *Manifest) { m.Producers[0].AcknowledgedSequence++ }},
 		{"failed producer", func(m *Manifest) { m.Producers[0].Failures = 1 }},
 		{"dropped record", func(m *Manifest) { m.Producers[0].Drops = 1 }},
-		{"invalid start boundary", func(m *Manifest) { m.Producers[0].StartOffset = -time.Second }},
+		{"start after origin", func(m *Manifest) { m.Producers[0].StartOffset = time.Nanosecond }},
 		{"missing stop boundary", func(m *Manifest) { m.Producers[0].StopOffset = 0 }},
-		{"stop after duration", func(m *Manifest) { m.Producers[0].StopOffset = m.Duration + 1 }},
-		{"excessive activation skew", func(m *Manifest) { m.Producers[0].StartOffset = 6 * time.Second }},
+		{"stop before duration", func(m *Manifest) { m.Producers[0].StopOffset = m.Duration - 1 }},
+		{"excessive activation skew", func(m *Manifest) { m.Producers[0].StartOffset = -6 * time.Second }},
+		{"origin after all activations", func(m *Manifest) {
+			for i := range m.Producers {
+				m.Producers[i].StartOffset = -time.Second
+			}
+		}},
+		{"sample at end boundary", func(m *Manifest) { m.Samples[0].Offset = m.Duration }},
+		{"sample before fully armed", func(m *Manifest) { m.Producers[0].StartOffset = -time.Second; m.Samples[0].Offset = -time.Nanosecond }},
 		{"wrong stream owner", func(m *Manifest) { m.Producers[0].Streams = append(m.Producers[0].Streams, schema.Processes) }},
 		{"missing stream owner", func(m *Manifest) { m.Producers[0].Streams = m.Producers[0].Streams[:1] }},
 		{"unknown sample producer", func(m *Manifest) { m.Samples[0].ProducerID = "unknown-producer-id" }},
@@ -207,5 +214,21 @@ func TestRejectInvalidTypedGroups(t *testing.T) {
 				t.Fatal("accepted invalid typed group")
 			}
 		})
+	}
+}
+
+func TestRecordedWindowExcludesActivationSkewAndStopCleanup(t *testing.T) {
+	dir, loaded := fixture(t, "macos")
+	loaded.Manifest.Producers[0].StartOffset = -5 * time.Second
+	for i := range loaded.Manifest.Producers {
+		loaded.Manifest.Producers[i].StopOffset = loaded.Manifest.Duration + 10*time.Second
+	}
+	writeManifest(t, dir, loaded.Manifest)
+	result, err := Load(dir, strings.Repeat("a", 40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Manifest.Duration != time.Minute {
+		t.Fatal("producer setup or cleanup changed recorded duration")
 	}
 }

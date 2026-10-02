@@ -18,7 +18,22 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 )
 
-func (m *Map) observeLocal(sample *telemetry.Sample) {
+// Baseline retains only local identity references. Populate it once, then share
+// it read-only among device maps; Observe never retains a telemetry sample.
+type Baseline struct {
+	hosts      map[string]bool
+	localIPs   map[netip.Addr]bool
+	localMACs  map[string]bool
+	primaryMAC string
+}
+
+// NewBaseline creates compact identity evidence for an entire recording.
+func NewBaseline() *Baseline {
+	return &Baseline{hosts: map[string]bool{}, localIPs: map[netip.Addr]bool{}, localMACs: map[string]bool{}}
+}
+
+// Observe adds references from one decoded sample, which may then be discarded.
+func (m *Baseline) Observe(sample *telemetry.Sample) {
 	if sample == nil {
 		return
 	}
@@ -97,13 +112,13 @@ func (m *Map) observeLocal(sample *telemetry.Sample) {
 	}
 }
 
-func (m *Map) addIP(value string) {
+func (m *Baseline) addIP(value string) {
 	if address, err := netip.ParseAddr(value); err == nil && (address.IsGlobalUnicast() || address.IsLinkLocalUnicast()) && !address.IsLoopback() {
 		m.localIPs[address.Unmap()] = true
 	}
 }
 
-func (m *Map) addMAC(value string) {
+func (m *Baseline) addMAC(value string) {
 	if parsed, err := net.ParseMAC(value); err == nil {
 		m.localMACs[parsed.String()] = true
 	}
@@ -175,7 +190,7 @@ func walkJSON(raw json.RawMessage, key string, visit func(string, string) string
 	return raw, nil
 }
 
-func (m *Map) observeJSON(raw []byte) {
+func (m *Baseline) observeJSON(raw []byte) {
 	if len(raw) == 0 {
 		return
 	}

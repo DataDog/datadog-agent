@@ -19,59 +19,59 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
 )
 
-// validateOverlays checks conservative bounds, including the full variation
-// envelope, against every captured cycle before delivery starts. CPU and memory
-// reconciliation are monotone in their target values, so checking both bounds
-// also covers every device and intermediate point without expanding the fleet.
-func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loaded, timelines map[schema.Stream][]*timeline) error {
-	var baselines [][]*model.CollectorProc
-	for _, cycle := range timelines[schema.Processes][0].cycles {
-		var chunks []*model.CollectorProc
-		for _, ref := range cycle.refs {
-			sample, err := decodeCapturedSample(b, ref)
-			if err != nil {
-				return err
-			}
-			chunks = append(chunks, sample.Processes)
-		}
-		baselines = append(baselines, chunks)
-	}
+// validateOverlays checks conservative pattern bounds for each scheduled
+// collection in its actual phase. Process reconciliation uses the same latest
+// observed group as delivery, retaining at most that one decoded group.
+func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loaded, timelines map[schema.Stream]*timeline) error {
+	processes := timelines[schema.Processes]
 	for phaseIndex, phase := range s.Phases {
 		for _, name := range requiredMetricEvidence(phase, group) {
 			family := telemetrycapture.MetricFamily(name)
-			if !slices.ContainsFunc(timelines[schema.Metrics], func(t *timeline) bool { return t.family == family }) {
+			if b.Manifest.MetricCadences[family] <= 0 {
 				return fmt.Errorf("cohort %q phase %q lacks captured metric family for %q", group.Group, phase.Name, name)
 			}
 		}
-		for _, upper := range []bool{false, true} {
-			bounded := *s
-			bounded.Phases = slices.Clone(s.Phases)
-			bounded.Phases[phaseIndex] = boundedPhase(phase, group, upper)
-			fixedGroup := group
-			fixedGroup.BaselineVariance = 0
-			for _, stream := range streamOrder {
-				for _, timeline := range timelines[stream] {
-					for cycleIndex, cycle := range timeline.cycles {
-						if err := validateCycleEvidence(b, cycle, stream, timeline.family, phase, group); err != nil {
-							return err
+		var bounds [2]schema.Scenario
+		for i := range bounds {
+			bounds[i] = *s
+			bounds[i].Phases = slices.Clone(s.Phases)
+			bounds[i].Phases[phaseIndex] = boundedPhase(phase, group, i == 1)
+		}
+		fixedGroup := group
+		fixedGroup.BaselineVariance = 0
+		for _, stream := range streamOrder {
+			if timeline := timelines[stream]; timeline != nil {
+				for cycleIndex, cycle := range timeline.cycles[:timeline.count] {
+					actualPhase, elapsed := phaseAt(s, cycle.offset)
+					if actualPhase != phaseIndex {
+						continue
+					}
+					if err := validateCycleEvidence(b, cycle, stream, phase, group); err != nil {
+						return err
+					}
+					processCycle, processOrdinal := processes.nearest(cycle.offset)
+					if stream == schema.Processes {
+						processCycle, processOrdinal = cycle, int64(cycleIndex)
+					}
+					var baseline []*model.CollectorProc
+					if (stream == schema.Processes || stream == schema.Metrics) && len(phase.Processes[group.Group]) != 0 {
+						for _, ref := range processCycle.refs {
+							sample, err := decodeCapturedSample(b, ref)
+							if err != nil {
+								return err
+							}
+							baseline = append(baseline, sample.Processes)
 						}
-						selected := baselines[:1]
-						if stream == schema.Processes {
-							selected = baselines[cycleIndex : cycleIndex+1]
-						}
-						if stream == schema.Metrics && len(phase.Processes[group.Group]) > 0 {
-							selected = baselines
-						}
-						for _, baseline := range selected {
-							ctx := overlay.Context{Scenario: &bounded, Group: fixedGroup, PhaseIndex: phaseIndex, Stream: stream, BaselineProcesses: baseline}
-							for _, ref := range cycle.refs {
-								sample, err := decodeTimelineSample(b, ref, timeline.family)
-								if err == nil {
-									err = overlay.Apply(ctx, sample)
-								}
-								if err != nil {
-									return fmt.Errorf("cohort %q phase %q %s preflight: %w", group.Group, phase.Name, stream, err)
-								}
+					}
+					for i := range bounds {
+						ctx := overlay.Context{Scenario: &bounds[i], Group: fixedGroup, PhaseIndex: phaseIndex, Elapsed: elapsed, Stream: stream, ProcessSampleOrdinal: processOrdinal, BaselineProcesses: baseline}
+						for _, ref := range cycle.refs {
+							sample, err := decodeCapturedSample(b, ref)
+							if err == nil {
+								err = overlay.Apply(ctx, sample)
+							}
+							if err != nil {
+								return fmt.Errorf("cohort %q phase %q %s preflight: %w", group.Group, phase.Name, stream, err)
 							}
 						}
 					}
@@ -84,15 +84,17 @@ func validateOverlays(s *schema.Scenario, group schema.GroupDef, b *bundle.Loade
 
 // Profile inventories are unions; each replay collection must itself contain
 // the evidence targeted within its check family, including multi-chunk groups.
-func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, family string, phase schema.Phase, group schema.GroupDef) error {
+func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, phase schema.Phase, group schema.GroupDef) error {
 	names := map[string]bool{}
+	families := map[string]bool{}
 	for _, ref := range cycle.refs {
-		sample, err := decodeTimelineSample(b, ref, family)
+		sample, err := decodeCapturedSample(b, ref)
 		if err != nil {
 			return err
 		}
 		for _, metric := range sample.Metrics {
 			names[metric.Name] = true
+			families[telemetrycapture.MetricFamily(metric.Name)] = true
 			if (group.AccessPoint != "" || group.BSSID != "" || group.SSID != "") && slices.Contains([]string{"system.wlan.rssi", "system.wlan.noise", "system.wlan.txrate", "system.wlan.rxrate"}, metric.Name) {
 				tags := map[string]bool{}
 				for _, tag := range metric.Tags.UnsafeToReadOnlySliceString() {
@@ -115,7 +117,7 @@ func validateCycleEvidence(b *bundle.Loaded, cycle cycle, stream schema.Stream, 
 	var required []string
 	if stream == schema.Metrics {
 		for _, name := range requiredMetricEvidence(phase, group) {
-			if telemetrycapture.MetricFamily(name) == family {
+			if families[telemetrycapture.MetricFamily(name)] {
 				required = append(required, name)
 			}
 		}

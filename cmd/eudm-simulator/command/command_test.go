@@ -67,8 +67,10 @@ func TestCommandSurface(t *testing.T) {
 		if sub.Flags().Lookup("fast") != nil {
 			t.Fatal("staging time acceleration is exposed")
 		}
-		if (sub.Flags().Lookup("cfgpath") != nil) != (name == "capture") {
-			t.Fatal("installed configuration must be available only to capture")
+		for _, flag := range []string{"cfgpath", "duration", "timeout"} {
+			if (sub.Flags().Lookup(flag) != nil) != (name == "capture") {
+				t.Fatalf("--%s must be available only to capture", flag)
+			}
 		}
 		for _, flag := range []string{"config", "plan", "start", "workers", "queue-capacity", "delivery-grace", "deadline"} {
 			if sub.Flags().Lookup(flag) != nil {
@@ -78,7 +80,7 @@ func TestCommandSurface(t *testing.T) {
 	}
 }
 
-func TestCaptureUsesInternalTimeout(t *testing.T) {
+func TestCaptureRequiresDurationAndDefaultsDeadlineToDurationPlusGrace(t *testing.T) {
 	if err := captureSupported(); err != nil {
 		t.Skip(err)
 	}
@@ -98,8 +100,8 @@ func TestCaptureUsesInternalTimeout(t *testing.T) {
 				t.Fatal("capture did not receive its installed configuration path")
 			}
 			deadline, ok := ctx.Deadline()
-			if !ok || deadline.Before(before.Add(35*time.Minute)) || deadline.After(time.Now().Add(35*time.Minute)) {
-				t.Fatalf("capture must allow 35 minutes for stream coverage, got %v", deadline)
+			if request.Duration != time.Hour || !ok || deadline.Before(before.Add(65*time.Minute)) || deadline.After(time.Now().Add(65*time.Minute)) {
+				t.Fatalf("capture must allow its full duration plus setup/cleanup, got %v", deadline)
 			}
 			return nil
 		},
@@ -108,7 +110,7 @@ func TestCaptureUsesInternalTimeout(t *testing.T) {
 			return nil
 		},
 	})
-	cmd.SetArgs([]string{"capture", "--output", directory, "--cfgpath", cfgpath})
+	cmd.SetArgs([]string{"capture", "--output", directory, "--cfgpath", cfgpath, "--duration", "1h"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +380,7 @@ func TestCaptureAcceptsBoundedTimeoutForHourlyHardware(t *testing.T) {
 	if captureSupported() != nil {
 		t.Skip("live capture requires macOS or Windows")
 	}
-	for _, timeout := range []string{"70m", "0s", "-1s", "121m"} {
+	for _, timeout := range []string{"70m", "0s", "-1s", "60m", "126m"} {
 		t.Run(timeout, func(t *testing.T) {
 			called := false
 			cmd := MakeCommand(Runtime{Capture: func(ctx context.Context, _ CaptureRequest) error {
@@ -389,7 +391,7 @@ func TestCaptureAcceptsBoundedTimeoutForHourlyHardware(t *testing.T) {
 				}
 				return nil
 			}})
-			cmd.SetArgs([]string{"capture", "--output", filepath.Join(t.TempDir(), "capture"), "--timeout", timeout})
+			cmd.SetArgs([]string{"capture", "--output", filepath.Join(t.TempDir(), "capture"), "--duration", "1h", "--timeout", timeout})
 			err := cmd.Execute()
 			if timeout == "70m" {
 				if err != nil || !called {
@@ -397,6 +399,51 @@ func TestCaptureAcceptsBoundedTimeoutForHourlyHardware(t *testing.T) {
 				}
 			} else if err == nil || called {
 				t.Fatal("invalid timeout started capture")
+			}
+		})
+	}
+}
+
+func TestCaptureRejectsMissingOrInvalidDuration(t *testing.T) {
+	for _, duration := range []string{"", "0s", "-1s", "121m"} {
+		t.Run(duration, func(t *testing.T) {
+			cmd := MakeCommand(Runtime{Capture: func(context.Context, CaptureRequest) error {
+				t.Fatal("invalid recording duration started capture")
+				return nil
+			}})
+			args := []string{"capture", "--output", filepath.Join(t.TempDir(), "capture")}
+			if duration != "" {
+				args = append(args, "--duration", duration)
+			}
+			cmd.SetArgs(args)
+			if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--duration") {
+				t.Fatalf("expected duration error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestReplayRejectsScenarioLongerThanRecording(t *testing.T) {
+	scenarioPath, bundlePath := replayFixture(t)
+	scenario := strings.Replace(directRunScenario, "duration: 30s", "duration: 6m", 1)
+	if err := os.WriteFile(scenarioPath, []byte(scenario), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []string{"validate", "run"} {
+		t.Run(action, func(t *testing.T) {
+			cmd := MakeCommand(Runtime{Replay: func(context.Context, ReplayRequest) error {
+				t.Fatal("short recording reached delivery")
+				return nil
+			}})
+			var output bytes.Buffer
+			cmd.SetOut(&output)
+			cmd.SetArgs([]string{action, "--scenario", scenarioPath, "--bundle", bundlePath})
+			err := cmd.Execute()
+			if err == nil || !strings.Contains(err.Error(), "6m0s") || !strings.Contains(err.Error(), "5m1s") || !strings.Contains(err.Error(), "--duration") {
+				t.Fatalf("missing required/available duration and capture guidance: %v", err)
+			}
+			if output.Len() != 0 {
+				t.Fatal("short recording announced a run")
 			}
 		})
 	}

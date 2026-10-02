@@ -27,6 +27,8 @@ type coordinatorOptions struct {
 	recordPoll     time.Duration
 	heartbeat      time.Duration
 	cleanupTimeout time.Duration
+	now            func() time.Time
+	wait           func(context.Context, time.Duration) error
 }
 
 var defaultOptions = coordinatorOptions{
@@ -56,15 +58,22 @@ type producer struct {
 	cycles     map[uint64]bool
 }
 
-// Run captures existing output without triggering collection or modifying
-// delivery. The caller supplies the overall capture timeout, normally 35 minutes.
-func Run(ctx context.Context, platform string, clients []Client, sink Sink) error {
-	return run(ctx, platform, clients, sink, defaultOptions)
+// Run observes normal output and requests fresh hardware metadata once at
+// startup. Every selected stream is recorded for the requested common window.
+// The caller's context bounds readiness and final stop/drain cleanup as well.
+func Run(ctx context.Context, platform string, clients []Client, sink Sink, duration time.Duration) error {
+	return run(ctx, platform, clients, sink, duration, defaultOptions)
 }
 
-func run(ctx context.Context, platform string, clients []Client, sink Sink, options coordinatorOptions) (result error) {
-	if (platform != "macos" && platform != "windows") || sink == nil {
-		return errors.New("live capture requires macOS or Windows and an evidence writer")
+func run(ctx context.Context, platform string, clients []Client, sink Sink, duration time.Duration, options coordinatorOptions) (result error) {
+	if (platform != "macos" && platform != "windows") || sink == nil || duration <= 0 {
+		return errors.New("live capture requires macOS or Windows, a writer, and a positive duration")
+	}
+	if options.now == nil {
+		options.now = time.Now
+	}
+	if options.wait == nil {
+		options.wait = pause
 	}
 	selected, err := discover(ctx, platform, clients, options)
 	if err != nil {
@@ -104,8 +113,8 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 	statuses = parallelControl(work, selected, options, func(ctx context.Context, p *producer) (tc.Status, error) {
 		return p.client.Activate(ctx, control)
 	})
-	session := Session{ID: control.SessionID}
-	var latest time.Time
+	session := Session{ID: control.SessionID, Duration: duration}
+	var earliest time.Time
 	for i, response := range statuses {
 		p := selected[i]
 		if response.err != nil || validateStatus(response.status, p, control) != nil || response.status.State != tc.Active || response.status.ActivatedAt.IsZero() {
@@ -113,34 +122,50 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 		}
 		p.activation = response.status
 		p.activated.Store(&response.status)
-		if session.Origin.IsZero() || response.status.ActivatedAt.Before(session.Origin) {
-			session.Origin = response.status.ActivatedAt
+		if earliest.IsZero() || response.status.ActivatedAt.Before(earliest) {
+			earliest = response.status.ActivatedAt
 		}
-		if response.status.ActivatedAt.After(latest) {
-			latest = response.status.ActivatedAt
+		if response.status.ActivatedAt.After(session.Origin) {
+			session.Origin = response.status.ActivatedAt
 		}
 		session.Participants = append(session.Participants, Participant{Status: response.status, Streams: slices.Clone(p.streams)})
 	}
-	if latest.Sub(session.Origin) > 5*time.Second {
+	if session.Origin.Sub(earliest) > 5*time.Second {
 		return errors.New("capture activation spread exceeds five seconds")
 	}
 	if err := sink.Start(work, session); err != nil {
 		return errors.New("cannot initialize normalized capture evidence")
 	}
-	for {
+	// Hardware inventory is the one explicit collection exception: request a
+	// fresh normal submission once all participants are armed and the writer
+	// exists. The provider preserves its ordinary hourly schedule.
+	statuses = parallelControl(work, selected, options, func(ctx context.Context, p *producer) (tc.Status, error) {
+		if !slices.Contains(p.streams, tc.HostSystemInfo) {
+			return p.activation, nil
+		}
+		return p.client.RequestHostSystemInfo(ctx, control)
+	})
+	for i, response := range statuses {
+		if response.err != nil || validateStatus(response.status, selected[i], control) != nil || response.status.State != tc.Active {
+			return errors.New("fresh host system information was not acknowledged")
+		}
+	}
+	end := session.Origin.Add(duration)
+	for options.now().Before(end) {
 		if err := contextFailure(work, heartbeatError, sink, session); err != nil {
 			return err
 		}
-		if _, err := readRound(work, selected, control, sink, false, options); err != nil {
+		if _, err := readRound(work, selected, control, session, sink, false, options); err != nil {
 			if contextErr := contextFailure(work, heartbeatError, sink, session); contextErr != nil {
 				return contextErr
 			}
 			return err
 		}
-		if complete, _ := sink.Coverage(); complete {
+		remaining := end.Sub(options.now())
+		if remaining <= 0 {
 			break
 		}
-		if err := pause(work, options.recordPoll); err != nil {
+		if err := options.wait(work, min(options.recordPoll, remaining)); err != nil {
 			return contextFailure(work, heartbeatError, sink, session)
 		}
 	}
@@ -149,7 +174,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 	})
 	for i, response := range statuses {
 		p := selected[i]
-		if response.err != nil || validateStatus(response.status, p, control) != nil || !slices.Contains([]tc.State{tc.Stopping, tc.Stopped}, response.status.State) || response.status.StoppedAt.Before(p.activation.ActivatedAt) || response.status.FinalSequence < p.cursor {
+		if response.err != nil || validateStatus(response.status, p, control) != nil || !slices.Contains([]tc.State{tc.Stopping, tc.Stopped}, response.status.State) || response.status.StoppedAt.Before(end) || response.status.FinalSequence < p.cursor {
 			return errors.New("capture producer stop boundary was not acknowledged")
 		}
 		p.stop = response.status
@@ -158,7 +183,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 		if err := contextFailure(work, heartbeatError, sink, session); err != nil {
 			return err
 		}
-		drained, err := readRound(work, selected, control, sink, true, options)
+		drained, err := readRound(work, selected, control, session, sink, true, options)
 		if err != nil {
 			if contextErr := contextFailure(work, heartbeatError, sink, session); contextErr != nil {
 				return contextErr
@@ -168,7 +193,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 		if drained {
 			break
 		}
-		if err := pause(work, options.recordPoll); err != nil {
+		if err := options.wait(work, options.recordPoll); err != nil {
 			return contextFailure(work, heartbeatError, sink, session)
 		}
 	}
@@ -189,7 +214,10 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, opti
 	if err := contextFailure(work, heartbeatError, sink, session); err != nil {
 		return err
 	}
-	if err := sink.Finish(work, stopped, time.Now()); err != nil {
+	if complete, detail := sink.Coverage(); !complete {
+		return fmt.Errorf("capture interval ended with incomplete coverage: %s; effective cadences: %s", detail, readinessSummary(platform, stopped))
+	}
+	if err := sink.Finish(work, stopped, options.now()); err != nil {
 		return errors.New("cannot finalize normalized capture evidence")
 	}
 	return nil
@@ -282,7 +310,7 @@ func keepAlive(ctx context.Context, fail context.CancelFunc, producers []*produc
 	}, failures
 }
 
-func readRound(ctx context.Context, producers []*producer, control tc.Control, sink Sink, draining bool, options coordinatorOptions) (bool, error) {
+func readRound(ctx context.Context, producers []*producer, control tc.Control, session Session, sink Sink, draining bool, options coordinatorOptions) (bool, error) {
 	allDrained := draining
 	for _, p := range producers {
 		request, done := context.WithTimeout(ctx, options.requestTimeout)
@@ -308,9 +336,9 @@ func readRound(ctx context.Context, producers []*producer, control tc.Control, s
 			if record.ProtocolVersion != tc.ProtocolVersion || record.SessionID != control.SessionID || record.Producer != p.identity || record.Sequence != p.cursor+1 || record.Sequence > batch.Status.FinalSequence || record.CycleID == 0 || p.cycles[record.CycleID] || !slices.Contains(p.streams, record.Stream) || record.Cadence <= 0 || record.CollectedAt.IsZero() || record.ObservedAt.IsZero() || record.CollectedAt.After(record.ObservedAt) || record.ObservedAt.Before(p.activation.ActivatedAt) || record.ObservedAt.After(time.Now().Add(5*time.Second)) || (draining && record.ObservedAt.After(p.stop.StoppedAt)) {
 				return false, errors.New("capture record has invalid identity, sequence, cycle, or timing evidence")
 			}
-			// Queue polling can observe a result whose collection began before
-			// activation. Consume and acknowledge it, but never count or persist it.
-			if record.CollectedAt.Before(p.activation.ActivatedAt) {
+			// Drain every admitted sequence, but persist only complete cycles
+			// collected and observed inside the common half-open recording interval.
+			if record.CollectedAt.Before(session.Origin) || !record.ObservedAt.Before(session.Origin.Add(session.Duration)) {
 				// Admission still promises a complete group even when the
 				// collection boundary excludes it from persisted coverage.
 				if record.Stream == tc.Processes || record.Stream == tc.Connections {

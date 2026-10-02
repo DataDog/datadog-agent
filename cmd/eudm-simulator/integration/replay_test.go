@@ -115,7 +115,7 @@ func TestSharedBaselineReplayThroughAgentPayloadDelivery(t *testing.T) {
 	}
 }
 
-// Long replay exercises inventory scheduling from the checked-in bundle with a
+// Long replay exercises inventory scheduling from a full recording with a
 // recording delivery boundary. The test above separately checks Agent encoding
 // and forwarding; this clock can advance without waiting through real minutes.
 type inventoryCycleRecorder struct {
@@ -146,28 +146,33 @@ func (*inventoryCycleRecorder) NetworkMetadata(context.Context, []metadata.Netwo
 }
 func (*inventoryCycleRecorder) Wait(context.Context) error { return nil }
 
-func TestRepeatedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
+func TestRecordedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
 	for _, platform := range []string{"macos", "windows"} {
 		t.Run(platform, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			captured := replayFixture(t, platform)
-			start := time.Date(2026, 10, 1, 12, 0, 0, 375000000, time.UTC)
 			const duration = 65 * time.Minute
+			fixtureRoot := t.TempDir()
+			generateFixtureDuration(t, platform, fixtureRoot, duration)
+			captured, err := bundle.Load(filepath.Join(fixtureRoot, platform), fixtureCommit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			start := time.Date(2026, 10, 1, 12, 0, 0, 375000000, time.UTC)
 			scenario := &schema.Scenario{
-				Version: schema.Version, Meta: schema.ScenarioMeta{Name: "inventory-repeat-validation"},
+				Version: schema.Version, Meta: schema.ScenarioMeta{Name: "inventory-recording-validation"},
 				Expectation: schema.Expectation{Conclusion: schema.Healthy},
-				Fleet:       []schema.GroupDef{{Group: "inventory-repeat-device", OS: platform, Count: 1}},
+				Fleet:       []schema.GroupDef{{Group: "inventory-recording-device", OS: platform, Count: 1}},
 				Phases:      []schema.Phase{{Name: "healthy", Duration: schema.Duration{Duration: duration}}},
 			}
-			plan, err := schema.NewPlan(scenario, schema.Digest([]byte("repeated-inventory")), fixtureCommit, 7, start, captured.Ref())
+			plan, err := schema.NewPlan(scenario, schema.Digest([]byte("recorded-inventory")), fixtureCommit, 7, start, captured.Ref())
 			if err != nil {
 				t.Fatal(err)
 			}
 			recorder := &inventoryCycleRecorder{samples: map[schema.Stream][]*tc.Inventory{}, metricTimes: map[string][]float64{}}
 			result, err := engine.Run(ctx, engine.Request{Scenario: scenario, Plan: plan, Bundle: captured}, engine.Options{Workers: 1, QueueCapacity: 2, Clock: &replayClock{now: start}, Delivery: recorder})
 			if err != nil || !result.Complete() {
-				t.Fatal("repeated inventory replay did not complete", err)
+				t.Fatal("recorded inventory replay did not complete", err)
 			}
 			id := identity.New(plan.RunID, plan.Seed, scenario.Fleet[0].Group, 0)
 			for _, stream := range []schema.Stream{schema.AgentInventory, schema.HostInventory, schema.HostSystemInfo} {
@@ -179,18 +184,18 @@ func TestRepeatedInventoryAndMetricFamiliesKeepNativeCadences(t *testing.T) {
 				}
 				cycles := recorder.samples[stream]
 				if len(cycles) != count {
-					t.Fatalf("%s must repeat at its captured %s cadence: got %d cycles", stream, cadence, len(cycles))
+					t.Fatalf("%s must replay its observed %s cadence: got %d cycles", stream, cadence, len(cycles))
 				}
 				for i, inventory := range cycles {
 					if inventory.Hostname != id.Hostname || inventory.UUID != id.UUID || inventory.Timestamp != start.Add(time.Duration(i)*cadence+firstOffset).UnixNano() {
-						t.Fatal("repeated inventory identity or collection time diverged")
+						t.Fatal("recorded inventory identity or collection time diverged")
 					}
 					if inventory.Agent != nil && inventory.Agent.AgentStartupTimeMS != start.Add(-time.Minute).UnixMilli() {
-						t.Fatal("repeating inventory falsely restarted the simulated Agent")
+						t.Fatal("replaying inventory falsely restarted the simulated Agent")
 					}
 					if info := inventory.SystemInfo; info != nil {
 						if info.SerialNumber == "" || info.SerialNumber == "FIXTURE-SERIAL-001" || info.SerialNumber != cycles[0].SystemInfo.SerialNumber {
-							t.Fatal("repeated system information lost its stable device serial")
+							t.Fatal("recorded system information lost its stable device serial")
 						}
 					}
 				}

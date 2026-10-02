@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sync"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,40 +83,40 @@ func familyRequest(t *testing.T, metricBundle *bundle.Loaded, duration time.Dura
 	return requestFor(t, r.Scenario, schema.Digest([]byte("independent-family-cadences")), b)
 }
 
-func TestMetricFamilyTimelinePreservesSlowChecksAndSkippedCycles(t *testing.T) {
-	b := familyMetrics(t, []time.Duration{10 * time.Second, 25 * time.Second, 55 * time.Second}, []time.Duration{265 * time.Second, 565 * time.Second})
-	timelines, err := makeTimelines(b, schema.Metrics, 1200*time.Second)
+func TestMetricTimelinePreservesObservedFlushesAndFamilyCoverage(t *testing.T) {
+	b := familyMetrics(t, []time.Duration{10 * time.Second, 25 * time.Second, 55 * time.Second}, []time.Duration{25 * time.Second, 265 * time.Second})
+	timeline, err := makeTimeline(b, schema.Metrics, 301*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, timeline := range timelines {
-		want := []time.Duration{265 * time.Second, 565 * time.Second, 865 * time.Second, 1165 * time.Second}
-		if timeline.family == "cpu" {
-			want = []time.Duration{10 * time.Second, 25 * time.Second, 55 * time.Second, 70 * time.Second, 85 * time.Second, 115 * time.Second}
-		} else if timeline.count != int64(len(want)) {
-			t.Fatalf("battery count %d, want %d", timeline.count, len(want))
-		}
-		for i, offset := range want {
-			cycle, got := timeline.at(int64(i))
-			if got != offset || len(cycle.refs) != 1 || cycle.producerID != "core" || cycle.cycleID != cycle.refs[0].CycleID {
-				t.Fatalf("family %s lost timing or cycle membership at %d: %+v at %s", timeline.family, i, cycle, got)
-			}
+	want := []time.Duration{10 * time.Second, 25 * time.Second, 55 * time.Second, 265 * time.Second}
+	if timeline.count != int64(len(want)) {
+		t.Fatalf("count %d, want one per original flush: %d", timeline.count, len(want))
+	}
+	for i, offset := range want {
+		cycle, got := timeline.at(int64(i))
+		if got != offset || len(cycle.refs) != 1 || cycle.producerID != "core" || cycle.cycleID != cycle.refs[0].CycleID {
+			t.Fatalf("lost original timing or cycle membership at %d: %+v at %s", i, cycle, got)
 		}
 	}
+	if _, err := makeTimeline(b, schema.Metrics, 25*time.Second); err == nil || !strings.Contains(err.Error(), "metrics/battery") {
+		t.Fatalf("accepted a scenario ending before the first battery observation: %v", err)
+	}
 	delete(b.Manifest.MetricCadences, "battery")
-	if _, err := makeTimelines(b, schema.Metrics, 1200*time.Second); err == nil {
+	if _, err := makeTimeline(b, schema.Metrics, 301*time.Second); err == nil {
 		t.Fatal("silently fell back to the serializer cadence for battery")
 	}
 }
 
-func TestMetricFamiliesReplayCompleteObservedSeriesWithIndependentPeriods(t *testing.T) {
+func TestMetricFlushReplayPreservesFamiliesAndGaps(t *testing.T) {
 	var cpu []time.Duration
-	for at := 10 * time.Second; at <= 805*time.Second; at += 15 * time.Second {
+	for at := time.Duration(0); at <= 285*time.Second; at += 15 * time.Second {
 		cpu = append(cpu, at)
 	}
-	r := familyRequest(t, familyMetrics(t, cpu, []time.Duration{265 * time.Second, 565 * time.Second}), 1200*time.Second)
-	// A CPU-only collection must not require a battery reading, while all
-	// observed members of the CPU family remain available to the overlay.
+	battery := []time.Duration{0, 300 * time.Second}
+	r := familyRequest(t, familyMetrics(t, cpu, battery), 301*time.Second)
+	// A CPU-only flush must not require a battery reading. A mixed flush keeps
+	// all observed families in one collection, with their native timestamps.
 	r.Scenario.Phases[0].Metrics = map[string]map[string]schema.Pattern{"primary": {
 		"system.cpu.user":                   {Steady: &schema.SteadyPattern{Value: 10}},
 		"system.battery.current_charge_pct": {Steady: &schema.SteadyPattern{Value: 80}},
@@ -133,100 +133,90 @@ func TestMetricFamiliesReplayCompleteObservedSeriesWithIndependentPeriods(t *tes
 		}
 		var chunks []json.RawMessage
 		if err := json.Unmarshal([]byte(record.Payload), &chunks); err != nil || len(chunks) != 1 {
-			t.Fatalf("invalid family collection: %v", err)
+			t.Fatalf("invalid original flush: %v", err)
 		}
 		sample, err := telemetry.Decode(schema.Metrics, chunks[0])
 		if err != nil {
-			t.Fatalf("mixed or missing metric family series: %v", err)
+			t.Fatal(err)
 		}
-		family := telemetrycapture.MetricFamily(sample.Metrics[0].Name)
-		wantSeries := 1
-		if family == "cpu" {
-			wantSeries = 2
+		wantSeries := 2
+		if record.Offset == 0 {
+			wantSeries = 3
+		} else if record.Offset == 300*time.Second {
+			wantSeries = 1
 		}
 		if len(sample.Metrics) != wantSeries {
-			t.Fatal("lost series from a complete metric family collection")
+			t.Fatal("original flush was split or lost a series")
 		}
-		got[family] = append(got[family], record.Offset)
+		seen := map[string]bool{}
 		for _, serie := range sample.Metrics {
-			if telemetrycapture.MetricFamily(serie.Name) != family || math.Abs(serie.Points[0].Ts-(record.Offset.Seconds()-.25)) > 1e-6 {
-				t.Fatal("metric family filter/rebase lost collection or fractional point offset")
+			family := telemetrycapture.MetricFamily(serie.Name)
+			if !seen[family] {
+				got[family] = append(got[family], record.Offset)
+				seen[family] = true
+			}
+			if math.Abs(serie.Points[0].Ts-(record.Offset.Seconds()-.25)) > 1e-6 {
+				t.Fatal("rebase lost a fractional point timestamp")
 			}
 			if !slices.Contains(serie.Tags.UnsafeToReadOnlySliceString(), "infra_mode:end_user_device") {
-				t.Fatal("family partition lost tags")
+				t.Fatal("flush lost native tags")
 			}
-			expected := 90.0 // The untouched idle series must survive each family copy.
+			expected := 90.0 // The untouched idle series must survive.
 			if pattern, ok := r.Scenario.Phases[0].Metrics["primary"][serie.Name]; ok {
 				expected = pattern.Steady.Value
 			}
 			if serie.Points[0].Value != expected {
-				t.Fatal("family partition skipped an overlay")
+				t.Fatal("flush skipped an overlay")
 			}
 		}
-	}
-	var expectedCPU []time.Duration
-	for at := 10 * time.Second; at < 1200*time.Second; at += 15 * time.Second {
-		expectedCPU = append(expectedCPU, at)
 	}
 	slices.Sort(got["cpu"])
 	slices.Sort(got["battery"])
-	if !slices.Equal(got["cpu"], expectedCPU) || !slices.Equal(got["battery"], []time.Duration{265 * time.Second, 565 * time.Second, 865 * time.Second, 1165 * time.Second}) {
-		t.Fatalf("family cadences differ: CPU=%v battery=%v", got["cpu"], got["battery"])
+	if !slices.Equal(got["cpu"], cpu) || !slices.Equal(got["battery"], battery) {
+		t.Fatalf("original family observations changed: CPU=%v battery=%v", got["cpu"], got["battery"])
 	}
 	counts := result.Ledger[0].Streams[schema.Metrics]
-	if counts.Expected != 84 || counts.Delivered != 84 || counts.Failed != 0 || !result.Complete() || result.Progress.Activity != "succeeded" {
-		t.Fatalf("metric ledger must count completed family collections: %+v", counts)
+	if counts.Expected != uint64(len(cpu)+1) || counts.Delivered != counts.Expected || counts.Failed != 0 || !result.Complete() || result.Progress.Activity != "succeeded" {
+		t.Fatalf("metric ledger must count original flushes, not families: %+v", counts)
 	}
 	for name, digest := range r.Bundle.Manifest.Files {
 		if schema.Digest(r.Bundle.Files[name]) != digest {
-			t.Fatal("family filtering mutated captured evidence")
+			t.Fatal("replay mutated captured evidence")
 		}
 	}
 }
 
-type familyGateDelivery struct {
+type flushGateDelivery struct {
 	*recordingDelivery
-	muFamily                   sync.Mutex
-	cpuCalls                   int
-	cpuGate, batteryGate       <-chan struct{}
-	cpuEntered, batteryEntered chan struct{}
-	batteryOnce                sync.Once
+	gate           <-chan struct{}
+	mixedEntered   chan int
+	laterDelivered chan struct{}
 }
 
-func (d *familyGateDelivery) Send(ctx context.Context, at time.Time, stream schema.Stream, samples []*telemetry.Sample) error {
-	if stream == schema.Metrics {
-		family := telemetrycapture.MetricFamily(samples[0].Metrics[0].Name)
-		var gate <-chan struct{}
-		if family == "battery" {
-			d.batteryOnce.Do(func() { close(d.batteryEntered) })
-			gate = d.batteryGate
-		} else {
-			d.muFamily.Lock()
-			d.cpuCalls++
-			calls := d.cpuCalls
-			d.muFamily.Unlock()
-			if calls == 2 {
-				close(d.cpuEntered)
-				gate = d.cpuGate
-			}
-		}
-		if gate != nil {
-			select {
-			case <-gate:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
+func (d *flushGateDelivery) Send(ctx context.Context, at time.Time, stream schema.Stream, samples []*telemetry.Sample) error {
+	if stream == schema.Metrics && at.Equal(d.start) {
+		d.mixedEntered <- len(samples[0].Metrics)
+		select {
+		case <-d.gate:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
-	return d.recordingDelivery.Send(ctx, at, stream, samples)
+	if err := d.recordingDelivery.Send(ctx, at, stream, samples); err != nil {
+		return err
+	}
+	if stream == schema.Metrics && at.After(d.start) {
+		close(d.laterDelivered)
+	}
+	return nil
 }
 
-func TestMetricFamilyProgressCountsDeliveryAndFamiliesRunIndependently(t *testing.T) {
+func TestMetricProgressCountsMixedFlushOnlyAfterDelivery(t *testing.T) {
 	r := familyRequest(t, familyMetrics(t, []time.Duration{0, 15 * time.Second}, []time.Duration{0, 300 * time.Second}), 31*time.Second)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cpuGate, batteryGate := make(chan struct{}), make(chan struct{})
-	delivery := &familyGateDelivery{recordingDelivery: &recordingDelivery{start: r.Plan.Start}, cpuGate: cpuGate, batteryGate: batteryGate, cpuEntered: make(chan struct{}), batteryEntered: make(chan struct{})}
+	gate := make(chan struct{})
+	delivery := &flushGateDelivery{recordingDelivery: &recordingDelivery{start: r.Plan.Start}, gate: gate, mixedEntered: make(chan int, 1), laterDelivered: make(chan struct{})}
 	clock := &advancingClock{now: r.Plan.Start}
 	ticks := make(chan time.Time)
 	snapshots := make(chan *report.Report, 4)
@@ -237,19 +227,20 @@ func TestMetricFamilyProgressCountsDeliveryAndFamiliesRunIndependently(t *testin
 	}()
 	initial := receiveProgressValue(ctx, t, snapshots)
 	if initial.Ledger[0].Streams[schema.Metrics].Delivered != 0 {
-		t.Fatal("initial progress contains undelivered family collections")
+		t.Fatal("initial progress contains undelivered flushes")
 	}
-	receiveProgressValue(ctx, t, delivery.batteryEntered)
-	receiveProgressValue(ctx, t, delivery.cpuEntered)
-	sendProgressTick(ctx, t, ticks, clock)
-	early := receiveProgressValue(ctx, t, snapshots)
-	if count := early.Ledger[0].Streams[schema.Metrics]; count.Expected != 4 || count.Delivered != 1 {
-		t.Fatalf("blocked battery must not block or count as completed CPU delivery: %+v", count)
+	if series := receiveProgressValue(ctx, t, delivery.mixedEntered); series != 3 {
+		t.Fatal("mixed flush was split before delivery")
 	}
-	close(cpuGate)
-	close(batteryGate)
+	receiveProgressValue(ctx, t, delivery.laterDelivered)
+	select {
+	case <-done:
+		t.Fatal("replay completed while the mixed flush was still blocked")
+	default:
+	}
+	close(gate)
 	final := receiveProgressValue(ctx, t, done)
-	if final.err != nil || !final.report.Complete() || final.report.Ledger[0].Streams[schema.Metrics].Delivered != 4 || early.Ledger[0].Streams[schema.Metrics].Delivered != 1 {
-		t.Fatalf("family completion or owned progress snapshot failed: %v", final.err)
+	if final.err != nil || !final.report.Complete() || final.report.Ledger[0].Streams[schema.Metrics].Expected != 2 || final.report.Ledger[0].Streams[schema.Metrics].Delivered != 2 || initial.Ledger[0].Streams[schema.Metrics].Delivered != 0 {
+		t.Fatalf("original flush completion or owned progress snapshot failed: %v", final.err)
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -75,7 +76,7 @@ func TestCaptureReadOnlyIPCDoesNotCreateMissingArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := filepath.Join(directory, "capture")
-	if err := RunInstalled(context.Background(), output, path); err == nil || !strings.Contains(err.Error(), "existing Agent IPC authentication artifacts") {
+	if err := RunInstalled(context.Background(), output, path, time.Minute); err == nil || !strings.Contains(err.Error(), "existing Agent IPC authentication artifacts") {
 		t.Fatalf("missing artifacts did not fail closed: %v", err)
 	}
 	files, err := os.ReadDir(directory)

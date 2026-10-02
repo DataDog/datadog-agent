@@ -28,23 +28,24 @@ var (
 )
 
 type session struct {
-	id          string
-	streams     []Stream
-	state       State
-	lease       time.Time
-	activatedAt time.Time
-	stoppedAt   time.Time
-	sequence    uint64
-	ack         uint64
-	delivered   uint64
-	failures    uint64
-	drops       uint64
-	bytes       int64
-	records     int
-	pending     int
-	reading     bool
-	queue       []*entry
-	changed     chan struct{}
+	id             string
+	streams        []Stream
+	state          State
+	lease          time.Time
+	activatedAt    time.Time
+	stoppedAt      time.Time
+	sequence       uint64
+	ack            uint64
+	delivered      uint64
+	failures       uint64
+	drops          uint64
+	bytes          int64
+	records        int
+	pending        int
+	reading        bool
+	queue          []*entry
+	changed        chan struct{}
+	hostSystemInfo *hostSystemInfoRequest
 }
 
 // Manager belongs to one daemon. Its tees and authenticated API must share the
@@ -52,15 +53,17 @@ type session struct {
 // Locks protect only bounded bookkeeping; copying, encoding, and I/O must never
 // happen while they are held.
 type Manager struct {
-	active       atomic.Pointer[session]
-	mu           sync.Mutex
-	identity     Identity
-	capabilities []Capability
-	current      *session
-	cycle        uint64
-	closed       bool
-	shutdown     chan struct{}
-	done         chan struct{}
+	active                  atomic.Pointer[session]
+	mu                      sync.Mutex
+	identity                Identity
+	capabilities            []Capability
+	current                 *session
+	cycle                   uint64
+	closed                  bool
+	shutdown                chan struct{}
+	done                    chan struct{}
+	hostSystemInfoCollector func(context.Context, Control) error
+	hostSystemInfoRunning   bool
 }
 
 // NewManager creates a dormant process-local manager with a fresh process
@@ -202,6 +205,11 @@ func (m *Manager) Prepare(request PrepareRequest) (Status, error) {
 			return Status{}, ErrBusy
 		}
 	}
+	// A cancelled hardware collector may still be returning from native code.
+	// Do not let its normal serializer tee observe a newer session.
+	if m.hostSystemInfoRunning {
+		return Status{}, ErrBusy
+	}
 	for _, stream := range streams {
 		if !slices.ContainsFunc(m.capabilities, func(c Capability) bool { return c.Stream == stream }) {
 			return Status{}, ErrState
@@ -259,6 +267,9 @@ func (m *Manager) Stop(ctx context.Context, control Control) (Status, error) {
 		m.active.Store(nil)
 		s.state = Stopping
 		s.stoppedAt = time.Now()
+		if s.hostSystemInfo != nil {
+			s.hostSystemInfo.cancel()
+		}
 		m.notifyLocked(s)
 	}
 	for s.pending != 0 && s.state == Stopping {
@@ -362,6 +373,9 @@ func (m *Manager) failLocked(s *session, dropped bool) {
 	}
 	m.active.CompareAndSwap(s, nil)
 	s.state = Failed
+	if s.hostSystemInfo != nil {
+		s.hostSystemInfo.cancel()
+	}
 	s.failures++
 	if dropped {
 		s.drops++

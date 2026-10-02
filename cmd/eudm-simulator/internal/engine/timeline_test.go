@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 )
 
-func TestCapturedOffsetsChunksAndPartialFinalCycle(t *testing.T) {
+func TestCapturedOffsetsAndChunksAreEmittedOnlyOnce(t *testing.T) {
 	b := &bundle.Loaded{Manifest: bundle.Manifest{
 		Samples: []bundle.SampleRef{
 			{Stream: schema.Processes, ProducerID: "process-a", CycleID: 2, Sequence: 2, ChunkCount: 1, Offset: 13 * time.Second, File: "second"},
@@ -29,9 +29,9 @@ func TestCapturedOffsetsChunksAndPartialFinalCycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Observed 2s/13s offsets repeat after 21s, without emitting a cycle
-	// exactly at the scenario end. Explicit group identity keeps chunks together.
-	want := []time.Duration{2 * time.Second, 13 * time.Second, 23 * time.Second}
+	// An idle tail does not manufacture extra collections. Explicit group
+	// identity keeps chunks together and preserves their original offsets.
+	want := []time.Duration{2 * time.Second, 13 * time.Second}
 	if timeline.count != int64(len(want)) {
 		t.Fatalf("count %d, want %d", timeline.count, len(want))
 	}
@@ -40,17 +40,17 @@ func TestCapturedOffsetsChunksAndPartialFinalCycle(t *testing.T) {
 		if offset != expected {
 			t.Fatalf("offset %s, want %s", offset, expected)
 		}
-		if i%2 == 0 && len(cycle.refs) != 2 {
+		if i == 0 && len(cycle.refs) != 2 {
 			t.Fatal("split process chunks")
 		}
-		if i%2 == 0 && (cycle.refs[0].File != "first-a" || cycle.refs[1].File != "first-b") {
+		if i == 0 && (cycle.refs[0].File != "first-a" || cycle.refs[1].File != "first-b") {
 			t.Fatal("did not restore declared chunk order")
 		}
 	}
 	for _, check := range []struct {
 		offset  time.Duration
 		ordinal int64
-	}{{0, 0}, {12 * time.Second, 0}, {13 * time.Second, 1}, {22 * time.Second, 1}, {23 * time.Second, 2}} {
+	}{{0, 0}, {12 * time.Second, 0}, {13 * time.Second, 1}, {22 * time.Second, 1}, {time.Hour, 1}} {
 		_, ordinal := timeline.nearest(check.offset)
 		if ordinal != check.ordinal {
 			t.Fatalf("nearest(%s)=%d, want %d", check.offset, ordinal, check.ordinal)
@@ -58,6 +58,16 @@ func TestCapturedOffsetsChunksAndPartialFinalCycle(t *testing.T) {
 	}
 	if _, err := makeTimeline(b, schema.Processes, time.Second); err == nil {
 		t.Fatal("accepted scenario ending before first process cycle")
+	}
+	for _, duration := range []time.Duration{3 * time.Second, 13 * time.Second} {
+		cropped, err := makeTimeline(b, schema.Processes, duration)
+		if err != nil || cropped.count != 1 {
+			t.Fatalf("scenario boundary %s must exclude the final cycle: count=%v, error=%v", duration, cropped, err)
+		}
+	}
+	inclusive, err := makeTimeline(b, schema.Processes, 13*time.Second+1)
+	if err != nil || inclusive.count != 2 {
+		t.Fatalf("cycle before scenario end was cropped: %v", err)
 	}
 }
 
@@ -75,7 +85,7 @@ func TestExplicitCycleIdentitiesRemainDistinctAtEqualOffsets(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(timeline.cycles) != 3 || timeline.count != 9 {
+	if len(timeline.cycles) != 3 || timeline.count != 3 {
 		t.Fatalf("distinct producer/cycle identities collapsed: cycles=%d count=%d", len(timeline.cycles), timeline.count)
 	}
 	if got := []string{timeline.cycles[0].refs[0].File, timeline.cycles[0].refs[1].File, timeline.cycles[1].refs[0].File, timeline.cycles[2].refs[0].File}; !reflect.DeepEqual(got, []string{"a-1-first", "a-1-last", "a-2", "b-1"}) {
@@ -83,14 +93,14 @@ func TestExplicitCycleIdentitiesRemainDistinctAtEqualOffsets(t *testing.T) {
 	}
 	for ordinal := int64(0); ordinal < timeline.count; ordinal++ {
 		c, offset := timeline.at(ordinal)
-		if offset != 2*time.Second+time.Duration(ordinal/3)*10*time.Second || c.cycleID != []uint64{1, 2, 1}[ordinal%3] {
+		if offset != 2*time.Second || c.cycleID != []uint64{1, 2, 1}[ordinal] {
 			t.Fatalf("wrong cycle at ordinal %d: %+v at %s", ordinal, c, offset)
 		}
 	}
 	for _, check := range []struct {
 		offset  time.Duration
 		ordinal int64
-	}{{0, 0}, {2 * time.Second, 2}, {11 * time.Second, 2}, {12 * time.Second, 5}} {
+	}{{0, 0}, {2 * time.Second, 2}, {11 * time.Second, 2}, {time.Hour, 2}} {
 		_, ordinal := timeline.nearest(check.offset)
 		if ordinal != check.ordinal {
 			t.Fatalf("nearest(%s)=%d, want %d", check.offset, ordinal, check.ordinal)
@@ -139,7 +149,7 @@ func TestTimelineRejectsInvalidCycleGroups(t *testing.T) {
 	}
 }
 
-func TestTimelineRejectsDurationAndCountOverflow(t *testing.T) {
+func TestTimelineRejectsInvalidDurationWithoutExtrapolating(t *testing.T) {
 	b := &bundle.Loaded{Manifest: bundle.Manifest{
 		Samples: []bundle.SampleRef{
 			{Stream: schema.Processes, ProducerID: "process-a", CycleID: 1, Sequence: 1, ChunkCount: 1, File: "first"},
@@ -147,14 +157,14 @@ func TestTimelineRejectsDurationAndCountOverflow(t *testing.T) {
 		},
 		Cadences: map[schema.Stream]time.Duration{schema.Processes: 1},
 	}}
-	for _, duration := range []time.Duration{0, -1, math.MaxInt64} {
+	for _, duration := range []time.Duration{0, -1} {
 		if _, err := makeTimeline(b, schema.Processes, duration); err == nil {
-			t.Fatalf("accepted invalid timeline duration/count %d", duration)
+			t.Fatalf("accepted invalid timeline duration %d", duration)
 		}
 	}
-	b.Manifest.Samples[1].Offset = math.MaxInt64
-	if _, err := makeTimeline(b, schema.Processes, time.Minute); err == nil {
-		t.Fatal("accepted overflowing timeline period")
+	b.Manifest.Samples[1].Offset = math.MaxInt64 - 1
+	if timeline, err := makeTimeline(b, schema.Processes, math.MaxInt64); err != nil || timeline.count != 2 {
+		t.Fatalf("long recording must retain exactly its real cycles: %v", err)
 	}
 	if _, err := makeTimeline(nil, schema.Processes, time.Minute); err == nil {
 		t.Fatal("accepted missing timeline bundle")

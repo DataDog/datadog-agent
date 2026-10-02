@@ -1,5 +1,5 @@
-# Prior device discovery was verified; schema-4 panel evidence needs a fresh live run.
-# Allow the first hourly hardware observation to occur before this probe ends.
+# Prior device discovery was verified; schema-7 panel evidence needs a fresh live run.
+# Capture requests fresh hardware once and must record at least this probe duration.
 # See doc/how-to/test/eudm-simulator.md for the recorded results.
 version: 1
 scenario:
@@ -14,4 +14,4 @@ fleet:
     os: macos
 phases:
   - name: healthy
-    duration: 70m
+    duration: 35m

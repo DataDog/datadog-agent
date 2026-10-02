@@ -197,3 +197,59 @@ func TestBundleRejectsSymlinksAndOversizedFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestWriterAggregateByteLimitFailsBeforeWritingAndCannotComplete(t *testing.T) {
+	sample := fixtureSample(t, schema.Metrics, "macos")
+	data, err := json.Marshal(sample)
+	if err != nil {
+		t.Fatal(err)
+	}
+	limit := int64(len(data))
+	w, err := newWriterWithLimit(filepath.Join(t.TempDir(), "capture"), Manifest{CaptureTool: BuildIdentity{Version: "7.85.0", Commit: strings.Repeat("a", 40)}, SessionID: "writer-budget-session"}, limit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := SampleRef{Stream: schema.Metrics, ProducerID: "writer-core-agent", CycleID: 1, Sequence: 1, ChunkCount: 1}
+	if err := w.Append(ref, sample); err != nil {
+		t.Fatalf("sample exactly at byte limit was rejected: %v", err)
+	}
+	ref.CycleID, ref.Sequence = 2, 2
+	if err := w.Append(ref, sample); err == nil || !strings.Contains(err.Error(), "sample byte limit") {
+		t.Fatalf("second sample exceeded aggregate budget without failing: %v", err)
+	}
+	if w.bytes != limit || len(w.manifest.Files) != 1 || len(w.manifest.Samples) != 1 {
+		t.Fatal("rejected sample changed the accepted byte/file inventory")
+	}
+	if _, err := os.Stat(filepath.Join(w.directory, "sample-000001.json")); !os.IsNotExist(err) {
+		t.Fatal("over-budget sample was written")
+	}
+	if _, err := w.Complete(time.Minute, schema.Profile{}, nil); err == nil {
+		t.Fatal("writer could complete after exceeding its byte limit")
+	}
+	if _, err := os.Stat(filepath.Join(w.directory, "COMPLETE")); !os.IsNotExist(err) {
+		t.Fatal("over-budget writer created a completion marker")
+	}
+}
+
+func TestLoadAggregateByteLimit(t *testing.T) {
+	dir, source := fixture(t, "macos")
+	var total int64
+	for _, data := range source.Files {
+		total += int64(len(data))
+	}
+	if _, err := loadWithLimit(dir, source.Manifest.CaptureTool.Commit, total); err != nil {
+		t.Fatalf("bundle exactly at aggregate limit was rejected: %v", err)
+	}
+	if _, err := loadWithLimit(dir, source.Manifest.CaptureTool.Commit, total-1); err == nil || !strings.Contains(err.Error(), "sample byte limit") {
+		t.Fatalf("aggregate budget was not enforced across sample files: %v", err)
+	}
+	// A sparse file larger than the remaining budget must be rejected from its
+	// size before attempting to read it or failing later on its checksum/JSON.
+	path := filepath.Join(dir, source.Manifest.Samples[0].File)
+	if err := os.Truncate(path, total+1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadWithLimit(dir, source.Manifest.CaptureTool.Commit, total); err == nil || !strings.Contains(err.Error(), "sample byte limit") {
+		t.Fatalf("oversized sample was not rejected before loading: %v", err)
+	}
+}

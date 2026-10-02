@@ -169,7 +169,7 @@ func installedClients(cfg config.Component, auth ipc.Component, includeProbe boo
 
 // RunInstalled arms existing compatible services. It creates no credentials,
 // collectors, listeners, or services, and never changes installed configuration.
-func RunInstalled(ctx context.Context, directory, cfgpath string) error {
+func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.Duration) error {
 	platform := runtime.GOOS
 	if platform == "darwin" {
 		platform = "macos"
@@ -209,5 +209,5 @@ func RunInstalled(ctx context.Context, directory, cfgpath string) error {
 	defer closeClients()
 	evidence := NewEvidence(directory, platform, runtime.GOARCH, bundle.BuildIdentity{Version: version.AgentVersion, Commit: version.FullCommit})
 	defer evidence.Close()
-	return Run(ctx, platform, clients, evidence)
+	return Run(ctx, platform, clients, evidence, duration)
 }

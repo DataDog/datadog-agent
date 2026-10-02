@@ -44,7 +44,7 @@ func request(t *testing.T, handler http.Handler, method, path, body string, auth
 	return w
 }
 
-const validControlJSON = `{"protocol_version":3,"session_id":"test-session-00000001"}`
+const validControlJSON = `{"protocol_version":4,"session_id":"test-session-00000001"}`
 
 func TestHandlerReportsOwnedMetricSchedulesOnEveryResponse(t *testing.T) {
 	m := testManager(t, Metrics, Software)
@@ -62,7 +62,7 @@ func TestHandlerReportsOwnedMetricSchedulesOnEveryResponse(t *testing.T) {
 	}
 	for _, operation := range []struct{ method, path, body string }{
 		{http.MethodGet, "/capabilities", ""},
-		{http.MethodPost, "/prepare", `{"protocol_version":3,"session_id":"test-session-00000001","streams":["metrics"]}`},
+		{http.MethodPost, "/prepare", `{"protocol_version":4,"session_id":"test-session-00000001","streams":["metrics"]}`},
 		{http.MethodPost, "/activate", validControlJSON},
 		{http.MethodPost, "/heartbeat", validControlJSON},
 		{http.MethodGet, "/status", ""},
@@ -133,7 +133,7 @@ func TestHandlerRequiresAuthenticationOnEveryRoute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/capabilities", "/status", "/prepare", "/activate", "/heartbeat", "/records", "/stop"} {
+	for _, path := range []string{"/capabilities", "/status", "/prepare", "/activate", "/heartbeat", "/records", "/stop", "/host-system-info"} {
 		method := http.MethodPost
 		if path == "/capabilities" || path == "/status" {
 			method = http.MethodGet
@@ -154,9 +154,9 @@ func TestControlValidationDoesNotEchoInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, body := range []string{
-		`{"protocol_version":4,"session_id":"secret-native-host"}`,
-		`{"protocol_version":3,"session_id":"secret-native-host","secret-native-host":true}`,
-		`{"protocol_version":3,"session_id":"secret/native/host"}`,
+		`{"protocol_version":5,"session_id":"secret-native-host"}`,
+		`{"protocol_version":4,"session_id":"secret-native-host","secret-native-host":true}`,
+		`{"protocol_version":4,"session_id":"secret/native/host"}`,
 		`{"secret-native-host":`,
 		validControlJSON + ` {"secret-native-host":true}`,
 		`{"session_id":"` + strings.Repeat("secret-native-host", 4096) + `"}`,
@@ -175,7 +175,7 @@ func TestHTTPReadAckAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, operation := range []struct{ path, body string }{
-		{"/prepare", `{"protocol_version":3,"session_id":"test-session-00000001","streams":["software"]}`},
+		{"/prepare", `{"protocol_version":4,"session_id":"test-session-00000001","streams":["software"]}`},
 		{"/activate", validControlJSON},
 		{"/heartbeat", validControlJSON},
 	} {
@@ -205,7 +205,7 @@ func TestHTTPReadAckAndStop(t *testing.T) {
 	if !reflect.DeepEqual(batch.Records[0].Payload, softwarePayload()) {
 		t.Fatal("record changed in IPC")
 	}
-	w = request(t, handler, http.MethodPost, "/records", `{"protocol_version":3,"session_id":"test-session-00000001","cursor":1}`, true)
+	w = request(t, handler, http.MethodPost, "/records", `{"protocol_version":4,"session_id":"test-session-00000001","cursor":1}`, true)
 	if w.Code != http.StatusOK || m.Status().State != Stopped {
 		t.Fatal("final ack not recorded")
 	}

@@ -23,9 +23,11 @@ import (
 )
 
 const (
-	SchemaVersion    = 6
+	SchemaVersion    = 7
 	maxManifestBytes = 4 << 20
 	maxFileBytes     = 64 << 20
+	// MaxBundleBytes bounds all stored sample bytes across one capture bundle.
+	MaxBundleBytes int64 = 1 << 30
 )
 
 // SampleRef identifies a captured sample and its collection cycle.
@@ -47,7 +49,8 @@ type BuildIdentity struct {
 	Commit  string `json:"commit"`
 }
 
-// Producer records the acknowledged boundaries of one participating process.
+// Producer records acknowledged boundaries relative to the final activation.
+// Starts precede or equal zero; stops can include cleanup after the recorded window.
 type Producer struct {
 	Role                 string          `json:"role"`
 	InstanceID           string          `json:"instance_id"`
@@ -66,11 +69,12 @@ type Producer struct {
 
 // Manifest is written last, after all captured output is persisted.
 type Manifest struct {
-	SchemaVersion  int                             `json:"schema_version"`
-	CaptureTool    BuildIdentity                   `json:"capture_tool"`
-	SessionID      string                          `json:"session_id"`
-	Producers      []Producer                      `json:"producers"`
-	Profile        schema.Profile                  `json:"profile"`
+	SchemaVersion int            `json:"schema_version"`
+	CaptureTool   BuildIdentity  `json:"capture_tool"`
+	SessionID     string         `json:"session_id"`
+	Producers     []Producer     `json:"producers"`
+	Profile       schema.Profile `json:"profile"`
+	// Duration is the recorded window after every producer became active.
 	Duration       time.Duration                   `json:"duration_ns"`
 	Cadences       map[schema.Stream]time.Duration `json:"cadences_ns"`
 	MetricCadences map[string]time.Duration        `json:"metric_cadences_ns"`
@@ -84,12 +88,24 @@ type Loaded struct {
 	Manifest Manifest
 	Digest   string
 	Files    map[string][]byte
-	Samples  map[string]*telemetry.Sample
+}
+
+// Decode returns an independently owned sample from verified bytes. A group
+// chunk may contain only metadata; completeness was checked while loading.
+func (b *Loaded) Decode(ref SampleRef) (*telemetry.Sample, error) {
+	data, ok := b.Files[ref.File]
+	if !ok {
+		return nil, errors.New("missing captured sample")
+	}
+	if ref.ChunkCount > 1 {
+		return telemetry.DecodeGroupChunk(ref.Stream, data)
+	}
+	return telemetry.Decode(ref.Stream, data)
 }
 
 // Ref returns the portable content identity used by run plans.
 func (b *Loaded) Ref() schema.BundleRef {
-	return schema.BundleRef{Digest: b.Digest, CaptureToolCommit: b.Manifest.CaptureTool.Commit, Profile: b.Manifest.Profile}
+	return schema.BundleRef{Digest: b.Digest, CaptureToolCommit: b.Manifest.CaptureTool.Commit, Duration: b.Manifest.Duration, Profile: b.Manifest.Profile}
 }
 
 // DecodeJSON rejects unknown fields and concatenated JSON documents.
@@ -109,12 +125,16 @@ func DecodeJSON(data []byte, out any) error {
 // Load verifies the complete bundle, including every declared digest, before
 // returning any samples. The replay host's operating system is irrelevant.
 func Load(directory, captureToolCommit string) (*Loaded, error) {
+	return loadWithLimit(directory, captureToolCommit, MaxBundleBytes)
+}
+
+func loadWithLimit(directory, captureToolCommit string, maxBytes int64) (*Loaded, error) {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
 		return nil, fmt.Errorf("open capture bundle: %w", err)
 	}
 	defer root.Close()
-	read := func(name string, limit int64) ([]byte, error) {
+	read := func(name string, limit int64, remaining *int64) ([]byte, error) {
 		if !fs.ValidPath(name) || strings.Contains(name, "\\") {
 			return nil, errors.New("invalid bundle file name")
 		}
@@ -125,6 +145,12 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 		if !info.Mode().IsRegular() || info.Size() > limit {
 			return nil, fmt.Errorf("bundle file %q must be a bounded regular file", name)
 		}
+		if remaining != nil {
+			if info.Size() > *remaining {
+				return nil, fmt.Errorf("capture bundle sample byte limit exceeded (%d bytes)", maxBytes)
+			}
+			limit = min(limit, *remaining)
+		}
 		file, err := root.Open(name)
 		if err != nil {
 			return nil, err
@@ -132,11 +158,17 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 		defer file.Close()
 		data, err := io.ReadAll(io.LimitReader(file, limit+1))
 		if int64(len(data)) > limit {
+			if remaining != nil && int64(len(data)) > *remaining {
+				return nil, fmt.Errorf("capture bundle sample byte limit exceeded (%d bytes)", maxBytes)
+			}
 			return nil, errors.New("bundle file exceeds size limit")
+		}
+		if remaining != nil {
+			*remaining -= int64(len(data))
 		}
 		return data, err
 	}
-	data, err := read("manifest.json", maxManifestBytes)
+	data, err := read("manifest.json", maxManifestBytes, nil)
 	if err != nil {
 		return nil, fmt.Errorf("read bundle manifest: %w", err)
 	}
@@ -162,7 +194,7 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 	if !validCommit(captureToolCommit) || m.CaptureTool.Commit != captureToolCommit {
 		return nil, errors.New("bundle capture-tool commit mismatch; recapture using this exact replay revision")
 	}
-	marker, err := read("COMPLETE", 65)
+	marker, err := read("COMPLETE", 65, nil)
 	if err != nil || !m.Complete || string(marker) != b.Digest+"\n" {
 		return nil, errors.New("capture bundle is incomplete or completion digest does not match")
 	}
@@ -172,11 +204,12 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 	if len(m.Samples) == 0 || len(m.Files) == 0 {
 		return nil, errors.New("bundle contains no samples")
 	}
+	remaining := maxBytes
 	for name, digest := range m.Files {
 		if name == "manifest.json" || name == "COMPLETE" {
 			return nil, fmt.Errorf("reserved bundle file %q", name)
 		}
-		data, err := read(name, maxFileBytes)
+		data, err := read(name, maxFileBytes, &remaining)
 		if err != nil {
 			return nil, fmt.Errorf("read bundle file %q: %w", name, err)
 		}
@@ -191,7 +224,7 @@ func Load(directory, captureToolCommit string) (*Loaded, error) {
 	}
 	used := map[string]bool{}
 	for _, sample := range m.Samples {
-		if !slices.Contains(m.Profile.Streams, sample.Stream) || sample.Offset < 0 || sample.Offset > m.Duration {
+		if !slices.Contains(m.Profile.Streams, sample.Stream) || sample.Offset < 0 || sample.Offset >= m.Duration {
 			return nil, errors.New("invalid stream or sample offset")
 		}
 		if _, ok := b.Files[sample.File]; !ok || used[sample.File] {

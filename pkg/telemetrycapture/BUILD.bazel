@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "telemetrycapture",
     srcs = [
+        "hardware.go",
         "http.go",
         "inventory.go",
         "manager.go",
@@ -19,6 +20,7 @@ go_library(
 dd_agent_go_test(
     name = "telemetrycapture_test",
     srcs = [
+        "hardware_test.go",
         "http_test.go",
         "inventory_test.go",
         "manager_test.go",

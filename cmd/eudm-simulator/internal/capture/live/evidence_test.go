@@ -40,7 +40,10 @@ type evidenceFixture struct {
 func newEvidenceFixture(t *testing.T, platform string, connections ...bool) *evidenceFixture {
 	t.Helper()
 	origin := time.Unix(1700000000, 125000000)
-	session := Session{ID: "evidence-session-token", Origin: origin}
+	session := Session{ID: "evidence-session-token", Origin: origin, Duration: time.Minute}
+	if len(connections) > 1 && connections[1] {
+		session.Duration = 8 * time.Minute
+	}
 	for _, role := range []string{"core-agent", "process-agent", "system-probe"} {
 		streams := []tc.Stream{tc.Metrics, tc.Metadata, tc.AgentInventory, tc.HostInventory, tc.Software}
 		if role == "process-agent" {
@@ -60,6 +63,9 @@ func newEvidenceFixture(t *testing.T, platform string, connections ...bool) *evi
 		}
 		status := tc.Status{ProtocolVersion: tc.ProtocolVersion, Producer: tc.Identity{Role: role, InstanceID: "evidence-" + role, Version: "7.82.1-producer", Commit: strings.Repeat("b", 40)},
 			SessionID: session.ID, State: tc.Active, ActivatedAt: origin}
+		if role == "core-agent" {
+			status.ActivatedAt = origin.Add(-250 * time.Millisecond)
+		}
 		for _, stream := range streams {
 			capability := tc.Capability{Stream: stream, Cadence: 17 * time.Second}
 			if stream == tc.Metrics {
@@ -174,7 +180,7 @@ func (f *evidenceFixture) stops() []tc.Status {
 	var statuses []tc.Status
 	for _, participant := range f.session.Participants {
 		status := participant.Status
-		status.State, status.StoppedAt = tc.Stopped, f.session.Origin.Add(time.Minute)
+		status.State, status.StoppedAt = tc.Stopped, f.session.Origin.Add(f.session.Duration)
 		status.FinalSequence, status.Acknowledged = f.sequences[status.Producer.InstanceID], f.sequences[status.Producer.InstanceID]
 		statuses = append(statuses, status)
 	}
@@ -207,27 +213,36 @@ func TestEvidencePersistsNativeSemanticSamples(t *testing.T) {
 		f.accept(ctx, t, late)
 	}
 	after, err := os.ReadDir(f.e.directory)
-	if err != nil || len(after) != len(before)+1 {
-		t.Fatal("only the later typed metric cycle should extend the bundle")
+	if err != nil || len(after) != len(before)+9 {
+		t.Fatal("all later complete stream cycles must extend the bundle")
 	}
-	if err := f.e.Finish(ctx, f.stops(), f.session.Origin.Add(time.Minute)); err != nil {
+	// Cleanup may finish later without changing the requested recording window.
+	stops := f.stops()
+	stops[0].StoppedAt = stops[0].StoppedAt.Add(time.Second)
+	if err := f.e.Finish(ctx, stops, f.session.Origin.Add(time.Minute+2*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := bundle.Load(f.e.directory, f.e.tool.Commit)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if loaded.Manifest.Duration != f.session.Duration || loaded.Manifest.Producers[0].StopOffset <= loaded.Manifest.Duration || loaded.Manifest.Producers[0].StartOffset != -250*time.Millisecond {
+		t.Fatal("cleanup changed the recorded duration or lost the later stop boundary")
+	}
 	for _, stream := range []schema.Stream{schema.Metrics, schema.Processes, schema.Connections} {
 		if loaded.Manifest.Cadences[stream] != 15*time.Second {
 			t.Fatal("did not derive cadence from distinct collected cycles")
 		}
 	}
-	if loaded.Manifest.Cadences[schema.Software] != 17*time.Second || loaded.Manifest.Cadences[schema.HostMetadata] != 17*time.Second {
-		t.Fatal("singleton schedule lost")
+	if loaded.Manifest.Cadences[schema.Software] != time.Hour || loaded.Manifest.Cadences[schema.HostMetadata] != time.Hour {
+		t.Fatal("latest producer schedules lost")
 	}
 	var processPID, connectionPID int32
 	for _, ref := range loaded.Manifest.Samples {
-		sample := loaded.Samples[ref.File]
+		sample, err := loaded.Decode(ref)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if sample.Metrics != nil {
 			serie := sample.Metrics[0]
 			if serie.Name != "system.cpu.user" || serie.Source != metrics.MetricSourceCPU || serie.MType != metrics.APIGaugeType || serie.Interval != 15 ||
@@ -250,7 +265,7 @@ func TestEvidencePersistsNativeSemanticSamples(t *testing.T) {
 				t.Fatal("gohai projection changed nested native fields")
 			}
 		}
-		if sample.Software != nil && (ref.Offset != 2375*time.Millisecond || sample.Software.Hostname != evidenceHost || sample.Software.Metadata.Software[0].DisplayName != "Google Chrome" || sample.Software.Metadata.Software[1].DisplayName != evidenceHost) {
+		if sample.Software != nil && ((ref.Offset != 2375*time.Millisecond && ref.Offset != 30*time.Second) || sample.Software.Hostname != evidenceHost || sample.Software.Metadata.Software[0].DisplayName != "Google Chrome" || sample.Software.Metadata.Software[1].DisplayName != evidenceHost) {
 			t.Fatal("software message lost its fractional relative timestamp or known application")
 		}
 		if sample.Processes != nil && (sample.Processes.Hints == nil || sample.Processes.GetHintMask() != 1) {
@@ -417,5 +432,51 @@ func TestEvidenceWaitsForSlowMetricFamiliesAndCapturesMacOSConnections(t *testin
 	}
 	if loaded.Manifest.MetricCadences["battery"] != 5*time.Minute || !slices.Contains(loaded.Manifest.Profile.Streams, schema.Connections) || loaded.Manifest.Cadences[schema.HostSystemInfo] != time.Hour {
 		t.Fatal("late battery or macOS connection evidence missing")
+	}
+}
+
+func TestEvidenceWindowKeepsWholeGroupsAndEveryCycle(t *testing.T) {
+	f := newEvidenceFixture(t, "windows")
+	ctx := context.Background()
+	for _, stream := range []tc.Stream{tc.Metrics, tc.Metadata, tc.AgentInventory, tc.HostInventory, tc.Software, tc.Processes, tc.Connections} {
+		// A cycle collected before all producers activated is excluded even if
+		// its delivery was observed inside the recording window.
+		before := f.record(t, stream, -time.Nanosecond)
+		before.ObservedAt = f.session.Origin
+		f.accept(ctx, t, before)
+		// The end is exclusive: collection may start before it but must be
+		// observed before it for the entire logical item to be retained.
+		boundary := f.record(t, stream, f.session.Duration-time.Nanosecond)
+		boundary.ObservedAt = f.session.Origin.Add(f.session.Duration)
+		f.accept(ctx, t, boundary)
+		if len(f.e.offsets[evidenceStream(stream)]) != 0 {
+			t.Fatal("outside-window observation was retained")
+		}
+		for _, offset := range []time.Duration{0, time.Second, time.Second, 2 * time.Second} {
+			f.accept(ctx, t, f.record(t, stream, offset))
+		}
+		if len(f.e.offsets[evidenceStream(stream)]) != 4 {
+			t.Fatal("distinct cycles were dropped after coverage or at equal offsets")
+		}
+	}
+	if err := f.e.Finish(ctx, f.stops(), f.session.Origin.Add(f.session.Duration)); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := bundle.Load(f.e.directory, f.e.tool.Commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts := map[schema.Stream]int{}
+	for _, sample := range loaded.Manifest.Samples {
+		counts[sample.Stream]++
+	}
+	for stream, count := range counts {
+		want := 4
+		if stream == schema.Processes || stream == schema.Connections {
+			want = 8
+		}
+		if count != want {
+			t.Fatalf("%s retained %d chunks; want %d", stream, count, want)
+		}
 	}
 }

@@ -69,6 +69,16 @@ func (m *Manager) Handler(authenticate func(http.Handler) http.Handler, schedule
 		status, err := m.Stop(ctx, request)
 		writeControl(w, enrich(status), err)
 	})
+	mux.HandleFunc("POST /host-system-info", func(w http.ResponseWriter, r *http.Request) {
+		var request Control
+		if !readControl(w, r, &request) {
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), controlTimeout)
+		defer cancel()
+		status, err := m.RequestHostSystemInfo(ctx, request)
+		writeControl(w, enrich(status), err)
+	})
 	mux.HandleFunc("POST /records", func(w http.ResponseWriter, r *http.Request) { m.serveRecords(w, r, schedules) })
 	return authenticate(mux), nil
 }

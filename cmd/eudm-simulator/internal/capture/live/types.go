@@ -4,7 +4,7 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package live coordinates authenticated, bounded capture sessions in running
-// producers. It does not collect or alter production submission schedules.
+// producers. It preserves normal delivery and ordinary collection schedules.
 package live
 
 import (
@@ -34,6 +34,7 @@ type Client interface {
 	Prepare(context.Context, tc.PrepareRequest) (tc.Status, error)
 	Activate(context.Context, tc.Control) (tc.Status, error)
 	Heartbeat(context.Context, tc.Control) (tc.Status, error)
+	RequestHostSystemInfo(context.Context, tc.Control) (tc.Status, error)
 	Records(context.Context, tc.ReadRequest) (Batch, error)
 	Stop(context.Context, tc.Control) (tc.Status, error)
 }
@@ -52,11 +53,12 @@ type Participant struct {
 	Streams []tc.Stream
 }
 
-// Session identifies a single cross-process capture. Origin is the earliest
-// acknowledged activation boundary, shared by all normalized relative times.
+// Session records the common interval after all producers have activated.
+// Origin is the latest acknowledged activation; Duration excludes cleanup.
 type Session struct {
 	ID           string
 	Origin       time.Time
+	Duration     time.Duration
 	Participants []Participant
 }
 

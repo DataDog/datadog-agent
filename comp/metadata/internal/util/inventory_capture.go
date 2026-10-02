@@ -6,6 +6,7 @@
 package util
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetrycapture"
@@ -43,6 +44,9 @@ func (i *InventoryPayload) StopCapture() {
 	i.captureStopped = true
 	if i.captureManager != nil {
 		i.captureManager.Unregister(i.captureStream)
+		if i.captureStream == telemetrycapture.HostSystemInfo {
+			i.captureManager.SetHostSystemInfoCollector(nil)
+		}
 	}
 }
 
@@ -80,4 +84,47 @@ func (i *InventoryPayload) captureCadence() time.Duration {
 		return i.MaxInterval
 	}
 	return intervals * i.MinInterval
+}
+
+// CollectHostSystemInfoForCapture submits fresh hardware data without changing
+// LastCollect, forceRefresh, startup delay, or the ordinary hourly poll. Only
+// the hardware component registers this callback with its capture manager.
+func (i *InventoryPayload) CollectHostSystemInfoForCapture(ctx context.Context, control telemetrycapture.Control) error {
+	// This is the same mutex used by ordinary collection and GetAsJSON. The
+	// manager permits at most one worker, and cancellation is checked as soon
+	// as native collection or a pre-existing collection releases this lock.
+	i.m.Lock()
+	defer i.m.Unlock()
+	if !i.hardwareCaptureActive(ctx, control) || !i.Enabled || i.serializer == nil {
+		return telemetrycapture.ErrState
+	}
+	collectedAt := time.Now()
+	payload := i.getPayload()
+	if !i.hardwareCaptureActive(ctx, control) {
+		return telemetrycapture.ErrState
+	}
+	if payload == nil {
+		return telemetrycapture.ErrFailed
+	}
+	scheduled, ok := payload.(interface {
+		SetCaptureInventorySchedule(time.Time, time.Duration)
+	})
+	if !ok {
+		return telemetrycapture.ErrFailed
+	}
+	scheduled.SetCaptureInventorySchedule(collectedAt, i.captureCadence())
+	if i.serializer.SendMetadata(payload) != nil {
+		return telemetrycapture.ErrFailed
+	}
+	return nil
+}
+
+func (i *InventoryPayload) hardwareCaptureActive(ctx context.Context, control telemetrycapture.Control) bool {
+	if ctx.Err() != nil || i.captureManager == nil || i.captureStream != telemetrycapture.HostSystemInfo {
+		return false
+	}
+	i.captureMu.Lock()
+	defer i.captureMu.Unlock()
+	current, active := i.captureManager.Selected(telemetrycapture.HostSystemInfo)
+	return !i.captureStopped && active && current == control
 }

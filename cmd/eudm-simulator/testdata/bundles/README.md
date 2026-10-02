@@ -13,11 +13,11 @@ connection evidence, wireless correlation, and delivery accounting. They do not 
 installed-Agent capture on either platform, direct Windows connection capture,
 staging device enrichment, monitor behavior, or Command Center/Bits acceptance.
 
-Both schema-6 fixtures use the deliberate test-only `capture_tool.commit`
+Both schema-7 fixtures use the deliberate test-only `capture_tool.commit`
 `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` and version `7.85.0-fixture`. Their
 synthetic producers use commit `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`,
-protocol version 3, and the same fixture version. Producer process identities,
-activation/stop acknowledgements, sequences and cycles are constructed
+protocol version 4, and the same fixture version. Producer process identities,
+activation/stop acknowledgements, the fully armed recording window, sequences and cycles are constructed
 test facts; no service was contacted to obtain them.
 A normal revision-stamped simulator binary rejects them as incompatible; use
 real operator-managed captures for staging. Do not edit their manifests to
@@ -48,14 +48,17 @@ the declared Agent/host inventory cadence is ten minutes. Host system informatio
 has an hourly cadence and one sample at five seconds, with a 5.25-second envelope
 timestamp, shared synthetic hardware models, and a synthetic native device serial.
 
-Each fixture covers 301 seconds and contains 30 logical samples: 21 metric
-cycles, two process groups, two connection groups, and one sample each of legacy
-host metadata, Agent inventory, host inventory, host system information, and software. CPU, memory, WLAN,
+Each fixture covers 301 seconds and contains 89 logical samples: 21 metric
+cycles, 31 process groups, 31 connection groups, two legacy host-metadata samples,
+and one sample each of Agent inventory, host inventory, host system information,
+and software. CPU, memory, WLAN,
 and network-throughput metrics appear every 15 seconds. Battery metrics appear
 only at 0 and 300 seconds, including when they share a serializer flush with the
 faster families. Network-throughput metrics retain their native rate type. This
-mixed schedule verifies that replay repeats each metric family at its own
-observed cadence instead of filling every flush with slow battery samples.
+mixed schedule verifies that replay preserves recorded offsets without repeating
+cycles or filling every flush with slow battery samples. Longer scenario tests
+generate a temporary 65-minute fixture; that expanded recording is not checked
+in. Scenarios longer than their bundle are rejected before delivery.
 
 The fixtures include Acme application/process names, a publisher, a prerelease
 version, stable product codes, an installation timestamp, native-shaped paths,
@@ -77,7 +80,8 @@ The generator writes `eudm-bundles/macos` and `eudm-bundles/windows` under
 `TEST_UNDECLARED_OUTPUTS_DIR`; Bazel preserves these in the test's undeclared
 output artifacts. An absolute `EUDM_FIXTURE_OUTPUT` overrides that location for
 local generation. The writer always refuses existing platform directories.
-The generator writes only typed samples. Serialization coverage belongs to
+The generator writes only typed samples. The same 1-GiB total sample, 64-MiB file,
+and 4-MiB manifest limits apply. Serialization coverage belongs to
 the portable replay tests; no duplicate request files are stored in bundles.
 
 Review regenerated typed samples, inventories, and digests together. Replace only the synthetic `macos/` and `windows/` files;
@@ -94,7 +98,7 @@ Real Windows and macOS captures remain outside the repository as
 operator-managed artifacts. Their run reports record their actual digests,
 capture-tool revision, and producing builds. Replay requires the exact
 capture-tool revision; compatible producer revisions may differ under protocol
-version 3. Earlier bundle schemas require recapture with compatible producers.
+version 4. Earlier bundle schemas require recapture with compatible producers.
 The loader does not migrate or relabel historical captures. Follow the
 [simulator runbook](../../../../doc/how-to/test/eudm-simulator.md) for authenticated
 live capture and the deferred staging proofs.

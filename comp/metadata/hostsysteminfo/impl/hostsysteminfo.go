@@ -106,6 +106,9 @@ func NewComponent(deps Requires) Provides {
 
 	var provider runnerdef.Provider
 	if hh.InventoryPayload.Enabled {
+		if deps.CaptureManager != nil {
+			deps.CaptureManager.SetHostSystemInfoCollector(hh.CollectHostSystemInfoForCapture)
+		}
 		provider = hh.MetadataProvider()
 		deps.Log.Info("System info metadata collection enabled for end user device mode")
 	} else {

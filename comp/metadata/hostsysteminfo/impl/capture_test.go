@@ -96,6 +96,29 @@ func TestCaptureHardwareReadinessFollowsNativeProviderAndShutdown(t *testing.T) 
 			}).Return(nil).Once()
 			require.Equal(t, time.Hour, p.Provider.Callback(context.Background()))
 			require.Equal(t, []telemetrycapture.Capability{{Stream: telemetrycapture.HostSystemInfo, Cadence: time.Hour}}, m.Status().Capabilities)
+			last := h.LastCollect
+			h.Refresh()
+			control := telemetrycapture.Control{ProtocolVersion: telemetrycapture.ProtocolVersion, SessionID: "fresh-hardware-session"}
+			_, err := m.Prepare(telemetrycapture.PrepareRequest{Control: control, Streams: []telemetrycapture.Stream{telemetrycapture.HostSystemInfo}})
+			require.NoError(t, err)
+			active, err := m.Activate(control)
+			require.NoError(t, err)
+			s.On("SendMetadata", mock.Anything).Run(func(args mock.Arguments) {
+				payload := args.Get(0).(*Payload)
+				at, cadence := payload.CaptureInventorySchedule()
+				require.False(t, at.Before(active.ActivatedAt))
+				require.GreaterOrEqual(t, payload.Timestamp, at.UnixNano())
+				require.Equal(t, time.Hour, cadence)
+				require.NotNil(t, payload.CopyCaptureInventory(), "fresh normal payload supports the existing serializer tee")
+			}).Return(nil).Once()
+			for range 2 {
+				_, err = m.RequestHostSystemInfo(context.Background(), control)
+				require.NoError(t, err)
+			}
+			require.Equal(t, last, h.LastCollect)
+			require.True(t, h.RefreshTriggered())
+			require.Equal(t, time.Hour, h.MinInterval)
+			require.Equal(t, time.Hour, h.MaxInterval)
 			require.NoError(t, lc.hooks[0].OnStop(context.Background()))
 			require.Empty(t, m.Status().Capabilities)
 			// A normal collection finishing after shutdown still submits normally,

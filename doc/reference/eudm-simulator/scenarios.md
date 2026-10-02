@@ -15,9 +15,9 @@ Definitions are in <<<repo("cmd/eudm-simulator/scenarios")>>>. Counts refer to t
 | `vpn-degradation-windows.yaml` | `vpn-path` (3), `comparison` (3) | A confirmed VPN-path TCP connection present in every relevant captured cycle |
 | `wifi-degradation-macos.yaml` | See the three fleet groups in the file (60 clients, 3 APs) | `system.wlan.rssi`, `noise`, `txrate`, and `rxrate`, including BSSID/SSID/client identity tags |
 
-Every endpoint requires metrics, host metadata, processes, and software inventory. A connection overlay additionally requires Agent connection evidence. Native macOS capture has no connection stream; native Windows capture requires multiple connection cycles before completing.
+Every endpoint requires metrics, legacy host metadata, Agent/host inventories, processes, and software inventory. An advertised host-system-info provider contributes hardware evidence. Windows capture requires multiple connection cycles; macOS includes connections when its running producer advertises them. A connection overlay requires that captured evidence.
 
-The application, security-agent, and VPN files use 20-minute healthy, 5-minute onset, 20-minute sustained, and 15-minute recovery phases, totaling 60 minutes. Wi-Fi uses 15, 5, 20, and 10 minutes respectively, totaling 50 minutes. Their monitor window is 10 minutes and visibility delay 5 minutes; these are scenario inputs to confirm against the real staging monitor, not discovered backend settings. Healthy-only files run for 20 minutes. The separate host-enrichment probes in <<<repo("cmd/eudm-simulator/testdata/probes")>>> use two devices and a 35-minute healthy phase.
+The application, security-agent, and VPN files use 20-minute healthy, 5-minute onset, 20-minute sustained, and 15-minute recovery phases, totaling 60 minutes. Wi-Fi uses 15, 5, 20, and 10 minutes respectively, totaling 50 minutes. Their monitor window is 10 minutes and visibility delay 5 minutes; these are scenario inputs to confirm against the real staging monitor, not discovered backend settings. Healthy-only files run for 20 minutes. The separate host-enrichment probes in <<<repo("cmd/eudm-simulator/testdata/probes")>>> use two devices and a 35-minute healthy phase. Capture for at least the scenario's total duration; the 60-minute incidents require longer recordings than the probes.
 
 ## Minimal multi-cohort scenario
 
@@ -62,7 +62,7 @@ Run with `--scenario /path/to/scenario.yaml --bundle /path/to/macos-bundle`; val
 
 The conclusions are `healthy`, `process_software_version`, `vpn_path`, and `wireless_access_points`. Healthy requires an empty affected list. An incident requires declared affected cohorts and exactly four phases named `healthy`, `onset`, `sustained`, and `recovery`, in that order. The expectation is an acceptance declaration, not an instruction that automatically changes cohort behavior: put the intended changes under the relevant phase/cohort.
 
-All names referenced by process, software, metric, and connection overlays must exist in the baseline capture. Missing required evidence rejects the scenario; overlays do not create missing processes, installations, metrics, or connections. Validation checks resource capacity and all relevant captured cycles. A scenario that parses successfully can still fail evidence validation. Validation requires each stream to have a scheduled collection before the scenario ends. Phase transitions do not force additional collections; where an investigation needs a phase-specific software version or metadata snapshot, choose phase lengths that contain a relevant native collection cycle.
+All names referenced by process, software, metric, and connection overlays must exist in the baseline capture. Missing required evidence rejects the scenario; overlays do not create missing processes, installations, metrics, or connections. Validation checks resource capacity and all relevant captured cycles. A scenario that parses successfully can still fail evidence validation. The total scenario duration must not exceed the bundle recording duration; validation rejects longer scenarios before delivery. Replay sends each recorded cycle once and never loops the baseline or fills gaps. Shorter scenarios must reach the first captured sample of every selected stream and metric family. Phase transitions do not force additional collections; where an investigation needs a phase-specific software version or metadata snapshot, choose phase lengths that contain a relevant native collection cycle.
 
 ## Cohorts, identities, and variation
 
@@ -119,7 +119,7 @@ Only allowed endpoint metric names that exist in the capture can be overlaid. Th
 
 ### VPN connections
 
-Copy the shipped VPN file locally and replace every `REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR` occurrence with a selector from the verified bundle's `profile.connection_selectors`. Confirm with the capture operator that it represents the intended VPN path. Sanitized addresses or a synthetic fixture do not establish that relationship, and the simulator does not discover VPNs automatically.
+Copy the shipped VPN file locally and replace every `REPLACE_WITH_CAPTURED_VPN_CONNECTION_SELECTOR` occurrence with a selector from the verified bundle's `profile.connection_selectors`. Confirm with the capture operator that it represents the intended VPN path. A selector alone or a synthetic fixture does not establish that relationship, and the simulator does not discover VPNs automatically.
 
 | Connection field | Units/behavior |
 | --- | --- |

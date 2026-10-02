@@ -207,8 +207,12 @@ func TestPortableNativeBundleRoundTripThroughAgentDelivery(t *testing.T) {
 						t.Fatalf("decode Agent wire content %s: %v", name, err)
 					}
 					if sample.Stream == schema.AgentInventory || sample.Stream == schema.HostInventory {
+						typed, err := loaded.Decode(sample)
+						if err != nil {
+							t.Fatal(err)
+						}
 						var inventory telemetrycapture.Inventory
-						if err := json.Unmarshal(decoded, &inventory); err != nil || !reflect.DeepEqual(&inventory, loaded.Samples[sample.File].Inventory) {
+						if err := json.Unmarshal(decoded, &inventory); err != nil || !reflect.DeepEqual(&inventory, typed.Inventory) {
 							t.Fatalf("inventory wire differs from its typed sample: %v", err)
 						}
 					}
