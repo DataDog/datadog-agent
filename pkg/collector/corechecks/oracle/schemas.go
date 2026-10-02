@@ -220,7 +220,8 @@ const mviewsQuery = `SELECT con_id, owner, mview_name, NVL(refresh_mode, '-'), N
 	NVL(staleness, '-'), last_refresh_date
 FROM cdb_mviews WHERE /*RELATIONS*/`
 
-// CDB_* views omit closed or restricted PDBs; those are not empty databases.
+// If we cannot see a PDB's SYS user, missing schemas may mean lost access,
+// rather than an empty database.
 const containerNamesQuery = `SELECT con_id, name FROM v$containers
 WHERE open_mode IN ('READ WRITE', 'READ ONLY') AND NVL(restricted, 'NO') = 'NO'
 AND EXISTS (SELECT 1 FROM cdb_users u WHERE u.con_id = v$containers.con_id AND u.username = 'SYS')`
