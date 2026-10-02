@@ -16,7 +16,14 @@
     - echo "${BAZELISK_SHA256}  /usr/local/bin/bazel" | sha256sum --check
     - chmod 0755 /usr/local/bin/bazel
     - bazel build --//bazel/rules/ebpf:target_arch=$EBPF_TARGET_ARCH //pkg/ebpf:co_re_objects
-    - mkdir -p co-re && cp $(bazel cquery --//bazel/rules/ebpf:target_arch=$EBPF_TARGET_ARCH --output=files //pkg/ebpf:co_re_objects) co-re/
+    # cquery --output=files is relative to the execroot; progressive cache has no
+    # workspace bazel-out symlink, so prefix with execution_root.
+    - |
+      mkdir -p co-re
+      execroot=$(bazel info execution_root)
+      for f in $(bazel cquery --//bazel/rules/ebpf:target_arch=$EBPF_TARGET_ARCH --output=files //pkg/ebpf:co_re_objects); do
+        cp "$execroot/$f" co-re/
+      done
     - export BTFS_ETAG=$(aws s3api head-object --region us-east-1 --bucket dd-agent-omnibus --key btfs/$BTFHUB_ARCHIVE_BRANCH/btfs-$ARCH.tar --query ETag --output text | tr -d \")
     - export OUTPUTS_HASH=$(cd co-re && sha256sum *.o | sha256sum | cut -d' ' -f1)
     - export MIN_BTFS_FILENAME=minimized-btfs-v2-$BTFS_ETAG-$OUTPUTS_HASH.tar.xz
