@@ -28,6 +28,7 @@ type CaptureRequest struct {
 	Directory  string
 	ConfigPath string
 	Duration   time.Duration
+	Progress   io.Writer
 }
 
 // ReplayRequest owns all verified bytes before delivery can start.
@@ -76,6 +77,7 @@ func MakeCommand(runtime Runtime) *cobra.Command {
 		}
 		ctx, cancel := context.WithTimeout(cmd.Context(), deadline)
 		defer cancel()
+		request.Progress = cmd.OutOrStdout()
 		return runtime.Capture(ctx, request)
 	}}
 	capture.Flags().DurationVar(&request.Duration, "duration", 0, "Required recording duration (up to 2h; must cover the scenario and required collection schedules)")

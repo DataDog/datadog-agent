@@ -8,6 +8,7 @@
 package live
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -76,8 +77,12 @@ func TestCaptureReadOnlyIPCDoesNotCreateMissingArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := filepath.Join(directory, "capture")
-	if err := RunInstalled(context.Background(), output, path, time.Minute); err == nil || !strings.Contains(err.Error(), "existing Agent IPC authentication artifacts") {
+	var progress bytes.Buffer
+	if err := RunInstalled(context.Background(), output, path, time.Minute, &progress); err == nil || !strings.Contains(err.Error(), "existing Agent IPC authentication artifacts") {
 		t.Fatalf("missing artifacts did not fail closed: %v", err)
+	}
+	if !strings.Contains(progress.String(), "initializing local authentication") || !strings.Contains(progress.String(), "failed") || strings.Contains(progress.String(), "bundle="+output) {
+		t.Fatal("startup failure did not produce safe progress and failure output")
 	}
 	files, err := os.ReadDir(directory)
 	if err != nil || len(files) != 1 || files[0].Name() != "datadog.yaml" {

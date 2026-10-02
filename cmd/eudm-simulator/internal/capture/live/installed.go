@@ -169,7 +169,9 @@ func installedClients(cfg config.Component, auth ipc.Component, includeProbe boo
 
 // RunInstalled arms existing compatible services. It creates no credentials,
 // collectors, listeners, or services, and never changes installed configuration.
-func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.Duration) error {
+func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.Duration, output io.Writer) (result error) {
+	progress := newCaptureProgress(output, duration, nil)
+	defer func() { progress.finish(directory, result) }()
 	platform := runtime.GOOS
 	if platform == "darwin" {
 		platform = "macos"
@@ -181,7 +183,7 @@ func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.
 		return errors.New("capture requires a revision-stamped build; use dda inv eudm-simulator.build")
 	}
 	// Configuration and IPC helpers can log paths and artifact fingerprints.
-	// Capture emits only its own fixed control-plane errors.
+	// Capture emits only its own progress summaries and control-plane errors.
 	log.SetupLogger(log.Disabled(), "error")
 	cfg, err := installedConfig(cfgpath, platform == "windows")
 	if err != nil {
@@ -209,5 +211,8 @@ func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.
 	defer closeClients()
 	evidence := NewEvidence(directory, platform, runtime.GOARCH, bundle.BuildIdentity{Version: version.AgentVersion, Commit: version.FullCommit})
 	defer evidence.Close()
-	return Run(ctx, platform, clients, evidence, duration)
+	evidence.progress = progress
+	options := defaultOptions
+	options.progress = progress
+	return run(ctx, platform, clients, evidence, duration, options)
 }

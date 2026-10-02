@@ -141,6 +141,17 @@ coverage. `--timeout` is an overall deadline for setup, recording, and completio
 it defaults to the duration plus five minutes, must exceed the duration, and
 cannot exceed two hours five minutes.
 
+Capture prints an immediate startup message, phase changes, and a status line
+every 30 seconds. Before recording, it shows readiness and effective cadences;
+after activation, it shows elapsed/remaining recording time, complete cycles per
+stream, persisted sample data in MiB, and missing coverage. Counts refer to
+logical cycles, so one multi-chunk process group counts once. Sample size excludes
+the manifest and completion marker. `coverage=complete` still means recording
+continues until the requested duration ends. Progress also continues during stop,
+drain, and finalization; success prints the bundle path, and failure reports an
+incomplete bundle. Summaries do not include captured telemetry values. A slow or
+failed terminal writer does not hold up capture or producer cleanup.
+
 Successful coverage requires two nonempty observations of each advertised metric
 check family, two process cycles, two cycles from any selected connection producer,
 one legacy host-metadata sample, one Agent inventory, one host inventory, and one
@@ -559,6 +570,29 @@ on both capture devices, and recapture the baselines before the next runs.
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
+
+### Capture progress, 2026-10-02
+
+Capture now prints startup and phase changes, plus 30-second snapshots of
+recording time, complete cycle counts, persisted sample size, and missing
+coverage. Recording continues for the full duration after coverage is complete.
+
+The following checks passed on macOS:
+
+```sh
+dda inv test --targets=./cmd/eudm-simulator/internal/capture/live,./cmd/eudm-simulator/internal/bundle,./cmd/eudm-simulator/command --build-exclude=python --race
+dda inv linter.go --targets=./cmd/eudm-simulator/internal/capture/live,./cmd/eudm-simulator/internal/bundle,./cmd/eudm-simulator/command --build-exclude=python --run-on=darwin
+dda inv eudm-simulator.build
+```
+
+The race suite reported 248 passing test entries. Coverage includes progress
+during readiness and finalization, complete-group counting, persisted bytes,
+blocked terminal output, and failed startup. The live-capture package passed
+again after adding startup-output assertions. The rebuilt CLI printed startup
+and failure status with a deliberately nonexistent configuration path, without
+creating a bundle or contacting producers. Gazelle and buildifier passed.
+No new live session, staging replay, or service restart was performed for this
+change. Already-running captures keep their original output behavior.
 
 ### October 2, 2026: complete recording windows and startup hardware request
 

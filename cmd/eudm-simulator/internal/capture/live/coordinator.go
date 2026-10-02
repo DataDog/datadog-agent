@@ -22,6 +22,7 @@ import (
 )
 
 type coordinatorOptions struct {
+	progress       *captureProgress
 	requestTimeout time.Duration
 	readinessPoll  time.Duration
 	recordPoll     time.Duration
@@ -75,6 +76,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 	if options.wait == nil {
 		options.wait = pause
 	}
+	options.progress.phase("waiting for producers", "")
 	selected, err := discover(ctx, platform, clients, options)
 	if err != nil {
 		return err
@@ -91,6 +93,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 			_ = stopHeartbeats()
 		}
 		if result != nil {
+			options.progress.phase("cleaning up after capture failure", "")
 			// The caller's context may already be cancelled. Cleanup gets its own
 			// bounded opportunity to disarm and acknowledge retained records.
 			cleanup, done := context.WithTimeout(context.Background(), options.cleanupTimeout)
@@ -100,6 +103,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 			}
 		}
 	}()
+	options.progress.phase("preparing producers", "")
 	statuses := parallelControl(work, selected, options, func(ctx context.Context, p *producer) (tc.Status, error) {
 		p.attempted = true
 		return p.client.Prepare(ctx, tc.PrepareRequest{Control: control, Streams: slices.Clone(p.streams)})
@@ -110,6 +114,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 		}
 	}
 	stopHeartbeats, heartbeatError := keepAlive(work, cancel, selected, control, options)
+	options.progress.phase("activating producers", "")
 	statuses = parallelControl(work, selected, options, func(ctx context.Context, p *producer) (tc.Status, error) {
 		return p.client.Activate(ctx, control)
 	})
@@ -136,6 +141,8 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 	if err := sink.Start(work, session); err != nil {
 		return errors.New("cannot initialize normalized capture evidence")
 	}
+	options.progress.armed(session.Origin)
+	options.progress.phase("recording", "")
 	// Hardware inventory is the one explicit collection exception: request a
 	// fresh normal submission once all participants are armed and the writer
 	// exists. The provider preserves its ordinary hourly schedule.
@@ -143,6 +150,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 		if !slices.Contains(p.streams, tc.HostSystemInfo) {
 			return p.activation, nil
 		}
+		options.progress.phase("collecting fresh hardware information", "")
 		return p.client.RequestHostSystemInfo(ctx, control)
 	})
 	for i, response := range statuses {
@@ -150,6 +158,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 			return errors.New("fresh host system information was not acknowledged")
 		}
 	}
+	options.progress.phase("recording", "")
 	end := session.Origin.Add(duration)
 	for options.now().Before(end) {
 		if err := contextFailure(work, heartbeatError, sink, session); err != nil {
@@ -169,6 +178,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 			return contextFailure(work, heartbeatError, sink, session)
 		}
 	}
+	options.progress.phase("stopping producers and draining accepted records", "")
 	statuses = parallelControl(work, selected, options, func(ctx context.Context, p *producer) (tc.Status, error) {
 		return p.client.Stop(ctx, control)
 	})
@@ -217,6 +227,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 	if complete, detail := sink.Coverage(); !complete {
 		return fmt.Errorf("capture interval ended with incomplete coverage: %s; effective cadences: %s", detail, readinessSummary(platform, stopped))
 	}
+	options.progress.phase("finalizing bundle", "")
 	if err := sink.Finish(work, stopped, options.now()); err != nil {
 		return errors.New("cannot finalize normalized capture evidence")
 	}
@@ -483,6 +494,7 @@ func discover(ctx context.Context, platform string, clients []Client, options co
 			latest = append(latest, status)
 			available[clients[i].Role()] = &producer{client: clients[i], identity: status.Producer, activation: status, schedules: status.Capabilities, cycles: map[uint64]bool{}}
 		}
+		options.progress.phase("waiting for producers", readinessSummary(platform, latest))
 		selected, ready := selectProducers(platform, available)
 		if ready {
 			instances := map[string]bool{}

@@ -89,10 +89,14 @@ func TestCaptureRequiresDurationAndDefaultsDeadlineToDurationPlusGrace(t *testin
 	directory := filepath.Join(t.TempDir(), "capture")
 	cfgpath := filepath.Join(t.TempDir(), "datadog.yaml")
 	before := time.Now()
+	var output bytes.Buffer
 	var captureContext context.Context
 	cmd := MakeCommand(Runtime{
 		Capture: func(ctx context.Context, request CaptureRequest) error {
 			captureContext = ctx
+			if request.Progress != &output {
+				t.Fatal("capture did not receive command output")
+			}
 			if request.Directory != directory {
 				t.Fatalf("unexpected capture directory: %s", request.Directory)
 			}
@@ -110,6 +114,7 @@ func TestCaptureRequiresDurationAndDefaultsDeadlineToDurationPlusGrace(t *testin
 			return nil
 		},
 	})
+	cmd.SetOut(&output)
 	cmd.SetArgs([]string{"capture", "--output", directory, "--cfgpath", cfgpath, "--duration", "1h"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)

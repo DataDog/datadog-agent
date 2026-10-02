@@ -30,6 +30,7 @@ import (
 // Evidence normalizes complete observed cycles and writes typed samples.
 // The coordinator validates IPC provenance before handing records to the sink.
 type Evidence struct {
+	progress       *captureProgress
 	directory      string
 	tool           bundle.BuildIdentity
 	profile        schema.Profile
@@ -109,6 +110,7 @@ func (e *Evidence) Start(ctx context.Context, session Session) error {
 		return err
 	}
 	e.session = session
+	e.publishProgress()
 	return nil
 }
 
@@ -180,6 +182,7 @@ func (e *Evidence) Accept(ctx context.Context, record tc.Record) (err error) {
 	if nonempty {
 		e.offsets[stream] = append(e.offsets[stream], ref.Offset)
 		e.cadences[stream] = record.Cadence
+		e.publishProgress()
 	}
 	return nil
 }
@@ -446,7 +449,8 @@ func (e *Evidence) Coverage() (bool, string) {
 			required = 2
 		}
 		count := len(e.offsets[stream])
-		if count < required || (required == 2 && e.observedCadence(stream) <= 0) {
+		distinct := count >= 2 && slices.ContainsFunc(e.offsets[stream][1:], func(offset time.Duration) bool { return offset != e.offsets[stream][0] })
+		if count < required || (required == 2 && !distinct) {
 			missing = append(missing, fmt.Sprintf("%s: %d/%d cycles, effective cadence %s", stream, count, required, e.cadences[stream]))
 		}
 	}
@@ -515,4 +519,19 @@ func (e *Evidence) Close() {
 	e.closed = true
 	e.normalizer = nil
 	e.participants = nil
+}
+
+// Called only by the coordinator after evidence updates; the observer receives
+// counts and fixed coverage descriptions, never payload values or identities.
+func (e *Evidence) publishProgress() {
+	if e.progress == nil {
+		return
+	}
+	var cycles []string
+	for _, stream := range e.profile.Streams {
+		cycles = append(cycles, fmt.Sprintf("%s=%d", stream, len(e.offsets[stream])))
+	}
+	slices.Sort(cycles)
+	_, missing := e.Coverage()
+	e.progress.samples(strings.Join(cycles, " "), missing, e.writer.SampleBytes())
 }

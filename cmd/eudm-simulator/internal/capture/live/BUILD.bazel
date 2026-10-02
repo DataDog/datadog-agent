@@ -8,6 +8,7 @@ go_library(
         "coordinator.go",
         "evidence.go",
         "installed.go",
+        "progress.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture/live",
@@ -46,6 +47,7 @@ dd_agent_go_test(
         "coordinator_test.go",
         "evidence_test.go",
         "installed_test.go",
+        "progress_test.go",
     ],
     embed = [":live"],
     deps = [

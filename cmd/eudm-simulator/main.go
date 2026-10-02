@@ -22,7 +22,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	runtime := command.Runtime{Capture: func(ctx context.Context, request command.CaptureRequest) error {
-		return live.RunInstalled(ctx, request.Directory, request.ConfigPath, request.Duration)
+		return live.RunInstalled(ctx, request.Directory, request.ConfigPath, request.Duration, request.Progress)
 	}, Replay: func(ctx context.Context, request command.ReplayRequest) error {
 		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundle: request.Bundle}, engine.ExecutionOptions{ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations, Progress: request.Progress})
 	}}
