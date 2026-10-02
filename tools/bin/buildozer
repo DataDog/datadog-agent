@@ -1,0 +1,85 @@
+#!/usr/bin/env dotslash
+{
+  "name": "buildozer",
+  "metadata": {
+    "native_check": {
+      "command": [
+        "buildozer",
+        "-version"
+      ],
+      "pattern": "(?i)version"
+    }
+  },
+  "platforms": {
+    "macos-x86_64": {
+      "size": 9926608,
+      "hash": "sha256",
+      "digest": "e9809d8ca40da421e1b5420dd735f32d13a0b01ebadfb7f519d5b7f4316061b4",
+      "path": "buildozer",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-darwin-amd64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-darwin-amd64"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 9483890,
+      "hash": "sha256",
+      "digest": "9e5d300659253c9235c50f792b46cfc5148e62513a8056e916fa2ca738b904f2",
+      "path": "buildozer",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-darwin-arm64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-darwin-arm64"
+        }
+      ]
+    },
+    "linux-x86_64": {
+      "size": 9916016,
+      "hash": "sha256",
+      "digest": "3513b8b23619f5fb7ccad546e955af6e318475582ce7b6f2b47b634bd3b8dcbd",
+      "path": "buildozer",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-linux-amd64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-linux-amd64"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 9473662,
+      "hash": "sha256",
+      "digest": "add0e7e45e10231746c6bb193e466361183dfe9d2df8f951b62c49a047508f30",
+      "path": "buildozer",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-linux-arm64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-linux-arm64"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 10353664,
+      "hash": "sha256",
+      "digest": "025217f54dc8a9abdb7647d559a607c365a63fdc1e6beb44c3b4a54773596d0f",
+      "path": "buildozer.exe",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-windows-amd64.exe"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/buildozer-windows-amd64.exe"
+        }
+      ]
+    }
+  }
+}

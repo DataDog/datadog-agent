@@ -1,0 +1,85 @@
+#!/usr/bin/env dotslash
+{
+  "name": "unused-deps",
+  "metadata": {
+    "native_check": {
+      "command": [
+        "unused-deps",
+        "-version"
+      ],
+      "pattern": "(?i)version"
+    }
+  },
+  "platforms": {
+    "macos-x86_64": {
+      "size": 9641824,
+      "hash": "sha256",
+      "digest": "89ec8cc96c4887c8e538955604e3940d95c82d4e86b68f2edfb0e8e82396b3ab",
+      "path": "unused-deps",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-darwin-amd64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-darwin-amd64"
+        }
+      ]
+    },
+    "macos-aarch64": {
+      "size": 9225698,
+      "hash": "sha256",
+      "digest": "cf45df9147b1a5ff9598ccf09443d529664f0845e20f3019f4f870c76d88bffb",
+      "path": "unused-deps",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-darwin-arm64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-darwin-arm64"
+        }
+      ]
+    },
+    "linux-x86_64": {
+      "size": 9630268,
+      "hash": "sha256",
+      "digest": "99ba9c955c6307b8a5db7e9e4587878e823f1a0fc8fd18d38051fc0020f95305",
+      "path": "unused-deps",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-linux-amd64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-linux-amd64"
+        }
+      ]
+    },
+    "linux-aarch64": {
+      "size": 9197942,
+      "hash": "sha256",
+      "digest": "2af257dd3c90d39f10e8a55b40aeb6d34b0524d91884760df2e43558fa657251",
+      "path": "unused-deps",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-linux-arm64"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-linux-arm64"
+        }
+      ]
+    },
+    "windows-x86_64": {
+      "size": 10084352,
+      "hash": "sha256",
+      "digest": "eb81ea4cb85e2e6cbc75ea30bb37f7d18f4c9622f669b137fc6e44f8f62b838a",
+      "path": "unused-deps.exe",
+      "providers": [
+        {
+          "url": "https://depot-read-api-github-releases.us1.ddbuild.io/internal/mirror/github-releases/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-windows-amd64.exe"
+        },
+        {
+          "url": "https://github.com/bazel-contrib/buildtools/releases/download/v10.1.0/unused-deps-windows-amd64.exe"
+        }
+      ]
+    }
+  }
+}

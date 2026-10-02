@@ -1,0 +1,8 @@
+load("//bazel/dotslash:defs.bzl", "dotslash_tool")
+
+dotslash_tool(
+    name = "buildifier_tool",
+    manifest = "buildifier",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

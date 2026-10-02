@@ -58,6 +58,13 @@
         "prPriority": 10
       },
       {
+        "matchManagers": ["mise"],
+        "matchFileNames": ["mise.toml"],
+        "matchDepNames": ["node", "npm:@sentry/dotagents"],
+        "minimumReleaseAge": null,
+        "prPriority": 10
+      },
+      {
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
         "groupName": "github-actions",
@@ -363,25 +370,6 @@
         "depNameTemplate": "datadog.dd",
         "datasourceTemplate": "custom.ansible-galaxy-datadog-dd",
         "versioningTemplate": "semver"
-      },
-      {
-        "customType": "regex",
-        "managerFilePatterns": ["mise.toml"],
-        "matchStrings": [
-          "\"npm:(?<depName>[^\"]+)\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
-        ],
-        "datasourceTemplate": "npm",
-        "versioningTemplate": "npm"
-      },
-      {
-        "customType": "regex",
-        "managerFilePatterns": ["mise.toml"],
-        "matchStrings": [
-          "\\bnode\\s*=\\s*\"(?<currentValue>[^\"]+)\""
-        ],
-        "depNameTemplate": "node",
-        "datasourceTemplate": "node",
-        "versioningTemplate": "node"
       }
     ],
     "customDatasources": {
