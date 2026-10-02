@@ -219,43 +219,30 @@ build do
   # System-probe
   if sysprobe_enabled? || osx_target? || (windows_target? && do_windows_sysprobe != "")
     if linux_target?
-      command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-      command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
+      # Bazel has no FIPS Go toolchain yet, so install_system_probe_install_dir leaves the FIPS binary out.
+      if fips_mode?
+        command "dda inv -- -e system-probe.build-sysprobe-binary-inputs", :live_stream => Omnibus.logger.live_stream(:info)
+        command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+        copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
+      end
+      command "bazel run #{omnibazel_flags} -- //packages/agent/product:install_system_probe_install_dir --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
+      command "!(objdump -p #{install_dir}/embedded/bin/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
     else
       command "dda inv -- -e system-probe.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    end
-
-    if windows_target?
-      copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
-      copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
-    else
-      copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
+      if windows_target?
+        copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
+        copy 'bin/system-probe/system-probe.exe.pdb', "#{install_dir}/bin/agent"
+      else
+        copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
+      end
     end
 
     command "bazel run #{omnibazel_flags} #{host_distribution} //packages/agent/product:install_system_probe -- --destdir=\"#{conf_dir}\"", env: env
   end
 
-  # System-probe eBPF files
   if sysprobe_enabled?
-    mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
-    mkdir "#{install_dir}/embedded/share/system-probe/ebpf/runtime"
-    mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re"
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
-
-    arch = `uname -m`.strip
-    if arch == "aarch64"
-      arch = "arm64"
-    end
-    copy "pkg/ebpf/bytecode/build/#{arch}/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
-    delete "#{install_dir}/embedded/share/system-probe/ebpf/usm_events_test*.o"
-    copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
-    copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
-    copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
-    copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
-
-    copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
-
   end
 
   # sd-agent (service discovery agent)

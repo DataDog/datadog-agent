@@ -43,8 +43,7 @@ pkg_filegroup(
         ":process_agent_binary",
         ":privateactionrunner_binary",
 
-        # TODO: system-probe
-        # TODO: system-probe - eBPF
+        # TODO: system-probe - macos
 
         # TODO: //pkg/discovery/module/rust
         # TODO: cacerts
@@ -59,6 +58,7 @@ pkg_filegroup(
         "//packages/agent:linux_default": [
             ":cws_instrumentation_binary",
             ":installer_binary",
+            ":system_probe_install_dir_files",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/privateactionrunner/rshell:all_files_linux",
@@ -69,6 +69,8 @@ pkg_filegroup(
             ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
+            # TODO: system-probe binary, once Bazel has a FIPS Go toolchain
+            ":system_probe_install_dir_files",
         ],
         "//packages/agent:linux_heroku": [],
         "//conditions:default": [],
@@ -344,4 +346,72 @@ pkg_install(
     name = "install_system_probe",
     srcs = [":system_probe_files"],
     visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "system_probe_binary",
+    srcs = ["//cmd/system-probe"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+_EBPF_DIR = "embedded/share/system-probe/ebpf"
+
+pkg_files(
+    name = "system_probe_ebpf_objects",
+    srcs = [
+        "//pkg/ebpf:prebuilt_objects",
+        "//pkg/ebpf/c:COPYING",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = _EBPF_DIR,
+)
+
+pkg_files(
+    name = "system_probe_co_re_objects",
+    srcs = ["//pkg/ebpf:co_re_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = _EBPF_DIR + "/co-re",
+)
+
+pkg_files(
+    name = "system_probe_runtime_sources",
+    srcs = ["//pkg/ebpf:runtime_sources"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = _EBPF_DIR + "/runtime",
+)
+
+# Used by system-probe for runtime compilation. @llvm_bpf is empty outside Linux.
+pkg_files(
+    name = "system_probe_llvm_bpf",
+    srcs = select({
+        "@platforms//os:linux": [
+            "@llvm_bpf//:bin/clang-bpf",
+            "@llvm_bpf//:bin/llc-bpf",
+        ],
+        "//conditions:default": [],
+    }),
+    attributes = pkg_attributes(mode = "744"),
+    prefix = "embedded/bin",
+)
+
+# The FIPS binary is still built by invoke until Bazel has a FIPS Go toolchain.
+pkg_filegroup(
+    name = "system_probe_install_dir_files",
+    srcs = [
+        ":system_probe_co_re_objects",
+        ":system_probe_ebpf_objects",
+        ":system_probe_llvm_bpf",
+        ":system_probe_runtime_sources",
+    ] + select({
+        "//packages/agent:fips_flavor": [],
+        "//conditions:default": [":system_probe_binary"],
+    }),
+)
+
+# Temporary during omnibus migration. Only called from omnibus scripts.
+pkg_install(
+    name = "install_system_probe_install_dir",
+    srcs = [":system_probe_install_dir_files"],
+    target_compatible_with = ["@platforms//os:linux"],
 )

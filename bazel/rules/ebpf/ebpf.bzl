@@ -201,7 +201,9 @@ def _stripped_ebpf_impl(ctx):
         fail("LLVM BPF toolchain is not available")
 
     src = ctx.file.src
-    out = ctx.actions.declare_file(ctx.label.name + ".o")
+
+    # Keep the unstripped basename so the object can be shipped as is.
+    out = ctx.actions.declare_file("stripped/" + src.basename)
 
     ctx.actions.run(
         inputs = [src],
@@ -346,6 +348,31 @@ def _ebpf_program_suite_impl(name, visibility, src, deps, core, extra_flags, tar
         src = ":" + name + "-debug",
         target_compatible_with = ["@platforms//os:linux"],
     )
+
+def _ebpf_objects_impl(name, visibility, srcs):
+    native.filegroup(
+        name = name,
+        srcs = [src.same_package_label(src.name + ".stripped") for src in srcs],
+        visibility = visibility,
+    )
+    native.filegroup(
+        name = name + "_unstripped",
+        srcs = srcs,
+        visibility = visibility,
+    )
+
+ebpf_objects = macro(
+    doc = """Group eBPF programs built by ebpf_prog or ebpf_program_suite.
+
+    Generates:
+      - {name}: the stripped objects
+      - {name}_unstripped: the unstripped objects
+    """,
+    attrs = {
+        "srcs": attr.label_list(mandatory = True, configurable = False),
+    },
+    implementation = _ebpf_objects_impl,
+)
 
 ebpf_program_suite = macro(
     doc = """Create both normal and debug variants of an eBPF program.

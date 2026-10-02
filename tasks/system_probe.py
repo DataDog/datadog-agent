@@ -869,96 +869,13 @@ def setup_runtime_clang(
         ctx.run(f"{sudo} chmod 0755 {binary_path}")
 
 
-@task
-def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build", verbose=True):
-    build_dir = Path(build_dir)
-    missing_metadata_files = 0
-    total_metadata_files = 0
-    print(f"Validating metadata of eBPF object files in {build_dir}...")
-
-    for file in build_dir.glob("**/*.o"):
-        total_metadata_files += 1
-        res = ctx.run(f"readelf -p dd_metadata {file}", warn=True, hide=True)
-        if res is None or not res.ok:
-            print(color_message(f"- {file}: missing metadata", "red"))
-            missing_metadata_files += 1
-            continue
-
-        groups = re.findall(r"<(?P<key>[^:]+):(?P<value>[^>]+)>", res.stdout)
-        if groups is None or len(groups) == 0:
-            print(color_message(f"- {file}: invalid metadata", "red"))
-            missing_metadata_files += 1
-            continue
-
-        if verbose:
-            metadata = ", ".join(f"{k}={v}" for k, v in groups)
-            print(color_message(f"- {file}: {metadata}", "green"))
-
-    if missing_metadata_files > 0:
-        raise Exit(
-            f"{missing_metadata_files} object files are missing metadata. Remember to include the bpf_metadata.h header in all eBPF programs"
-        )
-    else:
-        print(f"All {total_metadata_files} object files have valid metadata")
-
-
-# All Bazel eBPF targets, grouped by output directory.
-# Prebuilt targets go to build_dir/, CO-RE targets go to build_dir/co-re/.
-_BAZEL_EBPF_PREBUILT_TARGETS = [
-    "//pkg/network/ebpf/c/prebuilt:dns",
-    "//pkg/network/ebpf/c/prebuilt:dns-debug",
-    "//pkg/network/ebpf/c/prebuilt:offset-guess",
-    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
-    "//pkg/network/ebpf/c/prebuilt:tracer",
-    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
-    "//pkg/network/ebpf/c/prebuilt:usm",
-    "//pkg/network/ebpf/c/prebuilt:usm-debug",
-    "//pkg/network/ebpf/c/prebuilt:usm_events_test",
-    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
-    "//pkg/network/ebpf/c/prebuilt:shared-libraries",
-    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
-    "//pkg/network/ebpf/c/prebuilt:conntrack",
-    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
-]
-
-_BAZEL_EBPF_CORE_TARGETS = [
-    "//pkg/ebpf/c:lock_contention",
-    "//pkg/ebpf/c:ksyms_iter",
-    "//pkg/network/ebpf/c:tracer",
-    "//pkg/network/ebpf/c/sk:sk_tracer",
-    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
-    "//pkg/network/ebpf/c:tracer-debug",
-    "//pkg/network/ebpf/c/co-re:tracer-fentry",
-    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
-    "//pkg/network/ebpf/c/runtime:usm",
-    "//pkg/network/ebpf/c/runtime:usm-debug",
-    "//pkg/network/ebpf/c/runtime:shared-libraries",
-    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
-    "//pkg/network/ebpf/c/runtime:conntrack",
-    "//pkg/network/ebpf/c/runtime:conntrack-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
-    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
-    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
-    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
-    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
-    "//pkg/gpu/ebpf/c/runtime:gpu",
-    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
-    "//pkg/dyninst/ebpf:dyninst_event",
-    "//pkg/dyninst/ebpf:dyninst_event-debug",
-    "//pkg/ebpf/testdata/c:logdebug-test",
-    "//pkg/ebpf/testdata/c:error_telemetry",
-    "//pkg/ebpf/testdata/c:sleepable",
-    "//pkg/ebpf/testdata/c:preempt_test",
-    "//pkg/ebpf/testdata/c:uprobe_attacher-test",
-    "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
-]
+# eBPF object filegroups (see pkg/ebpf/BUILD.bazel) -> subdirectory of the build dir.
+# Each also has an `_unstripped` variant.
+_BAZEL_EBPF_OBJECT_GROUPS = {
+    "//pkg/ebpf:prebuilt_objects": "",
+    "//pkg/ebpf:prebuilt_test_objects": "",
+    "//pkg/ebpf:co_re_objects": "co-re",
+}
 
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
@@ -966,17 +883,7 @@ _BAZEL_EBPF_INPLACE_TARGETS = {
     "//pkg/ebpf/kernelbugs:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
 
-_BAZEL_RUNTIME_FLAT_TARGETS = [
-    "//pkg/ebpf/bytecode:oom-kill_flat",
-    "//pkg/ebpf/bytecode:tcp-queue-length_flat",
-    "//pkg/ebpf/bytecode:usm_flat",
-    "//pkg/ebpf/bytecode:shared-libraries_flat",
-    "//pkg/ebpf/bytecode:conntrack_flat",
-    "//pkg/ebpf/bytecode:tracer_flat",
-    "//pkg/ebpf/bytecode:offsetguess-test_flat",
-    "//pkg/ebpf/bytecode:runtime-security_flat",
-    "//pkg/ebpf/bytecode:gpu_flat",
-]
+_BAZEL_RUNTIME_SOURCES = "//pkg/ebpf:runtime_sources"
 
 # _gen targets produce the Go integrity hash files (pkg/ebpf/bytecode/runtime/<name>.go).
 _BAZEL_RUNTIME_GEN_TARGETS = [
@@ -1031,82 +938,35 @@ def bazel_build_ebpf(ctx: Context, arch: Arch, build_dir: str, runtime_dir: str,
     else:
         inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
-    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS, strip)
-    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS, strip)
-    inplace = {_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()}
+    suffix = "" if strip else "_unstripped"
+    destinations = {
+        f"{group}{suffix}": os.path.join(build_dir, subdir) for group, subdir in _BAZEL_EBPF_OBJECT_GROUPS.items()
+    }
+    destinations.update({_ebpf_strip_targets([t], strip)[0]: d for t, d in inplace_targets.items()})
+    destinations[_BAZEL_RUNTIME_SOURCES] = runtime_dir
 
-    ebpf_targets = prebuilt + core + list(inplace.keys())
-    all_build_targets = ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS)
+    all_build_targets = list(destinations) + list(_BAZEL_RUNTIME_GEN_TARGETS)
 
     extra_flags = ebpf_bazel_flags(arch)
 
     print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
     bazel("build", *extra_flags, *all_build_targets)
     bazel_bin = bazel("info", "bazel-bin", capture_output=True).strip()
+    execution_root = bazel("info", "execution_root", capture_output=True).strip()
 
-    co_re_dir = os.path.join(build_dir, "co-re")
-    os.makedirs(build_dir, exist_ok=True)
-    os.makedirs(co_re_dir, exist_ok=True)
-    os.makedirs(runtime_dir, exist_ok=True)
-
-    def _copy_output(target: str, dest_dir: str):
-        label_path, name = target.lstrip("/").rsplit(":", 1)
-        dest_name = name.removesuffix(".stripped")
-
-        src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
-        src_bin = os.path.join(bazel_bin, label_path, name)
-
-        # Only use mtime fast-path when strip mode hasn't changed.
-        same_mode = name == dest_name
-
-        if os.path.exists(src_o):
-            dst = os.path.join(dest_dir, f"{dest_name}.o")
-            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_o):
-                return
+    for target, dest_dir in destinations.items():
+        os.makedirs(dest_dir, exist_ok=True)
+        outputs = bazel("cquery", *extra_flags, "--output=files", target, capture_output=True).split()
+        for output in outputs:
+            dst = os.path.join(dest_dir, os.path.basename(output))
+            # Native helpers such as detect-seccomp-bug are executables.
+            mode = 0o644 if output.endswith((".o", ".c")) else 0o755
             if os.path.exists(dst):
-                os.chmod(dst, 0o644)
-            shutil.copy2(src_o, dst)
-            os.chmod(dst, 0o644)
-        elif os.path.exists(src_bin):
-            dst = os.path.join(dest_dir, dest_name)
-            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_bin):
-                return
-            if os.path.exists(dst):
-                os.chmod(dst, 0o755)
-            shutil.copy2(src_bin, dst)
-            os.chmod(dst, 0o755)
-        else:
-            print(f"Warning: expected output {src_o} or {src_bin} not found")
+                os.chmod(dst, mode)
+            shutil.copy2(os.path.join(execution_root, output), dst)
+            os.chmod(dst, mode)
 
-    for target in prebuilt:
-        _copy_output(target, build_dir)
-
-    for target in core:
-        _copy_output(target, co_re_dir)
-
-    for target, dest in inplace.items():
-        os.makedirs(dest, exist_ok=True)
-        _copy_output(target, dest)
-
-    print(f"Copied eBPF objects to {build_dir}")
-
-    # Copy runtime flattened .c files to staging directory.
-    for target in _BAZEL_RUNTIME_FLAT_TARGETS:
-        label_path, name = target.lstrip("/").rsplit(":", 1)
-        # run_binary output is under <name>/<out_name>.c; the directory
-        # name matches the macro name which equals out_name for all bundles.
-        bundle_name = name.removesuffix("_flat")
-        src = os.path.join(bazel_bin, label_path, bundle_name, f"{bundle_name}.c")
-        dst = os.path.join(runtime_dir, f"{bundle_name}.c")
-        if os.path.exists(src):
-            if os.path.exists(dst):
-                os.chmod(dst, 0o644)
-            shutil.copy2(src, dst)
-            os.chmod(dst, 0o644)
-        else:
-            print(f"Warning: expected runtime bundle output {src} not found")
-
-    print(f"Copied runtime bundles to {runtime_dir}")
+    print(f"Copied eBPF objects to {build_dir} and runtime bundles to {runtime_dir}")
 
     # Copy generated Go integrity hash files to source tree.
     go_dest = os.path.join("pkg", "ebpf", "bytecode", "runtime")
@@ -1160,6 +1020,14 @@ def bazel_build_windows_resources(ctx: Context) -> None:
     print("Copied Windows resource files to source tree")
 
 
+@task
+def build_sysprobe_binary_inputs(ctx, arch: str = CURRENT_ARCH) -> None:
+    """Stage the Bazel outputs that build-sysprobe-binary compiles in, without installing anything."""
+    arch_obj = Arch.from_str(arch)
+    bazel_build_ebpf(ctx, arch_obj, str(get_ebpf_build_dir(arch_obj)), str(get_ebpf_runtime_dir()))
+    build_rust_binaries(ctx, arch=arch_obj, packages=list(RUST_STATIC_LIBS))
+
+
 @task(aliases=["object-files"])
 def build_object_files(
     ctx,
@@ -1192,11 +1060,15 @@ def build_object_files(
     if is_windows:
         bazel_build_windows_resources(ctx)
 
-    # Verify all committed cgo godefs files are up to date.
-    # The test_suite skips platform-incompatible tests via target_compatible_with.
-    bazel("test", *arch_flags, "--build_tests_only", "//pkg/ebpf:verify_generated_files")
-
-    validate_object_file_metadata(ctx, build_dir, verbose=False)
+    # Verify the committed cgo godefs files and the eBPF objects metadata.
+    # Platform-incompatible tests are skipped via target_compatible_with.
+    bazel(
+        "test",
+        *arch_flags,
+        "--build_tests_only",
+        "//pkg/ebpf:verify_generated_files",
+        "//pkg/ebpf:object_metadata_test",
+    )
 
     build_rust_binaries(ctx, arch=arch_obj)
 
@@ -1653,90 +1525,6 @@ def _test_docker_image_list():
     images.add("alpine:3.20.3")
 
     return images
-
-
-@task
-def save_build_outputs(ctx, destfile):
-    if not destfile.endswith(".tar.xz"):
-        raise Exit(message="destfile must be a .tar.xz file")
-
-    absdest = os.path.abspath(destfile)
-    count = 0
-    outfiles = []
-    with tempfile.TemporaryDirectory() as stagedir:
-        arch = Arch.local()
-        build_dir = get_ebpf_build_dir(arch)
-        for subdir in ["", "co-re"]:
-            src_dir = os.path.join(str(build_dir), subdir) if subdir else str(build_dir)
-            for obj in glob.glob(os.path.join(src_dir, "*.o")):
-                relpath = os.path.relpath(obj)
-                filedir, _ = os.path.split(relpath)
-                outdir = os.path.join(stagedir, filedir)
-                os.makedirs(outdir, exist_ok=True)
-                shutil.copy2(obj, outdir)
-                outfiles.append(relpath)
-                count += 1
-
-        # Include inplace targets (e.g. uprobe-trigger.o, detect-seccomp-bug)
-        # that live in their source directories rather than the central build dir.
-        for target, dest_dir in _BAZEL_EBPF_INPLACE_TARGETS.items():
-            name = target.rsplit(":", 1)[1]
-            # eBPF targets produce .o files, native cc_binary targets produce bare binaries
-            for candidate in [os.path.join(dest_dir, f"{name}.o"), os.path.join(dest_dir, name)]:
-                if os.path.exists(candidate):
-                    relpath = os.path.relpath(candidate)
-                    filedir, _ = os.path.split(relpath)
-                    outdir = os.path.join(stagedir, filedir)
-                    os.makedirs(outdir, exist_ok=True)
-                    shutil.copy2(candidate, outdir)
-                    outfiles.append(relpath)
-                    count += 1
-                    break
-
-        # Include runtime compilation flattened .c files (generated by Bazel,
-        # consumed by omnibus packaging) in the tarball.
-        runtime_dir = str(get_ebpf_runtime_dir())
-        for cfile in glob.glob(os.path.join(runtime_dir, "*.c")):
-            relpath = os.path.relpath(cfile)
-            filedir, _ = os.path.split(relpath)
-            outdir = os.path.join(stagedir, filedir)
-            os.makedirs(outdir, exist_ok=True)
-            shutil.copy2(cfile, outdir)
-            outfiles.append(relpath)
-            count += 1
-
-        # Include runtime compilation Go integrity hash files (gitignored,
-        # generated by Bazel) so the omnibus go build can find them.
-        go_hash_dir = os.path.join("pkg", "ebpf", "bytecode", "runtime")
-        for gofile in glob.glob(os.path.join(go_hash_dir, "*.go")):
-            relpath = os.path.relpath(gofile)
-            filedir, _ = os.path.split(relpath)
-            outdir = os.path.join(stagedir, filedir)
-            os.makedirs(outdir, exist_ok=True)
-            shutil.copy2(gofile, outdir)
-            outfiles.append(relpath)
-            count += 1
-
-        # Include Rust static libraries (built by build_rust_binaries) so that
-        # downstream jobs running `build-sysprobe-binary` — which does not
-        # invoke bazel — can still link cgo code that references them.
-        for _, lib_dest in RUST_STATIC_LIBS.items():
-            for afile in glob.glob(os.path.join(lib_dest, "*.a")):
-                relpath = os.path.relpath(afile)
-                filedir, _ = os.path.split(relpath)
-                outdir = os.path.join(stagedir, filedir)
-                os.makedirs(outdir, exist_ok=True)
-                shutil.copy2(afile, outdir)
-                outfiles.append(relpath)
-                count += 1
-
-        if count == 0:
-            raise Exit(message="no build outputs captured")
-        ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
-
-    outfiles.sort()
-    for outfile in outfiles:
-        ctx.run(f"sha256sum {outfile} >> {absdest}.sum")
 
 
 def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None):
