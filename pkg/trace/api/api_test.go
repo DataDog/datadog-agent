@@ -2319,24 +2319,22 @@ func TestUpdateAPIKey(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		receiver.UpdateAPIKey() // force handler rebuild
 
-		func() {
-			req, err := http.NewRequest("GET", url, nil)
-			assert.NoError(err)
+		req, err := http.NewRequest("GET", url, nil)
+		assert.NoError(err)
 
-			resp, err := http.DefaultClient.Do(req)
-			assert.NoError(err)
-			defer resp.Body.Close()
+		resp, err := http.DefaultClient.Do(req)
+		assert.NoError(err)
+		defer resp.Body.Close()
 
-			assert.Equal(200, resp.StatusCode)
+		assert.Equal(200, resp.StatusCode)
 
-			body, err := io.ReadAll(resp.Body)
-			assert.NoError(err)
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(err)
 
-			number, err := strconv.Atoi(string(body))
-			assert.NoError(err)
+		number, err := strconv.Atoi(string(body))
+		assert.NoError(err)
 
-			assert.Equal(counter, number)
-		}()
+		assert.Equal(counter, number)
 	}
 }
 

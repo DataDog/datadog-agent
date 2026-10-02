@@ -423,6 +423,11 @@ linters:
     - path: _test\.go
       linters:
         - errcheck
+    # The defer-in-loop check is noise in tests: loops are short-lived and resources are freed at test end.
+    - path: _test\.go
+      text: "prefer not to defer inside loops"
+      linters:
+        - revive
     # Disable revive for the privateactionrunner package since its mostly source code copied over from the existing PAR
     - path: "pkg/privateactionrunner/"
       linters:

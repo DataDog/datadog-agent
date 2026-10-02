@@ -210,29 +210,27 @@ func TestConfigListEndpoint(t *testing.T) {
 
 			// test with and without trailing slash
 			for _, urlSuffix := range []string{"", "/"} {
-				func() {
-					resp, err := server.Client().Get(server.URL + urlSuffix)
-					require.NoError(t, err)
-					defer resp.Body.Close()
-					require.Equal(t, http.StatusOK, resp.StatusCode)
+				resp, err := server.Client().Get(server.URL + urlSuffix)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
 
-					data, err := io.ReadAll(resp.Body)
-					require.NoError(t, err)
+				data, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
 
-					var configValues map[string]interface{}
-					err = json.Unmarshal(data, &configValues)
-					require.NoError(t, err)
+				var configValues map[string]interface{}
+				err = json.Unmarshal(data, &configValues)
+				require.NoError(t, err)
 
-					expectedValues := make(map[string]interface{})
-					for key := range test.authorizedConfigs {
-						// Only configured (non-default) values are included in the response
-						if cfg.IsConfigured(key) {
-							expectedValues[key] = cfg.Get(key)
-						}
+				expectedValues := make(map[string]interface{})
+				for key := range test.authorizedConfigs {
+					// Only configured (non-default) values are included in the response
+					if cfg.IsConfigured(key) {
+						expectedValues[key] = cfg.Get(key)
 					}
+				}
 
-					assert.Equal(t, expectedValues, configValues)
-				}()
+				assert.Equal(t, expectedValues, configValues)
 			}
 		})
 	}
@@ -247,20 +245,18 @@ func TestConfigEndpointJSONError(t *testing.T) {
 	cfg.SetInTest("my.config.value", []interface{}{map[interface{}]interface{}{"a": "b", "c": "d"}})
 
 	for _, endpoint := range []string{"/", "/my.config"} {
-		func() {
-			resp, err := server.Client().Get(server.URL + endpoint)
-			require.NoError(t, err)
+		resp, err := server.Client().Get(server.URL + endpoint)
+		require.NoError(t, err)
 
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 
-			data, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 
-			var configValues map[string]interface{}
-			err = json.Unmarshal(data, &configValues)
-			require.NoError(t, err)
-		}()
+		var configValues map[string]interface{}
+		err = json.Unmarshal(data, &configValues)
+		require.NoError(t, err)
 	}
 }
 

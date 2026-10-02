@@ -132,24 +132,22 @@ func TestTimeHandler(t *testing.T) {
 	}
 
 	for _, tcDuration := range testCases {
-		func() {
-			clock := clock.NewMock()
-			var duration time.Duration
-			timeMiddleware := timeHandler(clock, &duration)
+		clock := clock.NewMock()
+		var duration time.Duration
+		timeMiddleware := timeHandler(clock, &duration)
 
-			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				clock.Add(tcDuration)
-				w.WriteHeader(http.StatusOK)
-			})
+		handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			clock.Add(tcDuration)
+			w.WriteHeader(http.StatusOK)
+		})
 
-			server := httptest.NewServer(timeMiddleware(handler))
-			defer server.Close()
+		server := httptest.NewServer(timeMiddleware(handler))
+		defer server.Close()
 
-			resp, err := server.Client().Get(server.URL)
-			require.NoError(t, err)
-			resp.Body.Close()
+		resp, err := server.Client().Get(server.URL)
+		require.NoError(t, err)
+		resp.Body.Close()
 
-			assert.Equal(t, tcDuration, duration)
-		}()
+		assert.Equal(t, tcDuration, duration)
 	}
 }

@@ -661,12 +661,10 @@ type TestTextPayload struct {
 func PostSomeFakePayloads(t *testing.T, url string, payloads []TestTextPayload) {
 	t.Helper()
 	for _, payload := range payloads {
-		func() {
-			url := url + payload.Endpoint
-			response, err := http.Post(url, "text/plain", strings.NewReader(payload.Data))
-			require.NoError(t, err, fmt.Sprintf("Error on POST request to url %s with data: %s", url, payload.Data))
-			defer response.Body.Close()
-		}()
+		url := url + payload.Endpoint
+		response, err := http.Post(url, "text/plain", strings.NewReader(payload.Data))
+		require.NoError(t, err, fmt.Sprintf("Error on POST request to url %s with data: %s", url, payload.Data))
+		defer response.Body.Close()
 	}
 }
 

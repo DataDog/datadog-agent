@@ -38,17 +38,16 @@ func TestReadProcNet(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		func() {
-			file, err := writeTestFile(tt.input)
-			require.NoError(t, err)
-			defer func() { _ = os.Remove(file.Name()) }()
+		file, err := writeTestFile(tt.input)
+		require.NoError(t, err)
+		//noinspection GoDeferInLoop
+		defer func() { _ = os.Remove(file.Name()) }()
 
-			ports, err := readProcNetListeners(file.Name())
-			require.NoError(t, err)
+		ports, err := readProcNetListeners(file.Name())
+		require.NoError(t, err)
 
-			require.Len(t, ports, len(tt.expected))
-			require.ElementsMatch(t, ports, tt.expected)
-		}()
+		require.Len(t, ports, len(tt.expected))
+		require.ElementsMatch(t, ports, tt.expected)
 	}
 }
 

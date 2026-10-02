@@ -29,15 +29,13 @@ import (
 func TestElfObject(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	for _, cfg := range cfgs {
-		func() {
-			binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
-			obj, err := object.OpenElfFileWithDwarf(binaryPath)
-			require.NoError(t, err)
-			// Assert that some symbol we expect to exist is in there.
-			const targetFunction = "main.main"
-			defer func() { require.NoError(t, obj.Close()) }()
-			findTargetSubprogram(t, obj.DwarfData(), targetFunction)
-		}()
+		binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
+		obj, err := object.OpenElfFileWithDwarf(binaryPath)
+		require.NoError(t, err)
+		// Assert that some symbol we expect to exist is in there.
+		const targetFunction = "main.main"
+		defer func() { require.NoError(t, obj.Close()) }()
+		findTargetSubprogram(t, obj.DwarfData(), targetFunction)
 	}
 }
 
