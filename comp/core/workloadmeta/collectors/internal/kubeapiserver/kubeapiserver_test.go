@@ -9,6 +9,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"maps"
 	"testing"
 	"time"
 
@@ -780,11 +781,38 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			},
 			expectedResources: nil,
 		},
+		{
+			name: "apm on demand enables namespace collection",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   false,
+				"apm_config.instrumentation.on_demand": true,
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "apm enabled and on demand do not duplicate namespaces",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   true,
+				"apm_config.instrumentation.on_demand": true,
+			},
+			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "apm disabled and not on demand disables namespace collection",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":   false,
+				"apm_config.instrumentation.on_demand": false,
+			},
+			expectedResources: nil,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cfg := config.NewMockWithOverrides(t, test.cfg)
+			// on_demand defaults to true, which would add namespaces to every case.
+			overrides := map[string]interface{}{"apm_config.instrumentation.on_demand": false}
+			maps.Copy(overrides, test.cfg)
+			cfg := config.NewMockWithOverrides(t, overrides)
 			assert.ElementsMatch(t, test.expectedResources, resourcesWithMetadataCollectionEnabled(cfg))
 		})
 	}

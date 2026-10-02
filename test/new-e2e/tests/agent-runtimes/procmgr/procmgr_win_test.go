@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -48,6 +49,10 @@ env:
   PATH: C:\Windows\System32;C:\Windows
 auto_start: true
 restart: always
+# Start-Sleep receives CTRL_BREAK and keeps sleeping, so every stop of this
+# fixture goes through the force-kill path. Bounded here so a stop costs ten
+# seconds rather than the ninety-second default.
+stop_timeout: 10
 description: E2E test process
 `
 
@@ -102,6 +107,140 @@ func joinWindowsPath(base string, elems ...string) string {
 	parts = append(parts, strings.TrimRight(toWindowsSlashPath(base), `/`))
 	parts = append(parts, elems...)
 	return strings.Join(parts, "/")
+}
+
+// agentBin returns installRoot/bin/agent/<name> with Windows-friendly separators.
+func agentBin(installRoot, name string) string {
+	return joinWindowsPath(installRoot, "bin", "agent", name)
+}
+
+// processesDConfig returns installRoot/processes.d/<name>.
+func processesDConfig(installRoot, name string) string {
+	return joinWindowsPath(installRoot, "processes.d", name)
+}
+
+// requireHostPath fails the test when path is missing on the remote host.
+func requireHostPath(t *testing.T, host *components.RemoteHost, path, msg string) {
+	t.Helper()
+	exists, err := host.FileExists(path)
+	require.NoError(t, err)
+	require.True(t, exists, msg, path)
+}
+
+// skipUnlessHostPath skips the test when path is missing on the remote host.
+func skipUnlessHostPath(t *testing.T, host *components.RemoteHost, path, reason string) {
+	t.Helper()
+	exists, err := host.FileExists(path)
+	require.NoError(t, err)
+	if !exists {
+		t.Skip(reason)
+	}
+}
+
+// waitProcmgrStableFor is how long the same PID must stay Running before waitProcmgrRunning
+// accepts it, so a restart blip is not treated as steady state.
+const waitProcmgrStableFor = 5 * time.Second
+
+// procmgrHoldFor is how long the cutover assertions must keep seeing the state they want,
+// rather than accepting the first poll that shows it. waitProcmgrStableFor only rejects a
+// restart blip during setup. This is several times the five second sleep system-probe takes
+// before exiting when no module is enabled, so that exit cannot satisfy a check, and it
+// matches the window AssertProcmgrProcessRunning uses.
+const procmgrHoldFor = 20 * time.Second
+
+// waitProcmgrRunning polls dd-procmgr describe until name is Running with the same real PID
+// for waitProcmgrStableFor, so a brief Running blip during a restart is not accepted.
+func waitProcmgrRunning(t *testing.T, host *components.RemoteHost, cli, name string, timeout time.Duration) string {
+	t.Helper()
+	var (
+		pid         string
+		stableSince time.Time
+	)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		out, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		if !assert.NoError(ct, err) {
+			pid = ""
+			return
+		}
+		if !assert.Equal(ct, "Running", fieldValue(out, "State"), "process %s: %s", name, out) {
+			pid = ""
+			return
+		}
+		p := fieldValue(out, "PID")
+		if !assert.NotEmpty(ct, p, "PID should be present for a Running process") ||
+			!assert.NotEqual(ct, "-", p, "PID should not be '-' for a Running process") {
+			pid = ""
+			return
+		}
+		now := time.Now()
+		if p != pid {
+			pid = p
+			stableSince = now
+		}
+		assert.GreaterOrEqual(ct, now.Sub(stableSince), waitProcmgrStableFor,
+			"process %s PID %s not stable for %s yet (seen for %s)", name, p, waitProcmgrStableFor, now.Sub(stableSince).Round(time.Second))
+	}, timeout, 3*time.Second)
+	return pid
+}
+
+// requireSupervisedOnlyByProcmgr requires that dd-procmgr is the one thing running name, for
+// procmgrHoldFor: name is Running under dd-procmgr as wantPID, and legacyService, which used to
+// run it, is Stopped or not registered. timeout is the deadline for reaching that hold, not the
+// length of it.
+//
+// Both are read on every tick and share one window, because "only" is a claim about the pair.
+// Given a window each in turn, the workload could restart during the service half and the test
+// would still pass, which is exactly what this rules out: a workload run twice, or not at all.
+//
+// A restart, or a legacy service in any state but Stopped, resets the hold like any other
+// mismatch, so the run keeps polling to the deadline and reports what it last saw. Neither can
+// be undone by waiting, but aborting the moment one appears would mean either a sleep-driven
+// loop of our own or FailNow from the condition, which runs on another goroutine where it only
+// stops the worker and leaves the tick reporting success.
+func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, cli, name, wantPID, legacyService string, timeout time.Duration) {
+	t.Helper()
+	require.NotEmpty(t, wantPID, "wantPID must be set (capture it with waitProcmgrRunning)")
+
+	serviceQuery := fmt.Sprintf(
+		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+		legacyService,
+	)
+
+	var heldSince time.Time
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		describe, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		if !assert.NoError(ct, err, "dd-procmgr describe %s", name) {
+			heldSince = time.Time{}
+			return
+		}
+		status, err := host.Execute(serviceQuery)
+		if !assert.NoError(ct, err, "Get-Service %s", legacyService) {
+			heldSince = time.Time{}
+			return
+		}
+
+		state, pid := fieldValue(describe, "State"), fieldValue(describe, "PID")
+		serviceState := strings.TrimSpace(status)
+		runningAsWantPID := assert.Equal(ct, "Running", state, "process %s: %s", name, describe) &&
+			assert.Equal(ct, wantPID, pid,
+				"process %s should still be the auto-spawned PID: %s", name, describe)
+		legacyDown := assert.Contains(ct, []string{"Stopped", "Absent"}, serviceState,
+			"%s must stay down while dd-procmgr supervises %s", legacyService, name)
+		if !runningAsWantPID || !legacyDown {
+			heldSince = time.Time{}
+			return
+		}
+
+		now := time.Now()
+		if heldSince.IsZero() {
+			heldSince = now
+		}
+		// A tick that records no failure is an immediate success, so the hold has to be an
+		// assertion rather than a silent early return.
+		assert.GreaterOrEqual(ct, now.Sub(heldSince), procmgrHoldFor,
+			"%s has held PID %s with %s down for %s, needs %s",
+			name, wantPID, legacyService, now.Sub(heldSince).Round(time.Second), procmgrHoldFor)
+	}, timeout, 3*time.Second)
 }
 
 func ensureWindowsDirPS(dir string) string {
@@ -234,7 +373,7 @@ func (s *procmgrWindowsSuite) tryInstallWindowsDDOTForProcmgr() {
 		datadogYAML, b64AppendOtel,
 	))
 
-	yamlPath := filepath.Join(installPath, "processes.d", "datadog-agent-ddot.yaml")
+	yamlPath := processesDConfig(installPath, "datadog-agent-ddot.yaml")
 	yamlBody := windowsDDOTProcmgrYAMLContent(installPath, configRoot, fleetPolicies)
 	b64 := base64.StdEncoding.EncodeToString([]byte(yamlBody))
 	if _, err := host.Execute(psRemote(
@@ -317,7 +456,7 @@ func (s *procmgrWindowsSuite) TestDDOTReloadAfterYamlChange() {
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	require.NoError(s.T(), err)
-	yamlPath := filepath.Join(installPath, "processes.d", "datadog-agent-ddot.yaml")
+	yamlPath := processesDConfig(installPath, "datadog-agent-ddot.yaml")
 
 	originalPID := s.waitWindowsDDOTRunning(90 * time.Second)
 
@@ -394,7 +533,7 @@ func (s *procmgrWindowsSuite) TestADPProcessRunning() {
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	require.NoError(s.T(), err)
 	s.Env().RemoteHost.MustExecute(s.platform.checkBinCmd(
-		joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe"),
+		agentBin(installPath, "agent-data-plane.exe"),
 	))
 }
 
@@ -473,7 +612,7 @@ func (s *procmgrWindowsSuite) TestADPProcessDescribe() {
 		assertField(ct, out, "Name", adpProcessName)
 		assertField(ct, out, "State", "Running")
 		assert.Equal(ct,
-			joinWindowsPath(installPath, "bin", "agent", "agent-data-plane.exe"),
+			agentBin(installPath, "agent-data-plane.exe"),
 			toWindowsSlashPath(fieldValue(out, "Command")),
 		)
 		assertField(ct, out, "Restart Policy", "on-failure")
@@ -488,7 +627,7 @@ func (s *procmgrWindowsSuite) TestADPReloadAfterYamlChange() {
 
 	installPath, err := windowsagent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	require.NoError(s.T(), err)
-	yamlPath := joinWindowsPath(installPath, "processes.d", "datadog-agent-data-plane.yaml")
+	yamlPath := processesDConfig(installPath, "datadog-agent-data-plane.yaml")
 
 	s.T().Cleanup(func() {
 		_, _ = s.Env().RemoteHost.Execute(psRemote(

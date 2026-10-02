@@ -122,6 +122,9 @@ const (
 	InjectionStatusSkipped = "skipped"
 	// InjectionStatusError means a fatal error prevented the injector from running.
 	InjectionStatusError = "error"
+	// InjectionStatusBlocked means a remote-config policy denied injection.
+	// The applied-policy annotation names that policy.
+	InjectionStatusBlocked = "blocked"
 )
 
 // LibraryAnnotationFormat is a helper type to format an annotation with a language.

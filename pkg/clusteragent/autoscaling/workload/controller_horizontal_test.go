@@ -280,6 +280,23 @@ func TestHorizontalControllerSyncPrerequisites(t *testing.T) {
 	assert.Equal(t, autoscaling.NoRequeue, result)
 	assert.NoError(t, err)
 
+	// Test case: Any scaling disabled by the pause annotation, even without an apply policy
+	fakePai.Spec.ApplyPolicy = nil
+	fakePai.Spec.Constraints = nil
+	fakePai.Paused = true
+	result, err = f.testScalingDecision(horizontalScalingTestArgs{
+		fakePai:         fakePai,
+		dataSource:      datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+		currentReplicas: 5,
+		statusReplicas:  5,
+		recReplicas:     10,
+		scaleReplicas:   5,
+		scaleError:      testutil.NewErrorString("horizontal scaling disabled: autoscaling locally paused by the " + model.PauseAnnotationKey + " annotation"),
+	})
+	assert.Equal(t, autoscaling.NoRequeue, result)
+	assert.NoError(t, err)
+	fakePai.Paused = false
+
 	// Test case: Fallback scaling direction disabled by policy
 	fakePai.Spec.Fallback = &datadoghq.DatadogFallbackPolicy{
 		Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
