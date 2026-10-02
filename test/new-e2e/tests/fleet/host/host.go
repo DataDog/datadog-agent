@@ -265,6 +265,7 @@ func (h *Host) AssertWindowsServiceNotRunning(t *testing.T, serviceName string) 
 const (
 	metricProcmgrDaemonReachable        = "runtime__procmgr_daemon_reachable"
 	metricProcmgrDaemonReady            = "runtime__procmgr_daemon_ready"
+	metricProcmgrDaemonServiceState     = "runtime__procmgr_daemon_service_state"
 	metricProcmgrProcessRunning         = "runtime__procmgr_process_running"
 	metricProcmgrProcessState           = "runtime__procmgr_process_state"
 	metricAgentServiceInstalled         = "runtime__agent_service_installed"
@@ -288,6 +289,11 @@ func (h *Host) AssertProcmgrTelemetry(t *testing.T, serviceID, processName strin
 
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReachable, nil)
 		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonReady, nil)
+		// Reachable and ready come from the gRPC socket. This one comes from the systemd unit, so
+		// it stays reported when the daemon stops answering.
+		assertTelemetryGaugeTrue(c, out, metricProcmgrDaemonServiceState, map[string]string{
+			"state": procmgrProcessStateRunning,
+		})
 		assertTelemetryGaugeTrue(c, out, metricProcmgrProcessRunning, map[string]string{
 			"process": processName,
 		})
