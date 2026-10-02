@@ -397,6 +397,7 @@ var mrfPairs = []struct {
 	name, flagSetting, allowlistSetting, flagField, allowlistField string
 }{
 	{"logs", failoverLogsSetting, logsServiceAllowlistSetting, "failover_logs", "logs_service_allowlist"},
+	{"metrics", failoverMetricsSetting, metricsAllowlistSetting, "failover_metrics", "metrics_allowlist"},
 }
 
 // While the callback switches a failover flag and its allowlist, no intermediate state may forward an
@@ -545,25 +546,29 @@ func TestAgentMRFAllowlistReportsStatusToEveryConfig(t *testing.T) {
 		{name: "acknowledged", want: state.ApplyStateAcknowledged},
 		{name: "error", err: errors.New("cannot set"), want: state.ApplyStateError},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: logsServiceAllowlistSetting, err: tt.err}}
+	for _, pair := range mrfPairs {
+		fields := strings.NewReplacer("LIST", pair.allowlistField)
+		for _, tt := range tests {
+			t.Run(pair.name+"/"+tt.name, func(t *testing.T) {
+				cfg := configmock.New(t)
+				rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: pair.allowlistSetting, err: tt.err}}
 
-			statuses := map[string]state.ApplyStatus{}
-			rc.mrfUpdateCallback(map[string]state.RawConfig{
-				"datadog/2/AGENT_FAILOVER/web/configname": {Config: []byte(`{"logs_service_allowlist": ["web"]}`)},
-				"datadog/2/AGENT_FAILOVER/api/configname": {Config: []byte(`{"logs_service_allowlist": ["api"]}`)},
-			}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
+				statuses := map[string]state.ApplyStatus{}
+				rc.mrfUpdateCallback(map[string]state.RawConfig{
+					"datadog/2/AGENT_FAILOVER/web/configname":   {Config: []byte(fields.Replace(`{"LIST": ["web"]}`))},
+					"datadog/2/AGENT_FAILOVER/api/configname":   {Config: []byte(fields.Replace(`{"LIST": ["api"]}`))},
+					"datadog/2/AGENT_FAILOVER/empty/configname": {Config: []byte(fields.Replace(`{"LIST": []}`))},
+				}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
 
-			require.Len(t, statuses, 2)
-			for cfgPath, status := range statuses {
-				assert.Equal(t, tt.want, status.State, cfgPath)
-			}
-			if tt.err == nil {
-				assert.Equal(t, []string{"api", "web"}, cfg.GetStringSlice(logsServiceAllowlistSetting))
-			}
-		})
+				require.Len(t, statuses, 3)
+				for cfgPath, status := range statuses {
+					assert.Equal(t, tt.want, status.State, cfgPath)
+				}
+				if tt.err == nil {
+					assert.Equal(t, []string{"api", "web"}, cfg.GetStringSlice(pair.allowlistSetting))
+				}
+			})
+		}
 	}
 }
 
@@ -595,6 +600,19 @@ func TestAgentMRFConfigStatusStaysErrorAcrossSettings(t *testing.T) {
 		}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
 
 		assert.Equal(t, state.ApplyStateError, statuses[cfgPath].State)
+		assert.True(t, cfg.GetBool(failoverAPMSetting), "the APM flag is still applied")
+	})
+
+	t.Run("metrics failure does not stop logs or APM", func(t *testing.T) {
+		cfg := configmock.New(t)
+		rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: metricsAllowlistSetting, err: errors.New("cannot set")}}
+		statuses := map[string]state.ApplyStatus{}
+		rc.mrfUpdateCallback(map[string]state.RawConfig{
+			cfgPath: {Config: []byte(`{"metrics_allowlist": ["system.cpu.usage"], "failover_logs": true, "failover_apm": true}`)},
+		}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
+
+		assert.Equal(t, state.ApplyStateError, statuses[cfgPath].State)
+		assert.True(t, cfg.GetBool(failoverLogsSetting), "the logs pair is still applied")
 		assert.True(t, cfg.GetBool(failoverAPMSetting), "the APM flag is still applied")
 	})
 }
