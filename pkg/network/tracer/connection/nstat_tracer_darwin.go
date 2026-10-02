@@ -236,7 +236,15 @@ func (t *nstatTracer) Start(closeCallback func(*network.ConnectionStats)) error 
 	defer timer.Stop()
 	select {
 	case <-t.subscriptionReady:
-		return nil
+		// A failed provider's error is sent before the remaining providers can
+		// close subscriptionReady, so it must win when both are ready.
+		select {
+		case err := <-t.subscriptionErrors:
+			t.Stop()
+			return err
+		default:
+			return nil
+		}
 	case err := <-t.subscriptionErrors:
 		t.Stop()
 		return err

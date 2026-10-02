@@ -865,6 +865,23 @@ func TestNStatTracerStartAndStop(t *testing.T) {
 	require.True(t, control.isClosed())
 }
 
+func TestNStatTracerStartFailsWhenSubscriptionErrorRacesReadiness(t *testing.T) {
+	// Each iteration has both the error and readiness pending before Start
+	// selects; repeat so a random select choice would be caught.
+	for range 100 {
+		control := newFakeNStatControl()
+		tracer := newNStatTracerWithControl(testNStatConfig(), control)
+		tracer.subscribed = true
+		tracer.subscriptionContexts = map[uint64]struct{}{1: {}, 2: {}}
+
+		tracer.processEvent(nstat.Event{Kind: nstat.EventError, Context: 1, Error: 22})
+		tracer.processEvent(nstat.Event{Kind: nstat.EventSuccess, Context: 2})
+
+		require.ErrorContains(t, tracer.Start(func(*network.ConnectionStats) {}), "kernel error 22")
+		require.True(t, control.isClosed())
+	}
+}
+
 func TestNStatTracerSubscribesOnlyToEnabledProtocols(t *testing.T) {
 	tests := []struct {
 		name      string
