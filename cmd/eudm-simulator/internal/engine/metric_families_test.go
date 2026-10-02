@@ -235,20 +235,20 @@ func TestMetricFamilyProgressCountsDeliveryAndFamiliesRunIndependently(t *testin
 		result, err := Run(ctx, r, Options{Workers: 2, QueueCapacity: 1, Clock: clock, Delivery: delivery, progressTicks: ticks, Progress: func(r *report.Report) error { snapshots <- r; return nil }})
 		done <- progressResult{result, err}
 	}()
-	initial := receiveProgressValue(t, ctx, snapshots)
+	initial := receiveProgressValue(ctx, t, snapshots)
 	if initial.Ledger[0].Streams[schema.Metrics].Delivered != 0 {
 		t.Fatal("initial progress contains undelivered family collections")
 	}
-	receiveProgressValue(t, ctx, delivery.batteryEntered)
-	receiveProgressValue(t, ctx, delivery.cpuEntered)
-	sendProgressTick(t, ctx, ticks, clock)
-	early := receiveProgressValue(t, ctx, snapshots)
+	receiveProgressValue(ctx, t, delivery.batteryEntered)
+	receiveProgressValue(ctx, t, delivery.cpuEntered)
+	sendProgressTick(ctx, t, ticks, clock)
+	early := receiveProgressValue(ctx, t, snapshots)
 	if count := early.Ledger[0].Streams[schema.Metrics]; count.Expected != 4 || count.Delivered != 1 {
 		t.Fatalf("blocked battery must not block or count as completed CPU delivery: %+v", count)
 	}
 	close(cpuGate)
 	close(batteryGate)
-	final := receiveProgressValue(t, ctx, done)
+	final := receiveProgressValue(ctx, t, done)
 	if final.err != nil || !final.report.Complete() || final.report.Ledger[0].Streams[schema.Metrics].Delivered != 4 || early.Ledger[0].Streams[schema.Metrics].Delivered != 1 {
 		t.Fatalf("family completion or owned progress snapshot failed: %v", final.err)
 	}

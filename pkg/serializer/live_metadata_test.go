@@ -11,9 +11,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -173,7 +173,7 @@ func (p *delayedMetadata) CaptureMetadataSchedule() (time.Time, time.Duration) {
 
 func TestLiveMetadataOldProjectionCannotAffectSuccessor(t *testing.T) {
 	for _, panics := range []bool{false, true} {
-		t.Run(fmt.Sprint(panics), func(t *testing.T) {
+		t.Run(strconv.FormatBool(panics), func(t *testing.T) {
 			s, f := liveSerializer(t, 2)
 			m, old := metadataManager(t)
 			s.LiveCapture = m

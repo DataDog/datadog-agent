@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -218,7 +219,7 @@ func (*captureCadenceCheck) SupportsRunOptions() bool { return true }
 
 func TestCaptureCadenceUsesSchedulerValidatedInterval(t *testing.T) {
 	for _, seconds := range []int{8, 9} {
-		t.Run(fmt.Sprint(seconds), func(t *testing.T) {
+		t.Run(strconv.Itoa(seconds), func(t *testing.T) {
 			cfg := configmock.New(t)
 			cfg.Set("process_config.intervals.process", seconds, configmodel.SourceAgentRuntime)
 			cfg.Set("process_config.intervals.process_realtime", 2, configmodel.SourceAgentRuntime)

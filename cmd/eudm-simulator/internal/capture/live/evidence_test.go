@@ -171,7 +171,7 @@ func (f *evidenceFixture) record(t *testing.T, stream tc.Stream, offset time.Dur
 	return r
 }
 
-func (f *evidenceFixture) accept(t *testing.T, ctx context.Context, record tc.Record) {
+func (f *evidenceFixture) accept(ctx context.Context, t *testing.T, record tc.Record) {
 	t.Helper()
 	if err := f.e.Accept(ctx, record); err != nil {
 		t.Fatal(err)
@@ -202,14 +202,14 @@ func TestEvidenceRegeneratesAllObservedWireProtocols(t *testing.T) {
 			defer cancel()
 			for _, offset := range []time.Duration{time.Second, 16 * time.Second} {
 				for _, stream := range []tc.Stream{tc.Metrics, tc.Processes, tc.Connections} {
-					f.accept(t, ctx, f.record(t, stream, offset, protocol))
+					f.accept(ctx, t, f.record(t, stream, offset, protocol))
 				}
 			}
-			f.accept(t, ctx, f.record(t, tc.Metadata, time.Second, []string{"metadata-v1", "metadata-v2"}[i%2]))
+			f.accept(ctx, t, f.record(t, tc.Metadata, time.Second, []string{"metadata-v1", "metadata-v2"}[i%2]))
 			for _, stream := range []tc.Stream{tc.AgentInventory, tc.HostInventory} {
-				f.accept(t, ctx, f.record(t, stream, 1500*time.Millisecond, "inventory-v1"))
+				f.accept(ctx, t, f.record(t, stream, 1500*time.Millisecond, "inventory-v1"))
 			}
-			f.accept(t, ctx, f.record(t, tc.Software, 2375*time.Millisecond, ""))
+			f.accept(ctx, t, f.record(t, tc.Software, 2375*time.Millisecond, ""))
 			if ok, detail := f.e.Coverage(); !ok {
 				t.Fatal(detail)
 			}
@@ -227,7 +227,7 @@ func TestEvidenceRegeneratesAllObservedWireProtocols(t *testing.T) {
 				}
 				late := f.record(t, stream, 30*time.Second, observed)
 				late.Cadence = time.Hour
-				f.accept(t, ctx, late)
+				f.accept(ctx, t, late)
 			}
 			after, err := os.ReadDir(f.e.directory)
 			if err != nil || len(after) != len(before)+2 {
@@ -312,12 +312,12 @@ func TestEvidenceValidatesGroupsAfterCoverageAndIgnoresEmptyGroups(t *testing.T)
 			t.Fatal(err)
 		}
 	}
-	f.accept(t, ctx, empty)
+	f.accept(ctx, t, empty)
 	if len(f.e.offsets[schema.Processes]) != 0 {
 		t.Fatal("empty complete group counted toward coverage")
 	}
 	for _, offset := range []time.Duration{2 * time.Second, 17 * time.Second} {
-		f.accept(t, ctx, f.record(t, tc.Processes, offset, ""))
+		f.accept(ctx, t, f.record(t, tc.Processes, offset, ""))
 	}
 	late := f.record(t, tc.Processes, 32*time.Second, "")
 	late.Payload.Chunks = late.Payload.Chunks[:1]
@@ -332,7 +332,7 @@ func TestEvidenceDiscardedGroupsDoNotRetainNewIdentities(t *testing.T) {
 	defer cancel()
 	for _, stream := range []tc.Stream{tc.Processes, tc.Connections} {
 		for _, offset := range []time.Duration{time.Second, 16 * time.Second} {
-			f.accept(t, ctx, f.record(t, stream, offset, ""))
+			f.accept(ctx, t, f.record(t, stream, offset, ""))
 		}
 		omitted := f.record(t, stream, 32*time.Second, "")
 		for i := range omitted.Payload.Chunks {
@@ -355,7 +355,7 @@ func TestEvidenceDiscardedGroupsDoNotRetainNewIdentities(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		f.accept(t, ctx, omitted)
+		f.accept(ctx, t, omitted)
 	}
 	// A control sanitizer that has only seen the retained PID must allocate the
 	// same next placeholder. Discarded process/connection identities consume no
@@ -397,7 +397,7 @@ func TestEvidenceMixedProtocolsRegenerateOnlyObservedMembers(t *testing.T) {
 	second.Ordinal, second.Name = 2, "system.cpu.system"
 	r.Payload.Series = append(r.Payload.Series, second)
 	r.Payload.Routes = append(r.Payload.Routes, tc.Route{PayloadID: 2, Ordinals: []uint64{2}, Endpoint: "/api/intake/metrics/v3/series", Protocol: "v3", Destination: "additional-1/1", EnqueuedAt: r.ObservedAt})
-	f.accept(t, ctx, r)
+	f.accept(ctx, t, r)
 	for i, expected := range []string{"system.cpu.user", "system.cpu.system"} {
 		data, err := os.ReadFile(filepath.Join(f.e.directory, fmt.Sprintf("sample-000000-wire-%03d.json", i)))
 		if err != nil {
@@ -420,19 +420,19 @@ func TestEvidenceCoverageRequiresDistinctTimesAndSafeCompletion(t *testing.T) {
 	defer cancel()
 	for range 2 {
 		for _, stream := range []tc.Stream{tc.Metrics, tc.Processes} {
-			f.accept(t, ctx, f.record(t, stream, time.Second, "v1"))
+			f.accept(ctx, t, f.record(t, stream, time.Second, "v1"))
 		}
 	}
-	f.accept(t, ctx, f.record(t, tc.Metadata, time.Second, "metadata-v1"))
+	f.accept(ctx, t, f.record(t, tc.Metadata, time.Second, "metadata-v1"))
 	for _, stream := range []tc.Stream{tc.AgentInventory, tc.HostInventory} {
-		f.accept(t, ctx, f.record(t, stream, 1500*time.Millisecond, "inventory-v1"))
+		f.accept(ctx, t, f.record(t, stream, 1500*time.Millisecond, "inventory-v1"))
 	}
-	f.accept(t, ctx, f.record(t, tc.Software, 2*time.Second, ""))
+	f.accept(ctx, t, f.record(t, tc.Software, 2*time.Second, ""))
 	if ok, _ := f.e.Coverage(); ok {
 		t.Fatal("equal collection offsets invented cadence")
 	}
 	for _, stream := range []tc.Stream{tc.Metrics, tc.Processes} {
-		f.accept(t, ctx, f.record(t, stream, 16*time.Second, "v1"))
+		f.accept(ctx, t, f.record(t, stream, 16*time.Second, "v1"))
 	}
 	if ok, detail := f.e.Coverage(); !ok {
 		t.Fatal(detail)
@@ -460,7 +460,7 @@ func TestEvidenceRejectsPartialAndForeignGroupsWithoutCompletion(t *testing.T) {
 			case "foreign":
 				r.Producer.InstanceID = "foreign-producer"
 			case "duplicate":
-				f.accept(t, context.Background(), r)
+				f.accept(context.Background(), t, r)
 			}
 			if err := f.e.Accept(context.Background(), r); err == nil {
 				t.Fatal("accepted invalid group")
@@ -751,25 +751,25 @@ func TestEvidenceWaitsForSlowMetricFamiliesAndCapturesMacOSConnections(t *testin
 	ctx := context.Background()
 	for _, offset := range []time.Duration{time.Second, 16 * time.Second} {
 		for _, stream := range []tc.Stream{tc.Metrics, tc.Processes, tc.Connections} {
-			f.accept(t, ctx, f.record(t, stream, offset, "v2"))
+			f.accept(ctx, t, f.record(t, stream, offset, "v2"))
 		}
 	}
-	f.accept(t, ctx, f.record(t, tc.Metadata, time.Second, "metadata-v1"))
+	f.accept(ctx, t, f.record(t, tc.Metadata, time.Second, "metadata-v1"))
 	for _, stream := range []tc.Stream{tc.AgentInventory, tc.HostInventory} {
-		f.accept(t, ctx, f.record(t, stream, time.Second, "inventory-v1"))
+		f.accept(ctx, t, f.record(t, stream, time.Second, "inventory-v1"))
 	}
-	f.accept(t, ctx, f.record(t, tc.Software, time.Second, ""))
+	f.accept(ctx, t, f.record(t, tc.Software, time.Second, ""))
 	if ok, detail := f.e.Coverage(); ok || !strings.Contains(detail, "metrics/battery: 0/2") || !strings.Contains(detail, "5m0s") {
 		t.Fatalf("slow scheduled family did not prevent false completion: %v %s", ok, detail)
 	}
 	if _, detail := f.e.Coverage(); !strings.Contains(detail, "host_system_info: 0/1") {
 		t.Fatal("selected hardware stream not required for completeness")
 	}
-	f.accept(t, ctx, f.record(t, tc.HostSystemInfo, 3*time.Second, "inventory-v1"))
+	f.accept(ctx, t, f.record(t, tc.HostSystemInfo, 3*time.Second, "inventory-v1"))
 	for i, offset := range []time.Duration{2 * time.Minute, 7 * time.Minute} {
 		r := f.record(t, tc.Metrics, offset, "v2")
 		r.Payload.Series[0].Name = "system.battery.current_charge_pct"
-		f.accept(t, ctx, r)
+		f.accept(ctx, t, r)
 		if ok, _ := f.e.Coverage(); ok != (i == 1) {
 			t.Fatal("battery coverage did not count distinct late observations")
 		}

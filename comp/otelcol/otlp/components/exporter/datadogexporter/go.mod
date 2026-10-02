@@ -93,6 +93,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.82.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetrycapture v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.82.0 // indirect

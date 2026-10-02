@@ -76,7 +76,7 @@ type progressResult struct {
 	err    error
 }
 
-func receiveProgressValue[T any](t *testing.T, ctx context.Context, values <-chan T) T {
+func receiveProgressValue[T any](ctx context.Context, t *testing.T, values <-chan T) T {
 	t.Helper()
 	select {
 	case value := <-values:
@@ -88,7 +88,7 @@ func receiveProgressValue[T any](t *testing.T, ctx context.Context, values <-cha
 	}
 }
 
-func sendProgressTick(t *testing.T, ctx context.Context, ticks chan<- time.Time, clock Clock) {
+func sendProgressTick(ctx context.Context, t *testing.T, ticks chan<- time.Time, clock Clock) {
 	t.Helper()
 	select {
 	case ticks <- clock.Now():
@@ -133,19 +133,19 @@ func TestProgressContinuesUnderBackpressureAndOwnsSnapshots(t *testing.T) {
 		}})
 		done <- progressResult{result, err}
 	}()
-	initial := receiveProgressValue(t, ctx, snapshots)
+	initial := receiveProgressValue(ctx, t, snapshots)
 	if initial.Status != "running" || initial.Progress.Activity != "replaying" || deliveredProgress(initial) != 0 {
 		t.Fatal("initial progress did not describe an undelivered running fleet")
 	}
-	firstStream := receiveProgressValue(t, ctx, delivery.sendEntered)
+	firstStream := receiveProgressValue(ctx, t, delivery.sendEntered)
 	// Delayed delivery must not prevent the independent clock from reporting
 	// that the scenario window has elapsed.
 	clock.mu.Lock()
 	clock.now = r.Plan.Start.Add(25 * time.Second)
 	clock.mu.Unlock()
 	blockCallback.Store(true)
-	sendProgressTick(t, ctx, ticks, clock)
-	blocked := receiveProgressValue(t, ctx, snapshots)
+	sendProgressTick(ctx, t, ticks, clock)
+	blocked := receiveProgressValue(ctx, t, snapshots)
 	if deliveredProgress(blocked) != 0 || blocked.Progress.Elapsed < blocked.Progress.Duration || blocked.Progress.Activity != "waiting_for_delivery" || blocked.Progress.Phase != "healthy" {
 		t.Fatal("blocked delivery was counted or suppressed the waiting heartbeat")
 	}
@@ -156,10 +156,10 @@ func TestProgressContinuesUnderBackpressureAndOwnsSnapshots(t *testing.T) {
 	}
 	// The first worker must account for its success and enter the next Send
 	// while the progress callback is still blocked: the callback owns no lock.
-	receiveProgressValue(t, ctx, delivery.sendEntered)
+	receiveProgressValue(ctx, t, delivery.sendEntered)
 	close(callbackGate)
-	sendProgressTick(t, ctx, ticks, clock)
-	one := receiveProgressValue(t, ctx, snapshots)
+	sendProgressTick(ctx, t, ticks, clock)
+	one := receiveProgressValue(ctx, t, snapshots)
 	if deliveredProgress(one) != 1 || one.Ledger[0].Streams[firstStream].Delivered != 1 {
 		t.Fatal("progress counted queued work instead of the single accepted cycle")
 	}
@@ -167,7 +167,7 @@ func TestProgressContinuesUnderBackpressureAndOwnsSnapshots(t *testing.T) {
 		t.Fatal("retained snapshots changed when the worker accepted a later cycle")
 	}
 	close(sendGate)
-	result := receiveProgressValue(t, ctx, done)
+	result := receiveProgressValue(ctx, t, done)
 	if result.err != nil || !result.report.Complete() || result.report.Progress.Activity != "succeeded" {
 		t.Fatal("progress observation prevented complete replay:", result.err)
 	}
@@ -209,12 +209,12 @@ func TestProgressCallbackFailureCancelsReplay(t *testing.T) {
 				}})
 				done <- progressResult{result, err}
 			}()
-			initial := receiveProgressValue(t, ctx, snapshots)
+			initial := receiveProgressValue(ctx, t, snapshots)
 			if !initialFailure {
-				receiveProgressValue(t, ctx, delivery.sendEntered)
-				sendProgressTick(t, ctx, ticks, clock)
+				receiveProgressValue(ctx, t, delivery.sendEntered)
+				sendProgressTick(ctx, t, ticks, clock)
 			}
-			result := receiveProgressValue(t, ctx, done)
+			result := receiveProgressValue(ctx, t, done)
 			if !errors.Is(result.err, failure) || result.report == nil || result.report.Status != "failed" || result.report.Progress.Activity != "failed" || len(result.report.Errors) == 0 {
 				t.Fatal("progress failure was not retained in the final failed report:", result.err)
 			}
@@ -272,10 +272,10 @@ func TestProgressContinuesThroughFinalDrainAndJoinsObserver(t *testing.T) {
 				}})
 				done <- progressResult{result, err}
 			}()
-			initial := receiveProgressValue(t, ctx, snapshots)
-			receiveProgressValue(t, ctx, delivery.drainEntered)
-			sendProgressTick(t, ctx, ticks, clock)
-			draining := receiveProgressValue(t, ctx, snapshots)
+			initial := receiveProgressValue(ctx, t, snapshots)
+			receiveProgressValue(ctx, t, delivery.drainEntered)
+			sendProgressTick(ctx, t, ticks, clock)
+			draining := receiveProgressValue(ctx, t, snapshots)
 			if draining.Status != "running" || draining.Progress.Elapsed < draining.Progress.Duration || draining.Progress.Activity != "waiting_for_delivery" || draining.Progress.Phase != "healthy" {
 				t.Fatal("final delivery drain stopped the progress heartbeat")
 			}
@@ -287,14 +287,14 @@ func TestProgressContinuesThroughFinalDrainAndJoinsObserver(t *testing.T) {
 				}
 			}
 			close(drainGate)
-			receiveProgressValue(t, ctx, delivery.drainReturned)
+			receiveProgressValue(ctx, t, delivery.drainReturned)
 			select {
 			case <-done:
 				t.Fatal("replay returned while its progress callback was still running")
 			default:
 			}
 			close(callbackGate)
-			result := receiveProgressValue(t, ctx, done)
+			result := receiveProgressValue(ctx, t, done)
 			select {
 			case <-callbackExited:
 			default:

@@ -18,6 +18,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -95,7 +96,7 @@ func TestInstalledClientUsesIPCTrustAuthenticationAndAcknowledgement(t *testing.
 
 func TestHTTPClientRejectsAuthenticationIncompatibilityAndRedirects(t *testing.T) {
 	for _, code := range []int{401, 403, 404, 405, 409, 503, 302} {
-		t.Run(fmt.Sprint(code), func(t *testing.T) {
+		t.Run(strconv.Itoa(code), func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Header.Get("Authorization") != "Bearer test-token" {
 					t.Error("missing IPC token")

@@ -8,6 +8,7 @@ package report
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -84,7 +85,7 @@ func TestWriterPeriodicSnapshotsRemainCompleteForReaders(t *testing.T) {
 			return err
 		}
 		if report.Version != 2 || report.RunID != fmt.Sprintf("snapshot-%d", report.Seed) || len(report.Errors) != 1 || report.Errors[0] != snapshot(0).Errors[0] {
-			return fmt.Errorf("reader observed fields from different snapshots")
+			return errors.New("reader observed fields from different snapshots")
 		}
 		return nil
 	}

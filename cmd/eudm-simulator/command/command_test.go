@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -273,7 +274,7 @@ func TestRunDirectlyFromScenarioAndBaseline(t *testing.T) {
 func TestRunShowsProgressAndFinalResult(t *testing.T) {
 	scenarioPath, bundlePath := replayFixture(t)
 	for _, failed := range []bool{false, true} {
-		t.Run(fmt.Sprint(failed), func(t *testing.T) {
+		t.Run(strconv.FormatBool(failed), func(t *testing.T) {
 			var output bytes.Buffer
 			var runErr error
 			status := "succeeded"

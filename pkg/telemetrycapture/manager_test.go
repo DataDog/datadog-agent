@@ -123,8 +123,10 @@ func TestLifecycleAndAcknowledgement(t *testing.T) {
 	if err != nil || !repeated.ActivatedAt.Equal(active.ActivatedAt) {
 		t.Fatal("activation is not idempotent")
 	}
-	if !observeSoftware(m) || !observeSoftware(m) {
-		t.Fatal("observation rejected")
+	for range 2 {
+		if !observeSoftware(m) {
+			t.Fatal("observation rejected")
+		}
 	}
 	status, err := m.Stop(context.Background(), testControl)
 	if err != nil || status.State != Stopping || status.FinalSequence != 2 || m.Enabled() {
