@@ -7,7 +7,10 @@ load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
-package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
+package(default_package_metadata = [
+    ":package_metadata",
+    ":ship_source_offer",
+])
 
 _VERSION = "2.5.1"
 
@@ -18,9 +21,9 @@ package_metadata(
         ":ship_source_offer",
     ],
     purl = purl_for_generic(
+        download_url = "https://download.savannah.nongnu.org/releases/attr/attr-{version}.tar.xz",
         package = "attr",
         version = _VERSION,
-        download_url = "https://download.savannah.nongnu.org/releases/attr/attr-{version}.tar.xz",
     ),
 )
 
@@ -59,21 +62,16 @@ _PUBLIC_HEADERS = [
 cc_library(
     name = "libattr",
     srcs = [
+        "include/nls.h",
         "libattr/attr_copy_action.c",
         "libattr/attr_copy_check.c",
         "libattr/attr_copy_fd.c",
         "libattr/attr_copy_file.c",
         "libattr/libattr.c",
-        "libattr/syscalls.c",
         "libattr/libattr.h",
-        "include/nls.h",
+        "libattr/syscalls.c",
     ],
     hdrs = _PUBLIC_HEADERS,
-    includes = [
-        "include",
-    ],
-    include_prefix = "attr",
-    strip_include_prefix = "include",
     copts = [
         "-include $(execpath libattr/libattr.h)",
         "-O2",
@@ -81,16 +79,20 @@ cc_library(
     implementation_deps = [
         ":config_h",
     ],
+    include_prefix = "attr",
+    includes = [
+        "include",
+    ],
     local_defines = [
         "HAVE_CONFIG_H",
         'SYSCONFDIR=\\"/opt/datadog-agent/embedded/etc\\"',
     ],
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "attr",
-    deps = [":libattr"],
     additional_linker_inputs = [
         "exports",
     ],
@@ -98,6 +100,7 @@ cc_shared_library(
         "-Wl,--version-script=$(execpath exports)",
     ],
     visibility = ["//visibility:public"],
+    deps = [":libattr"],
 )
 
 pkg_files(
@@ -108,10 +111,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "attr_pkg",
-    input = ":attr",
     dest_dir = "embedded/lib",
-    version = "1.1.2501",
+    input = ":attr",
     installed_files = [":hdr_files"],
+    version = "1.1.2501",
     visibility = ["//visibility:public"],
 )
 
@@ -120,5 +123,8 @@ pkg_filegroup(
     srcs = [
         ":hdr_files",
     ],
-    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
+    visibility = [
+        "@@//deps/openscap:__pkg__",
+        "@@//packages:__subpackages__",
+    ],
 )

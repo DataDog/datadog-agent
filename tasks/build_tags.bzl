@@ -67,10 +67,8 @@ ALL_TAGS = set([
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
-    "wmi",
     "zk",
     "zlib",
-    "zstd",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
     "remove_all_sd",  # remove all discovery provider from prometheusreceiver components
@@ -129,7 +127,6 @@ AGENT_TAGS = set([
     "trivy",
     "zk",
     "zlib",
-    "zstd",
     "cel",
 ])
 
@@ -171,7 +168,6 @@ CLUSTER_AGENT_TAGS = set([
     "kubeapiserver",
     "orchestrator",
     "zlib",
-    "zstd",
     "ec2",
     "cel",
 ])
@@ -183,10 +179,10 @@ CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = set(["clusterchecks", "cel"])
 # no_gogo drops the legacy gogo/protobuf compatibility shim in containerd/typeurl;
 # the containerd metric types dogstatsd unmarshals (cgroups/v3, hcsshim stats) all
 # use the modern google.golang.org/protobuf runtime, so the shim is dead weight.
-DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib", "zstd"])
+DOGSTATSD_TAGS = set(["containerd", "docker", "kubelet", "no_gogo", "podman", "zlib"])
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib", "zstd"])
+IOT_AGENT_TAGS = set(["jetson", "systemd", "zlib"])
 
 # INSTALLER_TAGS lists the tags needed when building the installer
 INSTALLER_TAGS = set(["ec2"])
@@ -204,7 +200,6 @@ PROCESS_AGENT_TAGS = set([
     "netcgo",
     "podman",
     "zlib",
-    "zstd",
 ])
 
 # PROCESS_AGENT_HEROKU_TAGS lists the tags necessary to build the process-agent for Heroku
@@ -213,7 +208,6 @@ PROCESS_AGENT_HEROKU_TAGS = set([
     "fargateprocess",
     "netcgo",
     "zlib",
-    "zstd",
 ])
 
 # SECURITY_AGENT_TAGS lists the tags necessary to build the security agent
@@ -222,7 +216,6 @@ SECURITY_AGENT_TAGS = set([
     "datadog.no_waf",
     "docker",
     "zlib",
-    "zstd",
     "ec2",
 ])
 
@@ -247,7 +240,6 @@ SYSTEM_PROBE_TAGS = set([
     "nvml",
     "pcap",
     "zlib",
-    "zstd",
     "seclmax",
 ])
 
@@ -275,7 +267,7 @@ TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
 
 CWS_INSTRUMENTATION_TAGS = set(["netgo", "osusergo"])
 
-OTEL_AGENT_TAGS = set(["otlp", "zlib", "zstd", "kubelet"])
+OTEL_AGENT_TAGS = set(["otlp", "zlib", "kubelet"])
 
 LOADER_TAGS = set()
 
@@ -283,7 +275,7 @@ LOADER_TAGS = set()
 # imported by https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/f963ab53ee55aeb56d58617ed12c840e8b07cc53/receiver/prometheusreceiver/factory.go#L10
 HOST_PROFILER_TAGS = set(["remove_all_sd", "docker", "kubelet"])
 
-PRIVATEACTIONRUNNER_TAGS = set(["zlib", "zstd"])
+PRIVATEACTIONRUNNER_TAGS = set(["zlib"])
 
 SECRET_GENERIC_CONNECTOR_TAGS = set()
 
@@ -320,9 +312,6 @@ AIX_EXCLUDED_TAGS = set([
     "systemprobechecks",
     "trivy",
 ])
-
-# List of tags to always add when building on Windows
-WINDOWS_INCLUDED_TAGS = set(["wmi"])
 
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDED_TAGS = set([

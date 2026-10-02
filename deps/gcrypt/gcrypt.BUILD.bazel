@@ -217,8 +217,8 @@ cc_library(
         "mpi/mpih-pow.c",
         "mpi/mpiutil.c",
         "random/random.h",
-        "src/cipher-proto.h",
         "src/cipher.h",
+        "src/cipher-proto.h",
         "src/const-time.h",
         "src/context.h",
         "src/ec-context.h",
@@ -736,6 +736,7 @@ cc_library(
     implementation_deps = [
         ":config_h",
     ],
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = [
         ":libcipher",
@@ -743,7 +744,6 @@ cc_library(
         ":libmpi",
         ":librandom",
     ],
-    target_compatible_with = ["@platforms//os:linux"],
 )
 
 cc_shared_library(
@@ -771,10 +771,10 @@ pkg_files(
 
 dd_cc_packaged(
     name = "gcrypt_pkg",
-    input = ":gcrypt",
     dest_dir = "embedded/lib",
-    version = "20.7.2",
+    input = ":gcrypt",
     installed_files = [":hdr_files"],
+    version = "20.7.2",
     visibility = ["//visibility:public"],
 )
 

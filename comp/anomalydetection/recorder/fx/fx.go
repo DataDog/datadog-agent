@@ -13,7 +13,7 @@ import (
 
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	recorderimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl"
-	recorderparquet "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/parquet"
+	recorderparquet "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl/parquet"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )

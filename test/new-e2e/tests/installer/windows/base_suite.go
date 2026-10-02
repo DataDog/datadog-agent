@@ -520,12 +520,16 @@ const (
 func (s *BaseSuite) startxperf() {
 	host := s.Env().RemoteHost
 
-	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	xperfExists, err := host.FileExists(xperfBinPath)
 	s.Require().NoError(err)
 
-	// extract if C:/xperf dir does not exist
-	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
-	s.Require().NoError(err)
+	if !xperfExists {
+		err = host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+		s.Require().NoError(err)
+
+		_, err = host.Execute("Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf -Force")
+		s.Require().NoError(err)
+	}
 
 	_, err = host.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfBinPath, "C:/kernel.etl"))
 	s.Require().NoError(err)
@@ -691,13 +695,18 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
 
-	// Arrange
-	agentVersion := s.CurrentAgentVersion().Version()
-
 	// xperf covers the full experiment window: from daemon restart through installer
 	// service startup, capturing the SCM service start sequence on failure.
 	s.startxperf()
 	defer s.collectxperf()
+	s.mustStartExperimentCurrentVersion()
+}
+
+// mustStartExperimentCurrentVersion runs the experiment checks without managing
+// xperf, so callers can choose when to merge the trace.
+func (s *BaseSuite) mustStartExperimentCurrentVersion() {
+	s.T().Helper()
+	agentVersion := s.CurrentAgentVersion().Version()
 
 	// Act
 	s.WaitForDaemonToStop(func() {

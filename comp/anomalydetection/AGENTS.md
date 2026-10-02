@@ -42,9 +42,9 @@ comp/anomalydetection/
     def/                 ← component, data, and writer contracts
     fx/                  ← tagged Agent wiring with Parquet writer provider
     fx-noop/             ← explicit testbench no-op module
-    impl/                ← tagged middleware, configuration, lifecycle
+    impl/                ← requires anomalydetection_recorder: middleware, configuration, lifecycle
     impl-noop/           ← explicit testbench no-op component
-    parquet/             ← tagged Parquet v1 metric and log writers
+    impl/parquet/        ← requires anomalydetection_recorder: Parquet v1 metric and log writers
 ```
 
 ## Agent Wiring

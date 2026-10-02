@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:diff_test.bzl", "diff_test")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file", "write_source_files")
 
@@ -46,7 +47,7 @@ write_source_file(
 # generator, so it only builds on Linux.
 run_binary(
     name = "backend_linux_schema_gen",
-    srcs = ["//pkg/security/serializers:serializers_sources"],
+    srcs = ["//pkg/security/serializers:serializers_go_files"],
     outs = ["backend_linux_schema_gen/backend_linux.schema.json"],
     args = [
         "-serializers-dir=pkg/security/serializers",
@@ -59,7 +60,7 @@ run_binary(
 # Native Windows. The generator is the tool and takes only its own flags.
 run_binary(
     name = "backend_windows_schema_gen_native",
-    srcs = ["//pkg/security/serializers:serializers_sources"],
+    srcs = ["//pkg/security/serializers:serializers_go_files"],
     outs = ["backend_windows_schema_gen_native/backend_windows.schema.json"],
     args = [
         "-serializers-dir=pkg/security/serializers",
@@ -71,11 +72,13 @@ run_binary(
 
 # Linux hosts run the Windows cross-build under Wine. wine_run passes the
 # generator as its first argument, and is incompatible off Linux x86_64/aarch64.
+# Manual: Wine is for local regeneration only (flaky under box64 on CI);
+# backend_windows_schema_test covers CI on Windows.
 run_binary(
     name = "backend_windows_schema_gen_wine",
     srcs = [
         "//pkg/security/generators/backend_doc:backend_doc_windows",
-        "//pkg/security/serializers:serializers_sources",
+        "//pkg/security/serializers:serializers_go_files",
     ],
     outs = ["backend_windows_schema_gen_wine/backend_windows.schema.json"],
     args = [
@@ -83,6 +86,7 @@ run_binary(
         "-serializers-dir=pkg/security/serializers",
         "-output=$(execpath backend_windows_schema_gen_wine/backend_windows.schema.json)",
     ],
+    tags = ["manual"],
     tool = "//bazel/tools/wine:wine_run",
 )
 
@@ -92,26 +96,42 @@ alias(
         "@platforms//os:windows": ":backend_windows_schema_gen_native",
         "//conditions:default": ":backend_windows_schema_gen_wine",
     }),
+    tags = ["manual"],
 )
 
+write_source_file(
+    name = "backend_linux_schema",
+    in_file = ":backend_linux_schema_gen",
+    out_file = "backend_linux.schema.json",
+    visibility = ["//pkg/security:__pkg__"],
+)
+
+write_source_file(
+    name = "backend_windows_schema",
+    diff_test = False,
+    in_file = ":backend_windows_schema_gen",
+    out_file = "backend_windows.schema.json",
+    tags = ["manual"],
+    visibility = ["//pkg/security:__pkg__"],
+)
+
+diff_test(
+    name = "backend_windows_schema_test",
+    failure_message = "Run: bazel run //docs/cloud-workload-security:backend_windows_schema",
+    file1 = ":backend_windows_schema_gen_native",
+    file2 = "backend_windows.schema.json",
+)
+
+# The markdown docs render from the fresh schema where the generator can
+# run, and fall back to the committed one elsewhere so they still build.
 [
-    [
-        write_source_file(
-            name = "backend_{}_schema".format(os),
-            in_file = ":backend_{}_schema_gen".format(os),
-            out_file = "backend_{}.schema.json".format(os),
-            visibility = ["//pkg/security:__pkg__"],
-        ),
-        # The markdown docs render from the fresh schema where the generator can
-        # run, and fall back to the committed one elsewhere so they still build.
-        alias(
-            name = "backend_{}_schema_input".format(os),
-            actual = select({
-                "@platforms//os:" + os: ":backend_{}_schema_gen".format(os),
-                "//conditions:default": "backend_{}.schema.json".format(os),
-            }),
-        ),
-    ]
+    alias(
+        name = "backend_{}_schema_input".format(os),
+        actual = select({
+            "@platforms//os:" + os: ":backend_{}_schema_gen".format(os),
+            "//conditions:default": "backend_{}.schema.json".format(os),
+        }),
+    )
     for os in [
         "linux",
         "windows",

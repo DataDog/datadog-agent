@@ -88,9 +88,10 @@ func makeProcessModel(t *testing.T, process *procutil.Process, processContext []
 			SystemPct: float32(cpu.SystemPct),
 			TotalPct:  float32(cpu.UserPct + cpu.SystemPct),
 		},
-		CreateTime:     process.Stats.CreateTime,
-		IoStat:         &model.IOStat{},
-		ProcessContext: processContext,
+		CreateTime:           process.Stats.CreateTime,
+		IoStat:               &model.IOStat{},
+		ProcessContext:       processContext,
+		HasZombieAggregation: true,
 	}
 }
 
@@ -144,17 +145,18 @@ func TestPercentCalculation(t *testing.T) {
 }
 
 func TestRateCalculation(t *testing.T) {
-	now := time.Now()
+	now := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	prev := now.Add(-1 * time.Second)
 	var empty time.Time
-	assert.True(t, floatEquals(calculateRate(5, 1, prev), 4))
-	assert.True(t, floatEquals(calculateRate(5, 1, prev.Add(-2*time.Second)), float32(1.33333333)))
-	assert.True(t, floatEquals(calculateRate(5, 1, now), 0))
-	assert.True(t, floatEquals(calculateRate(5, 0, prev), 0))
-	assert.True(t, floatEquals(calculateRate(5, 1, empty), 0))
+	assert.True(t, floatEquals(calculateRate(5, 1, now, prev), 4))
+	assert.True(t, floatEquals(calculateRate(5, 1, now, prev.Add(-2*time.Second)), float32(1.33333333)))
+	assert.Zero(t, calculateRate(5, 1, now, now))
+	assert.Zero(t, calculateRate(5, 1, now, now.Add(time.Second)))
+	assert.Zero(t, calculateRate(5, 0, now, prev))
+	assert.Zero(t, calculateRate(5, 1, now, empty))
 
 	// Underflow on cur - prev
-	assert.True(t, floatEquals(calculateRate(0, 1, prev), 0))
+	assert.Zero(t, calculateRate(0, 1, now, prev))
 }
 
 func TestFormatCommand(t *testing.T) {
@@ -175,6 +177,7 @@ func TestFormatCommand(t *testing.T) {
 }
 
 func TestFormatIO(t *testing.T) {
+	now := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	fp := &procutil.Stats{
 		IOStat: &procutil.IOCountersStat{
 			ReadCount:  6,
@@ -192,17 +195,17 @@ func TestFormatIO(t *testing.T) {
 	}
 
 	// fp.IOStat is nil
-	assert.NotNil(t, formatIO(&procutil.Stats{}, last, time.Now(), time.Now().Add(-2*time.Second)))
+	assert.NotNil(t, formatIO(&procutil.Stats{}, last, now, now.Add(-2*time.Second)))
 
 	// IOStats have 0 values
-	result := formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{}}, last, time.Now(), time.Now().Add(-2*time.Second))
+	result := formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{}}, last, now, now.Add(-2*time.Second))
 	assert.Equal(t, float32(0), result.ReadRate)
 	assert.Equal(t, float32(0), result.WriteRate)
 	assert.Equal(t, float32(0), result.ReadBytesRate)
 	assert.Equal(t, float32(0), result.WriteBytesRate)
 
 	// Elapsed time < 1s
-	assert.NotNil(t, formatIO(fp, last, time.Now(), time.Now()))
+	assert.NotNil(t, formatIO(fp, last, now, now))
 
 	// IOStats have permission problem
 	result = formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{
@@ -210,13 +213,13 @@ func TestFormatIO(t *testing.T) {
 		WriteCount: -1,
 		ReadBytes:  -1,
 		WriteBytes: -1,
-	}}, last, time.Now(), time.Now().Add(-1*time.Second))
+	}}, last, now, now.Add(-1*time.Second))
 	assert.Equal(t, float32(-1), result.ReadRate)
 	assert.Equal(t, float32(-1), result.WriteRate)
 	assert.Equal(t, float32(-1), result.ReadBytesRate)
 	assert.Equal(t, float32(-1), result.WriteBytesRate)
 
-	result = formatIO(fp, last, time.Now(), time.Now().Add(-1*time.Second))
+	result = formatIO(fp, last, now, now.Add(-1*time.Second))
 	require.NotNil(t, result)
 	assert.Equal(t, float32(5), result.ReadRate)
 	assert.Equal(t, float32(6), result.WriteRate)
@@ -240,6 +243,8 @@ func TestFormatIORates(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, formatIORates(ioRateStat))
+	// Precomputed rates do not depend on a previous counter or timestamp.
+	assert.Equal(t, expected, formatIO(&procutil.Stats{IORateStat: ioRateStat}, nil, time.Time{}, time.Time{}))
 }
 
 func TestFormatMemory(t *testing.T) {

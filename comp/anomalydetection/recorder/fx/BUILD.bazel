@@ -27,7 +27,7 @@ go_library(
     deps = [
         "//comp/anomalydetection/recorder/def",
         "//comp/anomalydetection/recorder/impl",
-        "//comp/anomalydetection/recorder/parquet",
+        "//comp/anomalydetection/recorder/impl/parquet",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@org_uber_go_fx//:fx",
