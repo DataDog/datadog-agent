@@ -6366,7 +6366,7 @@ properties:
           healthy host into a finding.
 
           The knob exists for benchmarking harnesses that need ADP resident for the whole of a fixed-length run
-          -- see test/regression/cases/quality_gate_* -- rather than for tuning on real hosts, where the only
+          -- see test/regression/container/quality_gates/quality_gate_* -- rather than for tuning on real hosts, where the only
           knob that matters is data_plane.preflight_mode.
       remote_agent_enabled:
         node_type: setting
