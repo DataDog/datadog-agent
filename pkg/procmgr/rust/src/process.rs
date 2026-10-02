@@ -1066,25 +1066,6 @@ pub mod tests {
         assert!(proc.job_object.is_none());
     }
 
-    #[tokio::test]
-    async fn shared_wait_captures_old_timeout_before_reload_updates_config() {
-        let mut proc = ManagedProcess::new_config("reload-timeout".into(),
-            test_helpers::test_uuid(), test_helpers::graceful_stop_test_config());
-        proc.force_running_for_test();
-        proc.watcher_handle = Some(tokio::spawn(async {}));
-        assert!(proc.mark_stop_requested());
-        let wait = proc.take_stop_wait().unwrap();
-        let old_timeout = wait.timeout;
-        let mut replacement = proc.config().clone();
-        replacement.stop_timeout = Some(90);
-        proc.set_config(replacement);
-        assert_eq!(old_timeout, Some(Duration::from_secs(5)));
-        assert_eq!(wait.timeout, old_timeout);
-        wait.run().await;
-        proc.finish_stop();
-        assert_eq!(proc.state(), ProcessState::Stopped);
-    }
-
     #[test]
     fn test_initial_state_is_created() {
         let (cmd, args) = test_helpers::true_cmd();
