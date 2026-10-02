@@ -168,9 +168,6 @@
 /* Use rentrant version of localtime */
 #define HAVE_LOCALTIME_R 1
 
-/* Define if you have long long */
-#define HAVE_LONG_LONG 1
-
 /* Define this if a modern libltdl is already installed */
 /* #undef HAVE_LTDL */
 
@@ -203,9 +200,6 @@
 
 /* Define to 1 if you have the `putenv' function. */
 #define HAVE_PUTENV 1
-
-/* Define to 1 if you have the <pwd.h> header file. */
-#define HAVE_PWD_H 1
 
 /* Define to 1 if you have the `readdir' function. */
 #define HAVE_READDIR 1
@@ -323,17 +317,11 @@
 /* Define to 1 if you have the <sys/time.h> header file. */
 #define HAVE_SYS_TIME_H 1
 
-/* Define to 1 if you have the <sys/types.h> header file. */
-#define HAVE_SYS_TYPES_H 1
-
 /* Define to 1 if you have the `time' function. */
 #define HAVE_TIME 1
 
 /* Define to 1 if you have the <time.h> header file. */
 #define HAVE_TIME_H 1
-
-/* Define to 1 if you have the <unistd.h> header file. */
-#define HAVE_UNISTD_H 1
 
 /* Define to 1 if you have the <varargs.h> header file. */
 /* #undef HAVE_VARARGS_H */
@@ -394,25 +382,18 @@
 /* #undef OSXHEADER */
 
 /* Name of package */
-#define PACKAGE "unixODBC"
 
 /* Define to the address where bug reports for this package should be sent. */
-#define PACKAGE_BUGREPORT "nick@unixodbc.org"
 
 /* Define to the full name of this package. */
-#define PACKAGE_NAME "unixODBC"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "unixODBC 2.3.9"
 
 /* Define to the one symbol short name of this package. */
-#define PACKAGE_TARNAME "unixODBC"
 
 /* Define to the home page for this package. */
-#define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2.3.9"
 
 /* Platform is 64 bit */
 #define PLATFORM64 /**/
@@ -428,9 +409,6 @@
 
 /* The size of `long', as computed by sizeof. */
 #define SIZEOF_LONG 8
-
-/* The size of `long int', as computed by sizeof. */
-#define SIZEOF_LONG_INT 8
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
@@ -467,9 +445,9 @@
 /* Flag that we are not using another DM */
 #define UNIXODBC /**/
 
+/* We are building inside the unixODBC source tree */
 
 /* Version number of package */
-#define VERSION "2.3.9"
 
 /* Work with IBM drivers that use 32 bit handles on 64 bit platforms */
 /* #undef WITH_HANDLE_REDIRECT */
