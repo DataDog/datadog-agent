@@ -7,6 +7,7 @@ proto_library(
     name = "trace_proto",
     srcs = [
         "agent_payload.proto",
+        "agent_telemetry.proto",
         "span.proto",
         "stats.proto",
         "tracer_payload.proto",
