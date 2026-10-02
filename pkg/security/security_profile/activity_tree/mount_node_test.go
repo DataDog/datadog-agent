@@ -114,15 +114,35 @@ func TestInsertMountBaseNamespaceFlag(t *testing.T) {
 
 	base := findMount(at, "/base", 0)
 	require.NotNil(t, base)
-	assert.True(t, base.InBaseNamespace)
+	assert.True(t, base.IsBaseNamespace(tagID))
 
 	late := findMount(at, "/late", 0)
 	require.NotNil(t, late)
-	assert.False(t, late.InBaseNamespace)
+	assert.False(t, late.IsBaseNamespace(tagID))
 
 	// re-observing the late mount in the base namespace upgrades its flag
 	require.False(t, at.InsertMount(testNsA, "/late", "/", "ext4", 0, tagID, Runtime, now, false))
-	assert.True(t, late.InBaseNamespace)
+	assert.True(t, late.IsBaseNamespace(tagID))
+}
+
+func TestInsertMountBaseNamespacePerImageTag(t *testing.T) {
+	at := newMountTestTree()
+	v1 := at.GetOrInsertImageTag("img:v1")
+	v2 := at.GetOrInsertImageTag("img:v2")
+	now := time.Unix(0, 1000)
+
+	at.AddBaseMountNamespaceID(testNsA)
+
+	// v1 observes /foo in the base namespace
+	at.InsertMount(testNsA, "/foo", "/", "ext4", 0, v1, Runtime, now, false)
+	// v2 observes the same mount, but outside the base namespace
+	at.InsertMount(testNsB, "/foo", "/", "ext4", 0, v2, Runtime, now, false)
+
+	foo := findMount(at, "/foo", 0)
+	require.NotNil(t, foo)
+	assert.True(t, foo.IsBaseNamespace(v1), "expected /foo to be base for v1")
+	assert.False(t, foo.IsBaseNamespace(v2), "expected /foo not to be base for v2")
+	assert.True(t, foo.IsBaseNamespaceAny())
 }
 
 func TestInsertMountNoBaseNamespacePinned(t *testing.T) {
@@ -134,7 +154,7 @@ func TestInsertMountNoBaseNamespacePinned(t *testing.T) {
 	// of insertion order (the base is no longer inferred from the first mount)
 	at.InsertMount(testNsA, "/data", "/", "ext4", 0, tagID, Runtime, now, false)
 	require.Len(t, at.Mounts, 1)
-	assert.False(t, at.Mounts[0].InBaseNamespace)
+	assert.False(t, at.Mounts[0].IsBaseNamespace(tagID))
 }
 
 func TestMultipleBaseMountNamespaces(t *testing.T) {
@@ -151,11 +171,11 @@ func TestMultipleBaseMountNamespaces(t *testing.T) {
 
 	a := findMount(at, "/a", 0)
 	require.NotNil(t, a)
-	assert.True(t, a.InBaseNamespace)
+	assert.True(t, a.IsBaseNamespace(tagID))
 
 	b := findMount(at, "/b", 0)
 	require.NotNil(t, b)
-	assert.True(t, b.InBaseNamespace)
+	assert.True(t, b.IsBaseNamespace(tagID))
 }
 
 func TestRemoveBaseMountNamespaceIsRefcounted(t *testing.T) {
@@ -172,7 +192,7 @@ func TestRemoveBaseMountNamespaceIsRefcounted(t *testing.T) {
 	at.InsertMount(testNsA, "/shared", "/", "ext4", 0, tagID, Runtime, now, false)
 	shared := findMount(at, "/shared", 0)
 	require.NotNil(t, shared)
-	assert.True(t, shared.InBaseNamespace)
+	assert.True(t, shared.IsBaseNamespace(tagID))
 
 	// the second unlinks: the inode is no longer a base namespace
 	at.RemoveBaseMountNamespaceID(testNsA)
@@ -181,7 +201,7 @@ func TestRemoveBaseMountNamespaceIsRefcounted(t *testing.T) {
 	at.InsertMount(testNsA, "/after", "/", "ext4", 0, tagID, Runtime, now, false)
 	after := findMount(at, "/after", 0)
 	require.NotNil(t, after)
-	assert.False(t, after.InBaseNamespace)
+	assert.False(t, after.IsBaseNamespace(tagID))
 }
 
 func TestInsertMountDryRun(t *testing.T) {
@@ -236,17 +256,18 @@ func TestMountsProtoRoundTrip(t *testing.T) {
 
 	require.Len(t, dst.Mounts, 3)
 
+	dstTagID := dst.GetImageTagID("img:v1")
+	require.NotZero(t, dstTagID)
+
 	root := findMount(dst, "/", 0)
 	require.NotNil(t, root)
 	assert.Equal(t, "overlay", root.Filesystem)
-	assert.True(t, root.InBaseNamespace)
+	assert.True(t, root.IsBaseNamespace(dstTagID))
 
 	sys := findMount(dst, "/sys", model.MountAttrNoSUID)
 	require.NotNil(t, sys)
-	assert.False(t, sys.InBaseNamespace)
+	assert.False(t, sys.IsBaseNamespace(dstTagID))
 
-	dstTagID := dst.GetImageTagID("img:v1")
-	require.NotZero(t, dstTagID)
 	times, ok := root.GetSeenTimes(dstTagID)
 	require.True(t, ok)
 	assert.Equal(t, first, times.FirstSeen)

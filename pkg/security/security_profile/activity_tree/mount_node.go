@@ -29,8 +29,6 @@ type MountNode struct {
 	MountRoot  string
 	Filesystem string
 	MountFlags uint32
-
-	InBaseNamespace bool
 }
 
 func (mn *MountNode) size() int64 {
@@ -91,7 +89,7 @@ func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesyst
 			mn.MountRoot = mountRoot
 			mn.AppendImageTagID(imageTagID, timestamp)
 			if isBase {
-				mn.InBaseNamespace = true
+				mn.SetBaseNamespace(imageTagID, true)
 			}
 		}
 		return false
@@ -102,7 +100,9 @@ func (at *ActivityTree) InsertMount(nsID uint32, mountPoint, mountRoot, filesyst
 	}
 
 	node := NewMountNode(mountPoint, mountRoot, filesystem, mountFlags, generationType, imageTagID, timestamp)
-	node.InBaseNamespace = isBase
+	if isBase {
+		node.SetBaseNamespace(imageTagID, true)
+	}
 	at.indexMount(key, node)
 	at.Stats.SizeBytes += node.size()
 	return true

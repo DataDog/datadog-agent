@@ -47,7 +47,7 @@ func insertMountIn(t *testing.T, p *Profile, nsID uint32, mountPoint string) boo
 
 	for _, mn := range p.ActivityTree.Mounts {
 		if mn.MountPoint == mountPoint {
-			return mn.InBaseNamespace
+			return mn.IsBaseNamespaceAny()
 		}
 	}
 	t.Fatalf("mount %q was not inserted", mountPoint)
