@@ -34,6 +34,9 @@ func lookupHostUser(uid string) *user.User {
 	}
 	defer file.Close()
 
+	var uidBuffer [10]byte // Maximum decimal length of a uint32 UID.
+	uidBytes := strconv.AppendUint(uidBuffer[:0], id, 10)
+
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(nil, 1024*1024)
 	for scanner.Scan() {
@@ -53,8 +56,11 @@ func lookupHostUser(uid string) *user.User {
 		if !ok {
 			continue
 		}
-		entryID, err := strconv.ParseUint(string(fileUID), 10, 32)
-		if err != nil || entryID != id {
+		// Preserve one digit so zero remains distinct from an empty UID.
+		for len(fileUID) > 1 && fileUID[0] == '0' {
+			fileUID = fileUID[1:]
+		}
+		if !bytes.Equal(fileUID, uidBytes) {
 			continue
 		}
 		// Copy only the matching line so returned fields own their backing storage.
