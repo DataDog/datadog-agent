@@ -203,6 +203,7 @@ type Resolver struct {
 	statsdClient   statsd.ClientInterface
 	sbomCollector  sbomCollector
 	hostRootDevice uint64
+	hostRootInode  uint64
 	hostSBOM       *SBOM
 
 	sbomGenerations       *atomic.Uint64
@@ -252,6 +253,7 @@ func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.Client
 		scanChan:              make(chan *SBOM, 100),
 		sbomCollector:         sbomCollector,
 		hostRootDevice:        stat.Dev,
+		hostRootInode:         stat.Ino,
 		sbomGenerations:       atomic.NewUint64(0),
 		sbomsCacheHit:         atomic.NewUint64(0),
 		sbomsCacheMiss:        atomic.NewUint64(0),
@@ -595,6 +597,26 @@ func isProcRootGone(err error) bool {
 	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
 }
 
+// onHostRoot reports whether the root of the process pid is the root of the
+// host. A process with an empty container ID may run on a root of its own, in
+// a system container or a snap, and the files it opens then belong to that
+// root. A process whose root cannot be read, most often one already gone,
+// counts as a host process, as most short-lived processes with an empty
+// container ID are, which errs toward recording its use.
+func (r *Resolver) onHostRoot(pid uint32) bool {
+	stat, err := utils.UnixStat(utils.ProcRootPath(pid))
+	if err != nil {
+		return true
+	}
+	return stat.Dev == r.hostRootDevice && stat.Ino == r.hostRootInode
+}
+
+// isDir reports whether mode, the mode of the file of an event, is that of a
+// directory.
+func isDir(mode uint16) bool {
+	return mode&syscall.S_IFMT == syscall.S_IFDIR
+}
+
 func (r *Resolver) doScan(sbom *SBOM) ([]sbomtypes.PackageWithInstalledFiles, error) {
 	var (
 		lastErr error
@@ -808,8 +830,17 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	seclog.Tracef("file '%s' accessed by '%s' in container '%s'", file.PathnameStr, pc.Process.Comm, sbom.ContainerID)
 
+	// A process on a root of its own opens the files of that root under the
+	// paths of host files, and its root is read once the path matches.
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
-	if pkg != nil {
+	if pkg != nil && sbom.ContainerID == "" && !r.onHostRoot(pc.Pid) {
+		pkg = nil
+	}
+
+	// rpm lists the directories a package owns among its files. A directory
+	// resolves to its package, and opening it, as a listing or a walk of the
+	// filesystem does, leaves the usage of the package as it is.
+	if pkg != nil && !isDir(file.Mode) {
 		seclog.Tracef("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
 
 		sbom.data.mu.Lock()
@@ -852,9 +883,10 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 // container. Accesses are merged per path: the snapshot replay emits one open event
 // per (process, mapped file) pair and runs again on every ruleset reload, so without
 // deduplication the shared libraries mapped by every process of a workload crowd out
-// the distinct paths worth keeping.
+// the distinct paths worth keeping. Directory opens, which leave the usage of their
+// package as it is, stay out of the queue.
 func (r *Resolver) queuePendingFileEvent(containerID containerutils.ContainerID, filePath string, fileMode uint16, uid uint32) {
-	if containerID == "" {
+	if containerID == "" || isDir(fileMode) {
 		return
 	}
 
