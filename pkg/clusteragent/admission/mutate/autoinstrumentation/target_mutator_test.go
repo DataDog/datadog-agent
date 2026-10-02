@@ -685,7 +685,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			require.NoError(t, err)
 
 			// Get the target from the annotation source.
-			actual := f.annotationSource.resolve(test.in)
+			actual := findInjectionSource(t, f, injectionSourceAnnotation).resolve(test.in)
 
 			// Validate the output.
 			if test.expected == nil {
@@ -817,7 +817,7 @@ func TestGetTargetFromCRD(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			actual := mutator.ddiSource.resolve(test.pod)
+			actual := findInjectionSource(t, mutator, injectionSourceDatadogInstrumentation).resolve(test.pod)
 			if test.continueResolution {
 				require.Equal(t, sourcePass, actual.action)
 				require.Nil(t, actual.plan)
