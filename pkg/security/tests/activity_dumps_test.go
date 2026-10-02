@@ -51,6 +51,8 @@ func TestActivityDumps(t *testing.T) {
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds", "capabilities"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
+		// this exercises the v1 activity dump manager, which is inactive under security profile v2
+		disableSecurityProfileV2:            true,
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -66,7 +68,7 @@ func TestActivityDumps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
 		t.Fatal(err)
@@ -385,7 +387,7 @@ func TestActivityDumps(t *testing.T) {
 		defer dockerInstance.stop()
 
 		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command(syscallTester, []string{"chroot", "/tmp", ";", "acct"}, []string{})
+		cmd := dockerInstance.Command(syscallTester, []string{"mknod-chardev", "/tmp/cws-ad-mknod", ";", "chroot", "/tmp", ";", "acct"}, []string{})
 		_, _ = cmd.CombinedOutput() // ignore error, as the `acct` command is expected to fail
 
 		time.Sleep(1 * time.Second) // 1 second to let events be added to the dump
@@ -402,11 +404,16 @@ func TestActivityDumps(t *testing.T) {
 			}
 
 			const (
-				capSysChrootFound          = 1 << 0
-				capSysChrootCapableFound   = 1 << 1
-				capSysPacctFound           = 1 << 2
-				capSysPacctNotCapableFound = 1 << 3
-				allFound                   = capSysChrootFound | capSysChrootCapableFound | capSysPacctFound | capSysPacctNotCapableFound
+				capSysChrootFound              = 1 << 0
+				capSysChrootCapableFound       = 1 << 1
+				capSysChrootNotHostUserNSFound = 1 << 2
+				capSysPacctFound               = 1 << 3
+				capSysPacctNotCapableFound     = 1 << 4
+				capSysPacctHostUserNSFound     = 1 << 5
+				capMknodCapableHostUserNSFound = 1 << 6
+				allFound                       = capSysChrootFound | capSysChrootCapableFound | capSysChrootNotHostUserNSFound |
+					capSysPacctFound | capSysPacctNotCapableFound | capSysPacctHostUserNSFound |
+					capMknodCapableHostUserNSFound
 			)
 
 			var result int
@@ -417,17 +424,21 @@ func TestActivityDumps(t *testing.T) {
 						result |= capSysChrootFound
 						if capabilityNode.Capable {
 							result |= capSysChrootCapableFound
-							if result == allFound {
-								break
-							}
+						}
+						if !capabilityNode.AttemptedHostUserNS && !capabilityNode.CapableHostUserNS {
+							result |= capSysChrootNotHostUserNSFound
 						}
 					case unix.CAP_SYS_PACCT:
 						result |= capSysPacctFound
 						if !capabilityNode.Capable {
 							result |= capSysPacctNotCapableFound
-							if result == allFound {
-								break
-							}
+						}
+						if capabilityNode.AttemptedHostUserNS && !capabilityNode.CapableHostUserNS {
+							result |= capSysPacctHostUserNSFound
+						}
+					case unix.CAP_MKNOD:
+						if capabilityNode.Capable && capabilityNode.CapableHostUserNS {
+							result |= capMknodCapableHostUserNSFound
 						}
 					}
 				}
@@ -437,6 +448,9 @@ func TestActivityDumps(t *testing.T) {
 			assert.True(t, (result&capSysChrootCapableFound) != 0, "CAP_SYS_CHROOT capable not found in activity dump")
 			assert.True(t, (result&capSysPacctFound) != 0, "CAP_SYS_PACCT not found in activity dump")
 			assert.True(t, (result&capSysPacctNotCapableFound) != 0, "CAP_SYS_PACCT not capable not found in activity dump")
+			assert.True(t, (result&capSysChrootNotHostUserNSFound) != 0, "CAP_SYS_CHROOT should not be reported against the initial user namespace")
+			assert.True(t, (result&capSysPacctHostUserNSFound) != 0, "CAP_SYS_PACCT attempted against the initial user namespace not found in activity dump")
+			assert.True(t, (result&capMknodCapableHostUserNSFound) != 0, "CAP_MKNOD capable in the initial user namespace not found in activity dump")
 
 			return result == allFound
 		}, nil)

@@ -20,16 +20,20 @@ int __attribute__((always_inline)) get_resolver_flags(struct syscall_cache_t *sy
 }
 
 void __attribute__((always_inline)) apply_dentry_resolution_outcome(struct syscall_cache_t *syscall, u64 event_type) {
-    if (syscall->state != ACCEPTED) {
-        // Discarders take priority over basename approvers: a parent basename may match an approver,
-        // but a discarder set on any ancestor inode must still discard the whole path.
-        if (syscall->resolver.ret == DENTRY_DISCARDED) {
+    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+        if (syscall->state != ACCEPTED) {
             syscall->state = DISCARDED;
             monitor_discarded(event_type);
-        } else if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
-            syscall->state = APPROVED;
-            monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         }
+        return;
+    }
+
+    if (syscall->resolver.flags & RESOLVER_FLAG_BASENAME_APPROVED) {
+        syscall->resolver.flags &= ~RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
+        if (syscall->state != ACCEPTED) {
+            syscall->state = APPROVED;
+        }
+        monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
     }
 }
 
@@ -152,7 +156,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     return DR_MAX_ITERATION_DEPTH;
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, struct dentry_resolver_input_t* resolver) {
+static void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, struct dentry_resolver_input_t* resolver) {
     resolver->iteration++;
     resolver->ret = resolve_dentry_tail_call(ctx, resolver);
 
@@ -176,7 +180,7 @@ void __attribute__((always_inline)) dentry_resolver_kern_recursive(void *ctx, en
     }
 }
 
-void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
     if (!syscall)
         return;

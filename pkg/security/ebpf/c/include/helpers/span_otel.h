@@ -111,20 +111,20 @@ static u64 __attribute__((always_inline)) otel_bytes_to_u64(const u8 *bytes) {
            ((u64)bytes[6] << 8)  | ((u64)bytes[7]);
 }
 
-// Reads the otel_thread_ctx_v1 TLS variable of the current thread, which holds a
-// pointer to the active Thread Local Context Record: directly at
-// tsd_base + tls_offset for static TLS, through the DTV (see otel_dtv_info_t)
-// for dynamic TLS. Mirrors tls_read in DataDog's opentelemetry-ebpf-profiler
-// fork (support/ebpf/tsd.h, PR #1229).
-static int __attribute__((always_inline)) otel_tls_read(
-        struct otel_tls_t *otls, u64 tsd_base, void **out) {
+// Resolves the address of the current thread's copy of the writer's thread-local:
+// directly at tsd_base + tls_offset for static TLS, through the DTV (see
+// otel_dtv_info_t) for dynamic TLS. Returns 0 when this thread has no copy, which
+// no address it could resolve ever is. Mirrors tls_read in DataDog's
+// opentelemetry-ebpf-profiler fork (support/ebpf/tsd.h, PR #1229).
+static u64 __attribute__((always_inline)) otel_tls_var_addr(
+        struct otel_tls_t *otls, u64 tsd_base) {
     u64 tls_block = tsd_base;
 
     if (otls->module_id != 0) {
         u64 dtv_ptr = 0;
         if (bpf_probe_read_user(&dtv_ptr, sizeof(dtv_ptr),
                                 (void *)(tsd_base + otls->dtv_info.offset))) {
-            return -1;
+            return 0;
         }
 
         // DTV layout: [generation, module1_block, module2_block, ...], so module
@@ -132,11 +132,11 @@ static int __attribute__((always_inline)) otel_tls_read(
         u64 dtv_entry_offset = (u64)otls->module_id * otls->dtv_info.multiplier;
         if (bpf_probe_read_user(&tls_block, sizeof(tls_block),
                                 (void *)(dtv_ptr + dtv_entry_offset))) {
-            return -1;
+            return 0;
         }
     }
 
-    return bpf_probe_read_user(out, sizeof(*out), (void *)(tls_block + otls->tls_offset));
+    return tls_block + otls->tls_offset;
 }
 
 // Mint an id for one staged otel_span_attrs entry, resolved from user space.
@@ -164,56 +164,34 @@ static struct otel_span_attrs_t * __attribute__((always_inline)) lookup_otel_spa
     return bpf_map_lookup_elem(&otel_span_attrs, &key);
 }
 
-// Fills span from the current thread's OTel context record. Returns 1 on
-// success, 0 when there is nothing to read.
-int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t *span) {
-    if (!span) {
-        return 0;
-    }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
-    struct otel_tls_t *otls = bpf_map_lookup_elem(&otel_tls, &tgid);
-    if (!otls) {
-        return 0;
-    }
-
-    // Go runtimes publish their context through pprof labels instead.
-    if (otls->runtime != OTEL_RUNTIME_NATIVE) {
-        return 0;
-    }
-
-    u64 tsd_base = read_thread_pointer();
-    if (tsd_base == 0) {
-        return 0;
-    }
-
-    void *record_ptr = NULL;
-    if (otel_tls_read(otls, tsd_base, &record_ptr) || record_ptr == NULL) {
-        return 0;
-    }
-
+static u32 __attribute__((always_inline)) otel_fill_from_record(
+        struct span_context_t *span, void *record_ptr, u32 reader) {
     // valid is checked on both sides of the copy below: the instrumented thread
     // clears it while it updates the record, so a torn read is rejected.
     u8 valid_before = 0;
     int ret = bpf_probe_read_user(&valid_before, sizeof(valid_before),
                                   record_ptr + OTEL_THREAD_CTX_VALID_OFFSET);
-    if (ret < 0 || valid_before != 1) {
-        return 0;
+    if (ret < 0) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (valid_before != 1) {
+        return SPAN_CTX_EVENT_NONE;
     }
 
     struct otel_thread_ctx_record_t record = {};
     ret = bpf_probe_read_user(&record, sizeof(record), record_ptr);
     if (ret < 0) {
-        return 0;
+        return SPAN_CTX_EVENT_READ_FAULT;
     }
 
     u8 valid_after = 0;
     ret = bpf_probe_read_user(&valid_after, sizeof(valid_after),
                               record_ptr + OTEL_THREAD_CTX_VALID_OFFSET);
-    if (ret < 0 || record.valid != 1 || valid_after != 1) {
-        return 0;
+    if (ret < 0) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (record.valid != 1 || valid_after != 1) {
+        return SPAN_CTX_EVENT_TORN;
     }
 
     // The W3C trace id is big-endian: bytes[0..7] are its high 64 bits.
@@ -238,7 +216,9 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
         // large to bounce through the 512-byte stack.
         u32 attrs_id = mint_otel_span_attrs_id();
         struct otel_span_attrs_t *entry = lookup_otel_span_attrs_entry(attrs_id);
-        if (attrs_id != 0 && entry != NULL) {
+        if (attrs_id == 0 || entry == NULL) {
+            monitor_span_ctx_event(reader, SPAN_CTX_EVENT_MAP_ERROR);
+        } else {
             // id is cleared here and stamped below, so a reader never matches an
             // entry whose data is still the previous snapshot's.
             entry->id = 0;
@@ -248,14 +228,43 @@ int __attribute__((always_inline)) fill_span_context_otel(struct span_context_t 
             // only ever reads data[:size].
             ret = bpf_probe_read_user(entry->data, attrs_size,
                                       record_ptr + sizeof(struct otel_thread_ctx_record_t));
-            if (ret >= 0) {
+            if (ret < 0) {
+                monitor_span_ctx_event(reader, SPAN_CTX_EVENT_ATTRS_READ_FAULT);
+            } else {
                 entry->id = attrs_id;
                 span->extra_attrs_id = attrs_id;
             }
         }
     }
 
-    return 1;
+    return SPAN_CTX_EVENT_OK;
+}
+
+// Fills span from the record the current thread's otel_thread_ctx_v1 points at.
+// Returns SPAN_CTX_EVENT_OK on success, or the reason nothing was filled otherwise.
+u32 __attribute__((always_inline)) fill_span_context_otel(
+        struct span_context_t *span, struct otel_tls_t *otls) {
+    u64 tsd_base = read_thread_pointer();
+    if (tsd_base == 0) {
+        return SPAN_CTX_EVENT_NO_THREAD_POINTER;
+    }
+
+    // A thread with no copy of the writer's thread-local is an answer, not an
+    // error: see otel_tls_var_addr.
+    u64 addr = otel_tls_var_addr(otls, tsd_base);
+    if (addr == 0) {
+        return SPAN_CTX_EVENT_NONE;
+    }
+
+    void *record_ptr = NULL;
+    if (bpf_probe_read_user(&record_ptr, sizeof(record_ptr), (void *)addr)) {
+        return SPAN_CTX_EVENT_READ_FAULT;
+    }
+    if (record_ptr == NULL) {
+        return SPAN_CTX_EVENT_NONE;
+    }
+
+    return otel_fill_from_record(span, record_ptr, SPAN_CTX_EVENT_READER_OTEL);
 }
 
 #endif

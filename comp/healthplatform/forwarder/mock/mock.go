@@ -19,7 +19,7 @@ import (
 // inline capture and error-injection logic without extra mock methods.
 type Mock struct {
 	t      testing.TB
-	sendFn func(context.Context, *healthplatformpayload.HealthReport) error
+	sendFn func(context.Context, *healthplatformpayload.HealthReport) (int, error)
 }
 
 // Option configures the mock forwarder returned by New.
@@ -30,12 +30,12 @@ type Option func(*Mock)
 //
 //	var count int32
 //	fwd := forwardermock.New(t, forwardermock.WithSendFunc(
-//	    func(_ context.Context, r *healthplatformpayload.HealthReport) error {
+//	    func(_ context.Context, r *healthplatformpayload.HealthReport) (int, error) {
 //	        atomic.AddInt32(&count, 1)
-//	        return nil
+//	        return 0, nil
 //	    },
 //	))
-func WithSendFunc(fn func(context.Context, *healthplatformpayload.HealthReport) error) Option {
+func WithSendFunc(fn func(context.Context, *healthplatformpayload.HealthReport) (int, error)) Option {
 	return func(m *Mock) { m.sendFn = fn }
 }
 
@@ -48,11 +48,11 @@ func New(t testing.TB, opts ...Option) *Mock {
 	return m
 }
 
-// Send calls the configured sendFn, or returns nil if none was set.
-func (m *Mock) Send(ctx context.Context, report *healthplatformpayload.HealthReport) error {
+// Send calls the configured sendFn, or returns (0, nil) if none was set.
+func (m *Mock) Send(ctx context.Context, report *healthplatformpayload.HealthReport) (int, error) {
 	m.t.Helper()
 	if m.sendFn == nil {
-		return nil
+		return 0, nil
 	}
 	return m.sendFn(ctx, report)
 }

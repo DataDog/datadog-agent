@@ -44,7 +44,7 @@ type dependencies struct {
 }
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
 	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
@@ -169,13 +169,12 @@ func resourcesWithExplicitMetadataCollectionEnabled(cfg config.Reader) []string 
 
 // resourcesForAPMConfig returns the list of resources to collect metadata from
 // for the auto instrumentation configuration. Namespaces are collected in order
-// to utilize namespace labels for target based configuration and to determine
-// pod security policies to apply to restricted namespaces.
+// to utilize namespace labels for target and remote policy matching, and to
+// determine pod security policies to apply to restricted namespaces.
 func resourcesForAPMConfig(cfg config.Reader) []string {
-	// If APM is not enabled, we don't need to collect any resources for the
-	// auto instrumentation configuration.
-	apmEnabled := cfg.GetBool("apm_config.instrumentation.enabled")
-	if !apmEnabled {
+	// Both implicit and on-demand instrumentation can inject pods, so both need
+	// namespace labels.
+	if !cfg.GetBool("apm_config.instrumentation.enabled") && !cfg.GetBool("apm_config.instrumentation.on_demand") {
 		return nil
 	}
 
@@ -244,13 +243,13 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
 	} else {
 		for _, gvr := range gvrs {
-			reflector, store := newMetadataStore(ctx, wlmetaStore, c.config, metadataclient, gvr)
+			reflector, store := newMetadataStore(wlmetaStore, c.config, metadataclient, gvr)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 		}
 	}
 
-	nodeReflector, nodeStore := newNodeStore(ctx, wlmetaStore, c.config, client)
+	nodeReflector, nodeStore := newNodeStore(wlmetaStore, c.config, client)
 	objectStores = append(objectStores, nodeStore)
 	go nodeReflector.Run(ctx.Done())
 
@@ -263,7 +262,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			// block the startup readiness check.
 			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
 		} else {
-			reflector, store := newPodStore(ctx, wlmetaStore, c.config, client)
+			reflector, store := newPodStore(wlmetaStore, c.config, client)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 			if autoscalingEnabled {
@@ -273,7 +272,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	}
 
 	if shouldHaveDeploymentStore(c.config) {
-		reflector, store := newDeploymentStore(ctx, wlmetaStore, c.config, client)
+		reflector, store := newDeploymentStore(wlmetaStore, c.config, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}
@@ -289,7 +288,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 					log.Errorf("failed to get Kueue queue type for %s: %v", gvr.Resource, err)
 					continue
 				}
-				reflector, store, err := newKueueQueueStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
+				reflector, store, err := newKueueQueueStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, queueType)
 				if err != nil {
 					log.Errorf("failed to create Kueue queue store for %s: %v", gvr.Resource, err)
 					continue
@@ -304,7 +303,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue ResourceFlavor resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueResourceFlavorStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueResourceFlavorStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
 				if err != nil {
 					log.Errorf("failed to create Kueue ResourceFlavor store for %s: %v", gvr.Resource, err)
 					continue
@@ -319,7 +318,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue Workload resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueWorkloadStore(ctx, wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
 				if err != nil {
 					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
 					continue
@@ -355,7 +354,7 @@ func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloa
 	}
 
 	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
-	reflector, store := newStore(ctx, wlmetaStore, c.config, client)
+	reflector, store := newStore(wlmetaStore, c.config, client)
 	go reflector.Run(ctx.Done())
 
 	c.markPodCollectionSyncedWhenReady(ctx, store)

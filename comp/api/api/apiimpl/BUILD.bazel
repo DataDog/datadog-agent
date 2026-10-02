@@ -34,7 +34,6 @@ dd_agent_go_test(
     name = "apiimpl_test",
     srcs = [
         "api_test.go",
-        "server_test.go",
     ],
     embed = [":apiimpl"],
     deps = [
@@ -51,7 +50,6 @@ dd_agent_go_test(
         "@com_github_prometheus_client_model//go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@org_golang_x_net//http2",
         "@org_uber_go_fx//:fx",
     ],
 )

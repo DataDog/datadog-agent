@@ -41,7 +41,14 @@ const (
 )
 
 func getConnectData(t testing.TB, userType int) config.ConnectionConfig {
-	handleRealConnection := func(userType int) config.ConnectionConfig {
+	t.Helper()
+	connection, err := getTestConnectionConfig(userType)
+	require.NoError(t, err)
+	return connection
+}
+
+func getTestConnectionConfig(userType int) (config.ConnectionConfig, error) {
+	handleRealConnection := func(userType int) (config.ConnectionConfig, error) {
 		var userEnvVariable string
 		var passwordEnvVariable string
 
@@ -88,11 +95,12 @@ func getConnectData(t testing.TB, userType int) config.ConnectionConfig {
 			port = 1521
 		}
 
-		require.NotEqualf(t, "", username, "Please set the %s environment variable", userEnvVariable)
-		require.NotEqualf(t, "", password, "Please set the %s environment variable", passwordEnvVariable)
-		require.NotEqualf(t, "", server, "Please set the %s environment variable", serverEnvVariable)
-		require.NotEqualf(t, "", serviceName, "Please set the %s environment variable", serviceNameEnvVariable)
-		require.NotEqualf(t, 0, port, "Please set the %s environment variable", portEnvVariable)
+		if username == "" {
+			return config.ConnectionConfig{}, fmt.Errorf("please set the %s environment variable", userEnvVariable)
+		}
+		if password == "" {
+			return config.ConnectionConfig{}, fmt.Errorf("please set the %s environment variable", passwordEnvVariable)
+		}
 
 		return config.ConnectionConfig{
 			Username:    username,
@@ -100,7 +108,7 @@ func getConnectData(t testing.TB, userType int) config.ConnectionConfig {
 			Server:      server,
 			Port:        port,
 			ServiceName: serviceName,
-		}
+		}, nil
 
 	}
 
@@ -116,7 +124,7 @@ func getConnectData(t testing.TB, userType int) config.ConnectionConfig {
 			Server:      "localhost",
 			Port:        60000,
 			ServiceName: doesNotExist,
-		}
+		}, nil
 	default:
 		return handleRealConnection(useDefaultUser)
 	}

@@ -13,16 +13,21 @@ import (
 	"strings"
 	"time"
 
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
+
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 const (
-	injectOCIPath = "/opt/datadog-packages/datadog-apm-inject"
-	injectDebPath = "/opt/datadog/apm"
+	injectOCIPath                 = "/opt/datadog-packages/datadog-apm-inject"
+	injectDebPath                 = "/opt/datadog/apm"
+	appArmorBaseProfile           = "/etc/apparmor.d/abstractions/base"
+	appArmorBaseDInjectorProfile  = "/etc/apparmor.d/abstractions/base.d/datadog"
+	appArmorLegacyInjectorProfile = "/etc/apparmor.d/abstractions/datadog.d/injector"
+	appArmorLegacyInclude         = "include if exists <abstractions/datadog.d>"
 	// injectTmpfsLauncher is the launcher entry written to /etc/ld.so.preload
 	// for OCI host instrumentation on systemd hosts: a symlink on tmpfs that
 	// auto-vanishes on reboot. See apminject.defaultTmpfsInjectDir.
@@ -56,12 +61,12 @@ func (s *packageApmInjectSuite) SetupTest() {
 }
 
 func (s *packageApmInjectSuite) TestInstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
@@ -79,8 +84,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	state.AssertDirExists("/etc/datadog-agent/inject", 0755, "root", "root")
 	if s.os == e2eos.Ubuntu2404 || s.os == e2eos.Debian12 {
-		state.AssertDirExists("/etc/apparmor.d/abstractions/datadog.d", 0755, "root", "root")
-		state.AssertFileExists("/etc/apparmor.d/abstractions/datadog.d/injector", 0644, "root", "root")
+		s.assertAppArmorProfile()
 	}
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
@@ -97,7 +101,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) TestUninstall() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	s.Purge()
 
@@ -107,11 +111,12 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	state := s.host.State()
 	state.AssertPathDoesNotExist("/usr/bin/dd-host-install")
 	state.AssertPathDoesNotExist("/usr/bin/dd-container-install")
-	state.AssertPathDoesNotExist("/etc/apparmor.d/abstractions/datadog.d/injector")
+	state.AssertPathDoesNotExist(appArmorLegacyInjectorProfile)
+	state.AssertPathDoesNotExist(appArmorBaseDInjectorProfile)
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -123,7 +128,7 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 }
 
 func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
 	defer s.host.RemoveBrokenDockerConfig()
@@ -135,7 +140,7 @@ func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDocker() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=docker", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -161,7 +166,7 @@ func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -170,7 +175,7 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 }
 
 func (s *packageApmInjectSuite) TestSystemdReload() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript()
 	defer s.Purge()
 
@@ -191,7 +196,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -234,7 +239,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// OCI install
 	s.RunInstallScript(
@@ -273,7 +278,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
 	pinnedApmLibraryPythonVersion := pinnedApmLibraryPythonVersion()
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python:"+prevApmLibraryPythonVersion,
@@ -289,7 +294,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/"+prevApmInjectVersionDir, "root", "root")
 
-	s.host.StartExamplePythonApp()
+	s.host.StartExamplePythonApp(s.injectionPython())
 	defer s.host.StopExamplePythonApp()
 
 	traceID := rand.Uint64()
@@ -336,7 +341,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 	s.assertSocketPath()
 	s.assertDockerdNotInstrumented()
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer apm instrument docker")
 	assert.NoError(s.T(), err)
@@ -347,7 +352,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 }
 
 func (s *packageApmInjectSuite) TestPackagePinning() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	prevApmLibraryPythonVersion := previousApmLibraryPythonVersion()
 
@@ -368,7 +373,7 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 }
 
 func (s *packageApmInjectSuite) TestUninstrument() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -399,7 +404,7 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 
 	// Deb install using today's defaults
 	s.RunInstallScript(
@@ -439,13 +444,13 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
-	s.host.InstallDocker()
+	s.host.PrepareDocker()
 	s.Env().RemoteHost.MustExecute("sudo systemctl stop docker")
 
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
-	s.host.InstallDocker() // Restart docker cleanly
+	s.host.PrepareDocker() // Restart docker cleanly
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath()
@@ -469,19 +474,40 @@ func (s *packageApmInjectSuite) TestInstallWithUmask() {
 
 func (s *packageApmInjectSuite) TestAppArmor() {
 	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 {
+		s.T().Skip("AppArmor abstraction test only applies to Debian-based hosts")
+	}
+	if output, err := s.Env().RemoteHost.Execute("sudo aa-enabled"); err != nil || !strings.Contains(output, "Yes") {
 		s.T().Skip("AppArmor not installed by default")
 	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+	baseBefore, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	supportsBaseD := appArmorBaseSupportsDropIns(string(baseBefore))
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 	)
 	defer s.Purge()
 	s.assertAppArmorProfile()
+	baseAfter, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	if supportsBaseD {
+		assert.Equal(s.T(), baseBefore, baseAfter, "base.d hosts must leave the package-owned base profile unchanged")
+	} else {
+		assert.Equal(s.T(), string(baseBefore)+"\n"+appArmorLegacyInclude, string(baseAfter))
+	}
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
 	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
 	assert.Contains(s.T(), res, "not injecting")
+
+	s.Purge()
+	baseAfterPurge, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	assert.Equal(s.T(), baseBefore, baseAfterPurge)
+	state := s.host.State()
+	state.AssertPathDoesNotExist(appArmorLegacyInjectorProfile)
+	state.AssertPathDoesNotExist(appArmorBaseDInjectorProfile)
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
@@ -564,8 +590,17 @@ func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]in
 	assert.Equal(s.T(), expectedConfigs, actualStableConfig["apm_configuration_default"])
 }
 
+func (s *packageApmInjectSuite) injectionPython() string {
+	if s.os.Flavor == e2eos.Suse {
+		// Python 3.11 is pre-baked into the AMI. Keep the system Python 3.6
+		// unchanged: zypper's susecloud plugin depends on its cloudregister module.
+		return "/usr/bin/python3.11"
+	}
+	return "python3"
+}
+
 func (s *packageApmInjectSuite) assertSocketPath() {
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.Contains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'") // this is an env var set by the injector
 }
 
@@ -583,7 +618,7 @@ func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
 		// prints a "cannot be preloaded ... ignored" warning for it on every exec.
 		assert.NotContains(s.T(), string(content), injectTmpfsLauncherFor(s.arch))
 	}
-	output := s.host.Run("sh -c 'python3 -c \"import os; print(os.environ)\"'")
+	output := s.host.Run(fmt.Sprintf("sh -c '%s -c \"import os; print(os.environ)\"'", s.injectionPython()))
 	assert.NotContains(s.T(), output, "'DD_INJECTION_ENABLED': 'tracer'")
 }
 
@@ -613,12 +648,29 @@ func (s *packageApmInjectSuite) assertDockerdNotInstrumented() {
 }
 
 func (s *packageApmInjectSuite) assertAppArmorProfile() {
-	content, err := s.host.ReadFile("/etc/apparmor.d/abstractions/datadog.d/injector")
+	base, err := s.host.ReadFile(appArmorBaseProfile)
+	require.NoError(s.T(), err)
+	profilePath := appArmorLegacyInjectorProfile
+	if appArmorBaseSupportsDropIns(string(base)) {
+		profilePath = appArmorBaseDInjectorProfile
+	}
+	content, err := s.host.ReadFile(profilePath)
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), string(content), `/opt/datadog-packages/** rix,
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`)
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+}
+
+func appArmorBaseSupportsDropIns(profile string) bool {
+	for _, line := range strings.Split(profile, "\n") {
+		switch strings.TrimSpace(line) {
+		case "#include <abstractions/base.d>", "include <abstractions/base.d>",
+			"include if exists <abstractions/base.d>":
+			return true
+		}
+	}
+	return false
 }
 
 // TestSystemdService verifies that on a host with systemd, the datadog-apm-inject.service
@@ -693,8 +745,6 @@ func (s *packageApmInjectSuite) installGCC() {
 	switch s.os.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
 		host.MustExecute("sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev")
-	case e2eos.Suse:
-		host.MustExecute("sudo zypper --non-interactive install -y gcc glibc-devel")
 	default:
 		s.T().Skipf("test does not know how to install gcc on %s", s.os.Flavor)
 	}

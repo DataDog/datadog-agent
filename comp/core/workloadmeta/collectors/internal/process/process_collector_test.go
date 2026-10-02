@@ -53,6 +53,64 @@ func (c collectorTest) cleanup() {
 	telemetryimpl.GetCompatComponent().Reset()
 }
 
+func TestCollectProcessesSignalsReadinessAfterSuccessfulEmptyScan(t *testing.T) {
+	c := setUpCollectorTest(t, config.NewMock(t), nil, nil)
+	c.collector.processEventsCh = make(chan *Event, 1)
+	c.probe.EXPECT().ProcessesByPID(mock.Anything, false).Return(map[int32]*procutil.Process{}, nil).Once()
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	processesReady := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.collector.collectProcesses(ctx, c.mockClock.Ticker(time.Minute), processesReady)
+	}()
+
+	select {
+	case <-processesReady:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for process readiness")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for process collection to stop")
+	}
+}
+
+func TestCollectProcessesDoesNotSignalReadinessAfterFailedScan(t *testing.T) {
+	c := setUpCollectorTest(t, config.NewMock(t), nil, nil)
+	firstAttempt := make(chan struct{})
+	c.probe.EXPECT().ProcessesByPID(mock.Anything, false).
+		Run(func(time.Time, bool) { close(firstAttempt) }).
+		Return(nil, assert.AnError).
+		Once()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	processesReady := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.collector.collectProcesses(ctx, c.mockClock.Ticker(time.Minute), processesReady)
+	}()
+	<-firstAttempt
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for process collection to stop")
+	}
+	select {
+	case <-processesReady:
+		t.Fatal("failed process scan unexpectedly signaled readiness")
+	default:
+	}
+}
+
 // TestBasicCreatedProcessesCollection tests the collector capturing new processes without language + container data
 func TestBasicCreatedProcessesCollection(t *testing.T) {
 	creationTime1 := time.Now().Unix()
@@ -604,6 +662,49 @@ func TestStartConfiguration(t *testing.T) {
 	}
 }
 
+func TestProcessDataCollectionEnabled(t *testing.T) {
+	tests := []struct {
+		name                      string
+		processCollectionEnabled  bool
+		languageCollectionEnabled bool
+		gpuMonitoringEnabled      bool
+		expected                  bool
+	}{
+		{
+			name:                     "process collection enabled",
+			processCollectionEnabled: true,
+			expected:                 true,
+		},
+		{
+			name:                      "language collection enabled",
+			languageCollectionEnabled: true,
+			expected:                  true,
+		},
+		{
+			name:                 "GPU monitoring enabled",
+			gpuMonitoringEnabled: true,
+			expected:             true,
+		},
+		{
+			name:     "all disabled",
+			expected: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("process_config.process_collection.enabled", tc.processCollectionEnabled)
+			cfg.SetInTest("language_detection.enabled", tc.languageCollectionEnabled)
+			cfg.SetInTest("gpu.enabled", tc.gpuMonitoringEnabled)
+
+			c := setUpCollectorTest(t, cfg, nil, nil)
+
+			assert.Equal(t, tc.expected, c.collector.isProcessDataCollectionEnabled())
+		})
+	}
+}
+
 func TestProcessCollectorIntervalConfig(t *testing.T) {
 	for _, tc := range []struct {
 		description      string
@@ -792,6 +893,48 @@ func TestProcessCacheSameCmdline(t *testing.T) {
 	diff := processCacheDifference(cacheA, cacheB)
 
 	assert.Len(t, diff, 0, "Expected no processes in diff when cmdline is the same")
+}
+
+func TestProcessCacheDifferenceParentPID(t *testing.T) {
+	const pid int32 = 12345
+	const createTime int64 = 1000
+	current := &procutil.Process{
+		Pid:     pid,
+		Ppid:    2,
+		Cmdline: []string{"worker"},
+		Stats:   &procutil.Stats{CreateTime: createTime, Status: "S"},
+	}
+	previous := &procutil.Process{
+		Pid:     pid,
+		Ppid:    1,
+		Cmdline: []string{"worker"},
+		Stats:   &procutil.Stats{CreateTime: createTime, Status: "S"},
+	}
+
+	diff := processCacheDifference(
+		map[int32]*procutil.Process{pid: current},
+		map[int32]*procutil.Process{pid: previous},
+	)
+
+	require.Len(t, diff, 1)
+	assert.Equal(t, int32(2), diff[0].Ppid)
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("process_config.process_collection.enabled", true)
+	collectorTest := setUpCollectorTest(t, cfg, nil, nil)
+	collectorTest.collector.lastCollectedProcesses = map[int32]*procutil.Process{pid: previous}
+	collectorTest.probe.On("ProcessesByPID", mock.Anything, mock.Anything).
+		Return(map[int32]*procutil.Process{pid: current}, nil).
+		Once()
+	collectorTest.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(1)
+
+	event := collectorTest.collector.collectProcessesOnce()
+	require.NotNil(t, event)
+	require.Len(t, event.Deleted, 1)
+	assert.Equal(t, strconv.Itoa(int(pid)), event.Deleted[0].EntityID.ID)
+	require.Len(t, event.Created, 1)
+	assert.Equal(t, pid, event.Created[0].Pid)
+	assert.Equal(t, int32(2), event.Created[0].Ppid)
 }
 
 // TestProcessCacheDifferenceContainerID tests that processCacheDifference detects

@@ -43,8 +43,8 @@ trap cleanup EXIT
 # ─── Step 1: Validate agent source tree ───────────────────────────────────────
 #
 # The agent source is NOT cloned here — it must already be present at
-# $AGENT_SRC (resolved by env.sh from the script directory's .git ancestor), transferred from the build machine
-# by the caller. (The local clone contains AIX-specific changes not yet merged
+# $AGENT_SRC (resolved by env.sh as the nearest .git ancestor of the current
+# directory), transferred from the build machine by the caller. (The local clone contains AIX-specific changes not yet merged
 # to main.)
 #
 # Expected transfer method:
@@ -105,7 +105,9 @@ log "Checking out DataDog/integrations-core at $INTEGRATIONS_CORE_VERSION into $
 mkdir -p "$(dirname "$INTEGRATIONS_CORE")"
 
 if [ -d "$INTEGRATIONS_CORE/.git" ]; then
-    log "integrations-core repository already exists — fetching latest refs"
+    log "integrations-core repository already exists — resetting to a clean state and fetching latest refs"
+    git -C "$INTEGRATIONS_CORE" reset --quiet --hard
+    git -C "$INTEGRATIONS_CORE" clean --quiet -fd
     git -C "$INTEGRATIONS_CORE" fetch --quiet
 else
     log "Cloning https://github.com/DataDog/integrations-core.git (shallow --depth=1)"
@@ -131,7 +133,9 @@ log "Checking out DataDog/saluki at $AGENT_DATA_PLANE_VERSION into $SALUKI_SRC"
 mkdir -p "$(dirname "$SALUKI_SRC")"
 
 if [ -d "$SALUKI_SRC/.git" ]; then
-    log "saluki repository already exists — fetching $AGENT_DATA_PLANE_VERSION"
+    log "saluki repository already exists — resetting to a clean state and fetching $AGENT_DATA_PLANE_VERSION"
+    git -C "$SALUKI_SRC" reset --quiet --hard
+    git -C "$SALUKI_SRC" clean --quiet -fd
     git -C "$SALUKI_SRC" fetch --quiet --depth=1 origin \
         "refs/tags/$AGENT_DATA_PLANE_VERSION:refs/tags/$AGENT_DATA_PLANE_VERSION"
 else

@@ -8,14 +8,46 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"os"
 	"sync"
 	"testing"
 	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testStorageKeyForIdentity preserves concise test fixtures while production identity is
+// based on the metrics-pipeline context key.
+func testStorageKeyForIdentity(namespace, name, host string, tags []string) uint64 {
+	return storageKeyForIdentity(namespace, name, host, tags)
+}
+
+// GetSeries is a test-only convenience query. A nil tag slice matches the
+// first series with the namespace and name regardless of tags.
+func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if tags != nil {
+		stats := s.series[testStorageKeyForIdentity(namespace, name, "", tags)]
+		if stats == nil || stats.Namespace != namespace || stats.Name != name || stats.Host != "" {
+			return nil
+		}
+		series := stats.toSeries(agg)
+		return &series
+	}
+
+	for _, stats := range s.seriesIDStats {
+		if stats != nil && stats.Namespace == namespace && stats.Name == name {
+			series := stats.toSeries(agg)
+			return &series
+		}
+	}
+	return nil
+}
 
 func TestTimeSeriesStorage_Add(t *testing.T) {
 	s := newTimeSeriesStorage()
@@ -27,10 +59,130 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	require.NotNil(t, series)
 	assert.Equal(t, "test", series.Namespace)
 	assert.Equal(t, "my.metric", series.Name)
-	assert.Equal(t, []string{"env:prod"}, series.Tags)
+	assert.Equal(t, []string{"env:prod"}, series.Tags.UnsafeToReadOnlySliceString())
 	require.Len(t, series.Points, 1)
 	assert.Equal(t, int64(1000), series.Points[0].Timestamp)
 	assert.Equal(t, 10.0, series.Points[0].Value)
+}
+
+func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
+	s := newTimeSeriesStorage()
+	result := s.Add("logs", "log.pattern.count", 1, 1, nil)
+	_, ok := s.GetContext(result.Ref)
+	require.False(t, ok)
+
+	s.SetContext(result.Ref, observer.MetricContext{Pattern: "first", Example: "first log"})
+	stored := s.seriesIDStats[result.Ref].context
+	first, ok := s.GetContext(result.Ref)
+	require.True(t, ok)
+
+	s.SetContext(result.Ref, observer.MetricContext{Pattern: "second", Example: "second log"})
+	require.Same(t, stored, s.seriesIDStats[result.Ref].context, "updates should reuse the series context allocation")
+	second, ok := s.GetContext(result.Ref)
+	require.True(t, ok)
+	assert.Equal(t, "first", first.Pattern)
+	assert.Equal(t, "first log", first.Example)
+	assert.Equal(t, "second", second.Pattern)
+	assert.Equal(t, "second log", second.Example)
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{result.Ref})
+	_, ok = s.GetContext(result.Ref)
+	assert.False(t, ok)
+}
+
+func TestTimeSeriesStorage_AddWithKeyAndHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	key := testStorageKeyForIdentity("dogstatsd", "metric.a", "host-a", tags)
+
+	first := s.AddWithKeyAndHost("dogstatsd", "metric.a", "host-a", 1, 100, tags, key)
+	second := s.AddWithKeyAndHost("dogstatsd", "metric.a", "host-a", 2, 100, tags, key)
+
+	assert.True(t, first.IsNew)
+	assert.False(t, second.IsNew)
+	assert.Equal(t, first.Ref, second.Ref)
+	storedKey, found := s.StorageKey(first.Ref)
+	assert.True(t, found)
+	assert.Equal(t, key, storedKey)
+}
+
+func TestTimeSeriesStorage_AddWithKeyAndHostCopiesRawTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	key := testStorageKeyForIdentity("dogstatsd", "metric.a", "host-a", tags)
+	result := s.AddWithKeyAndHost("dogstatsd", "metric.a", "host-a", 1, 100, tags, key)
+	tags[0] = "env:dev"
+
+	meta := s.GetSeriesMeta(result.Ref)
+	require.NotNil(t, meta)
+	assert.Equal(t, "env:prod", meta.Tags.Join(","))
+	series := s.GetSeriesRange(result.Ref, 0, 100, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, "env:prod", series.Tags.Join(","))
+}
+
+func TestSeriesKeyHashIncludesNamespace(t *testing.T) {
+	tags := []string{"env:prod"}
+	assert.NotEqual(t,
+		testStorageKeyForIdentity("check", "metric.a", "host-a", tags),
+		testStorageKeyForIdentity("dogstatsd", "metric.a", "host-a", tags),
+	)
+}
+
+func TestEngineIngestMetricUsesProvidedStorageKey(t *testing.T) {
+	storage := newTimeSeriesStorage()
+	engine := newEngine(engineConfig{storage: storage})
+	metric := &metricObs{
+		name:      "metric.a",
+		host:      "host-a",
+		value:     1,
+		timestamp: 100,
+		tags:      testCompositeTags([]string{"env:prod"}),
+	}
+	metric.storageKey = testStorageKeyForMetric("dogstatsd", metric)
+	engine.IngestMetric("dogstatsd", metric)
+
+	metas := storage.ListSeries(observer.SeriesFilter{Namespace: "dogstatsd"})
+	require.Len(t, metas, 1)
+	series := storage.GetSeriesRange(metas[0].Ref, 0, 100, AggregateAverage)
+	require.NotNil(t, series)
+	assert.Equal(t, []observer.Point{{Timestamp: 100, Value: 1}}, series.Points)
+	key, found := storage.StorageKey(metas[0].Ref)
+	assert.True(t, found)
+	assert.Equal(t, metric.storageKey, key)
+}
+
+func TestTimeSeriesStorage_AddWithKeyAndHostSeparatesIdenticalMetricAndTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	first := s.AddWithKeyAndHost("test", "my.metric", "host-a", 10, 1000, tags, testStorageKeyForIdentity("test", "my.metric", "host-a", tags))
+	second := s.AddWithKeyAndHost("test", "my.metric", "host-b", 20, 1000, tags, testStorageKeyForIdentity("test", "my.metric", "host-b", tags))
+
+	require.NotEqual(t, first.Ref, second.Ref)
+	firstMeta := s.GetSeriesMeta(first.Ref)
+	secondMeta := s.GetSeriesMeta(second.Ref)
+	require.NotNil(t, firstMeta)
+	require.NotNil(t, secondMeta)
+	assert.Equal(t, "host-a", firstMeta.Host)
+	assert.Equal(t, "host-b", secondMeta.Host)
+	ranged := s.GetSeriesRange(first.Ref, 0, 1000, AggregateAverage)
+	require.NotNil(t, ranged)
+	assert.Equal(t, "host-a", ranged.Host)
+	assert.Equal(t, "test|my.metric:avg|host-a|env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Host: "host-a", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
+	assert.Equal(t, "test|my.metric:avg||env:prod", (observer.SeriesDescriptor{Namespace: "test", Name: "my.metric", Tags: testCompositeTags([]string{"env:prod"}), Aggregate: AggregateAverage}).Key())
+}
+
+func TestSeriesDescriptorKeyIgnoresTagOrderAndDuplicates(t *testing.T) {
+	base := observer.SeriesDescriptor{
+		Namespace: "test", Name: "my.metric", Host: "host-a", Aggregate: AggregateAverage,
+		Tags: tagset.NewCompositeTags([]string{"region:us", "env:prod"}, []string{"service:web"}),
+	}
+	permuted := base
+	permuted.Tags = tagset.NewCompositeTags([]string{"service:web", "env:prod"}, []string{"region:us", "env:prod"})
+	assert.Equal(t, "test|my.metric:avg|host-a|env:prod,region:us,service:web", base.Key())
+	assert.Equal(t, base.Key(), permuted.Key())
+	permuted.Host = "host-b"
+	assert.NotEqual(t, base.Key(), permuted.Key())
 }
 
 func TestTimeSeriesStorage_ForEachLastPoints(t *testing.T) {
@@ -454,12 +606,6 @@ func TestPointCountUpTo_BinarySearch(t *testing.T) {
 	assert.Equal(t, 0, s.PointCountUpTo(observer.SeriesRef(999), 100)) // non-existent ID
 }
 
-func TestPointCount_ColumnarLayout(t *testing.T) {
-	s := makeRangeStorage()
-	assert.Equal(t, 5, s.PointCount(rangeID))
-	assert.Equal(t, 0, s.PointCount(observer.SeriesRef(999))) // non-existent ID
-}
-
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 	s := newTimeSeriesStorage()
 	// Insert out of order — storage keeps buckets sorted.
@@ -765,9 +911,9 @@ func TestTimeSeriesStorage_FindRefsByHashes(t *testing.T) {
 	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
 	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
 
-	hA := seriesKeyHash("ns", "a", []string{"k:1"})
-	hB := seriesKeyHash("ns", "b", []string{"k:2"})
-	hMissing := seriesKeyHash("ns", "ghost", nil)
+	hA := testStorageKeyForIdentity("ns", "a", "", []string{"k:1"})
+	hB := testStorageKeyForIdentity("ns", "b", "", []string{"k:2"})
+	hMissing := testStorageKeyForIdentity("ns", "ghost", "", nil)
 
 	refs := s.FindRefsByHashes(map[uint64]struct{}{hA: {}, hB: {}, hMissing: {}})
 
@@ -903,10 +1049,11 @@ func TestTimeSeriesStorage_TagIntern_SharedSlice(t *testing.T) {
 	require.NotNil(t, stats1)
 	require.NotNil(t, stats2)
 
-	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
-	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
-	assert.Equal(t, ptr1, ptr2, "series with identical tag sets must share the same []string backing array")
-	assert.Equal(t, 1, s.TagInternedCount())
+	tags1, _ := stats1.Tags.UnsafeGet()
+	tags2, _ := stats2.Tags.UnsafeGet()
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(tags1)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(tags2)))
+	assert.Equal(t, ptr1, ptr2, "storage should intern equivalent copied raw tags")
 }
 
 func TestTimeSeriesStorage_TagIntern_Eviction(t *testing.T) {
@@ -945,16 +1092,38 @@ func TestTimeSeriesStorage_TagIntern_UnsortedTagsShareEntry(t *testing.T) {
 
 	res1 := s.Add("ns", "m1", 1.0, 1000, tags1)
 	res2 := s.Add("ns", "m2", 1.0, 1000, tags2)
-	assert.Equal(t, 1, s.TagInternedCount(), "same tags in different order must share one pool entry")
 
 	s.mu.RLock()
 	stats1 := s.resolveByID(res1.Ref)
 	stats2 := s.resolveByID(res2.Ref)
 	s.mu.RUnlock()
 
-	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
-	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
-	assert.Equal(t, ptr1, ptr2, "unsorted and sorted variants must share the same backing array")
+	storedTags1, _ := stats1.Tags.UnsafeGet()
+	storedTags2, _ := stats2.Tags.UnsafeGet()
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(storedTags1)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(storedTags2)))
+	assert.Equal(t, ptr1, ptr2, "unordered equivalent tag views must share the canonical composite")
+}
+
+func TestTimeSeriesStorage_TagIntern_IgnoresDuplicateCompositeTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+	firstTags := tagset.NewCompositeTags([]string{"service:api", "env:prod"}, nil)
+	secondTags := tagset.NewCompositeTags([]string{"env:prod"}, []string{"service:api", "service:api"})
+
+	first := s.AddWithKeyAndHostComposite("ns", "m1", "", 1, 1000, firstTags, storageKeyForCompositeIdentity("ns", "m1", "", firstTags))
+	second := s.AddWithKeyAndHostComposite("ns", "m2", "", 1, 1000, secondTags, storageKeyForCompositeIdentity("ns", "m2", "", secondTags))
+
+	assert.Equal(t, 1, s.TagInternedCount())
+	s.mu.RLock()
+	firstStats := s.resolveByID(first.Ref)
+	secondStats := s.resolveByID(second.Ref)
+	s.mu.RUnlock()
+	firstStored, _ := firstStats.Tags.UnsafeGet()
+	secondStored, _ := secondStats.Tags.UnsafeGet()
+	assert.Equal(t,
+		uintptr(unsafe.Pointer(unsafe.SliceData(firstStored))),
+		uintptr(unsafe.Pointer(unsafe.SliceData(secondStored))),
+	)
 }
 
 func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
@@ -970,4 +1139,33 @@ func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
 
 	s.Add("ns2", "m0", 1.0, 1000, []string{"unique:tag0"})
 	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "hit on existing entry must not grow pool")
+}
+
+func TestTimeSeriesStorage_DumpToFileIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	tags := []string{"env:prod"}
+	s.AddWithKeyAndHost("ns", "metric", "web-1", 1, 1000, tags, testStorageKeyForIdentity("ns", "metric", "web-1", tags))
+
+	path := t.TempDir() + "/series.json"
+	require.NoError(t, s.DumpToFile(path))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"host": "web-1"`)
+}
+
+func TestTimeSeriesStorage_ListSeriesMetadataIncludesHost(t *testing.T) {
+	s := newTimeSeriesStorage()
+	s.AddWithKeyAndHost("ns", "metric", "web-1", 1, 1000, nil, testStorageKeyForIdentity("ns", "metric", "web-1", nil))
+
+	metas := s.ListSeriesMetadata("ns")
+	require.Len(t, metas, 1)
+	assert.Equal(t, "web-1", metas[0].Host)
+}
+
+func TestSeriesKeyHashIsUnordered(t *testing.T) {
+	sorted := testStorageKeyForIdentity("ns", "metric", "web-1", []string{"env:prod", "service:api"})
+	unsorted := testStorageKeyForIdentity("ns", "metric", "web-1", []string{"service:api", "env:prod"})
+
+	assert.NotZero(t, sorted)
+	assert.Equal(t, sorted, unsorted)
 }

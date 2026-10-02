@@ -28,19 +28,19 @@ HOOK_SYSCALL_ENTRY3(bind, int, socket, struct sockaddr *, addr, unsigned int, ad
 }
 
 int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_BIND);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_BIND);
     if (!syscall) {
         return 0;
     }
 
     if (IS_UNHANDLED_ERROR(retval)) {
-        return 0;
+        goto pop_and_exit;
     }
 
     /* pre-fill the event */
     struct bind_event_t *event = SPAN_FILL_EVENT(struct bind_event_t, EVENT_BIND);
     if (!event) {
-        return 0;
+        goto pop_and_exit;
     }
     event->syscall.retval = retval;
     event->addr[0] = syscall->bind.addr[0];
@@ -55,9 +55,12 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
     } else {
         entry = fill_process_context(&event->process);
     }
+
+    pop_syscall(EVENT_BIND);
+
     fill_cgroup_context(entry, &event->cgroup);
 
-    // should we sample this event for activity dumps ?
+    // v1: check if this PID is traced by an activity dump
     struct activity_dump_config *config = lookup_or_delete_traced_pid(event->process.pid, bpf_ktime_get_ns(), NULL);
     if (config) {
         if (mask_has_event(config->event_mask, EVENT_BIND)) {
@@ -65,29 +68,10 @@ int __attribute__((always_inline)) sys_bind_ret_impl(void *ctx, int retval, enum
         }
     }
 
-    if (!(event->event.flags & EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE)) {
-        struct bind_connect_sample_key_t bind_key;
-        __builtin_memset(&bind_key, 0, sizeof(bind_key));
-        bind_key.pid = event->process.pid;
-        bind_key.family = event->family;
-        bind_key.port = event->port;
-        bind_key.protocol = event->protocol;
-        bind_key.addr[0] = event->addr[0];
-        bind_key.addr[1] = event->addr[1];
-
-        u32 bind_cookie = 0;
-        u32 bind_refresh_needed = 0;
-        if (approve_bind_sample(&bind_key, &bind_cookie, &bind_refresh_needed) == SAMPLED) {
-            event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE | EVENT_FLAGS_SAVED_BY_AD;
-            event->sample_cookie = bind_cookie;
-        } else if (bind_refresh_needed) {
-            struct sample_refresh_event_t ev = {};
-            ev.cookie = bind_cookie;
-            send_event(ctx, EVENT_SAMPLE_REFRESH, ev);
-        }
-    }
-
     span_fill_tail_call(ctx, prog_type);
+
+pop_and_exit:
+    pop_syscall(EVENT_BIND);
     return 0;
 }
 

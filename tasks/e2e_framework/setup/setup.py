@@ -99,6 +99,7 @@ def _force_cleanup(
         "with_azure": doc.with_azure,
         "with_gcp": doc.with_gcp,
         "account": doc.account,
+        "team": doc.team,
         "force": doc.force,
     },
     default=True,
@@ -111,15 +112,16 @@ def setup(
     with_azure: bool = False,
     with_gcp: bool = False,
     account: str | None = None,
+    team: str | None = None,
     force: bool = False,
 ) -> None:
     """
     Configure the local environment for E2E tests.
 
     On the default path this configures AWS only (the cloud the vast majority of
-    E2E tests target) and asks at most one question (the GitHub team tag for
-    resource attribution). Pass --with-azure / --with-gcp to also configure
-    those providers.
+    E2E tests target) and is fully non-interactive when --team is passed. Without
+    --team it asks at most one question (the GitHub team tag for resource
+    attribution). Pass --with-azure / --with-gcp to also configure those providers.
     """
     from tasks.e2e_framework import config
     from tasks.e2e_framework.setup.agent import setup_agent_config
@@ -165,7 +167,7 @@ def setup(
 
     if interactive:
         info("🤖 Configuring E2E environment...")
-        setup_aws_config(ctx, cfg, account=account)
+        setup_aws_config(ctx, cfg, account=account, team=team)
         setup_agent_config(cfg)
         setup_pulumi_config(cfg)
 

@@ -67,15 +67,6 @@ properties:
       When true, a set of default actions are automatically
       allowed without needing to be listed in actions_allowlist.
       Set to false to disable these default actions.
-  agent_secret_management_enabled:
-    node_type: setting
-    type: boolean
-    default: true
-    visibility: public
-    description: |-
-      Enables resolving connection credentials with the Datadog Agent secret
-      management backend. Set to false to disable Agent secret resolution for
-      Private Action Runner connections.
   http_timeout_seconds:
     node_type: setting
     type: integer
@@ -100,6 +91,22 @@ properties:
     visibility: public
     description: Allow HTTP actions to reach cloud instance metadata service (IMDS)
       endpoints.
+  kubernetes_allowed_custom_resources:
+    node_type: setting
+    type: array
+    default: []
+    env_parser: json_list_or_comma_separated
+    items:
+      type: string
+    visibility: public
+    description: |-
+      Optional list of Kubernetes resources that custom resource actions may access.
+      Each entry identifies an exact Kubernetes resource. Use group/version/resource
+      for named API groups, for example cert-manager.io/v1/certificates, and
+      version/resource for the core API group, for example v1/secrets. When unset,
+      custom resource actions allow non-native API groups and deny Kubernetes native API
+      groups. When explicitly set, including to an empty list, only exact matches are
+      allowed.
   api_key_only_enrollment:
     node_type: setting
     type: boolean
@@ -151,6 +158,8 @@ properties:
   restricted_shell:
     node_type: section
     type: object
+    visibility: public
+    description: Configuration for restricted shell actions executed by the Private Action Runner.
     properties:
       allowed_commands:
         node_type: setting
@@ -182,6 +191,8 @@ properties:
           handled as a special case in the operator-side intersection: when
           it appears in the operator list, every backend command in the
           "rshell:" namespace is admitted.
+
+          It also narrows privileged execution when configured.
       allowed_system_services:
         node_type: setting
         type: object
@@ -196,6 +207,8 @@ properties:
           unset, backend grants pass through; an explicit empty map denies all.
           The "*" action admits every backend-granted action for an exact service.
           The environment variable accepts a JSON object only.
+
+          It also narrows privileged system-service grants when configured.
       disable_detailed_telemetry:
         node_type: setting
         type: boolean
@@ -222,6 +235,16 @@ properties:
             node_type: setting
             type: string
             default: /run/datadog/rshell-privileged.sock
+          elevatable_commands:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: string
+            env_parser: json_list_or_comma_separated
+            comment: |-
+              Commands that may temporarily regain root with sudo. When unset,
+              this does not narrow backend or policy.json grants; [] denies all.
   skip_connection_creation:
     node_type: setting
     type: boolean
@@ -229,8 +252,12 @@ properties:
   split_enabled:
     node_type: setting
     type: boolean
-    default: false
-    comment: Enables split runner mode.
+    platform_default:
+      container: false
+      linux: true
+      windows: true
+      other: false
+    comment: Enables split runner mode by default on supported host deployments. Split mode requires the process manager; disable this setting to retain monolithic execution.
   urn:
     node_type: setting
     type: string

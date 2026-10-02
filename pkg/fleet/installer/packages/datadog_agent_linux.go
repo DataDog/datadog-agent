@@ -17,7 +17,7 @@ import (
 	"strings"
 	"syscall"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"

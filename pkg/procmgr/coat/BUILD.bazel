@@ -18,6 +18,7 @@ go_library(
         "paths_notwindows.go",
         "paths_windows.go",
         "process_state.go",
+        "report.go",
         "reporter.go",
         "services.go",
         "snapshot.go",
@@ -26,6 +27,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/telemetry/def",
+        "//pkg/process/procutil",
         "//pkg/proto/pbgo/procmgr",
         "//pkg/util/log",
         "@org_golang_google_grpc//codes",
@@ -112,6 +114,7 @@ go_library(
             "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_google_grpc//:grpc",
             "@org_golang_google_grpc//credentials/insecure",
+            "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
@@ -120,11 +123,15 @@ go_library(
 dd_agent_go_test(
     name = "coat_test",
     srcs = [
+        "catalog_drift_test.go",
         "collector_test.go",
         "process_state_test.go",
+        "report_test.go",
     ],
     embed = [":coat"],
     deps = [
+        "//pkg/fleet/installer/packages/embedded",
+        "//pkg/process/procutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

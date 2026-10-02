@@ -23,7 +23,10 @@ def get_pipeline_commit_sha(pipeline_id: str) -> str | None:
         pipeline = repo.pipelines.get(int(pipeline_id))
         return pipeline.sha[:8]
     except Exception as e:
-        print(f"Warning: Could not fetch commit SHA for pipeline {pipeline_id}: {e}", file=sys.stderr)
+        print(
+            f"Warning: Could not fetch commit SHA for pipeline {pipeline_id}: {e}",
+            file=sys.stderr,
+        )
         if 'GITLAB_TOKEN' not in os.environ:
             print(
                 "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)",
@@ -131,14 +134,7 @@ def deploy(
         if commit_sha:
             flags["ddagent:commit_sha"] = commit_sha
 
-    # Standalone dogstatsd deployment needs API key even when the Agent is not installed.
-    # Pass it whenever one is configured, but only make it a hard requirement for scenarios
-    # that actually install the Agent.
-    try:
-        flags["ddagent:apiKey"] = config.get_api_key(cfg)
-    except Exit:
-        if install_agent:
-            raise
+    flags["ddagent:apiKey"] = config.get_api_key(cfg)
 
     # When using fakeintake, enable dual shipping to send data to both fakeintake and Datadog
     # Otherwise pulumi will configure the agent to send data directly to fakeintake

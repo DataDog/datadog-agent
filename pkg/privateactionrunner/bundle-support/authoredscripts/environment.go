@@ -15,13 +15,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	securejoin "github.com/cyphar/filepath-securejoin"
 )
 
 const (
 	defaultExecutablePath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-	parameterEnvVarPrefix = "PAR_ENV_"
 )
 
 // managedEnvironmentVariables are set by BuildEnvironment from session/package state.
@@ -51,7 +49,7 @@ func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]int
 		"PATH":   executablePath,
 		"TMPDIR": session.TempDirectory,
 	}
-	for _, name := range pkg.Manifest.Config.AllowedEnvVars {
+	for _, name := range pkg.Manifest.AllowedEnvVars {
 		if _, managed := managedEnvironmentVariables[name]; managed {
 			return nil, fmt.Errorf("authored-script environment variable %q is managed by PAR and cannot be declared as an allowed environment variable", name)
 		}
@@ -60,7 +58,7 @@ func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]int
 		}
 	}
 
-	for _, variable := range pkg.Manifest.Config.SetSessionEnvVars {
+	for _, variable := range pkg.Manifest.SetSessionEnvVars {
 		if _, managed := managedEnvironmentVariables[variable.Name]; managed {
 			return nil, fmt.Errorf("authored-script session environment variable %q cannot override the managed %q value", variable.Name, variable.Name)
 		}
@@ -71,7 +69,7 @@ func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]int
 		environment[variable.Name] = value
 	}
 
-	if err := addParameterEnvironment(environment, parameters); err != nil {
+	if err := addParameterEnvironment(environment, pkg.Manifest.ParameterEnvMapping, parameters); err != nil {
 		return nil, err
 	}
 
@@ -85,14 +83,14 @@ func (pkg *Package) BuildEnvironment(session *Session, parameters map[string]int
 	return result, nil
 }
 
-// addParameterEnvironment converts input parameters into PAR_ENV_* environment
-// variable assignments in environment. String values pass through verbatim; all
-// other types are JSON-encoded. It errors if a parameter's environment variable
-// name collides with one already present in environment, whether from another
-// parameter or from a managed/allowed/session variable.
-func addParameterEnvironment(environment map[string]string, parameters map[string]interface{}) error {
+// addParameterEnvironment converts input parameters into environment variable
+// assignments in the environment.
+func addParameterEnvironment(environment map[string]string, parameterEnvMapping map[string]string, parameters map[string]interface{}) error {
 	for name, value := range parameters {
-		envName := parameterEnvName(name)
+		envName, ok := parameterEnvMapping[name]
+		if !ok {
+			return fmt.Errorf("authored-script parameter %q has no configured environment variable mapping", name)
+		}
 		if _, exists := environment[envName]; exists {
 			return fmt.Errorf("authored-script parameter %q maps to environment variable %q, which is already set", name, envName)
 		}
@@ -110,10 +108,6 @@ func addParameterEnvironment(environment map[string]string, parameters map[strin
 		environment[envName] = stringValue
 	}
 	return nil
-}
-
-func parameterEnvName(name string) string {
-	return parameterEnvVarPrefix + util.ToScreamingSnakeCase(name)
 }
 
 func buildExecutablePath(toolPaths []string) (string, error) {
