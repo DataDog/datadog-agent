@@ -1,11 +1,5 @@
 #!/bin/sh
-# Stop the services
 stopsrc -g datadog-agent 2>/dev/null || true
-# Stop services which existed before the group was created to be safe on updates
-# no need to add new services to this list
-stopsrc -s datadog-agent            2>/dev/null || true
-stopsrc -s datadog-trace-agent      2>/dev/null || true
-stopsrc -s datadog-agent-data-plane 2>/dev/null || true
 
 COMPILED_LIST=/opt/datadog-agent/embedded/.pyc_compiled_files.txt
 if [ -f "$COMPILED_LIST" ]; then
