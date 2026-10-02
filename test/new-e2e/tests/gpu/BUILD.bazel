@@ -4,7 +4,6 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "gpu",
     srcs = [
-        "amd_provisioner.go",
         "capabilities.go",
         "provisioner.go",
         "runtime_installs.go",
@@ -55,10 +54,7 @@ go_library(
 
 dd_agent_go_test(
     name = "gpu_test",
-    srcs = [
-        "amd_test.go",
-        "gpu_test.go",
-    ],
+    srcs = ["gpu_test.go"],
     data = glob(["testdata/**"]),
     embed = [":gpu"],
     tags = ["manual"],
