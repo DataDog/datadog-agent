@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -48,14 +49,13 @@ func newTestRemoteIssueLoader(t *testing.T, resourceID, agentType string, handle
 	return loader
 }
 
-func snapshotResponse(t *testing.T, resourceID string, orgID int64, issueIDs []string) []byte {
+func snapshotResponse(t *testing.T, resourceID string, issues []remoteIssue) []byte {
 	t.Helper()
 	data, err := json.Marshal(remoteIssuesResponse{Data: &remoteIssueResource{
 		ID:   resourceID,
 		Type: remoteIssuesResourceType,
 		Attributes: remoteIssueAttributes{
-			OrgID:    &orgID,
-			IssueIDs: &issueIDs,
+			Issues: &issues,
 		},
 	}})
 	assert.NoError(t, err)
@@ -76,7 +76,6 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 	const (
 		resourceID   = "daemonset/uid with space"
 		agentIssueID = "invalid-config:daemonset-uid"
-		orgID        = int64(42)
 	)
 
 	type capturedRequest struct {
@@ -85,22 +84,25 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 		headers    http.Header
 	}
 	requestCh := make(chan capturedRequest, 1)
-	backendIssueID := remoteIssueID(orgID, agentIssueID)
 	loader := newTestRemoteIssueLoader(t, resourceID, remoteIssuesNodeAgentType, func(w http.ResponseWriter, r *http.Request) {
 		requestCh <- capturedRequest{
 			method:     r.Method,
 			requestURI: r.RequestURI,
 			headers:    r.Header.Clone(),
 		}
-		_, _ = w.Write(snapshotResponse(t, resourceID, orgID, []string{backendIssueID, "another-id", backendIssueID}))
+		_, _ = w.Write(snapshotResponse(t, resourceID,
+			[]remoteIssue{
+				{IssueID: agentIssueID, IssueName: "Invalid Agent Configuration", IssueType: "invalid_agent_configuration"},
+				{IssueID: "another-id", IssueName: "Another Issue", IssueType: "another_issue"},
+			}))
 	})
 
 	snapshot, err := loader.load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
-	assert.Equal(t, orgID, snapshot.orgID)
-	assert.Len(t, snapshot.issueIDs, 2)
+	assert.Len(t, snapshot.issues, 2)
 	assert.True(t, snapshot.contains(agentIssueID))
+	assert.True(t, snapshot.contains("another-id"))
 	assert.False(t, snapshot.contains("different-issue"))
 
 	request := <-requestCh
@@ -115,20 +117,61 @@ func TestRemoteIssueLoaderLoad(t *testing.T) {
 
 func TestRemoteIssueLoaderLoadEmpty(t *testing.T) {
 	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", 42, []string{}))
+		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{}))
 	})
 
 	snapshot, err := loader.load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
-	assert.Empty(t, snapshot.issueIDs)
+	assert.Empty(t, snapshot.issues)
+}
+
+func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
+	const issueID = "invalid-config:daemonset-uid"
+	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{
+			{IssueID: issueID, IssueName: "Invalid Agent Configuration", IssueType: "invalid_agent_configuration"},
+		}))
+	})
+
+	h := &healthPlatformImpl{
+		log:             logmock.New(t),
+		issues:          make(map[string]*storedIssue),
+		issuesByName:    make(map[string][]string),
+		persistedIssues: make(map[string]*PersistedIssue),
+		persistence:     &noopPersistence{},
+		remoteLoader:    loader,
+	}
+	resolvedCh := make(chan *healthplatformpayload.Issue, 1)
+	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: resolvedCh})
+
+	require.NoError(t, h.loadFromRemote(context.Background()))
+	assert.Equal(t, []string{issueID}, h.GetActiveIssueIDsByIssueName("Invalid Agent Configuration"))
+	assert.True(t, h.remoteSnapshot.contains(issueID))
+
+	persisted := h.persistedIssues[issueID]
+	require.NotNil(t, persisted)
+	assert.Equal(t, "Invalid Agent Configuration", persisted.IssueType)
+	assert.Equal(t, "invalid_agent_configuration", persisted.ProtoIssueType)
+	assert.Equal(t, IssueStateActive, persisted.State)
+	assert.NotEmpty(t, persisted.FirstSeen)
+	assert.NotEmpty(t, persisted.LastSeen)
+
+	h.ResolveIssue(issueID)
+	require.Len(t, resolvedCh, 1)
+	resolved := <-resolvedCh
+	assert.Equal(t, issueID, resolved.Id)
+	assert.Equal(t, "Invalid Agent Configuration", resolved.IssueName)
+	assert.Equal(t, "invalid_agent_configuration", resolved.IssueType)
+	require.NotNil(t, resolved.PersistedIssue)
+	assert.Equal(t, IssueStateResolved, resolved.PersistedIssue.State)
 }
 
 func TestRemoteIssueLoaderLoadClusterAgent(t *testing.T) {
 	requestURI := make(chan string, 1)
 	loader := newTestRemoteIssueLoader(t, "cluster-uuid", remoteIssuesClusterAgentType, func(w http.ResponseWriter, r *http.Request) {
 		requestURI <- r.RequestURI
-		_, _ = w.Write(snapshotResponse(t, "cluster-uuid", 42, []string{}))
+		_, _ = w.Write(snapshotResponse(t, "cluster-uuid", []remoteIssue{}))
 	})
 
 	snapshot, err := loader.load(context.Background())
@@ -203,32 +246,44 @@ func TestRemoteIssueLoaderLoadResponseErrors(t *testing.T) {
 		{
 			name:       "wrong resource type",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"other","attributes":{"org_id":42,"issue_ids":[]}}}`,
+			body:       `{"data":{"id":"daemonset-uid","type":"other","attributes":{"issues":[]}}}`,
 			wantError:  "unexpected type",
 		},
 		{
 			name:       "wrong resource ID",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"other-uid","type":"agent_health_issue_ids","attributes":{"org_id":42,"issue_ids":[]}}}`,
+			body:       `{"data":{"id":"other-uid","type":"agent_health_issue_ids","attributes":{"issues":[]}}}`,
 			wantError:  "expected \"daemonset-uid\"",
 		},
 		{
-			name:       "missing org ID",
+			name:       "missing issues",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issue_ids":[]}}}`,
-			wantError:  "no org_id",
-		},
-		{
-			name:       "missing issue IDs",
-			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"org_id":42}}}`,
-			wantError:  "no issue_ids",
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{}}}`,
+			wantError:  "no issues",
 		},
 		{
 			name:       "empty issue ID",
 			statusCode: http.StatusOK,
-			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"org_id":42,"issue_ids":[""]}}}`,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"","issue_name":"First Issue","issue_type":"first_issue"}]}}}`,
 			wantError:  "empty issue ID",
+		},
+		{
+			name:       "empty issue name",
+			statusCode: http.StatusOK,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"","issue_type":"first_issue"}]}}}`,
+			wantError:  "no issue_name",
+		},
+		{
+			name:       "empty issue type",
+			statusCode: http.StatusOK,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":""}]}}}`,
+			wantError:  "no issue_type",
+		},
+		{
+			name:       "duplicate issue ID",
+			statusCode: http.StatusOK,
+			body:       `{"data":{"id":"daemonset-uid","type":"agent_health_issue_ids","attributes":{"issues":[{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue"},{"issue_id":"issue-1","issue_name":"First Issue","issue_type":"first_issue"}]}}}`,
+			wantError:  "duplicate issue ID",
 		},
 	}
 
@@ -248,7 +303,7 @@ func TestRemoteIssueLoaderLoadResponseErrors(t *testing.T) {
 
 func TestRemoteIssueLoaderLoadCanceledContext(t *testing.T) {
 	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", 42, []string{}))
+		_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{}))
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -263,7 +318,7 @@ func TestRemoteIssueLoaderLoadDoesNotFollowRedirects(t *testing.T) {
 	loader := newTestRemoteIssueLoader(t, "daemonset-uid", remoteIssuesNodeAgentType, func(w http.ResponseWriter, r *http.Request) {
 		requestCount.Add(1)
 		if r.URL.Path == "/redirect-target" {
-			_, _ = w.Write(snapshotResponse(t, "daemonset-uid", 42, []string{}))
+			_, _ = w.Write(snapshotResponse(t, "daemonset-uid", []remoteIssue{}))
 			return
 		}
 		http.Redirect(w, r, "/redirect-target", http.StatusFound)
@@ -273,11 +328,6 @@ func TestRemoteIssueLoaderLoadDoesNotFollowRedirects(t *testing.T) {
 	assert.Nil(t, snapshot)
 	assert.ErrorContains(t, err, "status 302")
 	assert.Equal(t, int32(1), requestCount.Load())
-}
-
-func TestRemoteIssueIDMatchesBackendMurmurFormat(t *testing.T) {
-	assert.Equal(t, "cbd8a7b3-41bd-9b02-5b1e-906a48ae1d19", murmurUUID("hello"))
-	assert.Equal(t, murmurUUID("42:issue-id"), remoteIssueID(42, "issue-id"))
 }
 
 func TestNewRemoteIssueLoaderIfEnabled(t *testing.T) {

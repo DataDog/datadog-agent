@@ -757,14 +757,35 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	return h.restorePersistedState(state)
 }
 
-// loadFromRemote loads the backend's active issue ID snapshot for startup reconciliation.
+// loadFromRemote restores the backend's active issues for startup reconciliation.
 func (h *healthPlatformImpl) loadFromRemote(ctx context.Context) error {
 	snapshot, err := h.remoteLoader.load(ctx)
 	if err != nil {
 		return err
 	}
+
+	now := time.Now().Format(time.RFC3339)
+	state := &PersistedState{
+		Version:   persistedStateVersion,
+		UpdatedAt: now,
+		Issues:    make(map[string]*PersistedIssue, len(snapshot.issues)),
+	}
+	for issueID, issue := range snapshot.issues {
+		state.Issues[issueID] = &PersistedIssue{
+			IssueID:        issueID,
+			IssueType:      issue.IssueName,
+			ProtoIssueType: issue.IssueType,
+			State:          IssueStateActive,
+			FirstSeen:      now,
+			LastSeen:       now,
+		}
+	}
+	if err := h.restorePersistedState(state); err != nil {
+		return err
+	}
+
 	h.remoteSnapshot = snapshot
-	h.log.Infof("Loaded %d active remote health platform issue IDs", len(snapshot.issueIDs))
+	h.log.Infof("Loaded %d active remote health platform issues", len(snapshot.issues))
 	return nil
 }
 
