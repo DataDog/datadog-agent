@@ -565,6 +565,7 @@
 /pkg/api/security/cert/cert_getter_dca.go                             @DataDog/agent-runtimes @DataDog/container-platform
 /pkg/aggregator/                                                      @DataDog/agent-metric-pipelines
 /pkg/collector/                                                       @DataDog/agent-runtimes
+/pkg/collector/metriclookback                                         @DataDog/q-branch
 /pkg/commonchecks/                                                    @DataDog/agent-runtimes
 /pkg/cli/                                                             @DataDog/fleet-remediation
 /pkg/cli/subcommands/check                                            @DataDog/agent-runtimes @DataDog/agent-integrations

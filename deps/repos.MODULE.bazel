@@ -281,6 +281,10 @@ http_archive(
         "aarch64/config.h": "//deps/unixodbc/aarch64:config.h",
         "libltdl/ltdl.h": "//deps:unixodbc/ltdl.h",
     },
+    patch_strip = 1,
+    patches = [
+        "//deps:unixodbc/0001-Remove-unused-rcsid-strings.patch",
+    ],
     sha256 = "52833eac3d681c8b0c9a5a65f2ebd745b3a964f208fc748f977e44015a31b207",
     strip_prefix = "unixODBC-2.3.9",
     urls = [

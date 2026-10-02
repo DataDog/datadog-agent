@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -51,6 +52,27 @@ func TestGetEmptyHostTags(t *testing.T) {
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{}, hostTags.System)
+}
+
+func TestGetPrivateActionRunnerTag(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+		wantTag bool
+	}{
+		{name: "enabled", enabled: true, wantTag: true},
+		{name: "disabled", enabled: false, wantTag: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig, ctx := setupTest(t)
+			mockConfig.SetInTest("private_action_runner.enabled", tt.enabled)
+
+			hostTags := Get(ctx, false, mockConfig)
+			assert.Equal(t, tt.wantTag, slices.Contains(hostTags.System, "private_action_runner_enabled:true"))
+		})
+	}
 }
 
 func TestGetWithSplits(t *testing.T) {

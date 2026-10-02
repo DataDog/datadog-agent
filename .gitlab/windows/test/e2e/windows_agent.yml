@@ -39,6 +39,9 @@ new-e2e-agent-subcommands-windows:
     - changes:
         paths:
           - pkg/config/schema/**/* # DataDog/datadog-agent#52358
+          - pkg/flare/**/*
+          - comp/procmgr/**/*
+          - pkg/procmgr/**/*
           - test/new-e2e/tests/agent-subcommands/**/*
         compare_to: $COMPARE_TO_BRANCH
     - !reference [.manual]
