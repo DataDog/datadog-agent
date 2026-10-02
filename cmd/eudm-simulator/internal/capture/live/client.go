@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -74,7 +75,7 @@ func (c *httpClient) request(ctx context.Context, operation string, value any, l
 		case http.StatusServiceUnavailable:
 			return nil, ErrUnavailable
 		default:
-			return nil, errors.New("capture API operation failed")
+			return nil, fmt.Errorf("capture API operation failed (HTTP %d)", response.StatusCode)
 		}
 	}
 	if response.ContentLength > limit || (response.Header.Get("Content-Encoding") != "" && response.Header.Get("Content-Encoding") != "identity") {
@@ -132,7 +133,11 @@ func (c *httpClient) Records(ctx context.Context, request tc.ReadRequest) (Batch
 		return Batch{}, err
 	}
 	defer response.Body.Close()
-	return decodeBatch(response.Body)
+	batch, err := decodeBatch(response.Body)
+	if err != nil && ctx.Err() != nil {
+		return Batch{}, ctx.Err()
+	}
+	return batch, err
 }
 
 func decodeBatch(body io.Reader) (Batch, error) {

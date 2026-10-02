@@ -98,8 +98,8 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 			// bounded opportunity to disarm and acknowledge retained records.
 			cleanup, done := context.WithTimeout(context.Background(), options.cleanupTimeout)
 			defer done()
-			if !cleanupProducers(cleanup, selected, control, options) {
-				result = fmt.Errorf("%w; producer cleanup was not fully acknowledged", result)
+			if err := cleanupProducers(cleanup, selected, control, options); err != nil {
+				result = fmt.Errorf("%w; %v", result, err)
 			}
 		}
 	}()
@@ -144,7 +144,6 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 		return fmt.Errorf("cannot initialize capture bundle: %w", err)
 	}
 	options.progress.armed(session.Origin)
-	options.progress.phase("recording", "")
 	// Hardware inventory is the one explicit collection exception: request a
 	// fresh normal submission once all participants are armed and the writer
 	// exists. The provider preserves its ordinary hourly schedule.
@@ -152,7 +151,7 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 		if !slices.Contains(p.streams, tc.HostSystemInfo) {
 			return p.activation, nil
 		}
-		options.progress.phase("collecting fresh hardware information", "")
+		options.progress.event("host_system_info", "requesting fresh hardware information")
 		return p.client.RequestHostSystemInfo(ctx, control)
 	})
 	for i, response := range statuses {
@@ -160,7 +159,6 @@ func run(ctx context.Context, platform string, clients []Client, sink Sink, dura
 			return errors.New("fresh host system information was not acknowledged")
 		}
 	}
-	options.progress.phase("recording", "")
 	end := session.Origin.Add(duration)
 	for options.now().Before(end) {
 		if err := contextFailure(work, heartbeatError, sink, session); err != nil {
@@ -329,8 +327,17 @@ func readRound(ctx context.Context, producers []*producer, control tc.Control, s
 		request, done := context.WithTimeout(ctx, options.requestTimeout)
 		batch, err := readProducer(request, p.client, tc.ReadRequest{Control: control, Cursor: p.cursor})
 		done()
-		if err != nil || validateStatus(batch.Status, p, control) != nil || batch.Status.Acknowledged != p.cursor || len(batch.Records) > tc.MaxBatchRecords {
-			return false, errors.New("capture producer records could not be read or acknowledged")
+		if err != nil {
+			return false, fmt.Errorf("capture %s records could not be read: %w", p.identity.Role, err)
+		}
+		if err := validateStatus(batch.Status, p, control); err != nil {
+			return false, fmt.Errorf("capture %s records were not acknowledged: %w", p.identity.Role, err)
+		}
+		if batch.Status.Acknowledged != p.cursor {
+			return false, fmt.Errorf("capture %s acknowledged sequence %d; expected %d", p.identity.Role, batch.Status.Acknowledged, p.cursor)
+		}
+		if len(batch.Records) > tc.MaxBatchRecords {
+			return false, fmt.Errorf("capture %s returned too many records", p.identity.Role)
 		}
 		if (!draining && batch.Status.State != tc.Active) || (draining && (!slices.Contains([]tc.State{tc.Stopping, tc.Stopped}, batch.Status.State) || batch.Status.FinalSequence != p.stop.FinalSequence || !batch.Status.StoppedAt.Equal(p.stop.StoppedAt))) {
 			return false, errors.New("capture producer changed state outside acknowledged session boundaries")
@@ -376,7 +383,16 @@ func readRound(ctx context.Context, producers []*producer, control tc.Control, s
 }
 
 func validateStatus(status tc.Status, p *producer, control tc.Control) error {
-	if status.ProtocolVersion != tc.ProtocolVersion || status.Producer != p.identity || status.SessionID != control.SessionID || status.Failures != 0 || status.Drops != 0 || status.Acknowledged > status.FinalSequence || !slices.Contains([]tc.State{tc.Prepared, tc.Active, tc.Stopping, tc.Stopped}, status.State) {
+	if status.Producer != p.identity {
+		return errors.New("producer identity changed; the Agent may have restarted")
+	}
+	if status.SessionID != control.SessionID {
+		return errors.New("producer no longer owns this capture session")
+	}
+	if status.Failures != 0 || status.Drops != 0 {
+		return fmt.Errorf("producer failed (failures=%d, drops=%d)", status.Failures, status.Drops)
+	}
+	if status.ProtocolVersion != tc.ProtocolVersion || status.Acknowledged > status.FinalSequence || !slices.Contains([]tc.State{tc.Prepared, tc.Active, tc.Stopping, tc.Stopped}, status.State) {
 		return errors.New("invalid capture producer acknowledgement")
 	}
 	if activated := p.activated.Load(); activated != nil && status.State != tc.Prepared && !activated.ActivatedAt.Equal(status.ActivatedAt) {
@@ -636,7 +652,7 @@ func pause(ctx context.Context, duration time.Duration) error {
 	}
 }
 
-func cleanupProducers(ctx context.Context, producers []*producer, control tc.Control, options coordinatorOptions) bool {
+func cleanupProducers(ctx context.Context, producers []*producer, control tc.Control, options coordinatorOptions) error {
 	remaining := make([]*producer, 0, len(producers))
 	for _, p := range producers {
 		if p.attempted {
@@ -681,5 +697,12 @@ func cleanupProducers(ctx context.Context, producers []*producer, control tc.Con
 			_ = pause(ctx, options.recordPoll)
 		}
 	}
-	return len(remaining) == 0
+	if len(remaining) == 0 {
+		return nil
+	}
+	roles := make([]string, 0, len(remaining))
+	for _, p := range remaining {
+		roles = append(roles, p.identity.Role)
+	}
+	return fmt.Errorf("producer cleanup was not fully acknowledged (%s)", strings.Join(roles, ", "))
 }

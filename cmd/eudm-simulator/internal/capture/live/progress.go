@@ -8,129 +8,112 @@ package live
 import (
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 )
 
-const captureProgressInterval = 30 * time.Second
-
-type captureSnapshot struct {
-	origin   time.Time
-	duration time.Duration
-	phase    string
-	detail   string
-	cycles   string
-	missing  string
-	bytes    int64
+// Events carry only fixed component names, owned summaries, and timestamps.
+// No payload or mutable evidence is retained by the terminal writer.
+type captureEvent struct {
+	at        time.Time
+	component string
+	message   string
 }
 
-// Only owned counts, fixed stream names, and control-plane status cross into
-// the observer. It never reads mutable evidence or writes while holding a lock.
 type captureProgress struct {
-	mu      sync.Mutex
-	current captureSnapshot
-	changes chan captureSnapshot
-	stop    chan struct{}
-	done    chan struct{}
+	mu                sync.Mutex
+	duration          time.Duration
+	phaseName, detail string
+	events            chan captureEvent
+	done              chan struct{}
+	closed            bool
+	omitted           uint64
+	final             captureEvent
 }
 
-func newCaptureProgress(w io.Writer, duration time.Duration, ticks <-chan time.Time) *captureProgress {
+func newCaptureProgress(w io.Writer, duration time.Duration) *captureProgress {
 	if w == nil {
 		return nil
 	}
-	p := &captureProgress{current: captureSnapshot{duration: duration, phase: "initializing local authentication"},
-		changes: make(chan captureSnapshot, 8), stop: make(chan struct{}), done: make(chan struct{})}
-	initial := p.current
+	p := &captureProgress{duration: duration, events: make(chan captureEvent, 64), done: make(chan struct{})}
+	p.phase("initializing local authentication", "")
 	go func() {
 		defer close(p.done)
-		if ticks == nil {
-			ticker := time.NewTicker(captureProgressInterval)
-			defer ticker.Stop()
-			ticks = ticker.C
-		}
-		if err := writeCaptureProgress(w, initial, time.Now()); err != nil {
-			return
-		}
-		for {
-			var snapshot captureSnapshot
-			var at time.Time
-			final := false
-			select {
-			case <-p.stop:
-				snapshot, final = p.snapshot(), true
-			case snapshot = <-p.changes:
-			case at = <-ticks:
-				snapshot = p.snapshot()
-			}
-			if at.IsZero() {
-				at = time.Now()
-			}
-			if err := writeCaptureProgress(w, snapshot, at); err != nil || final {
+		for event := range p.events {
+			if err := writeCaptureEvent(w, event); err != nil {
 				return
 			}
 		}
+		p.mu.Lock()
+		final, omitted := p.final, p.omitted
+		p.mu.Unlock()
+		if omitted != 0 {
+			if err := writeCaptureEvent(w, captureEvent{at: final.at, component: "capture", message: fmt.Sprintf("omitted %d log messages because output could not keep up; captured data is unaffected", omitted)}); err != nil {
+				return
+			}
+		}
+		_ = writeCaptureEvent(w, final)
 	}()
 	return p
 }
 
-func (p *captureProgress) snapshot() captureSnapshot {
+func (p *captureProgress) event(component, message string) {
+	if p == nil {
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.current
+	p.enqueueLocked(component, message)
 }
 
-// State changes request immediate output. A blocked terminal can retain at
-// most eight old snapshots; periodic output always uses the latest snapshot.
+// Terminal output must never delay capture, heartbeats, or producer cleanup.
+func (p *captureProgress) enqueueLocked(component, message string) {
+	if p.closed {
+		return
+	}
+	select {
+	case p.events <- captureEvent{at: time.Now(), component: component, message: message}:
+	default:
+		p.omitted++
+	}
+}
+
 func (p *captureProgress) phase(phase, detail string) {
 	if p == nil {
 		return
 	}
 	p.mu.Lock()
-	if p.current.phase == phase && p.current.detail == detail {
-		p.mu.Unlock()
+	defer p.mu.Unlock()
+	if p.phaseName == phase && p.detail == detail {
 		return
 	}
-	p.current.phase, p.current.detail = phase, detail
-	snapshot := p.current
-	p.mu.Unlock()
-	select {
-	case p.changes <- snapshot:
-	default:
+	p.phaseName, p.detail = phase, detail
+	if detail != "" {
+		phase += "; " + detail
 	}
+	p.enqueueLocked("capture", phase)
 }
 
 func (p *captureProgress) armed(origin time.Time) {
-	if p == nil {
-		return
+	if p != nil {
+		p.event("capture", fmt.Sprintf("recording started; duration=%s; ends=%s", p.duration, origin.Add(p.duration).Local().Format(time.RFC3339)))
 	}
-	p.mu.Lock()
-	p.current.origin = origin
-	p.mu.Unlock()
-}
-
-func (p *captureProgress) samples(cycles, missing string, bytes int64) {
-	if p == nil {
-		return
-	}
-	p.mu.Lock()
-	p.current.cycles, p.current.missing, p.current.bytes = cycles, missing, bytes
-	p.mu.Unlock()
 }
 
 func (p *captureProgress) finish(directory string, err error) {
 	if p == nil {
 		return
 	}
-	p.mu.Lock()
-	p.current.phase, p.current.detail = "complete", "bundle="+directory
+	message := "complete; bundle=" + directory
 	if err != nil {
-		p.current.phase, p.current.detail = "failed", "bundle incomplete"
+		message = "failed; no new bundle completed"
 	}
+	p.mu.Lock()
+	p.final = captureEvent{at: time.Now(), component: "capture", message: message}
+	p.closed = true
+	close(p.events)
 	p.mu.Unlock()
-	close(p.stop)
-	// A terminal writer is not cancellable. It must not hold up producer
-	// cleanup or command exit indefinitely; output remains best effort.
+	// Drain queued events in order, but don't let a blocked writer hold up exit.
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
 	select {
@@ -139,24 +122,7 @@ func (p *captureProgress) finish(directory string, err error) {
 	}
 }
 
-func writeCaptureProgress(w io.Writer, s captureSnapshot, at time.Time) error {
-	var line strings.Builder
-	if s.origin.IsZero() {
-		fmt.Fprintf(&line, "Capture | %s | recording=%s", s.phase, s.duration)
-	} else {
-		elapsed := min(s.duration, max(0, at.Sub(s.origin)))
-		fmt.Fprintf(&line, "Capture %s/%s | remaining=%s | %s", elapsed.Truncate(time.Second), s.duration, (s.duration - elapsed).Round(time.Second), s.phase)
-		fmt.Fprintf(&line, " | cycles: %s | sample data=%.1f MiB", s.cycles, float64(s.bytes)/(1<<20))
-		if s.missing == "" {
-			line.WriteString(" | coverage=complete")
-		} else {
-			fmt.Fprintf(&line, " | waiting for: %s", s.missing)
-		}
-	}
-	if s.detail != "" {
-		fmt.Fprintf(&line, " | %s", s.detail)
-	}
-	line.WriteByte('\n')
-	_, err := io.WriteString(w, line.String())
+func writeCaptureEvent(w io.Writer, event captureEvent) error {
+	_, err := fmt.Fprintf(w, "%s [%s] %s\n", event.at.Format(time.RFC3339), event.component, event.message)
 	return err
 }

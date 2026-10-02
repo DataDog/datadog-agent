@@ -110,7 +110,6 @@ func (e *Evidence) Start(ctx context.Context, session Session) error {
 		return err
 	}
 	e.session = session
-	e.publishProgress()
 	return nil
 }
 
@@ -182,7 +181,6 @@ func (e *Evidence) Accept(ctx context.Context, record tc.Record) (err error) {
 	if nonempty {
 		e.offsets[stream] = append(e.offsets[stream], ref.Offset)
 		e.cadences[stream] = record.Cadence
-		e.publishProgress()
 	}
 	return nil
 }
@@ -234,6 +232,9 @@ func (e *Evidence) metrics(record tc.Record, ref bundle.SampleRef) (bool, error)
 	for family := range families {
 		e.metricOffsets[family] = append(e.metricOffsets[family], ref.Offset)
 	}
+	if e.progress != nil {
+		e.progress.event("metrics", fmt.Sprintf("captured %s (%d series)", strings.Join(slices.Sorted(maps.Keys(families)), ", "), len(clean)))
+	}
 	return true, nil
 }
 
@@ -272,6 +273,7 @@ func (e *Evidence) metadata(record tc.Record, ref bundle.SampleRef) (bool, error
 	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
 	}
+	e.progress.event("host_metadata", "captured host metadata")
 	return true, nil
 }
 
@@ -294,6 +296,7 @@ func (e *Evidence) inventory(record tc.Record, ref bundle.SampleRef) (bool, erro
 	if err := e.writer.Append(ref, clean); err != nil {
 		return false, err
 	}
+	e.progress.event(string(ref.Stream), "captured snapshot")
 	return true, nil
 }
 
@@ -320,6 +323,7 @@ func (e *Evidence) software(record tc.Record, ref bundle.SampleRef) (bool, error
 	for _, entry := range clean.Metadata.Software {
 		e.profile.SoftwareNames = appendUnique(e.profile.SoftwareNames, entry.DisplayName)
 	}
+	e.progress.event("software", fmt.Sprintf("captured inventory (%d applications)", len(clean.Metadata.Software)))
 	return true, nil
 }
 
@@ -385,6 +389,7 @@ func (e *Evidence) group(record tc.Record, ref bundle.SampleRef) (bool, error) {
 			}
 		}
 	}
+	e.progress.event(string(ref.Stream), fmt.Sprintf("captured %d %s (%d chunks)", total, ref.Stream, len(clean)))
 	return true, nil
 }
 
@@ -519,19 +524,4 @@ func (e *Evidence) Close() {
 	e.closed = true
 	e.normalizer = nil
 	e.participants = nil
-}
-
-// Called only by the coordinator after evidence updates; the observer receives
-// counts and fixed coverage descriptions, never payload values or identities.
-func (e *Evidence) publishProgress() {
-	if e.progress == nil {
-		return
-	}
-	var cycles []string
-	for _, stream := range e.profile.Streams {
-		cycles = append(cycles, fmt.Sprintf("%s=%d", stream, len(e.offsets[stream])))
-	}
-	slices.Sort(cycles)
-	_, missing := e.Coverage()
-	e.progress.samples(strings.Join(cycles, " "), missing, e.writer.SampleBytes())
 }

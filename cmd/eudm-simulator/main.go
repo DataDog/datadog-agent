@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/command"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture/live"
@@ -27,7 +28,7 @@ func main() {
 		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundle: request.Bundle}, engine.ExecutionOptions{ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations, Progress: request.Progress})
 	}}
 	if err := command.MakeCommand(runtime).ExecuteContext(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "%s [error] %v\n", time.Now().Format(time.RFC3339), err)
 		os.Exit(1)
 	}
 }

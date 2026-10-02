@@ -161,3 +161,27 @@ func TestHTTPClientBoundsStatusAndCancellation(t *testing.T) {
 		t.Fatalf("lost request cancellation: %v", err)
 	}
 }
+
+func TestRecordResponseBodyPreservesCancellation(t *testing.T) {
+	started := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"status":`)
+		w.(http.Flusher).Flush()
+		close(started)
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	client := newHTTPClient("core-agent", server.URL, "test-token", server.Client())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		_, err := client.Records(ctx, tc.ReadRequest{})
+		result <- err
+	}()
+	<-started
+	cancel()
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("body cancellation lost its cause: %v", err)
+	}
+}

@@ -171,7 +171,7 @@ func installedClients(cfg config.Component, auth ipc.Component, includeProbe boo
 // RunInstalled arms existing compatible services. It creates no credentials,
 // collectors, listeners, or services, and never changes installed configuration.
 func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.Duration, output io.Writer) (result error) {
-	progress := newCaptureProgress(output, duration, nil)
+	progress := newCaptureProgress(output, duration)
 	defer func() { progress.finish(directory, result) }()
 	platform := runtime.GOOS
 	if platform == "darwin" {
@@ -191,7 +191,7 @@ func RunInstalled(ctx context.Context, directory, cfgpath string, duration time.
 		return fmt.Errorf("cannot inspect capture output directory: %w", err)
 	}
 	// Configuration and IPC helpers can log paths and artifact fingerprints.
-	// Capture emits only its own progress summaries and control-plane errors.
+	// Capture emits only its own capture events and control-plane errors.
 	log.SetupLogger(log.Disabled(), "error")
 	cfg, err := installedConfig(cfgpath, platform == "windows")
 	if err != nil {

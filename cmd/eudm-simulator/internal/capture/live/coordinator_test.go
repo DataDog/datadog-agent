@@ -465,6 +465,8 @@ func TestCoordinatorFailureDisarmsEveryAttemptedProducer(t *testing.T) {
 				t.Fatal("invalid capture completed")
 			} else if kind == "writer failure" && !strings.Contains(err.Error(), "test writer unavailable") {
 				t.Fatalf("writer startup error lost its cause: %v", err)
+			} else if kind == "reader disconnected" && !strings.Contains(err.Error(), "core-agent records could not be read: capture producer API unavailable") {
+				t.Fatalf("reader error lost the producer or cause: %v", err)
 			}
 			if sink.finished {
 				t.Fatal("failed capture finalized evidence")
@@ -509,7 +511,7 @@ func TestCoordinatorPanicsFailClosedAndDisarmProducers(t *testing.T) {
 			for _, p := range producers {
 				status := p.manager.Status()
 				if operation == "records-always" && p == producers[0] {
-					if status.State != tc.Stopping || !strings.Contains(err.Error(), "cleanup was not fully acknowledged") {
+					if status.State != tc.Stopping || !strings.Contains(err.Error(), "cleanup was not fully acknowledged (core-agent)") {
 						t.Fatal("persistent reader panic escaped bounded cleanup")
 					}
 					continue
@@ -609,6 +611,33 @@ func TestCoordinatorIncludesReadyMacOSConnections(t *testing.T) {
 		t.Fatal("running macOS connection producer was omitted")
 	}
 	assertDisarmed(t, producers)
+}
+
+func TestCoordinatorRecordErrorsIdentifyProducerAndCause(t *testing.T) {
+	for _, kind := range []string{"restarted", "failed", "cursor"} {
+		t.Run(kind, func(t *testing.T) {
+			clients, producers, sink := newCoordinatorFixture(t, "macos")
+			want := ""
+			producers[1].alterFirstRead = func(batch *Batch) {
+				switch kind {
+				case "restarted":
+					batch.Status.Producer.InstanceID = "private-new-instance-id"
+					want = "process-agent records were not acknowledged: producer identity changed; the Agent may have restarted"
+				case "failed":
+					batch.Status.Failures, batch.Status.Drops = 1, 1
+					want = "process-agent records were not acknowledged: producer failed (failures=1, drops=1)"
+				case "cursor":
+					batch.Status.Acknowledged = 1
+					want = "process-agent acknowledged sequence 1; expected 0"
+				}
+			}
+			err := runTestCapture(t, "macos", clients, sink)
+			if err == nil || want == "" || !strings.Contains(err.Error(), want) || strings.Contains(err.Error(), "private-new-instance-id") {
+				t.Fatalf("record error lost its safe context: %v", err)
+			}
+			assertDisarmed(t, producers)
+		})
+	}
 }
 
 func TestCoordinatorRejectsMissingMetricSchedules(t *testing.T) {

@@ -141,16 +141,25 @@ coverage. `--timeout` is an overall deadline for setup, recording, and completio
 it defaults to the duration plus five minutes, must exceed the duration, and
 cannot exceed two hours five minutes.
 
-Capture prints an immediate startup message, phase changes, and a status line
-every 30 seconds. Before recording, it shows readiness and effective cadences;
-after activation, it shows elapsed/remaining recording time, complete cycles per
-stream, persisted sample data in MiB, and missing coverage. Counts refer to
-logical cycles, so one multi-chunk process group counts once. Sample size excludes
-the manifest and completion marker. `coverage=complete` still means recording
-continues until the requested duration ends. Progress also continues during stop,
-drain, and finalization; success prints the bundle path, and failure reports an
-incomplete bundle. Summaries do not include captured telemetry values. A slow or
-failed terminal writer does not hold up capture or producer cleanup.
+Capture streams timestamped events as complete observations are saved. Each line
+includes the local timezone and a component such as `metrics`, `processes`,
+`connections`, or `software`. Metric events list the observed families and series
+count; process/connection events count records and chunks in the complete group;
+software events count applications. Names, tags, addresses, and payload values
+stay in the bundle rather than appearing in these logs. For example:
+
+```text
+2026-10-02T16:20:15-04:00 [metrics] captured battery, cpu, memory, network (84 series)
+2026-10-02T16:20:20-04:00 [processes] captured 312 processes (8 chunks)
+2026-10-02T16:20:30-04:00 [software] captured inventory (319 applications)
+```
+
+Startup shows readiness, effective cadences, and one recording-start event with
+the duration and planned end time. Stop, drain, finalization, and completion or
+failure also produce events. There are no periodic summaries. Recording always
+continues for the requested duration. Slow terminal output never delays capture
+or cleanup; its bounded queue may omit log lines and reports that count at exit.
+This does not drop captured data. Success prints the bundle path.
 
 Successful coverage requires two nonempty observations of each advertised metric
 check family, two process cycles, two cycles from any selected connection producer,
@@ -571,11 +580,25 @@ Use `capture --help`, `validate --help`, or `run --help` for the installed binar
 
 ## Recorded local verification
 
+### Capture event logs, 2026-10-02
+
+Timestamped per-observation events replace capture's periodic summaries. The
+capture race suite passed all 86 test entries after correcting a new test
+fixture's duplicate connection owner. Bundle and command race suites also
+passed. Tests cover immediate events, one recording start, ordered completion,
+metric families, application and complete-group counts, omitted log messages
+under blocked output, and no success events for empty, excluded, or failed
+observations. Read errors identify the producer and cause; body cancellation
+retains its category and incomplete cleanup names the affected producers.
+The simulator Go lint selection reported no issues. No live capture, staging
+replay, or Agent restart was performed for this logging change.
+
 ### Capture progress, 2026-10-02
 
-Capture now prints startup and phase changes, plus 30-second snapshots of
+The initial progress implementation printed startup and phase changes, plus 30-second snapshots of
 recording time, complete cycle counts, persisted sample size, and missing
-coverage. Recording continues for the full duration after coverage is complete.
+coverage. The event-based output described above supersedes those summaries.
+Recording continues for the full duration after coverage is complete.
 
 The following checks passed on macOS:
 
