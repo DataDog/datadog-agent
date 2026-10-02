@@ -8,14 +8,15 @@ package network
 
 import "net"
 
-func loadInterfaceAddresses(ifaces []net.Interface) (map[int]interfaceAddresses, error) {
-	addresses := make(map[int]interfaceAddresses, len(ifaces))
-	for _, iface := range ifaces {
+func loadInterfaces(ifaces []net.Interface) ([]networkInterface, error) {
+	result := make([]networkInterface, len(ifaces))
+	for i, iface := range ifaces {
+		r := &realNetworkInterface{iface: iface}
+		result[i] = r
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		addrs, err := iface.Addrs()
-		addresses[iface.Index] = interfaceAddresses{addrs: addrs, err: err}
+		r.addrs, r.addrsErr = iface.Addrs()
 	}
-	return addresses, nil
+	return result, nil
 }

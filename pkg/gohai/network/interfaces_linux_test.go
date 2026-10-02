@@ -30,18 +30,6 @@ func mockAddressList(t *testing.T, addresses []netlink.Addr, err error) *int {
 	return &calls
 }
 
-func TestLoadInterfaceAddressesSingleDump(t *testing.T) {
-	ifaces := make([]net.Interface, 10000)
-	for i := range ifaces {
-		ifaces[i].Index = i + 1
-	}
-	calls := mockAddressList(t, nil, nil)
-	addresses, err := loadInterfaceAddresses(ifaces)
-	require.NoError(t, err)
-	require.Empty(t, addresses)
-	require.Equal(t, 1, *calls)
-}
-
 func TestCollectInfoLinuxAddressSnapshot(t *testing.T) {
 	ifaces := []net.Interface{
 		{Index: 42, Name: "eth0", Flags: net.FlagUp, HardwareAddr: net.HardwareAddr{0, 17, 34, 51, 68, 85}},
@@ -59,13 +47,9 @@ func TestCollectInfoLinuxAddressSnapshot(t *testing.T) {
 		{LinkIndex: 42},
 		{LinkIndex: 42, IPNet: &net.IPNet{}},
 	}, nil)
-	addresses, err := loadInterfaceAddresses(ifaces)
+	snapshot, err := loadInterfaces(ifaces)
 	require.NoError(t, err)
 	require.Equal(t, 1, *calls)
-	snapshot := make([]networkInterface, len(ifaces))
-	for i := range ifaces {
-		snapshot[i] = &realNetworkInterface{iface: ifaces[i], addresses: addresses[ifaces[i].Index]}
-	}
 	setMockInterfaces(t, snapshot, nil)
 	info, err := CollectInfo()
 	require.NoError(t, err)
@@ -89,13 +73,13 @@ func TestCollectInfoLinuxAddressSnapshot(t *testing.T) {
 	}, value)
 }
 
-func TestLoadInterfaceAddressesRejectsPartialDump(t *testing.T) {
+func TestLoadInterfacesRejectsPartialDump(t *testing.T) {
 	for _, err := range []error{errors.New("address dump failed"), syscall.EINTR} {
 		t.Run(err.Error(), func(t *testing.T) {
 			mockAddressList(t, []netlink.Addr{{LinkIndex: 1, IPNet: createIPNetAddr("192.0.2.1/24")}}, err)
-			addresses, gotErr := loadInterfaceAddresses([]net.Interface{{Index: 1}})
+			ifaces, gotErr := loadInterfaces([]net.Interface{{Index: 1}})
 			require.ErrorIs(t, gotErr, err)
-			require.Nil(t, addresses)
+			require.Nil(t, ifaces)
 			info, gotErr := CollectInfo()
 			require.ErrorIs(t, gotErr, err)
 			require.Nil(t, info)

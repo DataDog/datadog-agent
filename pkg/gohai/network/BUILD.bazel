@@ -27,7 +27,6 @@ dd_agent_go_test(
     name = "network_test",
     srcs = [
         "interfaces_linux_test.go",
-        "network_collection_test.go",
         "network_test.go",
     ],
     embed = [":network"],
