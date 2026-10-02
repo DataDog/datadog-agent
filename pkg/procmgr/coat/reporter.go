@@ -23,6 +23,7 @@ type gauges struct {
 	serviceInstalled         telemetry.Gauge
 	serviceProcmgrConfigured telemetry.Gauge
 	serviceManagementMode    telemetry.Gauge
+	serviceRunning           telemetry.Gauge
 }
 
 // StartReporter periodically probes dd-procmgrd and migratable services, updating COAT gauges.
@@ -58,6 +59,12 @@ func StartReporter(ctx context.Context, tlm telemetry.Component) {
 			"agent_service_management_mode",
 			[]string{"service", "mode"},
 			"How an agent service process is supervised",
+		),
+		serviceRunning: tlm.NewGauge(
+			"runtime",
+			"agent_service_running",
+			[]string{"service", "supervisor"},
+			"Process is up under this supervisor (not ownership)",
 		),
 	}
 
@@ -117,11 +124,15 @@ func report(ctx context.Context, g gauges, collector *Collector) {
 
 		// Do not emit management_mode=none on platforms where we never classify
 		// systemd/SCM/procmgr (e.g. macOS); avoids polluting COAT adoption metrics.
+		// agent_service_running uses the same gate so macOS with mode none skips both families.
 		emitMgmtMode := service.ManagementMode != ManagementModeNone ||
 			runtime.GOOS == "linux" || runtime.GOOS == "windows"
 		if emitMgmtMode {
 			for _, mode := range managementModes {
 				setBoolGauge(g.serviceManagementMode, service.ManagementMode == mode, service.ID, string(mode))
+			}
+			for _, supervisor := range serviceSupervisors {
+				setBoolGauge(g.serviceRunning, serviceRunningUnder(service, supervisor), service.ID, supervisor)
 			}
 		}
 	}
