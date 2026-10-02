@@ -476,7 +476,8 @@ func TestRawPacketActionProtocols(t *testing.T) {
 		stdin  io.WriteCloser
 		output strings.Builder
 	)
-	test.WaitSignalFromRule(t, func() error {
+	// the drop action is installed before the event is sent, so the probes only run once it is in place
+	err = test.GetEventSent(t, func() error {
 		args := append([]string{"open", testFile, ";", "getchar", ";"}, probeArgs...)
 		cmd = exec.Command(syscallTester, args...)
 		cmd.Stdout = &output
@@ -485,16 +486,28 @@ func TestRawPacketActionProtocols(t *testing.T) {
 			return err
 		}
 		return cmd.Start()
-	}, func(_ *model.Event, rule *rules.Rule) {
+	}, func(rule *rules.Rule, event *model.Event) bool {
 		assertTriggeredRule(t, rule, "test_rule_raw_packet_drop_protocols")
-	}, "test_rule_raw_packet_drop_protocols")
+
+		if assert.Len(t, event.ActionReports, 1, "expected one action report") {
+			report, ok := event.ActionReports[0].(*probe.RawPacketActionReport)
+			if assert.True(t, ok, "expected a raw packet action report") {
+				report.RLock()
+				assert.Equal(t, probe.RawPacketActionStatusPerformed, report.Status, "drop action not performed")
+				report.RUnlock()
+			}
+		}
+		return true
+	}, 10*time.Second, "test_rule_raw_packet_drop_protocols")
 
 	if cmd == nil || cmd.Process == nil {
 		t.Fatal("syscall tester not started")
 	}
-
-	// wait for the action to be performed
-	time.Sleep(5 * time.Second)
+	if err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		t.Fatal(err)
+	}
 
 	stdin.Close()
 	if err := cmd.Wait(); err != nil {
