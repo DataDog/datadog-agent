@@ -66,14 +66,12 @@ mod tests {
             test_helpers::test_uuid(),
             test_helpers::graceful_stop_test_config(),
         );
-        proc.spawn(test_exit_channel().0).unwrap();
+        let (tx, mut exit_rx) = test_exit_channel();
+        proc.spawn(tx).unwrap();
         assert!(proc.is_running());
 
-        // Signaling the child means leaving the caller's console, and only
-        // CallerConsoleGuard puts it back. A regression there leaves the supervisor
-        // running with nowhere to log, which none of the assertions below would catch.
-        // Compared in both directions rather than asserting a console exists, since the
-        // test process only has one when the runner gave it one.
+        // Only the detached helper attaches to the workload console. Caller
+        // membership and all standard slots must remain exactly unchanged.
         #[cfg(windows)]
         let console_before = crate::platform::caller_console_state();
 
@@ -89,6 +87,18 @@ mod tests {
         );
 
         assert_eq!(proc.state(), ProcessState::Stopped);
+        #[cfg(windows)]
+        assert!(
+            exit_rx
+                .recv()
+                .await
+                .expect("graceful workload exit")
+                .status
+                .success(),
+            "CTRL_BREAK should exit cleanly, not by job force-kill"
+        );
+        #[cfg(not(windows))]
+        let _ = exit_rx;
         assert!(
             started.elapsed().as_secs() < 2,
             "graceful stop should not wait for stop_timeout force-kill (took {:?})",
