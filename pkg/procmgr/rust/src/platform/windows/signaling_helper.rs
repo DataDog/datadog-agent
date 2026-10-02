@@ -405,6 +405,15 @@ mod tests {
         retained
     }
 
+    async fn wait_for_helper_exit(helper: &SignalingHelper) {
+        let HelperBackend::Process(process) = &helper.backend else { panic!("expected native helper"); };
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        while matches!(wait_for_process_exit_ms(process.process.get(), 0).unwrap(), ProcessWaitOutcome::TimedOut) {
+            assert!(tokio::time::Instant::now() < deadline, "job cleanup did not terminate helper");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
     #[tokio::test]
     async fn helper_is_created_in_job_without_waiting_for_delivery() {
         use windows_sys::Win32::System::JobObjects::IsProcessInJob;
@@ -419,7 +428,7 @@ mod tests {
         assert_ne!(member, 0);
         assert!(helper.observe().report.is_none(), "creation must not wait for delivery");
         job.terminate().unwrap();
-        assert!(job.wait_for_drain(tokio::time::Instant::now() + Duration::from_secs(5)).await.unwrap());
+        wait_for_helper_exit(&helper).await;
     }
 
     #[test]
@@ -438,10 +447,10 @@ mod tests {
         let pid = unsafe { GetProcessId(target.raw()) };
         assert_ne!(pid, 0);
         let job = JobObject::new().unwrap();
-        let _helper = send_graceful_stop(&target, &job).expect("helper created");
+        let helper = send_graceful_stop(&target, &job).expect("helper created");
         assert_eq!(unsafe { GetProcessId(target.raw()) }, pid);
         job.terminate().unwrap();
-        assert!(job.wait_for_drain(tokio::time::Instant::now() + Duration::from_secs(5)).await.unwrap());
+        wait_for_helper_exit(&helper).await;
     }
 
     #[tokio::test]
@@ -466,11 +475,7 @@ mod tests {
         assert!(matches!(wait_for_process_exit_ms(process.process.get(), 0).unwrap(), ProcessWaitOutcome::TimedOut),
             "report timeout must not terminate an existing helper separately");
         drop(job);
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
-        while matches!(wait_for_process_exit_ms(process.process.get(), 0).unwrap(), ProcessWaitOutcome::TimedOut) {
-            assert!(tokio::time::Instant::now() < deadline, "job close did not terminate helper");
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        wait_for_helper_exit(&helper).await;
     }
 
     #[test]

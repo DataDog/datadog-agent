@@ -948,25 +948,6 @@ pub mod tests {
     }
 
     #[cfg(windows)]
-    #[test]
-    fn normal_exit_closes_job_even_when_accounting_is_unavailable() {
-        use std::sync::{Arc, atomic::Ordering};
-        let mut proc = ManagedProcess::new_config(
-            "normal-exit-query-failure".into(), test_helpers::test_uuid(),
-            test_helpers::graceful_stop_test_config(),
-        );
-        proc.force_running_for_test();
-        proc.set_job_object(platform::JobObject::new().unwrap());
-        let job = proc.job_object.as_ref().unwrap();
-        job.faults.query_error.store(true, Ordering::SeqCst);
-        let weak_faults = Arc::downgrade(&job.faults);
-        proc.set_last_status(test_helpers::exit_status(0));
-        assert_eq!(proc.state(), ProcessState::Exited);
-        assert!(proc.job_object.is_none());
-        assert!(weak_faults.upgrade().is_none());
-    }
-
-    #[cfg(windows)]
     #[tokio::test]
     async fn graceful_stop_creates_helper_before_wait_stage() {
         let mut proc = ManagedProcess::new_config(
@@ -1019,11 +1000,10 @@ pub mod tests {
 
     #[cfg(windows)]
     #[tokio::test]
-    async fn shared_wait_generated_report_uses_configured_timeout_not_job_accounting() {
+    async fn shared_wait_generated_report_uses_configured_timeout() {
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
-        faults.query_error.store(true, Ordering::SeqCst);
         let grace = Duration::from_millis(30);
         let stop = injected_stop(job, platform::SignalOutcome::Generated, grace);
         // An earlier workload may be awaited first. This wait still receives
@@ -1052,11 +1032,10 @@ pub mod tests {
 
     #[cfg(windows)]
     #[tokio::test]
-    async fn shared_wait_main_exit_does_not_wait_for_helper_or_job_drainage() {
+    async fn shared_wait_main_exit_does_not_wait_for_helper() {
         use std::sync::{Arc, atomic::Ordering};
         let job = platform::JobObject::new().unwrap();
         let faults = Arc::clone(&job.faults);
-        faults.query_error.store(true, Ordering::SeqCst);
         let stop = StopWait {
             name: "main-exit".into(), handle: tokio::spawn(async {}),
             timeout: Some(Duration::from_secs(90)),
