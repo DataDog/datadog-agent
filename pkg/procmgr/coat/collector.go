@@ -82,12 +82,17 @@ func (c *Collector) Collect(ctx context.Context) Snapshot {
 		}
 	}
 
+	// The OS unit/SCM state does not go through dd-procmgrd, so it is collected whether or not the
+	// calls above succeeded: a unit that is stopped or failed is what COAT needs to see, and that is
+	// when the daemon cannot answer. It runs ahead of the service sweep, on a bounded slice of what
+	// the daemon phase left, so neither it nor the sweep hands the other an expired context.
+	serviceStateCtx, cancelServiceState := daemonServiceStateContext(ctx)
+	snapshot.Daemon.ServiceState = detectDaemonServiceState(serviceStateCtx)
+	cancelServiceState()
+
 	for _, service := range migratableServices {
 		snapshot.Services = append(snapshot.Services, c.collectService(ctx, service, processes))
 	}
-	// OS unit/SCM state is independent of gRPC reachability: collect it even when Connect fails
-	// so COAT can see a stopped or failed dd-procmgrd unit.
-	snapshot.Daemon.ServiceState = detectDaemonServiceState(ctx)
 	return snapshot
 }
 

@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -222,6 +223,47 @@ func TestDaemonServiceStateOneHot(t *testing.T) {
 	}
 	assert.False(t, daemonServiceStateIsActive("", ProcessStateRunning))
 	assert.False(t, daemonServiceStateIsActive(ProcessStateRunning, ProcessStateStopped))
+}
+
+// The unit/service query and the per-service sweep share whatever the daemon calls leave behind, and
+// neither can run on an expired context. Asserted on the budgets rather than by timing a collection,
+// so the arrangement is checked without spending it.
+func TestDaemonServiceStateQueryLeavesTimeForTheServiceSweep(t *testing.T) {
+	// Running the query first only helps while it cannot spend everything the sweep needs; at a
+	// budget of the whole reserve this would just starve the sweep instead.
+	require.Less(t, daemonServiceStateBudget, serviceSweepReserve,
+		"the query must not be able to spend the whole reserve the service sweep runs on")
+
+	t.Run("a generous collection budget is capped at the query budget", func(t *testing.T) {
+		collection, cancel := clientContext(context.Background())
+		defer cancel()
+		collectionDeadline, ok := collection.Deadline()
+		require.True(t, ok)
+
+		query, cancelQuery := daemonServiceStateContext(collection)
+		defer cancelQuery()
+
+		deadline, ok := query.Deadline()
+		require.True(t, ok, "an unbounded query could spend the whole collection budget")
+		assert.WithinDuration(t, time.Now().Add(daemonServiceStateBudget), deadline,
+			daemonServiceStateBudget/4)
+		assert.True(t, deadline.Before(collectionDeadline),
+			"the sweep that follows must still have time left on the collection context")
+	})
+
+	t.Run("a tighter collection deadline binds instead", func(t *testing.T) {
+		collectionDeadline := time.Now().Add(daemonServiceStateBudget / 2)
+		collection, cancel := context.WithDeadline(context.Background(), collectionDeadline)
+		defer cancel()
+
+		query, cancelQuery := daemonServiceStateContext(collection)
+		defer cancelQuery()
+
+		deadline, ok := query.Deadline()
+		require.True(t, ok)
+		assert.WithinDuration(t, collectionDeadline, deadline, time.Millisecond,
+			"a child context cannot outlive its parent, so the budget must not extend it")
+	})
 }
 
 func TestCollectSetsDaemonServiceStateWhenConnectFails(t *testing.T) {
