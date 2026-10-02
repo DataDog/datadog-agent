@@ -16,10 +16,10 @@ require (
 )
 
 require (
-	cloud.google.com/go/auth v0.21.0 // indirect
+	cloud.google.com/go/auth v0.23.2 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.211 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.213 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000 // indirect
@@ -55,8 +55,8 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.18 // indirect
-	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.20 // indirect
+	github.com/googleapis/gax-go/v2 v2.24.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/mdlayher/socket v0.7.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
@@ -92,8 +92,8 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	google.golang.org/api v0.288.0 // indirect
-	google.golang.org/genproto v0.0.0-20260319201613-d00831a3d3e7 // indirect
+	google.golang.org/api v0.293.0 // indirect
+	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
@@ -224,6 +224,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../pkg/serializer

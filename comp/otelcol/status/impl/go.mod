@@ -72,7 +72,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/googleapis/gax-go/v2 v2.23.0 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.20 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
@@ -230,6 +230,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../pkg/serializer

@@ -13,8 +13,8 @@ Handle → Storage → Detect → Correlate → Report
 
 Data enters through lightweight **Handles** (non-blocking scalar snapshot on
 send). Metric handles reject name/source/host-only processing rules before
-enqueueing, retain immutable resolved-tag views, and defer tag materialization,
-tag-dependent filtering, muting, and canonicalization to the dispatch
+enqueueing, retain immutable resolved-tag views, and defer tag-dependent
+filtering, muting, and context-key generation when needed to the dispatch
 goroutine; log handles still copy caller-owned content and tags before
 enqueueing.
 The **engine** stores metrics, runs detectors and correlators, and emits
@@ -61,7 +61,6 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Extractor | `log_pattern_extractor` | on |
 | Extractor | `connection_error_extractor` | off |
 | Detector | `bocpd` | on |
-| Detector | `rrcf` | on |
 | Detector | `scanmw`, `scanwelch`, `holt_residual`, `tukey_biweight` | off |
 | Correlator | `time_cluster` | off |
 | Correlator | `anomaly_scorer` | off |
@@ -147,6 +146,23 @@ When `anomaly_detection.metrics.enabled=false`, handles wrap with
 still passes through; log-derived virtual metrics produced inside the engine
 are unaffected.
 
+### Tag ownership and host identity
+
+Metrics-pipeline tags enter the observer as immutable `tagset.CompositeTags`.
+Core observer paths (ingestion, filtering, storage, detectors, and
+correlators) retain and iterate that view; they must not flatten, sort, or
+copy it. Materialize a `[]string` only at an external serialization boundary
+such as a JSON, event, Parquet, or testbench DTO.
+
+Storage uses a bounded, reference-counted composite-tag interner on new-series
+insertion only. It fingerprints tags as unordered, duplicate-insensitive sets
+and collision-checks views without flattening them. Existing-series writes must
+not hash or inspect tags; eviction releases the interner reference.
+
+Raw `LogView.Tags()` remains a `[]string` because the upstream log can be
+reused. Copy it once at raw-log ingestion; all derived metric paths should then
+use a composite view.
+
 ### Correlator-owned deduplication (`correlationEmitter`)
 
 All correlation event deduplication lives **inside each correlator**, not in reporters.
@@ -177,6 +193,11 @@ not embed a `correlationEmitter`.
 
 ### Detector-output deduplication vs replay history
 
+Every detector output must set `Anomaly.SourceRef` to its storage series and
+aggregate, including anomalies from log-derived metrics. The engine discards
+outputs without a reference. Display names are not deduplication identities.
+The standalone scorer can also accept inputs without storage references.
+
 The engine deduplicates detector outputs across advances before feeding them to
 correlators. Live mode keeps only a fixed-size dedup cache;
 it does not retain full raw anomalies because reporters receive advance-local
@@ -187,6 +208,13 @@ production consumer to raw anomaly history; add an explicitly bounded diagnostic
 surface if that use case emerges. Route every storage-series removal through the
 engine cleanup path so ref-backed dedup entries are removed too; dedup eviction is
 reported by `observer.anomaly_dedup.evicted{reason}`.
+
+Metric anomalies retain their `SeriesDescriptor` for source identity and output
+metadata, but carry no title or description. Detectors capture scalar evidence
+in `AnomalyDebugInfo`; output consumers call `observer/def.FormatAnomaly` only
+after deciding to render text. The dedup key uses the source ref, aggregate,
+detector name, and timestamp. Do not format text in detection,
+scoring, or deduplication.
 
 ## Common Pitfalls
 
@@ -226,6 +254,10 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 ```bash
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
+
+# The testbench reporter requires its own build tag, passed through extra args
+# because it is not part of the Agent's selectable build-tag set.
+dda inv test --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.

@@ -15,6 +15,14 @@
 //!
 //! **When module enablement changes in Go, update [`derived_enabled`].**
 //!
+//! `system_probe_config.external` is deliberately not read here, matching Go: `load()`
+//! leaves the derived value purely module-derived and `startSystemProbe` checks `external`
+//! separately. Folding it in would reach further than system-probe, because this function
+//! also backs process-agent's `system_probe_config.enabled` term, and process-agent has to
+//! keep running against an externally managed system-probe since talking to it is its job.
+//! Keeping system-probe itself from being spawned is the sysprobe entry's
+//! `condition_config_none`.
+//!
 //! Module knobs come from the highest-priority configured source among fleet policy,
 //! env, and YAML. A few modules read the core `datadog.yaml` instead of
 //! `system-probe.yaml`; those go through [`Cfg::agent_bool`], which also applies the
