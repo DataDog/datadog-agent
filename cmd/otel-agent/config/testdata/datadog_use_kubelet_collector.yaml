@@ -1,3 +1,0 @@
-otelcollector:
-  standalone:
-    use_kubelet_collector: true

@@ -130,10 +130,10 @@ func TestConfigValidate_UseKubeletCollector_NilIsValid(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-func TestConfigValidate_UseKubeletCollector_ExplicitTrue(t *testing.T) {
-	trueVal := true
+func TestConfigValidate_UseKubeletCollector_ExplicitFalse(t *testing.T) {
+	falseVal := false
 	cfg := createDefaultConfig().(*Config)
-	cfg.UseKubeletCollector = &trueVal
+	cfg.UseKubeletCollector = &falseVal
 	require.NoError(t, cfg.Validate())
-	assert.True(t, *cfg.UseKubeletCollector)
+	assert.False(t, *cfg.UseKubeletCollector)
 }

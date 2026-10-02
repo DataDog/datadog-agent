@@ -99,11 +99,8 @@ func isKindLocal() bool {
 // The dogtel-standalone OTel config enables the dogtelextension with a tagger
 // gRPC server on port 15555.
 //
-// The otel-agent opts out of the default nodefilter workloadmeta collector to
-// collect pods through the kubelet, as it did before nodefilter existed; the
-// fixture's default RBAC grants the kubelet access this needs. It opts out
-// through the environment, while TestDogtelTagParity covers the equivalent
-// extensions.dogtel.use_kubelet_collector key.
+// The otel-agent collects pods through its default kubelet workloadmeta
+// collector; the fixture's default RBAC grants the kubelet access this needs.
 //
 // The name is intentionally short (≤20 lowercase chars) to prevent Kubernetes
 // from truncating pod names: deployment name = "calendar-rest-go-" + lowercase(TestName).
@@ -112,12 +109,7 @@ func isKindLocal() bool {
 func TestDogtelStandalone(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogtelStandaloneTestSuite{workloadmetaCollector: "kubelet"},
-		e2e.WithProvisioner(dogtelStandaloneProvisioner(
-			otelstandalone.WithExtraEnvVars(&pulumicorev1.EnvVarArgs{
-				Name:  pulumi.String("DD_OTELCOLLECTOR_STANDALONE_USE_KUBELET_COLLECTOR"),
-				Value: pulumi.String("true"),
-			}),
-		)),
+		e2e.WithProvisioner(dogtelStandaloneProvisioner()),
 		e2e.WithCoverageRequired(map[string]bool{
 			"agent":      false,
 			"otel-agent": true,
@@ -126,8 +118,8 @@ func TestDogtelStandalone(t *testing.T) {
 }
 
 // dogtelNodefilterTestSuite runs the dogtelStandaloneTestSuite tests against a
-// standalone otel-agent in its default mode, where the nodefilter workloadmeta
-// collector watches this node's pods through the API server, and whose
+// standalone otel-agent opted in to the nodefilter workloadmeta collector,
+// which watches this node's pods through the API server, and whose
 // ClusterRole grants only the pod read access nodefilter documents: no kubelet
 // API access (nodes/proxy) the kubelet collector would need. It is a distinct
 // type so that it gets its own stack.
@@ -147,11 +139,19 @@ func podReadRule() *rbacv1.PolicyRuleArgs {
 
 // TestDogtelNodefilter is the entry point for the dogtelNodefilterTestSuite.
 // Its name is exactly 20 characters, the limit TestDogtelStandalone documents.
+//
+// The otel-agent opts in to nodefilter through the environment, while
+// TestDogtelTagParity covers the equivalent
+// extensions.dogtel.use_kubelet_collector key.
 func TestDogtelNodefilter(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &dogtelNodefilterTestSuite{dogtelStandaloneTestSuite{workloadmetaCollector: "nodefilter"}},
 		e2e.WithProvisioner(dogtelStandaloneProvisioner(
 			otelstandalone.WithClusterRoleRules(podReadRule()),
+			otelstandalone.WithExtraEnvVars(&pulumicorev1.EnvVarArgs{
+				Name:  pulumi.String("DD_OTELCOLLECTOR_STANDALONE_USE_KUBELET_COLLECTOR"),
+				Value: pulumi.String("false"),
+			}),
 		)),
 		e2e.WithCoverageRequired(map[string]bool{
 			"agent":      false,

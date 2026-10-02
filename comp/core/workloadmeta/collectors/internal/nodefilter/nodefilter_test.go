@@ -111,15 +111,18 @@ func TestApplyTLSSettings(t *testing.T) {
 }
 
 // TestLocalNodeName verifies that only otel-agent running in DDOT standalone
-// mode without the kubelet collector opt-out selects this collector (Enabled,
-// which the kubelet collector steps aside on), and that it then only applies
-// on Kubernetes.
+// mode with use_kubelet_collector opted out of selects this collector
+// (Enabled, which the kubelet collector steps aside on), and that it then
+// only applies on Kubernetes.
 func TestLocalNodeName(t *testing.T) {
+	noKubelet := false
 	tests := []struct {
 		name       string
 		flavor     string
 		standalone bool
-		useKubelet bool
+		// useKubelet leaves otelcollector.standalone.use_kubelet_collector
+		// to its default when nil.
+		useKubelet *bool
 		kubernetes bool
 		// wantEnabled is whether the kubelet collector must step aside.
 		wantEnabled bool
@@ -127,26 +130,26 @@ func TestLocalNodeName(t *testing.T) {
 		wantNodeName string
 	}{
 		{
-			name:   "standalone otel-agent, defaults to nodefilter",
+			name:   "standalone otel-agent, defaults to kubelet",
 			flavor: flavor.OTelAgent, standalone: true, kubernetes: true,
+		},
+		{
+			name:   "standalone otel-agent, opted in to nodefilter",
+			flavor: flavor.OTelAgent, standalone: true, useKubelet: &noKubelet, kubernetes: true,
 			wantEnabled: true, wantNodeName: "test-node",
 		},
 		{
 			name:   "not standalone",
-			flavor: flavor.OTelAgent, standalone: false, kubernetes: true,
+			flavor: flavor.OTelAgent, standalone: false, useKubelet: &noKubelet, kubernetes: true,
 		},
 		{
 			name:   "not otel-agent",
-			flavor: flavor.DefaultAgent, standalone: true, kubernetes: true,
-		},
-		{
-			name:   "opted back out to kubelet",
-			flavor: flavor.OTelAgent, standalone: true, useKubelet: true, kubernetes: true,
+			flavor: flavor.DefaultAgent, standalone: true, useKubelet: &noKubelet, kubernetes: true,
 		},
 		{
 			// The kubelet collector disables itself off Kubernetes too.
 			name:   "not on Kubernetes",
-			flavor: flavor.OTelAgent, standalone: true, kubernetes: false,
+			flavor: flavor.OTelAgent, standalone: true, useKubelet: &noKubelet, kubernetes: false,
 			wantEnabled: true,
 		},
 	}
@@ -162,10 +165,11 @@ func TestLocalNodeName(t *testing.T) {
 			// K8S_NODE_NAME is the first of the
 			// otelcollector.standalone.node_from_env_var defaults.
 			t.Setenv("K8S_NODE_NAME", "test-node")
-			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
-				"otel_standalone": tt.standalone,
-				"otelcollector.standalone.use_kubelet_collector": tt.useKubelet,
-			})
+			overrides := map[string]interface{}{"otel_standalone": tt.standalone}
+			if tt.useKubelet != nil {
+				overrides["otelcollector.standalone.use_kubelet_collector"] = *tt.useKubelet
+			}
+			cfg := config.NewMockWithOverrides(t, overrides)
 
 			assert.Equal(t, tt.wantEnabled, Enabled(cfg))
 
@@ -191,6 +195,7 @@ func TestLocalNodeName_EnvVarNotSet(t *testing.T) {
 	unsetNodeEnvVars(t)
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"otel_standalone": true,
+		"otelcollector.standalone.use_kubelet_collector": false,
 	})
 	warnings := captureWarnings(t)
 
@@ -217,7 +222,8 @@ func TestLocalNodeName_CustomEnvVar(t *testing.T) {
 	t.Setenv("MY_CUSTOM_NODE_NAME_VAR", "test-node")
 	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
 		"otel_standalone": true,
-		"otelcollector.standalone.node_from_env_var": "MY_CUSTOM_NODE_NAME_VAR",
+		"otelcollector.standalone.use_kubelet_collector": false,
+		"otelcollector.standalone.node_from_env_var":     "MY_CUSTOM_NODE_NAME_VAR",
 	})
 
 	nodeName, fromEnvVar, err := localNodeName(cfg)
@@ -291,7 +297,10 @@ func TestLocalNodeName_EnvVarList(t *testing.T) {
 			for name, value := range tt.env {
 				t.Setenv(name, value)
 			}
-			overrides := map[string]interface{}{"otel_standalone": true}
+			overrides := map[string]interface{}{
+				"otel_standalone": true,
+				"otelcollector.standalone.use_kubelet_collector": false,
+			}
 			if tt.setting != "" {
 				overrides["otelcollector.standalone.node_from_env_var"] = tt.setting
 			}
@@ -358,6 +367,7 @@ func standaloneConfig(t *testing.T) config.Component {
 	t.Setenv("K8S_NODE_NAME", "test-node")
 	return config.NewMockWithOverrides(t, map[string]interface{}{
 		"otel_standalone": true,
+		"otelcollector.standalone.use_kubelet_collector": false,
 	})
 }
 

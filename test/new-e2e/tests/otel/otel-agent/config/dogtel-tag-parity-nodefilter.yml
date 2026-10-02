@@ -1,8 +1,9 @@
 # Nodefilter side of TestDogtelTagParity: tags the calendar app's telemetry,
 # as forwarded by the kubelet side (dogtel-tag-parity-kubelet.yml), from the
-# pods the default nodefilter workloadmeta collector finds.
+# pods the nodefilter workloadmeta collector, opted in to, finds.
 extensions:
   dogtel:
+    use_kubelet_collector: false
   pprof:
   health_check:
   zpages:

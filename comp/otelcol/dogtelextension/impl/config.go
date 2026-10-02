@@ -74,11 +74,11 @@ type Config struct {
 	// default (10250).
 	KubernetesHTTPSKubeletPort int `mapstructure:"kubernetes_https_kubelet_port"`
 
-	// UseKubeletCollector opts standalone otel-agent back out of the
-	// nodefilter workloadmeta collector (a node-scoped K8s API-server pod
-	// watch) and back onto the kubelet collector for K8s tag enrichment.
-	// Pointer so that nil ("not set") is distinguishable from an explicit
-	// false, leaving the DD agent default (nodefilter, i.e. false) intact
+	// UseKubeletCollector selects the kubelet collector for K8s tag
+	// enrichment in standalone otel-agent. Setting it to false opts in to the
+	// nodefilter workloadmeta collector instead, a node-scoped K8s API-server
+	// pod watch. Pointer so that nil ("not set") is distinguishable from an
+	// explicit false, leaving the DD agent default (kubelet, i.e. true) intact
 	// when the field is absent.
 	UseKubeletCollector *bool `mapstructure:"use_kubelet_collector"`
 	// NodeFromEnvVar lists, comma-separated, the environment variables the

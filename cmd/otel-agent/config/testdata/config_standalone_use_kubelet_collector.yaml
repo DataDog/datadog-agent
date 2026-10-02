@@ -1,6 +1,6 @@
 extensions:
   dogtel:
-    use_kubelet_collector: false
+    use_kubelet_collector: true
 receivers:
   otlp:
     protocols:

@@ -99,6 +99,7 @@ dd_agent_go_test(
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
         "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
         "//test/new-e2e/tests/otel/utils",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes/core/v1:core",
