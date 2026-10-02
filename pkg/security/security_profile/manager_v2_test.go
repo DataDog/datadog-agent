@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,16 +20,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
+	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 // newTestManagerV2WithLocalStorage builds a minimal ManagerV2 wired to a real on-disk local
@@ -331,5 +339,355 @@ func TestManagerV2_HandleSampleRefresh(t *testing.T) {
 
 		m.HandleSampleRefresh(3)
 		assert.False(t, cookieMap.Contains(uint64(3)))
+	})
+}
+
+const (
+	testContainerID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	testImageName   = "img"
+)
+
+var testSelector = cgroupModel.WorkloadSelector{Image: testImageName, Tag: "*"}
+
+// fakeContainerTagger resolves the tags of the test container
+type fakeContainerTagger struct {
+	tags []string
+}
+
+func (f *fakeContainerTagger) Tag(entity types.EntityID, _ types.TagCardinality) ([]string, error) {
+	if entity.GetID() != testContainerID {
+		return nil, nil
+	}
+	return f.tags, nil
+}
+
+func (f *fakeContainerTagger) GlobalTags(_ types.TagCardinality) ([]string, error) {
+	return nil, nil
+}
+
+// newInsertionTestManagerV2 builds a ManagerV2 able to insert events in profiles: profiles and anomaly
+// detection are enabled, and anomalies are sent as soon as a profile starts. The returned slice collects the
+// events sent as anomalies.
+func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
+	t.Helper()
+
+	cgr, err := cgroup.NewResolver(&statsd.NoOpClient{}, nil, nil)
+	require.NoError(t, err)
+	// the profile only accepts the processes of the workloads linked to it, found in the cgroup cache
+	require.NotNil(t, cgr.Add(model.CGroupContext{
+		CGroupID:      containerutils.CGroupID("/docker/" + testContainerID),
+		CGroupPathKey: model.PathKey{Inode: 4242, MountID: 1},
+	}))
+	timeResolver, err := ktime.NewResolver()
+	require.NoError(t, err)
+	localStorage, err := storage.NewDirectory(t.TempDir(), 100)
+	require.NoError(t, err)
+	cookieMap, err := lru.New[uint64, sampleCookieEntry](128)
+	require.NoError(t, err)
+	imgExcluder, err := newImageExcluder(nil)
+	require.NoError(t, err)
+
+	tagger := &fakeContainerTagger{tags: []string{"image_name:" + testImageName, "image_tag:v1"}}
+	maxSize := 1 << 20
+
+	var anomalies []*model.Event
+	m := &ManagerV2{
+		config: &config.Config{
+			RuntimeSecurity: &config.RuntimeSecurityConfig{
+				SecurityProfileEnabled:                          true,
+				AnomalyDetectionEnabled:                         true,
+				SecurityProfileV2EventTypes:                     []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType},
+				SecurityProfileV2MaxDumpSize:                    func() int { return maxSize },
+				SecurityProfileV2ProfileReportingDelayTimeBased: true,
+				SecurityProfileDNSMatchMaxDepth:                 3,
+				SecurityProfileCleanupDelay:                     time.Minute,
+			},
+		},
+		statsdClient: &statsd.NoOpClient{},
+		resolvers: &resolvers.EBPFResolvers{
+			CGroupResolver: cgr,
+			TagsResolver:   tags.NewResolver(0, tagger, cgr, nil),
+			TimeResolver:   timeResolver,
+			HashResolver:   &hash.Resolver{},
+		},
+		kernelVersion:          &kernel.Version{},
+		pathsReducer:           activity_tree.NewPathsReducer(),
+		profiles:               make(map[cgroupModel.WorkloadSelector]*profile.Profile),
+		localStorage:           localStorage,
+		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
+		insertionErrors:        make(map[insertionErrorKey]*atomic.Uint64),
+		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
+		sampleCookieMap:        cookieMap,
+		cleanupProfilesRemoved: atomic.NewUint64(0),
+		imageExcluder:          imgExcluder,
+		sendAnomalyDetection: func(event *model.Event) {
+			anomalies = append(anomalies, event)
+		},
+	}
+	m.initMetricsMap()
+	return m, &anomalies
+}
+
+var testPorts = map[string]uint16{"known": 4251, "new": 4252}
+
+// newTestEventV2 forges an event of the provided type, in the test container running the provided image tag.
+// The same variant always produces the same activity, two variants produce two distinct profile entries.
+func newTestEventV2(eventType model.EventType, imageTag string, variant string) *model.Event {
+	event := model.NewFakeEvent()
+	event.Type = uint32(eventType)
+	event.Timestamp = time.Now()
+	event.TimestampRaw = uint64(event.Timestamp.UnixNano())
+
+	entry := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	entry.ContainerContext.ContainerID = containerutils.ContainerID(testContainerID)
+	entry.ContainerContext.Tags = []string{"image_name:" + testImageName, "image_tag:" + imageTag}
+	entry.FileEvent.PathnameStr = "/usr/bin/proc"
+	entry.FileEvent.BasenameStr = "proc"
+	// a file with an inode but without mount ID would be seen as fileless
+	entry.FileEvent.Inode = 42
+	entry.FileEvent.MountID = 1
+	entry.Ancestor = model.NewPlaceholderProcessCacheEntry(1, 1, false)
+	entry.Ancestor.FileEvent.PathnameStr = "/usr/bin/containerd-shim-runc-v2"
+	entry.Ancestor.FileEvent.BasenameStr = "containerd-shim-runc-v2"
+	entry.Ancestor.FileEvent.Inode = 41
+	entry.Ancestor.FileEvent.MountID = 1
+	event.ProcessCacheEntry = entry
+	event.ProcessContext = &entry.ProcessContext
+
+	addr := model.IPPortContext{
+		IPNet: net.IPNet{IP: net.IPv4zero.To4(), Mask: net.CIDRMask(32, 32)},
+		Port:  testPorts[variant],
+	}
+	switch eventType {
+	case model.ExecEventType:
+		entry.FileEvent.PathnameStr = "/usr/bin/" + variant
+		entry.FileEvent.BasenameStr = variant
+		event.Exec.Process = &entry.Process
+	case model.FileOpenEventType:
+		event.Open.File.PathnameStr = "/tmp/" + variant
+		event.Open.File.BasenameStr = variant
+		event.Open.Flags = unix.O_RDONLY
+	case model.DNSEventType:
+		event.DNS.Question = model.DNSQuestion{Name: variant + "-domain.org", Type: 1, Class: 1, Size: 16, Count: 1}
+	case model.BindEventType:
+		event.Bind.Addr = addr
+		event.Bind.AddrFamily = unix.AF_INET
+		event.Bind.Protocol = unix.IPPROTO_UDP
+	case model.ConnectEventType:
+		event.Connect.Addr = addr
+		event.Connect.AddrFamily = unix.AF_INET
+		event.Connect.Protocol = unix.IPPROTO_UDP
+	}
+	return event
+}
+
+var testEventTypesV2 = []model.EventType{model.ExecEventType, model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType}
+
+// findTestEventNode returns the profile node holding the activity of the variant, or nil
+func findTestEventNode(p *profile.Profile, eventType model.EventType, variant string) *activity_tree.NodeBase {
+	for _, pn := range p.ActivityTree.ProcessNodes {
+		switch eventType {
+		case model.ExecEventType:
+			if pn.Process.FileEvent.PathnameStr == "/usr/bin/"+variant {
+				return &pn.NodeBase
+			}
+		case model.FileOpenEventType:
+			if tmp, ok := pn.Files["tmp"]; ok {
+				if file, ok := tmp.Children[variant]; ok {
+					return &file.NodeBase
+				}
+			}
+		case model.DNSEventType:
+			if dns, ok := pn.DNSNames[variant+"-domain.org"]; ok {
+				return &dns.NodeBase
+			}
+		case model.BindEventType, model.ConnectEventType:
+			for _, sock := range pn.Sockets {
+				if eventType == model.BindEventType {
+					for _, bind := range sock.Bind {
+						if bind.Port == testPorts[variant] {
+							return &bind.NodeBase
+						}
+					}
+				} else {
+					for _, connect := range sock.Connect {
+						if connect.Port == testPorts[variant] {
+							return &connect.NodeBase
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func TestManagerV2_insertEventIntoProfile(t *testing.T) {
+	for _, eventType := range testEventTypesV2 {
+		t.Run(eventType.String(), func(t *testing.T) {
+			m, _ := newInsertionTestManagerV2(t)
+
+			p, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v1", "known"))
+			require.NotNil(t, p)
+			assert.True(t, inserted, "a first activity should create a new entry")
+			assert.Equal(t, testSelector, *p.GetWorkloadSelector(), "the profile should be shared by all the tags of the image")
+			node := findTestEventNode(p, eventType, "known")
+			require.NotNil(t, node, "the %s node should be in the profile", eventType)
+			_, ok := node.GetSeenTimes(p.ActivityTree.GetImageTagID("v1"))
+			assert.True(t, ok, "the node should be tagged with v1")
+
+			// the same activity under another tag of the image only adds the tag to the existing entry
+			p2, inserted := m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "known"))
+			require.Same(t, p, p2)
+			assert.False(t, inserted, "a known activity under another tag shouldn't create a new entry")
+			assert.ElementsMatch(t, []string{"v1", "v2"}, p.GetVersions())
+			node = findTestEventNode(p, eventType, "known")
+			require.NotNil(t, node)
+			_, ok = node.GetSeenTimes(p.ActivityTree.GetImageTagID("v2"))
+			assert.True(t, ok, "the existing node should be tagged with v2")
+
+			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v2", "new"))
+			assert.True(t, inserted, "a new activity should create a new entry")
+			assert.NotNil(t, findTestEventNode(p, eventType, "new"))
+		})
+	}
+}
+
+func TestManagerV2_onEventTagsResolved(t *testing.T) {
+	for _, eventType := range testEventTypesV2 {
+		t.Run(eventType.String(), func(t *testing.T) {
+			t.Run("new entries trigger an anomaly as soon as the profile starts", func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+
+				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "known"))
+				require.Len(t, *anomalies, 1)
+				assert.Equal(t, eventType, (*anomalies)[0].GetEventType())
+				assert.True(t, (*anomalies)[0].IsAnomalyDetectionEvent(), "the anomaly should be flagged as such")
+
+				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "known"))
+				assert.Len(t, *anomalies, 1, "a known activity shouldn't trigger an anomaly")
+
+				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "new"))
+				assert.Len(t, *anomalies, 2, "a new activity should trigger an anomaly")
+			})
+
+			t.Run("no anomaly before the first persistence by default", func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.SecurityProfileV2ProfileReportingDelayTimeBased = false
+
+				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "known"))
+				assert.Empty(t, *anomalies, "no anomaly should be sent before the first persistence")
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				assert.NotNil(t, findTestEventNode(p, eventType, "known"), "the activity should still be learned")
+
+				p.SetHasAlreadyBeenSent()
+				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "known"))
+				assert.Empty(t, *anomalies, "an activity learned before the first persistence shouldn't trigger an anomaly")
+				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "new"))
+				assert.Len(t, *anomalies, 1, "a new activity should trigger an anomaly after the first persistence")
+			})
+
+			t.Run("no anomaly when anomaly detection is disabled", func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				m.config.RuntimeSecurity.AnomalyDetectionEnabled = false
+
+				m.onEventTagsResolved(newTestEventV2(eventType, "v1", "known"))
+				assert.Empty(t, *anomalies)
+				assert.NotNil(t, findTestEventNode(m.profiles[testSelector], eventType, "known"), "the activity should still be learned")
+			})
+		})
+	}
+}
+
+func TestManagerV2_insertEventIntoProfile_maxSize(t *testing.T) {
+	t.Run("a profile reaching the max size is disabled and stops learning", func(t *testing.T) {
+		m, anomalies := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return 1 }
+
+		// the size is checked before the insertion: an empty profile is below any max size
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.NotNil(t, p)
+		require.True(t, inserted)
+
+		p, inserted = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "new"))
+		assert.Nil(t, p)
+		assert.False(t, inserted)
+
+		disabled := m.profiles[testSelector]
+		require.NotNil(t, disabled, "the profile should be kept, disabled")
+		assert.False(t, disabled.IsEnabled())
+		assert.True(t, disabled.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
+
+		m.onEventTagsResolved(newTestEventV2(model.ExecEventType, "v1", "new"))
+		assert.Empty(t, *anomalies, "a disabled profile shouldn't trigger anomalies")
+		assert.True(t, disabled.ActivityTree.IsEmpty(), "a disabled profile shouldn't learn new activities")
+		assert.Positive(t, m.eventFiltering[eventFilteringEntry{model.ExecEventType, model.ProfileAtMaxSize, NA}].Load())
+	})
+
+	t.Run("a profile below the max size keeps learning", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+
+		p, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.True(t, p.IsEnabled())
+	})
+}
+
+func TestManagerV2_cleanupPendingProfiles(t *testing.T) {
+	const cleanupDelay = time.Minute
+
+	newInstance := func() *tags.Workload {
+		cgce := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: testContainerID}, model.CGroupContext{CGroupID: testContainerID}, 0)
+		return &tags.Workload{GCroupCacheEntry: cgce, Selector: testSelector}
+	}
+
+	tests := []struct {
+		name          string
+		pendingSince  time.Duration
+		hasInstance   bool
+		expectRemoved bool
+	}{
+		{name: "removed once the cleanup delay is over", pendingSince: 2 * cleanupDelay, expectRemoved: true},
+		{name: "kept until the cleanup delay is over", pendingSince: cleanupDelay / 2},
+		{name: "kept when an instance came back", pendingSince: 2 * cleanupDelay, hasInstance: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, _ := newInsertionTestManagerV2(t)
+			m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
+
+			p := profile.New(profile.WithWorkloadSelector(testSelector))
+			if tt.hasInstance {
+				p.Instances = append(p.Instances, newInstance())
+			}
+			m.profiles[testSelector] = p
+			m.pendingProfileRemovals[testSelector] = time.Now().Add(-tt.pendingSince)
+
+			m.cleanupPendingProfiles()
+
+			_, present := m.profiles[testSelector]
+			assert.Equal(t, !tt.expectRemoved, present)
+			if tt.expectRemoved {
+				assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+				assert.Equal(t, uint64(1), m.cleanupProfilesRemoved.Load())
+			}
+		})
+	}
+
+	t.Run("a new event of the workload cancels the pending removal", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileCleanupDelay = cleanupDelay
+
+		_, inserted := m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		require.True(t, inserted)
+		m.pendingProfileRemovals[testSelector] = time.Now().Add(-2 * cleanupDelay)
+
+		_, _ = m.insertEventIntoProfile(newTestEventV2(model.ExecEventType, "v1", "known"))
+		assert.NotContains(t, m.pendingProfileRemovals, testSelector)
+
+		m.cleanupPendingProfiles()
+		assert.Contains(t, m.profiles, testSelector)
 	})
 }
