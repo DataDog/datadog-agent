@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 // platformConfig holds all platform-specific paths, commands, and config
@@ -124,6 +125,39 @@ func (s *baseProcmgrSuite) TestServiceRunning() {
 		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.checkSvcRunning)
 		assert.Equal(ct, s.platform.svcRunningOutput, strings.TrimSpace(out))
 	}, 30*time.Second, 2*time.Second)
+}
+
+// daemonServiceStateMetric is the COAT gauge reporting the dd-procmgrd unit or SCM state. It is
+// one-hot: the reporter emits one series per state and sets exactly one of them to 1.
+const daemonServiceStateMetric = "runtime__procmgr_daemon_service_state"
+
+// daemonServiceStates are the states that gauge can report, in the same order the reporter emits
+// them.
+var daemonServiceStates = []string{
+	"running", "starting", "stopping", "stopped", "failed", "unknown", "not_installed",
+}
+
+// The gauge reports the OS unit or SCM state rather than gRPC readiness, so it has to agree with
+// TestServiceRunning above: on a host where the service is up, "running" is the state that is set.
+//
+// The rest are asserted to be 0 because the one-hot is what makes the metric readable downstream.
+// COAT drops zero series, so a payload carries only the state that is set, and a second series at 1
+// would be indistinguishable from a host genuinely in two states.
+func (s *baseProcmgrSuite) TestDaemonServiceStateTelemetry() {
+	// The COAT reporter refreshes on its own cadence rather than per diagnose call, so the first
+	// snapshot after install can predate the running service.
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
+		assert.True(ct, telemetryGaugeIsTrue(output, daemonServiceStateMetric, map[string]string{
+			"state": "running",
+		}), "daemon service state should be running while the service is up: %s", output)
+
+		for _, state := range daemonServiceStates[1:] {
+			assert.False(ct, telemetryGaugeIsTrue(output, daemonServiceStateMetric, map[string]string{
+				"state": state,
+			}), "only one state may be set, but %q is also 1: %s", state, output)
+		}
+	}, 7*time.Minute, 10*time.Second)
 }
 
 func (s *baseProcmgrSuite) TestCLIStatus() {
@@ -288,6 +322,35 @@ func assertTableRow(t assert.TestingT, output, rowName string, expected map[stri
 		return
 	}
 	assert.Fail(t, fmt.Sprintf("row %q not found in table output:\n%s", rowName, output))
+}
+
+// telemetryGaugeIsTrue reports whether "show-metadata agent-full-telemetry" carries metric set to 1
+// with every label in labels. That payload is unfiltered, so a gauge the reporter emitted at 0 is
+// present as a line valued 0 and is correctly reported as not set here.
+func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, metric) {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
+			continue
+		}
+
+		allLabelsMatch := true
+		for key, value := range labels {
+			if !strings.Contains(line, key+`="`+value+`"`) {
+				allLabelsMatch = false
+				break
+			}
+		}
+		if allLabelsMatch {
+			return true
+		}
+	}
+	return false
 }
 
 type tableColumn struct {
