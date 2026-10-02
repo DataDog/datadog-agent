@@ -1146,15 +1146,17 @@ func TestGetTargetLibraries(t *testing.T) {
 			f, err := NewTargetMutator(config, wmeta, imageResolver, nil, nil, nil)
 			require.NoError(t, err)
 
-			// Filter the pod.
-			actual := f.getSSIPlan(test.in)
+			actual := f.resolveTarget(test.in)
 
 			// Validate the output.
 			if test.expected == nil {
 				require.Nil(t, actual)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libraries, actual.libraries)
+				require.NotNil(t, actual.plan)
+				require.True(t, actual.isSSI)
+				require.False(t, actual.plan.blocked)
+				require.Equal(t, test.expected.libraries, actual.plan.libraries)
 			}
 		})
 	}

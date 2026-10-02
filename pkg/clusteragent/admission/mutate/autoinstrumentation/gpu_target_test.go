@@ -199,9 +199,14 @@ gpu:
 	m := newMatchMutator(t, cfg, newMatchTestWmeta(t))
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "ml", Labels: gpuPodLabels}}
 
-	target := m.getSSIPlan(pod)
+	resolved := m.resolveTarget(pod)
 
+	require.NotNil(t, resolved)
+	require.Equal(t, injectionSourceGPU, resolved.selectedBy)
+	require.True(t, resolved.isSSI)
+	target := resolved.plan
 	require.NotNil(t, target)
+	require.False(t, target.blocked)
 	require.Len(t, target.libraries, 1)
 	assert.Equal(t, c, target.libraries[0].lang)
 	assert.Equal(t, "0", target.libraries[0].tag)
