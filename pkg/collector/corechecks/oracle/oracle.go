@@ -380,6 +380,7 @@ func (c *Check) Teardown() {
 	log.Infof("%s Teardown", c.logPrompt)
 	closeDatabase(c, c.db)
 	closeDatabase(c, c.dbCustomQueries)
+	c.dbCustomQueries = nil
 	closeGoOraConnection(c)
 }
 

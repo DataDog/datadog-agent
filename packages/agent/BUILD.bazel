@@ -14,6 +14,7 @@ string_flag(
         "fips",
         "heroku",
         "iot",
+        "recorder",
     ],
 )
 
@@ -33,19 +34,27 @@ config_setting(
 )
 
 config_setting(
-    name = "heroku_flavor",
-    flag_values = {"@@//packages/agent:flavor": "heroku"},  # buildifier: disable=canonical-repository
+    name = "iot_flavor",
+    flag_values = {"@@//packages/agent:flavor": "iot"},  # buildifier: disable=canonical-repository
 )
 
 config_setting(
-    name = "iot_flavor",
-    flag_values = {"@@//packages/agent:flavor": "iot"},  # buildifier: disable=canonical-repository
+    name = "recorder_flavor",
+    flag_values = {"@@//packages/agent:flavor": "recorder"},  # buildifier: disable=canonical-repository
+)
+
+selects.config_setting_group(
+    name = "base_or_recorder_flavor",
+    match_any = [
+        ":base_flavor",
+        ":recorder_flavor",
+    ],
 )
 
 selects.config_setting_group(
     name = "linux_default",
     match_all = [
-        ":base_flavor",
+        ":base_or_recorder_flavor",
         "@platforms//os:linux",
     ],
 )
@@ -54,14 +63,6 @@ selects.config_setting_group(
     name = "linux_fips",
     match_all = [
         ":fips_flavor",
-        "@platforms//os:linux",
-    ],
-)
-
-selects.config_setting_group(
-    name = "linux_heroku",
-    match_all = [
-        ":heroku_flavor",
         "@platforms//os:linux",
     ],
 )
