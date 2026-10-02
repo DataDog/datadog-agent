@@ -8,6 +8,7 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -70,7 +71,8 @@ type Config struct {
 
 	OpmsExtraHeaders map[string]string
 
-	MetricsClient statsd.ClientInterface
+	MetricsClient   statsd.ClientInterface
+	AgentHTTPClient *http.Client
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build zlib && !zstd
+//go:build zlib
 
 // Package selector provides correct compression impl to fx
 package selector
@@ -13,18 +13,20 @@ import (
 	implgzip "github.com/DataDog/datadog-agent/pkg/util/compression/impl-gzip"
 	implnoop "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
 	implzlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
+	implzstd "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// NewCompressorKind returns a new Compressor based on serializer_compressor_kind
+// NewCompressor returns a new Compressor based on serializer_compressor_kind
 // This function is called only when the zlib build tag is included
 func NewCompressor(kind string, level int) common.Compressor {
 	switch kind {
 	case common.ZlibKind:
 		return implzlib.New()
 	case common.ZstdKind:
-		log.Warn("zstd build tag not included. using zlib")
-		return implzlib.New()
+		return implzstd.New(implzstd.Requires{
+			Level: common.ZstdCompressionLevel(level),
+		})
 	case common.GzipKind:
 		return implgzip.New(implgzip.Requires{
 			Level: level,
@@ -40,7 +42,6 @@ func NewCompressor(kind string, level int) common.Compressor {
 // NewNoopCompressor returns a new Noop Compressor. It does not do any
 // compression, but can be used to create a compressor that does at a later
 // point.
-// This function is called only when there is no zlib or zstd tag
 func NewNoopCompressor() common.Compressor {
 	return implnoop.New()
 }
