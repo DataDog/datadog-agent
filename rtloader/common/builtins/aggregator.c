@@ -383,8 +383,7 @@ gstate_cleanup:
     \param cb The callback that receives the bucket.
     \return This function returns a new reference to None (already INCREF'd), or NULL in case of error.
 
-    `submit_histogram_bucket` and `submit_histogram_bucket_multi` take the same arguments and only
-    differ in the callback they use. The function is static and not in the builtin's API.
+    Shared by `submit_histogram_bucket` and `submit_histogram_bucket_multi`, which differ only in the callback.
 */
 static PyObject *submit_histogram_bucket_with_cb(PyObject *args, cb_submit_histogram_bucket_t cb)
 {
