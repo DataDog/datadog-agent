@@ -1025,6 +1025,130 @@ func TestUpdateFromPodAutoscaler(t *testing.T) {
 	})
 }
 
+func TestUpdateFromOpsAnnotations(t *testing.T) {
+	tests := []struct {
+		name                   string
+		annotations            map[string]string
+		expectedPaused         bool
+		expectedFallbackForced bool
+	}{
+		{
+			name:        "no annotations",
+			annotations: nil,
+		},
+		{
+			name:                   "both enabled",
+			annotations:            map[string]string{PauseAnnotationKey: "true", ForceFallbackAnnotationKey: "true"},
+			expectedPaused:         true,
+			expectedFallbackForced: true,
+		},
+		{
+			// "false" means "do not force", which is the same as not setting the annotation.
+			// It must not be read as "disable the fallback", which remains a spec field.
+			name:        "explicit false is equivalent to absent",
+			annotations: map[string]string{PauseAnnotationKey: "false", ForceFallbackAnnotationKey: "false"},
+		},
+		{
+			// A typo must not be able to freeze autoscaling on a workload indefinitely,
+			// so an unparseable value is ignored exactly like an absent one.
+			name:        "unparseable values are treated as not set",
+			annotations: map[string]string{PauseAnnotationKey: "yes-please", ForceFallbackAnnotationKey: "sure"},
+		},
+		{
+			name:           "boolean spellings accepted by strconv",
+			annotations:    map[string]string{PauseAnnotationKey: "1"},
+			expectedPaused: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := PodAutoscalerInternal{}
+			pai.UpdateFromOpsAnnotations(tt.annotations)
+
+			assert.Equal(t, tt.expectedPaused, pai.IsPaused())
+			assert.Equal(t, tt.expectedFallbackForced, pai.IsFallbackForced())
+		})
+	}
+}
+
+// TestUpdateFromOpsAnnotationsClearedOnRemoval verifies that removing the annotations resumes the
+// autoscaler, i.e. that the parsed state is not sticky.
+func TestUpdateFromOpsAnnotationsClearedOnRemoval(t *testing.T) {
+	pai := PodAutoscalerInternal{}
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "true", ForceFallbackAnnotationKey: "true"})
+	assert.True(t, pai.IsPaused())
+	assert.True(t, pai.IsFallbackForced())
+
+	pai.UpdateFromOpsAnnotations(nil)
+	assert.False(t, pai.IsPaused())
+	assert.False(t, pai.IsFallbackForced())
+}
+
+func TestIsLocalFallbackEnabled(t *testing.T) {
+	disabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: false}}
+	enabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: true}}
+
+	for _, tt := range []struct {
+		name     string
+		fallback *datadoghq.DatadogFallbackPolicy
+		forced   bool
+		expected bool
+	}{
+		{name: "no fallback policy", expected: true},
+		{name: "enabled", fallback: enabled, expected: true},
+		{name: "disabled", fallback: disabled, expected: false},
+		// The annotation never overrides the spec.
+		{name: "disabled and forced", fallback: disabled, forced: true, expected: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := FakePodAutoscalerInternal{Spec: &datadoghq.DatadogPodAutoscalerSpec{Fallback: tt.fallback}}.Build()
+			if tt.forced {
+				pai.UpdateFromOpsAnnotations(map[string]string{ForceFallbackAnnotationKey: "true"})
+			}
+			assert.Equal(t, tt.expected, pai.IsLocalFallbackEnabled())
+		})
+	}
+}
+
+// TestBuildStatusLocallyPaused verifies that pausing is reported through the Active condition.
+func TestBuildStatusLocallyPaused(t *testing.T) {
+	findActive := func(status datadoghqcommon.DatadogPodAutoscalerStatus) *datadoghqcommon.DatadogPodAutoscalerCondition {
+		for i := range status.Conditions {
+			if status.Conditions[i].Type == datadoghqcommon.DatadogPodAutoscalerActiveCondition {
+				return &status.Conditions[i]
+			}
+		}
+		return nil
+	}
+
+	pai := NewPodAutoscalerInternal(&datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default"},
+		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+	})
+
+	active := findActive(pai.BuildStatus(metav1.Now(), nil))
+	require.NotNil(t, active)
+	assert.Equal(t, corev1.ConditionTrue, active.Status)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "true"})
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	require.NotNil(t, active)
+	assert.Equal(t, corev1.ConditionFalse, active.Status)
+	assert.Equal(t, LocallyPausedReason, active.Reason)
+	assert.Contains(t, active.Message, PauseAnnotationKey)
+
+	// Paused takes precedence over a target scaled to 0: it is the actionable reason.
+	pai.SetCurrentReplicas(0)
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	assert.Equal(t, LocallyPausedReason, active.Reason)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "not-a-bool"})
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	assert.NotEqual(t, LocallyPausedReason, active.Reason, "an unparseable value is ignored")
+}
+
 // TestSetActiveScalingValues_NilSource_ClearsVertical verifies that a nil verticalActiveSource
 // (no backend recommendation yet) sets scalingValues.Vertical to nil instead of self-assigning
 // the previously-constrained value.  Self-assigning propagates the burstable sentinel, which

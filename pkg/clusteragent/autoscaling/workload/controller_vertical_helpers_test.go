@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
+	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
 // TestIsInPlaceResizeSupportedConcurrent reproduces the scenario that raced in
@@ -1244,4 +1245,39 @@ func TestApplyVerticalConstraints_RuntimeValuesFiltered(t *testing.T) {
 	expectedHash, err := autoscaling.ObjectHash(vertical.ContainerResources)
 	require.NoError(t, err)
 	assert.Equal(t, expectedHash, vertical.ResourcesHash)
+}
+
+// TestGetVerticalPatchingStrategyPaused verifies the vertical gate refuses to act while paused.
+// This is the same gate the admission webhook consults, so it also covers POD patching.
+func TestGetVerticalPatchingStrategyPaused(t *testing.T) {
+	newInternal := func(paused bool) model.PodAutoscalerInternal {
+		pai := model.FakePodAutoscalerInternal{
+			Namespace: "default",
+			Name:      "dpa-0",
+			Spec:      &datadoghq.DatadogPodAutoscalerSpec{},
+			ScalingValues: model.ScalingValues{
+				Vertical: &model.VerticalScalingValues{
+					Source:        datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					ResourcesHash: "version1",
+				},
+			},
+		}.Build()
+		if paused {
+			pai.UpdateFromOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+		}
+		return pai
+	}
+
+	t.Run("auto when not paused", func(t *testing.T) {
+		pai := newInternal(false)
+		strategy, _ := getVerticalPatchingStrategy(&pai)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy, strategy)
+	})
+
+	t.Run("disabled when paused", func(t *testing.T) {
+		pai := newInternal(true)
+		strategy, reason := getVerticalPatchingStrategy(&pai)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerDisabledUpdateStrategy, strategy)
+		assert.Contains(t, reason, "paused")
+	})
 }

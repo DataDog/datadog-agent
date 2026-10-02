@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -82,6 +83,12 @@ type PodAutoscalerInternal struct {
 
 	// previewOptions holds the parsed preview feature flags from the DPA annotations
 	previewOptions previewOptions
+
+	// paused is set from the pause annotation on the DPA object
+	paused bool
+
+	// fallbackForced is set from the force-fallback annotation on the DPA object
+	fallbackForced bool
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
@@ -200,6 +207,7 @@ func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) Pod
 		name:      podAutoscaler.Name,
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
+	pai.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
 
 	return pai
@@ -261,20 +269,6 @@ func parsePreviewAnnotationString(raw string) previewOptions {
 	return opts
 }
 
-// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
-// to keep them in sync. Passing an empty string removes the annotation.
-func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
-	if previewAnnotation == "" {
-		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
-	} else {
-		if p.upstreamCR.Annotations == nil {
-			p.upstreamCR.Annotations = make(map[string]string)
-		}
-		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
-	}
-	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
-}
-
 // UpdateFromProfile updates the spec from a profile template while preserving scaling state.
 // previewAnnotation is the raw value of the profile's preview annotation (e.g.
 // `{"burstable":true}`), stored in a dedicated field rather than written to upstreamCR,
@@ -322,6 +316,15 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	// without branching on profile-managed vs standalone.
 	// For profile-managed DPAs, UpdateFromProfile() will overwrite this with the profile value.
 	p.previewOptions = parsePreviewAnnotationString(podAutoscaler.Annotations[PreviewAnnotationKey])
+}
+
+// UpdateFromOpsAnnotations updates the PodAutoscalerInternal from the operational annotations
+// (pause, force-fallback). They are set by the user on the Kubernetes object whatever the owner,
+// so they are read separately from UpdateFromPodAutoscaler, which the leader only calls for
+// local owners once the object exists.
+func (p *PodAutoscalerInternal) UpdateFromOpsAnnotations(annotations map[string]string) {
+	p.paused = parseOpsBoolAnnotation(annotations, PauseAnnotationKey)
+	p.fallbackForced = parseOpsBoolAnnotation(annotations, ForceFallbackAnnotationKey)
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -710,6 +713,22 @@ func (p *PodAutoscalerInternal) IsBurstable() bool {
 		return *spec.Options.Burstable
 	}
 	return p.previewOptions.Burstable
+}
+
+// IsPaused returns true if the pause annotation stops all actions of the autoscaler.
+func (p *PodAutoscalerInternal) IsPaused() bool {
+	return p.paused
+}
+
+// IsFallbackForced returns true if the force-fallback annotation is set.
+func (p *PodAutoscalerInternal) IsFallbackForced() bool {
+	return p.fallbackForced
+}
+
+// IsLocalFallbackEnabled returns true unless the spec disables the horizontal local fallback.
+func (p *PodAutoscalerInternal) IsLocalFallbackEnabled() bool {
+	spec := p.Spec()
+	return spec == nil || spec.Fallback == nil || spec.Fallback.Horizontal.Enabled
 }
 
 // PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
@@ -1106,10 +1125,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 	status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, globalError, datadoghqcommon.DatadogPodAutoscalerErrorCondition, existingConditions))
 
-	// Building active condition, should handle multiple reasons, currently only disabled if target replicas = 0
-	if p.currentReplicas != nil && *p.currentReplicas == 0 {
+	// Building active condition: disabled while locally paused, or if target replicas = 0
+	switch {
+	case p.paused:
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, LocallyPausedReason, "Autoscaling locally paused by the "+PauseAnnotationKey+" annotation", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
+	case p.currentReplicas != nil && *p.currentReplicas == 0:
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "Target has been scaled to 0 replicas", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
-	} else {
+	default:
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
 	}
 
@@ -1217,6 +1239,21 @@ func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.
 }
 
 // Private helpers
+
+// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
+// to keep them in sync. Passing an empty string removes the annotation.
+func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
+	if previewAnnotation == "" {
+		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
+	} else {
+		if p.upstreamCR.Annotations == nil {
+			p.upstreamCR.Annotations = make(map[string]string)
+		}
+		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
+	}
+	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
+}
+
 func (p *PodAutoscalerInternal) updateCustomRecommenderConfiguration(annotations map[string]string) {
 	annotation, err := parseCustomConfigurationAnnotation(annotations)
 	if err != nil {
@@ -1421,4 +1458,15 @@ func parseCustomConfigurationAnnotation(annotations map[string]string) (*Recomme
 	}
 
 	return &customConfiguration, nil
+}
+
+// parseOpsBoolAnnotation parses a boolean operational annotation. An absent or invalid value
+// is treated as not set.
+func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
+	value, err := strconv.ParseBool(annotations[key])
+	if err != nil {
+		return false
+	}
+
+	return value
 }

@@ -118,6 +118,39 @@ func newFakePodAutoscaler(ns, name string, gen int64, creationTimestamp time.Tim
 	return
 }
 
+// TestOpsAnnotationsReadAtCreation verifies the operational annotations are read whenever the
+// internal object is built from Kubernetes, whatever the owner: at creation on the leader (which
+// does not requeue), and on every event on followers, which serve the admission webhook.
+func TestOpsAnnotationsReadAtCreation(t *testing.T) {
+	for _, leader := range []bool{true, false} {
+		for _, owner := range []datadoghqcommon.DatadogPodAutoscalerOwner{
+			datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+			datadoghqcommon.DatadogPodAutoscalerRemoteOwner,
+		} {
+			t.Run(fmt.Sprintf("%s/leader=%t", owner, leader), func(t *testing.T) {
+				f := newFixture(t, time.Now())
+				dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+					TargetRef: autoscalingv2.CrossVersionObjectReference{Kind: "Deployment", Name: "app-0", APIVersion: "apps/v1"},
+					Owner:     owner,
+				}
+				dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-0", 1, time.Time{}, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+				annotations := map[string]string{model.PauseAnnotationKey: "true", model.ForceFallbackAnnotationKey: "true"}
+				dpa.SetAnnotations(annotations)
+				dpaTyped.Annotations = annotations
+				f.InformerObjects = append(f.InformerObjects, dpa)
+				f.Objects = append(f.Objects, dpaTyped)
+
+				f.RunControllerSync(leader, "default/dpa-0")
+
+				dpaInternal, found := f.store.Peek("default/dpa-0")
+				require.True(t, found)
+				assert.True(t, dpaInternal.IsPaused())
+				assert.True(t, dpaInternal.IsFallbackForced())
+			})
+		}
+	}
+}
+
 func TestLeaderCreateDeleteLocal(t *testing.T) {
 	testTime := time.Now()
 	f := newFixture(t, testTime)
@@ -1169,6 +1202,253 @@ func TestGetActiveScalingSources(t *testing.T) {
 			assert.Equal(t, tt.wantVerticalSource, verticalSource)
 		})
 	}
+}
+
+// TestOpsAnnotationsReadOnExistingObject is the regression test for the ops annotations being
+// parsed outside the owner-specific sync logic. UpdateFromPodAutoscaler, the usual path from
+// Kubernetes annotations into the internal object, only runs for local-owner autoscalers; if
+// the ops annotations relied on it, annotating an existing remote-owner or profile-managed
+// autoscaler would silently do nothing.
+func TestOpsAnnotationsReadOnExistingObject(t *testing.T) {
+	testTime := time.Now()
+
+	tests := []struct {
+		name        string
+		owner       datadoghqcommon.DatadogPodAutoscalerOwner
+		profileName string
+	}{
+		{name: "local owner", owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+		{name: "remote owner", owner: datadoghqcommon.DatadogPodAutoscalerRemoteOwner},
+		{name: "profile managed", owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner, profileName: "profile-0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t, testTime)
+
+			dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
+				TargetRef: autoscalingv2.CrossVersionObjectReference{
+					Kind:       "Deployment",
+					Name:       "app-0",
+					APIVersion: "apps/v1",
+				},
+				Owner: tt.owner,
+			}
+			if tt.owner == datadoghqcommon.DatadogPodAutoscalerRemoteOwner {
+				dpaSpec.RemoteVersion = pointer.Ptr[uint64](1)
+			}
+
+			// The autoscaler already exists in Kubernetes and in the store, and the operator
+			// now annotates it: an annotation-only edit, with no spec or generation change.
+			dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-0", 1, testTime, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
+			annotations := map[string]string{
+				model.PauseAnnotationKey:         "true",
+				model.ForceFallbackAnnotationKey: "true",
+			}
+			dpa.SetAnnotations(annotations)
+			dpaTyped.Annotations = annotations
+			if tt.profileName != "" {
+				dpa.SetLabels(map[string]string{model.ProfileLabelKey: tt.profileName})
+				dpaTyped.Labels = map[string]string{model.ProfileLabelKey: tt.profileName}
+			}
+			f.InformerObjects = []*unstructured.Unstructured{dpa}
+			f.Objects = []runtime.Object{dpaTyped}
+
+			f.scaler.On("get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&autoscalingv1.Scale{
+				Spec:   autoscalingv1.ScaleSpec{Replicas: 4},
+				Status: autoscalingv1.ScaleStatus{Replicas: 4},
+			}, schema.GroupResource{}, nil).Maybe()
+			pods := make([]*workloadmeta.KubernetesPod, 0, 4)
+			for i := range 4 {
+				pods = append(pods, &workloadmeta.KubernetesPod{
+					EntityMeta: workloadmeta.EntityMeta{Name: fmt.Sprintf("app-0-%d", i)},
+				})
+			}
+			f.podWatcher.mockGetPodsForOwner(NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      "Deployment",
+				Name:      "app-0",
+			}, pods)
+
+			dpaInternal := model.FakePodAutoscalerInternal{
+				Namespace: "default",
+				Name:      "dpa-0",
+				Spec:      &dpaSpec,
+				// Needed for the object to enter the limit heap, which skips zero timestamps.
+				CreationTimestamp: testTime,
+				ProfileName:       tt.profileName,
+			}
+			{
+				item, _ := f.store.Get("default/dpa-0")
+				item.Upsert(dpaInternal.Build(), controllerID)
+			}
+
+			expectedStatus := datadoghqcommon.DatadogPodAutoscalerStatus{
+				CurrentReplicas: pointer.Ptr[int32](4),
+				Conditions: []datadoghqcommon.DatadogPodAutoscalerCondition{
+					condition(datadoghqcommon.DatadogPodAutoscalerErrorCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerActiveCondition, corev1.ConditionFalse, model.LocallyPausedReason, "Autoscaling locally paused by the "+model.PauseAnnotationKey+" annotation", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition, corev1.ConditionFalse, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerHorizontalAbleToScaleCondition, corev1.ConditionUnknown, "", "", testTime),
+					condition(datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, corev1.ConditionUnknown, "", "", testTime),
+				},
+			}
+			f.ExpectUpdateStatusAction(mustUnstructured(t, &datadoghq.DatadogPodAutoscaler{
+				TypeMeta:   podAutoscalerMeta,
+				ObjectMeta: dpaTyped.ObjectMeta,
+				Status:     expectedStatus,
+			}))
+
+			f.RunControllerSync(true, "default/dpa-0")
+
+			stored, found := f.store.Get("default/dpa-0")
+			require.True(t, found)
+			value := stored.Value()
+			assert.True(t, value.IsPaused(), "pause annotation must be honoured for %s", tt.name)
+			assert.True(t, value.IsFallbackForced(), "force-fallback annotation must be honoured for %s", tt.name)
+		})
+	}
+}
+
+// TestGetActiveScalingSourcesOpsAnnotations covers the source selection overrides driven by the
+// pause and force-fallback annotations, which the table above cannot express as it builds the
+// internal straight from a spec.
+func TestGetActiveScalingSourcesOpsAnnotations(t *testing.T) {
+	currentTime := time.Now()
+
+	// Product values are stale and local values are fresh: without an annotation this is the
+	// exact situation that activates the local fallback.
+	staleMainFreshFallback := model.FakePodAutoscalerInternal{
+		Namespace:         "default",
+		Name:              "dpa-0",
+		Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+		CreationTimestamp: currentTime.Add(-60 * time.Minute),
+		MainScalingValues: model.ScalingValues{
+			Horizontal: &model.HorizontalScalingValues{
+				Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+				Timestamp: currentTime.Add(-31 * time.Minute),
+			},
+		},
+		FallbackScalingValues: model.ScalingValues{
+			Horizontal: &model.HorizontalScalingValues{
+				Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+				Timestamp: currentTime.Add(-30 * time.Second),
+			},
+		},
+	}
+
+	t.Run("pause does not change source selection", func(t *testing.T) {
+		dpai := staleMainFreshFallback.Build()
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.PauseAnnotationKey: "true"})
+
+		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
+		require.NotNil(t, horizontalSource)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, *horizontalSource,
+			"pause is enforced where actions are applied, not in source selection")
+	})
+
+	t.Run("force-fallback with the fallback disabled behaves like stale recommendations", func(t *testing.T) {
+		dpai := model.FakePodAutoscalerInternal{
+			Namespace: "default",
+			Name:      "dpa-0",
+			Spec: &datadoghq.DatadogPodAutoscalerSpec{
+				Fallback: &datadoghq.DatadogFallbackPolicy{
+					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+						Enabled:  false,
+						Triggers: datadoghq.HorizontalFallbackTriggers{StaleRecommendationThresholdSeconds: 600},
+					},
+				},
+			},
+			CreationTimestamp: currentTime.Add(-60 * time.Minute),
+			MainScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					Timestamp: currentTime,
+				},
+			},
+		}.Build()
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+
+		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
+		assert.Nil(t, horizontalSource,
+			"like stale recommendations with the fallback disabled: no local values, so current values are held")
+	})
+
+	t.Run("force-fallback wins over fresh product values", func(t *testing.T) {
+		dpai := model.FakePodAutoscalerInternal{
+			Namespace:         "default",
+			Name:              "dpa-0",
+			Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+			CreationTimestamp: currentTime.Add(-60 * time.Minute),
+			MainScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					Timestamp: currentTime,
+				},
+			},
+			FallbackScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+					Timestamp: currentTime.Add(-30 * time.Second),
+				},
+			},
+		}.Build()
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+
+		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
+		require.NotNil(t, horizontalSource)
+		assert.Equal(t, datadoghqcommon.DatadogPodAutoscalerLocalValueSource, *horizontalSource,
+			"forcing the fallback must not consult product staleness")
+	})
+
+	t.Run("force-fallback holds when local values are stale", func(t *testing.T) {
+		dpai := model.FakePodAutoscalerInternal{
+			Namespace:         "default",
+			Name:              "dpa-0",
+			Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+			CreationTimestamp: currentTime.Add(-60 * time.Minute),
+			MainScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					Timestamp: currentTime,
+				},
+			},
+			FallbackScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerLocalValueSource,
+					Timestamp: currentTime.Add(-31 * time.Minute),
+				},
+			},
+		}.Build()
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+
+		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
+		assert.Nil(t, horizontalSource,
+			"forcing the fallback does not make stale local values usable; it goes through the same usability check as the staleness-triggered path")
+	})
+
+	t.Run("force-fallback holds when no local values exist yet", func(t *testing.T) {
+		dpai := model.FakePodAutoscalerInternal{
+			Namespace:         "default",
+			Name:              "dpa-0",
+			Spec:              &datadoghq.DatadogPodAutoscalerSpec{},
+			CreationTimestamp: currentTime.Add(-60 * time.Minute),
+			MainScalingValues: model.ScalingValues{
+				Horizontal: &model.HorizontalScalingValues{
+					Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+					Timestamp: currentTime,
+				},
+			},
+		}.Build()
+		dpai.UpdateFromOpsAnnotations(map[string]string{model.ForceFallbackAnnotationKey: "true"})
+
+		horizontalSource, _ := getActiveScalingSources(currentTime, &dpai)
+		assert.Nil(t, horizontalSource,
+			"the local recommender polls periodically: hold current values rather than using product values the operator asked to stop trusting")
+	})
 }
 
 // TestVerticalConstraintsIdempotent is an end-to-end controller test verifying that when
