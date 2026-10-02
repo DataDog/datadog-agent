@@ -47,6 +47,7 @@ const (
 	DDInfraDefaultDatadogPublicRegistry          = "aws/defaultDatadogPublicRegistry"
 	DDInfraUseMacosCompatibleSubnets             = "aws/useMacosCompatibleSubnets"
 	DDInfraDefaultLeaseBucket                    = "aws/defaultLeaseBucket"
+	DDInfraTrackSSHActivity                      = "aws/trackSSHActivity"
 
 	// AWS ECS
 	DDInfraEcsExecKMSKeyID                  = "aws/ecs/execKMSKeyID"
@@ -333,6 +334,12 @@ func (e *Environment) DefaultShutdownBehavior() string {
 
 func (e *Environment) DefaultLeaseBucket() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultLeaseBucket, e.envDefault.ddInfra.leaseBucket)
+}
+
+// TrackSSHActivity returns whether Linux VMs should keep their "last-activity" tag up to date while
+// used over SSH, so that test-infra-cleaner does not delete them while they are in use.
+func (e *Environment) TrackSSHActivity() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraTrackSSHActivity, e.envDefault.ddInfra.trackSSHActivity)
 }
 
 func (e *Environment) UseMacosCompatibleSubnets() bool {
