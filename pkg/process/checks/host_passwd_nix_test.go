@@ -24,12 +24,15 @@ func writePasswd(t *testing.T, dir, contents string) {
 
 func TestLookupHostUserSkipsInvalidRowsAndUsesFirstMatch(t *testing.T) {
 	dir := t.TempDir()
-	writePasswd(t, dir, "\n# comment\nmalformed\n+compat:x:42:1::/:/bin/sh\n-invalid:x:42:2::/:/bin/sh\nbaduid:x:nope:3::/:/bin/sh\nincomplete:x:42:4\nfirst:x:00042:4::/:/bin/sh\nsecond:x:42:5::/:/bin/sh\n")
+	writePasswd(t, dir, "\n# comment\nmalformed\n+compat:x:42:1::/:/bin/sh\n-invalid:x:42:2::/:/bin/sh\nbaduid:x:nope:3::/:/bin/sh\nincomplete:x:42:4\nfirst:x:00042:4:First User,Room 1:/home/first:/bin/sh\nsecond:x:42:5::/:/bin/sh\n")
 	t.Setenv("HOST_ETC", dir)
 
 	u := lookupHostUser("42")
 	require.NotNil(t, u)
 	assert.Equal(t, "first", u.Username)
+	assert.Equal(t, "4", u.Gid)
+	assert.Equal(t, "First User", u.Name)
+	assert.Equal(t, "/home/first", u.HomeDir)
 	assert.Nil(t, lookupHostUser("43"))
 }
 
