@@ -17,8 +17,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
@@ -170,7 +170,7 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 		ddSite = "datadoghq.com"
 	}
 	apiKey := cfg.GetString("api_key")
-	extraHeaders := cfg.GetStringMapString(setup.PAROpmsExtraHeaders)
+	extraHeaders := cfg.GetStringMapString(par.PAROpmsExtraHeaders)
 
 	runnerNamePrefix := agentIdentifier.Hostname
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -181,7 +181,7 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 		}
 	}
 
-	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
+	if cfg.GetBool(par.PARApiKeyOnlyEnrollment) {
 		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
 	}
 	appKey := cfg.GetString("app_key")

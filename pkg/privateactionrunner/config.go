@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package setup
+// Package privateactionrunner contains shared configuration and behavior for the
+// private action runner.
+package privateactionrunner
 
 const (
 	PAREnabled = "private_action_runner.enabled"

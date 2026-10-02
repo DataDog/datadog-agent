@@ -15,7 +15,7 @@ import (
 	"time"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -273,7 +273,7 @@ func getKubeClient() (kubernetes.Interface, error) {
 }
 
 func getSecretName(cfg configModel.Reader) string {
-	if secretName := cfg.GetString(setup.PARIdentitySecretName); secretName != "" {
+	if secretName := cfg.GetString(par.PARIdentitySecretName); secretName != "" {
 		return secretName
 	}
 	return defaultSecretName

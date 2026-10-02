@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
@@ -58,10 +58,10 @@ apply the new identity.`,
 func run(logger log.Component, cfg config.Component, hostnameComp hostname.Component) error {
 	ctx := context.Background()
 
-	if !cfg.GetBool(pkgconfigsetup.PAREnabled) {
+	if !cfg.GetBool(par.PAREnabled) {
 		return errors.New("private_action_runner.enabled is false - set it to true before rotating the identity")
 	}
-	if !cfg.GetBool(pkgconfigsetup.PARIdentityUseK8sSecret) {
+	if !cfg.GetBool(par.PARIdentityUseK8sSecret) {
 		return errors.New("private_action_runner.identity_use_k8s_secret is false - set it to true before rotating the shared Kubernetes secret identity")
 	}
 

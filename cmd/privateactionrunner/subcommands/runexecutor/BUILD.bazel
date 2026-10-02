@@ -38,7 +38,7 @@ go_library(
         "//comp/remote-config/rcservice/fx",
         "//comp/serializer/logscompression/fx",
         "//pkg/config/settings",
-        "//pkg/config/setup",
+        "//pkg/privateactionrunner",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/version",

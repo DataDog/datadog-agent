@@ -9,7 +9,7 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,10 +36,10 @@ func CreateConnectionsIfEnabled(
 	enrollmentResult *enrollment.Result,
 	tagsProvider TagsProvider,
 ) {
-	if cfg.GetBool(setup.PARApiKeyOnlyEnrollment) {
+	if cfg.GetBool(par.PARApiKeyOnlyEnrollment) {
 		return
 	}
-	if cfg.GetBool(setup.PARSkipConnectionCreation) {
+	if cfg.GetBool(par.PARSkipConnectionCreation) {
 		return
 	}
 

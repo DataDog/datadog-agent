@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -39,14 +39,14 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
 	ddHost := getDatadogHost(mainEndpoint)
 	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
-	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
-	urn := config.GetString(setup.PARUrn)
+	encodedPrivateKey := config.GetString(par.PARPrivateKey)
+	urn := config.GetString(par.PARUrn)
 
 	var privateKey *ecdsa.PrivateKey
 	if encodedPrivateKey != "" {
 		jwk, err := util.Base64ToJWK(encodedPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode %s: %w", setup.PARPrivateKey, err)
+			return nil, fmt.Errorf("failed to decode %s: %w", par.PARPrivateKey, err)
 		}
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
@@ -64,12 +64,12 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 	}
 
 	var taskTimeoutSeconds *int32
-	if v := config.GetInt32(setup.PARTaskTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(par.PARTaskTimeoutSeconds); v != 0 {
 		taskTimeoutSeconds = &v
 	}
 
 	httpTimeout := defaultHTTPClientTimeout
-	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
+	if v := config.GetInt32(par.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
 	agentHTTPClient := &http.Client{
@@ -83,7 +83,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		WaitBeforeRetry:                    waitBeforeRetry,
 		LoopInterval:                       loopInterval,
 		OpmsRequestTimeout:                 opmsRequestTimeout,
-		RunnerPoolSize:                     config.GetInt32(setup.PARTaskConcurrency),
+		RunnerPoolSize:                     config.GetInt32(par.PARTaskConcurrency),
 		HealthCheckInterval:                healthCheckInterval,
 		HttpServerReadTimeout:              defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:             defaultHTTPServerWriteTimeout,
@@ -99,19 +99,19 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		MetricsClient:                      metricsClient,
 		AgentHTTPClient:                    agentHTTPClient,
 		ActionsAllowlist:                   makeActionsAllowlist(config),
-		Allowlist:                          config.GetStringSlice(setup.PARHttpAllowlist),
-		AllowIMDSEndpoint:                  config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		Allowlist:                          config.GetStringSlice(par.PARHttpAllowlist),
+		AllowIMDSEndpoint:                  config.GetBool(par.PARHttpAllowImdsEndpoint),
 		KubernetesAllowedCustomResources:   kubernetesAllowedCustomResources(config),
 		RShellAllowedPaths:                 rshellAllowedPaths(config),
 		RShellAllowedCommands:              rshellAllowedCommands(config),
 		RShellAllowedSystemServices:        rshellAllowedSystemServices(config),
-		RShellDisableDetailedTelemetry:     config.GetBool(setup.PARRestrictedShellDisableDetailedTelemetry),
-		RShellPrivilegedEnabled:            config.GetBool(setup.PARRestrictedShellPrivilegedEnabled),
-		RShellPrivilegedSocket:             config.GetString(setup.PARRestrictedShellPrivilegedSocket),
+		RShellDisableDetailedTelemetry:     config.GetBool(par.PARRestrictedShellDisableDetailedTelemetry),
+		RShellPrivilegedEnabled:            config.GetBool(par.PARRestrictedShellPrivilegedEnabled),
+		RShellPrivilegedSocket:             config.GetString(par.PARRestrictedShellPrivilegedSocket),
 		RShellPrivilegedElevatableCommands: rshellElevatableCommands(config),
-		RShellAllowedCommandsConfigured:    config.IsConfigured(setup.PARRestrictedShellAllowedCommands),
-		RShellAllowedPathsConfigured:       config.IsConfigured(setup.PARRestrictedShellAllowedPaths),
-		OpmsExtraHeaders:                   config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		RShellAllowedCommandsConfigured:    config.IsConfigured(par.PARRestrictedShellAllowedCommands),
+		RShellAllowedPathsConfigured:       config.IsConfigured(par.PARRestrictedShellAllowedPaths),
+		OpmsExtraHeaders:                   config.GetStringMapString(par.PAROpmsExtraHeaders),
 		DDHost:                             ddHost,
 		DDApiHost:                          "api." + ddSite,
 		Modes:                              []modes.Mode{modes.ModePull},
@@ -127,17 +127,17 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 // resource actions can distinguish compatibility mode from an explicit
 // empty-list deny-all policy.
 func kubernetesAllowedCustomResources(config config.Component) []string {
-	if !config.IsConfigured(setup.PARKubernetesAllowedCustomResources) {
+	if !config.IsConfigured(par.PARKubernetesAllowedCustomResources) {
 		return nil
 	}
-	return config.GetStringSlice(setup.PARKubernetesAllowedCustomResources)
+	return config.GetStringSlice(par.PARKubernetesAllowedCustomResources)
 }
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
-	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+	actionFqns := config.GetStringSlice(par.PARActionsAllowlist)
 
-	if config.GetBool(setup.PARDefaultActionsEnabled) {
+	if config.GetBool(par.PARDefaultActionsEnabled) {
 		if flavor.GetFlavor() == flavor.ClusterAgent {
 			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
 		} else {
@@ -172,7 +172,7 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // rshellAllowedCommands returns the operator-configured rshell command allowlist.
 //
 // The default value is a wildcard ["rshell:*"] created to match all commands in the rshell namespace.
-// See pkg/config/setup/privateactionrunner.go for more details.
+// See pkg/config/schema/yaml/private_action_runner.yaml for more details.
 //
 // If the wildcard "rshell:*" is present, the operator-configured list acts as an ALLOW ALL:
 // only the backend will be used to filter the commands.
@@ -181,25 +181,25 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 // For a command to be executed by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed commands list. (intersection operation)
 func rshellAllowedCommands(config config.Component) []string {
-	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
-	warnUnnamespacedCommands(setup.PARRestrictedShellAllowedCommands, commands)
+	commands := config.GetStringSlice(par.PARRestrictedShellAllowedCommands)
+	warnUnnamespacedCommands(par.PARRestrictedShellAllowedCommands, commands)
 	return commands
 }
 
 // Nil means unset; a configured empty map is the explicit deny-all policy.
 func rshellAllowedSystemServices(config config.Component) map[string][]string {
-	if !config.IsConfigured(setup.PARRestrictedShellAllowedSystemServices) {
+	if !config.IsConfigured(par.PARRestrictedShellAllowedSystemServices) {
 		return nil
 	}
-	return config.GetStringMapStringSlice(setup.PARRestrictedShellAllowedSystemServices)
+	return config.GetStringMapStringSlice(par.PARRestrictedShellAllowedSystemServices)
 }
 
 func rshellElevatableCommands(config config.Component) []string {
-	if !config.IsConfigured(setup.PARRestrictedShellPrivilegedElevatableCommands) {
+	if !config.IsConfigured(par.PARRestrictedShellPrivilegedElevatableCommands) {
 		return nil
 	}
-	commands := config.GetStringSlice(setup.PARRestrictedShellPrivilegedElevatableCommands)
-	warnUnnamespacedCommands(setup.PARRestrictedShellPrivilegedElevatableCommands, commands)
+	commands := config.GetStringSlice(par.PARRestrictedShellPrivilegedElevatableCommands)
+	warnUnnamespacedCommands(par.PARRestrictedShellPrivilegedElevatableCommands, commands)
 	return commands
 }
 
@@ -220,13 +220,13 @@ func warnUnnamespacedCommands(key string, commands []string) {
 // rshellAllowedPaths returns the operator-configured rshell path allowlist.
 //
 // The default value is ["/"] matching all paths.
-// See pkg/config/setup/privateactionrunner.go for more details.
+// See pkg/config/schema/yaml/private_action_runner.yaml for more details.
 //
 // The operator-configured list is used to filter the paths.
 // For a path to be accessible by rshell, it needs to be present in both the operator-configured list
 // AND the backend's allowed paths list. (intersection operation)
 func rshellAllowedPaths(config config.Component) []string {
-	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	paths := config.GetStringSlice(par.PARRestrictedShellAllowedPaths)
 	warnBackslashPaths(paths)
 	warnNonDirectoryPaths(paths)
 	return paths
@@ -236,7 +236,7 @@ func warnBackslashPaths(paths []string) {
 	for _, p := range paths {
 		if strings.ContainsRune(p, '\\') {
 			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend rule",
-				setup.PARRestrictedShellAllowedPaths, p)
+				par.PARRestrictedShellAllowedPaths, p)
 		}
 	}
 }
@@ -246,7 +246,7 @@ func warnNonDirectoryPaths(paths []string) {
 		info, err := os.Stat(p)
 		if err == nil && !info.IsDir() {
 			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
-				setup.PARRestrictedShellAllowedPaths, p)
+				par.PARRestrictedShellAllowedPaths, p)
 		}
 	}
 }

@@ -22,8 +22,8 @@ var ErrNotEnabled = errors.New("private action runner is not enabled")
 var ErrSplitDeployment = errors.New("private action runner is running in split deployment mode")
 
 // Configuration keys for the private action runner.
-// Duplicated from pkg/config/setup/privateactionrunner.go because comp/
-// packages cannot import pkg/config/setup (depguard rule).
+// Duplicated from pkg/privateactionrunner/config.go because comp/
+// packages cannot import pkg/ packages (depguard rule).
 const (
 	PAREnabled                = "private_action_runner.enabled"
 	PARSelfEnroll             = "private_action_runner.self_enroll"
