@@ -6,6 +6,7 @@ go_library(
         "acl.go",
         "assert.go",
         "cert.go",
+        "config_trust.go",
         "crashdump.go",
         "debugger.go",
         "defender.go",
@@ -28,7 +29,11 @@ go_library(
         "version.go",
     ],
     data = ["fixtures/get-acl-helpers.ps1"],
-    embedsrcs = ["fixtures/get-acl-helpers.ps1"],
+    embedsrcs = [
+        "fixtures/get-acl-helpers.ps1",
+        "fixtures/config-trust-receiver.ps1",
+        "fixtures/config-trust.ps1",
+    ],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common",
     visibility = ["//visibility:public"],
     deps = [
@@ -36,6 +41,7 @@ go_library(
         "//test/e2e-framework/testing/utils/e2e/client",
         "@com_github_cenkalti_backoff_v7//:backoff",
         "@com_github_davecgh_go_spew//spew",
+        "@com_github_google_uuid//:uuid",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@org_golang_x_crypto//ssh",

@@ -10,9 +10,55 @@ package commands
 import (
 	"os"
 	"path/filepath"
+	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths/testutil"
 )
+
+func TestNewCmdRejectsUntrustedConfigBeforeTelemetry(t *testing.T) {
+	dir := testutil.UntrustedDir(t)
+	configFile := filepath.Join(dir, "datadog.yaml")
+	contents := []byte("site: planted.example\ninstaller:\n  registry:\n    url: planted.example\n    auth: secret\n")
+	require.NoError(t, os.WriteFile(configFile, contents, 0600))
+	originalConfigDir := agentConfigDir
+	t.Cleanup(func() { agentConfigDir = originalConfigDir })
+	agentConfigDir = dir
+	t.Setenv("DD_API_KEY", "synthetic-key")
+
+	registryEnv := env.FromEnv()
+	before := *registryEnv
+	err := applyDatadogYAMLRegistryConfig(registryEnv)
+	require.ErrorContains(t, err, "has unexpected owner")
+	require.Equal(t, before, *registryEnv, "rejection must not import configuration")
+	config, err := telemetryConfig()
+	require.ErrorContains(t, err, "has unexpected owner")
+	require.Zero(t, config, "the telemetry reader must reject untrusted values independently")
+	telemetry, err := newTelemetry(registryEnv)
+	require.ErrorContains(t, err, "has unexpected owner")
+	require.Nil(t, telemetry, "rejection must not start a telemetry client")
+	require.Equal(t, before, *registryEnv, "telemetry rejection must not change subprocess settings")
+	c, err := newCmd("setup")
+	require.ErrorContains(t, err, "has unexpected owner")
+	require.Nil(t, c, "no telemetry client or span may be constructed on rejection")
+}
+
+func TestConfigurationReadersAllowAbsentConfig(t *testing.T) {
+	originalConfigDir := agentConfigDir
+	t.Cleanup(func() { agentConfigDir = originalConfigDir })
+	agentConfigDir = filepath.Join(t.TempDir(), "missing")
+	registryEnv := env.FromEnv()
+	before := *registryEnv
+
+	require.NoError(t, applyDatadogYAMLRegistryConfig(registryEnv))
+	require.Equal(t, before, *registryEnv)
+	config, err := telemetryConfig()
+	require.NoError(t, err)
+	require.Zero(t, config)
+}
 
 // setupTestPaths creates a temporary directory structure that mimics the
 // installer's on-disk state, and overrides paths.PackagesPath /

@@ -92,6 +92,7 @@ dd_agent_go_test(
         "apm_inject_windows_test.go",
         "datadog_agent_eudm_windows_test.go",
         "datadog_agent_extensions_test.go",
+        "datadog_agent_extensions_windows_test.go",
         "datadog_agent_linux_test.go",
         "datadog_agent_windows_test.go",
         "otel_config_common_test.go",
@@ -110,6 +111,7 @@ dd_agent_go_test(
             "//pkg/fleet/installer/packages/file",
         ],
         "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/env",
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/setup/config",
         ],
