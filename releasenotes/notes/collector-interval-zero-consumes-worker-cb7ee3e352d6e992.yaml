@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix accumulating check runner goroutines and utilization metrics after
+    checks configured with ``run_once: true`` finish.

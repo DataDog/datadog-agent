@@ -233,11 +233,12 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 		c.log.Infof("Adding an extra runner for the '%s' shadow check", ch)
 		c.runner.AddShadowWorker()
 	} else if ch.Interval() == 0 {
-		// Track the total number of checks running in order to have an appropriate number of workers
-		c.checkInstances++
-		// Adding a temporary runner for long running check in case the
-		// number of runners is lower than the number of long running
-		// checks.
+		// An interval-zero check runs once, possibly for a long time, on whichever
+		// worker receives it, and that worker exits when the check returns (see
+		// Worker.Run). This extra worker keeps the pool at full size while the
+		// check runs and takes the place of the exiting worker afterwards.
+		// checkInstances sizes the pool for periodic checks, so it is not
+		// incremented here: this extra worker already accounts for the check.
 		c.log.Infof("Adding an extra runner for the '%s' long running check", ch)
 		c.runner.AddWorker()
 	} else {

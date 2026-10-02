@@ -23,6 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -201,6 +204,92 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 	wg.Wait()
 
 	AssertAsyncWorkerCount(t, 0)
+}
+
+// standbyHaAgent is an HA agent that is enabled but not the leader.
+type standbyHaAgent struct{ haagent.Component }
+
+func (standbyHaAgent) Enabled() bool  { return true }
+func (standbyHaAgent) IsActive() bool { return false }
+
+func hasWorkerUtilizationMetric(t require.TestingT, name string) bool {
+	metrics, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	for _, family := range metrics {
+		for _, metric := range family.GetMetric() {
+			for _, label := range metric.GetLabel() {
+				if label.GetName() == "worker_name" && label.GetValue() == name {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func TestWorkerExitsAfterIntervalZeroCheck(t *testing.T) {
+	newOneShot := func(id string) *testCheck {
+		return &testCheck{t: t, id: id, longRunning: true, runCount: atomic.NewUint64(0)}
+	}
+	panicking := newOneShot("one-shot:panic")
+	panicking.doPanic = true
+	haCheck := newHACheck(t, "one-shot:ha", false, nil)
+	haCheck.longRunning = true
+
+	tests := []struct {
+		name  string
+		check interface {
+			check.Check
+			RunCount() int
+		}
+		haAgent        haagent.Component
+		alreadyRunning bool
+		expectedRuns   int
+	}{
+		{"check runs", newOneShot("one-shot:run"), haagentmock.NewMockHaAgent(), false, 1},
+		{"check panics", panicking, haagentmock.NewMockHaAgent(), false, 1},
+		{"skipped on HA standby", haCheck, standbyHaAgent{}, false, 0},
+		{"skipped while already running", newOneShot("one-shot:running"), haagentmock.NewMockHaAgent(), true, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configmock.New(t).SetInTest("hostname", "myhost")
+			expvars.Reset()
+
+			checksTracker := tracker.NewRunningChecksTracker()
+			if tt.alreadyRunning {
+				require.True(t, checksTracker.AddCheck(tt.check))
+			}
+			// The channel stays open: the worker must exit on its own and
+			// leave the periodic check for another worker.
+			periodic := newCheck(t, "periodic:1", false, nil)
+			pendingChecksChan := make(chan check.Check, 2)
+			pendingChecksChan <- tt.check
+			pendingChecksChan <- periodic
+
+			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), tt.haAgent, 100, 200,
+				pendingChecksChan, checksTracker, func(checkid.ID) bool { return true }, 0)
+			require.NoError(t, err)
+			done := make(chan struct{})
+			go func() {
+				worker.Run(context.Background())
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("worker did not exit after its interval-zero check")
+			}
+
+			assert.Equal(t, tt.expectedRuns, tt.check.RunCount())
+			assert.Zero(t, periodic.RunCount())
+			assert.Len(t, pendingChecksChan, 1)
+			AssertAsyncWorkerCount(t, 0)
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				assert.False(c, hasWorkerUtilizationMetric(c, worker.Name))
+			}, 2*time.Second, 10*time.Millisecond)
+		})
+	}
 }
 
 func TestWorkerName(t *testing.T) {
@@ -465,7 +554,6 @@ func TestWorkerStatsAddition(t *testing.T) {
 	mockConfig.SetInTest("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
-	pendingChecksChan := make(chan check.Check, 10)
 
 	shouldAddStatsFunc := func(id checkid.ID) bool {
 		return string(id) != "squelched:123"
@@ -498,16 +586,17 @@ func TestWorkerStatsAddition(t *testing.T) {
 	}
 	squelchedStatsCheck := newCheck(t, "squelched:123", false, nil)
 
-	pendingChecksChan <- longRunningCheckNoErrorNoWarning
-	pendingChecksChan <- longRunningCheckWithError
-	pendingChecksChan <- longRunningCheckWithWarnings
-	pendingChecksChan <- squelchedStatsCheck
-	close(pendingChecksChan)
+	// A worker exits after an interval-zero check, so each check gets its own.
+	for _, c := range []check.Check{longRunningCheckNoErrorNoWarning, longRunningCheckWithError, longRunningCheckWithWarnings, squelchedStatsCheck} {
+		pendingChecksChan := make(chan check.Check, 1)
+		pendingChecksChan <- c
+		close(pendingChecksChan)
 
-	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
-	require.Nil(t, err)
+		worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
+		require.Nil(t, err)
 
-	worker.Run(context.Background())
+		worker.Run(context.Background())
+	}
 
 	for c, statsExpected := range map[check.Check]bool{
 		longRunningCheckNoErrorNoWarning: false,
