@@ -1,25 +1,10 @@
-module github.com/DataDog/datadog-agent/pkg/util/quantile
+module github.com/DataDog/datadog-agent/cmd/agent/macos
 
 go 1.26.0
-
-require (
-	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.70.0
-	github.com/DataDog/sketches-go v1.4.8
-	github.com/dustin/go-humanize v1.1.0
-	github.com/stretchr/testify v1.12.1
-)
-
-require (
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
-)
-
-retract v0.4.0 // see #107
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
-	github.com/DataDog/datadog-agent/cmd/agent/macos => ../../../cmd/agent/macos
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../../comp/anomalydetection/severityevents/def
@@ -184,6 +169,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/otel => ../../../pkg/util/otel
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../../pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/prometheus => ../../../pkg/util/prometheus
+	github.com/DataDog/datadog-agent/pkg/util/quantile => ../../../pkg/util/quantile
 	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest => ../../../pkg/util/quantile/sketchtest
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ../../../pkg/util/sort
