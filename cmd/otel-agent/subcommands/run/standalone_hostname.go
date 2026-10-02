@@ -108,14 +108,14 @@ func (s *standaloneHostname) GetWithProvider(ctx context.Context) (hostnameinter
 }
 
 // setStandaloneTraceHostname makes the trace config use the hostname resolved by the
-// hostname component in standalone mode.
+// hostname component. It must only be used in standalone mode.
 //
 // Without it, the trace config resolves the hostname on its own by asking the core
 // agent over IPC, then by running the core agent binary, and finally falls back to the
 // OS hostname, which it refuses inside a container. In standalone mode there is no core
 // agent, so startup fails in Kubernetes unless hostname is set explicitly.
 func setStandaloneTraceHostname(ctx context.Context, cfg coreconfig.Component, h hostnameinterface.Component) error {
-	if !cfg.GetBool("otel_standalone") || cfg.IsConfigured("hostname") {
+	if cfg.IsConfigured("hostname") {
 		return nil
 	}
 	hostname, err := h.Get(ctx)

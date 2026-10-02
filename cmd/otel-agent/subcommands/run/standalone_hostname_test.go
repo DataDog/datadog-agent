@@ -152,8 +152,8 @@ func TestStandaloneHostname(t *testing.T) {
 func TestSetStandaloneTraceHostname(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("standalone sets the resolved hostname", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true})
+	t.Run("sets the resolved hostname", func(t *testing.T) {
+		cfg := coreconfig.NewMock(t)
 		h := &fakeHostname{data: hostnameinterface.Data{Hostname: "i-0123456789abcdef0", Provider: "aws"}}
 
 		require.NoError(t, setStandaloneTraceHostname(ctx, cfg, h))
@@ -162,8 +162,8 @@ func TestSetStandaloneTraceHostname(t *testing.T) {
 		assert.Equal(t, pkgconfigmodel.SourceAgentRuntime, cfg.GetSource("hostname"))
 	})
 
-	t.Run("standalone keeps a configured hostname", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true, "hostname": "my-host"})
+	t.Run("keeps a configured hostname", func(t *testing.T) {
+		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"hostname": "my-host"})
 		h := &fakeHostname{data: hostnameinterface.Data{Hostname: "i-0123456789abcdef0", Provider: "aws"}}
 
 		require.NoError(t, setStandaloneTraceHostname(ctx, cfg, h))
@@ -171,21 +171,12 @@ func TestSetStandaloneTraceHostname(t *testing.T) {
 		assert.Zero(t, h.calls)
 	})
 
-	t.Run("standalone fails when no hostname can be resolved", func(t *testing.T) {
-		cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"otel_standalone": true})
+	t.Run("fails when no hostname can be resolved", func(t *testing.T) {
+		cfg := coreconfig.NewMock(t)
 		h := &fakeHostname{err: errNoHostname}
 
 		err := setStandaloneTraceHostname(ctx, cfg, h)
 		assert.ErrorIs(t, err, errNoHostname)
 		assert.False(t, cfg.IsConfigured("hostname"))
-	})
-
-	t.Run("connected mode leaves the hostname to the core agent", func(t *testing.T) {
-		cfg := coreconfig.NewMock(t)
-		h := &fakeHostname{data: hostnameinterface.Data{Hostname: "i-0123456789abcdef0", Provider: "aws"}}
-
-		require.NoError(t, setStandaloneTraceHostname(ctx, cfg, h))
-		assert.False(t, cfg.IsConfigured("hostname"))
-		assert.Zero(t, h.calls)
 	})
 }
