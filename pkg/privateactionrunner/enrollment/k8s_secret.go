@@ -29,18 +29,17 @@ import (
 )
 
 const (
-	defaultSecretName         = "private-action-runner-identity"
-	privateKeyField           = "private_key"
-	urnField                  = "urn"
-	orchClusterIDField        = "orch_cluster_id"
-	apiKeyHashField           = "api_key_hash"
-	authorizationTypeField    = "authorization_type"
-	mappingIDField            = "intake_mapping_id"
-	providerField             = "provider"
-	pendingField              = "pending"
-	runnerNameField           = "runner_name"
-	authorizationVersionField = "authorization_version"
-	secretPollInterval        = 1 * time.Second
+	defaultSecretName      = "private-action-runner-identity"
+	privateKeyField        = "private_key"
+	urnField               = "urn"
+	orchClusterIDField     = "orch_cluster_id"
+	apiKeyHashField        = "api_key_hash"
+	authorizationTypeField = "authorization_type"
+	mappingIDField         = "intake_mapping_id"
+	providerField          = "provider"
+	pendingField           = "pending"
+	runnerNameField        = "runner_name"
+	secretPollInterval     = 1 * time.Second
 )
 
 // getIdentityFromK8sSecret retrieves PAR identity from a Kubernetes secret
@@ -147,20 +146,14 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 		return nil, errors.New("urn field is missing or empty in secret")
 	}
 
-	var authorizationVersion int64
-	if raw := secret.Data[authorizationVersionField]; len(raw) > 0 {
-		if _, err := fmt.Sscan(string(raw), &authorizationVersion); err != nil || authorizationVersion < 0 {
-			return nil, errors.New("invalid persisted authorization version")
-		}
-	}
 	log.Infof("Loaded PAR identity from K8s secret: %s/%s", ns, secretName)
 
 	return &PersistedIdentity{
-		PrivateKey:           string(privateKey),
-		URN:                  string(urn),
-		OrchClusterID:        string(secret.Data[orchClusterIDField]),
-		APIKeyHash:           string(secret.Data[apiKeyHashField]),
-		AuthorizationVersion: authorizationVersion, AuthorizationType: string(secret.Data[authorizationTypeField]), IntakeMappingID: string(secret.Data[mappingIDField]), Provider: string(secret.Data[providerField]), Pending: string(secret.Data[pendingField]) == "true", RunnerName: string(secret.Data[runnerNameField]),
+		PrivateKey:        string(privateKey),
+		URN:               string(urn),
+		OrchClusterID:     string(secret.Data[orchClusterIDField]),
+		APIKeyHash:        string(secret.Data[apiKeyHashField]),
+		AuthorizationType: string(secret.Data[authorizationTypeField]), IntakeMappingID: string(secret.Data[mappingIDField]), Provider: string(secret.Data[providerField]), Pending: string(secret.Data[pendingField]) == "true", RunnerName: string(secret.Data[runnerNameField]),
 	}, nil
 }
 
@@ -182,11 +175,11 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		"app.kubernetes.io/managed-by": "datadog-cluster-agent",
 	}
 	data := map[string][]byte{
-		privateKeyField:           []byte(encodedPrivateKey),
-		urnField:                  []byte(result.URN),
-		orchClusterIDField:        []byte(result.OrchClusterID),
-		apiKeyHashField:           []byte(result.APIKeyHash),
-		authorizationVersionField: []byte(fmt.Sprint(result.AuthorizationVersion)), authorizationTypeField: []byte(result.AuthorizationType), mappingIDField: []byte(result.IntakeMappingID), providerField: []byte(result.Provider), pendingField: []byte(fmt.Sprint(result.Pending)), runnerNameField: []byte(result.RunnerName),
+		privateKeyField:        []byte(encodedPrivateKey),
+		urnField:               []byte(result.URN),
+		orchClusterIDField:     []byte(result.OrchClusterID),
+		apiKeyHashField:        []byte(result.APIKeyHash),
+		authorizationTypeField: []byte(result.AuthorizationType), mappingIDField: []byte(result.IntakeMappingID), providerField: []byte(result.Provider), pendingField: []byte(fmt.Sprint(result.Pending)), runnerNameField: []byte(result.RunnerName),
 	}
 
 	newSecret := &corev1.Secret{
@@ -219,16 +212,18 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 	if err != nil {
 		return fmt.Errorf("failed to get existing secret: %w", err)
 	}
-	if result.AuthorizationType == WorkloadIdentityAuthorization && string(existing.Data[privateKeyField]) != encodedPrivateKey {
-		return errors.New("refusing to replace a different shared runner key")
-	}
-	if result.AuthorizationType == WorkloadIdentityAuthorization {
+	if result.AuthorizationType == WorkloadIdentityAuthorization || string(existing.Data[authorizationTypeField]) == WorkloadIdentityAuthorization {
+		if string(existing.Data[privateKeyField]) != encodedPrivateKey {
+			return errors.New("refusing to replace a different shared runner key")
+		}
 		saved, err := parseSecretData(existing, ns, secretName)
 		if err != nil {
 			return err
 		}
-		if saved.AuthorizationVersion > result.AuthorizationVersion || (saved.AuthorizationVersion == result.AuthorizationVersion && !saved.Pending && (saved.IntakeMappingID != result.IntakeMappingID || saved.Provider != result.Provider)) {
-			return errors.New("refusing to overwrite newer shared runner authorization")
+		// Enrollment only advances pending -> enrolled or API-key -> WIF.
+		// ResourceVersion rejects writes racing after this read.
+		if saved.AuthorizationType == WorkloadIdentityAuthorization && (result.AuthorizationType != WorkloadIdentityAuthorization || (!saved.Pending && (result.Pending || saved.URN != result.URN || saved.IntakeMappingID != result.IntakeMappingID || saved.Provider != result.Provider))) {
+			return errors.New("refusing to replace fixed shared runner authorization")
 		}
 	}
 	existing.Type = corev1.SecretTypeOpaque

@@ -68,7 +68,7 @@ func TestWorkloadEnrollmentPersistsBeforeRequestAndReusesKeyAfterRestart(t *test
 			w.WriteHeader(503)
 			return
 		}
-		_, _ = w.Write([]byte(`{"data":{"type":"createRunnerResponse","id":"runner-1","attributes":{"runner_id":"runner-1","org_id":123,"authorization_version":1,"runner_modes":["pull"]}}}`))
+		_, _ = w.Write([]byte(`{"data":{"type":"createRunnerResponse","id":"runner-1","attributes":{"runner_id":"runner-1","org_id":123,"runner_modes":["pull"]}}}`))
 	}))
 	defer server.Close()
 	cfg.Set("dd_url", server.URL, configModel.SourceAgentRuntime)
@@ -130,10 +130,10 @@ func TestWorkloadReauthorizationPreservesIdentityAndBindsProof(t *testing.T) {
 		require.NoError(t, err)
 		claims := proof.Claims.(jwt.MapClaims)
 		require.Equal(t, "runner-1", claims["runnerId"])
-		require.Equal(t, float64(0), claims["expected_authorization_version"])
+		require.NotContains(t, claims, "expected_authorization_version")
 		hash := sha256.Sum256([]byte("assertion"))
 		require.Equal(t, base64.RawURLEncoding.EncodeToString(hash[:]), claims["assertion_hash"])
-		_, _ = w.Write([]byte(`{"data":{"type":"createRunnerResponse","id":"runner-1","attributes":{"runner_id":"runner-1","org_id":123,"authorization_version":1,"runner_modes":["pull"]}}}`))
+		_, _ = w.Write([]byte(`{"data":{"type":"createRunnerResponse","id":"runner-1","attributes":{"runner_id":"runner-1","org_id":123,"runner_modes":["pull"]}}}`))
 	}))
 	defer server.Close()
 	cfg.Set("dd_url", server.URL, configModel.SourceAgentRuntime)
@@ -149,10 +149,17 @@ func TestWorkloadReauthorizationPreservesIdentityAndBindsProof(t *testing.T) {
 	require.Equal(t, "mapping-2", after.IntakeMappingID)
 	require.NoError(t, RefreshWorkloadIdentity(context.Background(), cfg, authorizer))
 	require.Equal(t, 1, calls)
+	different := workloadAuthorizerFunc(func(context.Context, string, string) (*common.WorkloadAuthorization, error) {
+		return &common.WorkloadAuthorization{Token: "assertion", OrgID: 123, IntakeMappingID: "mapping-other", Provider: "aws"}, nil
+	})
+	_, err = exchangeWorkloadIdentity(context.Background(), cfg, after, different, true)
+	require.ErrorContains(t, err, "mapping cannot be changed")
+	require.Equal(t, 1, calls)
 	failure := workloadAuthorizerFunc(func(context.Context, string, string) (*common.WorkloadAuthorization, error) {
 		return nil, errors.New("ETS unavailable")
 	})
-	require.Error(t, RefreshWorkloadIdentity(context.Background(), cfg, failure))
+	// A completed WIF enrollment needs no further ETS exchange.
+	require.NoError(t, RefreshWorkloadIdentity(context.Background(), cfg, failure))
 	saved, err := getIdentityFromFile(cfg)
 	require.NoError(t, err)
 	require.Equal(t, after, saved)

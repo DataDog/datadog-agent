@@ -29,7 +29,7 @@ func encodeIdentity(result *Result) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.Marshal(PersistedIdentity{AuthorizationVersion: result.AuthorizationVersion, PrivateKey: base64.RawURLEncoding.EncodeToString(raw), URN: result.URN, Hostname: result.Hostname, OrchClusterID: result.OrchClusterID, APIKeyHash: result.APIKeyHash, AuthorizationType: result.AuthorizationType, IntakeMappingID: result.IntakeMappingID, Provider: result.Provider, Pending: result.Pending, RunnerName: result.RunnerName})
+	return json.Marshal(PersistedIdentity{PrivateKey: base64.RawURLEncoding.EncodeToString(raw), URN: result.URN, Hostname: result.Hostname, OrchClusterID: result.OrchClusterID, APIKeyHash: result.APIKeyHash, AuthorizationType: result.AuthorizationType, IntakeMappingID: result.IntakeMappingID, Provider: result.Provider, Pending: result.Pending, RunnerName: result.RunnerName})
 }
 
 // writeIdentityFile writes a complete mode-0600 file before making it visible.

@@ -25,7 +25,7 @@ const workloadEnrollmentPath = "/api/unstable/on_prem_runners/workload_identity"
 
 // ExchangeWorkloadIdentity performs one enrollment attempt. The caller refreshes
 // the ETS assertion before retrying, preserving the same durable runner key.
-func ExchangeWorkloadIdentity(ctx context.Context, cfg model.Reader, baseURL, assertion, runnerID, proof string, expectedVersion int64, request *par.CreateRunnerRequest, extraHeaders map[string]string) (*par.CreateRunnerResponse, error) {
+func ExchangeWorkloadIdentity(ctx context.Context, cfg model.Reader, baseURL, assertion, runnerID, proof string, request *par.CreateRunnerRequest, extraHeaders map[string]string) (*par.CreateRunnerResponse, error) {
 	path := workloadEnrollmentPath
 	var body []byte
 	var err error
@@ -37,10 +37,9 @@ func ExchangeWorkloadIdentity(ctx context.Context, cfg model.Reader, baseURL, as
 		}
 		path = "/api/unstable/on_prem_runners/" + runnerID + "/reauthorize"
 		body, err = jsonapi.Marshal(struct {
-			ExpectedAuthorizationVersion int64  `json:"expected_authorization_version" jsonapi:"attribute"`
-			ID                           string `jsonapi:"primary,reauthorizeRunnerRequest"`
-			PublicKeyPEM                 string `json:"public_key_pem" jsonapi:"attribute"`
-		}{ExpectedAuthorizationVersion: expectedVersion, PublicKeyPEM: request.PublicKeyPEM}, jsonapi.MarshalClientMode())
+			ID           string `jsonapi:"primary,reauthorizeRunnerRequest"`
+			PublicKeyPEM string `json:"public_key_pem" jsonapi:"attribute"`
+		}{PublicKeyPEM: request.PublicKeyPEM}, jsonapi.MarshalClientMode())
 	}
 	if err != nil {
 		return nil, errors.New("failed to encode workload enrollment request")
@@ -79,7 +78,7 @@ func ExchangeWorkloadIdentity(ctx context.Context, cfg model.Reader, baseURL, as
 		return nil, errors.New("invalid workload enrollment response")
 	}
 	response := new(par.CreateRunnerResponse)
-	if jsonapi.Unmarshal(raw, response) != nil || response.RunnerID == "" || response.OrgID <= 0 || response.AuthorizationVersion <= 0 {
+	if jsonapi.Unmarshal(raw, response) != nil || response.RunnerID == "" || response.OrgID <= 0 {
 		return nil, errors.New("invalid workload enrollment response")
 	}
 	if runnerID != "" && response.RunnerID != runnerID {

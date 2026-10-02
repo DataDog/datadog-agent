@@ -93,7 +93,8 @@ func EnrollWorkloadIdentity(ctx context.Context, cfg configModel.Reader, identif
 	}
 }
 
-// RefreshWorkloadIdentity migrates/re-authorizes only the existing key and runner.
+// RefreshWorkloadIdentity migrates an API-key runner once, preserving its key and ID.
+// Once enrolled, its WIF mapping is fixed; API-key rotation does not re-enroll it.
 // Followers read the shared identity; only the current leader performs mutations.
 func RefreshWorkloadIdentity(ctx context.Context, cfg configModel.Reader, authorizer WorkloadAuthorizer) error {
 	if authorizer == nil {
@@ -110,7 +111,7 @@ func RefreshWorkloadIdentity(ctx context.Context, cfg configModel.Reader, author
 	if err != nil {
 		return err
 	}
-	if identity == nil || identity.Pending {
+	if identity == nil || identity.Pending || identity.AuthorizationType == WorkloadIdentityAuthorization {
 		return nil
 	}
 	result, err := exchangeWorkloadIdentity(ctx, cfg, identity, authorizer, true)
@@ -132,7 +133,7 @@ func resultFromIdentity(identity *PersistedIdentity) (*Result, error) {
 	if !ok {
 		return nil, errors.New("invalid persisted runner key")
 	}
-	return &Result{AuthorizationVersion: identity.AuthorizationVersion, PrivateKey: private, URN: identity.URN, Hostname: identity.Hostname, OrchClusterID: identity.OrchClusterID, RunnerName: identity.RunnerName, APIKeyHash: identity.APIKeyHash, AuthorizationType: identity.AuthorizationType, IntakeMappingID: identity.IntakeMappingID, Provider: identity.Provider, Pending: identity.Pending}, nil
+	return &Result{PrivateKey: private, URN: identity.URN, Hostname: identity.Hostname, OrchClusterID: identity.OrchClusterID, RunnerName: identity.RunnerName, APIKeyHash: identity.APIKeyHash, AuthorizationType: identity.AuthorizationType, IntakeMappingID: identity.IntakeMappingID, Provider: identity.Provider, Pending: identity.Pending}, nil
 }
 
 func exchangeWorkloadIdentity(ctx context.Context, cfg configModel.Reader, identity *PersistedIdentity, authorizer WorkloadAuthorizer, reauthorize bool) (*Result, error) {
@@ -164,12 +165,15 @@ func exchangeWorkloadIdentity(ctx context.Context, cfg configModel.Reader, ident
 		if uint64(urn.OrgID) != assertion.OrgID {
 			return nil, errors.New("workload organization does not match runner")
 		}
-		if identity.AuthorizationType == WorkloadIdentityAuthorization && identity.IntakeMappingID == assertion.IntakeMappingID && identity.Provider == assertion.Provider {
-			return nil, nil
+		if identity.AuthorizationType == WorkloadIdentityAuthorization {
+			if identity.IntakeMappingID == assertion.IntakeMappingID && identity.Provider == assertion.Provider {
+				return nil, nil
+			}
+			return nil, errors.New("runner workload mapping cannot be changed")
 		}
 		runnerID = urn.RunnerID
 		hash := sha256.Sum256([]byte(assertion.Token))
-		proof, err = util.GeneratePARJWT(urn.OrgID, runnerID, result.PrivateKey, map[string]any{"expected_authorization_version": identity.AuthorizationVersion, "purpose": "private_action_runner_reauthorization", "assertion_hash": base64.RawURLEncoding.EncodeToString(hash[:])})
+		proof, err = util.GeneratePARJWT(urn.OrgID, runnerID, result.PrivateKey, map[string]any{"purpose": "private_action_runner_reauthorization", "assertion_hash": base64.RawURLEncoding.EncodeToString(hash[:])})
 		if err != nil {
 			return nil, errors.New("failed to sign runner proof")
 		}
@@ -182,7 +186,7 @@ func exchangeWorkloadIdentity(ctx context.Context, cfg configModel.Reader, ident
 	if err != nil {
 		return nil, err
 	}
-	response, err := opms.ExchangeWorkloadIdentity(ctx, cfg, enrollmentBaseURL(cfg, site), assertion.Token, runnerID, proof, identity.AuthorizationVersion, &par.CreateRunnerRequest{RunnerName: result.RunnerName, RunnerModes: []modes.Mode{modes.ModePull}, PublicKeyPEM: pem, AgentHostname: result.Hostname, OrchClusterID: result.OrchClusterID, AgentFlavor: flavor.GetFlavor()}, cfg.GetStringMapString(setup.PAROpmsExtraHeaders))
+	response, err := opms.ExchangeWorkloadIdentity(ctx, cfg, enrollmentBaseURL(cfg, site), assertion.Token, runnerID, proof, &par.CreateRunnerRequest{RunnerName: result.RunnerName, RunnerModes: []modes.Mode{modes.ModePull}, PublicKeyPEM: pem, AgentHostname: result.Hostname, OrchClusterID: result.OrchClusterID, AgentFlavor: flavor.GetFlavor()}, cfg.GetStringMapString(setup.PAROpmsExtraHeaders))
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +196,6 @@ func exchangeWorkloadIdentity(ctx context.Context, cfg configModel.Reader, ident
 	if !reauthorize {
 		result.URN = util.MakeRunnerURN(regions.GetRegionFromDDSite(site), response.OrgID, response.RunnerID)
 	}
-	result.AuthorizationVersion = response.AuthorizationVersion
 	result.AuthorizationType = WorkloadIdentityAuthorization
 	result.IntakeMappingID = assertion.IntakeMappingID
 	result.Provider = assertion.Provider

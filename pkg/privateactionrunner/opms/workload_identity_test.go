@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWorkloadExchangePreservesVersionAndDoesNotLeakCredentials(t *testing.T) {
+func TestWorkloadExchangeWithoutVersionDoesNotLeakCredentials(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "Bearer assertion", r.Header.Get("Authorization"))
 		require.Empty(t, r.Header.Get("DD-API-KEY"))
@@ -27,18 +27,18 @@ func TestWorkloadExchangePreservesVersionAndDoesNotLeakCredentials(t *testing.T)
 		var body struct {
 			Data struct {
 				Attributes struct {
-					Version int64 `json:"expected_authorization_version"`
+					PublicKey string `json:"public_key_pem"`
 				}
 			}
 		}
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-		require.Equal(t, int64(7), body.Data.Attributes.Version)
-		_, _ = w.Write([]byte(`{"data":{"type":"createRunnerResponse","attributes":{"runner_id":"runner","org_id":123,"authorization_version":8}}}`))
+		require.Equal(t, "key", body.Data.Attributes.PublicKey)
+		_, _ = w.Write([]byte(`{"data":{"type":"createRunnerResponse","attributes":{"runner_id":"runner","org_id":123}}}`))
 	}))
 	defer server.Close()
-	result, err := ExchangeWorkloadIdentity(context.Background(), mock.New(t), server.URL, "assertion", "runner", "proof", 7, &par.CreateRunnerRequest{PublicKeyPEM: "key"}, map[string]string{"DD-API-KEY": "secret", "DD-APPLICATION-KEY": "secret", "Authorization": "overridden"})
+	result, err := ExchangeWorkloadIdentity(context.Background(), mock.New(t), server.URL, "assertion", "runner", "proof", &par.CreateRunnerRequest{PublicKeyPEM: "key"}, map[string]string{"DD-API-KEY": "secret", "DD-APPLICATION-KEY": "secret", "Authorization": "overridden"})
 	require.NoError(t, err)
-	require.Equal(t, int64(8), result.AuthorizationVersion)
+	require.Equal(t, "runner", result.RunnerID)
 }
 func TestWorkloadExchangeRejectsRedirectsAndInvalidResponses(t *testing.T) {
 	redirected := false
@@ -50,8 +50,8 @@ func TestWorkloadExchangeRejectsRedirectsAndInvalidResponses(t *testing.T) {
 		body   string
 	}{
 		{name: "redirect", status: 307},
-		{name: "changed runner", status: 200, body: `{"data":{"type":"createRunnerResponse","attributes":{"runner_id":"another","org_id":123,"authorization_version":1}}}`},
-		{name: "missing version", status: 200, body: `{"data":{"type":"createRunnerResponse","attributes":{"runner_id":"runner","org_id":123}}}`},
+		{name: "changed runner", status: 200, body: `{"data":{"type":"createRunnerResponse","attributes":{"runner_id":"another","org_id":123}}}`},
+		{name: "missing org", status: 200, body: `{"data":{"type":"createRunnerResponse","attributes":{"runner_id":"runner"}}}`},
 		{name: "oversized", status: 200, body: strings.Repeat("x", (1<<20)+1)},
 		{name: "server error", status: 503, body: "private error secret"},
 	} {
@@ -62,7 +62,7 @@ func TestWorkloadExchangeRejectsRedirectsAndInvalidResponses(t *testing.T) {
 				_, _ = w.Write([]byte(tc.body))
 			}))
 			defer server.Close()
-			_, err := ExchangeWorkloadIdentity(context.Background(), mock.New(t), server.URL, "assertion", "runner", "proof", 0, &par.CreateRunnerRequest{PublicKeyPEM: "key"}, nil)
+			_, err := ExchangeWorkloadIdentity(context.Background(), mock.New(t), server.URL, "assertion", "runner", "proof", &par.CreateRunnerRequest{PublicKeyPEM: "key"}, nil)
 			require.Error(t, err)
 			require.NotContains(t, err.Error(), "secret")
 			require.NotContains(t, err.Error(), "assertion")
