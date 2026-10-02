@@ -617,8 +617,8 @@ cloud.google.com/go/compute v1.27.5/go.mod h1:DfwDGujFTdSeiE8b8ZqadF/uxHFBz+ekGs
 cloud.google.com/go/compute v1.28.0/go.mod h1:DEqZBtYrDnD5PvjsKwb3onnhX+qjdCVM7eshj1XdjV4=
 cloud.google.com/go/compute v1.28.1/go.mod h1:b72iXMY4FucVry3NR3Li4kVyyTvbMDE7x5WsqvxjsYk=
 cloud.google.com/go/compute v1.29.0/go.mod h1:HFlsDurE5DpQZClAGf/cYh+gxssMhBxBovZDYkEn/Og=
-cloud.google.com/go/compute v1.69.0 h1:5L0YnInNWpXm7k1UVfhiykSiGUuogRdxHedjaBUHtMs=
-cloud.google.com/go/compute v1.69.0/go.mod h1:X+MMKM2m3aZ73tAf+KCOlsxiw9gvjCga5nuToQDeAXw=
+cloud.google.com/go/compute v1.70.0 h1:KG29z7hqFJBiz4JL+kKiPfcGLxW1ERSxb+YV18QhJCU=
+cloud.google.com/go/compute v1.70.0/go.mod h1:UswC63daSlmfLJqfTDnD3mfcm5OkL7yumeTwMxNJ3uE=
 cloud.google.com/go/compute/metadata v0.1.0/go.mod h1:Z1VN+bulIf6bt4P/C37K4DyZYZEXYonfTBHHFPO/4UU=
 cloud.google.com/go/compute/metadata v0.2.0/go.mod h1:zFmK7XCadkQkj6TtorcaGlCW1hT1fIilQDwofLpJ20k=
 cloud.google.com/go/compute/metadata v0.2.1/go.mod h1:jgHgmJd2RKBGzXqF5LR2EZMGxBkeanZ9wwa75XHJgOM=
