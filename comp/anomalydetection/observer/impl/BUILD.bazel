@@ -99,6 +99,7 @@ dd_agent_go_test(
         "metrics_detector_tukey_biweight_test.go",
         "metrics_detector_util_test.go",
         "observer_disabled_test.go",
+        "observer_recording_only_test.go",
         "observer_test.go",
         "profile_test.go",
         "scheduler_test.go",
