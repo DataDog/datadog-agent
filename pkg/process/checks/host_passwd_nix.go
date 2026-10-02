@@ -9,6 +9,7 @@ package checks
 
 import (
 	"bufio"
+	"bytes"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -36,33 +37,35 @@ func lookupHostUser(uid string) *user.User {
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(nil, 1024*1024)
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-") {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 || line[0] == '#' || line[0] == '+' || line[0] == '-' {
 			continue
 		}
-		name, rest, ok := strings.Cut(line, ":")
-		if !ok || name == "" {
+		name, rest, ok := bytes.Cut(line, []byte(":"))
+		if !ok || len(name) == 0 {
 			continue
 		}
-		_, rest, ok = strings.Cut(rest, ":")
+		_, rest, ok = bytes.Cut(rest, []byte(":"))
 		if !ok {
 			continue
 		}
-		fileUID, rest, ok := strings.Cut(rest, ":")
+		fileUID, rest, ok := bytes.Cut(rest, []byte(":"))
 		if !ok {
 			continue
 		}
-		entryID, err := strconv.ParseUint(fileUID, 10, 32)
+		entryID, err := strconv.ParseUint(string(fileUID), 10, 32)
 		if err != nil || entryID != id {
 			continue
 		}
-		fields := strings.SplitN(rest, ":", 4)
+		// Copy only the matching line so returned fields own their backing storage.
+		entry := string(line)
+		fields := strings.SplitN(entry[len(line)-len(rest):], ":", 4)
 		if len(fields) < 4 {
 			continue
 		}
 		fullName, _, _ := strings.Cut(fields[1], ",")
 		return &user.User{
-			Username: name,
+			Username: entry[:len(name)],
 			Uid:      strconv.FormatUint(id, 10),
 			Gid:      fields[0],
 			Name:     fullName,
