@@ -7,7 +7,8 @@
 //!
 //! Managed children use `CREATE_NO_WINDOW` and `stdout: null`, so this process starts
 //! without a console unless we allocate one. Without a console, `CTRL_BREAK` cannot
-//! be delivered.
+//! be delivered. The same executable also provides the production console
+//! signaling dispatcher and an explicit non-reporting helper test mode.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
@@ -39,6 +40,17 @@ fn ensure_console() {
 }
 
 fn main() {
+    if let Some(code) = dd_procmgrd::platform::dispatch_internal_console_signal() {
+        std::process::exit(code);
+    }
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    match args.as_slice() {
+        [] => {}
+        [mode] if mode == "--internal-console-hang" => loop {
+            thread::park();
+        },
+        _ => std::process::exit(2),
+    }
     ensure_console();
     unsafe {
         if SetConsoleCtrlHandler(Some(on_console_ctrl), 1) == 0 {

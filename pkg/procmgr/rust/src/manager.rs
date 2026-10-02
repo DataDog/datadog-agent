@@ -10,7 +10,7 @@ use crate::config::{self, ConfigLoader, ProcessDefinition};
 use crate::grpc;
 use crate::ordering;
 use crate::platform;
-use crate::process::{ExitEvent, ManagedProcess, ProcessOrigin};
+use crate::process::{ExitEvent, ManagedProcess, ProcessOrigin, StopWait};
 use crate::shutdown;
 use crate::state::ProcessState;
 use crate::uuid_gen::UuidGenerator;
@@ -323,7 +323,7 @@ impl ProcessManager {
 
         let mut added = Vec::new();
         let mut modified = Vec::new();
-        let mut modified_running: Vec<String> = Vec::new();
+        let mut modified_running: Vec<(String, Option<StopWait>)> = Vec::new();
         let mut unchanged = Vec::new();
         {
             let mut procs = self.processes.write().await;
@@ -333,7 +333,9 @@ impl ProcessManager {
                         info!("[{}] config changed, updating", np.name);
                         if existing.is_running() {
                             existing.request_stop();
-                            modified_running.push(np.name.clone());
+                            // Capture the old workload's timeout and stop
+                            // resources before installing the new configuration.
+                            modified_running.push((np.name.clone(), existing.take_stop_wait()));
                         }
                         existing.set_config(np.config);
                         modified.push(np.name);
@@ -361,20 +363,13 @@ impl ProcessManager {
         // Wait for modified processes that were running to stop, then restart
         // with the new config. The lock goes back between each one for the same
         // reason as in `handle_stop`: reads must not queue behind the wait.
-        for name in &modified_running {
-            let wait = {
-                let mut procs = self.processes.write().await;
-                let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
-                    continue;
-                };
-                proc.take_stop_wait()
-            };
+        for (name, wait) in modified_running {
             if let Some(wait) = wait {
                 wait.run().await;
             }
 
             let mut procs = self.processes.write().await;
-            let Some(proc) = procs.iter_mut().find(|p| p.name() == *name) else {
+            let Some(proc) = procs.iter_mut().find(|p| p.name() == name) else {
                 continue;
             };
             proc.finish_stop();
