@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -225,5 +226,110 @@ func TestManagerV2_withinProfilingStartupDelay(t *testing.T) {
 		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono)))
 		assert.True(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds()-1)))
 		assert.False(t, m.withinProfilingStartupDelay(uint64(startMono+time.Minute.Nanoseconds())))
+	})
+}
+
+func newTestManagerV2() (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+	cookieMap, _ := lru.New[uint64, sampleCookieEntry](128)
+	m := &ManagerV2{
+		sampleCookieMap:       cookieMap,
+		sampleRefreshReceived: atomic.NewUint64(0),
+		sampleRefreshHits:     atomic.NewUint64(0),
+		sampleRefreshMisses:   atomic.NewUint64(0),
+	}
+	return m, cookieMap
+}
+
+func TestManagerV2_HandleSampleRefresh(t *testing.T) {
+	t.Run("unknown_cookie", func(t *testing.T) {
+		m, _ := newTestManagerV2()
+		m.HandleSampleRefresh(42)
+		assert.Equal(t, uint64(1), m.sampleRefreshMisses.Load())
+	})
+
+	t.Run("valid_cookie_updates_process_and_event_node", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+		eventNodeBase := activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTagID(imageTagID, initialTime)
+		eventNodeBase.AppendImageTagID(imageTagID, initialTime)
+
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: &eventNodeBase,
+			imageTag:      "v1",
+		})
+
+		m.HandleSampleRefresh(1)
+
+		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.True(t, procTimes.LastSeen.After(initialTime))
+
+		evtTimes, ok := eventNodeBase.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.True(t, evtTimes.LastSeen.After(initialTime))
+	})
+
+	t.Run("valid_cookie_nil_event_node_updates_process_only", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		imageTagID := prof.ActivityTree.GetOrInsertImageTag("v1")
+
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		initialTime := time.Now().Add(-time.Hour)
+		processNode.AppendImageTagID(imageTagID, initialTime)
+
+		cookieMap.Add(uint64(1), sampleCookieEntry{
+			profile:       prof,
+			processNode:   processNode,
+			eventNodeBase: nil,
+			imageTag:      "v1",
+		})
+
+		m.HandleSampleRefresh(1)
+
+		procTimes, ok := processNode.GetSeenTimes(imageTagID)
+		assert.True(t, ok)
+		assert.True(t, procTimes.LastSeen.After(initialTime))
+	})
+
+	t.Run("nil_process_node_removes_cookie", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+
+		cookieMap.Add(uint64(2), sampleCookieEntry{
+			profile:     prof,
+			processNode: nil,
+			imageTag:    "v1",
+		})
+
+		m.HandleSampleRefresh(2)
+		assert.False(t, cookieMap.Contains(uint64(2)))
+	})
+
+	t.Run("empty_seen_map_removes_cookie", func(t *testing.T) {
+		m, cookieMap := newTestManagerV2()
+		prof := profile.New()
+		processNode := &activity_tree.ProcessNode{}
+		processNode.NodeBase = activity_tree.NewNodeBase()
+
+		cookieMap.Add(uint64(3), sampleCookieEntry{
+			profile:     prof,
+			processNode: processNode,
+			imageTag:    "v1",
+		})
+
+		m.HandleSampleRefresh(3)
+		assert.False(t, cookieMap.Contains(uint64(3)))
 	})
 }
