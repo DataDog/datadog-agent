@@ -99,6 +99,30 @@ func TestLookupIDHostPasswdCacheSetting(t *testing.T) {
 	}
 }
 
+func TestLookupIDFallsBackWhenHostUIDIsAbsent(t *testing.T) {
+	dir := t.TempDir()
+	writePasswd(t, dir, "host-user:x:42:4::/:/bin/sh\n")
+	t.Setenv("HOST_ETC", dir)
+	cfg := configmock.New(t)
+	cfg.SetInTest("process_config.cache_lookupid", false)
+	probe := NewLookupIDProbe(cfg)
+	localUsers := map[string]*user.User{
+		"0":   {Username: "root"},
+		"123": {Username: "local-user"},
+	}
+	probe.lookupID = func(uid string) (*user.User, error) {
+		if u, ok := localUsers[uid]; ok {
+			return u, nil
+		}
+		return nil, errors.New("unknown user")
+	}
+
+	u, err := probe.LookupID("123")
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	assert.Equal(t, "local-user", u.Username)
+}
+
 func TestLookupIDCachedFallbackPrecedesNewHostEntry(t *testing.T) {
 	for _, tc := range []struct {
 		name string

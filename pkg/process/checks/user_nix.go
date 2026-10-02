@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// LookupIDProbe resolves host users with an optional per-UID cache.
+// LookupIDProbe resolves users with an optional per-UID cache.
 type LookupIDProbe struct {
 	config pkgconfigmodel.Reader
 
@@ -69,8 +69,10 @@ func (p *LookupIDProbe) lookupIDUncached(uid string) (*user.User, error) {
 	return p.lookupID(uid)
 }
 
-// LookupID returns the user.User for the given uid, preferring HOST_ETC/passwd
-// before the local user database, and using a per-UID cache if configured.
+// LookupID returns the cached user or error when caching is enabled and the UID is cached.
+// Otherwise, it prefers HOST_ETC/passwd and falls back to the local user database
+// when HOST_ETC is unset, the file cannot be read, or no matching entry is found.
+// The optional cache retains results and errors for one hour, including local fallbacks.
 func (p *LookupIDProbe) LookupID(uid string) (*user.User, error) {
 	if p.config.GetBool("process_config.cache_lookupid") {
 		return p.lookupIDWithCache(uid)
