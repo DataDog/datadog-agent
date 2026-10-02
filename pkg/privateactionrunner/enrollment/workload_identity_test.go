@@ -113,6 +113,7 @@ func TestWorkloadEnrollmentPersistsBeforeRequestAndReusesKeyAfterRestart(t *test
 
 func TestWorkloadReauthorizationPreservesIdentityAndBindsProof(t *testing.T) {
 	cfg := mock.New(t)
+	cfg.Set("api_key", "configured-api-key", configModel.SourceAgentRuntime)
 	cfg.Set(setup.PARIdentityFilePath, filepath.Join(t.TempDir(), "identity"), configModel.SourceAgentRuntime)
 	t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
 	private, _, err := util.GenerateKeys()
@@ -126,6 +127,7 @@ func TestWorkloadReauthorizationPreservesIdentityAndBindsProof(t *testing.T) {
 		calls++
 		require.Equal(t, "/api/unstable/on_prem_runners/runner-1/reauthorize", r.URL.Path)
 		require.Equal(t, "Bearer assertion", r.Header.Get("Authorization"))
+		require.Empty(t, r.Header.Get("DD-API-KEY"))
 		proof, err := jwt.Parse(r.Header.Get("X-Datadog-PAR-Proof"), func(*jwt.Token) (any, error) { return &result.PrivateKey.PublicKey, nil }, jwt.WithValidMethods([]string{"ES256"}), jwt.WithExpirationRequired())
 		require.NoError(t, err)
 		claims := proof.Claims.(jwt.MapClaims)
@@ -146,6 +148,7 @@ func TestWorkloadReauthorizationPreservesIdentityAndBindsProof(t *testing.T) {
 	require.Equal(t, before.PrivateKey, after.PrivateKey)
 	require.Equal(t, before.URN, after.URN)
 	require.Empty(t, after.APIKeyHash)
+	require.Equal(t, "configured-api-key", cfg.GetString("api_key"))
 	require.Equal(t, "mapping-2", after.IntakeMappingID)
 	require.NoError(t, RefreshWorkloadIdentity(context.Background(), cfg, authorizer))
 	require.Equal(t, 1, calls)
