@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"slices"
 	"time"
 
 	adproto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
@@ -74,8 +75,13 @@ func processActivityNodeToProto(pan *ProcessNode, tagIDToImageTag func(id uint64
 		ppan.Sockets = append(ppan.Sockets, socketNodeToProto(socket, tagIDToImageTag))
 	}
 
-	for _, sysc := range pan.Syscalls {
-		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(sysc, tagIDToImageTag))
+	syscallIDs := make([]int, 0, len(pan.Syscalls))
+	for id := range pan.Syscalls {
+		syscallIDs = append(syscallIDs, id)
+	}
+	slices.Sort(syscallIDs)
+	for _, id := range syscallIDs {
+		ppan.SyscallNodes = append(ppan.SyscallNodes, syscallNodeToProto(pan.Syscalls[id], tagIDToImageTag))
 	}
 
 	for _, networkDevice := range pan.NetworkDevices {
@@ -387,8 +393,9 @@ func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *
 	}
 
 	psn := &adproto.SocketNode{
-		Family: sn.Family,
-		Bind:   make([]*adproto.BindNode, 0, len(sn.Bind)),
+		Family:  sn.Family,
+		Bind:    make([]*adproto.BindNode, 0, len(sn.Bind)),
+		Connect: make([]*adproto.ConnectNode, 0, len(sn.Connect)),
 	}
 
 	for _, bn := range sn.Bind {
@@ -405,6 +412,22 @@ func socketNodeToProto(sn *SocketNode, tagIDToImageTag func(id uint64) string) *
 		}
 
 		psn.Bind = append(psn.Bind, pbn)
+	}
+
+	for _, cn := range sn.Connect {
+		pcn := &adproto.ConnectNode{
+			MatchedRules: make([]*adproto.MatchedRule, 0, len(cn.MatchedRules)),
+			Port:         uint32(cn.Port),
+			Ip:           cn.IP,
+			Protocol:     uint32(cn.Protocol),
+			NodeBase:     nodeBaseToProto(&cn.NodeBase, tagIDToImageTag),
+		}
+
+		for _, rule := range cn.MatchedRules {
+			pcn.MatchedRules = append(pcn.MatchedRules, matchedRuleToProto(rule))
+		}
+
+		psn.Connect = append(psn.Connect, pcn)
 	}
 
 	return psn
@@ -479,8 +502,10 @@ func capabilityNodeToProto(cap *CapabilityNode, tagIDToImageTag func(id uint64) 
 	}
 
 	return &adproto.CapabilityNode{
-		NodeBase:   nodeBaseToProto(&cap.NodeBase, tagIDToImageTag),
-		Capability: cap.Capability,
-		IsCapable:  cap.Capable,
+		NodeBase:              nodeBaseToProto(&cap.NodeBase, tagIDToImageTag),
+		Capability:            cap.Capability,
+		IsCapable:             cap.Capable,
+		IsAttemptedHostUserns: cap.AttemptedHostUserNS,
+		IsCapableHostUserns:   cap.CapableHostUserNS,
 	}
 }

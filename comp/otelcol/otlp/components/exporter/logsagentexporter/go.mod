@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.26.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.211
+	github.com/DataDog/agent-payload/v5 v5.0.213
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.80.2
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.80.2
@@ -76,7 +76,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.80.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.82.0-devel.0.20260624113434-509b872045c2 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.65.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.66.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
@@ -186,6 +186,7 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/cmd/agent/macos => ../../../../../../cmd/agent/macos
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../../../../comp/anomalydetection/observer/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../../../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def => ../../../../../../comp/anomalydetection/severityevents/def
@@ -307,6 +308,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../../../../pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../../../../pkg/remoteflags
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../../../../pkg/serializer

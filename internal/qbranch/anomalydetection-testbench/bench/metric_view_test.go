@@ -8,6 +8,7 @@ package bench
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,13 +19,18 @@ func TestNewParquetMetricViewResolvesHostTag(t *testing.T) {
 	assert.Equal(t, []string{"env:prod", "service:api"}, view.GetTags().UnsafeToReadOnlySliceString())
 }
 
-func TestSeriesKeyRoundTripsHost(t *testing.T) {
-	key := seriesKey("parquet", "system.cpu:avg", "web-1", []string{"service:api", "env:prod"})
-	namespace, name, host, tags, ok := parseSeriesKey(key)
+func TestParseSeriesKeyIncludesHost(t *testing.T) {
+	namespace, name, host, tags, ok := parseSeriesKey("parquet|system.cpu:avg|web-1|env:prod,service:api")
 
 	assert.True(t, ok)
 	assert.Equal(t, "parquet", namespace)
 	assert.Equal(t, "system.cpu:avg", name)
 	assert.Equal(t, "web-1", host)
 	assert.Equal(t, []string{"env:prod", "service:api"}, tags)
+}
+
+func TestCompositeTagsMatchIgnoresOrderAndDuplicates(t *testing.T) {
+	tags := tagset.NewCompositeTags([]string{"service:api", "env:prod"}, []string{"service:api"})
+
+	assert.True(t, compositeTagsMatch(tags, []string{"env:prod", "service:api"}))
 }
