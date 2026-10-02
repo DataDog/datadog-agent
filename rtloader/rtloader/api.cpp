@@ -325,8 +325,12 @@ void clear_error(rtloader_t *rtloader)
 
 #ifndef WIN32
 
-// Storage for the previous signal handler
+// Storage for the previous signal handler and alternate stack, and for the
+// alternate stack installed by handle_crashes (signalHandler checks the
+// latter to find out whether the faulting thread runs on our stack).
 static struct sigaction old_sigsegv_handler;
+static stack_t old_alt_stack;
+static void *installed_alt_stack = nullptr;
 
 //! signalHandler
 /*!
@@ -341,9 +345,13 @@ static struct sigaction old_sigsegv_handler;
   functions (write(2) with hand-formatted strings): the heap may be corrupted and
   libc locks may be held by the faulting thread, so raw addresses are printed and
   are meant to be symbolized offline from the core dump. After printing the trace,
-  this handler chains to the previously installed signal handler (typically the Go
-  runtime's handler) to allow it to perform its own crash handling and generate a
-  goroutine dump.
+  this handler re-delivers the fault to the previously installed signal handler
+  (typically the Go runtime's handler) instead of calling it directly: it restores
+  the previous handler and alternate stack and returns, so the faulting instruction
+  re-executes and the kernel delivers the fault to the previous handler with a
+  fresh stack, letting it perform its own crash handling and generate a goroutine
+  dump. Signals that cannot re-occur (raised with kill/tgkill) are chained to the
+  previous handler by direct call.
 */
 #    define STACKTRACE_SIZE 500
 
@@ -439,7 +447,34 @@ void signalHandler(int sig, siginfo_t *info, void *context)
     }
 #    endif
 
-    // Chain to the previous signal handler (typically Go runtime's handler)
+    // Re-deliver the fault to the previous signal handler (typically the Go
+    // runtime's) instead of calling it directly: a direct call would run the
+    // previous handler on the remains of this alternate stack. Restoring the
+    // previous handler and returning lets the faulting instruction re-execute,
+    // so the kernel delivers the fault to the previous handler with a fresh
+    // delivery (and a fresh stack). This only works for hardware faults - they
+    // re-occur when the handler returns - and it leaves the C collector
+    // uninstalled: from then on, SIGSEGV is handled by the previous handler alone.
+    const bool old_handler_is_ign
+        = (old_sigsegv_handler.sa_flags & SA_SIGINFO) == 0 && old_sigsegv_handler.sa_handler == SIG_IGN;
+    if (info != nullptr && info->si_code > 0 && !old_handler_is_ign) {
+        // Put the previous alternate stack back on this thread if it is running
+        // on the one installed by handle_crashes (only the installing thread
+        // uses it) and that thread had one before; ours is large enough for the
+        // previous handler otherwise, so keep it in that case.
+        stack_t cur;
+        if (installed_alt_stack != nullptr && sigaltstack(nullptr, &cur) == 0 && cur.ss_sp == installed_alt_stack
+            && !(old_alt_stack.ss_flags & SS_DISABLE) && sigaltstack(&old_alt_stack, nullptr) != 0) {
+            safe_writeln("unable to restore the previous alternate stack, chaining directly");
+        } else if (sigaction(SIGSEGV, &old_sigsegv_handler, nullptr) == 0) {
+            return; // the fault re-occurs and is delivered to the previous handler
+        } else {
+            safe_writeln("unable to restore the previous handler, chaining directly");
+        }
+    }
+
+    // Fallback for signals that do not re-occur (raised with kill/tgkill):
+    // chain to the previous signal handler by direct call.
     if (old_sigsegv_handler.sa_flags & SA_SIGINFO) {
         // Old handler uses the three-argument form
         if (old_sigsegv_handler.sa_sigaction != NULL) {
@@ -492,10 +527,9 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
         // it is ever exhausted the overflow hits a guard page (a crash at the
         // fault) rather than silently corrupting malloc memory.
         static constexpr size_t ALT_STACK_SIZE = 64 * 1024;
-        static void *alt_stack = nullptr;
 
         __sync_synchronize();
-        if (alt_stack == nullptr) {
+        if (installed_alt_stack == nullptr) {
             void *mem
                 = mmap(nullptr, ALT_STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK, -1, 0);
             if (mem == MAP_FAILED) {
@@ -505,12 +539,20 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
                 return 0;
             }
             // Note: this memory is never freed, but it is necessary for the duration of the program
-            alt_stack = mem;
+            installed_alt_stack = mem;
             stack_t new_stack;
             memset(&new_stack, 0, sizeof(new_stack));
-            new_stack.ss_sp = (decltype(new_stack.ss_sp))alt_stack;
+            new_stack.ss_sp = (decltype(new_stack.ss_sp))installed_alt_stack;
             new_stack.ss_size = ALT_STACK_SIZE;
             new_stack.ss_flags = 0;
+            // Save the calling thread's current alternate stack (if any) so
+            // signalHandler can restore it before re-delivering a fault.
+            if (sigaltstack(nullptr, &old_alt_stack) != 0) {
+                std::ostringstream err_msg;
+                err_msg << "unable to query the current alternate stack: " << strerror(errno);
+                *error = strdupe(err_msg.str().c_str());
+                return 0;
+            }
             int ret = sigaltstack(&new_stack, nullptr);
             if (ret != 0) {
                 std::ostringstream err_msg;
