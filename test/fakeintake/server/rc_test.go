@@ -329,6 +329,49 @@ func TestRCSetExpirationRejectsMissingExpiry(t *testing.T) {
 	}
 }
 
+func TestRCSetAvailability(t *testing.T) {
+	ts, _ := newRCTestServer(t)
+
+	setAvailability := func(available bool) {
+		t.Helper()
+		body, err := json.Marshal(api.RCSetAvailabilityRequest{Available: available})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := http.Post(ts.URL+"/fakeintake/rc/availability", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNoContent {
+			t.Fatalf("set availability: status %d", resp.StatusCode)
+		}
+	}
+	poll := func() int {
+		t.Helper()
+		body, err := proto.Marshal(&core.LatestConfigsRequest{Products: []string{"APM_POLICIES"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := http.Post(ts.URL+"/api/v0.1/configurations", "application/x-protobuf", bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	setAvailability(false)
+	if got := poll(); got != http.StatusServiceUnavailable {
+		t.Fatalf("unavailable poll status = %d, want %d", got, http.StatusServiceUnavailable)
+	}
+
+	setAvailability(true)
+	if got := poll(); got != http.StatusOK {
+		t.Fatalf("restored poll status = %d, want %d", got, http.StatusOK)
+	}
+}
+
 func TestRCDisabledReturns404(t *testing.T) {
 	ready := make(chan bool, 1)
 	fi := NewServer(WithReadyChannel(ready))

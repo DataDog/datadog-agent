@@ -50,6 +50,10 @@ type staticConfig struct {
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
+	// runPath is the Agent runtime directory, used for the last-known-good
+	// remote workload-selection policy cache.
+	runPath string
+
 	// registryAllowList restricts which registries can be used for library injection.
 	// When non-empty, libraries from registries not in this list will not be injected.
 	// An empty list allows all registries (default).
@@ -150,6 +154,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			Instrumentation:               instrumentationConfig,
 			gpuTarget:                     newGPUTarget(gpuconfig.NewTracingConfig(datadogConfig), gpuconfig.NewJobsConfig(datadogConfig)),
 			containerRegistry:             containerRegistry,
+			runPath:                       datadogConfig.GetString("run_path"),
 			registryAllowList:             registryAllowList,
 			defaultDDRegistries:           defaultDDRegistries,
 			mutateUnlabelled:              mutateUnlabelled,

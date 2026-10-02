@@ -92,6 +92,13 @@ type RCSetExpirationRequest struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
+// RCSetAvailabilityRequest controls whether the agent-facing Remote Config
+// endpoint accepts requests. The fakeintake control API remains available so
+// tests can recover the backend after simulating an outage.
+type RCSetAvailabilityRequest struct {
+	Available bool `json:"available"`
+}
+
 // RCStats is returned by GET /fakeintake/rc/stats.
 type RCStats struct {
 	Polls        uint64    `json:"polls"`

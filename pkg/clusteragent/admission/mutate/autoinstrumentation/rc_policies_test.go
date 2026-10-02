@@ -8,6 +8,8 @@
 package autoinstrumentation
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -435,4 +437,146 @@ func TestOnRemoteConfigUpdate_InvalidPayloadKeepsBaseline(t *testing.T) {
 	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
 	require.Equal(t, "config-default", name)
 	require.False(t, fromPolicy)
+}
+
+func TestRemotePolicies_RestoreLastAcknowledgedCache(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	cachePath := filepath.Join(t.TempDir(), "apm-policies", "kubernetes.json")
+	m := newMatchMutator(t, rcDisabledCfg, wmeta)
+	m.remotePolicyCachePath = cachePath
+
+	const raw = `{
+      "policies": [{
+        "description": "cached-java",
+        "rules": {
+          "node_type": "EvaluatorNode",
+          "node": {
+            "eval_type": "StrEvaluator",
+            "eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=db"}
+          }
+        },
+        "actions": [
+          {"action": "INJECT_ALLOW"},
+          {"action": "ENABLE_SDK", "values": ["java=latest"]}
+        ]
+      }]
+    }`
+
+	path := "datadog/2/APM_POLICIES/1.kubernetes/config"
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{
+		path: {Config: []byte(raw)},
+	}, func(_ string, status state.ApplyStatus) {
+		require.Equal(t, state.ApplyStateAcknowledged, status.State)
+	})
+	require.FileExists(t, cachePath)
+
+	restarted := newMatchMutator(t, rcDisabledCfg, wmeta)
+	restarted.remotePolicyCachePath = cachePath
+	require.NoError(t, restarted.restoreRemotePolicyCache())
+
+	name, fromPolicy := matchedTarget(t, restarted, rcPod("ns", map[string]string{"app": "db"}))
+	require.Equal(t, "cached-java", name)
+	require.True(t, fromPolicy)
+
+	restarted.onRemoteConfigUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+	require.Nil(t, restarted.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
+	_, err := os.Stat(cachePath)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestRemotePolicies_InvalidUpdateDoesNotReplaceCache(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	cachePath := filepath.Join(t.TempDir(), "apm-policies", "kubernetes.json")
+	m := newMatchMutator(t, rcDisabledCfg, wmeta)
+	m.remotePolicyCachePath = cachePath
+
+	const valid = `{
+      "policies": [{
+        "description": "last-good",
+        "rules": {
+          "node_type": "EvaluatorNode",
+          "node": {
+            "eval_type": "StrEvaluator",
+            "eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=db"}
+          }
+        },
+        "actions": [{"action": "INJECT_ALLOW"}]
+      }]
+    }`
+	path := "datadog/2/APM_POLICIES/1.kubernetes/config"
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{path: {Config: []byte(valid)}}, func(string, state.ApplyStatus) {})
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{path: {Config: []byte("{")}}, func(_ string, status state.ApplyStatus) {
+		require.Equal(t, state.ApplyStateError, status.State)
+	})
+
+	restarted := newMatchMutator(t, rcDisabledCfg, wmeta)
+	restarted.remotePolicyCachePath = cachePath
+	require.NoError(t, restarted.restoreRemotePolicyCache())
+	name, _ := matchedTarget(t, restarted, rcPod("ns", map[string]string{"app": "db"}))
+	require.Equal(t, "last-good", name)
+}
+
+func TestRemotePolicies_PersistFailureDoesNotBlockUpdate(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	tempDir := t.TempDir()
+	notADirectory := filepath.Join(tempDir, "file")
+	require.NoError(t, os.WriteFile(notADirectory, []byte("not a directory"), 0600))
+
+	m := newMatchMutator(t, rcDisabledCfg, wmeta)
+	m.remotePolicyCachePath = filepath.Join(notADirectory, "kubernetes.json")
+
+	const raw = `{
+      "policies": [{
+        "description": "applied-despite-cache-error",
+        "rules": {
+          "node_type": "EvaluatorNode",
+          "node": {
+            "eval_type": "StrEvaluator",
+            "eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=db"}
+          }
+        },
+        "actions": [{"action": "INJECT_ALLOW"}]
+      }]
+    }`
+
+	path := "datadog/2/APM_POLICIES/1.kubernetes/config"
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{path: {Config: []byte(raw)}}, func(_ string, status state.ApplyStatus) {
+		require.Equal(t, state.ApplyStateAcknowledged, status.State)
+	})
+
+	name, fromPolicy := matchedTarget(t, m, rcPod("ns", map[string]string{"app": "db"}))
+	require.Equal(t, "applied-despite-cache-error", name)
+	require.True(t, fromPolicy)
+}
+
+func TestRemotePolicies_RemoveFailureDoesNotKeepPoliciesActive(t *testing.T) {
+	wmeta := newMatchTestWmeta(t)
+	m := newMatchMutator(t, rcDisabledCfg, wmeta)
+
+	cachePath := filepath.Join(t.TempDir(), "kubernetes.json")
+	require.NoError(t, os.Mkdir(cachePath, 0700))
+	require.NoError(t, os.WriteFile(filepath.Join(cachePath, "child"), []byte("force remove failure"), 0600))
+	m.remotePolicyCachePath = cachePath
+
+	const raw = `{
+      "policies": [{
+        "description": "policy-to-clear",
+        "rules": {
+          "node_type": "EvaluatorNode",
+          "node": {
+            "eval_type": "StrEvaluator",
+            "eval": {"id": "POD_LABEL", "cmp": "CMP_EXACT", "value": "app=db"}
+          }
+        },
+        "actions": [{"action": "INJECT_ALLOW"}]
+      }]
+    }`
+
+	parsed, err := policies.ParsePolicies([]byte(raw))
+	require.NoError(t, err)
+	require.NoError(t, m.SetRemotePolicies(parsed))
+	require.NotNil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
+
+	m.onRemoteConfigUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+	require.Nil(t, m.getMatchingTarget(rcPod("ns", map[string]string{"app": "db"})))
 }

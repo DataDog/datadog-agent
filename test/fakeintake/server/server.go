@@ -161,6 +161,7 @@ func NewServer(options ...Option) *Server {
 	mux.HandleFunc("/api/v0.1/status", fi.handleRCStatus)
 	mux.HandleFunc("/fakeintake/rc/config", fi.handleRCAddConfig)
 	mux.HandleFunc("/fakeintake/rc/expiration", fi.handleRCSetExpiration)
+	mux.HandleFunc("/fakeintake/rc/availability", fi.handleRCSetAvailability)
 	mux.HandleFunc("/fakeintake/rc/configs", fi.handleRCListConfigs)
 	mux.HandleFunc("/fakeintake/rc/config/", fi.handleRCDeleteConfig)
 	mux.HandleFunc("/fakeintake/rc/stats", fi.handleRCStats)

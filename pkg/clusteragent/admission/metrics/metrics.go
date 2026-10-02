@@ -115,6 +115,12 @@ var (
 	InvalidRemoteConfigs = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("admission_webhooks", "rc_provider_configs_invalid",
 		[]string{}, "Number of invalid remote configurations.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	APMPoliciesInitialized = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("admission_webhooks", "apm_policies_initialized",
+		[]string{}, "Whether the first authoritative APM_POLICIES remote-config snapshot has been received.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	APMPoliciesUsingCache = telemetryimpl.GetCompatComponent().NewGaugeWithOpts("admission_webhooks", "apm_policies_using_cache",
+		[]string{}, "Whether Kubernetes workload selection is using the persisted APM_POLICIES snapshot.",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	PatchAttempts = telemetryimpl.GetCompatComponent().NewCounterWithOpts("admission_webhooks", "patcher_attempts",
 		[]string{}, "Number of patch attempts.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})

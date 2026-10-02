@@ -29,6 +29,7 @@ go_library(
         "//test/e2e-framework/testing/provisioners/local/kubernetes",
         "//test/e2e-framework/testing/runner",
         "//test/e2e-framework/testing/runner/parameters",
+        "//test/e2e-framework/testing/utils/e2e/client",
         "//test/fakeintake/client",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes",
         "@com_github_stretchr_testify//require",

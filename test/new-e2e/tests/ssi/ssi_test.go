@@ -77,6 +77,8 @@ const (
 	rcDenyTargetedNamespaceConfigName = "config"
 	rcLastWinsOtherConfigID           = "1.kubernetes.last-wins-other"
 	rcLastWinsOtherConfigName         = "config"
+	rcCachedPolicyConfigID            = "1.kubernetes.cached-policy"
+	rcCachedPolicyConfigName          = "config"
 	rcFakeIntakeDefaultOrgID          = "42"
 	rcHelmTargetNamespace             = "targeted-namespace"
 	rcHelmTargetApp                   = "rc-target-python"
@@ -773,6 +775,45 @@ func (v *ssiSuite) TestRemoteConfig() {
 		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
 
 		v.requireHelmTargetStillSSI(k8s)
+	})
+
+	v.Run("CachedPolicySurvivesClusterAgentRestartDuringRCOutage", func() {
+		provisioner := getProvisionerType()
+		if provisioner != ProvisionerKindAWS && provisioner != ProvisionerKindLocal {
+			v.T().Skip("the RC outage lifecycle check runs once on kind; policy evaluation is covered on every distribution")
+		}
+
+		k8s := v.Env().KubernetesCluster.Client()
+		kube := v.Env().KubernetesCluster.KubernetesClient
+		cleanup := v.pushAPMPolicy(fi, rcCachedPolicyConfigID, rcCachedPolicyConfigName, rcNamespaceOtherPolicyJSON)
+		backendAvailable := true
+		defer func() {
+			if !backendAvailable {
+				require.NoError(v.T(), fi.RCSetAvailable(true))
+			}
+			cleanup()
+		}()
+
+		// Prove both policy uptake and durable cache creation before taking RC down.
+		pod := RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, hasInstallType(rcUnannotatedPodApp, "k8s_single_step"))
+		testutils.NewPodValidator(pod, testutils.InjectionModeAuto).
+			RequireAppliedPolicyName(v.T(), rcNamespaceOtherPolicyName)
+		WaitForClusterAgentPolicyCache(v.T(), k8s, kube, rcNamespaceOtherPolicyName)
+
+		require.NoError(v.T(), fi.RCSetAvailable(false))
+		backendAvailable = false
+		RestartClusterAgentContainer(v.T(), k8s, kube)
+
+		// Re-admission after the container restart must still use the cached RC
+		// policy. Without restoration this workload is outside the Helm target and
+		// remains uninjected.
+		pod = RestartUntil(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp, hasInstallType(rcUnannotatedPodApp, "k8s_single_step"))
+		validator := testutils.NewPodValidator(pod, testutils.InjectionModeAuto)
+		validator.RequireInjection(v.T(), []string{rcUnannotatedPodApp})
+		validator.RequireAppliedPolicyName(v.T(), rcNamespaceOtherPolicyName)
+
+		require.NoError(v.T(), fi.RCSetAvailable(true))
+		backendAvailable = true
 	})
 }
 

@@ -6,7 +6,9 @@
 package ssi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,10 +20,18 @@ import (
 	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	e2eclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 const DefaultAppName = "test-app"
+
+const (
+	clusterAgentNamespace       = "datadog"
+	clusterAgentAppName         = "cluster-agent"
+	clusterAgentContainerName   = "cluster-agent"
+	clusterAgentPolicyCachePath = "/opt/datadog-agent/run/apm-policies/kubernetes.json"
+)
 
 // apmInjectionAnnotationPrefix is the prefix the APM admission controller uses for the observability
 // annotations it adds to every pod it processes (whether the outcome is injected, skipped or error).
@@ -67,6 +77,78 @@ func RestartPod(t *testing.T, client kubeClient.Interface, namespace string, app
 		}
 		return false
 	}, 4*time.Minute, 5*time.Second, "pod %s was not recreated in namespace %s", appName, namespace)
+}
+
+// WaitForClusterAgentPolicyCache waits until the Cluster Agent has persisted
+// the last acknowledged APM_POLICIES snapshot to its runtime volume.
+func WaitForClusterAgentPolicyCache(t *testing.T, client kubeClient.Interface, kube *e2eclient.KubernetesClient, policyName string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		pod := FindPodInNamespace(t, client, clusterAgentNamespace, clusterAgentAppName)
+		stdout, _, err := kube.PodExec(
+			clusterAgentNamespace,
+			pod.Name,
+			clusterAgentContainerName,
+			[]string{"cat", clusterAgentPolicyCachePath},
+		)
+		if err != nil {
+			return false
+		}
+		var cache struct {
+			Configs map[string][]byte `json:"configs"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &cache); err != nil {
+			return false
+		}
+		for _, config := range cache.Configs {
+			if bytes.Contains(config, []byte(policyName)) {
+				return true
+			}
+		}
+		return false
+	}, 2*time.Minute, 5*time.Second, "Cluster Agent did not persist APM policy %q", policyName)
+}
+
+// RestartClusterAgentContainer terminates PID 1 and waits for Kubernetes to
+// restart the container in the same pod. Keeping the pod identity proves the
+// emptyDir-backed runtime volume was preserved across the restart.
+func RestartClusterAgentContainer(t *testing.T, client kubeClient.Interface, kube *e2eclient.KubernetesClient) {
+	t.Helper()
+	pod := FindPodInNamespace(t, client, clusterAgentNamespace, clusterAgentAppName)
+	initialUID := pod.UID
+	initialRestarts := clusterAgentRestartCount(t, pod)
+
+	_, stderr, err := kube.PodExec(
+		clusterAgentNamespace,
+		pod.Name,
+		clusterAgentContainerName,
+		[]string{"/bin/sh", "-c", "kill -TERM 1; exit 0"},
+	)
+	require.NoError(t, err, "failed to stop Cluster Agent container: %s", stderr)
+
+	require.Eventually(t, func() bool {
+		restarted, err := client.CoreV1().Pods(clusterAgentNamespace).Get(context.Background(), pod.Name, v1.GetOptions{})
+		if err != nil || restarted.UID != initialUID {
+			return false
+		}
+		for _, status := range restarted.Status.ContainerStatuses {
+			if status.Name == clusterAgentContainerName {
+				return status.RestartCount > initialRestarts && status.Ready
+			}
+		}
+		return false
+	}, 4*time.Minute, 5*time.Second, "Cluster Agent container did not restart in the original pod")
+}
+
+func clusterAgentRestartCount(t *testing.T, pod *corev1.Pod) int32 {
+	t.Helper()
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.Name == clusterAgentContainerName {
+			return status.RestartCount
+		}
+	}
+	require.Failf(t, "Cluster Agent container not found", "pod %s has no %q container", pod.Name, clusterAgentContainerName)
+	return 0
 }
 
 // WaitForAdmissionWebhookReady blocks until the Datadog mutating webhook configuration exists. The
