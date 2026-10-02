@@ -15,8 +15,10 @@ import (
 	"strconv"
 	"strings"
 
+	jsonpatch "github.com/evanphx/json-patch/v5"
 	"github.com/wI2L/jsondiff"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -36,12 +38,43 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
 	}
 
+	// Snapshot the typed object before normalization or mutation. Comparing the
+	// original JSON with a typed round trip would delete fields newer than our
+	// Kubernetes client understands.
+	original, err := json.Marshal(pod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the original Pod object: %v", err)
+	}
+
 	// In rare cases multiple mutation webhooks executed in sequence can cause the spec to be invalid. This was seen
 	// when the autoinstrumentation library injection webhook ran before and after GKE Autopilot webhooks.
 	// Normalize correctable issues before proceeding so downstream can assume the pod spec is valid.
 	if err := NormalizePodSpec(&pod); err != nil {
 		// TODO should we return early here?
 		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
+	}
+
+	// Volume normalization can remove duplicate merge keys. Apply its positional
+	// edits before strategic merge, which requires unique keys in named lists.
+	normalized, err := json.Marshal(pod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the normalized Pod object: %v", err)
+	}
+	normalization, err := jsondiff.CompareJSON(original, normalized, jsondiff.LCS())
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare the normalization patch: %v", err)
+	}
+	normalizationJSON, err := json.Marshal(normalization)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the normalization patch: %v", err)
+	}
+	normalizationPatch, err := jsonpatch.DecodePatch(normalizationJSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the normalization patch: %v", err)
+	}
+	normalizedRaw, err := normalizationPatch.Apply(rawPod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to normalize the raw Pod object: %v", err)
 	}
 
 	injected, err := m(&pod, ns, dc)
@@ -57,7 +90,19 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
 	}
 
-	patch, err := jsondiff.CompareJSON(rawPod, bytes) // TODO: Try to generate the patch at the MutationFunc
+	// Apply only intentional edits to the original JSON. Strategic merge matches
+	// containers by name, preserving unknown fields when lists are reordered or
+	// sidecars are inserted, and handles parents absent from the original JSON.
+	changes, err := strategicpatch.CreateTwoWayMergePatch(normalized, bytes, corev1.Pod{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare the Pod merge patch: %v", err)
+	}
+	preserved, err := strategicpatch.StrategicMergePatch(normalizedRaw, changes, corev1.Pod{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply the Pod merge patch: %v", err)
+	}
+
+	patch, err := jsondiff.CompareJSON(rawPod, preserved)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
