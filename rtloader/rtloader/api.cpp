@@ -25,6 +25,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#if defined(__linux__)
+#    include <link.h>
+#    include <ucontext.h>
+#endif
+
 // macOS and AIX name the anonymous mapping flag differently
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #    define MAP_ANONYMOUS MAP_ANON
@@ -332,6 +337,56 @@ static struct sigaction old_sigsegv_handler;
 static stack_t old_alt_stack;
 static void *installed_alt_stack = nullptr;
 
+#    if defined(__linux__)
+// Address range of the main executable, recorded at handler-install time.
+// The crash handler skips collection for faults in it: those faults are in
+// Go code (or cgo code linked into the agent binary) and are better left to
+// the previous (Go runtime) handler, which may turn them into recoverable
+// panics instead of fatal crashes. Modules loaded later (dlopen'd Python
+// extensions, for instance) are not affected: they are outside this range by
+// definition.
+static uintptr_t main_executable_lo = ~(uintptr_t)0;
+static uintptr_t main_executable_hi = 0;
+
+static int record_main_executable_phdr(struct dl_phdr_info *info, size_t size, void *data)
+{
+    (void)size;
+    (void)data;
+    // The main executable is reported with an empty name.
+    if (info->dlpi_name == nullptr || info->dlpi_name[0] != '\0') {
+        return 0;
+    }
+    for (int i = 0; i < info->dlpi_phnum; i++) {
+        const ElfW(Phdr) *phdr = &info->dlpi_phdr[i];
+        if (phdr->p_type != PT_LOAD) {
+            continue;
+        }
+        const uintptr_t lo = info->dlpi_addr + phdr->p_vaddr;
+        if (lo < main_executable_lo) {
+            main_executable_lo = lo;
+        }
+        const uintptr_t hi = lo + phdr->p_memsz;
+        if (hi > main_executable_hi) {
+            main_executable_hi = hi;
+        }
+    }
+    return 0;
+}
+
+static bool fault_in_main_executable(const ucontext_t *uc)
+{
+#        if defined(__x86_64__)
+    const uintptr_t pc = uc->uc_mcontext.gregs[REG_RIP];
+#        elif defined(__aarch64__)
+    const uintptr_t pc = uc->uc_mcontext.pc;
+#        else
+    (void)uc;
+    return false; // unknown architecture: do not gate
+#        endif
+    return pc >= main_executable_lo && pc < main_executable_hi;
+}
+#    endif
+
 //! signalHandler
 /*!
   \brief Crash handler for UNIX OSes
@@ -425,25 +480,34 @@ static void safe_writeln(const char *s)
 
 void signalHandler(int sig, siginfo_t *info, void *context)
 {
+#    if defined(__linux__)
+    // Only collect for faults outside the main executable (Python, its
+    // extensions, libc, ...); see fault_in_main_executable for why faults in
+    // the main executable go straight to re-delivery without collection.
+    if (!fault_in_main_executable((const ucontext_t *)context)) {
+#    endif
 #    ifdef HAS_BACKTRACE_LIB
-    void *buffer[STACKTRACE_SIZE];
-    size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
+        void *buffer[STACKTRACE_SIZE];
+        size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
 #    endif
 
-    char header[64];
-    size_t len = safe_append(header, "HANDLER CAUGHT signal ");
-    len += safe_append_uint(header + len, (size_t)sig);
-    header[len++] = '\n';
-    safe_write(header, len);
+        char header[64];
+        size_t len = safe_append(header, "HANDLER CAUGHT signal ");
+        len += safe_append_uint(header + len, (size_t)sig);
+        header[len++] = '\n';
+        safe_write(header, len);
 
 #    ifdef HAS_BACKTRACE_LIB
-    safe_writeln("C-LAND STACKTRACE (raw addresses; symbolize offline):");
-    for (size_t i = 0; i < nptrs; i++) {
-        char line[2 + 2 + 2 * sizeof(uintptr_t) + 2];
-        size_t n = safe_append(line, "  ");
-        n += safe_append_hex(line + n, (uintptr_t)buffer[i]);
-        line[n++] = '\n';
-        safe_write(line, n);
+        safe_writeln("C-LAND STACKTRACE (raw addresses; symbolize offline):");
+        for (size_t i = 0; i < nptrs; i++) {
+            char line[2 + 2 + 2 * sizeof(uintptr_t) + 2];
+            size_t n = safe_append(line, "  ");
+            n += safe_append_hex(line + n, (uintptr_t)buffer[i]);
+            line[n++] = '\n';
+            safe_write(line, n);
+        }
+#    endif
+#    if defined(__linux__)
     }
 #    endif
 
@@ -574,6 +638,12 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const i
         // a sane context, to force the library to be loaded up front.
         void *warmup[1];
         backtrace(warmup, 1);
+#    endif
+
+#    if defined(__linux__)
+        // Record the main executable's address range so signalHandler can
+        // skip collection for faults in it (see fault_in_main_executable).
+        dl_iterate_phdr(record_main_executable_phdr, nullptr);
 #    endif
 
         // Gather stacktrace on segfault and save the old handler
