@@ -9,6 +9,9 @@ package rcclientimpl
 
 import (
 	"context"
+	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +35,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
 
@@ -359,8 +363,9 @@ func TestAgentMRFLogsServiceAllowlistOrdering(t *testing.T) {
 	assert.Equal(t, []string{"set " + logsServiceAllowlistSetting, "set " + failoverLogsSetting}, events)
 
 	// Disabling logs failover and removing the allowlist: the allowlist is removed last.
-	// The mocked settings component does not write to the config, so store the allowlist there as the
-	// runtime setting would.
+	// The mocked settings component does not write to the config, so store the enabled state and the
+	// allowlist there as the runtime settings would.
+	cfg.Set(failoverLogsSetting, true, model.SourceRC)
 	cfg.Set(logsServiceAllowlistSetting, []string{"web"}, model.SourceRC)
 	events = nil
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
@@ -368,4 +373,228 @@ func TestAgentMRFLogsServiceAllowlistOrdering(t *testing.T) {
 	}, applyEmpty)
 	assert.Equal(t, []string{"set " + failoverLogsSetting, "update " + logsServiceAllowlistSetting}, events)
 	assert.Empty(t, cfg.GetStringSlice(logsServiceAllowlistSetting))
+}
+
+// writeThroughSettings writes runtime settings to the config, as the Multi-Region Failover runtime
+// settings do, so that every write of the callback is observable through the config notifications.
+type writeThroughSettings struct {
+	settings.Component
+	cfg    model.ReaderWriter
+	failOn string // setting whose writes fail with err
+	err    error
+}
+
+func (s *writeThroughSettings) SetRuntimeSetting(setting string, value interface{}, source model.Source) error {
+	if setting == s.failOn && s.err != nil {
+		return s.err
+	}
+	s.cfg.Set(setting, value, source)
+	return nil
+}
+
+// mrfPairs are the failover flag and allowlist pairs the callback applies with the same rule.
+var mrfPairs = []struct {
+	name, flagSetting, allowlistSetting, flagField, allowlistField string
+}{
+	{"logs", failoverLogsSetting, logsServiceAllowlistSetting, "failover_logs", "logs_service_allowlist"},
+}
+
+// While the callback switches a failover flag and its allowlist, no intermediate state may forward an
+// entry (a log service, a metric) that neither the previous nor the new configuration forwards.
+func TestAgentMRFFailoverTransitions(t *testing.T) {
+	entries := []string{"web", "api", "worker"}
+	forwards := func(active bool, allowlist []string, entry string) bool {
+		// An empty allowlist forwards everything.
+		return active && (len(allowlist) == 0 || slices.Contains(allowlist, entry))
+	}
+	boolPtr := func(b bool) *bool { return &b }
+
+	// FLAG and LIST stand for the pair's JSON fields. The configuration file enables failover or not and
+	// allows "web"; a previous remote config update may have set both settings.
+	tests := []struct {
+		name       string
+		fileActive bool
+		rcActive   *bool
+		rcList     []string
+		update     string
+		wantActive bool
+		wantList   []string
+	}{
+		{
+			// Disjoint from the file list on purpose: an intermediate state that still carries the file list
+			// would forward "web", which neither the previous nor the new configuration forwards.
+			name:       "enable with allowlist disjoint from the file",
+			rcActive:   boolPtr(false),
+			update:     `{"FLAG": true, "LIST": ["api"]}`,
+			wantActive: true,
+			wantList:   []string{"api"},
+		},
+		{
+			name:       "enable with allowlist omitted, previous remote allowlist wider than the file",
+			rcActive:   boolPtr(false),
+			rcList:     []string{"web", "api"},
+			update:     `{"FLAG": true}`,
+			wantActive: true,
+			wantList:   []string{"web"},
+		},
+		{
+			name:       "enable by falling back to the file, previous remote allowlist wider than the file",
+			fileActive: true,
+			rcActive:   boolPtr(false),
+			rcList:     []string{"web", "api"},
+			update:     `{}`,
+			wantActive: true,
+			wantList:   []string{"web"},
+		},
+		{
+			name:       "disable with empty allowlist",
+			rcActive:   boolPtr(true),
+			rcList:     []string{"web"},
+			update:     `{"FLAG": false, "LIST": []}`,
+			wantActive: false,
+			wantList:   []string{},
+		},
+		{
+			name:       "disable with wider allowlist",
+			rcActive:   boolPtr(true),
+			rcList:     []string{"web"},
+			update:     `{"FLAG": false, "LIST": ["web", "api"]}`,
+			wantActive: false,
+			wantList:   []string{"api", "web"},
+		},
+		{
+			name:       "disable with allowlist omitted",
+			rcActive:   boolPtr(true),
+			rcList:     []string{"web"},
+			update:     `{"FLAG": false}`,
+			wantActive: false,
+			wantList:   []string{"web"},
+		},
+		{
+			name:       "disable by falling back to the file, with empty allowlist",
+			rcActive:   boolPtr(true),
+			rcList:     []string{"web"},
+			update:     `{"LIST": []}`,
+			wantActive: false,
+			wantList:   []string{},
+		},
+		{
+			name:       "change allowlist while active",
+			rcActive:   boolPtr(true),
+			rcList:     []string{"web"},
+			update:     `{"FLAG": true, "LIST": ["api"]}`,
+			wantActive: true,
+			wantList:   []string{"api"},
+		},
+		{
+			name:       "change allowlist while inactive",
+			rcList:     []string{"web"},
+			update:     `{"LIST": ["api"]}`,
+			wantActive: false,
+			wantList:   []string{"api"},
+		},
+	}
+	for _, pair := range mrfPairs {
+		fields := strings.NewReplacer("FLAG", pair.flagField, "LIST", pair.allowlistField)
+		for _, tt := range tests {
+			t.Run(pair.name+"/"+tt.name, func(t *testing.T) {
+				cfg := configmock.New(t)
+				cfg.Set(pair.flagSetting, tt.fileActive, model.SourceFile)
+				cfg.Set(pair.allowlistSetting, []string{"web"}, model.SourceFile)
+				if tt.rcActive != nil {
+					cfg.Set(pair.flagSetting, *tt.rcActive, model.SourceRC)
+				}
+				if tt.rcList != nil {
+					cfg.Set(pair.allowlistSetting, tt.rcList, model.SourceRC)
+				}
+				wasActive, wasList := cfg.GetBool(pair.flagSetting), cfg.GetStringSlice(pair.allowlistSetting)
+
+				var leaked []string
+				cfg.OnUpdate(func(setting string, _ model.Source, _, _ any, _ uint64, _ model.Source) {
+					if setting != pair.flagSetting && setting != pair.allowlistSetting {
+						return
+					}
+					active, list := cfg.GetBool(pair.flagSetting), cfg.GetStringSlice(pair.allowlistSetting)
+					for _, entry := range entries {
+						if forwards(active, list, entry) && !forwards(wasActive, wasList, entry) && !forwards(tt.wantActive, tt.wantList, entry) {
+							leaked = append(leaked, entry+" after "+setting)
+						}
+					}
+				})
+
+				rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg}}
+				rc.mrfUpdateCallback(map[string]state.RawConfig{
+					"datadog/2/AGENT_FAILOVER/transition/configname": {Config: []byte(fields.Replace(tt.update))},
+				}, applyEmpty)
+
+				assert.Equal(t, tt.wantActive, cfg.GetBool(pair.flagSetting))
+				assert.Equal(t, tt.wantList, cfg.GetStringSlice(pair.allowlistSetting))
+				assert.Empty(t, leaked, "forwarded in an intermediate state")
+			})
+		}
+	}
+}
+
+// Every config contributing to a merged allowlist is told whether the allowlist was applied.
+func TestAgentMRFAllowlistReportsStatusToEveryConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want state.ApplyState
+	}{
+		{name: "acknowledged", want: state.ApplyStateAcknowledged},
+		{name: "error", err: errors.New("cannot set"), want: state.ApplyStateError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: logsServiceAllowlistSetting, err: tt.err}}
+
+			statuses := map[string]state.ApplyStatus{}
+			rc.mrfUpdateCallback(map[string]state.RawConfig{
+				"datadog/2/AGENT_FAILOVER/web/configname": {Config: []byte(`{"logs_service_allowlist": ["web"]}`)},
+				"datadog/2/AGENT_FAILOVER/api/configname": {Config: []byte(`{"logs_service_allowlist": ["api"]}`)},
+			}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
+
+			require.Len(t, statuses, 2)
+			for cfgPath, status := range statuses {
+				assert.Equal(t, tt.want, status.State, cfgPath)
+			}
+			if tt.err == nil {
+				assert.Equal(t, []string{"api", "web"}, cfg.GetStringSlice(logsServiceAllowlistSetting))
+			}
+		})
+	}
+}
+
+// A config that set several settings ends in error when one of its writes fails, whichever write fails,
+// and a failed write in one pair does not stop the other pairs.
+func TestAgentMRFConfigStatusStaysErrorAcrossSettings(t *testing.T) {
+	const cfgPath = "datadog/2/AGENT_FAILOVER/both/configname"
+
+	t.Run("later write fails", func(t *testing.T) {
+		// Inactive: the allowlist is written first and acknowledged, then the flag write fails.
+		cfg := configmock.New(t)
+		rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: failoverLogsSetting, err: errors.New("cannot set")}}
+		statuses := map[string]state.ApplyStatus{}
+		rc.mrfUpdateCallback(map[string]state.RawConfig{
+			cfgPath: {Config: []byte(`{"failover_logs": true, "logs_service_allowlist": ["web"]}`)},
+		}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
+
+		assert.Equal(t, state.ApplyStateError, statuses[cfgPath].State)
+		assert.False(t, cfg.GetBool(failoverLogsSetting))
+	})
+
+	t.Run("earlier write fails", func(t *testing.T) {
+		// The logs allowlist write fails, the APM flag of the same config succeeds afterwards.
+		cfg := configmock.New(t)
+		rc := &rcClient{settingsComponent: &writeThroughSettings{cfg: cfg, failOn: logsServiceAllowlistSetting, err: errors.New("cannot set")}}
+		statuses := map[string]state.ApplyStatus{}
+		rc.mrfUpdateCallback(map[string]state.RawConfig{
+			cfgPath: {Config: []byte(`{"logs_service_allowlist": ["web"], "failover_apm": true}`)},
+		}, func(cfgPath string, status state.ApplyStatus) { statuses[cfgPath] = status })
+
+		assert.Equal(t, state.ApplyStateError, statuses[cfgPath].State)
+		assert.True(t, cfg.GetBool(failoverAPMSetting), "the APM flag is still applied")
+	})
 }
