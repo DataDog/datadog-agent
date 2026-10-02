@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/twmb/murmur3"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -57,13 +55,17 @@ type remoteIssueResource struct {
 }
 
 type remoteIssueAttributes struct {
-	OrgID    *int64    `json:"org_id"`
-	IssueIDs *[]string `json:"issue_ids"`
+	Issues *[]remoteIssue `json:"issues"`
+}
+
+type remoteIssue struct {
+	IssueID   string `json:"issue_id"`
+	IssueName string `json:"issue_name"`
+	IssueType string `json:"issue_type"`
 }
 
 type remoteIssueSnapshot struct {
-	orgID    int64
-	issueIDs map[string]struct{}
+	issues map[string]remoteIssue
 }
 
 type remoteResourceIdentity interface {
@@ -184,22 +186,27 @@ func (r *remoteIssueLoader) load(ctx context.Context) (*remoteIssueSnapshot, err
 	if resource.ID != resourceID {
 		return nil, fmt.Errorf("remote issue response has resource ID %q, expected %q", resource.ID, resourceID)
 	}
-	if resource.Attributes.OrgID == nil {
-		return nil, errors.New("remote issue response has no org_id")
-	}
-	if resource.Attributes.IssueIDs == nil {
-		return nil, errors.New("remote issue response has no issue_ids")
+	if resource.Attributes.Issues == nil {
+		return nil, errors.New("remote issue response has no issues")
 	}
 
 	snapshot := &remoteIssueSnapshot{
-		orgID:    *resource.Attributes.OrgID,
-		issueIDs: make(map[string]struct{}, len(*resource.Attributes.IssueIDs)),
+		issues: make(map[string]remoteIssue, len(*resource.Attributes.Issues)),
 	}
-	for _, issueID := range *resource.Attributes.IssueIDs {
-		if strings.TrimSpace(issueID) == "" {
+	for _, issue := range *resource.Attributes.Issues {
+		if strings.TrimSpace(issue.IssueID) == "" {
 			return nil, errors.New("remote issue response contains an empty issue ID")
 		}
-		snapshot.issueIDs[issueID] = struct{}{}
+		if strings.TrimSpace(issue.IssueName) == "" {
+			return nil, fmt.Errorf("remote issue response contains no issue_name for issue %q", issue.IssueID)
+		}
+		if strings.TrimSpace(issue.IssueType) == "" {
+			return nil, fmt.Errorf("remote issue response contains no issue_type for issue %q", issue.IssueID)
+		}
+		if _, exists := snapshot.issues[issue.IssueID]; exists {
+			return nil, fmt.Errorf("remote issue response contains duplicate issue ID %q", issue.IssueID)
+		}
+		snapshot.issues[issue.IssueID] = issue
 	}
 
 	return snapshot, nil
@@ -209,16 +216,6 @@ func (s *remoteIssueSnapshot) contains(agentIssueID string) bool {
 	if s == nil {
 		return false
 	}
-	_, ok := s.issueIDs[remoteIssueID(s.orgID, agentIssueID)]
+	_, ok := s.issues[agentIssueID]
 	return ok
-}
-
-func remoteIssueID(orgID int64, agentIssueID string) string {
-	return murmurUUID(fmt.Sprintf("%d:%s", orgID, agentIssueID))
-}
-
-func murmurUUID(value string) string {
-	h1, h2 := murmur3.StringSum128(value)
-	hash := fmt.Sprintf("%016x%016x", h1, h2)
-	return fmt.Sprintf("%s-%s-%s-%s-%s", hash[:8], hash[8:12], hash[12:16], hash[16:20], hash[20:])
 }
