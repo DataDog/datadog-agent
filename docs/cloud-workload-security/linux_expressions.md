@@ -1288,7 +1288,7 @@ A filesystem was mounted
 | Property | Definition |
 | -------- | ------------- |
 | [`mount.detached`](#mount-detached-doc) | Mount is detached from the VFS |
-| [`mount.flags`](#mount-flags-doc) | Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout) |
+| [`mount.flags`](#mount-flags-doc) | Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout |
 | [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
@@ -1297,7 +1297,7 @@ A filesystem was mounted
 | [`mount.syscall.fs_type`](#mount-syscall-fs_type-doc) | File system type argument of the syscall |
 | [`mount.syscall.mountpoint.path`](#mount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
 | [`mount.syscall.source.path`](#mount-syscall-source-path-doc) | Source path argument of the syscall |
-| [`mount.visible`](#mount-visible-doc) | Mount is not visible in the VFS |
+| [`mount.visible`](#mount-visible-doc) | Mount is visible in the VFS |
 
 ### Event `mprotect`
 
@@ -4604,7 +4604,7 @@ Definition: Mount is detached from the VFS
 ### `mount.flags` {#mount-flags-doc}
 Type: int
 
-Definition: Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout)
+Definition: Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout
 
 
 
@@ -4660,7 +4660,7 @@ Definition: Source path argument of the syscall
 ### `mount.visible` {#mount-visible-doc}
 Type: bool
 
-Definition: Mount is not visible in the VFS
+Definition: Mount is visible in the VFS
 
 
 

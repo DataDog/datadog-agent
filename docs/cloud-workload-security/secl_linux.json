@@ -5015,7 +5015,7 @@
         },
         {
           "name": "mount.flags",
-          "definition": "Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout)",
+          "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
           "property_doc_link": "mount-flags-doc"
         },
         {
@@ -5060,7 +5060,7 @@
         },
         {
           "name": "mount.visible",
-          "definition": "Mount is not visible in the VFS",
+          "definition": "Mount is visible in the VFS",
           "property_doc_link": "mount-visible-doc"
         }
       ]
@@ -16776,7 +16776,7 @@
       "name": "mount.flags",
       "link": "mount-flags-doc",
       "type": "int",
-      "definition": "Mount flags normalized per-mount attributes (canonical MOUNT_ATTR_* layout)",
+      "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
       "prefixes": [
         "mount"
       ],
@@ -16872,7 +16872,7 @@
       "name": "mount.visible",
       "link": "mount-visible-doc",
       "type": "bool",
-      "definition": "Mount is not visible in the VFS",
+      "definition": "Mount is visible in the VFS",
       "prefixes": [
         "mount"
       ],

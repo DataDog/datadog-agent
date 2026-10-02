@@ -580,9 +580,9 @@ type MountEventSerializer struct {
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 	// Mount is not attached to the VFS tree
 	Detached bool `json:"detached,omitempty"`
-	// Mount is not visible in the VFS tree
+	// Mount is visible in the VFS tree
 	Visible bool `json:"visible,omitempty"`
-	// Normalized per-mount attribute flags
+	// Per-mount attribute flags expressed as MOUNT_ATTR_* names
 	Flags []string `json:"flags,omitempty"`
 }
 
