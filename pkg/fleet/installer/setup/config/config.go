@@ -107,6 +107,7 @@ type PrivateActionRunnerConfig struct {
 	Enabled          *bool    `yaml:"enabled,omitempty"`
 	SelfEnroll       *bool    `yaml:"self_enroll,omitempty"`
 	ActionsAllowlist []string `yaml:"actions_allowlist,omitempty"`
+	SplitEnabled     *bool    `yaml:"split_enabled,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
