@@ -34,6 +34,7 @@ go_library(
         "//comp/logs-library/metrics",
         "//comp/logs-library/processor",
         "//comp/logs/agent/config",
+        "//comp/logs/agent/def",
         "//comp/logs/agent/flare",
         "//comp/logs/auditor/def",
         "//pkg/config/model",
