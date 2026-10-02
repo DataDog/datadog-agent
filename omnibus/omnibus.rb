@@ -33,6 +33,7 @@ else
       if [ "${1:-}" = "run" ] || [ "${1:-}" = "build" ]; then
         echo "skyframe summary before: $*" >&2
         "#{bazel}" dump --skyframe=summary >&2 || true
+        "#{bazel}" info used-heap-size-after-gc max-heap-size gc-count gc-time >&2 || true
       fi
       exec "#{bazel}" "$@"
     SH
