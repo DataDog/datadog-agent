@@ -8,14 +8,10 @@ package engine
 import (
 	"context"
 	"fmt"
-	"io"
-	"slices"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/report"
-	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 )
 
 const progressInterval = 30 * time.Second
@@ -80,47 +76,4 @@ func observeProgress(ctx context.Context, r *report.Report, mu *sync.Mutex, opti
 		}
 	}()
 	return func() { cancel(); <-done }
-}
-
-func writeProgress(w io.Writer, r *report.Report) error {
-	if w == nil {
-		return nil
-	}
-	counts := make(map[schema.Stream]report.Counts)
-	add := func(stream schema.Stream, value *report.Counts) {
-		total := counts[stream]
-		total.Expected += value.Expected
-		total.Delivered += value.Delivered
-		total.Failed += value.Failed
-		counts[stream] = total
-	}
-	for _, device := range r.Ledger {
-		for stream, value := range device.Streams {
-			add(stream, value)
-		}
-	}
-	for stream, value := range r.NetworkStreams {
-		add(stream, value)
-	}
-	streams := make([]schema.Stream, 0, len(counts))
-	for stream := range counts {
-		streams = append(streams, stream)
-	}
-	slices.Sort(streams)
-	var line strings.Builder
-	p := r.Progress
-	activity := p.Activity
-	if activity == "waiting_for_delivery" {
-		activity = "waiting for delivery/retries"
-	}
-	fmt.Fprintf(&line, "Replay %s/%s | phase=%s | %s | delivered cycles:", p.Elapsed.Truncate(time.Second), p.Duration, p.Phase, activity)
-	var failed uint64
-	for _, stream := range streams {
-		value := counts[stream]
-		fmt.Fprintf(&line, " %s=%d/%d", stream, value.Delivered, value.Expected)
-		failed += value.Failed
-	}
-	fmt.Fprintf(&line, " | failed=%d\n", failed)
-	_, err := io.WriteString(w, line.String())
-	return err
 }

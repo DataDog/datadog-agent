@@ -20,6 +20,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/accesspoint"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/eventlog"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/identity"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/overlay"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/report"
@@ -56,9 +57,10 @@ type Options struct {
 	Workers, QueueCapacity int
 	Clock                  Clock
 	Delivery               Delivery
-	// Progress receives owned, serialized observations at startup and every 30s.
+	// Progress receives owned report snapshots at startup and every 30s.
 	// Returning an error cancels replay while retaining partial delivery counts.
 	Progress func(*report.Report) error
+	Events   *eventlog.Logger
 	// Tests supply ticks explicitly; production uses the fixed wall-clock interval.
 	progressTicks <-chan time.Time
 }
@@ -280,6 +282,9 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 		mu.Unlock()
 	}
 	stopProgress := observeProgress(ctx, r, &mu, options, fail)
+	if ctx.Err() == nil {
+		options.Events.Log("replay", fmt.Sprintf("started; devices=%d; duration=%s; ends=%s", len(p.devices), p.duration, p.request.Plan.Start.Add(p.duration).Local().Format(time.RFC3339)))
+	}
 	for i := 0; i < options.Workers; i++ {
 		wg.Add(1)
 		go func() {
@@ -288,7 +293,7 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 				if ctx.Err() != nil {
 					continue
 				}
-				err := p.deliver(ctx, options.Delivery, work)
+				err := p.deliver(ctx, options.Delivery, work, options.Events)
 				mu.Lock()
 				counts := r.NetworkStreams[work.stream]
 				if work.device != nil {
@@ -307,11 +312,17 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 		}()
 	}
 	scheduling := true
+	lastPhase := -1
 	for len(pending) > 0 && scheduling {
 		work := heap.Pop(&pending).(job)
 		if err := options.Clock.WaitUntil(ctx, p.request.Plan.Start.Add(work.offset)); err != nil {
 			fail(err)
 			break
+		}
+		phase, _ := phaseAt(p.request.Scenario, work.offset)
+		if phase != lastPhase {
+			options.Events.Log("replay", "dispatching phase="+p.request.Scenario.Phases[phase].Name)
+			lastPhase = phase
 		}
 		select {
 		case jobs <- work:
@@ -339,13 +350,20 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 		}
 	}
 	close(jobs)
+	if ctx.Err() == nil {
+		options.Events.Log("replay", "all recorded cycles scheduled; waiting for deliveries")
+	}
 	wg.Wait()
 	if ctx.Err() == nil {
+		if options.Clock.Now().Before(p.request.Plan.Start.Add(p.duration)) {
+			options.Events.Log("replay", "scheduled deliveries accepted; waiting for scenario end")
+		}
 		if err := options.Clock.WaitUntil(ctx, p.request.Plan.Start.Add(p.duration)); err != nil {
 			fail(err)
 		}
 	}
 	if ctx.Err() == nil {
+		options.Events.Log("replay", "draining Agent delivery")
 		if err := options.Delivery.Wait(ctx); err != nil {
 			fail(err)
 		}
@@ -368,16 +386,42 @@ func (p *prepared) run(parent context.Context, options Options) (*report.Report,
 	return r, nil
 }
 
-func (p *prepared) deliver(ctx context.Context, out Delivery, work job) error {
+func (p *prepared) deliver(ctx context.Context, out Delivery, work job, events *eventlog.Logger) (err error) {
 	at := p.request.Plan.Start.Add(work.offset)
 	phase, elapsed := phaseAt(p.request.Scenario, work.offset)
+	var detail string
+	if events != nil {
+		defer func() {
+			target := "network devices"
+			if work.device != nil {
+				target = "device=" + work.device.id.Hostname
+			}
+			context := fmt.Sprintf("%s; phase=%s; cycle=%d", target, p.request.Scenario.Phases[phase].Name, work.ordinal+1)
+			if err != nil {
+				events.Log(string(work.stream), "delivery failed; "+context)
+			} else {
+				events.Log(string(work.stream), "delivered "+detail+"; "+context)
+			}
+		}()
+	}
 	if work.device == nil {
 		if work.stream == NDMStream {
-			return out.NetworkMetadata(ctx, p.accessPoints.Metadata(at, ndmBatchSize))
+			payloads := p.accessPoints.Metadata(at, ndmBatchSize)
+			if events != nil {
+				devices := 0
+				for _, payload := range payloads {
+					devices += len(payload.Devices)
+				}
+				detail = fmt.Sprintf("metadata (%d devices, %d batches)", devices, len(payloads))
+			}
+			return out.NetworkMetadata(ctx, payloads)
 		}
 		series, err := p.accessPoints.Metrics(phase, elapsed, work.ordinal, at)
 		if err != nil {
 			return err
+		}
+		if events != nil {
+			detail = fmt.Sprintf("access-point metrics (%d series)", len(series))
 		}
 		return out.NetworkMetrics(ctx, series)
 	}
@@ -412,6 +456,9 @@ func (p *prepared) deliver(ctx context.Context, out Delivery, work job) error {
 			return err
 		}
 		samples = append(samples, sample)
+	}
+	if events != nil {
+		detail = describeDelivery(work.stream, samples)
 	}
 	return out.Send(ctx, at, work.stream, samples)
 }

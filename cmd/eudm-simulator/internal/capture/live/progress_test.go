@@ -110,7 +110,7 @@ func TestBlockedCaptureOutputCannotBlockEvents(t *testing.T) {
 	}
 	close(w.release)
 	p.finish("/capture/example", nil)
-	if got := w.output.String(); !strings.Contains(got, "omitted 36 log messages") || !strings.Contains(got, "captured data is unaffected") || !strings.HasSuffix(got, "[capture] complete; bundle=/capture/example\n") {
+	if got := w.output.String(); !strings.Contains(got, "omitted 36 log messages") || !strings.Contains(got, "telemetry processing is unaffected") || !strings.HasSuffix(got, "[capture] complete; bundle=/capture/example\n") {
 		t.Fatal("missing log overflow notice or final completion", got)
 	}
 }

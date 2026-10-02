@@ -6,14 +6,17 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/eventlog"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -77,8 +80,16 @@ func TestReplayPreservesEmptyChunksWithinCompleteGroups(t *testing.T) {
 		t.Fatalf("complete groups rejected by preparation or overlay preflight: %v", err)
 	}
 	delivery := &recordingDelivery{start: request.Plan.Start, retainPayload: true}
-	if _, err := Run(context.Background(), request, Options{Workers: 2, QueueCapacity: 2, Clock: &advancingClock{now: request.Plan.Start}, Delivery: delivery}); err != nil {
+	var logs bytes.Buffer
+	events := eventlog.New(&logs)
+	if _, err := Run(context.Background(), request, Options{Workers: 2, QueueCapacity: 2, Clock: &advancingClock{now: request.Plan.Start}, Delivery: delivery, Events: events}); err != nil {
 		t.Fatalf("complete groups rejected by delivery: %v", err)
+	}
+	events.Close("replay", "finished")
+	for _, stream := range []string{"processes", "connections"} {
+		if strings.Count(logs.String(), "["+stream+"] delivered 1 "+stream+" (2 chunks)") != 1 {
+			t.Fatal("logs split a complete group into separate chunks", logs.String())
+		}
 	}
 	groups := 0
 	for _, record := range delivery.records {

@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/bundle"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/engine"
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/eventlog"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/safety"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/schema"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -38,7 +39,7 @@ type ReplayRequest struct {
 	Bundle       *bundle.Loaded
 	Destinations map[safety.Destination][]string
 	ReportPath   string
-	Progress     io.Writer
+	Events       *eventlog.Logger
 }
 
 // Runtime separates live capture from the portable replay lifecycle. A replay
@@ -147,16 +148,15 @@ func replayCommand(action string, runtime Runtime) *cobra.Command {
 			if reportPath == "" {
 				reportPath = fmt.Sprintf("eudm-run-%s.json", plan.RunID)
 			}
-			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Run report: %s\n", reportPath); err != nil {
-				return err
-			}
-			runErr := runtime.Replay(cmd.Context(), ReplayRequest{Scenario: &scenario, Plan: plan, Bundle: loaded, Destinations: destinations, ReportPath: reportPath, Progress: cmd.OutOrStdout()})
+			events := eventlog.New(cmd.OutOrStdout())
+			events.Log("replay", "report="+reportPath)
+			runErr := runtime.Replay(cmd.Context(), ReplayRequest{Scenario: &scenario, Plan: plan, Bundle: loaded, Destinations: destinations, ReportPath: reportPath, Events: events})
 			status := "succeeded"
 			if runErr != nil {
 				status = "failed"
 			}
-			_, outputErr := fmt.Fprintf(cmd.OutOrStdout(), "Run %s. Report: %s\n", status, reportPath)
-			return errors.Join(runErr, outputErr)
+			events.Close("replay", status+"; report="+reportPath)
+			return runErr
 		}
 		return errors.New("unsupported action")
 	}

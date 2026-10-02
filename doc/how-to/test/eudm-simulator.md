@@ -339,11 +339,25 @@ replay directly:
 `--seed` controls deterministic variation and defaults to `1`. The report
 defaults to `eudm-run-<run_id>.json` in the current directory; the command prints
 the path. Use `--report /path/to/new-report.json` to choose another location.
-At startup and every 30 seconds, it prints elapsed/planned time, the current
-phase, confirmed delivery cycles by stream, and failed-cycle counts. After the
-scenario duration, it shows `waiting for delivery/retries` while outstanding
-delivery finishes. It prints final counts, success/failure, and the report path
-before exiting.
+Terminal output streams timestamped events as Agent delivery confirms complete
+cycles. Events show the component, metric families or item counts, simulated
+device, scenario phase, and cycle number. One process/connection group produces
+one event even when it contains multiple chunks. Access-point metrics and network
+metadata also produce events. For example:
+
+```text
+2026-10-02T17:30:15-04:00 [metrics] delivered battery, cpu, network (84 series); device=eudm-<run_id>-0; phase=healthy; cycle=1
+2026-10-02T17:30:20-04:00 [processes] delivered 312 processes (8 chunks); device=eudm-<run_id>-0; phase=healthy; cycle=1
+2026-10-02T17:30:30-04:00 [software] delivered inventory (319 applications); device=eudm-<run_id>-0; phase=healthy; cycle=1
+```
+
+Setup, start, phase dispatch, delivery waits, and completion/failure also produce
+events. There are no periodic terminal summaries. Success events mean Agent
+delivery accepted every payload in that cycle; queued work and retries do not
+create extra success events. These acknowledgements do not establish visibility
+in Fleet or EUDM. Slow output may omit log messages, with a count at exit, without
+blocking delivery or changing the report's accounting. The final event includes
+the report path.
 Each invocation creates a fresh run ID even when the scenario, bundle, and seed
 are unchanged. Its phase clock starts after validation and setup.
 
@@ -579,6 +593,18 @@ on both capture devices, and recapture the baselines before the next runs.
 Use `capture --help`, `validate --help`, or `run --help` for the installed binary's flags. There is no resume, acceleration, standalone bundle-only validation, or automatic cleanup command. A retry is a new run with a new opaque identity. Select artifacts and product evidence by that identity so failed and concurrent runs do not contaminate the evaluation.
 
 ## Recorded local verification
+
+### Replay event logs, 2026-10-02
+
+Replay now uses the same timestamped event writer as capture. Command, engine,
+report, event-writer, capture, and integration suites passed with the race
+detector (235 test entries, two opt-in tests skipped). Tests check that delivery
+events follow acknowledgement, complete groups produce one event, timestamps
+and device/phase context are present, and access-point/network-metadata events
+include useful counts. Report snapshots still update every 30 seconds;
+terminal summaries have been removed. Shared writer tests cover concurrent
+shutdown and bounded waits when terminal output blocks. Simulator Go lint
+reported no issues. No additional staging replay or Agent restart was performed.
 
 ### Capture event logs, 2026-10-02
 
@@ -1283,7 +1309,9 @@ those product results.
 ### Replay progress verification, 2026-10-01
 
 Race-enabled command, report, engine, and integration suites passed after adding
-30-second terminal/report updates. Coverage includes confirmed-cycle accounting
+the original 30-second terminal/report updates. Timestamped delivery events now
+replace those terminal summaries; report updates retain their cadence.
+Coverage includes confirmed-cycle accounting
 under backpressure, progress during final delivery waits, snapshot ownership,
 observer cancellation/joining, atomic reports with concurrent readers, and final
 success/failure output. Portable macOS/Windows fixture replay also passed.

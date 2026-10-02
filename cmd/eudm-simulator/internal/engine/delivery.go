@@ -10,11 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/capture"
+	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/eventlog"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/output"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/report"
 	"github.com/DataDog/datadog-agent/cmd/eudm-simulator/internal/safety"
@@ -127,12 +127,13 @@ const (
 type ExecutionOptions struct {
 	ReportPath, APIKey string
 	Destinations       map[safety.Destination][]string
-	Progress           io.Writer
+	Events             *eventlog.Logger
 }
 
 // Execute is the wall-clock staging lifecycle. Reserve the report before any
 // forwarder starts, and retain failure accounting even when delivery is partial.
 func Execute(ctx context.Context, request Request, options ExecutionOptions) error {
+	options.Events.Log("replay", "validating scenario and preparing devices")
 	prepared, err := prepare(request)
 	if err != nil {
 		return err
@@ -148,7 +149,7 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 		if err := writer.Write(r); err != nil {
 			return fmt.Errorf("write local run report: %w", err)
 		}
-		return writeProgress(options.Progress, r)
+		return nil
 	}
 	prepared.report.Status = "running"
 	if err := writer.Write(prepared.report); err != nil {
@@ -156,6 +157,7 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	options.Events.Log("replay", "initializing Agent delivery")
 	pipeline, err := output.New(ctx, options.Destinations, options.APIKey, nil, output.Options{QueueCapacity: replayQueueCapacity})
 	if err != nil {
 		prepared.report.Status = "failed"
@@ -175,7 +177,8 @@ func Execute(ctx context.Context, request Request, options ExecutionOptions) err
 	deadline := request.Plan.Start.Add(prepared.duration).Add(deliveryGrace)
 	ctx, cancelDeadline := context.WithDeadline(ctx, deadline)
 	defer cancelDeadline()
-	result, runErr := prepared.run(ctx, Options{Workers: replayWorkers, QueueCapacity: replayQueueCapacity, Clock: WallClock{}, Delivery: AgentDelivery{Pipeline: pipeline}, Progress: publish})
+	result, runErr := prepared.run(ctx, Options{Workers: replayWorkers, QueueCapacity: replayQueueCapacity, Clock: WallClock{}, Delivery: AgentDelivery{Pipeline: pipeline}, Progress: publish, Events: options.Events})
+	options.Events.Log("replay", "writing final report")
 	if err := publish(result); err != nil {
 		return errors.Join(runErr, fmt.Errorf("publish final run result: %w", err))
 	}

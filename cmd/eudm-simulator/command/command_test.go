@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -291,12 +290,10 @@ func TestRunShowsProgressAndFinalResult(t *testing.T) {
 			}
 			path := filepath.Join(t.TempDir(), "report.json")
 			cmd := MakeCommand(Runtime{Replay: func(_ context.Context, request ReplayRequest) error {
-				if request.Progress == nil {
-					t.Fatal("replay did not receive the command output writer")
+				if request.Events == nil {
+					t.Fatal("replay did not receive the event logger")
 				}
-				if _, err := fmt.Fprintln(request.Progress, "Replay 30s/35m0s | phase=healthy | replaying"); err != nil {
-					t.Fatal(err)
-				}
+				request.Events.Log("metrics", "delivered cpu (2 series)")
 				return runErr
 			}})
 			cmd.SetOut(&output)
@@ -304,9 +301,16 @@ func TestRunShowsProgressAndFinalResult(t *testing.T) {
 			if err := cmd.Execute(); !errors.Is(err, runErr) {
 				t.Fatalf("run error was lost: %v", err)
 			}
-			want := "Run report: " + path + "\nReplay 30s/35m0s | phase=healthy | replaying\nRun " + status + ". Report: " + path + "\n"
-			if output.String() != want {
-				t.Fatalf("missing progress or final result: %s", output.String())
+			lines := strings.Split(strings.TrimSpace(output.String()), "\n")
+			want := []string{"[replay] report=" + path, "[metrics] delivered cpu (2 series)", "[replay] " + status + "; report=" + path}
+			if len(lines) != len(want) {
+				t.Fatalf("missing events or final result: %s", output.String())
+			}
+			for i, line := range lines {
+				at, message, _ := strings.Cut(line, " ")
+				if _, err := time.Parse(time.RFC3339, at); err != nil || message != want[i] {
+					t.Fatalf("missing timestamp or event: %s", line)
+				}
 			}
 		})
 	}

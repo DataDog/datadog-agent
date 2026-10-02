@@ -7,6 +7,7 @@ go_library(
         "clock.go",
         "delivery.go",
         "engine.go",
+        "events.go",
         "preflight.go",
         "progress.go",
         "timeline.go",
@@ -17,6 +18,7 @@ go_library(
         "//cmd/eudm-simulator/internal/accesspoint",
         "//cmd/eudm-simulator/internal/bundle",
         "//cmd/eudm-simulator/internal/capture",
+        "//cmd/eudm-simulator/internal/eventlog",
         "//cmd/eudm-simulator/internal/identity",
         "//cmd/eudm-simulator/internal/output",
         "//cmd/eudm-simulator/internal/overlay",
@@ -39,6 +41,7 @@ dd_agent_go_test(
     srcs = [
         "chunks_test.go",
         "engine_test.go",
+        "events_test.go",
         "inventory_test.go",
         "metric_families_test.go",
         "progress_test.go",
@@ -49,6 +52,7 @@ dd_agent_go_test(
     deps = [
         "//cmd/eudm-simulator/internal/accesspoint",
         "//cmd/eudm-simulator/internal/bundle",
+        "//cmd/eudm-simulator/internal/eventlog",
         "//cmd/eudm-simulator/internal/report",
         "//cmd/eudm-simulator/internal/schema",
         "//cmd/eudm-simulator/internal/telemetry",

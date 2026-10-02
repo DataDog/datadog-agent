@@ -6,10 +6,8 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -316,49 +314,5 @@ func TestProgressContinuesThroughFinalDrainAndJoinsObserver(t *testing.T) {
 			default:
 			}
 		})
-	}
-}
-
-type progressErrorWriter struct{ err error }
-
-func (w progressErrorWriter) Write([]byte) (int, error) { return 0, w.err }
-
-func TestProgressFormattingAggregatesSafeCountsAndPhase(t *testing.T) {
-	start := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
-	r := &report.Report{
-		Start: start, Status: "running", Errors: []string{"private-error-content"},
-		Phases: []report.Phase{{Name: "baseline", Duration: 30 * time.Second}, {Name: "onset", StartOffset: 30 * time.Second, Duration: 30 * time.Second}},
-		Ledger: []report.Device{
-			{Hostname: "private-device-one", Streams: map[schema.Stream]*report.Counts{schema.Metrics: {Expected: 5, Delivered: 2, Failed: 1}, schema.Processes: {Expected: 4, Delivered: 4}}},
-			{Hostname: "private-device-two", Streams: map[schema.Stream]*report.Counts{schema.Metrics: {Expected: 3, Delivered: 1}}},
-		},
-		NetworkStreams: map[schema.Stream]*report.Counts{NDMStream: {Expected: 1, Delivered: 1}, APMetricStream: {Expected: 2, Delivered: 1, Failed: 1}},
-	}
-	for _, test := range []struct {
-		name, status, prefix string
-		elapsed              time.Duration
-	}{
-		{"start", "running", "Replay 0s/1m0s | phase=baseline | replaying", 0},
-		{"phase", "running", "Replay 30s/1m0s | phase=onset | replaying", 30 * time.Second},
-		{"drain", "running", "Replay 1m5s/1m0s | phase=onset | waiting for delivery/retries", 65 * time.Second},
-		{"success", "succeeded", "Replay 1m5s/1m0s | phase=onset | succeeded", 65 * time.Second},
-		{"failure", "failed", "Replay 1m5s/1m0s | phase=onset | failed", 65 * time.Second},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			r.Status = test.status
-			r.Progress = progressAt(r, start.Add(test.elapsed))
-			var text bytes.Buffer
-			if err := writeProgress(&text, r); err != nil {
-				t.Fatal(err)
-			}
-			want := test.prefix + " | delivered cycles: access_point_metrics=1/2 metrics=3/8 ndm_metadata=1/1 processes=4/4 | failed=2\n"
-			if text.String() != want || strings.Contains(text.String(), "private-") {
-				t.Fatal("progress did not render sorted aggregate cycle counts and safe activity text")
-			}
-		})
-	}
-	failure := errors.New("injected writer failure")
-	if err := writeProgress(progressErrorWriter{failure}, r); !errors.Is(err, failure) {
-		t.Fatal("progress writer failure was discarded")
 	}
 }

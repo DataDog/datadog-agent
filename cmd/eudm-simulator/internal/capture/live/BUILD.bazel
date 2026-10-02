@@ -16,6 +16,7 @@ go_library(
     deps = [
         "//cmd/eudm-simulator/internal/bundle",
         "//cmd/eudm-simulator/internal/capture",
+        "//cmd/eudm-simulator/internal/eventlog",
         "//cmd/eudm-simulator/internal/output",
         "//cmd/eudm-simulator/internal/schema",
         "//cmd/eudm-simulator/internal/telemetry",

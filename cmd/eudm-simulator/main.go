@@ -25,7 +25,7 @@ func main() {
 	runtime := command.Runtime{Capture: func(ctx context.Context, request command.CaptureRequest) error {
 		return live.RunInstalled(ctx, request.Directory, request.ConfigPath, request.Duration, request.Progress)
 	}, Replay: func(ctx context.Context, request command.ReplayRequest) error {
-		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundle: request.Bundle}, engine.ExecutionOptions{ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations, Progress: request.Progress})
+		return engine.Execute(ctx, engine.Request{Scenario: request.Scenario, Plan: request.Plan, Bundle: request.Bundle}, engine.ExecutionOptions{ReportPath: request.ReportPath, APIKey: os.Getenv("DD_API_KEY"), Destinations: request.Destinations, Events: request.Events})
 	}}
 	if err := command.MakeCommand(runtime).ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "%s [error] %v\n", time.Now().Format(time.RFC3339), err)
